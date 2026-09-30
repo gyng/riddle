@@ -1,0 +1,52 @@
+You are painting BACKDROPS, DECORATION AND EFFECT ART for the game "Riddle" (a gothic dark-fantasy roguelike on a phone held in portrait). FIRST look
+at these approved STYLE TARGETS (you may open these images and nothing else in the repository): /home/g/p/riddle/art/ui/targets/style/ui_sheet.png, /home/g/p/riddle/art/ui/targets/style/death.png, /home/g/p/riddle/art/ui/targets/style/watch_warrens.png. They are the target look.
+
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT modify
+anything outside /home/g/p/riddle/art/ui/ (backdrops/, deco/, fx/ only). Save each final PNG (sRGB) to the exact path at the exact size; resample with PIL (Lanczos) if needed,
+keeping the aspect (crop the long side, never stretch). Delete any scratch or _inspection_ files you create. OVERWRITE existing
+files. When done, look at each output once and regenerate it once if it breaks a rule below.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== SCENE RULES ===
+Painted scenes are the style at full strength: ~60 % INK/UMBRA, cold moonlight from above as shapes (shafts, rims), one or two small
+EMBER pools with a visible flame, BLOOD only where the subject says. Paper grain and halftone in the shadows. No text, no UI, no
+frame, no faces seen close.
+ALPHA: every asset marked RGBA has a TRUE TRANSPARENT background outside the object (the four canvas corners alpha 0, no
+checkerboard, no key colour, no black or paper fill). OPAQUE assets fill the canvas edge to edge.
+
+=== ASSETS ===
+1) /home/g/p/riddle/art/ui/backdrops/death.png — 1024x1536 — OPAQUE — the spot where a lone hero fell in the dungeon: a cracked flagstone floor at a low three-quarter angle, a dropped longsword with a MIST edge and a dented round shield on the stones, a torn BLOOD-red cloak crumpled beside them (the one accent), a thin shaft of moonlight from a crack above falling across them, a guttering candle stub far left with a tiny EMBER pool, the far corridor dissolving into INK. Keep the upper 45 % dark and low-detail (a banner and text sit over it); detail in the lower half.
+2) /home/g/p/riddle/art/ui/backdrops/report.png — 1024x1536 — OPAQUE — the room behind the report's parchment scroll: a dark stone chamber at night; on the LEFT a hanging tattered BLOOD banner, a sword and a dented helm on a heap of gear with a few GILT coins; on the RIGHT an iron wall sconce with a small EMBER candle; a tall window at the top letting a shaft of cold moonlight into the room. Keep the centre dark and calm (the scroll covers it).
+3) /home/g/p/riddle/art/ui/deco/pillar.png — 512x1536 — OPAQUE — a tall carved stone wall panel seen straight on, filling the canvas: at the bottom a hooded stone knight statue in an alcove resting both hands on a sword, above it a hanging tattered BLOOD banner on an iron rod, above that an iron sconce with a small EMBER flame, the rest carved stone blocks with worn relief. DARK overall (it sits behind UI panels): mostly INK/UMBRA/DUSK, the flame and a few MIST moonlit rims the only bright spots.
+4) /home/g/p/riddle/art/ui/deco/brazier.png — 256x384 — RGBA — an iron tripod brazier drawn in ink and wash with a bowl of coals and a tall EMBER flame (a flame is EMBER), centred, filling ~85 % of the height, no ground, no shadow.
+5) /home/g/p/riddle/art/ui/deco/candle.png — 256x384 — RGBA — a short thick melted wax CANDLE, BONE wax with drips, on a small iron dish, a small bright EMBER flame with a soft glow only just around it, seen front-on, the object only.
+6) /home/g/p/riddle/art/ui/fx/shield.png — 512x512 — RGBA — a boss's great battle SHIELD seen straight on, filling ~85 %: a heavy round shield of dark planks bound in blackened iron (INK/DUSK washes, MIST rims on the top edge), a riveted rim, a big iron boss with a crude BONE skull emblem, dents, and one deep jagged CRACK running top to bottom (it is about to split). A strong INK outline so it reads at 90 px.
+7) /home/g/p/riddle/art/ui/fx/shard_0.png — 256x256 — RGBA — one broken FRAGMENT of that shield: a jagged wedge of dark planks with a bent piece of the iron rim and two rivets, splintered edges, INK outline.
+8) /home/g/p/riddle/art/ui/fx/shard_1.png — 256x256 — RGBA — another fragment: a chunk of the central iron boss with part of the BONE skull emblem, torn metal edges, INK outline.
+9) /home/g/p/riddle/art/ui/fx/shard_2.png — 256x256 — RGBA — a long splintered plank shard with one rivet, pale raw wood at the break (BONE), INK outline.
+10) /home/g/p/riddle/art/ui/fx/shard_3.png — 256x256 — RGBA — a small curved piece of the iron rim, bent, bright MIST metal at the torn ends, INK outline.
+When all assets are saved, list the final paths and sizes. Do nothing else.

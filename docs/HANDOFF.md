@@ -243,6 +243,13 @@ and runs `art-qc.py --style`. Codex batches: `art/prompts/p2_*.txt`, logs `art/l
    bright green gone), ghosts (wraith, spectral blade/hound, echo) in MIST and BONE, the Warlord a gaunt king in a BLOOD-and-INK
    mantle. Known weak: the bell sentinel's bell reads dark (not GILT), the acolyte bows less than briefed, the Foundry Master carries
    a lot of bronze. Style QC: every foe frame (with the hero, in the Warrens room) passes.
+3. (batch 3, the tiles, commits after 4 — see below)
+4. **UI**: 16 frames (bar, console, panel, tablets, tiles, well, the **BLOOD SEND gem** and a darker cracked CLOT danger gem,
+   the death banner, gauge, stud, seal, the carved button, the scroll), 35 BONE ink icons, the death/report backdrops, pillar/brazier/
+   candle, the boss shield + shards, the title key art (the camp's vista: the hero on the stair down, a moon shaft). CSS on the palette
+   (a fork's pass: tokens `--ink … --gilt` in `:root`; `--acc` GILT for trim/text, the primary action BLOOD, `--hp` BLOOD, ok/info MIST,
+   warn EMBER; ~900 literals moved by role; EMBER kept only where a flame is; the old `--ink` text token is `--ink-text`). Style QC
+   on the walked screens: death, report and the second camp pass; the first camp sits at p99 L* 60 (bar 62).
 
 ### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
 Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,

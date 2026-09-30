@@ -1,0 +1,62 @@
+You are painting UI SKIN FRAMES for the game "Riddle" (a gothic dark-fantasy roguelike on a phone held in portrait). FIRST look
+at these approved STYLE TARGETS (you may open these images and nothing else in the repository): /home/g/p/riddle/art/ui/targets/style/ui_sheet.png, /home/g/p/riddle/art/ui/targets/style/death.png, /home/g/p/riddle/art/ui/targets/style/watch_warrens.png. They are the target look.
+
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT modify
+anything outside /home/g/p/riddle/art/ui/frames/. Save each final PNG (sRGB) to the exact path at the exact size; resample with PIL (Lanczos) if needed,
+keeping the aspect (crop the long side, never stretch). Delete any scratch or _inspection_ files you create. OVERWRITE existing
+files. When done, look at each output once and regenerate it once if it breaks a rule below.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== UI RULES ===
+- Iron and stone are INK and WASH: INK plates with hammered hatching, a MIST moonlit bevel along the TOP edge, GILT rivets
+  (small, sparingly), never glossy metal, never chrome, never warm amber light on the edges. Parchment is BONE paper with
+  watercolour bloom stains and an inked, deckled edge.
+- Frames are EMPTY containers the game fills: no text, no letters, no numbers, no icons on any frame.
+- NINE-SLICE (frames marked [9-slice, inset N]): CSS stretches them with that inset on all four sides, so every ornament (corner
+  caps, rivet clusters) sits INSIDE the N-px corner squares, the edges between the corners are a plain band uniform along its
+  length, and the centre is a plain low-contrast fill with no focal detail.
+ALPHA: every asset marked RGBA has a TRUE TRANSPARENT background outside the object (the four canvas corners alpha 0, no
+checkerboard, no key colour, no black or paper fill). OPAQUE assets fill the canvas edge to edge.
+
+=== ASSETS ===
+1) /home/g/p/riddle/art/ui/frames/bar.png — 1024x128 — RGBA [9-slice, inset 40] the TOP BAR: a long blackened-iron plate drawn as ink and wash (INK body, hammered hatching, a MIST moonlit rim along its top edge, two small GILT rivets near each end, inside the corners); a flat dark centre.
+2) /home/g/p/riddle/art/ui/frames/console.png — 1024x512 — RGBA [9-slice, inset 96] the bottom CONSOLE: a slab of dark stone and blackened iron in INK/UMBRA washes with ink hatching, a MIST bevel along the top edge, heavy iron corner caps with a small BONE skull boss in each corner only; a plain dark centre.
+3) /home/g/p/riddle/art/ui/frames/panel.png — 512x512 — RGBA [9-slice, inset 56] a framed PANEL: a thin blackened-iron frame with small corner brackets around BONE parchment (watercolour bloom stains, an inked deckled edge just inside the frame); the parchment centre evenly lit and calm.
+4) /home/g/p/riddle/art/ui/frames/tablet.png — 1024x160 — RGBA [9-slice, inset 48] a RULE TABLET: a long slab of dark carved stone in UMBRA/DUSK washes with a thin iron border and a MIST rim on its top edge; a plain centre.
+5) /home/g/p/riddle/art/ui/frames/tablet_card.png — 1024x160 — RGBA [9-slice, inset 48] the same rule tablet with a worn GILT border (the recommended/card row) — gilt only on the border, the slab as dark as the plain tablet.
+6) /home/g/p/riddle/art/ui/frames/tile.png — 256x256 — RGBA [9-slice, inset 48] a square COMMAND TILE: a raised dark iron-and-stone tile, INK face with hatching, a MIST bevel on the top and left edges, a dark bottom edge; an empty face.
+7) /home/g/p/riddle/art/ui/frames/tile_pressed.png — 256x256 — RGBA [9-slice, inset 48] the same tile PRESSED: the bevel inverted (dark on top, a faint MIST line at the bottom), sunk, darker face.
+8) /home/g/p/riddle/art/ui/frames/well.png — 384x384 — RGBA [no slice] the PORTRAIT WELL: a round blackened-iron ring, ink-hatched, a thin GILT inner edge, four small rivets, a MIST glint on its top arc; the inside of the ring FULLY TRANSPARENT (a portrait shows through).
+9) /home/g/p/riddle/art/ui/frames/gem.png — 384x384 — RGBA [no slice] the PRIMARY ACTION GEM (SEND): a big round faceted BLOOD-red gem #c01530 with CLOT depths and one pale MIST moonlit highlight on its upper facets, set in an ornate blackened-iron and GILT mount with four small points (like the SEND gem of ui_sheet.png) — but with NO TEXT on it (the game writes the word).
+10) /home/g/p/riddle/art/ui/frames/gem_red.png — 384x384 — RGBA [no slice] the DANGER GEM (bail): the same mount holding a darker, smaller-faceted CLOT-red gem #5c0b1c with a thin crack across it and a dim BLOOD glint — clearly darker and more ominous than the primary gem; no text.
+11) /home/g/p/riddle/art/ui/frames/banner.png — 768x1024 — RGBA [no slice] the DEATH BANNER: a tall torn hanging banner of BLOOD-red cloth (CLOT in its folds, ink-drawn tears, ragged dripping lower edge) hanging from a spiked blackened-iron bar with a small BONE skull boss at the bar's centre and short chains at its ends; the cloth's centre plain (the words YOU DIED are laid over it by the game).
+12) /home/g/p/riddle/art/ui/frames/gauge.png — 512x48 — RGBA [9-slice, inset 16] an empty GAUGE trough: a dark recessed iron channel in INK with a thin MIST rim along its top edge (the fill is drawn by code).
+13) /home/g/p/riddle/art/ui/frames/stud.png — 96x96 — RGBA [no slice] a round iron CLOSE-STUD: a small blackened-iron boss with an engraved X cross in its face (the one exception to 'no marks'), a MIST glint at the top.
+14) /home/g/p/riddle/art/ui/frames/seal.png — 256x256 — RGBA [no slice] an empty round wax SEAL ring in BLOOD-red wax (CLOT shadows), its centre flat and empty (a word is written in it by code).
+15) /home/g/p/riddle/art/ui/frames/button.png — 1024x256 — RGBA a wide horizontal carved BUTTON PLAQUE seen straight on, filling the canvas with a few px of margin: a raised slab of dark carved wood in UMBRA/DUSK washes, its face EMPTY and flat in the middle, a bevelled top edge lit cold MIST and a dark underside, a thin worn GILT moulding all round, and at each short end a blackened-iron end cap with a small round BLOOD gem and two rivets. The left and right 18 % hold the end caps; the middle 64 % is plain face and moulding only (it is stretched horizontally).
+16) /home/g/p/riddle/art/ui/frames/scroll.png — 768x1152 — RGBA [9-slice, insets: top 160, bottom 160, left 72, right 72] a hanging PARCHMENT SCROLL seen straight on: a thick rolled curl of BONE parchment across the whole top edge and another across the whole bottom edge (their curled ends inside the left/right 72 px), the sheet between them BONE paper with watercolour bloom stains, an inked deckled edge darkening toward the sides; transparent outside the paper.
+When all assets are saved, list the final paths and sizes. Do nothing else.

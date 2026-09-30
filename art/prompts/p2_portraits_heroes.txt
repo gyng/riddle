@@ -1,0 +1,53 @@
+You are painting HERO PORTRAITS for the game "Riddle" (a gothic dark-fantasy roguelike on a phone held in portrait). FIRST look
+at these approved STYLE TARGETS (you may open these images and nothing else in the repository): /home/g/p/riddle/art/ui/targets/style/hero_sheet.png, /home/g/p/riddle/art/ui/targets/style/watch_warrens.png (its portrait well). They are the target look.
+
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT modify
+anything outside /home/g/p/riddle/art/ui/portraits/. Save each final PNG (sRGB) to the exact path at the exact size; resample with PIL (Lanczos) if needed,
+keeping the aspect (crop the long side, never stretch). Delete any scratch or _inspection_ files you create. OVERWRITE existing
+files. When done, look at each output once and regenerate it once if it breaks a rule below.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== PORTRAIT RULES (hero_sheet.png's circular portrait is the model) ===
+A head-and-shoulders BUST filling a 1024x1024 OPAQUE square (the game masks it to a circle, so keep the face inside the central
+70 % circle): the face in three-quarter view looking right, cold moonlight from above-left, a HALFTONE screen in the shadows, the
+paper showing through the highlights, loose ink hatching in a dark INK/DUSK washed background. Sharp gothic-anime features (narrow
+eyes, a few confident ink strokes), a clear pale BONE face. Heroes wear the BLOOD-red cloak collar. No text, no frame, no ring.
+
+=== ASSETS ===
+1) /home/g/p/riddle/art/ui/portraits/hero_fighter_male.png — 1024x1024 OPAQUE — the WARRIOR: dull steel pauldron with GILT trim, a BLOOD cloak collar clasped with a GILT brooch, the hilt of a longsword over the shoulder; a young MAN, short dark hair (nothing past the collar). The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_fighter_male.png (open it: match its hair, kit and colours).
+2) /home/g/p/riddle/art/ui/portraits/hero_fighter_female.png — 1024x1024 OPAQUE — the WARRIOR: dull steel pauldron with GILT trim, a BLOOD cloak collar clasped with a GILT brooch, the hilt of a longsword over the shoulder; a young WOMAN, a long dark braid falling over one shoulder. The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_fighter_female.png (open it: match its hair, kit and colours).
+3) /home/g/p/riddle/art/ui/portraits/hero_fighter_cat.png — 1024x1024 OPAQUE — the WARRIOR: dull steel pauldron with GILT trim, a BLOOD cloak collar clasped with a GILT brooch, the hilt of a longsword over the shoulder; a cat-folk hero: a human face with yellow eyes, wild dark hair and two LARGE upright black CAT EARS on top of the head. The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_fighter_cat.png (open it: match its hair, kit and colours).
+4) /home/g/p/riddle/art/ui/portraits/hero_rogue_male.png — 1024x1024 OPAQUE — the ROGUE: dark UMBRA leathers, a pushed-back BLOOD hood around the neck, a dagger hilt at the shoulder; a young MAN, short dark hair (nothing past the collar). The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_rogue_male.png (open it: match its hair, kit and colours).
+5) /home/g/p/riddle/art/ui/portraits/hero_rogue_female.png — 1024x1024 OPAQUE — the ROGUE: dark UMBRA leathers, a pushed-back BLOOD hood around the neck, a dagger hilt at the shoulder; a young WOMAN, a long dark braid falling over one shoulder. The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_rogue_female.png (open it: match its hair, kit and colours).
+6) /home/g/p/riddle/art/ui/portraits/hero_rogue_cat.png — 1024x1024 OPAQUE — the ROGUE: dark UMBRA leathers, a pushed-back BLOOD hood around the neck, a dagger hilt at the shoulder; a cat-folk hero: a human face with yellow eyes, wild dark hair and two LARGE upright black CAT EARS on top of the head. The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_rogue_cat.png (open it: match its hair, kit and colours).
+7) /home/g/p/riddle/art/ui/portraits/hero_ranger_male.png — 1024x1024 OPAQUE — the RANGER: dark leathers, a BLOOD hooded cloak collar, BONE-fletched arrows in a quiver over the shoulder; a young MAN, short dark hair (nothing past the collar). The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_ranger_male.png (open it: match its hair, kit and colours).
+8) /home/g/p/riddle/art/ui/portraits/hero_ranger_female.png — 1024x1024 OPAQUE — the RANGER: dark leathers, a BLOOD hooded cloak collar, BONE-fletched arrows in a quiver over the shoulder; a young WOMAN, a long dark braid falling over one shoulder. The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_ranger_female.png (open it: match its hair, kit and colours).
+9) /home/g/p/riddle/art/ui/portraits/hero_ranger_cat.png — 1024x1024 OPAQUE — the RANGER: dark leathers, a BLOOD hooded cloak collar, BONE-fletched arrows in a quiver over the shoulder; a cat-folk hero: a human face with yellow eyes, wild dark hair and two LARGE upright black CAT EARS on top of the head. The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_ranger_cat.png (open it: match its hair, kit and colours).
+10) /home/g/p/riddle/art/ui/portraits/hero_caster_male.png — 1024x1024 OPAQUE — the CASTER: layered DUSK robes, a BLOOD mantle and cowl at the neck, the top of a staff with a pale MIST crystal beside the face; a young MAN, short dark hair (nothing past the collar). The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_caster_male.png (open it: match its hair, kit and colours).
+11) /home/g/p/riddle/art/ui/portraits/hero_caster_female.png — 1024x1024 OPAQUE — the CASTER: layered DUSK robes, a BLOOD mantle and cowl at the neck, the top of a staff with a pale MIST crystal beside the face; a young WOMAN, a long dark braid falling over one shoulder. The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_caster_female.png (open it: match its hair, kit and colours).
+12) /home/g/p/riddle/art/ui/portraits/hero_caster_cat.png — 1024x1024 OPAQUE — the CASTER: layered DUSK robes, a BLOOD mantle and cowl at the neck, the top of a staff with a pale MIST crystal beside the face; a cat-folk hero: a human face with yellow eyes, wild dark hair and two LARGE upright black CAT EARS on top of the head. The SAME character as the game sprite /home/g/p/riddle/art/generated/hero_caster_cat.png (open it: match its hair, kit and colours).
+When all assets are saved, list the final paths and sizes. Do nothing else.
