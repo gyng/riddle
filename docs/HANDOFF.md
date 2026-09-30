@@ -1,13 +1,12 @@
 # Handoff — where Riddle stands and how to resume
 
-> **Session end, 2026-09-28 — stopped before Cut 30 (owner's call).** All work is on **`cut29-wip`**
-> (last `b3d1d46` + parked oath art); `main` has this doc. Cut 29 is built end to end (core + client +
-> copy decisions + YOU DIED) but **not merged**: `node tools/gates.mjs --full` still fails the rows Cut 29
-> made hard — dayplayer unlock days 7.0/10, stall 9/3 d; progression unlock days 8.3/10, stall ≤ 3 on
-> 11/18 (bar 13), marks unspent 13 (bar 8), purse 1.82× (bar 1). Everything else passes (450 tests,
-> clippy, qa, bots, walls, lever). Gfx/UI blind mean 6.74 on the motion-aware harness (bar 8.0). Next:
-> finish the four §6 "Cut 29 core" items (lucky records, the cadence card, a late marks sink, commissions
-> priced to income), merge, then Cut 30 (the idle-first pivot, §0). Resume: `git switch cut29-wip`.
+> **Status, 2026-09-30.** **Cut 29 is merged to `main`** (merge `dc285a1` + the client fix `2f1bc77`):
+> `node tools/gates.mjs --full` passes, 225 rows — progression unlock days 10.5, marks 8, stall ≤ 3 on
+> 14/18, purse 0.76×; the dayplayer 10.0 unlock days, 3-day stall. The bars sit right at their thresholds —
+> a small core change can flip them (runs move ±2 lineages). **Art direction phase 2** (the approved
+> Bloodlust × Downwell × 80s-watercolour guide, `docs/ART_DIRECTION.md`) is in progress on `cut29-wip`
+> (heroes, bestiary, UI done; tiles, pets/items, town next) and merges when whole. **Next: Cut 30**
+> (`docs/CUT30.md`, the idle-first pivot) — then **hold before Cut 31**.
 
 
 *Written 2026-09-27 at the end of a long session. Read this, then `AGENTS.md`, then `docs/CUT29.md`.*
