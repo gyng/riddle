@@ -826,6 +826,9 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                 let unit = riddle_core::kit::unit_of(&g.lineage) as f64;
                 let bar = (1.5 * g.lineage.last_day_net.max(0) as f64).max(10.0 * unit);
                 d.purse_ratio = d.purse_ratio.max(g.lineage.gold.max(0) as f64 / bar);
+                if g.lineage.gold as f64 > 0.9 * bar && std::env::var("PROG_PURSE").is_ok() {
+                    eprintln!("{name} s{seed} day {} ci {ci}: purse ${} bar {bar:.0} (net {} unit {unit}) commission ${} oath ${} works {} forge next {:?}", day + 1, g.lineage.gold, g.lineage.last_day_net, riddle_core::kit::commission_price(&g.lineage), riddle_core::oath::price(&g.lineage), g.lineage.works.len(), riddle_core::kit::ladders(&g.lineage).iter().filter_map(|l| l.next.as_ref().map(|n| n.price)).min());
+                }
             }
             if g.lineage.marks > 8 && std::env::var("PROG_MARKS").is_ok() {
                 let cat: Vec<String> = g.unlocks().into_iter().filter(|u| !u.owned).map(|u| format!("{}◆{}{}", u.id, u.cost, u.needs.map(|n| format!("[{n}]")).unwrap_or_default())).collect();

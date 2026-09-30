@@ -286,7 +286,7 @@ fn the_wall_keeps_the_last_way_home() {
 }
 
 /// §5 (Cut 29 core 4): a commission is priced against income — the climb (10 units × 1.25ⁿ) never
-/// above one day's net, never under `COMMISSION_FLOOR` units.
+/// above half a day's net, never under `COMMISSION_FLOOR` units.
 #[test]
 fn a_commission_costs_at_most_a_days_net() {
     let mut g = Game::new(5);
@@ -296,8 +296,8 @@ fn a_commission_costs_at_most_a_days_net() {
     assert_eq!(price(&g), 1000, "the climb's first step under a big day");
     g.lineage.works = vec!["a".into(), "b".into(), "c".into()];
     assert_eq!(price(&g), 1950);
-    g.lineage.last_day_net = 1200;
-    assert_eq!(price(&g), 1200, "a day's net caps it");
+    g.lineage.last_day_net = 2400;
+    assert_eq!(price(&g), 1200, "half a day's net caps it");
     g.lineage.last_day_net = 0;
     assert_eq!(price(&g), 100 * crate::kit::COMMISSION_FLOOR as i32, "the floor");
 }

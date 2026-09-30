@@ -150,6 +150,18 @@ Checkpoint 2 (item 3 + the oath a player keeps):
   ascension: AU s1 D28 5 d, AQ s2 D23 5 d). Dayplayer unchanged (10.0 PASS, stall 4). `WALL_DAYS` 1 was tried on
   the dayplayer: stall 4 → 6 (reverted). The Queen: from D24, 48 % reach her floor and 0 past on every candidate
   (21 of 32 deaths to her lurkers); FULL passes her on ~23 % of the sends that reach her.
+
+Checkpoint 3 (the walls and the purse — every progression and dayplayer bar passes):
+- **The wall's start is chosen, not assumed** (`wall::search`): the wall floor is the deeper of the set's floor from
+  its own start and from the deepest lit stone, and the stone is offered only when it passes that floor more often (a
+  deep start skips the shallow finds and levels: the dayplayer from D19 met the Foundry at D19–20 while its D1 sends
+  met the Queen at D28, and the offer optimised past D19). Every band boss's known counter between the floor and the
+  record is weighed (AS-stall s1 at D33 read a D31 floor and never weighed `cadence` for four days). Stock: `hp < 90%
+  → noise discipline` and `summoned → attack summoned` (the Queen's brood shields and mends her).
+- **Commissions at half a day's net** (floor 5 units): at a whole day's net a purse keeping tomorrow's oath beside it
+  sat at 1.02× (AS s2: $3078, a $2020 work, a $930 oath). `PROG_PURSE=1` prints check-ins over 0.9 of the bar.
+- Measured (p6): progression unlock days **10.5**, marks **8**, stall **14/18**, purse **0.76×**, frontier 0 — all PASS;
+  dayplayer (dp7) **all PASS**: unlock days 10.0, stall 3, marks 8 (every seed passes D34 and ascends by day 11).
 - Harness gaps found (not changed): the replays never buy supplies (a `read silence` / `throw fire` row packs only
   what is found; the repeat's `+ fire · for throw fire` offer is never tapped); an absence fields the vault only on
   its first send (`start_run` takes `Game.loadout`), so the camp's panel (fielded) overstates the night.

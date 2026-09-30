@@ -5,10 +5,12 @@
 //! a row — scored on the share of the camp panel's sends that pass the record; up to two greedy
 //! steps. Offered only when it passes the record on ≥ `WALL_BAR` of the sends and beats the set by
 //! `WALL_GAIN`. Nothing applies it: the player takes it (`ReturnReport.wall`), or not.
-//! Record spikes (Cut 29 core): measured where the sends meet the wall — from the deepest lit
-//! waystone at or above the record (the offer then moves the start: `start D24`), past the floor the
-//! set reaches on ≥ `WALL_REACH` of its sends when the record was one lucky send's (`wall_floor`);
-//! the set's last exit row is never dropped or written over.
+//! Record spikes (Cut 29 core): measured past the floor the sends meet the wall on — the record, or
+//! the floor the set reaches on ≥ `WALL_REACH` of its sends when the record was one lucky send's
+//! (`wall_floor`), the deeper of that floor from the sends' start and from the deepest lit waystone
+//! at or above the record — from that waystone when it passes the wall more often (the offer then
+//! moves the start: `start D24`). Every band boss's known counter between the wall and the record is
+//! weighed; the set's last exit row is never dropped or written over.
 use crate::engine::Game;
 use crate::forecast::{camp_panel, SimResult};
 use crate::rules::{Cond, Row, RuleSet, Verb};
@@ -75,18 +77,25 @@ fn stock(best: u32, at: u32) -> Vec<Row> {
         // the Lurker Queen's counter on the lurkers she calls (the D28 probe: past her 0 → 6.5–10 %)
         Row::new(vec![Cond::t("foe_tag", "summoned"), Cond::n("depth>=", 28)], Verb::arg("read", "silence")),
         Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", at as i32)], Verb::arg("read", "silence")),
+        // the Lurker Queen's calls hunt by noise: rest only while no blind hunter lives (the card), in
+        // place of a rest row or at the top (the dayplayer's Queen answer; rater sets rest at `hp < 90%`)
+        Row::new(vec![Cond::n("hp<", 90)], Verb::arg("tactic", "noise_discipline")),
+        // her brood shields and mends her: clear the called first (the Lich's answer to his)
+        Row::new(vec![Cond::t("foe_tag", "summoned")], Verb::arg("attack", "tag:summoned")),
         // the Foundry's counter card on the iron golems and their master (the rater lineages' D19–23
         // wall: every one owned the card and knew the fact, no goal set wrote it — reach D23 0.3 % → 90 %)
         Row::new(vec![Cond::t("foe_tag", "reflect_melee")], Verb::arg("tactic", "reflect_read")),
     ]
 }
 
-/// The counter row of the band boss at the wall (on the wall's floor `at` or the next), when its
+/// The counter row of each band boss from the wall's floor `at` to the record's next floor, when its
 /// counter fact is held — as the fact reads, and gated to his floor (the rater lineages' D33 wall:
-/// the Mirror King's `cadence` owned and known, written by no goal set).
+/// the Mirror King's `cadence` owned and known, written by no goal set; AS-stall s1 at D33 from D29:
+/// the floor read D31, and the King's counter was not weighed for four days).
 fn counters(g: &Game, at: u32) -> Vec<Row> {
+    let best = g.lineage.best_depth;
     let mut out = Vec::new();
-    for &(kind, depth) in crate::descent::BOSS_DEPTHS.iter().filter(|(_, d)| *d == at || *d == at + 1) {
+    for &(kind, depth) in crate::descent::BOSS_DEPTHS.iter().filter(|(_, d)| *d >= at && *d <= best.max(at) + 1) {
         if let Some(row) = crate::facts::boss_counter_row(&g.lineage.facts, kind) {
             let mut gated = row.clone();
             gated.conds.push(Cond::n("depth>=", depth as i32));
@@ -188,11 +197,18 @@ pub fn search(g: &Game) -> Option<crate::wire::WallEdit> {
         s.lineage.start = d;
         s
     });
-    let from: &Game = moved.as_ref().unwrap_or(g);
-    let at = wall_floor(from, &start);
+    // the wall: the deeper of the floors the set meets from its own start and from the stone (a deep
+    // start skips the shallow floors' finds and levels — the dayplayer from D19 met the Foundry at
+    // D19–20 while its D1 sends met the Queen at D28), and the start that passes it more often
+    let at = moved.as_ref().map_or(0, |m| wall_floor(m, &start)).max(wall_floor(g, &start));
     let base = shares(g, &start, FULL, at);
+    let deep_s = moved.as_ref().map(|m| shares(m, &start, FULL, at));
+    let (moved, deep, mut cur_s) = match deep_s {
+        Some(s) if score(s) > score(base) => (moved, deep, s),
+        _ => (None, None, base),
+    };
+    let from: &Game = moved.as_ref().unwrap_or(g);
     let mut cur = start.clone();
-    let mut cur_s = if moved.is_some() { shares(from, &cur, FULL, at) } else { base };
     let mut taken: Vec<String> = deep.map(|d| format!("start D{d}")).into_iter().collect();
     for _ in 0..STEPS {
         let cands = edits(from, &cur, at);
