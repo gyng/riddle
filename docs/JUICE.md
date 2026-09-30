@@ -729,3 +729,10 @@ Kept: the carved button, the candle, the desktop sheet (both edit moments +0.6).
 ("long empty corridors, no foe in frame", "the camera pan repaints the whole frame"), and the panes' FOCUS_R 2 ("blurry upscaled pixels,
 sprites cut off"). Fixed for round 25: the plaque stamp started from opacity 0 and blanked the plaques in the strip (they draw at rest
 before `.arrived`), now they lift and slam; the sent pane replays beside the edited one (raters: "the before side is frozen").
+
+**Round 25** (raters BC, BD): **6.75**. Changes: a foe hit draws a bright slash crescent across it (a heavy blow kicks the view); the
+map camera glides slower (spring ω 9 → 6) and holds wider (1/4 across, 1/5 down); the Fens' open-floor tufts thinned (0.05 → 0.022); the
+report stamp without the blank; the sent pane replays beside the edited one. Scene 6.20 → 6.70 ("both replays move"), fight 6.75 → 6.90;
+the map watch stays the floor (Warrens 5.50, desktop 5.40: "torches barely glow", "rubble merges with the floor", "the right meters
+cramped"). The count since the resume: 24 (−0.03), 25 (+0.01).
+

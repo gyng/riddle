@@ -397,14 +397,14 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         // framing moves less than a fifth of the view across / a sixth down, then glides to the new framing in one move — the room
         // stays put while the hero and his foes move in it
         // (the hero must stay inside the held view's middle — a hold that ignored him let him walk out under the top bar)
-        if (!snapNow && held && Math.abs(cam.tx - held[0]) < iw * 0.2 && Math.abs(cam.ty - held[1]) < ih * 0.16
+        if (!snapNow && held && Math.abs(cam.tx - held[0]) < iw * 0.26 && Math.abs(cam.ty - held[1]) < ih * 0.2
           && Math.abs(hx - held[0]) < iw * 0.3 && Math.abs(hy - held[1]) < ih * 0.26) { cam.tx = held[0]; cam.ty = held[1]; }
         else held = [cam.tx, cam.ty];
       } else held = null;
     }
     if (snapNow) { cam.x = cam.tx; cam.y = cam.ty; cam.vx = cam.vy = 0; return; }
     // critically damped spring (ζ = 1), semi-implicit Euler, then snap when settled
-    const w0 = 9, s = Math.min(dt, 0.05);
+    const w0 = mode === "fight" ? 9 : 6, s = Math.min(dt, 0.05);   // (gfx round 25, raters: "the pan repaints the whole frame": the map camera glides slower)
     for (const a of ["x", "y"] as const) {
       const v = a === "x" ? "vx" : "vy", t = a === "x" ? "tx" : "ty";
       const acc = w0 * w0 * (cam[t] - cam[a]) - 2 * w0 * cam[v];
@@ -568,7 +568,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         const f = atlas.envTile(b, hash2(x, y, 19) < 0.55 ? "reeds" : "reeds_1");
         if (f) { L.decor.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
       }
-      if (walls === 0 && hash2(x, y, 20) < 0.05) {
+      if (walls === 0 && hash2(x, y, 20) < 0.022) {   // (round 25: 0.05 → 0.022, raters: "foliage noise everywhere")
         const f = atlas.envTile(b, hash2(x, y, 21) < 0.7 ? "reeds_1" : "stump");
         if (f) { L.decor.push(wx, wy, 0.25, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
       }

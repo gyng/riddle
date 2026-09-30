@@ -335,6 +335,16 @@ export class Juice {
         } else {
           this.pop(cx, cy, 2.2, [1.0, 0.8, 0.5], 150, now);
           if (e.boss && x.speed <= 1.5) this.hitStop(45, now);
+          // gfx round 25 (raters, every watch moment: "a slash arc on the attack", "hits lack impact"): the blow draws a bright crescent
+          // across the foe — a short arc of glowing points swept upper-left to lower-right, gone in ~0.2 s; a heavy blow kicks the view
+          if (this.q.motion) {
+            const r = Math.max(5, (e.h ?? 12) * 0.45), a0 = 2.3 + (this.rand() - 0.5) * 0.5;
+            for (let i = 0; i < 11; i++) {
+              const a = a0 - (i / 10) * 1.9, px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r * 0.8, tip = i === 0 || i === 10;
+              this.spawn(px, py, -Math.sin(a) * 14, Math.cos(a) * 14, 0.14 + i * 0.008, tip ? 0.5 : 1, [1, 0.95, 0.8], { glow: true, drag: 8, fadeTo: 0.4 });
+            }
+            if (heavy && !x.fight) this.kickShake(1, 110, now);
+          }
         }
         // gfx round 1 (raters: "stacked '4' numbers"): blows on one body within 350 ms add up on one number (re-popped), not a stack
         const prev = this.numbers.find((m) => m.id === ev.id && now - m.t0 < 350);
