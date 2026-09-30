@@ -10,6 +10,7 @@ fn systems_open_one_at_a_time() {
     // (Cut 30 Reveal: day 0 is the camp; the pen's group — the editor, the dial, the order — waits
     // for the Mother met or a 3-day stall)
     let mut g = Game::new(3);
+    g.lineage.clock_s = 2 * 3600;
     let open = |g: &Game| g.lineage().systems.iter().filter(|s| s.open).map(|s| s.id.clone()).collect::<Vec<_>>();
     assert_eq!(open(&g), vec!["send", "headline"]);
     let w = g.lineage();
@@ -18,6 +19,7 @@ fn systems_open_one_at_a_time() {
     assert!(w.systems.iter().all(|s| !s.new), "day 0 does not glint");
     // the first death opens the death screen, not the editor
     g.lineage.graveyard.push(crate::wire::Grave { heir: 1, depth: 3, cause: "rat".into(), deeds: Vec::new(), death_id: None });
+    g.lineage.reveal_left = 1;
     let opened = crate::systems::update(&mut g.lineage, false);
     assert_eq!(opened, vec!["death"]);
     assert!(g.lineage().systems.iter().any(|s| s.id == "death" && s.open && s.new));
@@ -26,10 +28,13 @@ fn systems_open_one_at_a_time() {
     // the Warlord met: the stances; the pen still closed
     g.lineage.best_depth = 8;
     g.lineage.facts.insert("foe:goblin_warlord".into());
+    g.lineage.clock_s = 2 * 3600;
+    g.lineage.reveal_left = 1;
     let opened = crate::systems::update(&mut g.lineage, true);
     assert!(opened.contains(&"stances".to_string()) && !opened.contains(&"edit".to_string()) && !opened.contains(&"reorder".to_string()), "{opened:?}");
     // the pen opens its group
     g.lineage.pkg.pen_open = true;
+    g.lineage.reveal_left = 1;
     let opened = crate::systems::update(&mut g.lineage, false);
     for id in ["pen", "edit", "dial", "reorder", "walls"] {
         assert!(opened.contains(&id.to_string()), "{id}: {opened:?}");

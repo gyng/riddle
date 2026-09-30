@@ -78,7 +78,7 @@ impl Item {
         // Cut 25 §1: the forged arm's steps are aim (`Hero::hit_pct`), not a harder blow.
         // Cut 30: the forge's steps past its aim are a harder blow.
         if crate::kit::is_kit_id(self.id) {
-            let more = (self.enchant - crate::kit::AIM_STEPS).max(0);
+            let more = crate::kit::DMG_PER_STEP * (self.enchant - crate::kit::AIM_STEPS).max(0);
             return (a.0 + more, a.1 + more);
         }
         (a.0 + self.enchant, a.1 + self.enchant)

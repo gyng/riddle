@@ -414,7 +414,9 @@ export type ReturnReport = {
   meters?: MeterWire;                                                         // Cut 29 §3 (core): the absence's real runs metered, summed (the report's per-night meter)
   fallen?: Fallen[];                                                          // Cut 29 §6 (core; AX: Greth gone with only `party −1 ogre`): each companion that fell, named — `Greth · ogre L5 · fell D12 to lurker`
 };
-export type Lineage = { packages?: Packages;                                                                        // Cut 30 §2 (core): stances, tactics, temperaments, levels, drills, scars, the pen
+export type Lineage = { age_h?: number; reveal_queue?: string[]; reveal_next?: { id: string; trigger: string; triggered: boolean; wait_h: number };   // Cut 30 (core; PROGRESSION_V2 §4): the lineage's age in hours (offline included); systems ready and waiting their turn (one opens a report); the next to come and the hours it still waits (`next · tactics · 3 h`)
+                        glory?: number; expeditions?: number; era_gate?: number;                                   // PROGRESSION_V2 §2 (core, reserved for Cut 31)
+                        packages?: Packages;                                                                        // Cut 30 §2 (core): stances, tactics, temperaments, levels, drills, scars, the pen
                         town?: Town;                                                                                // Cut 30 §3 (core): the buildings, the next plot, the bank, the quest board
                         tracks?: Track[];                                                                           // Cut 30 §4 (core): character · items · scale · town — stage, next stage and trigger
                         systems?: SystemInfo[];                                                                    // Cut 29 §2 (core): the curriculum — every system in order, `open` or not, its `trigger` (≤ 3 words), `new` since the camp last looked (`seenSystems()` clears); gate the editor's vocabulary and the camp's tiles by `open`

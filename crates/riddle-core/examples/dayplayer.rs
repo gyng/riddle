@@ -68,6 +68,13 @@ struct SeedOut {
     checkins: u32,
     grew: u32,
     stage_days: usize,
+    /// PROGRESSION_V2 (reported, gated in Cut 31): systems open at day 1's end, the most systems and
+    /// beats one report brought, days with something new, the longest run of days without.
+    day1_systems: usize,
+    max_systems: usize,
+    max_beats: usize,
+    new_days: usize,
+    new_gap: usize,
     rules: String,
 }
 
@@ -198,8 +205,12 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
     let mut k = 0u64;
     let mut last_key: Option<(usize, u32, Vec<String>)> = None;
     let mut cool = 0u32;
+    let mut last_wall: Option<usize> = None;
+    let mut gap = 0usize;
     for day in 0..days {
         let wealth0 = g.lineage.gold as i64 + g.lineage.town.bank as i64;
+        let mut new_today = false;
+        let level0 = g.lineage.class_level();
         let stages0 = riddle_core::town::stage_set(&g.lineage);
         let mut opened = false;
         for ci in 0..checkins {
@@ -211,6 +222,13 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
             out.checkins += 1;
             out.grew += !rep.grew.is_empty() as u32;
             opened |= !rep.systems_opened.is_empty();
+            // (a reveal is a unit: the pen's group is one)
+            let mut triggers: Vec<&str> = rep.systems_opened.iter().filter_map(|id| riddle_core::systems::SYSTEMS.iter().find(|d| d.id == id).map(|d| d.trigger)).collect();
+            triggers.dedup();
+            let units = triggers.len();
+            out.max_systems = out.max_systems.max(units);
+            out.max_beats = out.max_beats.max(rep.packages.len() + units);
+            new_today |= !rep.systems_opened.is_empty() || !rep.packages.is_empty() || !rep.bests.is_empty();
             let hours = (k * interval) as f64 / 3600.0;
             for (i, m) in MILESTONES.iter().enumerate() {
                 if out.hours[i].is_none() && g.lineage.best_depth >= *m {
@@ -277,8 +295,12 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                                 insert_row(&mut g, p.row.clone(), 0);
                             }
                         }
-                        let fresh = g.lineage.wall_day != Some(g.lineage.day);
-                        if let Some(w) = g.wall_edit().filter(|_| fresh) {
+                        // (the wall search is the harness's costliest call: at most every other day)
+                        let fresh = g.lineage.wall_day != Some(g.lineage.day) && last_wall.is_none_or(|d| day >= d + 2);
+                        if fresh && riddle_core::wall::at_wall(&g.lineage) {
+                            last_wall = Some(day);
+                        }
+                        if let Some(w) = if fresh { g.wall_edit() } else { None } {
                             if g.set_rules(w.rules.clone()).is_ok() {
                                 if let Some(s) = w.start {
                                     let _ = g.set_start(s);
@@ -323,6 +345,17 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
         out.stance_level_day.push(g.lineage.pkg.level(&g.lineage.pkg.stance));
         opened |= riddle_core::town::stage_set(&g.lineage).len() > stages0.len();
         out.stage_days += opened as usize;
+        new_today |= g.lineage.class_level() > level0;
+        if day == 0 {
+            out.day1_systems = g.lineage.systems.len();
+        }
+        if new_today {
+            out.new_days += 1;
+            gap = 0;
+        } else {
+            gap += 1;
+            out.new_gap = out.new_gap.max(gap);
+        }
         if best > last_best {
             last_best = best;
             stall_cur = 0;
@@ -548,6 +581,21 @@ fn main() {
             bars.push(("Each system adds value (D23 moves past a check-in)".into(), moves.iter().map(|(s, m)| format!("{s} {m:+.0}h")).collect::<Vec<_>>().join(" "), each));
             bars.push(("None > 60 % of TUNED − IDLE (D23)".into(), format!("{:.0}% of {gap:.0}h", dom * 100.0), dom <= 0.6));
         }
+    }
+    // PROGRESSION_V2 (reported now, gated in Cut 31)
+    for (label, v) in [("IDLE", &idle), ("PICKED", &picked), ("TUNED", &tuned)] {
+        if v.is_empty() {
+            continue;
+        }
+        let med = |f: &dyn Fn(&SeedOut) -> usize| median(v.iter().map(|o| f(o) as f64).collect());
+        println!(
+            "info {label}: day-1 systems {:.0} (≤ 10) · most systems a report {} (≤ 1) · most beats a report {} (≤ 5) · days with something new {:.0}/{days} (≥ 27/30) · longest gap {} d (≤ 1)",
+            med(&|o| o.day1_systems),
+            v.iter().map(|o| o.max_systems).max().unwrap_or(0),
+            v.iter().map(|o| o.max_beats).max().unwrap_or(0),
+            med(&|o| o.new_days),
+            v.iter().map(|o| o.new_gap).max().unwrap_or(0)
+        );
     }
     println!();
     println!("{:<64} {:>18}  result", "bar", "value");

@@ -1955,6 +1955,32 @@ pub struct Lineage {
     /// Cut 30 §4: the four tracks.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tracks: Vec<TrackWire>,
+    /// Cut 30 (PROGRESSION_V2 §4): the lineage's age (hours, offline included); the systems ready and
+    /// waiting their turn (one opens a report), in order; the next system to come — its trigger, and the
+    /// hours of age it still waits once triggered (`next · tactics · 3 h`).
+    #[serde(default)]
+    pub age_h: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reveal_queue: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reveal_next: Option<RevealNext>,
+    /// PROGRESSION_V2 §2, reserved (Cut 31: the expedition and the era): glory, expeditions, the era's gate.
+    #[serde(default)]
+    pub glory: u32,
+    #[serde(default)]
+    pub expeditions: u32,
+    #[serde(default)]
+    pub era_gate: u32,
+}
+
+/// Cut 30: the next system to open — its id, its trigger (≤ 3 words), whether the trigger has come,
+/// and the hours of age it still waits.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RevealNext {
+    pub id: String,
+    pub trigger: String,
+    pub triggered: bool,
+    pub wait_h: u32,
 }
 
 /// Cut 28 §1: an oath's reward — never a stat: `card` · `slot` · `row` · `title` · `waystone` ·

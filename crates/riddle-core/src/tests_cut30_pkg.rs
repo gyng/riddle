@@ -74,12 +74,48 @@ fn the_pen_writes_nothing_until_it_opens() {
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 60)], Verb::new("rest")));
     g.set_rules(set).unwrap();
     assert_eq!(*g.lineage.rules(), before, "closed pen: the stance plays");
-    g.lineage.best_day = 0;
-    g.lineage.day = packages::PEN_STALL_DAYS;
-    g.lineage.best_depth = 4;
-    assert!(packages::update_pen(&mut g.lineage), "a 3-day stall opens it");
-    packages::recompile(&mut g.lineage);
+    // the Mother met is not enough before 72 h of age; at 72 h it opens (one reveal); at 5 days without her
+    g.lineage.pkg.meets.insert("bloat_mother".into(), 1);
+    g.lineage.clock_s = 24 * 3600;
+    g.lineage.reveal_left = 1;
+    crate::systems::update(&mut g.lineage, false);
+    assert!(!g.lineage.pkg.pen_open, "a day old: the pen waits");
+    g.lineage.clock_s = crate::systems::PEN_AGE_H as u64 * 3600;
+    // (one reveal a report: the pen waits its turn behind what came before it)
+    for _ in 0..crate::systems::SYSTEMS.len() {
+        g.lineage.reveal_left = 1;
+        crate::systems::update(&mut g.lineage, false);
+    }
+    assert!(g.lineage.pkg.pen_open, "the Mother met and 72 h");
     assert_eq!(g.lineage.rules().rows[0].verb.v, "rest");
+    let mut h = Game::new(8);
+    h.lineage.clock_s = crate::systems::PEN_FALLBACK_H as u64 * 3600;
+    for _ in 0..crate::systems::SYSTEMS.len() {
+        h.lineage.reveal_left = 1;
+        crate::systems::update(&mut h.lineage, false);
+    }
+    assert!(h.lineage.pkg.pen_open, "five days: the pen opens whatever the climb");
+}
+
+/// PROGRESSION_V2 §4: one new system a report — the rest wait in the queue, shown as the next stage;
+/// a report's beats are ≤ 5 (`+N more`).
+#[test]
+fn one_system_a_report_and_five_beats() {
+    let mut g = Game::new(9);
+    g.lineage.clock_s = 10 * 24 * 3600;
+    g.lineage.graveyard.push(crate::wire::Grave { heir: 1, depth: 3, cause: "rat".into(), deeds: Vec::new(), death_id: None });
+    g.lineage.facts.insert("stray".into());
+    g.lineage.facts.insert("foe:goblin_warlord".into());
+    g.lineage.reveal_left = 1;
+    let opened = crate::systems::update(&mut g.lineage, false);
+    assert_eq!(opened, vec!["death"]);
+    assert!(g.lineage.reveal_queue.len() >= 2, "{:?}", g.lineage.reveal_queue);
+    assert_eq!(g.lineage().reveal_next.map(|n| n.id), g.lineage.reveal_queue.first().cloned());
+    let lines: Vec<String> = ["STEADY L2", "STEADY L3", "+Guarded", "DRILLED · Warlord", "built bank", "the pen", "QUEST DONE · reach D9"].iter().map(|s| s.to_string()).collect();
+    let b = packages::beats(&lines);
+    assert_eq!(b.len(), packages::BEATS);
+    assert!(b.contains(&"STEADY L3".to_string()) && !b.contains(&"STEADY L2".to_string()));
+    assert_eq!(b.last().unwrap(), "+2 more");
 }
 
 /// §1: a known counter enters as a drill at the boss's second meeting (the second run that sees him;

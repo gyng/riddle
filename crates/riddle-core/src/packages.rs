@@ -77,8 +77,8 @@ const fn temper(id: &'static str, name: &'static str, t: crate::hero::Trait) -> 
 pub const PACKAGES: &[PackageDef] = &[
     stance("steady", "Steady", ""),
     stance("guarded", "Guarded", "meet Warlord"),
-    stance("bold", "Bold", "slay Warlord"),
-    stance("hunter", "Hunter", "meet Warlord"),
+    stance("bold", "Bold", "a day on"),
+    stance("hunter", "Hunter", "a day on"),
     tactic("boss_focus", "boss focus"),
     tactic("corridor_fighting", "corridor fighting"),
     tactic("kite_archers", "kite archers"),
@@ -104,7 +104,7 @@ pub fn name(id: &str) -> &str {
 }
 
 /// Runs a package needs for L2 · L3 · L4 · L5 (tunable; the gate is the felt pace).
-pub const LEVEL_RUNS: [u32; 4] = [10, 40, 120, 300];
+pub const LEVEL_RUNS: [u32; 4] = [10, 40, 150, 400];
 pub const MAX_LEVEL: u32 = 5;
 
 pub fn level_of(runs: u32) -> u32 {
@@ -123,8 +123,7 @@ pub const SCAR_CAP: u32 = 30;
 pub const DRILL_MEETING: u32 = 2;
 /// The Foundry's first floor: its golems are the wall before its master (`on_run_end`).
 pub const FOUNDRY_WALL: u32 = 19;
-/// Days at the same best depth that open the pen.
-pub const PEN_STALL_DAYS: u32 = 3;
+
 
 /// A drilled counter: the boss, the rows, revoked (one tap) or not, announced (`DRILLED`) or not.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -165,6 +164,9 @@ pub struct PkgState {
     /// Band boss → runs that met him (the drill comes at the second).
     #[serde(default)]
     pub met_runs: BTreeMap<String, u32>,
+    /// Package id (and `tactics`, the first tactic's) → the day of the clock it arrived.
+    #[serde(default)]
+    pub arrived: BTreeMap<String, u32>,
     /// The pen: open or not, and the rows the player wrote (above every package).
     #[serde(default)]
     pub pen_open: bool,
@@ -194,6 +196,7 @@ impl Default for PkgState {
             meets: BTreeMap::new(),
             met_day: BTreeMap::new(),
             met_runs: BTreeMap::new(),
+            arrived: BTreeMap::new(),
             pen_open: false,
             pen: Vec::new(),
             custom: Vec::new(),
@@ -541,8 +544,22 @@ pub fn make_literal(l: &mut LineageState) {
 /// Packages whose stage has come (stances by bosses met or slain, tactics with the Warlord slain,
 /// temperaments offered from heir 3); the ids that arrived now.
 pub fn arrive(l: &mut LineageState) -> Vec<String> {
+    // Cut 30 (PROGRESSION_V2 §4): a drip, not a dump — `Guarded` with the Warlord met, `Bold` a day
+    // after, `Hunter` a day after that; the tactics one per band boss slain or per day since the Warlord
+    // fell (a card the lineage already owned arrives with the first). A day is the lineage's clock.
     let met = |k: &str| l.pkg.meets.get(k).copied().unwrap_or(0) > 0 || l.facts.contains(&format!("foe:{k}")) || l.kills.contains(k);
+    let day = l.day;
+    let since = |id: &str| l.pkg.arrived.get(id).map(|d| day > *d).unwrap_or(false);
+    let slain = crate::descent::BOSS_DEPTHS.iter().filter(|(k, _)| l.kills.contains(*k)).count() as u32;
+    let tactics_owned = l.pkg.owned.iter().filter(|id| def(id).is_some_and(|d| d.kind == Kind::Tactic)).count() as u32;
+    let tactic_day = l.pkg.arrived.get("tactics").copied();
+    let tactics_due = match tactic_day {
+        Some(d0) => slain.max(1) + day.saturating_sub(d0),
+        None if l.kills.contains("goblin_warlord") => 1,
+        None => 0,
+    };
     let mut new = Vec::new();
+    let mut tactics_new = 0;
     for d in PACKAGES {
         if l.pkg.owned.contains(d.id) {
             continue;
@@ -550,17 +567,28 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
         let ok = match (d.kind, d.id) {
             (Kind::Stance, "steady") => true,
             (Kind::Stance, "guarded") => met("goblin_warlord"),
-            (Kind::Stance, "bold") => l.kills.contains("goblin_warlord"),
-            (Kind::Stance, "hunter") => met("goblin_warlord"),
-            (Kind::Tactic, _) => l.kills.contains("goblin_warlord") || d.card.is_some_and(|c| l.unlocks.contains(c)),
+            (Kind::Stance, "bold") => since("guarded"),
+            (Kind::Stance, "hunter") => since("bold"),
+            (Kind::Tactic, _) => {
+                let owned_card = d.card.is_some_and(|c| l.unlocks.contains(c));
+                let due = tactics_owned + tactics_new < tactics_due;
+                (owned_card && l.kills.contains("goblin_warlord")) || due
+            }
             _ => false,
         };
         if ok {
+            if d.kind == Kind::Tactic {
+                tactics_new += 1;
+            }
             new.push(d.id.to_string());
         }
     }
+    if tactics_new > 0 && tactic_day.is_none() {
+        l.pkg.arrived.insert("tactics".into(), day);
+    }
     for id in &new {
         l.pkg.owned.insert(id.clone());
+        l.pkg.arrived.insert(id.clone(), day);
     }
     new
 }
@@ -708,17 +736,19 @@ pub fn revoke(l: &mut LineageState, boss: &str, revoked: bool) -> Result<(), Str
 }
 
 /// Open the pen (the Mother met, or a stall of `PEN_STALL_DAYS` days); true when it opened now.
+/// (PROGRESSION_V2 §4: the Mother met and an age of 72 h, or 5 days whatever the climb — the system
+/// curriculum's `pen`, one reveal a report; `systems::update_with` opens it.)
 pub fn update_pen(l: &mut LineageState) -> bool {
-    if l.pkg.pen_open {
+    if l.pkg.pen_open || !l.systems.contains("pen") {
         return false;
     }
-    let mother = l.pkg.meets.get("bloat_mother").copied().unwrap_or(0) > 0 || l.kills.contains("bloat_mother");
-    let stall = l.best_depth > 0 && l.day >= l.best_day + PEN_STALL_DAYS;
-    if mother || stall {
-        l.pkg.pen_open = true;
-        return true;
-    }
-    false
+    l.pkg.pen_open = true;
+    true
+}
+
+/// The Mother met (the pen's trigger).
+pub fn mother_met(l: &LineageState) -> bool {
+    l.pkg.meets.get("bloat_mother").copied().unwrap_or(0) > 0 || l.kills.contains("bloat_mother")
 }
 
 /// A run ended: its meetings (drills at the second, scars), its packages' runs (levels), the stages
@@ -814,6 +844,33 @@ pub fn quartermaster(l: &LineageState) -> Vec<String> {
                 out.push(k);
             }
         }
+    }
+    out
+}
+
+/// Cut 30 (PROGRESSION_V2 §1): a report announces at most `BEATS` beats, the rest as `+N more` (a
+/// package's levels climbed in one absence read as its last).
+pub const BEATS: usize = 5;
+pub fn beats(lines: &[String]) -> Vec<String> {
+    beats_n(lines, BEATS)
+}
+
+/// `beats` with room for `cap` of them.
+pub fn beats_n(lines: &[String], cap: usize) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for l in lines {
+        // (`STEADY L2` then `STEADY L3`: the last level stands)
+        if let Some((head, _)) = l.rsplit_once(" L").filter(|(_, n)| n.parse::<u32>().is_ok()) {
+            if let Some(i) = out.iter().position(|o| o.rsplit_once(" L").is_some_and(|(h, n)| h == head && n.parse::<u32>().is_ok())) {
+                out.remove(i);
+            }
+        }
+        out.push(l.clone());
+    }
+    if out.len() > cap.max(1) {
+        let more = out.len() - (cap.max(1) - 1);
+        out.truncate(cap.max(1) - 1);
+        out.push(format!("+{more} more"));
     }
     out
 }

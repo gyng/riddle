@@ -21,6 +21,8 @@ pub const KIT_SLOTS: [&str; 3] = ["weapon", "armour", "pack"];
 pub const WEAPON_MULT: [u32; 6] = [1, 4, 9, 16, 25, 36];
 /// Weapon steps past this many are damage, not aim.
 pub const AIM_STEPS: i32 = 3;
+/// Each weapon step past the aim adds this much to the blow.
+pub const DMG_PER_STEP: i32 = 2;
 /// Cut 25 §1 (AN: the forge moved bank more than any row): a weapon step is aim — this many
 /// points on the 80 % to hit — not damage (`Hero::hit_pct`; the arm's blow is the class's own).
 pub const AIM_PER_STEP: u32 = 4;

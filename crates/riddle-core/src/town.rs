@@ -344,7 +344,7 @@ pub struct Quest {
 
 /// The board opens with the Warlord slain.
 pub fn quests_open(l: &LineageState) -> bool {
-    l.kills.contains("goblin_warlord") && !l.town.off
+    l.kills.contains("goblin_warlord") && !l.town.off && !l.pkg.literal
 }
 
 /// The goal line, ≤ 5 words (`reach D10 · no return`).
@@ -387,7 +387,7 @@ pub fn draw(l: &mut LineageState) {
     l.town.quest_seq += 1;
     let mut rng = crate::rng::Rng::derive(l.seed, crate::rng::hash_str("quest") ^ seq as u64);
     let best = l.best_depth.max(1);
-    let next_boss = crate::descent::BOSS_DEPTHS.iter().find(|(k, d)| !l.kills.contains(*k) && *d <= best + 2).map(|(k, _)| k.to_string());
+    let next_boss = crate::descent::BOSS_DEPTHS.iter().find(|(k, d)| !l.kills.contains(*k) && *d <= best + 2 && l.pkg.drills.iter().any(|x| x.boss == *k && !x.revoked)).map(|(k, _)| k.to_string());
     let goal = match (rng.below(4), &next_boss) {
         (0, Some(_)) => "slay",
         (0, None) | (1, _) => "reach",

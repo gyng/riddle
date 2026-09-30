@@ -51,6 +51,8 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     let budget: u64 = elapsed_s * TICKS_PER_SECOND;
     // Renown of runs watched since the last report settles as its own absence.
     game.settle_renown(0);
+    // Cut 30 (PROGRESSION_V2 §4): one new system a report
+    game.lineage.reveal_left = 1;
     game.batch = Batch::default();
     game.events.clear();
     game.offline = true;
@@ -222,6 +224,10 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     }
     let mut r = report_with(game, elapsed_s, &facts_before, &class, rank_before, sampled, full, with_stall);
     r.grew = crate::town::grew(&grew_before, &crate::town::snap(&game.lineage));
+    // (a system's reveal is a beat of the five)
+    if !r.systems_opened.is_empty() {
+        r.packages = crate::packages::beats_n(&game.batch.pkg_lines, crate::packages::BEATS - 1);
+    }
     r
 }
 
@@ -305,7 +311,7 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
     }
     let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price,
         broken: b.oath_breaks.values().sum(), cause: b.oath_breaks.iter().max_by_key(|(c, n)| (**n, std::cmp::Reverse(c.len()))).map(|(c, _)| c.clone()) });
-    let mut r = ReturnReport { lead: Vec::new(), oath, grew: Vec::new(), packages: b.pkg_lines.clone(),
+    let mut r = ReturnReport { lead: Vec::new(), oath, grew: Vec::new(), packages: crate::packages::beats(&b.pkg_lines),
         elapsed_s,
         runs: b.runs,
         sampled,

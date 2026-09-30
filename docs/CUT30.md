@@ -310,17 +310,55 @@ update HANDOFF with the cohort and owner answers, then stop for the owner.
 - The forge's ladders grew (weapon +4 … +6 are damage, armour to plate +1) — the "not engaging fails" caps that held them
   are the rows this cut retires; the blacksmith is the multiplier the idle floor lacks.
 - Save migration: an old save's set becomes the `custom` stance (as written; the pen open, the editor edits it in place);
-  `saves_from_307dbed_send_identically` re-recorded (`3754cfc8…` → `92113fbe…`: the temperaments no longer act, scars).
+  `saves_from_307dbed_send_identically` re-recorded (`3754cfc8…` → `9baed175…`: the temperaments no longer act, scars,
+  drills).
+
+**Checkpoint 2** (`cabf89d`): the Reveal's curriculum in `systems.rs`, drills at the second *run* that meets a boss
+(scars by day), the tracks' stages, the IDLE/PICKED/TUNED/RANDOM dayplayer with leave-one-outs, the metrics' Cut 30 rows
+(`examples/idle_lib`: 20-min absence, drill item packed, stances best at a wall, quests keepable) and the §6 retired rows
+printed ungated (`metrics.rs` `RETIRED`, the contract's list plus the progression rows).
+
+**Checkpoint 3** (`09e145d`): `forecastMove` gains a `package` part (the parts still sum to the whole); `Death.package`
+names `package · row`; `Death.lever` (spend · package · wait) before the pen; the lineage key carries the scars; the wall
+search edits the pen alone on a lineage on packages; qa legs (`check_packages`: all PASS on 6 seeds).
+
+**Checkpoint 4 — PROGRESSION_V2 folded in** (owner-approved, `cut29-wip:docs/PROGRESSION_V2.md` §4): every system has a
+minimum lineage age and a fallback age (`SystemDef.min_age_h`, `fallback_h`; `LineageState::age_h` = the absences' clock
+or the ticks lived); one new system a report (`reveal_left`; a unit is the systems sharing a trigger — the pen's group is
+one), the rest in `Lineage.reveal_queue` with `reveal_next` (id, trigger, hours still to wait); the pen = the Mother met
+AND age ≥ 72 h, or 5 days whatever the climb (the 3-day stall is gone); tactics drip one per band boss slain or per day,
+`Bold` a day after `Guarded`, `Hunter` a day after `Bold`; ≤ 5 beats a report (`+N more`; a system's reveal is one of
+them); stance levels at 10 · 40 · 150 · 400 runs; reserved save fields `glory`, `expeditions`, `era_gate` (and the wire's
+`age_h`, `reveal_queue`); the dayplayer reports (not gated) day-1 systems, systems and beats a report, days with
+something new and the longest gap. The TUNED harness takes the wall's edit at most every other day and reads its worst
+death once a day (the search was > 40 CPU-min a seed).
+
+**Measured** (dayplayer, 8 seeds × 14 days × 3 check-ins, checkpoint 4 tree):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE D8 by day 1 · D13 by day 4 (median) · D23 by day 12 | 8/8 · 1.7 · 8/8, median 7.7 | PASS |
+| IDLE stall before D23 ≤ 4 d · gold every day · no King in 14 d | 2 · 14/14 · 0/8 | PASS |
+| Stance L3 by day 2 / L5 by day 7 (IDLE median) · every IDLE check-in grows a track | 1 · 7 · 336/336 | PASS |
+| Days with a stage opened: IDLE ≥ 8 · PICKED ≥ 10 (median) | 8 · 7 | FAIL (IDLE at the bar) |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.50 · 1.09 · 1.32 | FAIL |
+| IDLE never out-paces PICKED | 92 % | PASS |
+| PROGRESSION_V2 (info): day-1 systems · most units a report · most beats · days with something new · longest gap | 7 · 3→1 (units fixed after the run) · 8→≤ 5 · 14/14 · 1 d | reported |
+| TUNED (one seed, checkpoint 3): D28 day 7, D33 day 9 — far ahead of PICKED (D28 day 9–12) | | not yet gated over 8 seeds |
 
 ## Deviations
+- **PROGRESSION_V2 over the contract's reveal**: the pen opens at the Mother met *and* 72 h (fallback 5 days), not "the
+  Mother met or a 3-day stall"; Bold/Hunter/tactics drip by day (owner-approved refinement, 2026-10-01).
+- **The leave-one-outs run on 4 seeds** (`--loo-seeds`, the gate's `--full`): a TUNED fortnight costs ~25–40 CPU-min
+  (its wall search and verdicts, sims sequential inside a job); 6 × 8 of them would hold the gate for hours.
 
 - **Steady's bank row reads `depth ≥ record + 1`** (the contract's `depth ≥ best`): a bank at the record itself never
   passes it; the first floor past the record is banked (one new floor a successful send; L4 pushes one further when whole).
 - **Stances by level** (ours to write): Steady L2 heals at 35 % and rests under 40 %, L3 rests under 50 %, L4 banks a
   floor further when whole, L5 steps off a telegraph when hurt — Steady never rests at full length (that is `Guarded`'s:
   rest under 80 %); `Hunter` arrives with the Warlord met (the contract left its stage open; it is the Warlord's counter).
-- **A meeting is a day**: runs of one day that see a boss are one meeting (per run, a night's 20 sends scarred him to
-  −30 % and drilled him in one absence).
+- **A scar is a day**: runs of one day that see a boss scar him once (per run, a night's 20 sends scarred him to
+  −30 % in one absence); the drill still comes at the second run that meets him.
 - **The Foundry's drill** comes from its golems (the contract's "the wall search supplies a wall's drill when no
   fact-counter exists"): the search costs seconds natively and minutes in wasm per offer; the golems' `reflect_melee` fact
   names the same counter (`reflect read`).

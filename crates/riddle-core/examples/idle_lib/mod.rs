@@ -80,7 +80,7 @@ pub fn drill_packed(seed: u64, sends: u32) -> (u32, u32) {
 /// stance's chance a night (16 sends) keeps it — the pen closed, the packages alone.
 pub fn quest_night(g: &Game, kind: &str, sims: u32) -> (String, f64) {
     let best = g.lineage.best_depth.max(1);
-    let next_boss = riddle_core::descent::BOSS_DEPTHS.iter().find(|(k, d)| !g.lineage.kills.contains(*k) && *d <= best + 2).map(|(k, d)| (k.to_string(), *d));
+    let next_boss = riddle_core::descent::BOSS_DEPTHS.iter().find(|(k, d)| !g.lineage.kills.contains(*k) && *d <= best + 2 && g.lineage.pkg.drills.iter().any(|x| x.boss == *k && !x.revoked)).map(|(k, d)| (k.to_string(), *d));
     let depth = match kind {
         "reach" => best + 1,
         "reach_no_return" => best.saturating_sub(2).max(2),

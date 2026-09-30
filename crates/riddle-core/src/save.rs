@@ -30,7 +30,7 @@ pub fn load(text: &str) -> Result<Game, String> {
     if g.lineage.pkg_v == 0 {
         crate::packages::migrate(&mut g.lineage);
         g.lineage.pkg_v = 1;
-        crate::systems::update(&mut g.lineage, false);
+        crate::systems::update_with(&mut g.lineage, false, false);
         g.lineage.systems_new.clear();
     }
     // Cut 29: a save from before the curriculum (no system open) owns the free vocabulary its gates

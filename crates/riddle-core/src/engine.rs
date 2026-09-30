@@ -1383,6 +1383,20 @@ pub struct LineageState {
     /// Cut 30 §3–5: the town (buildings, the bank, the quest board).
     #[serde(default)]
     pub town: crate::town::Town,
+    /// Cut 30 (PROGRESSION_V2 §4): the systems that may still open this report (one a report; set at
+    /// an absence's start and a send), and the ready ones waiting their turn, in curriculum order.
+    #[serde(default)]
+    pub reveal_left: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reveal_queue: Vec<String>,
+    /// PROGRESSION_V2 §2 (reserved for Cut 31: the expedition and the era; saved, unread): glory, the
+    /// expeditions taken, the era's gate.
+    #[serde(default)]
+    pub glory: u32,
+    #[serde(default)]
+    pub expeditions: u32,
+    #[serde(default)]
+    pub era_gate: u32,
 }
 
 /// Cut 29 §1: a day of the lineage's clock.
@@ -1598,6 +1612,11 @@ impl LineageState {
             pkg: Default::default(),
             pkg_v: 1,
             town: Default::default(),
+            reveal_left: 0,
+            reveal_queue: Vec::new(),
+            glory: 0,
+            expeditions: 0,
+            era_gate: 0,
             best_day: 0,
             wall_day: None,
             wall_offer: None,
@@ -1756,6 +1775,11 @@ impl LineageState {
     pub fn variant_is(&self, v: &str) -> bool {
         self.variant == v
     }
+    /// Cut 30 (PROGRESSION_V2 §4): the lineage's age in hours — the clock of its absences, or the ticks
+    /// it has lived (watched play included), whichever is more.
+    pub fn age_h(&self) -> u32 {
+        (self.clock_s.max(self.total_turns / 10) / 3600) as u32
+    }
     pub fn rules(&self) -> &RuleSet {
         &self.sets[self.active_set.min(self.sets.len() - 1)]
     }
@@ -1810,7 +1834,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -3334,6 +3358,8 @@ impl Game {
     /// Start (or resume) an expedition. The player chose to go: any camp rest left is skipped.
     pub fn send(&mut self) -> Snapshot {
         self.bounty_seen = self.lineage.bounty;
+        // Cut 30: a watched send is a check-in of its own — one system may open by its report
+        self.lineage.reveal_left = 1;
         self.lineage.rest_left = 0;
         self.watched = true;
         // Cut 27 §1: a run begun here is priced as the camp priced it — its passage and the floors
