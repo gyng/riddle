@@ -18,64 +18,78 @@ const fn sys(id: &'static str, trigger: &'static str) -> SystemDef {
     SystemDef { id, trigger }
 }
 
-/// The curriculum in order (docs/PROGRESSION.md §6). Day 0: the send, the shaft, the forecast's
-/// headline, the dial (the 4 preset rows' numbers).
+/// The curriculum in order. Cut 30 (docs/CUT30.md, Reveal): day 0 is the camp — the send, the shaft's
+/// headline; the first gold home brings the blacksmith and the exits; the first find kept the
+/// storehouse; the first stray the party, the first tame the kennel; the Warlord met a second stance
+/// (the stance panel), slain the tactics, the waystones and the quest board; a purse of a night's net
+/// the bank; heir 3 the temperaments (the wake's cards); the Lich met a second tactic slot; the Mother
+/// met (or a 3-day stall) **the pen** — the editor, the dial, the marks catalogue, the order, the vs line,
+/// the tags, the walls, the divergence scene, the automations, the routes. The oath board is gone (the
+/// quest board is its successor); the trait slots wait (not in Cut 30).
 pub const SYSTEMS: &[SystemDef] = &[
     sys("send", ""),
-    sys("dial", ""),
     sys("headline", ""),
-    sys("edit", "first death"),
     sys("death", "first death"),
     sys("exits", "first gold home"),
+    sys("forge", "first gold home"),
     sys("loadout", "first gold home"),
-    sys("unlocks", "first mark"),
-    sys("reorder", "first plateau"),
-    sys("vs", "first plateau"),
-    sys("tags", "first foe fact"),
+    sys("storehouse", "first find kept"),
     sys("party", "first stray"),
+    sys("kennel", "first tame"),
     sys("cage", "first cage"),
-    sys("walls", "meet Warlord"),
-    sys("divergence", "meet Warlord"),
-    sys("forge", "slay Warlord"),
+    sys("stances", "meet Warlord"),
+    sys("tactics", "slay Warlord"),
     sys("start", "slay Warlord"),
-    sys("route", "D5 fork twice"),
-    sys("oaths", "plateau or Warlord"),
+    sys("quests", "slay Warlord"),
+    sys("bank", "a night's purse"),
+    sys("temperament", "heir 3"),
+    sys("tactic2", "meet Lich"),
+    sys("class", "second class"),
+    sys("pen", "meet Mother"),
+    sys("edit", "meet Mother"),
+    sys("dial", "meet Mother"),
+    sys("unlocks", "meet Mother"),
+    sys("reorder", "meet Mother"),
+    sys("vs", "meet Mother"),
+    sys("tags", "meet Mother"),
+    sys("walls", "meet Mother"),
+    sys("divergence", "meet Mother"),
+    sys("route", "meet Mother"),
     sys("automations", "meet Lich"),
     sys("route2", "an oath kept"),
     sys("heir_pick", "an oath kept"),
-    sys("class", "second class"),
-    // Cut 30: heir traits — the born slot and the wake's cards (heir 3, or a death past D5); the
-    // blood slot and the trait conditions (heir 5).
-    sys("traits", "heir 3"),
-    sys("blood", "heir 5"),
 ];
 
 /// The systems open on day 0.
-pub const DAY0: [&str; 3] = ["send", "dial", "headline"];
+pub const DAY0: [&str; 2] = ["send", "headline"];
 
-/// Whether `id`'s trigger has happened for this lineage (read off its state; `plateau` — the
-/// absence just met its first plateau — is the one moment state does not keep).
+/// The systems the pen brings (the Mother met, a 3-day stall, an old save's set).
+pub const PEN: [&str; 10] = ["pen", "edit", "dial", "unlocks", "reorder", "vs", "tags", "walls", "divergence", "route"];
+
+/// Whether `id`'s trigger has happened for this lineage (read off its state; `plateau` is kept for the
+/// caller's signature — the order and the vs line come with the pen now).
 fn triggered(l: &LineageState, id: &str, plateau: bool) -> bool {
-    let warlord_met = crate::meta::bosses_met(l) >= 1;
+    let _ = plateau;
+    let warlord_met = crate::meta::bosses_met(l) >= 1 || l.pkg.meets.contains_key("goblin_warlord");
+    let pen = l.pkg.pen_open || l.pkg.literal;
     match id {
-        "send" | "dial" | "headline" => true,
-        "edit" | "death" => !l.graveyard.is_empty() || l.heir > 1,
-        "exits" | "loadout" => l.gold_ledger.iter().any(|x| x.delta > 0 && crate::engine::is_exit_why(&x.why)) || !l.banked_depths.is_empty(),
-        "unlocks" => l.marks > 0 || l.rank > 0 || l.unlocks.iter().any(|u| crate::meta::def(u).is_some_and(|d| d.via == crate::meta::Via::Marks)),
-        "reorder" | "vs" => plateau,
-        "tags" => l.facts.iter().any(|f| f.starts_with("foe:") && f.matches(':').count() == 2 && !f.ends_with(":studied")),
+        "send" | "headline" => true,
+        "death" => !l.graveyard.is_empty() || l.heir > 1,
+        "exits" | "loadout" | "forge" => l.gold_ledger.iter().any(|x| x.delta > 0 && crate::engine::is_exit_why(&x.why)) || !l.banked_depths.is_empty() || crate::town::built(l, "blacksmith"),
+        "storehouse" => crate::town::built(l, "storehouse"),
         "party" => l.facts.contains("stray") || l.all_companions().next().is_some(),
+        "kennel" => crate::town::built(l, "kennel"),
         "cage" => l.facts.contains("vault"),
-        "walls" | "divergence" => warlord_met,
-        "forge" | "start" => l.kills.contains("goblin_warlord") || crate::kit::KIT_SLOTS.iter().any(|s| crate::kit::owned(l, s) > 0) || !l.waystones.is_empty(),
-        "route" => l.forks_seen.get(&5).is_some_and(|n| *n >= 2) || !l.rules().route.is_empty(),
-        "oaths" => plateau || warlord_met || crate::oath::open(l),
-        "automations" => crate::meta::bosses_met(l) >= 3,
+        "stances" => warlord_met,
+        "tactics" | "start" | "quests" => l.kills.contains("goblin_warlord") || !l.waystones.is_empty() && l.best_depth >= 9,
+        "bank" => crate::town::built(l, "bank"),
+        "temperament" => crate::packages::temperament_open(l),
+        "tactic2" => crate::packages::tactic_slots(l) >= 2,
+        "class" => ["ranger", "caster"].iter().any(|c| l.unlocks.contains(*c)) || l.classes.iter().any(|(k, c)| k != "fighter" && (c.xp > 0 || c.level > 1)),
+        "automations" => pen && crate::meta::bosses_met(l) >= 3,
         "route2" => l.unlocks.contains("route2"),
         "heir_pick" => l.unlocks.contains("heir_pick"),
-        "traits" => crate::traits::arrived(l),
-        "blood" => crate::traits::blood_open(l),
-        "class" => ["ranger", "caster"].iter().any(|c| l.unlocks.contains(*c)) || l.classes.iter().any(|(k, c)| k != "fighter" && (c.xp > 0 || c.level > 1)),
+        p if PEN.contains(&p) => pen,
         _ => false,
     }
 }
@@ -104,6 +118,10 @@ pub fn upgrade(l: &mut LineageState) {
     let fresh = l.systems.is_empty();
     let edited = l.sets.iter().any(|s| s.rows.iter().any(|r| r.origin.as_deref() != Some("preset")));
     update(l, fresh && edited);
+    // Cut 30: the retired ids (the oath board, the trait slots) close; the pen's group is the old editor
+    for gone in ["oaths", "traits", "blood"] {
+        l.systems.remove(gone);
+    }
     if fresh {
         l.systems_new.clear();
     }

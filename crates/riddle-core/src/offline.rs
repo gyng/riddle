@@ -14,6 +14,8 @@ pub const STALL_MIN_RUNS: u32 = 4;
 /// A stall patch must move the forecast at the stall depth + 1 by more than this.
 pub const STALL_DELTA: f64 = 0.02;
 pub const STALL_SHOWN: usize = 3;
+/// Cut 30 §1: the most rest an idle-floor hero carries into a new absence (ticks: 10 minutes).
+pub const REST_CARRY_TICKS: u32 = 10 * 60 * 10;
 
 pub fn run_offline(game: &mut Game, elapsed_s: u64) -> ReturnReport {
     run_offline_with(game, elapsed_s, true, true)
@@ -75,6 +77,12 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     if game.lineage.rest_watched {
         game.lineage.rest_left = 0;
         game.lineage.rest_watched = false;
+    }
+    // Cut 30 §1 (short absences pay): on the idle floor the camp time before a new absence is rest —
+    // the rest the hero owes carries at most `REST_CARRY_TICKS` in (a 20-minute absence after an 8-hour
+    // one read `0 runs`: the last run's 20–30 minutes of rest). A harness's literal lineage waits it out.
+    if !game.lineage.pkg.literal {
+        game.lineage.rest_left = game.lineage.rest_left.min(REST_CARRY_TICKS);
     }
     while consumed < budget {
         // Camp rest first (the heir at camp: no run, or a run not yet begun).

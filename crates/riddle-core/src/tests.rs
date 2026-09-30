@@ -11234,7 +11234,7 @@ fn saves_from_307dbed_send_identically() {
     // D28: a `pick_up` chore walks to a silence scroll the full pack now takes (`turn::queen_slot`)
     // where it explored; everything before is identical, and with `QUEEN_PACK_DEPTH` out of reach
     // the save hashes to `21e701bd6e6b9c2d` again)
-    // (Cut 30: re-recorded `3754cfc8a2604f4b` → `92113fbed8c1b0ae` — the save migrates as the
+    // (Cut 30: re-recorded `3754cfc8a2604f4b` → `9baed1759bea0948` — the save migrates as the
     // `custom` stance (its set as written), its heir's temperament no longer overrides a row, and each
     // band boss it meets carries the lineage's scars from the next send on)
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();

@@ -82,8 +82,9 @@ fn the_pen_writes_nothing_until_it_opens() {
     assert_eq!(g.lineage.rules().rows[0].verb.v, "rest");
 }
 
-/// §1: a known counter enters as a drill at the boss's second meeting (a meeting is a day that saw
-/// him), announced once; revoking it persists through a save; a revoked drill is not compiled.
+/// §1: a known counter enters as a drill at the boss's second meeting (the second run that sees him;
+/// the scars count days), announced once; revoking it persists through a save; a revoked drill is not
+/// compiled.
 #[test]
 fn a_drill_comes_at_the_second_meeting_and_stays_revoked() {
     let mut g = Game::new(9);
@@ -92,11 +93,9 @@ fn a_drill_comes_at_the_second_meeting_and_stays_revoked() {
     let set = g.lineage.rules().clone();
     let lines = packages::on_run_end(&mut g.lineage, &met, 8, &[], &set);
     assert!(g.lineage.pkg.drills.is_empty() && lines.iter().all(|l| !l.starts_with("DRILLED")));
-    packages::on_run_end(&mut g.lineage, &met, 8, &[], &set);
-    assert_eq!(g.lineage.pkg.meets["goblin_warlord"], 1, "one meeting a day");
-    g.lineage.day = 1;
     let lines = packages::on_run_end(&mut g.lineage, &met, 8, &[], &set);
-    assert!(lines.iter().any(|l| l == "DRILLED · Warlord"), "{lines:?}");
+    assert_eq!(g.lineage.pkg.meets["goblin_warlord"], 1, "one scar a day");
+    assert!(lines.iter().any(|l| l == "DRILLED · Warlord"), "the second run that meets him: {lines:?}");
     assert!(origins(&g).iter().any(|o| o == "drill:goblin_warlord"));
     let drill = g.lineage.rules().rows.iter().find(|r| r.origin.as_deref() == Some("drill:goblin_warlord")).unwrap().clone();
     assert_eq!(drill.verb, Verb::arg("attack", "tag:boss"));

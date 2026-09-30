@@ -25,6 +25,14 @@ pub fn load(text: &str) -> Result<Game, String> {
     g.bounty_seen = g.lineage.bounty;
     // Cut 28 §1: a lineage from before the oaths draws its board.
     crate::oath::refresh(&mut g.lineage);
+    // Cut 30 §2: a save from before the packages: its set becomes the `custom` stance, the pen open
+    // (its rules keep working; drills come above them) — before the curriculum reads the pen.
+    if g.lineage.pkg_v == 0 {
+        crate::packages::migrate(&mut g.lineage);
+        g.lineage.pkg_v = 1;
+        crate::systems::update(&mut g.lineage, false);
+        g.lineage.systems_new.clear();
+    }
     // Cut 29: a save from before the curriculum (no system open) owns the free vocabulary its gates
     // opened and opens the systems it has used (a later save keeps what it holds: a load is no event).
     if g.lineage.systems.is_empty() {
@@ -39,11 +47,5 @@ pub fn load(text: &str) -> Result<Game, String> {
     }
     // Cut 30 §1: a save from before the traits maps its temperament onto a shape.
     crate::traits::upgrade(&mut g.lineage);
-    // Cut 30 §2: a save from before the packages: its set becomes the `custom` stance, the pen open
-    // (its rules keep working; drills come above them).
-    if g.lineage.pkg_v == 0 {
-        crate::packages::migrate(&mut g.lineage);
-        g.lineage.pkg_v = 1;
-    }
     Ok(g)
 }

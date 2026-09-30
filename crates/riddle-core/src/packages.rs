@@ -162,6 +162,9 @@ pub struct PkgState {
     /// Band boss → the day of the clock his last meeting was counted on (one a day).
     #[serde(default)]
     pub met_day: BTreeMap<String, u32>,
+    /// Band boss → runs that met him (the drill comes at the second).
+    #[serde(default)]
+    pub met_runs: BTreeMap<String, u32>,
     /// The pen: open or not, and the rows the player wrote (above every package).
     #[serde(default)]
     pub pen_open: bool,
@@ -190,6 +193,7 @@ impl Default for PkgState {
             drills: Vec::new(),
             meets: BTreeMap::new(),
             met_day: BTreeMap::new(),
+            met_runs: BTreeMap::new(),
             pen_open: false,
             pen: Vec::new(),
             custom: Vec::new(),
@@ -239,6 +243,8 @@ fn bank_at(best: u32, extra: u32) -> i32 {
 /// Steady rests only when well hurt (`Guarded` rests at 80 %): L2 under this, L3 under the next.
 pub const STEADY_REST: i32 = 40;
 pub const STEADY_REST_L3: i32 = 50;
+/// Guarded's way home: earlier than Steady's, never so early it cannot reach the record.
+pub const GUARDED_RETURN: i32 = 25;
 
 /// The heal threshold of a stance at a level (a drill above the guard rows yields to it).
 pub fn heal_pct(id: &str, level: u32) -> i32 {
@@ -275,9 +281,9 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
     let drink = r(vec![n("hp<", heal)], Verb::arg("drink", "heal"));
     let attack = r(vec![n("foes>=", 1)], Verb::arg("attack", "nearest"));
     match id {
-        // heal 30 %, return 20 %, bank at the record, attack nearest. L2 heals at 35 %, L3 returns at
-        // 25 %, L4 banks a floor further when whole (at the record when hurt), L5 steps off a
-        // telegraph when hurt. Steady never rests (that is `Guarded`'s).
+        // heal 30 %, return 20 %, bank at the record, attack nearest. L2 heals at 35 % and rests when
+        // well hurt (under 40 %), L3 rests under 50 %, L4 banks a floor further when whole (at the
+        // record when hurt), L5 steps off a telegraph when hurt. The long rest is `Guarded`'s.
         "steady" => {
             let mut g = vec![drink, r(vec![n("hp<", 20)], Verb::new("return"))];
             if level >= 4 {
@@ -295,50 +301,57 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             }
             (g, f)
         }
-        // heal 40 %, return 30 %, retreat from a telegraph, bank at the record, rest between fights.
-        // L2 heals at 45 %, L4 backs into a corridor against a crowd, L5 banks at the record when hurt.
+        // heal 40 %, return 25 %, bank at the record, rest between fights (under 80 %). L2 heals at
+        // 45 %, L3 steps off a telegraphed blow, L4 backs into a corridor against a crowd, L5 banks a
+        // floor further when whole.
         "guarded" => {
-            let mut g = vec![drink, r(vec![n("hp<", 30)], Verb::new("return"))];
+            let mut g = vec![drink, r(vec![n("hp<", GUARDED_RETURN)], Verb::new("return"))];
             if level >= 5 {
-                g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0) - 1)], Verb::new("bank")));
+                g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0))], Verb::new("bank")));
+                g.push(r(vec![n("depth>=", bank_at(best, 1))], Verb::new("bank")));
+            } else {
+                g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
             }
-            g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
-            g.push(r(vec![tag("telegraph"), n("adj>=", 1)], Verb::new("retreat")));
+            if level >= 3 {
+                g.push(r(vec![tag("telegraph"), n("adj>=", 1)], Verb::new("retreat")));
+            }
             if level >= 4 {
                 g.push(r(vec![n("foes>=", 3)], Verb::new("back_corridor")));
             }
             (g, vec![attack, r(vec![n("hp<", 80)], Verb::new("rest"))])
         }
-        // heal 25 %, no return, bank two floors past the record, attack the weakest. L3 rests, L4
-        // strikes the boss first, L5 banks one floor further.
+        // heal 25 %, no return, bank two floors past the record, attack the weakest. L2 rests under
+        // 50 %, L4 strikes the boss first, L5 banks one floor further.
         "bold" => {
             let extra = if level >= 5 { 2 } else { 1 };
             let mut g = vec![drink, r(vec![n("depth>=", bank_at(best, extra))], Verb::new("bank"))];
             if level >= 4 {
-                g.push(r(vec![tag("boss")], Verb::arg("attack", "tag:boss")));
+                g.push(r(vec![tag("boss"), n("hp>", heal)], Verb::arg("attack", "tag:boss")));
             }
             let mut f = vec![r(vec![n("foes>=", 1)], Verb::arg("attack", "lowest"))];
-            if level >= 3 {
-                f.push(r(vec![n("hp<", 60)], Verb::new("rest")));
+            if level >= 2 {
+                f.push(r(vec![n("hp<", 50)], Verb::new("rest")));
             }
             (g, f)
         }
-        // bank at the record, the boss and the summoned first. L3 rests, L4 the casters, L5 banks
-        // at the record when hurt.
+        // heal 30 %, return 20 %, bank at the record, the summoned and the boss first. L2 heals at
+        // 35 % and rests under 50 %, L4 the casters first, L5 banks a floor further when whole.
         "hunter" => {
             let mut g = vec![drink, r(vec![n("hp<", 20)], Verb::new("return"))];
             if level >= 5 {
-                g.push(r(vec![n("hp<", 50), n("depth>=", bank_at(best, 0) - 1)], Verb::new("bank")));
+                g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0))], Verb::new("bank")));
+                g.push(r(vec![n("depth>=", bank_at(best, 1))], Verb::new("bank")));
+            } else {
+                g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
             }
-            g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
             g.push(r(vec![tag("summoned"), n("hp>", heal)], Verb::arg("attack", "tag:summoned")));
             g.push(r(vec![tag("boss"), n("hp>", heal)], Verb::arg("attack", "tag:boss")));
             if level >= 4 {
                 g.push(r(vec![tag("caster")], Verb::arg("attack", "tag:caster")));
             }
             let mut f = vec![attack];
-            if level >= 3 {
-                f.push(r(vec![n("hp<", 70)], Verb::new("rest")));
+            if level >= 2 {
+                f.push(r(vec![n("hp<", 50)], Verb::new("rest")));
             }
             (g, f)
         }
@@ -728,14 +741,16 @@ pub fn on_run_end(l: &mut LineageState, bosses_met: &[String], max_depth: u32, f
         }
         // a meeting is a day of the lineage's clock that saw him (the runs of one night are one
         // meeting): the drill comes the next day he is met, a scar each day
+        // (the drill counts runs: the second run that meets him; the scars count days)
         let day = l.day;
-        if l.pkg.met_day.get(b) == Some(&day) {
-            continue;
+        let runs = l.pkg.met_runs.entry(b.clone()).or_insert(0);
+        *runs += 1;
+        let met_runs = *runs;
+        if l.pkg.met_day.get(b) != Some(&day) {
+            l.pkg.met_day.insert(b.clone(), day);
+            *l.pkg.meets.entry(b.clone()).or_insert(0) += 1;
         }
-        l.pkg.met_day.insert(b.clone(), day);
-        let m = l.pkg.meets.entry(b.clone()).or_insert(0);
-        *m += 1;
-        let meets = *m;
+        let meets = met_runs;
         let known = crate::facts::boss_counter_known(&l.facts, b) || (b == "foundry_master" && crate::facts::tag_known(&l.facts, "iron_golem", "reflect_melee"));
         if meets >= DRILL_MEETING && known && !l.pkg.drills.iter().any(|d| d.boss == *b) {
             let heal = heal_pct(&l.pkg.stance, l.pkg.level(&l.pkg.stance));
@@ -802,6 +817,9 @@ pub fn quartermaster(l: &LineageState) -> Vec<String> {
     }
     out
 }
+
+/// The idle floor's pack keeps this many of the stance's kinds (the heal), bought at the send.
+pub const PACK_FILL: usize = 2;
 
 /// The kinds the packages' own rows drink or read (the stance's heal): the idle floor's pack is
 /// kept full of them (`Game::restock_at`), the ones the hero can name and the shelf sells. A
@@ -910,6 +928,11 @@ pub struct PkgOption {
     /// The share of the sends that reach the record's floor.
     #[serde(default)]
     pub reach: f64,
+    /// The sends' mean deepest floor, and its move.
+    #[serde(default)]
+    pub mean: f64,
+    #[serde(default)]
+    pub d_mean: f64,
     pub d_past: f64,
     pub d_bank: f64,
     pub d_death: f64,
@@ -963,7 +986,7 @@ pub fn apply(l: &mut LineageState, id: &str, action: &str, slot: usize) -> Resul
     }
 }
 
-fn shares(g: &crate::engine::Game, set: &RuleSet, sims: u32) -> (f64, f64, f64, f64) {
+fn shares(g: &crate::engine::Game, set: &RuleSet, sims: u32) -> (f64, f64, f64, f64, f64) {
     let rs = crate::forecast::camp_panel(g, set, sims);
     let k = rs.len().max(1) as f64;
     let best = g.lineage.best_depth;
@@ -971,10 +994,13 @@ fn shares(g: &crate::engine::Game, set: &RuleSet, sims: u32) -> (f64, f64, f64, 
     let bank = rs.iter().filter(|r| r.tier == crate::engine::ExitTier::Bank).count() as f64 / k;
     let death = rs.iter().filter(|r| r.tier == crate::engine::ExitTier::Death).count() as f64 / k;
     let reach = rs.iter().filter(|r| r.max_depth >= best).count() as f64 / k;
-    (past, bank, death, reach)
+    let mean = rs.iter().map(|r| r.max_depth as f64).sum::<f64>() / k;
+    (past, bank, death, reach, mean)
 }
 
-/// The camp's package prices (`sims` sends each, on the camp's seeds), best move first.
+/// The camp's package prices (`sims` sends each, on the camp's seeds, from where the sends start), best
+/// move first. (Measured from the deepest lit waystone instead, every move read past the record while the
+/// sends from D1 never got there: a stance that walks home early looked best at the frontier.)
 pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
     let base = shares(g, g.lineage.rules(), sims);
     let mut out: Vec<PkgOption> = Vec::new();
@@ -984,16 +1010,16 @@ pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
             continue;
         }
         let set = compile(&c.lineage);
-        let (past, bank, death, reach) = shares(&c, &set, sims);
+        let (past, bank, death, reach, mean) = shares(&c, &set, sims);
         let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
-        out.push(PkgOption { id, action, slot, price, past, bank, death, reach, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3 });
+        out.push(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4 });
     }
     out.sort_by(|a, b| score(b).total_cmp(&score(a)));
     out
 }
 
-/// A move's worth: the sends past the record, then those reaching it and banked, less those that
-/// die.
+/// A move's worth: the sends past the record, then those reaching it and banked, the floors the
+/// sends reach (a tenth a floor: the long walk from D1 the record sits under), less those that die.
 pub fn score(o: &PkgOption) -> f64 {
-    o.d_past + 0.3 * o.d_reach + 0.2 * o.d_bank - 0.2 * o.d_death
+    o.d_past + 0.3 * o.d_reach + 0.2 * o.d_bank - 0.2 * o.d_death + 0.1 * o.d_mean
 }

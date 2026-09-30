@@ -7,26 +7,33 @@ use crate::wire::Ev;
 /// wire lists every system with its trigger and the new ones glint once; a bot's `open_all` opens all.
 #[test]
 fn systems_open_one_at_a_time() {
-    let mut g = Game::new_literal(3);
+    // (Cut 30 Reveal: day 0 is the camp; the pen's group — the editor, the dial, the order — waits
+    // for the Mother met or a 3-day stall)
+    let mut g = Game::new(3);
     let open = |g: &Game| g.lineage().systems.iter().filter(|s| s.open).map(|s| s.id.clone()).collect::<Vec<_>>();
-    assert_eq!(open(&g), vec!["send", "dial", "headline"]);
+    assert_eq!(open(&g), vec!["send", "headline"]);
     let w = g.lineage();
     assert_eq!(w.systems.len(), crate::systems::SYSTEMS.len());
     assert!(w.systems.iter().all(|s| s.open || !s.trigger.is_empty()), "every closed system says what opens it");
     assert!(w.systems.iter().all(|s| !s.new), "day 0 does not glint");
-    // the first death opens the editor and the death screen
+    // the first death opens the death screen, not the editor
     g.lineage.graveyard.push(crate::wire::Grave { heir: 1, depth: 3, cause: "rat".into(), deeds: Vec::new(), death_id: None });
     let opened = crate::systems::update(&mut g.lineage, false);
-    assert_eq!(opened, vec!["edit", "death"]);
-    assert!(g.lineage().systems.iter().any(|s| s.id == "edit" && s.open && s.new));
+    assert_eq!(opened, vec!["death"]);
+    assert!(g.lineage().systems.iter().any(|s| s.id == "death" && s.open && s.new));
     g.seen_systems();
     assert!(g.lineage().systems.iter().all(|s| !s.new));
-    // the first plateau opens the order and the vs line (and the oaths); the Warlord met, the walls
-    let opened = crate::systems::update(&mut g.lineage, true);
-    assert!(opened.contains(&"reorder".to_string()) && opened.contains(&"vs".to_string()) && opened.contains(&"oaths".to_string()), "{opened:?}");
+    // the Warlord met: the stances; the pen still closed
     g.lineage.best_depth = 8;
+    g.lineage.facts.insert("foe:goblin_warlord".into());
+    let opened = crate::systems::update(&mut g.lineage, true);
+    assert!(opened.contains(&"stances".to_string()) && !opened.contains(&"edit".to_string()) && !opened.contains(&"reorder".to_string()), "{opened:?}");
+    // the pen opens its group
+    g.lineage.pkg.pen_open = true;
     let opened = crate::systems::update(&mut g.lineage, false);
-    assert!(opened.contains(&"walls".to_string()) && opened.contains(&"divergence".to_string()) && !opened.contains(&"forge".to_string()), "{opened:?}");
+    for id in ["pen", "edit", "dial", "reorder", "walls"] {
+        assert!(opened.contains(&id.to_string()), "{id}: {opened:?}");
+    }
     // sticky: a system stays open
     g.lineage.best_depth = 2;
     crate::systems::update(&mut g.lineage, false);
@@ -35,13 +42,14 @@ fn systems_open_one_at_a_time() {
     let mut b = Game::new_literal(4);
     crate::systems::open_all(&mut b.lineage);
     assert!(b.lineage().systems.iter().all(|s| s.open && !s.new));
-    // an old save (no system recorded) opens what it has used
+    // an old save (no system recorded) opens what it has used — its set is the pen's
     let mut old = Game::new_literal(5);
     old.lineage.systems.clear();
     old.lineage.kills.insert("goblin_warlord".into());
     old.lineage.best_depth = 9;
+    old.lineage.pkg_v = 0;
     let back = Game::load(&old.save()).unwrap();
-    assert!(crate::systems::is_open(&back.lineage, "forge") && crate::systems::is_open(&back.lineage, "walls"));
+    assert!(crate::systems::is_open(&back.lineage, "tactics") && crate::systems::is_open(&back.lineage, "walls"));
     assert!(back.lineage.systems_new.is_empty(), "an old save does not glint what it already used");
 }
 

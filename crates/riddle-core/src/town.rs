@@ -124,9 +124,27 @@ pub fn night(l: &mut LineageState) -> i32 {
 /// A track's stages v1 (docs/CUT30.md §4), each with its trigger.
 pub fn stages(track: &str) -> &'static [(&'static str, &'static str)] {
     match track {
-        "character" => &[("Steady", ""), ("second stance", "meet Warlord"), ("a tactic", "slay Warlord"), ("pets", "first stray"), ("a class", "first bank"), ("a temperament", "heir 3"), ("tactic slot 2", "meet Lich"), ("the pen", "meet Mother")],
+        // (each band boss's drill is a stage of the hero's: the idle climb's own milestones)
+        "character" => &[
+            ("Steady", ""),
+            ("second stance", "meet Warlord"),
+            ("Warlord drilled", "meet Warlord twice"),
+            ("a tactic", "slay Warlord"),
+            ("pets", "first stray"),
+            ("a class", "first bank"),
+            ("a temperament", "heir 3"),
+            ("the pen", "meet Mother"),
+            ("Mother drilled", "meet Mother twice"),
+            ("tactic slot 2", "meet Lich"),
+            ("Lich drilled", "meet Lich twice"),
+            ("Foundry drilled", "meet golems twice"),
+            ("Queen drilled", "meet Queen twice"),
+            ("King drilled", "meet King twice"),
+        ],
         "items" => &[("pack of 3", ""), ("storehouse", "first find kept"), ("blacksmith steps", "first gold home"), ("a counter packed", "a drill's item")],
-        "scale" => &[("one hero", ""), ("party slot 2", "a second slot"), ("waystones", "slay Warlord"), ("party slots 3–4", "a fourth slot")],
+        // (a waystone lit deeper is the scale's next stage: the sends can start there)
+        // (each band boss slain is a stage too: the descent opens past him for good)
+        "scale" => &[("one hero", ""), ("party slot 2", "a second slot"), ("waystones", "slay Warlord"), ("Mother slain", "slay Mother"), ("Lich slain", "slay Lich"), ("Master slain", "slay Master"), ("Queen slain", "slay Queen"), ("waystone D14", "bank at D14"), ("waystone D19", "bank at D19"), ("waystone D24", "bank at D24"), ("waystone D29", "bank at D29"), ("party slots 3–4", "a fourth slot")],
         "town" => &[("camp", ""), ("blacksmith", "first gold home"), ("storehouse", "first find kept"), ("kennel", "first tame"), ("bank", "a night's purse")],
         _ => &[],
     }
@@ -149,6 +167,27 @@ pub fn reached(l: &LineageState, track: &str, stage: &str) -> bool {
         ("items", "storehouse") | ("town", "storehouse") => built(l, "storehouse"),
         ("items", "blacksmith steps") => crate::kit::KIT_SLOTS.iter().any(|s| crate::kit::owned(l, s) > 0) || built(l, "blacksmith"),
         ("items", "a counter packed") => !crate::packages::quartermaster(l).is_empty() || l.pkg.drills.iter().any(|d| crate::packages::drill_item(d).is_some()),
+        ("character", d) if d.ends_with(" drilled") => {
+            let boss = match d.trim_end_matches(" drilled") {
+                "Warlord" => "goblin_warlord",
+                "Mother" => "bloat_mother",
+                "Lich" => "lich",
+                "Foundry" => "foundry_master",
+                "Queen" => "lurker_queen",
+                _ => "mirror_king",
+            };
+            l.pkg.drills.iter().any(|x| x.boss == boss)
+        }
+        ("scale", s) if s.ends_with(" slain") => {
+            let boss = match s.trim_end_matches(" slain") {
+                "Mother" => "bloat_mother",
+                "Lich" => "lich",
+                "Master" => "foundry_master",
+                _ => "lurker_queen",
+            };
+            l.kills.contains(boss)
+        }
+        ("scale", w) if w.starts_with("waystone D") => w.trim_start_matches("waystone D").parse::<u32>().is_ok_and(|d| l.stones().contains(&d)),
         ("scale", "party slot 2") => l.party_slots() >= 2,
         ("scale", "party slots 3–4") => l.party_slots() >= 4,
         ("town", b) => built(l, b),

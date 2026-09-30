@@ -18,6 +18,8 @@ mod lanes;
 mod exits;
 #[path = "progression_lib/mod.rs"]
 mod prog;
+#[path = "idle_lib/mod.rs"]
+mod idle;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Bot {
@@ -1330,6 +1332,50 @@ fn vacuous(name: &str) -> bool {
     false
 }
 
+/// Cut 30 §6 (docs/CUT30.md, the owner's decision in docs/HANDOFF.md §0): the rows the idle gates
+/// replace — "not engaging fails" — printed and not counted. Exactly the contract's list: DEFAULT dies by
+/// ≤ D8; EDITED − DEFAULT ≥ 15 pts; LEARNED ≤ DEFAULT + 2; PETS ≤ D8; LEVELLED ≤ D9; TRIVIAL never passes
+/// D8; KITTED ≤ D8 and its `Kitted:` twins; `{set} never passes D{boss}` (FULL−D23/28/33) and its kitted
+/// twin; DEFAULT passes the den/lock/captive/hunger ≤ 20 %; DEFAULT yields 0 xp/gold over 8 h; the
+/// `Routes:` DEFAULT/EDITED/LEARNED rows and the PASSIVE/RANDOM twins; PASSIVE loses; the whole forge <
+/// the best row (the lever) and its oath twin; DEFAULT/EDITED never swear; the oath best set ≠
+/// bank-optimal; the progression rows (unlock days, stall ≤ 3 on 13/18, marks unspent ≤ 8, purse ≤ 1.5
+/// days' net). (The oath board left play in §5: its completable row is the quests' now.)
+const RETIRED: &[&str] = &[
+    "DEFAULT dies by ≤ D8",
+    "EDITED − DEFAULT (≥ D10) ≥ 15 pts",
+    "LEARNED mean depth ≤ DEFAULT + 2",
+    "PETS dies by ≤ D8",
+    "LEVELLED dies by ≤ D9",
+    "TRIVIAL never passes D8",
+    "KITTED (DEFAULT + every step) dies by ≤ D8",
+    "Kitted: ",
+    "FULL−D23 never passes",
+    "FULL−D28 never passes",
+    "FULL−D33 never passes",
+    "DEFAULT passes the ",
+    "DEFAULT yields 0 xp/gold",
+    "Routes: DEFAULT",
+    "Routes: EDITED − DEFAULT",
+    "Routes: LEARNED",
+    "Routes: PASSIVE",
+    "Routes: RANDOM",
+    "PASSIVE loses by ≤ D3",
+    "Whole forge's bank move < best row's",
+    "Lever holds with every oath reward",
+    "DEFAULT/EDITED never swear an oath",
+    "Oath best set ≠ bank-optimal",
+    "Oath completable ≥ 20%/night",
+    "Progression: days with an unlock",
+    "Progression: marks unspent",
+    "Progression: longest stall",
+    "Progression: purse",
+];
+
+fn retired(name: &str) -> bool {
+    RETIRED.iter().any(|p| name.starts_with(p)) || (name.starts_with("FULL") && name.contains(" never passes D"))
+}
+
 /// Every row that measured nothing fails (`vacuous`), its value marked.
 fn seal(rows: &mut [(String, String, bool)]) {
     for (name, value, ok) in rows.iter_mut() {
@@ -1338,6 +1384,102 @@ fn seal(rows: &mut [(String, String, bool)]) {
             value.push_str(" · n=0");
         }
     }
+}
+
+fn threads_for_cut30() -> usize {
+    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8).max(2) - 1
+}
+
+/// Run `f` over `items` on `threads` threads, the results in the items' order.
+fn pool<T: Sync, R: Send>(items: &[T], threads: usize, f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let out: Mutex<Vec<(usize, R)>> = Mutex::new(Vec::new());
+    std::thread::scope(|sc| {
+        for _ in 0..threads.max(1) {
+            sc.spawn(|| loop {
+                let i = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let Some(it) = items.get(i) else { break };
+                let r = f(it);
+                out.lock().unwrap().push((i, r));
+            });
+        }
+    });
+    let mut v = out.into_inner().unwrap();
+    v.sort_by_key(|(i, _)| *i);
+    v.into_iter().map(|(_, r)| r).collect()
+}
+
+/// Cut 30 §6 (docs/CUT30.md): the idle floor's table rows (`examples/idle_lib`): a 20-minute absence
+/// pays, a drill's item is packed at its wall, every stance is best at some wall and none at all, each
+/// quest is keepable with the pen closed. The fortnight's own rows are the dayplayer's (`--idle`,
+/// `--picked`, `--tuned`).
+fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize) {
+    let lineages: Vec<u64> = (1..=seeds.min(8)).collect();
+    // (the snapshots travel between threads as saves: a game's caches are not `Sync`)
+    let snaps: Vec<Vec<(u32, String)>> = pool(&lineages, threads, |s| idle::snapshots(*s, 14).into_iter().map(|(w, g)| (w, g.save())).collect());
+    let load = |t: &String| Game::load(t).expect("a snapshot loads");
+    // a 20-minute absence: 30 fresh lineages and every IDLE lineage standing at D13
+    let fresh: Vec<u64> = (1..=30).collect();
+    let fresh_runs: Vec<u32> = pool(&fresh, threads, |s| idle::twenty_minutes(&Game::new(*s)));
+    let d13: Vec<&String> = snaps.iter().flat_map(|v| v.iter().filter(|(w, _)| *w == 13).map(|(_, g)| g)).collect();
+    let d13_runs: Vec<u32> = pool(&d13, threads, |g| idle::twenty_minutes(&load(g)));
+    let paid = fresh_runs.iter().chain(&d13_runs).filter(|r| **r >= 1).count();
+    let n20 = fresh_runs.len() + d13_runs.len();
+    rows.push((format!("A 20-min absence returns ≥ 1 run ≥ 95% (fresh 30 + D13 {})", d13_runs.len()), format!("{:.0}%", pct(paid, n20)), pct(paid, n20) >= 95.0 && !d13_runs.is_empty()));
+    // the quartermaster: a drill's item in the pack at its wall
+    let packs: Vec<(u32, u32)> = pool(&lineages, threads, |s| idle::drill_packed(*s, 12));
+    let (c, n) = packs.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));
+    rows.push((format!("A drill-needed item is in the pack at its wall ≥ 90% (n={n})"), format!("{:.0}%", pct(c as usize, n as usize)), pct(c as usize, n as usize) >= 90.0));
+    // every stance best at ≥ 1 wall on ≥ 1 seed set, none at all: per wall and seed half, the stance
+    // whose sends from the IDLE lineages under that wall pass it most
+    let mut jobs: Vec<(usize, u32, &'static str, &String)> = Vec::new();
+    for (si, v) in snaps.iter().enumerate() {
+        for (w, g) in v {
+            for s in idle::STANCES {
+                jobs.push((si, *w, s, g));
+            }
+        }
+    }
+    let past: Vec<f64> = pool(&jobs, threads, |(_, w, s, g)| idle::stance_past(&load(g), s, *w, 32));
+    let half = lineages.len().div_ceil(2);
+    let mut wins: BTreeMap<&str, u32> = BTreeMap::new();
+    let mut contests = 0;
+    for w in idle::WALLS {
+        for set in [0..half, half..lineages.len()] {
+            let mut score: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
+            for (k, (si, jw, s, _)) in jobs.iter().enumerate() {
+                if *jw == w && set.contains(si) {
+                    let e = score.entry(*s).or_insert((0.0, 0));
+                    e.0 += past[k];
+                    e.1 += 1;
+                }
+            }
+            if score.values().all(|(_, n)| *n == 0) || score.is_empty() {
+                continue;
+            }
+            contests += 1;
+            let top = score.iter().map(|(s, (t, n))| (*s, t / (*n).max(1) as f64)).fold(("", -1.0), |a, b| if b.1 > a.1 + 1e-9 { b } else { a });
+            *wins.entry(top.0).or_insert(0) += 1;
+        }
+    }
+    let each = idle::STANCES.iter().all(|s| wins.get(s).is_some_and(|n| *n > 0));
+    let none_all = wins.values().all(|n| *n < contests);
+    rows.push((format!("Every stance best at ≥ 1 wall, none at all ({contests} walls × seed sets)"), wins.iter().map(|(s, n)| format!("{s} {n}")).collect::<Vec<_>>().join(" "), each && none_all && contests > 0));
+    // each quest keepable ≥ 20 % a night by some package set, the pen closed (the board opens with the
+    // Warlord slain: the lineages at D13, D18 and D23)
+    let mut qjobs: Vec<(&String, &'static str)> = Vec::new();
+    for v in &snaps {
+        for (w, g) in v {
+            if [13, 18, 23].contains(w) {
+                for k in ["reach", "reach_no_return", "bank", "slay"] {
+                    qjobs.push((g, k));
+                }
+            }
+        }
+    }
+    let q: Vec<(String, f64)> = pool(&qjobs, threads, |(g, k)| idle::quest_night(&load(g), k, 24));
+    let worst = q.iter().fold(("-".to_string(), 1.0f64), |a, b| if b.1 < a.1 { b.clone() } else { a });
+    rows.push((format!("Quests keepable ≥ 20%/night by a package set, pen closed (n={})", q.len()), format!("worst {:.0}% {}", 100.0 * worst.1, worst.0), worst.1 >= 0.2 && !q.is_empty()));
 }
 
 fn pct(n: usize, d: usize) -> f64 {
@@ -2446,11 +2588,19 @@ fn main() {
     let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));
     rows.push((format!("Stall reel line's cause == the trace's (n={sr_n})"), format!("{sr_ok}/{sr_n}"), sr_ok == sr_n));
     phase("rest");
+    cut30_rows(&mut rows, seeds, threads_for_cut30());
+    phase("cut30");
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");
     let mut fails = 0;
     seal(&mut rows);
     for (name, value, ok) in &rows {
+        // Cut 30 §6: the "not engaging fails" rows are replaced by the idle gates (dayplayer `--idle`,
+        // `--picked`, `--tuned`); they print for the record and no longer gate
+        if retired(name) {
+            println!("{:<52} {:>18}  retired ({})", name, value, if *ok { "pass" } else { "fail" });
+            continue;
+        }
         println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
         if !ok {
             fails += 1;

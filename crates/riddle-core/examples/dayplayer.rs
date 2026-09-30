@@ -154,8 +154,8 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
 }
 
 /// The forecast's panel for a package move, and the move it must clear.
-const PICK_SIMS: u32 = 32;
-const PICK_BAR: f64 = 0.1;
+const PICK_SIMS: u32 = 40;
+const PICK_BAR: f64 = 0.12;
 
 /// A blacksmith step whenever the purse pays it with `reserve` to spare.
 fn forge(g: &mut Game, reserve: i32) -> u32 {
@@ -196,6 +196,8 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
     let mut stall_cur = 0usize;
     let mut reached23 = false;
     let mut k = 0u64;
+    let mut last_key: Option<(usize, u32, Vec<String>)> = None;
+    let mut cool = 0u32;
     for day in 0..days {
         let wealth0 = g.lineage.gold as i64 + g.lineage.town.bank as i64;
         let stages0 = riddle_core::town::stage_set(&g.lineage);
@@ -243,7 +245,16 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                 }
                 Bot::Picked | Bot::Tuned => {
                     if cfg.has("packages") {
-                        pick_package(&mut g, verbose, day, ci == 0);
+                        // the forecast is read when something new is on the shelf (a package arrived, a
+                        // new record, a wake card) and once a day besides
+                        // (a swap holds a day before the next is weighed, unless a package arrives)
+                        let key = (g.lineage.pkg.owned.len(), g.lineage.best_depth, g.lineage.pkg.offer.clone());
+                        let arrived = last_key.as_ref().is_some_and(|k| k.0 != key.0 || k.2 != key.2);
+                        let fresh = arrived || (cool == 0 && (ci == 0 || last_key.as_ref() != Some(&key)));
+                        let stance = g.lineage.pkg.equipped();
+                        pick_package(&mut g, verbose, day, fresh);
+                        cool = if g.lineage.pkg.equipped() != stance { checkins as u32 } else { cool.saturating_sub(1) };
+                        last_key = Some((g.lineage.pkg.owned.len(), g.lineage.best_depth, g.lineage.pkg.offer.clone()));
                     }
                     if tuned {
                         let pets = cfg.has("pets");
@@ -286,12 +297,14 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                         }
                     }
                     if cfg.has("forge") {
-                        forge(&mut g, 150);
+                        // (the purse keeps the shelf's money: three units — a few sends' potions at depth)
+                        let reserve = 3 * riddle_core::kit::unit(g.lineage.best_depth) as i32;
+                        forge(&mut g, reserve);
                     }
                     if cfg.has("bank") && riddle_core::town::built(&g.lineage, "bank") {
                         // the purse keeps the next forge step and the shelf's money; the rest earns
                         let next = riddle_core::kit::ladders(&g.lineage).iter().filter_map(|l| l.next.as_ref().map(|x| x.price as i32)).min().unwrap_or(0);
-                        let spare = g.lineage.gold - next - 500;
+                        let spare = g.lineage.gold - next - 3 * riddle_core::kit::unit(g.lineage.best_depth) as i32;
                         if spare > 0 {
                             let _ = g.bank_deposit(spare);
                         }

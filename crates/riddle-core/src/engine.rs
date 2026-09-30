@@ -5671,7 +5671,7 @@ impl Game {
         let fill = crate::packages::pack_kinds(&self.lineage);
         let cap = self.lineage.supply_cap();
         let mut want: Vec<String> = qm.clone();
-        for k in fill.iter().cycle().take(if fill.is_empty() { 0 } else { cap }) {
+        for k in fill.iter().cycle().take(if fill.is_empty() { 0 } else { cap.min(crate::packages::PACK_FILL) }) {
             want.push(k.clone());
         }
         for (i, kind) in want.iter().enumerate() {
@@ -5684,6 +5684,13 @@ impl Game {
             }
             if !drill && self.lineage.supplies.iter().filter(|s| s.kind == *kind).count() >= want[qm.len()..].iter().filter(|k| *k == kind).count() {
                 continue;
+            }
+            // (an absence's fill spends no more than the absence brought home, as the repeat)
+            if !drill && self.offline {
+                let price = self.supply_catalogue().iter().find(|e| e.kind == *kind).map(|e| e.price).unwrap_or(0);
+                if price > self.batch.income() - self.batch.spent_total() {
+                    continue;
+                }
             }
             if self.lineage.supplies.len() >= self.lineage.supply_cap() {
                 if let Some(i) = self.lineage.supplies.iter().rposition(|s| !qm.contains(&s.kind)) {
