@@ -1423,6 +1423,17 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
     let fresh_runs: Vec<u32> = pool(&fresh, threads, |s| idle::twenty_minutes(&Game::new(*s)));
     let d13: Vec<&String> = snaps.iter().flat_map(|v| v.iter().filter(|(w, _)| *w == 13).map(|(_, g)| g)).collect();
     let d13_runs: Vec<u32> = pool(&d13, threads, |g| idle::twenty_minutes(&load(g)));
+    // expeditions per 8 h on the idle floor (fresh lineages' first 8 h, and at D13): at least 6, at most one
+    // send and its rest per 20 minutes (`engine::REST_MIN_TICKS` — the band's own reason: no sortie farm)
+    let e8: Vec<u32> = pool(&fresh[..8], threads, |s| {
+        let mut g = Game::new(*s);
+        riddle_core::offline::run_offline_counts(&mut g, 8 * 3600).runs
+    });
+    let e8_d13: Vec<u32> = pool(&d13, threads, |g| riddle_core::offline::run_offline_counts(&mut load(g), 8 * 3600).runs);
+    let cap = (8 * 3600 * riddle_core::offline::TICKS_PER_SECOND) as f64 / riddle_core::engine::REST_MIN_TICKS as f64;
+    let mean = |v: &[u32]| v.iter().sum::<u32>() as f64 / v.len().max(1) as f64;
+    let (a, b) = (mean(&e8), mean(&e8_d13));
+    rows.push((format!("Expeditions per 8 h, IDLE (fresh · D13) in 6–{cap:.0}"), format!("{a:.1} · {b:.1}"), [a, b].iter().all(|x| (6.0..=cap).contains(x)) && !e8_d13.is_empty()));
     let paid = fresh_runs.iter().chain(&d13_runs).filter(|r| **r >= 1).count();
     let n20 = fresh_runs.len() + d13_runs.len();
     rows.push((format!("A 20-min absence returns ≥ 1 run ≥ 95% (fresh 30 + D13 {})", d13_runs.len()), format!("{:.0}%", pct(paid, n20)), pct(paid, n20) >= 95.0 && !d13_runs.is_empty()));
@@ -1440,7 +1451,7 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
             }
         }
     }
-    let past: Vec<f64> = pool(&jobs, threads, |(_, w, s, g)| idle::stance_past(&load(g), s, *w, 32));
+    let past: Vec<f64> = pool(&jobs, threads, |(_, w, s, g)| idle::stance_past(&load(g), s, *w, 48));
     let half = lineages.len().div_ceil(2);
     let mut wins: BTreeMap<&str, u32> = BTreeMap::new();
     let mut contests = 0;
@@ -1457,7 +1468,13 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
             if score.values().all(|(_, n)| *n == 0) || score.is_empty() {
                 continue;
             }
+            // (a wall no stance's sends pass is no contest)
+            let spread = score.values().map(|(t, n)| t / (*n).max(1) as f64).fold(f64::MIN, f64::max) - score.values().map(|(t, n)| t / (*n).max(1) as f64).fold(f64::MAX, f64::min);
+            if spread < 1e-9 {
+                continue;
+            }
             contests += 1;
+            eprintln!("stances D{w} set {:?}: {}", set, score.iter().map(|(s, (t, n))| format!("{s} {:.2}", t / (*n).max(1) as f64)).collect::<Vec<_>>().join(" "));
             let top = score.iter().map(|(s, (t, n))| (*s, t / (*n).max(1) as f64)).fold(("", -1.0), |a, b| if b.1 > a.1 + 1e-9 { b } else { a });
             *wins.entry(top.0).or_insert(0) += 1;
         }
@@ -1525,6 +1542,15 @@ fn main() {
     // --quick: 8 seeds × 8 h × 3 verdicts (≈ 30 s; depth gates are 8 h tail gates, so hours stay).
     // Full: 30 × 8 h × 8 (≈ 2 min) is the number that counts. Never weaken bars.
     let quick = args.iter().any(|a| a == "--quick");
+    // `--cut30`: the idle floor's rows alone (`cut30_rows`, a few minutes)
+    if args.iter().any(|a| a == "--cut30") {
+        let mut rows = Vec::new();
+        cut30_rows(&mut rows, get("--seeds", 8), get("--threads", 24) as usize);
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
     let seeds = get("--seeds", if quick { 8 } else { 30 });
     let hours = get("--hours", 8);
     let verdicts_per_seed = get("--verdicts", if quick { 3 } else { 8 }) as usize;
@@ -2296,7 +2322,9 @@ fn main() {
     // Cut 2 gates (docs/CUT2.md).
     let runs8 = |rs: &[&SeedResult]| rs.iter().map(|r| r.runs as f64 * 8.0 / hours as f64).sum::<f64>() / ns as f64;
     let (d8, e8) = (runs8(&default), runs8(&edited));
-    rows.push(("Expeditions per 8 h (DEFAULT, EDITED) in 6–16".into(), format!("{d8:.1} · {e8:.1}"), (6.0..=16.0).contains(&d8) && (6.0..=16.0).contains(&e8)));
+    // (Cut 30 §6: DEFAULT's sends were the two-row fighter's, dead every send and waking 20 minutes; the
+    // idle floor's own count is `cut30_rows`' IDLE row — printed here for the record, EDITED still gated)
+    rows.push(("Expeditions per 8 h (EDITED) in 6–16".into(), format!("{e8:.1} · DEFAULT {d8:.1}"), (6.0..=16.0).contains(&e8)));
     let d_yield = default.iter().map(|r| r.xp as u64 + r.gold.max(0) as u64).sum::<u64>();
     rows.push(("DEFAULT yields 0 xp/gold over 8 h".into(), format!("{d_yield}"), d_yield == 0));
     // Cut 15 §1: marks per 8 h (printed, not gated) and the frontier banks' share of them.

@@ -9,6 +9,9 @@ use riddle_core::Game;
 /// The walls the stances are weighed at (a band boss's floor).
 pub const WALLS: [u32; 5] = [8, 13, 18, 23, 28];
 pub const STANCES: [&str; 4] = ["steady", "guarded", "bold", "hunter"];
+/// A death weighed against a send past the wall: a quarter (the heir and 70 % of the carry lost, the
+/// wall still to pass).
+pub const DEATH_WEIGHT: f64 = 0.25;
 
 /// IDLE's lineage of `seed` over `days`, snapshot at each wall (the first check-in it stands at
 /// `wall − 1` or deeper, before passing it), and the first check-in at D13 or deeper.
@@ -35,17 +38,31 @@ pub fn twenty_minutes(g: &Game) -> u32 {
     riddle_core::offline::run_offline_counts(&mut g, 20 * 60).runs
 }
 
-/// The shares of `stance`'s sends from `g` that pass `wall` (a sim panel of `sims`), with the
-/// stance worn at its lineage's level.
+/// The shares of `stance`'s sends from `g` that pass `wall` (a sim panel of `sims`): every stance at
+/// the worn stance's level, the record at the wall's floor (each stance's bank row then asks for the
+/// floor past it — a stance is weighed on passing the wall, not on banking under it).
 pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32) -> f64 {
     let mut c = g.sim_clone();
+    // (from the deepest lit waystone at or above the wall: the wall is weighed, not the walk to it)
+    if let Some(s) = c.lineage.stones().into_iter().filter(|s| *s <= wall).max() {
+        c.lineage.start = s;
+    }
     c.lineage.pkg.owned.insert(stance.to_string());
+    let worn = c.lineage.pkg.stance.clone();
+    let runs = c.lineage.pkg.runs.get(&worn).copied().unwrap_or(0);
+    c.lineage.pkg.runs.insert(stance.to_string(), runs);
+    c.lineage.best_depth = c.lineage.best_depth.max(wall);
     if packages::equip(&mut c.lineage, stance, 0).is_err() {
         return 0.0;
     }
     let set = packages::compile(&c.lineage);
     let rs = riddle_core::forecast::camp_panel(&c, &set, sims);
-    rs.iter().filter(|r| r.max_depth > wall).count() as f64 / rs.len().max(1) as f64
+    let k = rs.len().max(1) as f64;
+    // a stance's worth at a wall: the sends past it, less half those that die (a death costs the heir
+    // and 70 % of the carry — passing by dying more is not the better stance)
+    let past = rs.iter().filter(|r| r.max_depth > wall).count() as f64 / k;
+    let died = rs.iter().filter(|r| r.tier == ExitTier::Death).count() as f64 / k;
+    past - DEATH_WEIGHT * died
 }
 
 /// Of `sends` sends from a lineage whose Mother drill wants fire (fire named, the purse full), the share

@@ -52,7 +52,7 @@ impl Cfg {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
 struct SeedOut {
     seed: u64,
     /// Hours to each milestone (`MILESTONES`), if reached.
@@ -412,7 +412,11 @@ fn ratio(slow: &[SeedOut], fast: &[SeedOut], i: usize) -> f64 {
 fn main() {
     // The bots fill the machine seed by seed; a panel's sims stay sequential inside a job (a TUNED
     // bot's wall search and verdicts on every core, 32 jobs at once, ran the load past 150).
-    riddle_core::forecast::set_parallel_sims(false);
+    // (a panel's sims on `RIDDLE_THREADS` threads, 3 unless set, beside `--threads` jobs, 10 unless set:
+    // ~30 at the peak — the jobs are mostly one thread, a PICKED or TUNED camp read widens for a moment)
+    if std::env::var("RIDDLE_THREADS").is_err() {
+        std::env::set_var("RIDDLE_THREADS", "3");
+    }
     let a: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     let seeds = get("--seeds", 8);
@@ -443,16 +447,33 @@ fn main() {
     // (a leave-one-out is a TUNED fortnight less a system — the table's costliest job, ~25 CPU-min
     // each: `--loo-seeds`, 4 by default, the first seeds of the bots' own)
     let loo_seeds = get("--loo-seeds", 4);
+    // (TUNED is a leave-one-out's base: the same seeds, `--tuned-seeds`, the bots' own by default)
+    let tuned_seeds = get("--tuned-seeds", seeds);
+    // Per-job results are kept under `target/gates/dp/` by the binary's own hash (a job is a pure function
+    // of the binary, the bot, the seed and the days): a rerun of an unchanged binary reprints at once, and
+    // an interrupted run resumes where it stopped.
+    let bin_key = {
+        let bytes = std::fs::read(std::env::current_exe().expect("exe")).unwrap_or_default();
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in &bytes {
+            h ^= *b as u64;
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+        format!("{h:016x}")
+    };
+    let cache_dir = std::path::PathBuf::from("target/gates/dp");
+    let _ = std::fs::create_dir_all(&cache_dir);
+    let cache_of = |c: &Cfg, s: u64| cache_dir.join(format!("{bin_key}-{}-s{s}-d{days}-c{checkins}.json", c.label()));
     let jobs: Vec<(usize, u64)> = (0..cfgs.len())
         .flat_map(|c| {
-            let n = if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else { seeds };
+            let n = if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else if cfgs[c].bot == Bot::Tuned { tuned_seeds.min(seeds) } else { seeds };
             (1..=n).filter(|s| only.is_none_or(|o| o == *s)).map(move |s| (c, s))
         })
         .collect();
     // the longest first (TUNED and its leave-one-outs), so the short ones fill the cores at the end
     let mut jobs = jobs;
     jobs.sort_by_key(|(c, s)| (cfgs[*c].bot != Bot::Tuned, *s));
-    let threads = get("--threads", 24) as usize;
+    let threads = get("--threads", 10) as usize;
     let next = std::sync::atomic::AtomicUsize::new(0);
     let results: std::sync::Mutex<Vec<(usize, SeedOut)>> = std::sync::Mutex::new(Vec::new());
     std::thread::scope(|sc| {
@@ -461,7 +482,16 @@ fn main() {
                 let i = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let Some(&(c, s)) = jobs.get(i) else { break };
                 let t = std::time::Instant::now();
-                let o = play(s, days, checkins, cfgs[c], verbose);
+                let path = cache_of(&cfgs[c], s);
+                let hit = if verbose { None } else { std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<SeedOut>(&t).ok()) };
+                let o = match hit {
+                    Some(o) => o,
+                    None => {
+                        let o = play(s, days, checkins, cfgs[c], verbose);
+                        let _ = std::fs::write(&path, serde_json::to_string(&o).unwrap_or_default());
+                        o
+                    }
+                };
                 eprintln!("dayplayer: {} s{s} done in {:.0}s", cfgs[c].label(), t.elapsed().as_secs_f64());
                 results.lock().unwrap().push((c, o));
             });

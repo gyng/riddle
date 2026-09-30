@@ -104,7 +104,7 @@ pub fn name(id: &str) -> &str {
 }
 
 /// Runs a package needs for L2 · L3 · L4 · L5 (tunable; the gate is the felt pace).
-pub const LEVEL_RUNS: [u32; 4] = [10, 40, 150, 400];
+pub const LEVEL_RUNS: [u32; 4] = [10, 40, 120, 220];
 pub const MAX_LEVEL: u32 = 5;
 
 pub fn level_of(runs: u32) -> u32 {
@@ -317,6 +317,8 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             }
             if level >= 3 {
                 g.push(r(vec![tag("telegraph"), n("adj>=", 1)], Verb::new("retreat")));
+                // (the guarded step back from what hurts back: a known mirror of blows is not struck)
+                g.push(r(vec![tag("reflect_melee"), n("adj>=", 1)], Verb::new("retreat")));
             }
             if level >= 4 {
                 g.push(r(vec![n("foes>=", 3)], Verb::new("back_corridor")));
@@ -327,7 +329,8 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
         // 50 %, L4 strikes the boss first, L5 banks one floor further.
         "bold" => {
             let extra = if level >= 5 { 2 } else { 1 };
-            let mut g = vec![drink, r(vec![n("depth>=", bank_at(best, extra))], Verb::new("bank"))];
+            // (the bold go down, not home: hurt with the stairs in reach, he dives past the floor)
+            let mut g = vec![drink, r(vec![n("depth>=", bank_at(best, extra))], Verb::new("bank")), r(vec![n("hp<", 40), Cond::flag("path_stairs")], Verb::new("descend"))];
             if level >= 4 {
                 g.push(r(vec![tag("boss"), n("hp>", heal)], Verb::arg("attack", "tag:boss")));
             }
@@ -347,10 +350,15 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             } else {
                 g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
             }
+            // the hunter goes for what strikes from afar or raises others: archers, casters, the
+            // summoned, the boss — before the nearest
+            // (and never meleés a mirror of blows: from afar, fire, or a step away — the Foundry's card)
+            g.push(r(vec![tag("reflect_melee")], Verb::arg("tactic", "reflect_read")));
+            g.push(r(vec![tag("ranged"), n("hp>", heal)], Verb::arg("attack", "tag:ranged")));
             g.push(r(vec![tag("summoned"), n("hp>", heal)], Verb::arg("attack", "tag:summoned")));
             g.push(r(vec![tag("boss"), n("hp>", heal)], Verb::arg("attack", "tag:boss")));
-            if level >= 4 {
-                g.push(r(vec![tag("caster")], Verb::arg("attack", "tag:caster")));
+            if level >= 3 {
+                g.push(r(vec![tag("caster"), n("hp>", heal)], Verb::arg("attack", "tag:caster")));
             }
             let mut f = vec![attack];
             if level >= 2 {
@@ -480,6 +488,12 @@ pub fn recompile(l: &mut LineageState) -> bool {
         return false;
     }
     let set = compile(l);
+    // a package's card plays with the package (the lineage owns it from then on)
+    for c in set.rows.iter().filter(|r| r.is_pkg()).filter_map(|r| r.card()) {
+        if !l.unlocks.contains(c) {
+            l.unlocks.insert(c.to_string());
+        }
+    }
     let i = l.active_set.min(l.sets.len() - 1);
     if l.sets[i] == set && l.sets[i].rows.iter().zip(&set.rows).all(|(a, b)| a.origin == b.origin) {
         return false;
@@ -780,9 +794,14 @@ pub fn on_run_end(l: &mut LineageState, bosses_met: &[String], max_depth: u32, f
             l.pkg.met_day.insert(b.clone(), day);
             *l.pkg.meets.entry(b.clone()).or_insert(0) += 1;
         }
-        let meets = met_runs;
+        // (the Warlord is drilled at the second run that meets him — the first wall teaches the drill;
+        // every later boss at the second *day* he is met: a package that answers him — Hunter, boss
+        // focus — passes him sooner, the drill is the idle path)
+        let meets = if b == "goblin_warlord" { met_runs } else { l.pkg.meets.get(b).copied().unwrap_or(0) };
         let known = crate::facts::boss_counter_known(&l.facts, b) || (b == "foundry_master" && crate::facts::tag_known(&l.facts, "iron_golem", "reflect_melee"));
-        if meets >= DRILL_MEETING && known && !l.pkg.drills.iter().any(|d| d.boss == *b) {
+        // (the Foundry is a wall of golems, not one boss: its drill wants a third day)
+        let need = if b == "foundry_master" { DRILL_MEETING + 1 } else { DRILL_MEETING };
+        if meets >= need && known && !l.pkg.drills.iter().any(|d| d.boss == *b) {
             let heal = heal_pct(&l.pkg.stance, l.pkg.level(&l.pkg.stance));
             let rows = drill_rows(b, heal);
             for row in &rows {
