@@ -251,7 +251,16 @@ and runs `art-qc.py --style`. Codex batches: `art/prompts/p2_*.txt`, logs `art/l
    bright green gone), ghosts (wraith, spectral blade/hound, echo) in MIST and BONE, the Warlord a gaunt king in a BLOOD-and-INK
    mantle. Known weak: the bell sentinel's bell reads dark (not GILT), the acolyte bows less than briefed, the Foundry Master carries
    a lot of bronze. Style QC: every foe frame (with the hero, in the Warrens room) passes.
-3. (batch 3, the tiles, commits after 4 — see below)
+3. **The painted tile register** (7 places × 20 pieces + the Fens' own 7): `painted.py p2` with the place's tinted DUSK/MOON hexes
+   in every prompt and `BRIEF3` for the places that are not masonry — the **Fens** a boardwalk of long planks over black water with a
+   log palisade (its first pass came back as teal flagstones: the shared "flagstone" briefs had won), the **Burrows** packed ochre
+   earth with timber shoring, the **Deep** unworked cave rock; the Warrens, Crypt, Foundry and Sanctum keep masonry. The D5 fork's
+   two lanes read apart (earth vs planks over water). The 8-colour ramps (`make_tiles.style_ramp`, the fallback register, the decals,
+   `atlas.json meta.palettes`, `palette.ts`) are now the palette with each place's tint; the foundry's orange remap is gone. Style QC:
+   the Fens, the Burrows, the Deep and the Foundry never reached a moonlit highlight in a room frame (p99 L* 48–59), so
+   `painted.convert` lifts their lit edges toward MIST (`MOON_LIFT`; the Burrows' earth floors kept calm, its ledges carry the moon)
+   after one Codex retry each for the Fens and the Burrows. Every room passes, and all **413 sprite frames** (every hero and foe with
+   the hero, in all 7 rooms) pass `art-qc.py --style`.
 4. **UI**: 16 frames (bar, console, panel, tablets, tiles, well, the **BLOOD SEND gem** and a darker cracked CLOT danger gem,
    the death banner, gauge, stud, seal, the carved button, the scroll), 35 BONE ink icons, the death/report backdrops, pillar/brazier/
    candle, the boss shield + shards, the title key art (the camp's vista: the hero on the stair down, a moon shaft). CSS on the palette
