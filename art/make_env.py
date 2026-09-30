@@ -381,6 +381,12 @@ def main() -> int:
         written[tid] = Image.open(OUT / f"{tid}.png")
     if painted:
         print(f"painted: {len(painted)} tiles over the ramp register")
+    # art direction phase 2, the owner's call: the round-26 register's readability, repainted in the guide (art/refine.py)
+    from refine import refine_all  # noqa: E402
+    refined = refine_all(OUT)
+    for tid in refined:
+        written[tid] = Image.open(OUT / f"{tid}.png")
+    print(f"refined: {len(refined)} tiles from the round-26 register")
     sheet(written).save(OUT / "_env_sheet.png")
     print(f"wrote {len(written)} env tiles -> {OUT}")
     if missing:
