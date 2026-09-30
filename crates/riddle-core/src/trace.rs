@@ -85,6 +85,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let rules = game.lineage.rules().clone();
     let vocab = context_vocab(game, run);
     let death = Death {
+        package: None,
+        lever: None,
         run_id: run.id,
         depth: run.depth,
         cause: cause.clone(),
@@ -2582,6 +2584,11 @@ pub fn death(game: &mut Game, run_id: u32) -> Option<Death> {
     compute_verdict(game, &mut rec);
     compute_deltas(game, &mut rec);
     mark_no_gain(&mut rec.death);
+    // Cut 30 §2: the verdict names `package · row` — the cause row when it names one, else the last
+    // row that acted
+    let acted = rec.death.cause_row.map(|r| r as i32).or_else(|| rec.death.trace.turns.iter().rev().find(|t| t.row >= 0).map(|t| t.row));
+    rec.death.package = acted.and_then(|i| rec.rules.rows.get(i as usize)).and_then(|row| crate::packages::row_label(row).map(|l| format!("{l} · {}", row.describe())));
+    rec.death.lever = crate::packages::lever(&game.lineage, &rec.death.cause);
     let mut d = rec.death.clone();
     // QA on 23ed91f: the camp's numbers are `death_deltas`'s (four camp panels — seconds in
     // wasm): until measured on this camp state, the shown patches carry the verdict's own

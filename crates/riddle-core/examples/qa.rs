@@ -1320,7 +1320,42 @@ fn check_forecast_move(t: &mut Tally, g: &Game, seed: u64) {
     t.check("the rows' part is the edit's paired move", m.rows && rows.is_some_and(|p| (p.move_.bank.delta - vs.bank.delta).abs() < 1e-9 && (p.move_.death.delta - vs.death.delta).abs() < 1e-9), || format!("seed {seed}: rows {:?}", rows.map(|p| (p.move_.bank.delta, vs.bank.delta))));
 }
 
+/// Cut 30 §2: a lineage on packages after a night — a level spent moves the compiled set, and the
+/// camp's move against the set sent names a `package` part, the parts still summing to the whole; every
+/// death's verdict names `package · row` exactly when a package's row acted last; no trace turn is a
+/// trait's (`row −1`).
+fn check_packages(t: &mut Tally, seed: u64) {
+    let mut g = Game::new(seed);
+    g.max_deaths = 1000;
+    riddle_core::offline::run_offline_counts(&mut g, 8 * 3600);
+    let ids: Vec<u32> = g.deaths.keys().copied().collect();
+    for id in ids.into_iter().take(3) {
+        let rules = g.deaths[&id].rules.clone();
+        let Some(d) = g.death(id) else { continue };
+        let acted = d.cause_row.map(|r| r as i32).or_else(|| d.trace.turns.iter().rev().find(|x| x.row >= 0).map(|x| x.row));
+        let pkg = acted.and_then(|i| rules.rows.get(i as usize)).filter(|r| r.is_pkg());
+        t.check("the verdict names `package · row` when a package row acted", pkg.is_some() == d.package.is_some() && pkg.is_none_or(|r| d.package.as_deref().is_some_and(|p| p.ends_with(&r.describe()))), || format!("seed {seed} run {id}: {:?} vs {:?}", pkg.map(|r| r.describe()), d.package));
+        t.check("no trace turn is a trait's (row −1)", d.trace.turns.iter().all(|x| x.row != -1), || format!("seed {seed} run {id}"));
+    }
+    let sent = g.lineage.rules().clone();
+    g.lineage.marks = 20;
+    let stance = g.lineage.pkg.stance.clone();
+    if g.spend_level(&stance).is_err() || *g.lineage.rules() == sent {
+        return;
+    }
+    let Some(m) = g.forecast_move(&sent) else {
+        t.check("a send is recorded after a night", false, || format!("seed {seed}"));
+        return;
+    };
+    t.check("a package move is the `package` part", m.parts.iter().any(|p| p.kind == "package") && m.parts.iter().all(|p| p.kind != "rows"), || format!("seed {seed}: {:?}", m.parts.iter().map(|p| &p.kind).collect::<Vec<_>>()));
+    let sum: f64 = m.parts.iter().map(|p| p.move_.bank.delta).sum();
+    t.check("a forecast move's parts (incl. package) sum to the whole", (sum - m.whole.bank.delta).abs() <= 1e-9, || format!("seed {seed}: Σ {sum:.4} vs {:.4}", m.whole.bank.delta));
+}
+
 fn play(o: &mut Out, pool: &Pool, seed: u64) {
+    if seed.is_multiple_of(3) {
+        check_packages(&mut o.t, seed);
+    }
     let Out { t, lp, .. } = o;
     let mut g = Game::new_literal(seed);
     check_gold(t, &g, seed, "new");

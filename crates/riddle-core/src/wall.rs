@@ -123,7 +123,10 @@ pub fn edits(g: &Game, set: &RuleSet, at: u32) -> Vec<(String, RuleSet)> {
             out.push((label, s));
         }
     };
-    let n = set.rows.len();
+    // Cut 30 §2: on a lineage on packages the search edits the pen alone — its rows (the set's top)
+    // are dropped, moved and notched, a stock row goes in at the top; the packages' rows are theirs
+    // (a package row edited would come back as a pen row, above them all)
+    let n = if g.lineage.pkg.literal { set.rows.len() } else { set.rows.iter().take_while(|r| !r.is_pkg()).count() };
     // the set's way home: its last exit row is never dropped or written over (rater AO s1: `R2 →
     // reflect_melee → reflect read` took the set's only bank; after the ascension every send died,
     // nine days without a mark or a coin)

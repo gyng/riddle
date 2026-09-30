@@ -205,7 +205,9 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
         for ci in 0..checkins {
             k += 1;
             let tuned = cfg.bot == Bot::Tuned && cfg.has("pen") && g.lineage.pkg.pen_open;
-            let rep = if tuned { riddle_core::offline::run_offline_quick(&mut g, interval) } else { riddle_core::offline::run_offline_counts(&mut g, interval) };
+            // (the stall verdict and the death verdict cost more than the absence: TUNED reads the worst
+            // death once a day and takes the wall's edit for a plateau)
+            let rep = riddle_core::offline::run_offline_counts(&mut g, interval);
             out.checkins += 1;
             out.grew += !rep.grew.is_empty() as u32;
             opened |= !rep.systems_opened.is_empty();
@@ -259,7 +261,7 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                     if tuned {
                         let pets = cfg.has("pets");
                         write_own_rows(&mut g, pets);
-                        if let Some(id) = rep.worst_death_id {
+                        if let Some(id) = rep.worst_death_id.filter(|_| ci == 0) {
                             if let Some(death) = g.death(id) {
                                 if death.verdict == "gap" {
                                     if let Some(p) = death.patches.first() {
@@ -375,6 +377,9 @@ fn ratio(slow: &[SeedOut], fast: &[SeedOut], i: usize) -> f64 {
 }
 
 fn main() {
+    // The bots fill the machine seed by seed; a panel's sims stay sequential inside a job (a TUNED
+    // bot's wall search and verdicts on every core, 32 jobs at once, ran the load past 150).
+    riddle_core::forecast::set_parallel_sims(false);
     let a: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     let seeds = get("--seeds", 8);
@@ -402,8 +407,19 @@ fn main() {
         }
     }
     let t0 = std::time::Instant::now();
-    let jobs: Vec<(usize, u64)> = (0..cfgs.len()).flat_map(|c| (1..=seeds).filter(|s| only.is_none_or(|o| o == *s)).map(move |s| (c, s))).collect();
-    let threads = get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(8)) as usize;
+    // (a leave-one-out is a TUNED fortnight less a system — the table's costliest job, ~25 CPU-min
+    // each: `--loo-seeds`, 4 by default, the first seeds of the bots' own)
+    let loo_seeds = get("--loo-seeds", 4);
+    let jobs: Vec<(usize, u64)> = (0..cfgs.len())
+        .flat_map(|c| {
+            let n = if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else { seeds };
+            (1..=n).filter(|s| only.is_none_or(|o| o == *s)).map(move |s| (c, s))
+        })
+        .collect();
+    // the longest first (TUNED and its leave-one-outs), so the short ones fill the cores at the end
+    let mut jobs = jobs;
+    jobs.sort_by_key(|(c, s)| (cfgs[*c].bot != Bot::Tuned, *s));
+    let threads = get("--threads", 24) as usize;
     let next = std::sync::atomic::AtomicUsize::new(0);
     let results: std::sync::Mutex<Vec<(usize, SeedOut)>> = std::sync::Mutex::new(Vec::new());
     std::thread::scope(|sc| {
@@ -411,7 +427,9 @@ fn main() {
             sc.spawn(|| loop {
                 let i = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 let Some(&(c, s)) = jobs.get(i) else { break };
+                let t = std::time::Instant::now();
                 let o = play(s, days, checkins, cfgs[c], verbose);
+                eprintln!("dayplayer: {} s{s} done in {:.0}s", cfgs[c].label(), t.elapsed().as_secs_f64());
                 results.lock().unwrap().push((c, o));
             });
         }
@@ -499,8 +517,9 @@ fn main() {
     }
     if !tuned.is_empty() && !idle.is_empty() {
         let step = (24 / checkins) as f64;
-        let d23_tuned = median(tuned.iter().map(|o| hours_or(o, 3, cap)).collect());
-        let d23_idle = median(idle.iter().map(|o| hours_or(o, 3, cap)).collect());
+        let loo_n = SYSTEMS.iter().map(|s| by(&format!("TUNED-{s}")).len()).max().unwrap_or(0).max(1);
+        let d23_tuned = median(tuned.iter().take(loo_n).map(|o| hours_or(o, 3, cap)).collect());
+        let d23_idle = median(idle.iter().take(loo_n).map(|o| hours_or(o, 3, cap)).collect());
         let gap = (d23_idle - d23_tuned).max(1.0);
         let mut worst_req = String::new();
         let mut req_ok = true;

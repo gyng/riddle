@@ -30,11 +30,13 @@ const runtimeInputs = [
   ...readdirSync("crates/riddle-core/presets").sort().map((f) => [f, readFileSync(`crates/riddle-core/presets/${f}`)]),
   ...readdirSync("eval/cards").filter((f) => f.endsWith(".rules.json")).sort().map((f) => [f, readFileSync(`eval/cards/${f}`)]),
 ];
-const seeds = full ? 3 : 2;
+// Cut 30 §6: the idle bots over 8 seeds (full; the leave-one-outs over 4 — `--loo-seeds`), 2 seeds and 1 on the quick table
+const seeds = full ? 8 : 2;
+const looSeeds = full ? 4 : 1;
 const legs = {
   metrics: `target/gates/metrics-${keyOf("target/fast/examples/metrics", [...runtimeInputs, ["args", JSON.stringify({ full, extra })]])}.txt`,
   qa: `target/gates/qa-${keyOf("target/fast/examples/qa", [["args", "--seeds 30"]])}.txt`,
-  dayplayer: `target/gates/dayplayer-${keyOf("target/fast/examples/dayplayer", [["args", `--gate --seeds ${seeds}`]])}.txt`,
+  dayplayer: `target/gates/dayplayer-${keyOf("target/fast/examples/dayplayer", [["args", `--gate --seeds ${seeds} --loo-seeds ${looSeeds}`]])}.txt`,
 };
 const cached = (leg) => (!fresh && !extra.length && existsSync(legs[leg]) ? JSON.parse(readFileSync(legs[leg], "utf8")) : null);
 const keep = (leg, r) => { if (!extra.length) { mkdirSync("target/gates", { recursive: true }); writeFileSync(legs[leg], JSON.stringify({ status: r.status, stdout: r.stdout })); } };
@@ -69,7 +71,7 @@ const QA_SHARE = Number(process.env.QA_SHARE ?? 0.75);
 const cores = os.availableParallelism();
 const hit = { metrics: cached("metrics"), qa: cached("qa"), dayplayer: cached("dayplayer") };
 const done = (r) => ({ ready: Promise.resolve(), done: Promise.resolve(r) });
-const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)])).done;
+const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds), "--loo-seeds", String(looSeeds), "--threads", String(Math.max(4, Math.round(cores * 0.75)))])).done;
 const table = hit.metrics ? done(hit.metrics) : run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra], "metrics: quiet ticks measured", { METRICS_QUIET_SIGNAL: "1" });
 // The invariants (a job pool of seeds and their legs) start once the table's single-threaded quiet
 // per-tick measurement is done (a few seconds), then take three quarters of the cores beside the

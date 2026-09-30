@@ -1116,7 +1116,22 @@ pub fn forecast_move(game: &Game, prev: &RuleSet) -> Option<crate::wire::Forecas
         last = next;
     }
     if rows {
-        parts.push(crate::wire::MovePart { kind: "rows".into(), text: "rows".into(), move_: vs_between(game, &a, &last, refined) });
+        // Cut 30 §2: the packages' rows first (a swap, a level, a drill: today's package rows under the
+        // sent set's own rows), then the pen's — the parts still sum to the whole
+        let pkg_of = |s: &RuleSet| rules_key(&RuleSet { rows: s.rows.iter().filter(|r| r.is_pkg()).cloned().collect(), name: None, route: Vec::new() });
+        if pkg_of(&rules) != pkg_of(prev) {
+            let mut mid = prev.clone().with_route(rules.route());
+            mid.rows.retain(|r| !r.is_pkg());
+            mid.rows.extend(rules.rows.iter().filter(|r| r.is_pkg()).cloned());
+            let pen_same = rules_key(&RuleSet { rows: mid.rows.clone(), name: None, route: Vec::new() }) == rules_key(&RuleSet { rows: rules.rows.clone(), name: None, route: Vec::new() });
+            let next = if pen_same { a.clone() } else { panel_of(game, &mid) };
+            let name = rules.rows.iter().find(|r| r.origin.as_deref().is_some_and(|o| o.starts_with("stance:"))).and_then(crate::packages::row_label).unwrap_or_else(|| "package".into());
+            parts.push(crate::wire::MovePart { kind: "package".into(), text: name, move_: vs_between(game, &next, &last, refined) });
+            last = next;
+        }
+        if last != a {
+            parts.push(crate::wire::MovePart { kind: "rows".into(), text: "rows".into(), move_: vs_between(game, &a, &last, refined) });
+        }
     }
     let whole = vs_between(game, &a, &base, refined);
     let lead = parts.iter().max_by(|x, y| headline(&x.move_).total_cmp(&headline(&y.move_))).map(|p| p.kind.clone()).unwrap_or_else(|| "rows".into());
@@ -1262,6 +1277,8 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&l.class_level().to_string());
     feed(&format!("{:?}", l.facts));
     feed(&format!("{:?}", l.unlocks));
+    // Cut 30 §1: the scars the sends carry (a boss met is weaker until he falls)
+    feed(&format!("{:?}", crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| l.pkg.scar(k, &l.kills)).collect::<Vec<_>>()));
     feed(&serde_json::to_string(&l.vault).unwrap_or_default());
     // (the send sorts and de-duplicates the loadout: `[5, 3]` and `[3, 5]` pack the same)
     let mut loadout = game.loadout.clone();

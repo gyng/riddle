@@ -1077,6 +1077,16 @@ pub struct Stall {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Death {
+    /// Cut 30 §2: the package row that last acted (the verdict's row when it names one), as
+    /// `package · row` (`Steady · HP<20% → return`, `drill · Warlord · boss → hit boss`); absent when the
+    /// last row to act was the pen's or a chore.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
+    /// Cut 30 §2: before the pen opens, the death screen's one cheapest lever — `spend` (a blacksmith
+    /// step the purse pays: `sword +2`), `package` (a stance that answers the killer: `Hunter`) or `wait`
+    /// (the drill or the scars will come: `Warlord · scarred ×3`). Absent once the pen is open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lever: Option<Lever>,
     pub run_id: u32,
     pub depth: u32,
     pub cause: String,
@@ -1355,6 +1365,13 @@ pub struct ReturnReport {
     /// `+Guarded`, `the pen`, `QUEST DONE · reach D10`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packages: Vec<String>,
+}
+
+/// Cut 30 §2: a death's cheapest lever (`kind` spend · package · wait; `text` ≤ 3 words).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Lever {
+    pub kind: String,
+    pub text: String,
 }
 
 /// Cut 30 §4: one thing that grew on a track (`character` · `L7`, `scale` · `best D14`).

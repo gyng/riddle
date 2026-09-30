@@ -842,6 +842,29 @@ pub fn pack_kinds(l: &LineageState) -> Vec<String> {
     out
 }
 
+/// Cut 30 §2: a death's one cheapest lever before the pen opens (`None` once it is open, or on a
+/// harness's lineage): a blacksmith step the purse pays; else, the killer a band boss not yet drilled,
+/// `Hunter` when it has arrived and is not worn; else wait — the drill or the scars will come.
+pub fn lever(l: &LineageState, cause: &str) -> Option<crate::wire::Lever> {
+    if l.pkg.pen_open || l.pkg.literal {
+        return None;
+    }
+    let step = crate::kit::ladders(l).into_iter().filter_map(|lad| lad.next.map(|n| (n.price, n.label))).min_by_key(|x| x.0);
+    if let Some((price, label)) = step.filter(|(p, _)| *p as i32 <= l.gold) {
+        let _ = price;
+        return Some(crate::wire::Lever { kind: "spend".into(), text: label });
+    }
+    let boss = crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| *k).find(|k| *k == cause);
+    if let Some(b) = boss {
+        if !l.pkg.drills.iter().any(|d| d.boss == b) && l.pkg.owned.contains("hunter") && l.pkg.stance != "hunter" {
+            return Some(crate::wire::Lever { kind: "package".into(), text: "Hunter".into() });
+        }
+        let scar = l.pkg.scar(b, &l.kills) / SCAR_PCT;
+        return Some(crate::wire::Lever { kind: "wait".into(), text: if scar > 0 { format!("scarred ×{scar}") } else { "drill next".into() } });
+    }
+    Some(crate::wire::Lever { kind: "wait".into(), text: format!("{} L{}", name(&l.pkg.stance), (l.pkg.level(&l.pkg.stance) + 1).min(MAX_LEVEL)) })
+}
+
 /// A row's package label for the verdict and the trace (`Steady`, `drill · Warlord`), if it is one.
 pub fn row_label(row: &Row) -> Option<String> {
     let o = row.origin.as_deref()?;
