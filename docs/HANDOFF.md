@@ -238,6 +238,11 @@ and runs `art-qc.py --style`. Codex batches: `art/prompts/p2_*.txt`, logs `art/l
    read; the chunky 1/4 figure's face and ears drowned in the dark kit). The three tested sprites are the shipped ones; the other nine
    were drawn against them. Every hero wears the BLOOD cloak (the rogue's retried once: 0.1 % blood in a frame). Style QC: every hero
    frame passes in the Warrens.
+2. **Foes and bosses** (29 monsters, 2 summons, 6 bosses + their 6 death poses, the captive and the goblin bosses' portraits; the
+   killer portraits re-cut by `tools/foe-portraits.py`). One pass, no retries: goblins INK-and-DUSK skin with BONE eyes (the old
+   bright green gone), ghosts (wraith, spectral blade/hound, echo) in MIST and BONE, the Warlord a gaunt king in a BLOOD-and-INK
+   mantle. Known weak: the bell sentinel's bell reads dark (not GILT), the acolyte bows less than briefed, the Foundry Master carries
+   a lot of bronze. Style QC: every foe frame (with the hero, in the Warrens room) passes.
 
 ### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
 Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,
