@@ -3,7 +3,9 @@ import "./styles.css";
 import "./wide.css";
 import "./cut29.css";   // Cut 29 client: reveals, meters, orders, sinks   // the wide frame (desktop ≥ 1024 px): rules left, the well centre, the shaft right
 import "./juice";   // juice (docs/JUICE.md): UI motion switch + purse count-up (juice.css)
+import { installWashChrome } from "./render/wash";
 import { start, type DevOptions } from "./app";
+installWashChrome();   // docs/ART_DIRECTION.md §9: the `?look=wash` prototype's chrome (a no-op without the flag)
 start(readDevParams());
 
 /** Dev-only URL params, honoured in a dev build or anywhere with `?dev=1` (tools/dev.sh, tools/playtest.mjs):

@@ -290,6 +290,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     if (key === lastCss) return false;
     lastCss = key;
     dpr = d;
+    blit.material.uniforms.uWashDpr!.value = d;   // the wash look's grain and dots in CSS px (wash.ts)
     devW = Math.max(1, Math.round(cw * d));
     devH = Math.max(1, Math.round(ch * d));
     kMap = Math.max(1, Math.floor(Math.min(devW, devH) / baseTexels));

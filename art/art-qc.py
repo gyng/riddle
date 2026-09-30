@@ -11,6 +11,10 @@ frame dimensions (keyed frame height == master_h, tiles 8x8, frames inside
 the atlas, no overlapping frames, gutters), residual pure-key pixels in any
 frame, blue semi-transparent spill, empty or implausible frame alpha, tile
 colour counts > 8, and atlas.png/atlas.json being older than their sources.
+
+`--style <png>...` is the art direction's consistency check instead (docs/ART_DIRECTION.md §10): per image, the value
+range, the shadow share, the warm cast, the blood accent's budget, the off-palette hues and the mean distance to the
+named palette (+ the place's tint, read from the file name). Hard fails: contrast, cast, accent, off-palette.
 """
 from __future__ import annotations
 
@@ -173,5 +177,78 @@ def report(failures: list[str], warnings: list[str], checked: int) -> int:
     return 0
 
 
+# docs/ART_DIRECTION.md §2 — keep in step with web/src/render/wash.ts WASH_PALETTE / WASH_TINT
+STYLE_PALETTE = {
+    "ink": "#0d0c14", "umbra": "#1c1b2b", "dusk": "#2b3350", "moon": "#4d6c99", "mist": "#a4bcd6", "bone": "#eadfc5",
+    "blood": "#c01530", "clot": "#5c0b1c", "ember": "#e8923a", "gilt": "#b89448",
+}
+STYLE_TINT = {
+    "warrens": "#4a3b2c", "burrows": "#5a4527", "fens": "#2d5752", "crypt": "#2f2c4f", "foundry": "#5a2a1e",
+    "deep": "#1f2e4f", "sanctum": "#6b6048", "town": "#3a4a3a", "boss": "#2f2c4f",
+}
+
+
+def _lab(rgb: np.ndarray) -> np.ndarray:
+    """sRGB 0..1 (…, 3) → CIE L*a*b* (D65)"""
+    c = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4)
+    xyz = c @ np.array([[0.4124, 0.3576, 0.1805], [0.2126, 0.7152, 0.0722], [0.0193, 0.1192, 0.9505]]).T
+    xyz /= np.array([0.95047, 1.0, 1.08883])
+    f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
+    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
+
+
+def _hexlab(h: str) -> np.ndarray:
+    return _lab(np.array([int(h[i:i + 2], 16) / 255 for i in (1, 3, 5)]))
+
+
+def style_check(paths: list[str]) -> int:
+    fails = 0
+    pal_hex = dict(STYLE_PALETTE)
+    for path in paths:
+        name = Path(path).stem
+        tint = next((v for k, v in STYLE_TINT.items() if k in name), None)
+        pal = {**pal_hex, **({"tint": tint} if tint else {})}
+        im = Image.open(path).convert("RGB")
+        im.thumbnail((384, 384), Image.BOX)
+        lab = _lab(np.asarray(im, dtype=np.float64) / 255).reshape(-1, 3)
+        L, a, b = lab[:, 0], lab[:, 1], lab[:, 2]
+        C = np.hypot(a, b)
+        H = np.degrees(np.arctan2(b, a)) % 360
+        pl = np.stack([_hexlab(h) for h in pal.values()])
+        dist = np.sqrt(((lab[:, None, :] - pl[None, :, :]) ** 2).sum(-1)).min(1)
+        def hue(h: str) -> float:
+            v = _hexlab(h); return float(np.degrees(np.arctan2(v[2], v[1])) % 360)
+        allowed = [hue(pal[k]) for k in ("blood", "clot", "ember", "gilt", "moon", "mist", "dusk", "umbra")] + ([hue(tint)] if tint else [])
+        hd = np.min([np.abs((H - h0 + 180) % 360 - 180) for h0 in allowed], axis=0)
+        chroma = C > 22
+        off = float((chroma & (hd > 24)).mean())
+        bh = hue(pal["blood"])
+        blood = float(((C > 30) & (np.abs((H - bh + 180) % 360 - 180) < 18)).mean())
+        p5, p99 = np.percentile(L, [5, 99])
+        shadow = float((L < 25).mean())
+        mid = (L > 20) & (L < 75)
+        cast = float(b[mid].mean()) if mid.any() else 0.0
+        sheet = "sheet" in name
+        checks = {
+            "contrast": (p5 <= 14 and p99 >= 62, f"L* p5 {p5:.0f} p99 {p99:.0f} (≤14 · ≥62: INK to MIST)"),
+            "cast": (cast <= 12, f"mid-tone b* {cast:+.1f} (≤ +12: no warm brown cast)"),
+            "accent": (0.002 <= blood <= 0.12, f"blood {blood * 100:.1f}% (0.2–12%)"),
+            "off-palette": (off <= 0.15, f"off-hue chroma {off * 100:.1f}% (≤15%)"),
+        }
+        warn = {
+            "shadow": (sheet or shadow >= 0.4, f"L*<25 {shadow * 100:.0f}% (≥40% on a frame)"),
+            "palette ΔE": (float(dist.mean()) <= 14, f"mean ΔE to the palette {dist.mean():.1f} (≤14)"),
+        }
+        bad = [k for k, (ok, _) in checks.items() if not ok]
+        fails += bool(bad)
+        print(f"{'FAIL' if bad else 'PASS'} {name}" + (f"  (tint {tint})" if tint else ""))
+        for k, (ok, msg) in {**checks, **warn}.items():
+            print(f"   {'ok ' if ok else ('BAD' if k in checks else 'warn')} {k:12} {msg}")
+    print(f"style QC: {len(paths)} images, {fails} failing")
+    return 1 if fails else 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--style":
+        raise SystemExit(style_check(sys.argv[2:]))
     raise SystemExit(main())

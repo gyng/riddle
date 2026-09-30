@@ -11,6 +11,7 @@
 import * as THREE from "three";
 import { BAYER_GLSL } from "./layers";
 import type { Palette } from "./palette";
+import { hex3, lookWash, WASH_GLSL, WASH_TINT } from "./wash";
 
 const VERT = /* glsl */ `
 varying vec2 vUv;
@@ -59,6 +60,9 @@ uniform sampler2D uNormal;    // juice pass 2: the sprites' derived normals (nor
 #endif
 varying vec2 vUv;
 ${BAYER_GLSL}
+#if LOOK > 0
+${WASH_GLSL}
+#endif
 vec3 nearestPal(vec3 c) {
   vec3 best = uPal[0];
   float bd = 1e9;
@@ -244,6 +248,9 @@ void main() {
   o = mix(o, uVig.rgb, clamp(uVig.a * (0.35 + 0.65 * vg), 0.0, 1.0) * smoothstep(0.15, 0.7, vr));
   o = mix(o, vec3(dot(o, vec3(0.2126, 0.7152, 0.0722))), uDesat);
 #endif
+#if LOOK > 0
+  o = washLook(o, tuv, world, s.a);   // the wash look (wash.ts, docs/ART_DIRECTION.md §9): FX > 0 and the flag only
+#endif
   o = mix(o, uPal[0], uFade);
   gl_FragColor = vec4(o, 1.0);
 }`;
@@ -273,6 +280,7 @@ export class Blit {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   readonly material: THREE.ShaderMaterial;
+  private readonly wash = lookWash();
   private palArr: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
 
   constructor(texture: THREE.Texture) {
@@ -305,8 +313,9 @@ export class Blit {
         uLightMap: { value: null }, uMap: { value: new THREE.Vector2(1, 1) }, uBloom: { value: null }, uBloomK: { value: 0 },
         uTexel: { value: new THREE.Vector2(1, 1) }, uVig: { value: new THREE.Vector4(0, 0, 0, 0) }, uVigBase: { value: 0 }, uDesat: { value: 0 },
         uAmbK: { value: 0.8 }, uTime: { value: 0 }, uNormal: { value: null }, uHeat: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) }, uHeatN: { value: 0 },
+        uWashTint: { value: new THREE.Vector3(...hex3(WASH_TINT.default!)) }, uWashDpr: { value: 1 },
       },
-      defines: { FX: 0 },
+      defines: { FX: 0, LOOK: 0 },
       depthTest: false,
       depthWrite: false,
     });
@@ -328,6 +337,7 @@ export class Blit {
     const g = GRADES[biome] ?? GRADES.default!, u = this.material.uniforms;
     (u.uGrade!.value as THREE.Vector3).set(g[0], g[1], g[2]);
     u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5]; u.uCon!.value = CONTRAST[biome] ?? 1; u.uMist!.value = MIST[biome] ?? 0; u.uSprHue!.value = biome === "fens" ? 0.15 : 0.5;
+    (u.uWashTint!.value as THREE.Vector3).set(...hex3(WASH_TINT[biome] ?? WASH_TINT.default!));
   }
 
   /** art pass: this frame's torch flames (world env texels; the first 12 are used) and the flicker scale */
@@ -340,9 +350,10 @@ export class Blit {
 
   /** juice: the effects tier compiled into the shader (0 = low: the pre-juice blit exactly; 1 = med; 2 = high) */
   setFx(level: number): void {
-    const d = this.material.defines as { FX: number };
-    if (d.FX === level) return;
-    d.FX = level; this.material.needsUpdate = true;
+    const d = this.material.defines as { FX: number; LOOK: number };
+    const look = level > 0 && this.wash ? 1 : 0;   // the wash look never reaches the `low` tier
+    if (d.FX === level && d.LOOK === look) return;
+    d.FX = level; d.LOOK = look; this.material.needsUpdate = true;
   }
 
   dispose(): void { this.material.dispose(); }
