@@ -271,6 +271,10 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
     for &i in &visible {
         if run.monsters[i].is_boss() && run.boss_seen_t.is_none() {
             run.boss_seen_t = Some(run.turn);
+            let kind = run.monsters[i].kind.clone();
+            if !run.bosses_met.contains(&kind) {
+                run.bosses_met.push(kind);
+            }
             run.hurt_since_boss = false;
             run.wall_seen = true;   // Cut 28b: the oath board opens (`LineageState::oath_open`)
             let title = run.monsters[i].title();

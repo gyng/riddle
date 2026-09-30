@@ -6,7 +6,7 @@ fn main() {
     let pass: u32 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(5);
     let set = RuleSet::parse(&std::fs::read_to_string(&path).unwrap()).unwrap();
     for seed in 1..=40u64 {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_literal(seed);
         for u in ["row5", "row6", "row7", "row8", "tame", "throw"] {
             g.lineage.unlocks.insert(u.into());
         }

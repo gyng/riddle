@@ -578,7 +578,7 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
         Mode::Rater(set) => Some(set.clone()),
         _ => None,
     };
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     let mut table = Vec::new();
     // dayplayer state
     let mut last_best = 0u32;

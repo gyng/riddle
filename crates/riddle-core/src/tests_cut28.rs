@@ -8,7 +8,7 @@ use crate::wire::*;
 /// The metrics' EDITED lineage (as `tests_cut27::edited`): the common items known, eight rows,
 /// the good set, D`best` reached.
 fn edited(seed: u64, best: u32) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     for u in ["row5", "row6", "row7", "row8", "throw", "cond_alert", "cond_turns", "cond_loot", "cond_on_kill", "cond_on_see"] {
         g.lineage.unlocks.insert(u.into());
     }

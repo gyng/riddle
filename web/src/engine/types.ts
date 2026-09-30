@@ -336,7 +336,43 @@ export type ReportLead = { k: string; text: string };
  *  granted, the price spent into it), `reward` what it gave. */
 export type OathReport = { id: string; chips: string[]; text: string; runs: number; kept: number; done: boolean; reward?: OathReward; price?: number;
   broken?: number; cause?: string };   // Cut 28b (core): the sends that broke it and the cause most share (`R2 return`)
+/** Cut 30 §4 (core) — one thing that grew on a track over an absence (`character` · `L7`, `items` · `+$2400`, `scale` · `best D14`,
+ *  `town` · `a building`, `<track>` · `opened <stage>`); the report leads with them. */
+export type GrewLine = { track: string; what: string };
+/** Cut 30 §4 (core) — a track on the tracks panel (`character` · `items` · `scale` · `town`): its stage (≤ 2 words), stages reached,
+ *  the next stage and its trigger (`next · kennel · first tame`), progress toward a numeric trigger (0..1). */
+export type Track = { id: string; stage: string; stages: number; next?: string; trigger?: string; progress?: number };
+/** Cut 30 §3 (core) — a building on the town scene (`blacksmith` · `storehouse` · `kennel` · `bank`), its look 1–3, the day built. */
+export type Building = { id: string; level: number; day: number };
+/** Cut 30 §5 (core) — the quest on the board: one plain goal (≤ 5 words: `reach D10 · no return`), the reward's picture
+ *  (`title` · `row` · `slot` · `card` — `art/ui/oath/`), progress 0..1, kept, a free swap left today (`swapQuest()`). No stake. */
+export type Quest = { goal: string; reward: string; progress: number; done: boolean; swap: boolean };
+/** Cut 30 §3 (core) — the town: its buildings (built in order), the next plot staked and its trigger, the bank (`bankDeposit` /
+ *  `bankWithdraw`; ~2 % a night, capped at `bank_cap`), the interest it paid in all, the quest board (from the Warlord slain). */
+export type Town = { buildings: Building[]; next?: string; next_trigger?: string; bank: number; bank_cap: number; interest: number; quest?: Quest; quests_done?: number };
+/** Cut 30 §2 (core) — a package (`Guarded L3`): `kind` stance · tactic · temperament; `level` 1–5 from `runs` (the runs one of its rows
+ *  fired in; `next_at` the runs the next level wants); `slot` when equipped; `owned` once its stage came (`trigger` until then);
+ *  `level_price` the marks a level spend costs (`spendLevel`). */
+export type Package = { id: string; name: string; kind: string; level: number; runs: number; next_at?: number; slot?: number; owned: boolean; trigger?: string; level_price?: number };
+/** Cut 30 §1 (core) — a drilled counter (`drill · attack boss`, named, announced once as `DRILLED · Warlord`), revocable (`revokeDrill`);
+ *  `scar` the boss's scar now in % (`scarred ×3` = 15). */
+export type Drill = { boss: string; rows: Row[]; revoked: boolean; scar: number };
+/** Cut 30 §2 (core) — a row of the compiled set: its package label (`Steady`, `drill · Warlord`, `boss focus`; empty for a pen row) and
+ *  the row above that always wins it (`Guarded wins`), by index. */
+export type RowSource = { label: string; shadowed_by?: number };
+/** Cut 30 §2 (core) — the lineage's packages: every package (owned or its trigger), the stance (never empty; `custom` on an old save), the
+ *  tactics in their slots, the temperament (from heir 3; `offer` the wake's three cards, card 1 worn until `pickTemperament`), the drills,
+ *  the scars (boss → %), the pen (open at the Mother met or a 3-day stall; the editor's rows sit above the packages), and per compiled
+ *  row its source. `literal` a harness's lineage (no packages). */
+export type Packages = { all: Package[]; stance: string; tactics?: string[]; tactic_slots?: number; temperament?: string; temperament_open?: boolean;
+  offer?: string[]; drills?: Drill[]; scars?: [string, number][]; pen_open: boolean; rows?: RowSource[]; literal?: boolean };
+/** Cut 30 §2 (core) — a package move priced on the paired panel (`packageOptions(sims)`, best first): `action` equip · level, the shares
+ *  of the sends that pass the record / reach it / bank / die, and each move against the set as it stands (`Guarded · death −8`). */
+export type PkgOption = { id: string; action: string; slot?: number; price?: number; past: number; bank: number; death: number; reach?: number;
+  d_past: number; d_bank: number; d_death: number; d_reach?: number };
 export type ReturnReport = {
+  grew?: GrewLine[];                                                           // Cut 30 §4 (core): what grew on each track over the absence — the report leads with it
+  packages?: string[];                                                         // Cut 30 §1–2 (core): the packages' beats (`STEADY L3`, `DRILLED · Warlord`, `+Guarded`, `the pen`, `built bank`, `QUEST DONE · reach D10`)
   lead?: ReportLead[];                                                         // Cut 28 §2 (core): the report's first screen, ≤ 4, decisions first; salvage, bones and spent fold under `details`
   oath?: OathReport;                                                           // Cut 28 §1 (core): the sworn oath's absence; absent with none sworn
   elapsed_s: number; runs: number; sampled: boolean;
@@ -375,7 +411,10 @@ export type ReturnReport = {
   meters?: MeterWire;                                                         // Cut 29 §3 (core): the absence's real runs metered, summed (the report's per-night meter)
   fallen?: Fallen[];                                                          // Cut 29 §6 (core; AX: Greth gone with only `party −1 ogre`): each companion that fell, named — `Greth · ogre L5 · fell D12 to lurker`
 };
-export type Lineage = { systems?: SystemInfo[];                                                                    // Cut 29 §2 (core): the curriculum — every system in order, `open` or not, its `trigger` (≤ 3 words), `new` since the camp last looked (`seenSystems()` clears); gate the editor's vocabulary and the camp's tiles by `open`
+export type Lineage = { packages?: Packages;                                                                        // Cut 30 §2 (core): stances, tactics, temperaments, levels, drills, scars, the pen
+                        town?: Town;                                                                                // Cut 30 §3 (core): the buildings, the next plot, the bank, the quest board
+                        tracks?: Track[];                                                                           // Cut 30 §4 (core): character · items · scale · town — stage, next stage and trigger
+                        systems?: SystemInfo[];                                                                    // Cut 29 §2 (core): the curriculum — every system in order, `open` or not, its `trigger` (≤ 3 words), `new` since the camp last looked (`seenSystems()` clears); gate the editor's vocabulary and the camp's tiles by `open`
                         tier?: number;                                                                             // Cut 29 §1 (core): the catalogue's tier now (0–6: T1 the first bank, T2 the Warlord met … T6 the Lurker Queen met)
                         oath_slots?: number; sworn?: string[];                                                     // Cut 29 §1 (core): oaths that may be sworn at once (1–3, `oath_slot_2/3`); every sworn oath's id (first slot's first; `oath` is that one). An oath lapses unkept at its day's end
                         oath_draw?: OathDraw;                                                                      // Cut 29 §1 (core): ◆2 for a fresh standing oath (`drawOath()`), from T2
@@ -521,6 +560,16 @@ export type MeterWire = { seconds: number; dealt: MeterSides; taken: MeterSides;
                           gold: number; gold_per_min: number; hits_hero: number; hits_pets: number; fights: number };
 export type SnapMeters = { run: MeterWire; fight?: MeterWire; fighting?: boolean };
 export interface Engine {
+  // Cut 30 (core): packages, drills, the bank, the quest board — each returns the Lineage (throws with a ≤ 3-word reason)
+  equipPackage?(id: string, slot: number): Lineage;     // §2: a stance, a tactic in `slot` 0/1, a temperament — free, instant
+  unequipPackage?(id: string): Lineage;                 // §2: empty a tactic or temperament slot (the stance is never empty)
+  pickTemperament?(id: string): Lineage;                // §2: take a wake card (`packages.offer`)
+  spendLevel?(id: string): Lineage;                     // §2: marks for a package's next level (`Package.level_price`)
+  revokeDrill?(boss: string, revoked: boolean): Lineage;   // §1: revoke (or restore) a drill — one tap, it stays
+  packageOptions?(sims: number): PkgOption[];           // §2: every package move priced on the paired panel (slow: background lane)
+  bankDeposit?(amount: number): Lineage;                // §3: deposit (capped at `town.bank_cap`)
+  bankWithdraw?(amount: number): Lineage;               // §3
+  swapQuest?(): Lineage;                                // §5: the day's free swap
   drawOath?(): Lineage;                // Cut 29 §1: ◆2 — a fresh standing oath (`Lineage.oath_draw`)
   forswearOathId?(id: string): Lineage;   // Cut 29 §1: forswear the sworn oath `id` (either slot; half back)
   commission?(): Lineage;              // Cut 29 §5: the next work, for gold (`Lineage.commission`)

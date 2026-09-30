@@ -309,7 +309,7 @@ impl Hero {
     /// a step), not damage; any other arm hits 80 %.
     pub fn hit_pct(&self) -> u32 {
         match &self.weapon {
-            Some(w) if crate::kit::is_kit_id(w.id) => 80 + crate::kit::AIM_PER_STEP * w.enchant.max(0) as u32,
+            Some(w) if crate::kit::is_kit_id(w.id) => 80 + crate::kit::AIM_PER_STEP * w.enchant.clamp(0, crate::kit::AIM_STEPS) as u32,
             _ => 80,
         }
     }

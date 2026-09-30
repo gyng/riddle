@@ -12,7 +12,7 @@ fn main() {
     let quiet = args.iter().any(|a| a == "--quiet");
     let survey = args.iter().any(|a| a == "--survey");
     let set = RuleSet::parse(&std::fs::read_to_string(&path).unwrap()).unwrap();
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     g.sim = true;
     for u in riddle_core::meta::UNLOCKS {
         g.lineage.unlocks.insert(u.id.into());

@@ -3,7 +3,7 @@ use riddle_core::Game;
 use std::time::Instant;
 fn main() {
     let seed: u64 = std::env::args().nth(1).and_then(|s| s.parse().ok()).unwrap_or(1);
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     let t = Instant::now();
     let r = g.run_offline(8 * 3600);
     let dt = t.elapsed();

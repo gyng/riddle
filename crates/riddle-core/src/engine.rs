@@ -59,7 +59,10 @@ pub const MAX_ROWS: usize = 10;
 /// Cut 12 §1: card rows sit outside the player's cap — one per owned card (8 tactic, 4 tier 2,
 /// 4 mastery); the per-row tallies are sized for both.
 pub const MAX_CARD_ROWS: usize = 16;
-pub const ROWS_TOTAL: usize = MAX_ROWS + MAX_CARD_ROWS;
+/// Cut 30 §2: a compiled set's package rows (drills, a stance, tactics, a temperament) sit outside
+/// the cap too.
+pub const MAX_PKG_ROWS: usize = 24;
+pub const ROWS_TOTAL: usize = MAX_ROWS + MAX_CARD_ROWS + MAX_PKG_ROWS;
 /// Cut 3: the ascension variants, in the order they are offered.
 pub const VARIANTS: [&str; 4] = ["no_rest", "short_list", "bones_only", "hunted"];
 /// Energy needed to act; actors gain `speed` per tick.
@@ -319,6 +322,12 @@ pub struct Run {
     pub drank_heal: bool,
     pub melee_used: bool,
     pub boss_seen_t: Option<u32>,
+    /// Cut 30 §1: the band bosses this run saw (a meeting: drills, scars), and the scars the send
+    /// carried (boss → percent of max hp off).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bosses_met: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scars: Vec<(String, u32)>,
     pub hurt_since_boss: bool,
     pub row_fired: Vec<u32>,
     pub renderable_events: u32,
@@ -1365,6 +1374,15 @@ pub struct LineageState {
     /// §4: the standing orders' switches that have no field of their own (`insure`).
     #[serde(default)]
     pub orders: crate::wire::StandingSwitches,
+    /// Cut 30 §2: the packages (`packages::PkgState`: slots, levels, drills, meetings, the pen);
+    /// `pkg_v` 0 is a save from before them (`packages::migrate` at the load).
+    #[serde(default)]
+    pub pkg: crate::packages::PkgState,
+    #[serde(default)]
+    pub pkg_v: u32,
+    /// Cut 30 §3–5: the town (buildings, the bank, the quest board).
+    #[serde(default)]
+    pub town: crate::town::Town,
 }
 
 /// Cut 29 §1: a day of the lineage's clock.
@@ -1577,6 +1595,9 @@ impl LineageState {
             systems_new: Vec::new(),
             forks_seen: BTreeMap::new(),
             orders: Default::default(),
+            pkg: Default::default(),
+            pkg_v: 1,
+            town: Default::default(),
             best_day: 0,
             wall_day: None,
             wall_offer: None,
@@ -1640,7 +1661,7 @@ impl LineageState {
         // QA on 912e135 (qaW: `sword +1 · $300 · 7 nights` after a night of deaths — the purse held at $40 by the heir purse): the
         // heir purse's top-up refills to a floor and is no income; a night of deaths nets nothing toward a step.
         // (Cut 28 §1: an oath's price and a forswearing's refund are the player's purchase too)
-        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay", "oath ", "forswear "].iter().any(|p| why.starts_with(p)) {
+        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay", "oath ", "forswear ", "bank "].iter().any(|p| why.starts_with(p)) {
             self.night_net += delta;
             self.day_net += delta;
         }
@@ -1789,7 +1810,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -2093,6 +2114,8 @@ impl LineageState {
         }
         // Cut 30 §3: the wake offers trait cards and passes the blood (`traits::wake`).
         crate::traits::wake(self);
+        // Cut 30 §2: from heir 3 the wake deals three temperament cards (card 1 worn until a pick).
+        crate::packages::wake(self);
     }
     /// Cut 16 §1: a floor's freshness at `depth`, in permille. The deepest depth the lineage
     /// has reached (and anything below it) is always fresh.
@@ -2141,6 +2164,8 @@ impl LineageState {
         self.last_night_net = std::mem::take(&mut self.night_net);
         // Cut 29 §3: the night's meters.
         self.last_night_meter = std::mem::take(&mut self.night_meter);
+        // Cut 30 §3: the bank pays its night's interest.
+        crate::town::night(self);
         // QA on a946e04: a new night buys a new waystone pass.
         self.night_passes.clear();
         self.night_short = None;
@@ -2475,6 +2500,12 @@ fn default_pct() -> i32 {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Batch {
     pub runs: u32,
+    /// Cut 30 §2: the packages' lines this batch (`STEADY L3`, `DRILLED · Warlord`, `+Guarded`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pkg_lines: Vec<String>,
+    /// Cut 30 §1: drill items the quartermaster packed this batch.
+    #[serde(default)]
+    pub drill_packs: u32,
     /// Cut 28 §1: the sworn oath over the batch — the oath, the sends while it was sworn, those
     /// that kept it, and whether it was kept (then granted).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2848,6 +2879,16 @@ impl Game {
         // Cut 29: the free vocabulary its gates open, and the day-0 systems.
         crate::meta::grant_free(&mut g.lineage);
         crate::systems::update(&mut g.lineage, false);
+        // Cut 30 §1: every new lineage climbs on the school stance (`Steady`, compiled).
+        crate::packages::init(&mut g.lineage);
+        g
+    }
+
+    /// A harness's lineage (bots, tests): the class preset as written, nothing compiled — the
+    /// pre-Cut 30 behaviour (`packages::make_literal`).
+    pub fn new_literal(seed: u64) -> Game {
+        let mut g = Game::new(seed);
+        crate::packages::make_literal(&mut g.lineage);
         g
     }
 
@@ -2998,6 +3039,13 @@ impl Game {
         let i = self.lineage.active_set.min(self.lineage.sets.len() - 1);
         if self.lineage.sets[i] != set {
             self.stall = StallTally::default();
+        }
+        // Cut 30 §2: a lineage on packages keeps the rows the pen wrote (above every package) and
+        // recompiles; a sim's set, and a harness's literal lineage, are the set as written.
+        if !self.sim && !self.lineage.pkg.literal {
+            crate::packages::absorb(&mut self.lineage, &set);
+            crate::packages::recompile(&mut self.lineage);
+            return Ok(());
         }
         self.lineage.sets[i] = set;
         Ok(())
@@ -3507,6 +3555,8 @@ impl Game {
             drank_heal: false,
             melee_used: false,
             boss_seen_t: None,
+            bosses_met: Vec::new(),
+            scars: crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| (k.to_string(), self.lineage.pkg.scar(k, &self.lineage.kills))).filter(|(_, p)| *p > 0).collect(),
             hurt_since_boss: false,
             row_fired: vec![0; ROWS_TOTAL],
             renderable_events: 0,
@@ -5037,6 +5087,19 @@ impl Game {
         // the best depth, the night's income)
         if !self.sim {
             crate::oath::refresh(&mut self.lineage);
+            // Cut 30 §1–2: the run's meetings (drills, scars), its packages' runs (levels), the stages
+            // that came, the pen — the set recompiled for the next send.
+            let set = self.lineage.rules().clone();
+            let lines = crate::packages::on_run_end(&mut self.lineage, &run.bosses_met, run.max_depth, &run.row_fired, &set);
+            self.batch.pkg_lines.extend(lines);
+            // Cut 30 §3, §5: the town builds what its triggers brought; the quest board reads the run.
+            for b in crate::town::update(&mut self.lineage) {
+                self.batch.pkg_lines.push(format!("built {b}"));
+            }
+            let slew: Vec<String> = run.boss_kills.iter().map(|(_, k)| k.clone()).collect();
+            if let Some(line) = crate::town::on_run(&mut self.lineage, run.max_depth, tier, run.home_return, run.depth, &slew) {
+                self.batch.pkg_lines.push(line);
+            }
         }
         Some(outcome)
     }
@@ -5598,11 +5661,49 @@ impl Game {
     /// (`LineageState::repeat_quote`: the badge the camp showed; QA on 778fa1b), else at the
     /// shelf's price today (the send's own re-pack, the camp's `set_restock(true)`).
     pub fn restock_at(&mut self, quoted: bool) -> Vec<String> {
+        let mut bought = Vec::new();
+        // Cut 30 §1: the quartermaster packs a drill's item first (`throw fire` at the Mother, the
+        // silence scroll at the Queen) — its slot is reserved before any other supply, the repeat on
+        // or off.
+        let qm = crate::packages::quartermaster(&self.lineage);
+        // (then the packages' own kinds — the stance's heal — fill the free slots: the idle floor's
+        // pack of 3 is restocked with no tap)
+        let fill = crate::packages::pack_kinds(&self.lineage);
+        let cap = self.lineage.supply_cap();
+        let mut want: Vec<String> = qm.clone();
+        for k in fill.iter().cycle().take(if fill.is_empty() { 0 } else { cap }) {
+            want.push(k.clone());
+        }
+        for (i, kind) in want.iter().enumerate() {
+            let drill = i < qm.len();
+            if drill && self.lineage.supplies.iter().any(|s| s.kind == *kind) {
+                continue;
+            }
+            if !drill && self.lineage.supplies.len() >= cap {
+                break;
+            }
+            if !drill && self.lineage.supplies.iter().filter(|s| s.kind == *kind).count() >= want[qm.len()..].iter().filter(|k| *k == kind).count() {
+                continue;
+            }
+            if self.lineage.supplies.len() >= self.lineage.supply_cap() {
+                if let Some(i) = self.lineage.supplies.iter().rposition(|s| !qm.contains(&s.kind)) {
+                    self.lineage.supplies.remove(i);
+                }
+            }
+            let gold = self.lineage.gold;
+            let why = format!("{} {}", if drill { "drill" } else { "pack" }, kind.replace('_', " "));
+            if self.buy_supply_as(kind, &why).is_ok() {
+                bought.push(kind.replace('_', " "));
+                let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
+                e.0 += 1;
+                e.1 += gold - self.lineage.gold;
+                self.batch.drill_packs += drill as u32;
+            }
+        }
         if self.lineage.restock_off {
-            return Vec::new();
+            return bought;
         }
         let mut on_shelf: Vec<String> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.kind.clone()).collect();
-        let mut bought = Vec::new();
         let mut short = Vec::new();
         // Cut 13 §3: a kind the last run used to no effect is not rebought (rater R: "the
         // strength potion the trait drinks at full HP is rebought sixteen times").
@@ -6014,7 +6115,13 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             .collect();
         let pos = if near.is_empty() { take(&mut run.rng, &open, &mut cursor) } else { *run.rng.pick(&near) };
         let id = run.new_id();
-        run.monsters.push(Monster::spawn(id, boss, pos, depth));
+        let mut m = Monster::spawn(id, boss, pos, depth);
+        // Cut 30 §1: the lineage's scars on him (every meeting −5 %, cap −30 %, gone once slain).
+        if let Some((_, pct)) = run.scars.iter().find(|(k, _)| k == boss) {
+            m.max_hp = (m.max_hp * (100 - *pct as i32) / 100).max(1);
+            m.hp = m.max_hp;
+        }
+        run.monsters.push(m);
         let escort = boss_escort(boss);
         // The Captain keeps a thinner guard than a boss.
         let guard = if crate::defs::monster_def(boss).boss { 40 } else { 15 };

@@ -33,6 +33,8 @@ const METHODS: (keyof Engine)[] = [
   "drawOath", "forswearOathId", "commission",   // Cut 29 §1/§5: optional likewise (no draw / second-slot forswear / commission without them)
   "seenSystems",      // Cut 29 §2: optional likewise (the glint then repeats until an absence)
   "setOrders",        // Cut 29 §4: optional likewise (the standing-orders panel falls back to each order's own call)
+  "equipPackage", "unequipPackage", "pickTemperament", "spendLevel", "revokeDrill", "packageOptions",   // Cut 30 §1–2: optional likewise (no packages panel without them)
+  "bankDeposit", "bankWithdraw", "swapQuest",   // Cut 30 §3/§5: optional likewise (no bank / quest board without them)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

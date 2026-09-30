@@ -16,15 +16,20 @@ pub const KIT_SLOTS: [&str; 3] = ["weapon", "armour", "pack"];
 /// Weapon steps: the class's starting arm, +1 per step, to +3. (Deviation from the contract's
 /// 4–5 steps: a fourth, +4, doubled the fighter's blow at depth and broke the D33 wall without
 /// its counter — the kitted FULL−D33 passed on 3–5 of 30 seeds, bar 3.)
-pub const WEAPON_MULT: [u32; 3] = [1, 4, 9];
+/// Cut 30 (the idle-first pivot retired the "not engaging fails" rows that capped it: the blacksmith
+/// is a multiplier the idle floor lacks): three more steps, each a harder blow (+1 damage).
+pub const WEAPON_MULT: [u32; 6] = [1, 4, 9, 16, 25, 36];
+/// Weapon steps past this many are damage, not aim.
+pub const AIM_STEPS: i32 = 3;
 /// Cut 25 §1 (AN: the forge moved bank more than any row): a weapon step is aim — this many
 /// points on the 80 % to hit — not damage (`Hero::hit_pct`; the arm's blow is the class's own).
 pub const AIM_PER_STEP: u32 = 4;
 /// Armour steps: (kind, enchant) and their multiples. The top is mail +1 (4 armour): armour
 /// subtracts from every blow, and a fifth point (mail +2) made the Deep's lurkers harmless —
 /// the kitted FULL−D28 passed the Queen's wall on 11 of 30 seeds without her counter.
-pub const ARMOUR_STEPS: [(&str, i32); 4] = [("leather", 0), ("leather", 1), ("mail", 0), ("mail", 1)];
-pub const ARMOUR_MULT: [u32; 4] = [1, 4, 8, 14];
+/// Cut 30: three more steps (mail +2, plate, plate +1), the forge a multiplier the idle floor lacks.
+pub const ARMOUR_STEPS: [(&str, i32); 7] = [("leather", 0), ("leather", 1), ("mail", 0), ("mail", 1), ("mail", 2), ("plate", 0), ("plate", 1)];
+pub const ARMOUR_MULT: [u32; 7] = [1, 4, 8, 14, 22, 32, 45];
 /// Pack steps: one more supply on the shelf each (`LineageState::supply_cap`).
 pub const PACK_MULT: [u32; 4] = [2, 5, 10, 16];
 /// The shelf never holds more than this many supplies (the pack's ten slots less the kit and

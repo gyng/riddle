@@ -1322,7 +1322,7 @@ fn check_forecast_move(t: &mut Tally, g: &Game, seed: u64) {
 
 fn play(o: &mut Out, pool: &Pool, seed: u64) {
     let Out { t, lp, .. } = o;
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     check_gold(t, &g, seed, "new");
     check_needs(t, &g, seed);
     check_forecast(t, &g, seed);

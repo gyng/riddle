@@ -39,5 +39,11 @@ pub fn load(text: &str) -> Result<Game, String> {
     }
     // Cut 30 §1: a save from before the traits maps its temperament onto a shape.
     crate::traits::upgrade(&mut g.lineage);
+    // Cut 30 §2: a save from before the packages: its set becomes the `custom` stance, the pen open
+    // (its rules keep working; drills come above them).
+    if g.lineage.pkg_v == 0 {
+        crate::packages::migrate(&mut g.lineage);
+        g.lineage.pkg_v = 1;
+    }
     Ok(g)
 }

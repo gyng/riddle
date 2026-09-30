@@ -17,6 +17,7 @@ pub mod kit;
 pub mod meta;
 pub mod monster;
 pub mod oath;
+pub mod packages;
 pub mod offline;
 pub mod probes;
 pub mod provenance;
@@ -30,6 +31,7 @@ pub mod wall;
 pub mod meters;
 pub mod tiles;
 pub mod tokens;
+pub mod town;
 pub mod trace;
 pub mod traits;
 pub mod turn;
@@ -164,6 +166,42 @@ impl Game {
     pub fn forecast_move(&self, prev: &RuleSet) -> Option<ForecastMove> {
         forecast::forecast_move(self, prev)
     }
+    /// Cut 30 §2: equip a package (a stance, a tactic in `slot`, a temperament) — free, instant.
+    pub fn equip_package(&mut self, id: &str, slot: usize) -> Result<(), String> {
+        packages::equip(&mut self.lineage, id, slot)
+    }
+    /// Cut 30 §2: empty a tactic or temperament slot.
+    pub fn unequip_package(&mut self, id: &str) -> Result<(), String> {
+        packages::unequip(&mut self.lineage, id)
+    }
+    /// Cut 30 §2: take a wake card (the temperament slot, heir 3 on).
+    pub fn pick_temperament(&mut self, id: &str) -> Result<(), String> {
+        packages::pick(&mut self.lineage, id)
+    }
+    /// Cut 30 §2: spend marks on a package's next level; the level reached.
+    pub fn spend_level(&mut self, id: &str) -> Result<u32, String> {
+        packages::spend_level(&mut self.lineage, id)
+    }
+    /// Cut 30 §1: revoke a drill (or restore it) — one tap, it stays.
+    pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<(), String> {
+        packages::revoke(&mut self.lineage, boss, revoked)
+    }
+    /// Cut 30 §2: every package move priced on the paired panel (`sims` sends each), best first.
+    pub fn package_options(&self, sims: u32) -> Vec<packages::PkgOption> {
+        packages::options(self, sims)
+    }
+    /// Cut 30 §3: bank a deposit (capped); the gold moved.
+    pub fn bank_deposit(&mut self, amount: i32) -> Result<i32, String> {
+        town::deposit(&mut self.lineage, amount)
+    }
+    /// Cut 30 §3: take gold out of the bank.
+    pub fn bank_withdraw(&mut self, amount: i32) -> Result<i32, String> {
+        town::withdraw(&mut self.lineage, amount)
+    }
+    /// Cut 30 §5: the day's free swap of the quest on the board.
+    pub fn swap_quest(&mut self) -> Result<(), String> {
+        town::swap(&mut self.lineage)
+    }
     pub fn export_rules(&self) -> String {
         self.lineage.rules().to_text()
     }
@@ -184,3 +222,5 @@ mod tests_cut28;
 mod tests_cut29;
 #[cfg(test)]
 mod tests_cut30;
+#[cfg(test)]
+mod tests_cut30_pkg;

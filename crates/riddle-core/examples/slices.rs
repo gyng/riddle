@@ -2,7 +2,7 @@
 //! (the client's exact sequence: send → step to death → keep → save → reload → 16 × 30 min).
 fn main() {
     let seed = 5;
-    let mut g = riddle_core::Game::new(seed);
+    let mut g = riddle_core::Game::new_literal(seed);
     let _ = g.send();
     let mut n = 0;
     while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < 100_000 { let _ = g.step(10); n += 10; }

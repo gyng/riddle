@@ -30,7 +30,7 @@ fn main() {
 fn build() -> Game {
     let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../eval/cards/075d8e2.raterAM.rules.json")).expect("AM's set");
     let set = RuleSet::parse(&text).expect("parses");
-    let mut g = Game::new(2501);
+    let mut g = Game::new_literal(2501);
     for u in ["row5", "row6", "row7", "row8", "cond_alert", "supply_cap_5"] {
         g.lineage.unlocks.insert(u.into());
     }

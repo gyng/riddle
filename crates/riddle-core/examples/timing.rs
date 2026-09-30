@@ -8,7 +8,7 @@ fn main() {
     if a.get(3).is_some_and(|s| s == "seq") {
         riddle_core::forecast::set_parallel_sims(false);
     }
-    let mut g = riddle_core::Game::new(seed);
+    let mut g = riddle_core::Game::new_literal(seed);
     let t = Instant::now();
     let rep = g.run_offline(hours * 3600);
     println!("run_offline({hours}h): {:.2}s  runs {}  deaths {}  ticks {}", t.elapsed().as_secs_f64(), rep.runs, g.deaths.len(), g.batch.turns);

@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit } from "./types";
+  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
 type GameCtor = (new (seed: number) => GameObj) & { fromSave?: (save: string) => GameObj };
@@ -114,6 +114,16 @@ export class WasmEngine implements Engine {
   seenSystems(): Lineage { return this.call("seenSystems"); }
   wallEdit(): WallEdit | null { return this.call("wallEdit"); }
   setOrders(orders: StandingOrders): Lineage { return this.call("setOrders", JSON.stringify(orders)); }
+  // Cut 30: throw `wasm: <name>` on a build without them
+  equipPackage(id: string, slot: number): Lineage { return this.call("equipPackage", id, slot); }
+  unequipPackage(id: string): Lineage { return this.call("unequipPackage", id); }
+  pickTemperament(id: string): Lineage { return this.call("pickTemperament", id); }
+  spendLevel(id: string): Lineage { return this.call("spendLevel", id); }
+  revokeDrill(boss: string, revoked: boolean): Lineage { return this.call("revokeDrill", boss, revoked); }
+  packageOptions(sims: number): PkgOption[] { return this.call("packageOptions", sims); }
+  bankDeposit(amount: number): Lineage { return this.call("bankDeposit", amount); }
+  bankWithdraw(amount: number): Lineage { return this.call("bankWithdraw", amount); }
+  swapQuest(): Lineage { return this.call("swapQuest"); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

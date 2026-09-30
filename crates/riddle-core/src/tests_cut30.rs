@@ -39,14 +39,14 @@ fn the_generator_names_every_shape_and_rejects_the_useless() {
 #[test]
 fn the_wake_offers_three_cards_with_different_whens() {
     let p = pool();
-    let mut g = Game::new(11);
+    let mut g = Game::new_literal(11);
     assert!(g.lineage.heirs.born.is_none() && g.lineage.heirs.offer.is_empty(), "the first heir is neutral");
     assert!(g.lineage().heir_traits.is_none());
     g.lineage.heir = 2;
     traits::wake_from(&mut g.lineage, &p);
     assert!(g.lineage.heirs.offer.is_empty() && g.lineage.heirs.born.is_none(), "heir 2 is neutral");
     for seed in 1..=30u64 {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_literal(seed);
         g.lineage.heir = 3;
         let mut h = g.lineage.clone();
         traits::wake_from(&mut g.lineage, &p);
@@ -83,7 +83,7 @@ fn the_wake_offers_three_cards_with_different_whens() {
 #[test]
 fn blood_passes_fades_and_twists() {
     let p = pool();
-    let mut g = Game::new(5);
+    let mut g = Game::new_literal(5);
     let l = &mut g.lineage;
     l.heir = 5;
     let parent = Shape::new(When::Hurt, Gift::Fury, Cost::Frail);
@@ -127,7 +127,7 @@ fn blood_passes_fades_and_twists() {
 /// §3 marked: the same kind killed the last three heirs — the wake offers `grudge` against it.
 #[test]
 fn a_grudge_three_deep_is_a_marked_card() {
-    let mut g = Game::new(6);
+    let mut g = Game::new_literal(6);
     let l = &mut g.lineage;
     l.heir = 4;
     for h in 1..=3 {
@@ -146,7 +146,7 @@ fn a_grudge_three_deep_is_a_marked_card() {
 fn old_saves_map_their_temperament_and_bots_stay_neutral() {
     let g = Game::load(include_str!("fixtures/save_307dbed.json")).unwrap();
     assert_eq!(g.lineage.heirs.born.map(|s| s.head()), Some("iron gut"), "curious → iron gut");
-    let mut l = Game::new(3).lineage;
+    let mut l = Game::new_literal(3).lineage;
     l.heirs = Default::default();
     l.trait_ = crate::hero::Trait::Cowardly;
     traits::upgrade(&mut l);
@@ -154,7 +154,7 @@ fn old_saves_map_their_temperament_and_bots_stay_neutral() {
     l.trait_ = crate::hero::Trait::Brave;
     assert_eq!(traits::legacy(l.trait_).head(), "unbowed");
     assert_eq!(traits::legacy(crate::hero::Trait::Greedy).head(), "light hands");
-    let mut b = Game::new(4);
+    let mut b = Game::new_literal(4);
     traits::neutral(&mut b.lineage);
     b.lineage.heir = 9;
     traits::wake_from(&mut b.lineage, &pool());
@@ -201,7 +201,7 @@ fn a_live_gift_changes_the_blow_never_the_verb() {
 /// `thin` heals ⅔; `mend` moves the hp an hp-row reads.
 #[test]
 fn costs_are_on_and_mend_moves_hp() {
-    let mut g = Game::new(7);
+    let mut g = Game::new_literal(7);
     g.lineage.heirs.born = Some(Shape::new(When::Quiet, Gift::Mend, Cost::Frail));
     g.send();
     let run = g.run.as_mut().unwrap();

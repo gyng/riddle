@@ -253,7 +253,7 @@ fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64, mix: bool) -> (StallCount
 /// first death offers, sending until the hero sees the D5 fork (D4's two stairs): the sends it took
 /// (`None`: not within `cap`).
 fn first_fork(seed: u64, cap: u32) -> Option<u32> {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     let mut patched = false;
     for send in 1..=cap {
         g.lineage.rest_left = 0;
@@ -688,7 +688,7 @@ fn lever_report(sets: &[(String, RuleSet)], levers: &Levers, seeds: u64, rows: &
 /// otherwise) against the set, on a D8 lineage owning every token: (edits, Σ paired ±,
 /// Σ absolute ±) over the shaft's depths whose bar has a ±.
 fn paired_edits(set: &RuleSet) -> (u32, f64, f64) {
-    let mut g = Game::new(7);
+    let mut g = Game::new_literal(7);
     for u in riddle_core::meta::UNLOCKS {
         g.lineage.unlocks.insert(u.id.into());
     }
@@ -791,7 +791,7 @@ fn diverge_edits(set: &RuleSet) -> Diverged {
 }
 
 fn setup(bot: Bot, seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     g.max_deaths = 100_000;
     // Cut 29 §2: the bots play with every system open (the curriculum gates the editor and the camp,
     // never a sim: their play is what it was).
@@ -2133,7 +2133,7 @@ fn main() {
                 g.send();
             }
         }
-        let mut g2 = Game::new(g.lineage.seed);
+        let mut g2 = Game::new_literal(g.lineage.seed);
         g2.set_rules_raw(good()).unwrap();
         let rep = g2.run_offline(1800);
         let s = serde_json::to_string(&rep).unwrap() + &g2.save();
@@ -2143,9 +2143,9 @@ fn main() {
         }
         h
     };
-    let mut ga = Game::new(7);
+    let mut ga = Game::new_literal(7);
     ga.set_rules_raw(good()).unwrap();
-    let mut gb = Game::new(7);
+    let mut gb = Game::new_literal(7);
     gb.set_rules_raw(good()).unwrap();
     let (ha, hb) = (hash_of(&mut ga), hash_of(&mut gb));
     rows.push(("Replay hash identical (seed+rules+elapsed)".into(), format!("{ha:016x}"), ha == hb));

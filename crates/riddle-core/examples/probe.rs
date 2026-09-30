@@ -21,7 +21,7 @@ fn main() {
     let mut secs = 0.0;
     let mut best: Vec<u32> = Vec::new();
     for seed in 1..=seeds {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_literal(seed);
         if full {
             for u in riddle_core::meta::UNLOCKS {
                 g.lineage.unlocks.insert(u.id.into());

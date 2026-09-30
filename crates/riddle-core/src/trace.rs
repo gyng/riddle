@@ -2859,7 +2859,7 @@ mod tests_trace {
 
     /// A game with a live run on an open 16×12 room, no monsters or items.
     fn arena(seed: u64) -> Game {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_literal(seed);
         g.max_deaths = 1000;
         g.start_run(Some(seed.wrapping_mul(7) + 3));
         let run = g.run.as_mut().unwrap();
@@ -3132,7 +3132,7 @@ mod tests_trace {
     #[cfg(not(debug_assertions))]
     #[test]
     fn a_verdict_takes_under_point_six_seconds() {
-        let mut g = Game::new(3);
+        let mut g = Game::new_literal(3);
         g.run_offline(2 * 3600);
         let ids: Vec<u32> = g.deaths.iter().filter(|(_, r)| !r.verdict_done).map(|(id, _)| *id).take(3).collect();
         assert!(!ids.is_empty(), "no unjudged death in two hours");
@@ -3158,7 +3158,7 @@ mod tests_faithful {
     /// inside the replay window (the window reaches the killing blow, not just the last action).
     #[test]
     fn replay_without_reseed_reproduces_the_death() {
-        let mut g = Game::new(3);
+        let mut g = Game::new_literal(3);
         g.max_deaths = 1000;
         g.run_offline(2 * 3600);
         let ids: Vec<u32> = g.deaths.keys().copied().collect();

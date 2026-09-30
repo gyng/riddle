@@ -267,7 +267,7 @@ pub fn den_guard_trial(seed: u64) -> (u32, u32) {
 /// Cut 12 §4 gate probe: the situation words of D3–10 on one seed (a fresh run walked down
 /// the stairs), for the distinct-kinds and no-repeat bars.
 pub fn twist_sequence(seed: u64) -> Vec<Option<String>> {
-    let mut g = crate::engine::Game::new(seed);
+    let mut g = crate::engine::Game::new_literal(seed);
     g.sim = true;
     g.start_run(Some(seed));
     let mut out = Vec::new();
@@ -292,7 +292,7 @@ pub fn floor_trial_twist(seed: u64, depth: u32, set: RuleSet, twist: Option<&str
 
 /// Cut 12 §2: `floor_trial_twist` on a lineage that owns `unlocks` (a card's trial).
 pub fn floor_trial_with(seed: u64, depth: u32, set: RuleSet, twist: Option<&str>, unlocks: &[&str]) -> crate::engine::Game {
-    let mut g = crate::engine::Game::new(seed);
+    let mut g = crate::engine::Game::new_literal(seed);
     for f in ["den", "lock", "captive", "hunger", "shrine", "foe:bloat:gas", "foe:monkey:thief"] {
         g.lineage.facts.insert(f.into());
     }
@@ -374,7 +374,7 @@ pub fn wall_trial(seed: u64) -> [(crate::wire::ForecastDepth, crate::wire::Forec
 /// The counter trial's lineage (best D8, the Warlord's counter known, fighter 4 in +1 mail)
 /// and its set (`good.json` minus the boss rows).
 fn warlord_lineage(seed: u64) -> (crate::engine::Game, RuleSet) {
-    let mut g = crate::engine::Game::new(seed);
+    let mut g = crate::engine::Game::new_literal(seed);
     g.lineage.best_depth = 8;
     for u in ["row5", "row6", "row7", "row8"] {
         g.lineage.unlocks.insert(u.into());

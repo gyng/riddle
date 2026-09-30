@@ -716,7 +716,7 @@ mod tests {
     fn every_floor_from_d3_rolls_one_situation() {
         let mut kinds_seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for seed in 1..=30u64 {
-            let mut g = Game::new(seed);
+            let mut g = Game::new_literal(seed);
             g.start_run(Some(seed));
             let mut seq: Vec<Option<String>> = Vec::new();
             for d in 1..=13u32 {
@@ -803,7 +803,7 @@ mod tests {
             assert_eq!(band(d).unwrap().first, d);
         }
         // A trial can choose the floor's kind.
-        let mut g = Game::new(3);
+        let mut g = Game::new_literal(3);
         g.start_run(Some(3));
         g.descend_to_twist(4, "lock");
         assert_eq!(g.run.as_ref().unwrap().floor_twist.as_deref(), Some("lock"));

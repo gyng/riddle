@@ -454,6 +454,70 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    // ---- Cut 30: packages, drills, the bank, the quest board
+
+    /// Cut 30 §2: equip a package (`id`: a stance, a tactic in `slot` 0/1, a temperament); returns the Lineage.
+    #[wasm_bindgen(js_name = equipPackage)]
+    pub fn equip_package(&mut self, id: &str, slot: u32) -> Result<String, JsError> {
+        self.inner.equip_package(id, slot as usize).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30 §2: empty a tactic or temperament slot; returns the Lineage.
+    #[wasm_bindgen(js_name = unequipPackage)]
+    pub fn unequip_package(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.unequip_package(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30 §2: take a wake card (`Lineage.packages.offer`); returns the Lineage.
+    #[wasm_bindgen(js_name = pickTemperament)]
+    pub fn pick_temperament(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.pick_temperament(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30 §2: spend marks on a package's next level; returns the Lineage.
+    #[wasm_bindgen(js_name = spendLevel)]
+    pub fn spend_level(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.spend_level(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30 §1: revoke (or restore) a drill — one tap; returns the Lineage.
+    #[wasm_bindgen(js_name = revokeDrill)]
+    pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<String, JsError> {
+        self.inner.revoke_drill(boss, revoked).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30 §2: every package move priced on the paired panel (`PkgOption[]`, best first).
+    #[wasm_bindgen(js_name = packageOptions)]
+    pub fn package_options(&self, sims: u32) -> String {
+        js(&self.inner.package_options(sims.max(8)))
+    }
+
+    /// Cut 30 §3: deposit gold in the bank (capped); returns the Lineage.
+    #[wasm_bindgen(js_name = bankDeposit)]
+    pub fn bank_deposit(&mut self, amount: i32) -> Result<String, JsError> {
+        self.inner.bank_deposit(amount).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30 §3: take gold out of the bank; returns the Lineage.
+    #[wasm_bindgen(js_name = bankWithdraw)]
+    pub fn bank_withdraw(&mut self, amount: i32) -> Result<String, JsError> {
+        self.inner.bank_withdraw(amount).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30 §5: the day's free swap of the quest on the board; returns the Lineage.
+    #[wasm_bindgen(js_name = swapQuest)]
+    pub fn swap_quest(&mut self) -> Result<String, JsError> {
+        self.inner.swap_quest().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 23 §1: buy the next forge step of `weapon | armour | pack`; returns the Lineage.
     #[wasm_bindgen(js_name = buyKit)]
     pub fn buy_kit(&mut self, slot: &str) -> Result<String, JsError> {

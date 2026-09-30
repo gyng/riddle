@@ -15,7 +15,7 @@ fn fnv(h: &mut u64, s: &str) {
 }
 
 fn full(seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     for u in riddle_core::meta::UNLOCKS {
         g.lineage.unlocks.insert(u.id.into());
     }
@@ -53,7 +53,7 @@ fn main() {
         let hs: Vec<_> = (1..=seeds)
             .flat_map(|s| [(s, "default"), (s, "full")])
             .map(|(s, which)| sc.spawn(move || {
-                let g = if which == "full" { full(s) } else { Game::new(s) };
+                let g = if which == "full" { full(s) } else { Game::new_literal(s) };
                 let (h, turns) = night(g, hours);
                 (s, which, h, turns)
             }))

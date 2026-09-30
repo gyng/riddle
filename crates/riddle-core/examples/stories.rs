@@ -11,7 +11,7 @@ fn main() {
     let mut runs = 0u32;
     for seed in 1..=seeds {
         for edited in [false, true] {
-            let mut g = Game::new(seed);
+            let mut g = Game::new_literal(seed);
             if edited {
                 for u in ["row5", "row6", "row7", "row8", "throw", "tame"] {
                     g.lineage.unlocks.insert(u.into());

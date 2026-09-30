@@ -151,6 +151,9 @@ pub fn combo_slug(name: &str) -> String {
     name.split_whitespace().collect::<Vec<_>>().join("-")
 }
 
+/// Cut 30 §2: the origins of package rows (`Row::is_pkg`).
+pub const PKG_ORIGINS: [&str; 4] = ["stance:", "tactic:", "temper:", "drill:"];
+
 pub const COND_KEYS: &[&str] = &[
     "hp<", "hp>", "foes>=", "adj>=", "foe_tag", "foe_hp<", "item", "unknown_item", "floor_seen>=", "depth>=",
     "alert>=", "in_corridor", "path_stairs", "ally", "loot>=", "turns>", "on_hurt", "on_kill", "on_see",
@@ -300,6 +303,11 @@ impl Row {
     pub fn is_card(&self) -> bool {
         self.verb.v == "tactic"
     }
+    /// Cut 30 §2: a package's row (compiled from a stance, a tactic, a temperament or a drill:
+    /// `stance:steady`, `drill:lich`) — outside the player's row cap, like a card's.
+    pub fn is_pkg(&self) -> bool {
+        self.origin.as_deref().is_some_and(|o| PKG_ORIGINS.iter().any(|p| o.starts_with(p)))
+    }
     /// The card a card row carries (`thief_guard`), if it is one.
     pub fn card(&self) -> Option<&str> {
         self.is_card().then(|| self.verb.a.as_deref().unwrap_or("")).filter(|c| !c.is_empty())
@@ -314,7 +322,7 @@ impl RuleSet {
     }
     /// Cut 12 §1: the player's own rows — every row that is not a card's.
     pub fn own_rows(&self) -> usize {
-        self.rows.iter().filter(|r| !r.is_card()).count()
+        self.rows.iter().filter(|r| !r.is_card() && !r.is_pkg()).count()
     }
     /// Cut 12 §1: the card rows (one per card once validated).
     pub fn card_rows(&self) -> usize {
@@ -354,6 +362,7 @@ impl RuleSet {
                     true
                 }
             }
+            None if r.is_pkg() => true,
             None => {
                 own += 1;
                 own <= max_rows

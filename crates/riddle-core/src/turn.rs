@@ -9,7 +9,6 @@ use crate::sifter::{self, Moment, Resolution};
 use crate::facts::{learn, learn_tag, tag_known};
 use crate::gen::generate;
 use crate::geom::{Pos, DIRS8};
-use crate::hero::Trait;
 use crate::item::Item;
 use crate::monster::Monster;
 use crate::rules::{Cond, Verb};
@@ -498,66 +497,12 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         all_rows_why(run, cx, "bail", None);
         return (-2, verb);
     }
-    let foes = v.foes.len() as i32;
     let hp_pct = run.hero.hp_pct();
     let hp_now = run.hero.hp;
     let was_low = run.low20_t.is_some() || run.low10_t.is_some();
-    let tr = run.trait_;
-    // Trait deviations, announced: at most one per 5 actions, and never below 25% HP
-    // (cowardice excepted, since fleeing at low HP is its point). Cut 13 §2: and at most
-    // one per floor (`trait_floor`) — both cohort-9 raters: "R4 retreat — brave held",
-    // "curious drank heal at 24/36 hp", "two losses I could not own".
-    let trait_ready = run.trait_last.is_none_or(|t| run.actions >= t + 5) && run.trait_floor == 0;
-    if tr == Trait::Cowardly && hp_pct < 50 && foes >= 1 && run.cowardly_streak < 3 && run.trait_floor == 0 {
-        let verb = Verb::new("retreat");
-        if ai::try_verb(run, cx, &verb, v) {
-            run.cowardly_streak += 1;
-            run.trait_last = Some(run.actions);
-            run.trait_floor += 1;
-            emit_rule(run, cx, -1, &verb, "cowardly → retreat");
-            all_rows_why(run, cx, "trait first", Some(trait_because(run, "cowardly ran first")));
-            return (-1, verb);
-        }
-    }
-    // The streak resets once the coward has been clear of foes for the trait's five actions,
-    // not on every clear action: retreat → foe out of view → chore walks back → retreat …
-    // reset the count every other action and looped to a stall (cohort 9).
-    if foes == 0 && trait_ready {
-        run.cowardly_streak = 0;
-    }
-    let trait_ok = trait_ready && hp_pct >= 25;
-    // Cut 5 §4: a den's gold in view tempts a greedy heir — from here on the chores walk in.
-    if tr == Trait::Greedy && trait_ok && !run.tempted && !run.dens.is_empty() {
-        let map = &run.floor.map;
-        let gold_seen = run.items.iter().any(|fi| fi.item.kind == "gold" && map.is_visible(fi.pos) && run.dens.iter().any(|d| d.cheb(fi.pos) <= 2));
-        if gold_seen {
-            run.tempted = true;
-            if ai::den_gold_step(run, cx) {
-                run.trait_last = Some(run.actions);
-                run.trait_floor += 1;
-                let verb = Verb::new("pick_up");
-                emit_rule(run, cx, -1, &verb, "greedy → the den");
-                all_rows_why(run, cx, "trait first", Some(trait_because(run, "greedy went first")));
-                return (-1, verb);
-            }
-        }
-    }
-    if tr == Trait::Greedy && trait_ok && !run.items_ignored() {
-        let hp = run.hero.pos;
-        let target = DIRS8
-            .iter()
-            .map(|d| hp.step(*d))
-            .find(|q| run.item_at(*q).is_some_and(|ii| would_take(run, cx, &run.items[ii].item)) && !run.occupied(*q) && run.floor.map.can_step(hp, *q));
-        if let Some(q) = target {
-            ai::move_hero(run, cx, q);
-            run.trait_last = Some(run.actions);
-            run.trait_floor += 1;
-            let verb = Verb::new("pick_up");
-            emit_rule(run, cx, -1, &verb, "greedy → pick up");
-            all_rows_why(run, cx, "trait first", Some(trait_because(run, "greedy went first")));
-            return (-1, verb);
-        }
-    }
+    // Cut 30 §2: a temperament acts only through its rows (`packages::temperament_rows`); the old
+    // per-floor overrides (the coward's retreat, the greedy grab, the brave hold, the curious use)
+    // are gone — no action is chosen by a trait.
     // Sanity: nobody stands in gas or fire with no foe adjacent.
     let hz = {
         let hp = run.hero.pos;
@@ -588,7 +533,6 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     if let Some(r) = &run.lent_row {
         rows.push((cx.rules.rows.len(), r.clone()));
     }
-    let mut brave_said = false;
     // Cut 23 §2: the committed walk home gave way to a row under it that answers (`answers_on_walk`).
     let mut walk_only = false;
     let stuck = run.stuck_until > run.actions;
@@ -644,18 +588,6 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         }
         if let Some(c) = failing.filter(|_| !cx.sim) {
             row_why(run, cx, i, &cond_reason(run, cx, c), Some(row), Some(c));
-        }
-        // Cut 13 §2: bravery holds a retreat once per floor, and the held row says so
-        // (`brave held` ← `brave held it, D4 · t3120`).
-        if holds && tr == Trait::Brave && foes == 1 && matches!(row.verb.v.as_str(), "retreat" | "back_corridor") && (brave_said || run.trait_floor == 0) {
-            if !brave_said {
-                run.trait_floor += 1;
-                run.trait_last = Some(run.actions);
-                emit_rule(run, cx, -1, &Verb::new("attack"), "brave → hold");
-                brave_said = true;
-            }
-            row_why(run, cx, i, "brave held", None, None);
-            continue;
         }
         let scope = row.conds.iter().find(|c| c.k == "party").and_then(|c| c.t.clone());
         run.raiding = row.conds.iter().any(|c| (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief")));
@@ -749,17 +681,6 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     }
     if run.blocked_now.is_none() {
         run.blocked_last = None;
-    }
-    if tr == Trait::Curious && trait_ok && foes == 0 && hp_pct >= 50 {
-        run.acting_row = -3; // a trait's use names the trait in the log (`curious drank heal at …`)
-        let used = ai::curious_use(run, cx);
-        run.acting_row = -1;
-        if let Some(verb) = used {
-            run.trait_last = Some(run.actions);
-            run.trait_floor += 1;
-            emit_rule(run, cx, -1, &verb, &format!("curious → {}", verb.short()));
-            return (-1, verb);
-        }
     }
     let verb = ai::chore(run, cx, v);
     let text = if verb.v == "cornered" { "cornered, no orders".to_string() } else { format!("chore → {}", verb.short()) };
@@ -1063,12 +984,6 @@ fn once_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
         return;
     }
     run.rows_why = cx.rules.active(cx.max_rows).map(|(i, _)| i).next().map(|i| RowWhy { row: i, why: why.into(), because: None }).into_iter().collect();
-}
-
-/// Cut 13 §2: the because a trait deviation leaves on the rows it held, ≤ 8 words, at the
-/// tick it happened.
-fn trait_because(run: &Run, text: &str) -> Because {
-    Because { text: text.into(), t: run.turn, depth: run.depth }
 }
 
 /// Policy retreats in one engagement (a foe in view throughout, no blow on the hero) before the

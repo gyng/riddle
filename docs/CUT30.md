@@ -287,6 +287,43 @@ update HANDOFF with the cohort and owner answers, then stop for the owner.
 
 *(To fill: date, build, per system the owner's three answers, pass/simplify/defer.)*
 
+## Status (core half, branch `cut30`)
+
+**Checkpoint 1 — the idle floor and packages v1 in the core** (`crates/riddle-core/src/packages.rs`, `town.rs`,
+`tests_cut30_pkg.rs`; wire in `web/src/engine/{types,fake,wasm,proxy}.ts`):
+- Every new lineage (`Game::new`) climbs on the compiled `Steady` stance; harnesses that write their own sets use
+  `Game::new_literal` (the pre-Cut 30 behaviour: `PkgState.literal`). Package rows carry their origin (`stance:steady`,
+  `drill:lich`, `tactic:boss_focus`, `temper:skittish`) and sit outside the row cap (`Row::is_pkg`); `ROWS_TOTAL` grew by
+  `MAX_PKG_ROWS` 24. The pen's rows (`set_rules` on a lineage on packages) sit above every package and compile only once
+  the pen is open (the Mother met or a 3-day stall).
+- Drills at a band boss's second meeting (a meeting = a day of the lineage's clock that saw him), the counter fact's row
+  with `hp > heal` (a drill above the guard rows never stops the hero drinking); the Foundry's wall drill comes from its
+  golems (`reflect_melee` known, D19+ reached) — cheap, deterministic, no wall search. Scars −5 %/meeting, cap −30 %, gone
+  once slain (`Run.scars`, applied at the boss's spawn). The quartermaster packs a drill's item first and keeps the
+  stance's heal in the free slots (the idle floor's pack of 3).
+- Packages v1: 4 stances, the 6 cards as tactics, 4 temperaments (the old overrides are gone from `turn::choose_and_act`:
+  a temperament acts only through its rows; the heir wears the mapped shape's gift and cost). Levels from runs (offline
+  included) at 10 · 40 · 120 · 300; a mark spend buys the next level (`spend_level`: ◆ = the level's number). The camp's
+  price (`packageOptions`): each move on the paired panel (past / reach / bank / death).
+- Town core: buildings on their triggers, the bank (2 %/night, capped at 3 nights' net), the four tracks, `ReturnReport.grew`
+  and `.packages` (the beats); the quest board (one goal ≤ 5 words, a reward picture, progress, one free swap a day, no stake).
+- The forge's ladders grew (weapon +4 … +6 are damage, armour to plate +1) — the "not engaging fails" caps that held them
+  are the rows this cut retires; the blacksmith is the multiplier the idle floor lacks.
+- Save migration: an old save's set becomes the `custom` stance (as written; the pen open, the editor edits it in place);
+  `saves_from_307dbed_send_identically` re-recorded (`3754cfc8…` → `92113fbe…`: the temperaments no longer act, scars).
+
 ## Deviations
 
-*(To record.)*
+- **Steady's bank row reads `depth ≥ record + 1`** (the contract's `depth ≥ best`): a bank at the record itself never
+  passes it; the first floor past the record is banked (one new floor a successful send; L4 pushes one further when whole).
+- **Stances by level** (ours to write): Steady L2 heals at 35 % and rests under 40 %, L3 rests under 50 %, L4 banks a
+  floor further when whole, L5 steps off a telegraph when hurt — Steady never rests at full length (that is `Guarded`'s:
+  rest under 80 %); `Hunter` arrives with the Warlord met (the contract left its stage open; it is the Warlord's counter).
+- **A meeting is a day**: runs of one day that see a boss are one meeting (per run, a night's 20 sends scarred him to
+  −30 % and drilled him in one absence).
+- **The Foundry's drill** comes from its golems (the contract's "the wall search supplies a wall's drill when no
+  fact-counter exists"): the search costs seconds natively and minutes in wasm per offer; the golems' `reflect_melee` fact
+  names the same counter (`reflect read`).
+- **Tests**: seven temperament-override tests replaced by `no_temperament_chooses_an_action`; four seed-specific repros
+  (a dice death whose replays all survive, a chased death, a patch with its purchase, the fork tablet's reading floor)
+  search for their case again, the temperaments having moved the nights.

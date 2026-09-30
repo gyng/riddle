@@ -11,7 +11,7 @@ fn main() {
         for (away, secs) in [("20m", 20 * 60), ("25m", 25 * 60), ("4h", 4 * 3600), ("8h", 8 * 3600)] {
             let mut runs = Vec::new();
             for seed in 1..=seeds {
-                let mut g = Game::new(seed);
+                let mut g = Game::new_literal(seed);
                 if good {
                     for u in ["row5", "row6", "row7", "row8", "throw"] {
                         g.lineage.unlocks.insert(u.into());

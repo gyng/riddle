@@ -948,7 +948,7 @@ mod tests {
     #[test]
     fn rogue_free_at_first_bank_and_tame_from_the_start() {
         // Cut 29 §1: the rogue is free vocabulary — owned at the first bank, never bought.
-        let mut g = crate::engine::Game::new(7);
+        let mut g = crate::engine::Game::new_literal(7);
         assert!(g.lineage.unlocks.contains("tame"));
         assert!(!g.lineage.unlocks.contains("rogue"));
         assert!(g.lineage.facts.contains("item:leash"));

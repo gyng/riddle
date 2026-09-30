@@ -59,6 +59,8 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     let rules = game.lineage.rules().clone();
     game.passage = crate::forecast::sim_passage(game, &rules);
     let facts_before = game.lineage.facts.clone();
+    // Cut 30 §4: what grows over the absence, track by track (`ReturnReport.grew`).
+    let grew_before = crate::town::snap(&game.lineage);
     let class = game.lineage.class.name().to_string();
     let rank_before = game.lineage.rank;
     // Cut 29 §1: the lineage's clock — a new day closes the last one's net and lapses the oaths
@@ -210,7 +212,9 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
             game.batch.marks += n;
         }
     }
-    report_with(game, elapsed_s, &facts_before, &class, rank_before, sampled, full, with_stall)
+    let mut r = report_with(game, elapsed_s, &facts_before, &class, rank_before, sampled, full, with_stall);
+    r.grew = crate::town::grew(&grew_before, &crate::town::snap(&game.lineage));
+    r
 }
 
 /// Cut 13 §6: `total` split in proportion to `weights` (largest remainder), summing to
@@ -293,7 +297,7 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
     }
     let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price,
         broken: b.oath_breaks.values().sum(), cause: b.oath_breaks.iter().max_by_key(|(c, n)| (**n, std::cmp::Reverse(c.len()))).map(|(c, _)| c.clone()) });
-    let mut r = ReturnReport { lead: Vec::new(), oath,
+    let mut r = ReturnReport { lead: Vec::new(), oath, grew: Vec::new(), packages: b.pkg_lines.clone(),
         elapsed_s,
         runs: b.runs,
         sampled,
