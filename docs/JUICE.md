@@ -792,3 +792,29 @@ new plank-and-water floor reads as "noisy blue stripes" and shimmers under the w
 "murky dark grey". Asks the raters repeat: a closer, steadier camera on the exchange (the round-24 blocker — the rule's target on the
 wire); calmer Fens floor texture (fewer plank stripes, less grain under motion); lighter insets; bevelled/lit plaques instead of flat
 navy; molten forecast bars (the CSS pass made them MIST); a fallen hero under the death banner; parchment fix rows.
+
+### 10.16 Rounds 28–29 (2026-09-30) — the coordinator's fixes 1–5 and the refined tiles
+
+Round 28 (the Fens floor calmed, world-anchored grain, ambient 0.74 → 0.84, a brighter MIST hero light and a BONE moon rim on the hero,
+lighter scene panes, bevelled plaques, hot forecast bars) was captured but never scored: its raters were cut off by the owner's usage
+limit. Round 29 adds the refined tiles (the owner: "the previous tileset had more readability" — `art/refine.py` repaints the round-26
+register's value structure in the guide; a blind two-reader tile check: every class identified in every version, readability round 26
+6.5 · phase-2 paint 4.8 · refined 6.7). Two budgeted raters (BL, BM; 60 calls each) lost m01–m06 and every style target to the image
+request limit, so round 29 scores 12–13 of 18 moments, "target" judged from the brief's words only.
+
+| moment | r26 | r29 | Δ | moment | r26 | r29 | Δ |
+|---|---|---|---|---|---|---|---|
+| camp (1 rater) | 6.45 | 6.30 | −0.15 | boss-break | 7.45 | 5.90 | −1.55 |
+| forecast | 6.60 | 6.70 | +0.10 | boss-fall | 6.85 | 6.50 | −0.35 |
+| oaths | 6.65 | 6.35 | −0.30 | d-watch | 6.20 | 5.80 | −0.40 |
+| watch-fens | 6.00 | 5.75 | −0.25 | d-report | 7.00 | 6.40 | −0.60 |
+| fight | 6.40 | 5.90 | −0.50 | d-death | 7.50 | 7.10 | −0.40 |
+| boss-in | 7.30 | 7.10 | −0.20 | d-camp | 7.20 | 6.85 | −0.35 |
+| | | | | d-edit | 7.20 | 6.40 | −0.80 |
+
+Mean over the rated moments **6.39** vs round 26's **6.83** on the same moments: the bar (≥ 6.84, dungeon watches ≥ their r26) is not met.
+The Fens watch recovered from round 27 (5.10 → 5.75) and the forecast rose; the boss break fell hardest ("no BROKEN stamp seen", "shards
+two grey slabs over the name plate" — the stamp lands after the strip's window in this capture, and the pixel shield halves read large),
+the fight ("the goblin just vanishes: no death beat"), the desktop editor ("no sheet drop captured"). Raters of both rounds repeat:
+floors as busy as the actors in the Fens, a stray translucent box over the desktop camp's art, the BROKEN/SLAIN stamps too brief, the
+reward number clipped behind SLAIN, small secondary text. The Warrens watch, report, death, scene and edit went unrated.
