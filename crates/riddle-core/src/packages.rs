@@ -121,6 +121,9 @@ pub const SCAR_PCT: u32 = 5;
 pub const SCAR_CAP: u32 = 30;
 /// A drill enters at this meeting (the second).
 pub const DRILL_MEETING: u32 = 2;
+/// Every band boss past the Warlord is drilled at this many days met (the idle path is patient; a
+/// package that answers him is the quicker one).
+pub const DRILL_DAYS: u32 = 3;
 /// The Foundry's first floor: its golems are the wall before its master (`on_run_end`).
 pub const FOUNDRY_WALL: u32 = 19;
 
@@ -296,7 +299,7 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
                 g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
             }
             if level >= 5 {
-                g.push(r(vec![tag("telegraph"), n("hp<", 50)], Verb::new("retreat")));
+                g.push(r(vec![tag("telegraph"), n("hp<", 35)], Verb::new("retreat")));
             }
             let mut f = vec![attack];
             if level >= 2 {
@@ -316,24 +319,27 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
                 g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
             }
             if level >= 3 {
-                g.push(r(vec![tag("telegraph"), n("adj>=", 1)], Verb::new("retreat")));
-                // (the guarded step back from what hurts back: a known mirror of blows is not struck)
-                g.push(r(vec![tag("reflect_melee"), n("adj>=", 1)], Verb::new("retreat")));
+                // (a telegraphed blow is met with a drink, not a step back: `telegraph → retreat` looped
+                // retreat ↔ explore on ~3 % of sends — the stall row)
+                g.push(r(vec![tag("telegraph"), n("hp<", 60)], Verb::arg("drink", "heal")));
             }
             if level >= 4 {
-                g.push(r(vec![n("foes>=", 3)], Verb::new("back_corridor")));
+                g.push(r(vec![n("foes>=", 3), n("hp<", 60)], Verb::new("back_corridor")));
             }
             (g, vec![attack, r(vec![n("hp<", 80)], Verb::new("rest"))])
         }
-        // heal 25 %, no return, bank two floors past the record, attack the weakest. L2 rests under
-        // 50 %, L4 strikes the boss first, L5 banks one floor further.
+        // heal 25 %, no return, bank two floors past the record, the boss first and to the end (no heal
+        // stops the blow), attack the weakest. L2 rests under 50 %, L5 banks one floor further.
         "bold" => {
             let extra = if level >= 5 { 2 } else { 1 };
             // (the bold go down, not home: hurt with the stairs in reach, he dives past the floor)
-            let mut g = vec![drink, r(vec![n("depth>=", bank_at(best, extra))], Verb::new("bank")), r(vec![n("hp<", 40), Cond::flag("path_stairs")], Verb::new("descend"))];
-            if level >= 4 {
-                g.push(r(vec![tag("boss"), n("hp>", heal)], Verb::arg("attack", "tag:boss")));
-            }
+            let g = vec![
+                r(vec![tag("boss"), Cond::flag("on_hurt")], Verb::arg("attack", "tag:boss")),
+                drink,
+                r(vec![n("depth>=", bank_at(best, extra))], Verb::new("bank")),
+                r(vec![tag("boss")], Verb::arg("attack", "tag:boss")),
+                r(vec![n("hp<", 40), Cond::flag("path_stairs")], Verb::new("descend")),
+            ];
             let mut f = vec![r(vec![n("foes>=", 1)], Verb::arg("attack", "lowest"))];
             if level >= 2 {
                 f.push(r(vec![n("hp<", 50)], Verb::new("rest")));
@@ -400,7 +406,8 @@ pub fn temperament_rows(id: &str, level: u32) -> Vec<Row> {
             v
         }
         "unbowed" => vec![r(vec![tag("boss"), n("hp>", 40)], Verb::arg("attack", "tag:boss"))],
-        "light_hands" => vec![r(vec![n("loot>=", 0), n("hp>", 50)], Verb::new("pick_up"))],
+        // (the kill's drop, grabbed at once — `loot ≥ 0 → pick up` looped pick up ↔ explore)
+        "light_hands" => vec![r(vec![Cond::flag("on_kill"), n("hp>", 50)], Verb::new("pick_up"))],
         "iron_gut" => vec![r(vec![Cond::flag("unknown_item"), n("hp>", 60)], Verb::arg("drink", "unknown"))],
         _ => Vec::new(),
     }
@@ -800,7 +807,7 @@ pub fn on_run_end(l: &mut LineageState, bosses_met: &[String], max_depth: u32, f
         let meets = if b == "goblin_warlord" { met_runs } else { l.pkg.meets.get(b).copied().unwrap_or(0) };
         let known = crate::facts::boss_counter_known(&l.facts, b) || (b == "foundry_master" && crate::facts::tag_known(&l.facts, "iron_golem", "reflect_melee"));
         // (the Foundry is a wall of golems, not one boss: its drill wants a third day)
-        let need = if b == "foundry_master" { DRILL_MEETING + 1 } else { DRILL_MEETING };
+        let need = if b == "goblin_warlord" { DRILL_MEETING } else if b == "foundry_master" { DRILL_DAYS + 1 } else { DRILL_DAYS };
         if meets >= need && known && !l.pkg.drills.iter().any(|d| d.boss == *b) {
             let heal = heal_pct(&l.pkg.stance, l.pkg.level(&l.pkg.stance));
             let rows = drill_rows(b, heal);
@@ -906,8 +913,17 @@ pub fn pack_kinds(l: &LineageState) -> Vec<String> {
         return Vec::new();
     }
     let mut out: Vec<String> = Vec::new();
-    for row in l.rules().rows.iter().filter(|r| r.origin.as_deref().is_some_and(|o| o.starts_with("stance:") || o.starts_with("temper:"))) {
-        if !matches!(row.verb.v.as_str(), "drink" | "read") {
+    // the stance's and the temperament's rows, and what a tactic's card throws (boss focus: fire at the
+    // Mother) — the card's rows as it plays them
+    let mut rows: Vec<Row> = Vec::new();
+    for row in l.rules().rows.iter().filter(|r| r.origin.as_deref().is_some_and(|o| o.starts_with("stance:") || o.starts_with("temper:") || o.starts_with("tactic:"))) {
+        match row.card() {
+            Some(c) => rows.extend(crate::meta::unlock_rows(c).unwrap_or_default().into_iter().filter(|r| r.verb.v == "throw")),
+            None => rows.push(row.clone()),
+        }
+    }
+    for row in &rows {
+        if !matches!(row.verb.v.as_str(), "drink" | "read" | "throw") {
             continue;
         }
         let Some(k) = row.verb.a.as_deref().and_then(|a| a.split(',').next()).filter(|k| !k.is_empty() && *k != "unknown") else { continue };
@@ -1032,6 +1048,10 @@ pub struct PkgOption {
     pub mean: f64,
     #[serde(default)]
     pub d_mean: f64,
+    /// The move in the share past the record read at the wall (from the deepest lit waystone at or
+    /// above it); 0 with no stone.
+    #[serde(default)]
+    pub d_wall: f64,
     pub d_past: f64,
     pub d_bank: f64,
     pub d_death: f64,
@@ -1097,11 +1117,23 @@ fn shares(g: &crate::engine::Game, set: &RuleSet, sims: u32) -> (f64, f64, f64, 
     (past, bank, death, reach, mean)
 }
 
-/// The camp's package prices (`sims` sends each, on the camp's seeds, from where the sends start), best
-/// move first. (Measured from the deepest lit waystone instead, every move read past the record while the
-/// sends from D1 never got there: a stance that walks home early looked best at the frontier.)
+/// The camp's package prices (`sims` sends each, on the camp's seeds), best move first — read twice:
+/// from where the sends start (the walk and the night), and at the wall (`d_wall`: the share past the
+/// record from the deepest lit waystone at or above it, the wall's own panel as `wall::search` reads it).
+/// A move that answers the wall reads there, under the noise of the floors above it; one that only helps
+/// at the frontier while the walk to it suffers reads on the first panel. (Read from the stone alone, a
+/// stance that walks home early looked best.)
 pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
     let base = shares(g, g.lineage.rules(), sims);
+    let best = g.lineage.best_depth;
+    let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
+    let at_wall = |c: &crate::engine::Game, set: &RuleSet| -> Option<f64> {
+        let s = stone?;
+        let mut w = c.sim_clone();
+        w.lineage.start = s;
+        Some(shares(&w, set, sims).0)
+    };
+    let wall_base = at_wall(g, g.lineage.rules());
     let mut out: Vec<PkgOption> = Vec::new();
     for (id, action, slot) in candidates(&g.lineage) {
         let mut c = g.sim_clone();
@@ -1110,8 +1142,12 @@ pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
         }
         let set = compile(&c.lineage);
         let (past, bank, death, reach, mean) = shares(&c, &set, sims);
+        let d_wall = match (wall_base, at_wall(&c, &set)) {
+            (Some(a), Some(b)) => b - a,
+            _ => 0.0,
+        };
         let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
-        out.push(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4 });
+        out.push(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall });
     }
     out.sort_by(|a, b| score(b).total_cmp(&score(a)));
     out
@@ -1120,5 +1156,5 @@ pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
 /// A move's worth: the sends past the record, then those reaching it and banked, the floors the
 /// sends reach (a tenth a floor: the long walk from D1 the record sits under), less those that die.
 pub fn score(o: &PkgOption) -> f64 {
-    o.d_past + 0.3 * o.d_reach + 0.2 * o.d_bank - 0.2 * o.d_death + 0.1 * o.d_mean
+    o.d_past + 0.3 * o.d_reach + 0.2 * o.d_bank - 0.2 * o.d_death + 0.1 * o.d_mean + o.d_wall
 }

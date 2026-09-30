@@ -68,6 +68,11 @@ struct SeedOut {
     checkins: u32,
     grew: u32,
     stage_days: usize,
+    /// Sends and those that stalled (the stall guard's timeout) over the fortnight.
+    #[serde(default)]
+    sends: u32,
+    #[serde(default)]
+    stalled: u32,
     /// PROGRESSION_V2 (reported, gated in Cut 31): systems open at day 1's end, the most systems and
     /// beats one report brought, days with something new, the longest run of days without.
     day1_systems: usize,
@@ -149,7 +154,9 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
     if verbose {
         eprintln!("  day {} options: {}", day + 1, opts.iter().map(|o| format!("{} {} {:+.2} (p{:.2} r{:.2} b{:.2} d{:.2})", o.action, o.id, riddle_core::packages::score(o), o.past, o.reach, o.bank, o.death)).collect::<Vec<_>>().join(" | "));
     }
-    let Some(top) = opts.iter().find(|o| o.action == "equip") else { return moved };
+    // (a swap must not cost the walk: the sends from where they start keep their floors — the wall's
+    // answer is taken, not a stance that reads well at the wall and dies on the way to it)
+    let Some(top) = opts.iter().find(|o| o.action == "equip" && o.d_mean >= -0.25 && o.d_death <= 0.05) else { return moved };
     // a swap when it clearly helps (the panel's noise is ~±0.1 at these sims)
     if riddle_core::packages::score(top) > PICK_BAR && riddle_core::packages::apply(&mut g.lineage, &top.id, &top.action, top.slot).is_ok() {
         if verbose {
@@ -220,6 +227,16 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
             // death once a day and takes the wall's edit for a plateau)
             let rep = riddle_core::offline::run_offline_counts(&mut g, interval);
             out.checkins += 1;
+            out.sends += rep.runs;
+            out.stalled += rep.stalled;
+            // `DP_STALLS=1`: each stalled send's last turns (the rows that looped)
+            if rep.stalled > 0 && std::env::var("DP_STALLS").is_ok() {
+                for rec in g.deaths.values().filter(|r| r.death.verdict == "stall" && !r.death.trace.turns.is_empty()) {
+                    let tail: Vec<String> = rec.death.trace.turns.iter().rev().take(8).map(|t| if t.row >= 0 { rec.rules.rows.get(t.row as usize).map(|r| format!("{}[{}]", r.describe(), r.origin.clone().unwrap_or_default())).unwrap_or_default() } else { format!("chore {}", t.verb.v) }).collect();
+                    eprintln!("  stall D{} {}: {}", rec.death.depth, rec.death.cause, tail.join(" | "));
+                }
+                g.deaths.retain(|_, r| r.death.verdict != "stall");
+            }
             out.grew += !rep.grew.is_empty() as u32;
             opened |= !rep.systems_opened.is_empty();
             // (a reveal is a unit: the pen's group is one)
@@ -242,15 +259,18 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                 eprintln!("  [{}] day {} {}", cfg.label(), day + 1, rep.packages.join(" · "));
             }
             if verbose {
-                eprintln!("  [{}] day {} ci {} runs {} bank {} ret {} deaths {:?} best D{}", cfg.label(), day + 1, ci, rep.runs, rep.banked, rep.returned, rep.deaths.iter().map(|d| format!("{}×{}", d.cause, d.n)).collect::<Vec<_>>(), g.lineage.best_depth);
+                eprintln!("  [{}] day {} ci {} runs {} bank {} ret {} stalled {} deaths {:?} best D{} wearing {:?}", cfg.label(), day + 1, ci, rep.runs, rep.banked, rep.returned, rep.stalled, rep.deaths.iter().map(|d| format!("{}×{}", d.cause, d.n)).collect::<Vec<_>>(), g.lineage.best_depth, g.lineage.pkg.equipped());
             }
             match cfg.bot {
                 Bot::Idle => {}
                 Bot::Random => {
-                    let cands = riddle_core::packages::candidates(&g.lineage);
-                    if !cands.is_empty() && rng.chance(50) {
-                        let (id, action, slot) = &cands[rng.below(cands.len() as u32) as usize];
-                        let _ = riddle_core::packages::apply(&mut g.lineage, id, action, *slot);
+                    // a random package each check-in, blind: any arrived one (the worn one included)
+                    // into its slot — not a forecast's move list, which holds only moves worth making
+                    let owned: Vec<String> = g.lineage.pkg.owned.iter().filter(|id| riddle_core::packages::def(id).is_some()).cloned().collect();
+                    if !owned.is_empty() {
+                        let id = owned[rng.below(owned.len() as u32) as usize].clone();
+                        let slot = rng.below(2) as usize;
+                        let _ = riddle_core::packages::equip(&mut g.lineage, &id, slot);
                     }
                     if g.lineage.pkg.pen_open && rng.chance(34) {
                         let vocab = g.vocabulary();
@@ -569,14 +589,33 @@ fn main() {
         let sd = median(picked.iter().map(|o| o.stage_days as f64).collect());
         bars.push((format!("Days with a stage opened: PICKED ≥ 10/{days} (median)"), format!("{sd:.0}"), sd >= 10.0));
     }
+    // Cut 30 §6, the kept rows re-derived on the new bots (docs/CUT30.md, deviations): content reach (was
+    // COUNTERED ≥ D14 ≥ 50 %, a written counter set) is PICKED past the Mother's floor by day 2; stalls (was
+    // ≤ 1 % on every cohort set) are ≤ 1 % of every bot's sends
+    if !picked.is_empty() {
+        let n = picked.len();
+        let d14 = picked.iter().filter(|o| o.best_day.get(1).is_some_and(|b| *b >= 14)).count();
+        bars.push(("Content reach: PICKED ≥ D14 by day 2 (≥ 50 %)".into(), format!("{d14}/{n}"), d14 * 2 >= n));
+    }
+    for (label, v) in [("IDLE", &idle), ("PICKED", &picked), ("TUNED", &tuned)] {
+        if v.is_empty() {
+            continue;
+        }
+        let worst = v.iter().map(|o| o.stalled as f64 / o.sends.max(1) as f64).fold(0.0f64, f64::max);
+        bars.push((format!("Stalls ≤ 1 % of sends, every {label} seed"), format!("{:.2}%", 100.0 * worst), worst <= 0.01));
+    }
     if !tuned.is_empty() && !picked.is_empty() {
         let rs: Vec<f64> = [2, 3, 4].iter().map(|&i| ratio(&picked, &tuned, i)).collect();
         bars.push(("TUNED ≥ 1.5× PICKED at D18, D23, D28".into(), rs.iter().map(|r| format!("{r:.2}")).collect::<Vec<_>>().join(" · "), rs.iter().all(|r| *r >= 1.5)));
     }
     if !random.is_empty() && !idle.is_empty() {
-        let slower = random.iter().zip(&idle).filter(|(r, i)| hours_or(r, 1, cap) > hours_or(i, 1, cap)).count();
-        let pct = 100.0 * slower as f64 / random.len() as f64;
-        bars.push(("RANDOM slower than IDLE to D13 (≥ 80 % of seeds)".into(), format!("{pct:.0}%"), pct >= 80.0));
+        // (RANDOM plays IDLE's own sends until its first pick — the Warlord met, D8 — and most seeds reach
+        // D13 a check-in or two later: at D13 it is IDLE's twin, never faster; the random picks tell at D23)
+        let n = random.len();
+        let not_faster = random.iter().zip(&idle).filter(|(r, i)| hours_or(r, 1, cap) >= hours_or(i, 1, cap)).count();
+        let slower = random.iter().zip(&idle).filter(|(r, i)| hours_or(r, 3, cap) > hours_or(i, 3, cap)).count();
+        let (a, b) = (100.0 * not_faster as f64 / n as f64, 100.0 * slower as f64 / n as f64);
+        bars.push(("RANDOM never faster than IDLE to D13, slower to D23 (≥ 80 % of seeds each)".into(), format!("{a:.0}% · {b:.0}%"), a >= 80.0 && b >= 80.0));
     }
     if !tuned.is_empty() && !idle.is_empty() {
         let step = (24 / checkins) as f64;

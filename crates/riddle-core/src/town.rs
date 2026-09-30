@@ -218,6 +218,11 @@ pub fn tracks(l: &LineageState) -> Vec<TrackWire> {
 /// The stages reached on every track (for `grew`: a stage that opened between two looks).
 pub fn stage_set(l: &LineageState) -> Vec<(String, String)> {
     let mut v = Vec::new();
+    // (every package that arrives is a stage of the character's: a stance, a tactic of the drip, a
+    // temperament — §2 "each arrives on a stage trigger")
+    for id in l.pkg.owned.iter().filter(|id| crate::packages::def(id).is_some() && id.as_str() != "steady") {
+        v.push(("character".to_string(), format!("+{}", crate::packages::name(id))));
+    }
     for t in TRACKS {
         for (s, _) in stages(t) {
             if reached(l, t, s) {
@@ -387,7 +392,7 @@ pub fn draw(l: &mut LineageState) {
     l.town.quest_seq += 1;
     let mut rng = crate::rng::Rng::derive(l.seed, crate::rng::hash_str("quest") ^ seq as u64);
     let best = l.best_depth.max(1);
-    let next_boss = crate::descent::BOSS_DEPTHS.iter().find(|(k, d)| !l.kills.contains(*k) && *d <= best + 2 && l.pkg.drills.iter().any(|x| x.boss == *k && !x.revoked)).map(|(k, _)| k.to_string());
+    let next_boss = crate::descent::BOSS_DEPTHS.iter().find(|(k, d)| !l.kills.contains(*k) && *d <= best + 2 && *k != "foundry_master" && l.pkg.drills.iter().any(|x| x.boss == *k && !x.revoked)).map(|(k, _)| k.to_string());
     let goal = match (rng.below(4), &next_boss) {
         (0, Some(_)) => "slay",
         (0, None) | (1, _) => "reach",
@@ -395,7 +400,7 @@ pub fn draw(l: &mut LineageState) {
         _ => "bank",
     };
     let depth = match goal {
-        "reach" => best + 1,
+        "reach" => best,
         "reach_no_return" => best.saturating_sub(2).max(2),
         "bank" => best.saturating_sub(1).max(2),
         _ => crate::descent::boss_depth(next_boss.as_deref().unwrap_or("")).unwrap_or(best),

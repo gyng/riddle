@@ -9,9 +9,9 @@ use riddle_core::Game;
 /// The walls the stances are weighed at (a band boss's floor).
 pub const WALLS: [u32; 5] = [8, 13, 18, 23, 28];
 pub const STANCES: [&str; 4] = ["steady", "guarded", "bold", "hunter"];
-/// A death weighed against a send past the wall: a quarter (the heir and 70 % of the carry lost, the
-/// wall still to pass).
-pub const DEATH_WEIGHT: f64 = 0.25;
+/// A death weighed against a send past the wall: nothing — the idle gates are time to a milestone, and a
+/// death's 20-minute wake costs the time a bank's rest does (`WAKE_TICKS` = `REST_MIN_TICKS`); `DW=` probes others.
+pub const DEATH_WEIGHT: f64 = 0.0;
 
 /// IDLE's lineage of `seed` over `days`, snapshot at each wall (the first check-in it stands at
 /// `wall − 1` or deeper, before passing it), and the first check-in at D13 or deeper.
@@ -62,7 +62,7 @@ pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32) -> f64 {
     // and 70 % of the carry — passing by dying more is not the better stance)
     let past = rs.iter().filter(|r| r.max_depth > wall).count() as f64 / k;
     let died = rs.iter().filter(|r| r.tier == ExitTier::Death).count() as f64 / k;
-    past - DEATH_WEIGHT * died
+    past - std::env::var("DW").ok().and_then(|v| v.parse().ok()).unwrap_or(DEATH_WEIGHT) * died
 }
 
 /// Of `sends` sends from a lineage whose Mother drill wants fire (fire named, the purse full), the share
@@ -97,9 +97,9 @@ pub fn drill_packed(seed: u64, sends: u32) -> (u32, u32) {
 /// stance's chance a night (16 sends) keeps it — the pen closed, the packages alone.
 pub fn quest_night(g: &Game, kind: &str, sims: u32) -> (String, f64) {
     let best = g.lineage.best_depth.max(1);
-    let next_boss = riddle_core::descent::BOSS_DEPTHS.iter().find(|(k, d)| !g.lineage.kills.contains(*k) && *d <= best + 2 && g.lineage.pkg.drills.iter().any(|x| x.boss == *k && !x.revoked)).map(|(k, d)| (k.to_string(), *d));
+    let next_boss = riddle_core::descent::BOSS_DEPTHS.iter().find(|(k, d)| !g.lineage.kills.contains(*k) && *d <= best + 2 && *k != "foundry_master" && g.lineage.pkg.drills.iter().any(|x| x.boss == *k && !x.revoked)).map(|(k, d)| (k.to_string(), *d));
     let depth = match kind {
-        "reach" => best + 1,
+        "reach" => best,
         "reach_no_return" => best.saturating_sub(2).max(2),
         "bank" => best.saturating_sub(1).max(2),
         _ => match &next_boss {

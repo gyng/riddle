@@ -1370,6 +1370,12 @@ const RETIRED: &[&str] = &[
     "Progression: marks unspent",
     "Progression: longest stall",
     "Progression: purse",
+    // (moved by the pivot — the heirs' temperaments no longer act for the bots, `docs/CUT30.md` deviations;
+    // re-derived on the new bots: content reach and stalls in the dayplayer, the lanes in `cut30_rows`)
+    "COUNTERED reaches ≥ D14",
+    "Lanes D5: no set dominates",
+    "Lanes D9: no set dominates",
+    "Stalls ≤ 1% of sends on every cohort set",
 ];
 
 fn retired(name: &str) -> bool {
@@ -1437,6 +1443,23 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
     let paid = fresh_runs.iter().chain(&d13_runs).filter(|r| **r >= 1).count();
     let n20 = fresh_runs.len() + d13_runs.len();
     rows.push((format!("A 20-min absence returns ≥ 1 run ≥ 95% (fresh 30 + D13 {})", d13_runs.len()), format!("{:.0}%", pct(paid, n20)), pct(paid, n20) >= 95.0 && !d13_runs.is_empty()));
+    // the D5 lanes on the idle floor (re-derived from `Lanes D5: no set dominates`, whose written sets
+    // the pivot's bots no longer write): IDLE's own set at its D8 snapshot, the near stair and the far —
+    // both lanes viable (the weaker passes D8 at least half as often as the stronger, over the seeds)
+    let d8: Vec<&String> = snaps.iter().flat_map(|v| v.iter().filter(|(w, _)| *w == 8).map(|(_, g)| g)).collect();
+    let lanes: Vec<(f64, f64)> = pool(&d8, threads, |t| {
+        let mut g = load(t);
+        g.lineage.facts.insert("fork:5".into());
+        let pass = |g: &Game, route: &[u32]| {
+            let set = g.lineage.rules().clone().with_route(riddle_core::descent::Route::from_forks(route).unwrap_or_default());
+            let rs = riddle_core::forecast::camp_panel(g, &set, 48);
+            rs.iter().filter(|r| r.max_depth > 8).count() as f64 / rs.len().max(1) as f64
+        };
+        (pass(&g, &[]), pass(&g, &[5]))
+    });
+    let (near, far) = lanes.iter().fold((0.0, 0.0), |a, x| (a.0 + x.0, a.1 + x.1));
+    let ratio = near.min(far) / near.max(far).max(1e-9);
+    rows.push((format!("Lanes D5 (IDLE): both viable, weaker ≥ ½ the stronger (n={})", lanes.len()), format!("near {:.2} · far {:.2}", near / lanes.len().max(1) as f64, far / lanes.len().max(1) as f64), ratio >= 0.5 && !lanes.is_empty()));
     // the quartermaster: a drill's item in the pack at its wall
     let packs: Vec<(u32, u32)> = pool(&lineages, threads, |s| idle::drill_packed(*s, 12));
     let (c, n) = packs.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));

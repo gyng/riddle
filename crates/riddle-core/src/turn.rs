@@ -1177,6 +1177,17 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
         let chore = run.trace.iter().rev().take(LOOP_WINDOW).any(|t| t.row == -2 && t.verb.v != "stuck");
         run.card_loops += (card && chore) as u32;
         run.loop_causes.push(cause.clone());
+        // Cut 30 §2: a package's row in the loop (its rows are ours, not the player's) rests for the
+        // floor's next 300 actions and the chores go on — no stall is counted against the send
+        if cx.rules.rows.get(row as usize).is_some_and(|r| r.is_pkg()) {
+            run.rows_rested = (vec![row], run.actions + 300);
+            run.row_streak = (-9, 0);
+            run.stuck_until = run.actions + 30;
+            run.recent_pos.clear();
+            run.chase = None;
+            emit_rule(run, cx, -2, &Verb::new("stuck"), "stuck → chores");
+            return;
+        }
         run.stuck_cause = Some(cause);
         run.stuck_row = Some(row);
     } else if run.stuck_row.is_none() {
