@@ -346,7 +346,35 @@ death once a day (the search was > 40 CPU-min a seed).
 | PROGRESSION_V2 (info): day-1 systems · most units a report · most beats · days with something new · longest gap | 7 · 3→1 (units fixed after the run) · 8→≤ 5 · 14/14 · 1 d | reported |
 | TUNED (one seed, checkpoint 3): D28 day 7, D33 day 9 — far ahead of PICKED (D28 day 9–12) | | not yet gated over 8 seeds |
 
+**Checkpoint 5** (`6d4defd`) and the first `node tools/gates.mjs --full` (2026-10-01, 48 min: metrics 30 seeds 2896 s,
+qa 30 seeds 538 s — all PASS, dayplayer 8 seeds, TUNED and the leave-one-outs on 4):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE: D8 day 1 · D13 by day 4 · D23 by day 12 · stall · gold daily · no King · L3/L5 · a track every check-in | 8/8 · 1.7 · 8/8 med 8.2 · 2 · 14/14 · 0/8 · 1/5 · 336/336 | PASS |
+| IDLE never out-paces PICKED · none > 60 % of the gap | 95 % · 27 % | PASS |
+| Days with a stage opened: IDLE ≥ 8 · PICKED ≥ 10 | 7 · 9 | FAIL |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.50 · 1.42 · 1.23 | FAIL |
+| TUNED ≥ 1.5× PICKED at D18 · D23 · D28 | 1.00 · 1.12 · 1.19 | FAIL |
+| RANDOM slower than IDLE to D13 | 12 % | FAIL (any package pick helps: RANDOM's random picks are good picks) |
+| Nothing required (TUNED − S ≥ IDLE ± a check-in) | forge s3 D18 | FAIL |
+| Each system moves TUNED's D23 | packages +0 h · pen +16 · forge +0 · pets +4 · bank +0 · quests −8 | FAIL |
+| metrics: COUNTERED ≥ D14 · lanes D5 · stalls on every cohort set · stances by wall · quests | 40 % · +12/+20 · worst 1.4 % · guarded 4 hunter 2 steady 4 · worst 0 % | FAIL |
+| metrics: the forge lever on raterAU (a Cut 25 row the contract keeps? — its `whole forge < best row` twin is retired) | forge +26 vs row +20.8 | FAIL (the longer ladders) |
+
+**Bisect of the older rows** (8 → 30 seeds, `metrics --bots`, the pre-Cut 30 tree with and without the temperament
+overrides): removing the overrides alone reproduces the moves exactly (COUNTERED mean best 15.47 → 13.73, DEFAULT 7.75 →
+6.62, the same run counts), and no single temperament's removal does (curious 15.13, cowardly 15.90, brave 15.93, greedy
+16.47 — within the seeds' noise of the base). The rows were balanced with the heirs' random temperaments acting for
+them; the contract removes that policy. Identifying what comes home at camp (a candidate fix) moved nothing: these bots
+die every send.
+
 ## Deviations
+- **The expeditions-per-8 h row** is gated on IDLE (fresh and at D13) in 6 – one send and its rest per 20 minutes
+  (`REST_MIN_TICKS`: the band's own reason, no sortie farm), EDITED still 6–16: DEFAULT, the two-row fighter dead every
+  send, is gone.
+- **Every stance best at a wall** weighs each stance at the worn stance's level, from the deepest lit stone at or above
+  the wall, the record at the wall (every bank row then asks for the floor past it), a death a quarter of a pass.
 - **PROGRESSION_V2 over the contract's reveal**: the pen opens at the Mother met *and* 72 h (fallback 5 days), not "the
   Mother met or a 3-day stall"; Bold/Hunter/tactics drip by day (owner-approved refinement, 2026-10-01).
 - **The leave-one-outs run on 4 seeds** (`--loo-seeds`, the gate's `--full`): a TUNED fortnight costs ~25–40 CPU-min
