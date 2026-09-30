@@ -35,8 +35,9 @@ QC = ROOT / "qc"
 
 
 def key_dist(rgb: np.ndarray) -> np.ndarray:
+    from pack import key_red   # blue (v1/v2) or magenta (phase 2), read off the corners
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-    return np.sqrt(r * r + g * g + (b - 255.0) ** 2)
+    return np.sqrt((r - key_red(rgb)) ** 2 + g * g + (b - 255.0) ** 2)
 
 
 def flood_border(cand: np.ndarray) -> np.ndarray:

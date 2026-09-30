@@ -6,145 +6,161 @@
       "id": "hero_fighter",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_fighter_male; the class's looks are hero_fighter_{male,female,cat}.)"
+      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_fighter_male; the class's looks are hero_fighter_{male,female,cat}.)",
+      "brief3": "The hero, the WARRIOR (fighter class). Upright ready stance. Dull steel pauldrons and cuirass in MOON/MIST washes with INK shadow and a thin GILT trim; a straight LONGSWORD held low and forward in the right hand, its blade with a bright MIST edge rim (the pale sword rim must read at game size); a ROUND dark iron-rimmed shield on the left arm; tall dark boots; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: sword + round shield, upright. LOOK = MAN: a young man, SHORT dark hair (nothing past the collar), broad shoulders; a clear pale BONE FACE patch in three-quarter view (narrow gothic-anime eyes, a few ink strokes). At game size he reads as a man by the short hair and square frame."
     },
     {
       "id": "hero_rogue",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_rogue_female; the class's looks are hero_rogue_{male,female,cat}.)"
+      "description": "Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_rogue_female; the class's looks are hero_rogue_{male,female,cat}.)",
+      "brief3": "The hero, the ROGUE class. A LOW forward CROUCH, one knee bent, the body a diagonal leaning right; a reversed DAGGER held low (MIST edge rim) and a small throwing knife raised in the other hand; dark UMBRA/DUSK leathers with a BONE sash; the hood pushed BACK so the face shows; a short tattered BLOOD half-cloak flaring behind (CLOT folds). TAG: low diagonal crouch with two blades — clearly not upright. LOOK = WOMAN: a young woman, a LONG dark BRAID swinging out BEHIND her head and past her shoulder as its own clear shape in the silhouette, slimmer frame, same kit (practical, not revealing); a clear pale BONE FACE patch in three-quarter view. At game size she reads as a woman by the braid shape."
     },
     {
       "id": "hero_ranger",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_ranger_female; the class's looks are hero_ranger_{male,female,cat}.)"
+      "description": "Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_ranger_female; the class's looks are hero_ranger_{male,female,cat}.)",
+      "brief3": "The hero, the RANGER class. Standing tall; a LONGBOW held out in front in the left hand, its arc TALLER than the torso, the string a thin MIST line, an arrow nocked and half drawn by the right hand; a quiver of BONE-fletched arrows angled up over the right shoulder; DUSK/UMBRA leathers; hood DOWN so the face shows; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: the tall bow arc in front, the quiver bump above the shoulder. LOOK = WOMAN: a young woman, a LONG dark BRAID swinging out BEHIND her head and past her shoulder as its own clear shape in the silhouette, slimmer frame, same kit (practical, not revealing); a clear pale BONE FACE patch in three-quarter view. At game size she reads as a woman by the braid shape."
     },
     {
       "id": "hero_caster",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_caster_male; the class's looks are hero_caster_{male,female,cat}.)"
+      "description": "Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger. (Hero looks, 2026-09-25: this id is the default-look alias, a copy of hero_caster_male; the class's looks are hero_caster_{male,female,cat}.)",
+      "brief3": "The hero, the CASTER class. Poised upright; a tall gnarled STAFF held upright in the right hand, TALLER than the head, crowned with a pale MIST crystal painted as a flat bright jewel (no halo, no glow cloud); long layered ROBES to the ankles in DUSK and MOON washes with a wide hem; a BLOOD mantle and hood-cowl over the shoulders (hood down, face visible) flaring into a long BLOOD cloak behind; the free left hand open at the hip. TAG: the staff column + the long robe triangle. LOOK = MAN: a young man, SHORT dark hair (nothing past the collar), broad shoulders; a clear pale BONE FACE patch in three-quarter view (narrow gothic-anime eyes, a few ink strokes). At game size he reads as a man by the short hair and square frame."
     },
     {
       "id": "hero_fighter_male",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px. (Look 'male': the v2 hero_fighter master, copied.)"
+      "description": "Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px. (Look 'male': the v2 hero_fighter master, copied.)",
+      "brief3": "The hero, the WARRIOR (fighter class). Upright ready stance. Dull steel pauldrons and cuirass in MOON/MIST washes with INK shadow and a thin GILT trim; a straight LONGSWORD held low and forward in the right hand, its blade with a bright MIST edge rim (the pale sword rim must read at game size); a ROUND dark iron-rimmed shield on the left arm; tall dark boots; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: sword + round shield, upright. LOOK = MAN: a young man, SHORT dark hair (nothing past the collar), broad shoulders; a clear pale BONE FACE patch in three-quarter view (narrow gothic-anime eyes, a few ink strokes). At game size he reads as a man by the short hair and square frame."
     },
     {
       "id": "hero_fighter_female",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The FIGHTER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: round wooden shield on the forward arm + short broad sword held low, dented steel breastplate and pauldrons, crimson cloak/tunic. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px."
+      "description": "The FIGHTER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: round wooden shield on the forward arm + short broad sword held low, dented steel breastplate and pauldrons, crimson cloak/tunic. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px.",
+      "brief3": "The hero, the WARRIOR (fighter class). Upright ready stance. Dull steel pauldrons and cuirass in MOON/MIST washes with INK shadow and a thin GILT trim; a straight LONGSWORD held low and forward in the right hand, its blade with a bright MIST edge rim (the pale sword rim must read at game size); a ROUND dark iron-rimmed shield on the left arm; tall dark boots; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: sword + round shield, upright. LOOK = WOMAN: a young woman, a LONG dark BRAID swinging out BEHIND her head and past her shoulder as its own clear shape in the silhouette, slimmer frame, same kit (practical, not revealing); a clear pale BONE FACE patch in three-quarter view. At game size she reads as a woman by the braid shape."
     },
     {
       "id": "hero_fighter_cat",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The FIGHTER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: round wooden shield on the forward arm + short broad sword held low, dented steel breastplate and pauldrons, crimson cloak/tunic. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: ginger-orange tabby fur with a cream muzzle. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px."
+      "description": "The FIGHTER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: round wooden shield on the forward arm + short broad sword held low, dented steel breastplate and pauldrons, crimson cloak/tunic. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: ginger-orange tabby fur with a cream muzzle. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime fighter, young and squarely built, facing right in a ready stance: round wooden shield on the left arm, short broad sword held low in the right hand, dented steel breastplate over a crimson tunic, cropped dark hair, determined anime face with large eyes. Warm steel + crimson cloth so the silhouette reads 'shield and sword' at 48 px.",
+      "brief3": "The hero, the WARRIOR (fighter class). Upright ready stance. Dull steel pauldrons and cuirass in MOON/MIST washes with INK shadow and a thin GILT trim; a straight LONGSWORD held low and forward in the right hand, its blade with a bright MIST edge rim (the pale sword rim must read at game size); a ROUND dark iron-rimmed shield on the left arm; tall dark boots; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: sword + round shield, upright. LOOK = CAT-FOLK: a human face (clear pale BONE face patch, yellow eyes) under wild dark hair with two LARGE upright triangular black CAT EARS on top of the head, and a long black CAT TAIL curling up behind, clear of the body and cloak. At game size the ears and the tail are both visible in the silhouette."
     },
     {
       "id": "hero_rogue_male",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The ROGUE class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
+      "description": "The ROGUE class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px.",
+      "brief3": "The hero, the ROGUE class. A LOW forward CROUCH, one knee bent, the body a diagonal leaning right; a reversed DAGGER held low (MIST edge rim) and a small throwing knife raised in the other hand; dark UMBRA/DUSK leathers with a BONE sash; the hood pushed BACK so the face shows; a short tattered BLOOD half-cloak flaring behind (CLOT folds). TAG: low diagonal crouch with two blades — clearly not upright. LOOK = MAN: a young man, SHORT dark hair (nothing past the collar), broad shoulders; a clear pale BONE FACE patch in three-quarter view (narrow gothic-anime eyes, a few ink strokes). At game size he reads as a man by the short hair and square frame."
     },
     {
       "id": "hero_rogue_female",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The ROGUE class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
+      "description": "The ROGUE class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px.",
+      "brief3": "The hero, the ROGUE class. A LOW forward CROUCH, one knee bent, the body a diagonal leaning right; a reversed DAGGER held low (MIST edge rim) and a small throwing knife raised in the other hand; dark UMBRA/DUSK leathers with a BONE sash; the hood pushed BACK so the face shows; a short tattered BLOOD half-cloak flaring behind (CLOT folds). TAG: low diagonal crouch with two blades — clearly not upright. LOOK = WOMAN: a young woman, a LONG dark BRAID swinging out BEHIND her head and past her shoulder as its own clear shape in the silhouette, slimmer frame, same kit (practical, not revealing); a clear pale BONE FACE patch in three-quarter view. At game size she reads as a woman by the braid shape."
     },
     {
       "id": "hero_rogue_cat",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The ROGUE class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: smoky grey tabby fur with a pale muzzle and green eyes. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px."
+      "description": "The ROGUE class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: low forward crouch, a reversed dagger held low and a throwing knife in the other hand, charcoal-and-plum hooded half-cloak, bone-white sash. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: smoky grey tabby fur with a pale muzzle and green eyes. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime rogue, slight and quick, facing right in a low forward crouch: hooded charcoal-and-plum half-cloak, one dagger held reversed and low, a small throwing knife in the other hand, pale bone sash, sharp anime face under the hood with a lock of hair escaping. Low diagonal silhouette, clearly distinct from the fighter's upright shield bulk at 48 px.",
+      "brief3": "The hero, the ROGUE class. A LOW forward CROUCH, one knee bent, the body a diagonal leaning right; a reversed DAGGER held low (MIST edge rim) and a small throwing knife raised in the other hand; dark UMBRA/DUSK leathers with a BONE sash; the hood pushed BACK so the face shows; a short tattered BLOOD half-cloak flaring behind (CLOT folds). TAG: low diagonal crouch with two blades — clearly not upright. LOOK = CAT-FOLK: a human face (clear pale BONE face patch, yellow eyes) under wild dark hair with two LARGE upright triangular black CAT EARS on top of the head, and a long black CAT TAIL curling up behind, clear of the body and cloak. At game size the ears and the tail are both visible in the silhouette."
     },
     {
       "id": "hero_ranger_male",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The RANGER class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch."
+      "description": "The RANGER class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch.",
+      "brief3": "The hero, the RANGER class. Standing tall; a LONGBOW held out in front in the left hand, its arc TALLER than the torso, the string a thin MIST line, an arrow nocked and half drawn by the right hand; a quiver of BONE-fletched arrows angled up over the right shoulder; DUSK/UMBRA leathers; hood DOWN so the face shows; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: the tall bow arc in front, the quiver bump above the shoulder. LOOK = MAN: a young man, SHORT dark hair (nothing past the collar), broad shoulders; a clear pale BONE FACE patch in three-quarter view (narrow gothic-anime eyes, a few ink strokes). At game size he reads as a man by the short hair and square frame."
     },
     {
       "id": "hero_ranger_female",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The RANGER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch. RETRY NOTE: the first ranger read as a boy at 48 px (the braid hid inside the hood). Give her a LONG thick auburn BRAID that comes OUT of the hood and swings down BEHIND her back past the shoulder blades, clearly separated from the cloak by the outline, like the female rogue's ponytail; a softer face with visible lashes."
+      "description": "The RANGER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch. RETRY NOTE: the first ranger read as a boy at 48 px (the braid hid inside the hood). Give her a LONG thick auburn BRAID that comes OUT of the hood and swings down BEHIND her back past the shoulder blades, clearly separated from the cloak by the outline, like the female rogue's ponytail; a softer face with visible lashes.",
+      "brief3": "The hero, the RANGER class. Standing tall; a LONGBOW held out in front in the left hand, its arc TALLER than the torso, the string a thin MIST line, an arrow nocked and half drawn by the right hand; a quiver of BONE-fletched arrows angled up over the right shoulder; DUSK/UMBRA leathers; hood DOWN so the face shows; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: the tall bow arc in front, the quiver bump above the shoulder. LOOK = WOMAN: a young woman, a LONG dark BRAID swinging out BEHIND her head and past her shoulder as its own clear shape in the silhouette, slimmer frame, same kit (practical, not revealing); a clear pale BONE FACE patch in three-quarter view. At game size she reads as a woman by the braid shape."
     },
     {
       "id": "hero_ranger_cat",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The RANGER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: warm brown tabby fur with a cream chest. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch."
+      "description": "The RANGER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall longbow held out in front with a nocked arrow half-drawn, full quiver of bone-white fletched arrows over the shoulder, deep-green hooded cloak, moss-and-leather tunic, tall boots. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: warm brown tabby fur with a cream chest. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime ranger, lean and long-limbed, facing right, standing tall with a longbow held out in front in the left hand (the bow's arc taller than the torso, bowstring visible, a nocked arrow half-drawn by the right hand), a full quiver of fletched arrows angled up over the right shoulder, deep-green hooded cloak with the hood UP shading a calm anime face with large eyes and a long braid escaping the hood, moss-and-leather tunic, tall boots. Muted forest green + warm leather + bone-white fletching so the silhouette reads 'tall bow, hood, quiver' at 48 px; clearly distinct from the fighter's shield bulk and the rogue's low crouch.",
+      "brief3": "The hero, the RANGER class. Standing tall; a LONGBOW held out in front in the left hand, its arc TALLER than the torso, the string a thin MIST line, an arrow nocked and half drawn by the right hand; a quiver of BONE-fletched arrows angled up over the right shoulder; DUSK/UMBRA leathers; hood DOWN so the face shows; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: the tall bow arc in front, the quiver bump above the shoulder. LOOK = CAT-FOLK: a human face (clear pale BONE face patch, yellow eyes) under wild dark hair with two LARGE upright triangular black CAT EARS on top of the head, and a long black CAT TAIL curling up behind, clear of the body and cloak. At game size the ears and the tail are both visible in the silhouette."
     },
     {
       "id": "hero_caster_male",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The CASTER class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger."
+      "description": "The CASTER class, look 'male'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = MALE: a young MAN — broad shoulders, square jaw, SHORT hair (nothing past the collar), a masculine anime face. At 48 px he must read as a man: short hair, broad frame. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger.",
+      "brief3": "The hero, the CASTER class. Poised upright; a tall gnarled STAFF held upright in the right hand, TALLER than the head, crowned with a pale MIST crystal painted as a flat bright jewel (no halo, no glow cloud); long layered ROBES to the ankles in DUSK and MOON washes with a wide hem; a BLOOD mantle and hood-cowl over the shoulders (hood down, face visible) flaring into a long BLOOD cloak behind; the free left hand open at the hip. TAG: the staff column + the long robe triangle. LOOK = MAN: a young man, SHORT dark hair (nothing past the collar), broad shoulders; a clear pale BONE FACE patch in three-quarter view (narrow gothic-anime eyes, a few ink strokes). At game size he reads as a man by the short hair and square frame."
     },
     {
       "id": "hero_caster_female",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The CASTER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger."
+      "description": "The CASTER class, look 'female'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = FEMALE: a young WOMAN — slimmer waist, softer face with larger anime eyes and lashes, LONG HAIR gathered in a big high PONYTAIL or long braid that swings out BEHIND the head as its own clear shape in the silhouette (if hooded, the ponytail/braid escapes the hood and hangs well past the shoulder). Same armour/kit as the class, practical not revealing. At 48 px she must read as a woman by the ponytail/braid shape. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger.",
+      "brief3": "The hero, the CASTER class. Poised upright; a tall gnarled STAFF held upright in the right hand, TALLER than the head, crowned with a pale MIST crystal painted as a flat bright jewel (no halo, no glow cloud); long layered ROBES to the ankles in DUSK and MOON washes with a wide hem; a BLOOD mantle and hood-cowl over the shoulders (hood down, face visible) flaring into a long BLOOD cloak behind; the free left hand open at the hip. TAG: the staff column + the long robe triangle. LOOK = WOMAN: a young woman, a LONG dark BRAID swinging out BEHIND her head and past her shoulder as its own clear shape in the silhouette, slimmer frame, same kit (practical, not revealing); a clear pale BONE FACE patch in three-quarter view. At game size she reads as a woman by the braid shape."
     },
     {
       "id": "hero_caster_cat",
       "kind": "hero",
       "bg": "keyed",
-      "gen": "1024x1024",
+      "gen": "1024x1536",
       "master_h": 96,
       "texel_h": 48,
-      "description": "The CASTER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: cream-white fur with dark brown points on the ears, face mask and tail tip. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger."
+      "description": "The CASTER class, look 'cat'. Keep EXACTLY the class kit, pose, palette and silhouette of the class brief: tall gnarled staff held upright with a bright ember-orange crystal at its tip (a flat jewel, NOT a glow), long layered dusty-violet and ivory robes to the ankles with a wide hem, soft hood, free hand open. LOOK = CAT-FOLK: a cat-folk adventurer — a human-like body and stance but a CAT'S HEAD: a furry feline face with a short muzzle, whiskers, big slit-pupil eyes, and two LARGE upright triangular CAT EARS (if hooded, the ears poke out through two slits in the hood, clearly above it); a long thick furred CAT TAIL curving up behind, clear of the body; furry hands/paws gripping the weapon. The ears and tail are the tag: at 48 px both must be visible in the silhouette. Fur: cream-white fur with dark brown points on the ears, face mask and tail tip. Class brief (kit, pose, colours; ignore its hair/face/gender notes where they conflict with the LOOK): Full-body anime caster, slender, facing right in a poised upright stance: a tall gnarled staff held upright in the right hand, taller than the head, with a small bright ember-orange crystal at its tip painted as a jewel-bright flat shape (a lit crystal, NOT a glow halo, NOT a light bloom, NOT blue), long layered robes in dusty violet and ivory falling to the ankles with a wide hem, a soft hood raised over long pale hair that spills out as flowing anime locks, NO wizard hat, NO beard, the free left hand open at the hip with fingers spread. Violet + ivory + one warm ember accent so the silhouette reads 'tall staff with a bright tip, long robes, hood' at 48 px; clearly distinct from the fighter, rogue and ranger.",
+      "brief3": "The hero, the CASTER class. Poised upright; a tall gnarled STAFF held upright in the right hand, TALLER than the head, crowned with a pale MIST crystal painted as a flat bright jewel (no halo, no glow cloud); long layered ROBES to the ankles in DUSK and MOON washes with a wide hem; a BLOOD mantle and hood-cowl over the shoulders (hood down, face visible) flaring into a long BLOOD cloak behind; the free left hand open at the hip. TAG: the staff column + the long robe triangle. LOOK = CAT-FOLK: a human face (clear pale BONE face patch, yellow eyes) under wild dark hair with two LARGE upright triangular black CAT EARS on top of the head, and a long black CAT TAIL curling up behind, clear of the body and cloak. At game size the ears and the tail are both visible in the silhouette."
     },
     {
       "id": "rat",
@@ -153,7 +169,8 @@
       "gen": "1024x1024",
       "master_h": 40,
       "texel_h": 20,
-      "description": "A single big dungeon RAT seen from the SIDE, facing right, the body stretched LONG and low (the body is twice as long as it is tall): a fat umber-grey furry body, a pointed snout with a pink nose and one small black eye, big round pink ears, four short pink feet, and a long thick bare pink TAIL trailing behind in a single curve. Chunky, readable, one long horizontal mass. Tag: the long body and the tail - reads as 'rat' at 20 px tall."
+      "description": "A single big dungeon RAT seen from the SIDE, facing right, the body stretched LONG and low (the body is twice as long as it is tall): a fat umber-grey furry body, a pointed snout with a pink nose and one small black eye, big round pink ears, four short pink feet, and a long thick bare pink TAIL trailing behind in a single curve. Chunky, readable, one long horizontal mass. Tag: the long body and the tail - reads as 'rat' at 20 px tall.",
+      "brief3": "A big dungeon RAT seen from the SIDE, facing right, the body stretched LONG and low (twice as long as tall): matted UMBRA-and-DUSK fur with MIST rims along the spine, a pointed snout, one glinting BONE eye, round ears lined with a touch of CLOT, and a long bare tail in a single curve (a dull BONE-pink wash). TAG: the long body and the tail — reads 'rat' at 20 px."
     },
     {
       "id": "jackal",
@@ -162,7 +179,8 @@
       "gen": "1024x1024",
       "master_h": 48,
       "texel_h": 24,
-      "description": "A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST — the silhouette is a stretched horizontal dash with ears. Reads at 32 px."
+      "description": "A lean dungeon jackal facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snout with a snarl, tail straight out behind. Sandy-tan and dusty umber washes, one flat shadow mass. Tag: LOW, LEAN and FAST — the silhouette is a stretched horizontal dash with ears. Reads at 32 px.",
+      "brief3": "A lean dungeon JACKAL facing right mid-lope: low horizontal body, ribs showing, big pointed ears, narrow snarling snout with BONE teeth, tail straight out behind. Dusty DUSK-and-MOON fur (the place's tint), MIST rims along the back, INK belly shadow. TAG: LOW, LEAN, FAST — a stretched horizontal dash with ears. Reads at 24 px."
     },
     {
       "id": "goblin",
@@ -171,7 +189,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A small hunched goblin facing right: big head, pointed ears, wide grin, pot belly, holding a crude short cleaver up at shoulder height, rag loincloth and a scrap of leather. Olive-green skin, ochre rags, one jewel-bright accent (red cloth). Upright, compact, simple silhouette; reads 'goblin with cleaver' at 40 px."
+      "description": "A small hunched goblin facing right: big head, pointed ears, wide grin, pot belly, holding a crude short cleaver up at shoulder height, rag loincloth and a scrap of leather. Olive-green skin, ochre rags, one jewel-bright accent (red cloth). Upright, compact, simple silhouette; reads 'goblin with cleaver' at 40 px.",
+      "brief3": "A small hunched GOBLIN facing right: big head, cold DUSK-green goblin skin (a desaturated grey-green inside the DUSK/MOON family, NOT bright green), long pointed ears with MIST rims, small glinting BONE eyes, INK shadow, wide grin of BONE teeth, pot belly, a crude short CLEAVER raised at shoulder height (its edge a MIST rim), a rag loincloth of UMBRA cloth. TAG: goblin with a raised cleaver — compact upright silhouette at 40 px."
     },
     {
       "id": "goblin_archer",
@@ -180,7 +199,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A goblin archer facing right, DRAWING A BOW: tall crude recurve bow held out front with the string pulled fully back to the cheek and an arrow nocked, quiver on the back. Same olive skin and ochre rags as the plain goblin, plus a leather cap. The drawn bow is the tag — it must be a big clear arc in the silhouette at 40 px, wider than the body."
+      "description": "A goblin archer facing right, DRAWING A BOW: tall crude recurve bow held out front with the string pulled fully back to the cheek and an arrow nocked, quiver on the back. Same olive skin and ochre rags as the plain goblin, plus a leather cap. The drawn bow is the tag — it must be a big clear arc in the silhouette at 40 px, wider than the body.",
+      "brief3": "A GOBLIN ARCHER facing right, DRAWING A BOW: cold DUSK-green goblin skin (a desaturated grey-green inside the DUSK/MOON family, NOT bright green), long pointed ears with MIST rims, small glinting BONE eyes, INK shadow; a tall crude recurve bow held out front, the string (a thin MIST line) pulled fully back to the cheek, an arrow nocked, a quiver on the back, a leather cap. TAG: the drawn bow is a big clear arc WIDER than the body at 40 px."
     },
     {
       "id": "goblin_conjurer",
@@ -189,7 +209,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A goblin conjurer facing right: same olive goblin build, wrapped in a tattered violet robe with a bone-fetish hood, both arms raised holding a gnarled staff overhead; two small pale ghost-blades hover just above the staff tip. Tag: raised staff + hovering blades, readable as a T-shape with sparks at 40 px. Blades are ivory/teal-white, never saturated blue."
+      "description": "A goblin conjurer facing right: same olive goblin build, wrapped in a tattered violet robe with a bone-fetish hood, both arms raised holding a gnarled staff overhead; two small pale ghost-blades hover just above the staff tip. Tag: raised staff + hovering blades, readable as a T-shape with sparks at 40 px. Blades are ivory/teal-white, never saturated blue.",
+      "brief3": "A GOBLIN CONJURER facing right: the goblin build (cold DUSK-green goblin skin (a desaturated grey-green inside the DUSK/MOON family, NOT bright green), long pointed ears with MIST rims, small glinting BONE eyes, INK shadow), a tattered DUSK-violet robe with a bone-fetish hood, both arms raised holding a gnarled staff overhead; two small pale MIST ghost-blades hover just above the staff tip. TAG: raised staff + hovering blades — a T-shape with two pale sparks at 40 px."
     },
     {
       "id": "goblin_captain",
@@ -198,7 +219,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A goblin CAPTAIN facing right, a head taller and broader than a plain goblin, with BRIGHT MOSS-GREEN / LEAF-GREEN SKIN exactly like the green goblins in watch.png (saturated green, NOT grey, NOT olive-grey): dented iron half-helm with two short horns, a battered war HORN raised to its mouth in one hand (it summons), a notched short sword low in the other, a small scale-mail vest (keep the green arms, face and legs dominant), a red sash. Tag: the raised horn and the horned helm - 'the goblin that calls the others' at 48 px."
+      "description": "A goblin CAPTAIN facing right, a head taller and broader than a plain goblin, with BRIGHT MOSS-GREEN / LEAF-GREEN SKIN exactly like the green goblins in watch.png (saturated green, NOT grey, NOT olive-grey): dented iron half-helm with two short horns, a battered war HORN raised to its mouth in one hand (it summons), a notched short sword low in the other, a small scale-mail vest (keep the green arms, face and legs dominant), a red sash. Tag: the raised horn and the horned helm - 'the goblin that calls the others' at 48 px.",
+      "brief3": "A goblin CAPTAIN facing right, a head taller and broader than a plain goblin: cold DUSK-green goblin skin (a desaturated grey-green inside the DUSK/MOON family, NOT bright green), long pointed ears with MIST rims, small glinting BONE eyes, INK shadow; a dented iron half-helm with two short horns (MIST rims), a battered war HORN raised to its mouth in one hand (it summons), a notched short sword low in the other, a scale-mail vest, a BLOOD sash (its one accent). TAG: the raised horn and the horned helm — 'the goblin that calls the others' at 48 px."
     },
     {
       "id": "monkey",
@@ -207,7 +229,8 @@
       "gen": "1024x1024",
       "master_h": 56,
       "texel_h": 28,
-      "description": "A mischievous dungeon monkey facing right, mid-scamper on three limbs, CLUTCHING A STOLEN BULGING SACK in one arm against its chest, long tail curled up in a question mark, cheeky anime grin. Umber-brown fur with a pale belly, the sack in ochre with a red tie. Tag: the sack and the tail. Reads at 32 px."
+      "description": "A mischievous dungeon monkey facing right, mid-scamper on three limbs, CLUTCHING A STOLEN BULGING SACK in one arm against its chest, long tail curled up in a question mark, cheeky anime grin. Umber-brown fur with a pale belly, the sack in ochre with a red tie. Tag: the sack and the tail. Reads at 32 px.",
+      "brief3": "A mischievous dungeon MONKEY facing right, mid-scamper on three limbs, CLUTCHING a stolen bulging SACK (pale BONE canvas, the brightest thing, tied with a CLOT cord) against its chest, a long tail curled up in a question mark, a cheeky grin. UMBRA-and-DUSK fur with MIST rims, a paler belly. TAG: the pale sack and the tail. Reads at 28 px."
     },
     {
       "id": "ogre",
@@ -216,7 +239,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A HUGE wide ogre facing right, winding up: massive rounded shoulders, small head, barrel gut, a great tree-trunk club raised high over its head with both hands. Dull grey-umber skin, ragged hide kilt, tusks. Tag: HUGE and heavy, the club overhead. The silhouette is a broad mass much wider than a goblin; reads at 48 px."
+      "description": "A HUGE wide ogre facing right, winding up: massive rounded shoulders, small head, barrel gut, a great tree-trunk club raised high over its head with both hands. Dull grey-umber skin, ragged hide kilt, tusks. Tag: HUGE and heavy, the club overhead. The silhouette is a broad mass much wider than a goblin; reads at 48 px.",
+      "brief3": "A HUGE wide OGRE facing right, winding up: massive rounded shoulders, a small head, a barrel gut, a great tree-trunk CLUB raised high over its head in both hands. Cold grey-DUSK hide with MOON lights and MIST rims on the shoulders, a ragged hide kilt, BONE tusks. TAG: HUGE and heavy, the club overhead — a broad mass much wider than a goblin at 48 px."
     },
     {
       "id": "bloat",
@@ -225,7 +249,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A bloat: one swollen, taut, floating sac of sickly yellow-green gas, veined, with a few tiny dangling tendrils and a small puckered mouth. No limbs, no face beyond the mouth. Tag: SWOLLEN SAC — a single fat teardrop/balloon silhouette, glowing faintly from within. Reads as 'balloon about to pop' at 40 px. Yellow-green, never blue."
+      "description": "A bloat: one swollen, taut, floating sac of sickly yellow-green gas, veined, with a few tiny dangling tendrils and a small puckered mouth. No limbs, no face beyond the mouth. Tag: SWOLLEN SAC — a single fat teardrop/balloon silhouette, glowing faintly from within. Reads as 'balloon about to pop' at 40 px. Yellow-green, never blue.",
+      "brief3": "A BLOAT: one swollen, taut, floating SAC of sickly pale teal-green gas (its one local hue, a washed MIST-green, lit from within), veined in DUSK, a few tiny dangling tendrils and a small puckered INK mouth. No limbs, no face. TAG: SWOLLEN SAC — one fat teardrop/balloon silhouette. Reads 'about to pop' at 40 px."
     },
     {
       "id": "pink_jelly",
@@ -234,7 +259,8 @@
       "gen": "1024x1024",
       "master_h": 48,
       "texel_h": 24,
-      "description": "A pink jelly: a low translucent quivering blob of rose-pink watercolour, dome-shaped with a wobbly lower edge, a few suspended darker pink flecks inside, a wet highlight upper-left. No face, no limbs. Tag: TRANSLUCENT BLOB — a squat dome silhouette. Reads at 32 px. Pink, magenta and ivory only."
+      "description": "A pink jelly: a low translucent quivering blob of rose-pink watercolour, dome-shaped with a wobbly lower edge, a few suspended darker pink flecks inside, a wet highlight upper-left. No face, no limbs. Tag: TRANSLUCENT BLOB — a squat dome silhouette. Reads at 32 px. Pink, magenta and ivory only.",
+      "brief3": "A PINK JELLY: a low translucent quivering BLOB, a dome with a wobbly lower edge, in pale watery CLOT-rose washes (its one local hue, muted, never candy pink) with BONE highlights where the moon catches its top, a few darker CLOT flecks suspended inside. No face, no limbs. TAG: TRANSLUCENT BLOB — a squat dome. Reads at 24 px."
     },
     {
       "id": "eel",
@@ -243,7 +269,8 @@
       "gen": "1024x1024",
       "master_h": 40,
       "texel_h": 20,
-      "description": "A dungeon eel facing right: long thick S-curved body rising as if out of water, jaws open with needle teeth, small fin ridge along the back, tail trailing off lower-left. Dark olive-teal back and ivory belly (teal must be high-green, never royal blue). Tag: the long S-curve. Reads as a sinuous ribbon with a mouth at 32 px."
+      "description": "A dungeon eel facing right: long thick S-curved body rising as if out of water, jaws open with needle teeth, small fin ridge along the back, tail trailing off lower-left. Dark olive-teal back and ivory belly (teal must be high-green, never royal blue). Tag: the long S-curve. Reads as a sinuous ribbon with a mouth at 32 px.",
+      "brief3": "A dungeon EEL facing right: a long thick S-CURVED body rising as if out of water, jaws open with BONE needle teeth, a fin ridge along the back, the tail trailing off lower-left. INK-and-DUSK back with a cold teal sheen (its local hue, inside the MOON family), a BONE belly, MIST rims. TAG: the long S-curve with a mouth. Reads at 20 px."
     },
     {
       "id": "skeleton",
@@ -252,7 +279,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A walking skeleton warrior facing right: all bone, upright, ribcage and skull clearly drawn, holding a rusted notched sword, a few rags of grave-cloth. Bone-white paper with warm ivory washes and one flat indigo shadow side; dark ink between every bone. Tag: ALL BONE — the gappy ribcage silhouette. Reads at 48 px."
+      "description": "A walking skeleton warrior facing right: all bone, upright, ribcage and skull clearly drawn, holding a rusted notched sword, a few rags of grave-cloth. Bone-white paper with warm ivory washes and one flat indigo shadow side; dark ink between every bone. Tag: ALL BONE — the gappy ribcage silhouette. Reads at 48 px.",
+      "brief3": "A walking SKELETON warrior facing right: ALL BONE, upright, the ribcage and skull clearly drawn in BONE washes with MIST rims, INK between every bone, a rusted notched sword, a few rags of UMBRA grave-cloth. TAG: ALL BONE — the gappy ribcage silhouette. Reads at 48 px."
     },
     {
       "id": "ghoul",
@@ -261,7 +289,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A ghoul facing right: hunched, gaunt, grey-green corpse flesh, arms out front ending in long clawed hands, jaw hanging open, hair in lank strands. Tag: HUNCHED with CLAWS reaching forward — the silhouette leans forward with two claw shapes leading. Distinct from the upright skeleton at 40 px."
+      "description": "A ghoul facing right: hunched, gaunt, grey-green corpse flesh, arms out front ending in long clawed hands, jaw hanging open, hair in lank strands. Tag: HUNCHED with CLAWS reaching forward — the silhouette leans forward with two claw shapes leading. Distinct from the upright skeleton at 40 px.",
+      "brief3": "A GHOUL facing right: HUNCHED and gaunt, grey DUSK corpse flesh with MOON lights, arms out front ending in long clawed hands (BONE claws), jaw hanging open, lank INK hair. TAG: HUNCHED with CLAWS reaching forward — the silhouette leans forward, two claw shapes leading. Distinct from the upright skeleton at 40 px."
     },
     {
       "id": "wraith",
@@ -270,7 +299,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A wraith facing right: a tall floating tattered shroud with no legs, the hem torn into trailing ribbons, a hooded void where the face should be with two pale points of light, long thin reaching hand. Ash-violet and blue-black washes (all channels low, never saturated blue), ivory-pale edges. Tag: TATTERED and FLOATING — ragged hem, no feet. Reads at 48 px."
+      "description": "A wraith facing right: a tall floating tattered shroud with no legs, the hem torn into trailing ribbons, a hooded void where the face should be with two pale points of light, long thin reaching hand. Ash-violet and blue-black washes (all channels low, never saturated blue), ivory-pale edges. Tag: TATTERED and FLOATING — ragged hem, no feet. Reads at 48 px.",
+      "brief3": "A WRAITH facing right, a GHOST: a tall floating tattered SHROUD with no legs, the hem torn into long trailing ribbons, drawn mostly in MIST and BONE washes (translucent, paper showing through), a hooded INK void for a face with two pale points, one long clawed reaching hand, wisps trailing. TAG: TATTERED and FLOATING — ragged hem, no feet. Reads at 48 px."
     },
     {
       "id": "captive",
@@ -279,7 +309,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A captive facing right: an anime adventurer kneeling or slumped with heavy iron manacles and a thick chain visibly wrapping the wrists and trailing to the floor edge of the figure, torn tunic, hopeful anime face looking up. Warm ivory skin, dull red tunic, iron-grey chain with ink links. Tag: IN CHAINS — the chain must be a bold dark line in the silhouette at 48 px. No floor drawn."
+      "description": "A captive facing right: an anime adventurer kneeling or slumped with heavy iron manacles and a thick chain visibly wrapping the wrists and trailing to the floor edge of the figure, torn tunic, hopeful anime face looking up. Warm ivory skin, dull red tunic, iron-grey chain with ink links. Tag: IN CHAINS — the chain must be a bold dark line in the silhouette at 48 px. No floor drawn.",
+      "brief3": "A CAPTIVE facing right: a young adventurer kneeling, slumped, looking up hopefully; heavy iron manacles and ONE thick dark iron CHAIN looping across the whole figure from the wrists to the ground (INK links with MIST glints); torn DUSK tunic, a pale BONE face. TAG: IN CHAINS — the chain a bold dark loop in the silhouette at 48 px."
     },
     {
       "id": "boss_goblin_warlord",
@@ -288,7 +319,8 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Goblin Warlord facing right, LARGER than any goblin, with BRIGHT MOSS-GREEN / LEAF-GREEN SKIN exactly like the green goblins in watch.png (saturated green face, arms and hands - NOT grey, NOT olive-grey; the green skin must be the dominant colour of the sprite): broad, bare muscular green arms, a fur mantle and a few scavenged iron plates, a jagged iron CROWN, a huge cleaver in one hand and a raised fist in the other, a red war-banner strip trailing. Green skin, dark iron, red banner. Tag: BOSS - crowned, big, banner. Reads as 'the big crowned green goblin' at 64 px."
+      "description": "The Goblin Warlord facing right, LARGER than any goblin, with BRIGHT MOSS-GREEN / LEAF-GREEN SKIN exactly like the green goblins in watch.png (saturated green face, arms and hands - NOT grey, NOT olive-grey; the green skin must be the dominant colour of the sprite): broad, bare muscular green arms, a fur mantle and a few scavenged iron plates, a jagged iron CROWN, a huge cleaver in one hand and a raised fist in the other, a red war-banner strip trailing. Green skin, dark iron, red banner. Tag: BOSS - crowned, big, banner. Reads as 'the big crowned green goblin' at 64 px.",
+      "brief3": "The GOBLIN WARLORD facing right, a BOSS far larger than any goblin: a towering gaunt goblin king, cold DUSK-green goblin skin (a desaturated grey-green inside the DUSK/MOON family, NOT bright green), long pointed ears with MIST rims, small glinting BONE eyes, INK shadow, a long tattered BLOOD-and-INK MANTLE flaring behind (its one accent), an iron CROWN of spikes with MIST rims, a few scavenged iron plates, a huge CLEAVER in one hand, the other a raised clawed fist, glowing BONE eyes. TAG: BOSS — crowned, big, the blood mantle. Reads as 'the big crowned goblin' at 64 px."
     },
     {
       "id": "boss_bloat_mother",
@@ -297,7 +329,8 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Bloat Mother: an enormous swollen sac of sickly yellow-green gas, ringed with a crown of bone spines around the top, dozens of tiny bloat-buds budding from her sides, a wide puckered maw, taut veins. Tag: BOSS — huge, spine-crowned, budding. The silhouette is a giant balloon with a spiky crown; reads at 64 px. Yellow-green and bone, never blue."
+      "description": "The Bloat Mother: an enormous swollen sac of sickly yellow-green gas, ringed with a crown of bone spines around the top, dozens of tiny bloat-buds budding from her sides, a wide puckered maw, taut veins. Tag: BOSS — huge, spine-crowned, budding. The silhouette is a giant balloon with a spiky crown; reads at 64 px. Yellow-green and bone, never blue.",
+      "brief3": "The BLOAT MOTHER: an enormous swollen SAC of sickly pale teal-green gas (the bloat's local hue, a washed MIST-green lit from within), veined in DUSK, ringed at the top with a CROWN of BONE spines, dozens of tiny bloat-buds budding from her sides, a wide puckered INK maw. TAG: BOSS — huge, spine-crowned, budding: a giant balloon with a spiky crown at 64 px."
     },
     {
       "id": "boss_lich",
@@ -306,7 +339,8 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Lich facing right: a tall gaunt robed skeleton king in tattered indigo-black robes with a tall bone SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open with a cold teal-white flame. Bone-white skull, blue-black robes (all channels low, never saturated blue), teal-white flame. Tag: BOSS — crowned skull, staff, flame. Reads at 64 px."
+      "description": "The Lich facing right: a tall gaunt robed skeleton king in tattered indigo-black robes with a tall bone SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open with a cold teal-white flame. Bone-white skull, blue-black robes (all channels low, never saturated blue), teal-white flame. Tag: BOSS — crowned skull, staff, flame. Reads at 64 px.",
+      "brief3": "The LICH facing right: a tall gaunt robed skeleton king in tattered INK-and-DUSK robes, a tall BONE SKULL-CROWN, one hand raising a crooked staff topped with a pale skull, the other hand open holding a cold MIST-white flame (magic glows MIST). BONE skull, MIST rims. TAG: BOSS — crowned skull, staff, cold flame. Reads at 64 px."
     },
     {
       "id": "spectral_blade",
@@ -315,7 +349,8 @@
       "gen": "1024x1024",
       "master_h": 40,
       "texel_h": 20,
-      "description": "A spectral blade: a single floating ghost-sword, point down, ivory-white and pale teal watercolour, no hilt-holder, a faint trailing wisp. Bold ink outline. Tag: a floating sword. Reads as a vertical blade at 24 px. Never saturated blue."
+      "description": "A spectral blade: a single floating ghost-sword, point down, ivory-white and pale teal watercolour, no hilt-holder, a faint trailing wisp. Bold ink outline. Tag: a floating sword. Reads as a vertical blade at 24 px. Never saturated blue.",
+      "brief3": "A SPECTRAL BLADE: a single floating ghost-sword, point down, drawn in MIST and BONE washes (translucent, glowing cold), a faint trailing wisp, a bold INK outline. TAG: a floating sword — a vertical blade at 20 px."
     },
     {
       "id": "spectral_hound",
@@ -324,7 +359,8 @@
       "gen": "1024x1024",
       "master_h": 40,
       "texel_h": 20,
-      "description": "A spectral hound facing right: a lean running dog made of ivory-white and pale teal wash, hind legs fading into wisps, ears back, mouth open. Bold ink outline. Tag: a ghostly running dog. Reads at 24 px. Never saturated blue."
+      "description": "A spectral hound facing right: a lean running dog made of ivory-white and pale teal wash, hind legs fading into wisps, ears back, mouth open. Bold ink outline. Tag: a ghostly running dog. Reads at 24 px. Never saturated blue.",
+      "brief3": "A SPECTRAL HOUND facing right: a lean running dog of MIST and BONE wash (translucent, cold), the hind legs fading into wisps, ears back, mouth open, a bold INK outline. TAG: a ghostly running dog. Reads at 20 px."
     },
     {
       "id": "iron_golem",
@@ -333,7 +369,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "An iron golem facing right, MASSIVE and boxy: a walking stack of thick riveted iron plates — slab shoulders wider than it is tall at the top, a small visor-slit head sunk between them, block forearms, stubby plated legs, a broad chest plate. Rust-red and dull steel-grey iron with dry-brush rust bloom, a few ember-orange seams between the plates painted as flat bright cracks (no glow). Tag: MASSIVE IRON PLATES — the silhouette is a squared-off stepped block, all right angles, clearly not the rounded ogre. Reads at 48 px."
+      "description": "An iron golem facing right, MASSIVE and boxy: a walking stack of thick riveted iron plates — slab shoulders wider than it is tall at the top, a small visor-slit head sunk between them, block forearms, stubby plated legs, a broad chest plate. Rust-red and dull steel-grey iron with dry-brush rust bloom, a few ember-orange seams between the plates painted as flat bright cracks (no glow). Tag: MASSIVE IRON PLATES — the silhouette is a squared-off stepped block, all right angles, clearly not the rounded ogre. Reads at 48 px.",
+      "brief3": "An IRON GOLEM facing right, MASSIVE and boxy: a walking stack of thick riveted iron plates in INK/DUSK with MOON lights and MIST rims on every top edge, slab shoulders wider than it is tall at the top, a small visor-slit head sunk between them, block forearms, stubby plated legs; thin EMBER seams between the plates painted as flat bright cracks (no glow cloud). TAG: MASSIVE IRON PLATES — a squared-off stepped block, all right angles. Reads at 48 px."
     },
     {
       "id": "forge_imp",
@@ -342,7 +379,8 @@
       "gen": "1024x1024",
       "master_h": 56,
       "texel_h": 28,
-      "description": "A forge imp facing right, SMALL, mid-hop with knees tucked: a scrawny imp with solid ember-orange skin and soot-black hands, feet and horn tips, ONE small flame tuft of hair only (the body is flesh, NOT made of fire), a wide toothy grin, HOLDING OUT A STOLEN POTION BOTTLE in both arms in front of its chest — a big round-bellied flask of PALE BONE-WHITE / IVORY glass with a brown cork, the glass EMPTY or holding only a thin line of liquid at the bottom (the flask must read WHITE, not red: no red or orange inside the flask), one third of the imp's height, separated from the body by a full ink contour so it is its own shape. The bottle is the palest, brightest thing in the sprite. Orange + soot-black + bone-white glass + one red accent. Tag: SMALL, WITH A STOLEN BOTTLE — at 28 px the bottle must be a distinct pale round bump on the front of the silhouette. No fire on the ground, no flames around the body."
+      "description": "A forge imp facing right, SMALL, mid-hop with knees tucked: a scrawny imp with solid ember-orange skin and soot-black hands, feet and horn tips, ONE small flame tuft of hair only (the body is flesh, NOT made of fire), a wide toothy grin, HOLDING OUT A STOLEN POTION BOTTLE in both arms in front of its chest — a big round-bellied flask of PALE BONE-WHITE / IVORY glass with a brown cork, the glass EMPTY or holding only a thin line of liquid at the bottom (the flask must read WHITE, not red: no red or orange inside the flask), one third of the imp's height, separated from the body by a full ink contour so it is its own shape. The bottle is the palest, brightest thing in the sprite. Orange + soot-black + bone-white glass + one red accent. Tag: SMALL, WITH A STOLEN BOTTLE — at 28 px the bottle must be a distinct pale round bump on the front of the silhouette. No fire on the ground, no flames around the body.",
+      "brief3": "A FORGE IMP facing right, SMALL, mid-hop with knees tucked: a scrawny imp with EMBER-orange skin (its local hue — it lives by the forge) and INK soot hands, feet and horn tips, one small flame tuft of hair (the body is flesh, NOT fire), a wide toothy grin, HOLDING OUT a stolen round-bellied POTION FLASK of pale BONE glass in both arms, the flask a third of its height, separated by a full INK contour — the palest thing in the sprite. TAG: SMALL, WITH A STOLEN BOTTLE — a pale round bump on the front at 28 px."
     },
     {
       "id": "bell_sentinel",
@@ -351,7 +389,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A bell sentinel facing right, upright and stiff: an iron-armoured humanoid whose entire HEAD IS A LARGE BRONZE BELL — the flared bell mouth opening downward over the shoulders, wider than the body, a dark clapper visible hanging inside it; a slender riveted body beneath, one arm raised holding a striking rod ready to ring. Tarnished bronze-gold bell, iron-grey body, one ember-orange seam accent. Tag: A BELL FOR A HEAD — the top of the silhouette is a bell shape, unmistakable at 40 px. No sound lines, no glow."
+      "description": "A bell sentinel facing right, upright and stiff: an iron-armoured humanoid whose entire HEAD IS A LARGE BRONZE BELL — the flared bell mouth opening downward over the shoulders, wider than the body, a dark clapper visible hanging inside it; a slender riveted body beneath, one arm raised holding a striking rod ready to ring. Tarnished bronze-gold bell, iron-grey body, one ember-orange seam accent. Tag: A BELL FOR A HEAD — the top of the silhouette is a bell shape, unmistakable at 40 px. No sound lines, no glow.",
+      "brief3": "A BELL SENTINEL facing right, upright and stiff: an iron-armoured humanoid (INK/DUSK iron, MIST rims) whose entire HEAD IS A LARGE BELL of worn GILT bronze, the flared mouth opening down over the shoulders, wider than the body, a dark clapper inside; a slender riveted body; one arm raised with a striking rod. TAG: A BELL FOR A HEAD — unmistakable at 40 px."
     },
     {
       "id": "slag_crawler",
@@ -360,7 +399,8 @@
       "gen": "1024x1024",
       "master_h": 48,
       "texel_h": 24,
-      "description": "A slag crawler facing right: a LOW, long, many-legged creature of cooled black slag crust cracked open along the back to show ember-orange heat beneath (flat bright cracks, no glow), a blunt heavy head low to the front, six short stubby legs, and a TRAIL OF EMBERS behind it — a scatter of small orange and yellow flecks attached to the tapering tail end, drawn as part of the silhouette. Soot-black + ember-orange + one hot yellow accent. Tag: LOW and TRAILING EMBERS — a horizontal dash with a dotted ember tail. Reads at 32 px. No floor."
+      "description": "A slag crawler facing right: a LOW, long, many-legged creature of cooled black slag crust cracked open along the back to show ember-orange heat beneath (flat bright cracks, no glow), a blunt heavy head low to the front, six short stubby legs, and a TRAIL OF EMBERS behind it — a scatter of small orange and yellow flecks attached to the tapering tail end, drawn as part of the silhouette. Soot-black + ember-orange + one hot yellow accent. Tag: LOW and TRAILING EMBERS — a horizontal dash with a dotted ember tail. Reads at 32 px. No floor.",
+      "brief3": "A SLAG CRAWLER facing right: LOW and long, many-legged, a crust of cooled INK slag cracked open along the back to show EMBER heat beneath (flat bright cracks), a blunt heavy head low in front, six stubby legs, and a TRAIL OF EMBERS off the tapering tail (small EMBER and BONE flecks, part of the silhouette). TAG: LOW and TRAILING EMBERS — a horizontal dash with a dotted ember tail. Reads at 24 px."
     },
     {
       "id": "smith",
@@ -369,7 +409,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A foundry smith facing right, stocky and broad: a burly bare-armed figure in a heavy leather APRON down to the shins, a massive square-headed HAMMER raised in both hands over the shoulder, a soot-streaked face with a set anime jaw and a headband, thick gloves, boots. Warm leather browns, iron-grey hammer head, one ember-orange accent (a hot rivet on the apron pocket). Tag: HAMMER AND APRON — the raised square hammer and the long apron rectangle are the silhouette at 40 px. Clearly not a goblin, clearly not the golem."
+      "description": "A foundry smith facing right, stocky and broad: a burly bare-armed figure in a heavy leather APRON down to the shins, a massive square-headed HAMMER raised in both hands over the shoulder, a soot-streaked face with a set anime jaw and a headband, thick gloves, boots. Warm leather browns, iron-grey hammer head, one ember-orange accent (a hot rivet on the apron pocket). Tag: HAMMER AND APRON — the raised square hammer and the long apron rectangle are the silhouette at 40 px. Clearly not a goblin, clearly not the golem.",
+      "brief3": "A foundry SMITH facing right, stocky and broad: bare arms in DUSK skin with MOON lights, a heavy UMBRA leather APRON down to the shins, a massive square-headed HAMMER raised in both hands over the shoulder (MIST rim on its head), a soot-streaked face with a set jaw and a headband, thick gloves, one EMBER hot rivet on the apron. TAG: HAMMER AND APRON — the raised square hammer and the long apron rectangle at 40 px."
     },
     {
       "id": "boss_foundry_master",
@@ -378,7 +419,8 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Foundry Master facing right, LARGER than the iron golem: a colossal iron-and-bronze forge-lord, riveted plate body like the golem but with an ANVIL-SHAPED chest, a heavy leather apron over the plates, a jagged CROWN of iron rivet-spikes on the helm, a gigantic two-handed forge hammer raised overhead, ember-orange seams at every joint (flat bright cracks, no glow). Rust-red iron, bronze, leather, one hot yellow accent in the crown's centre. Tag: BOSS — crowned, huge hammer, apron over iron. Reads as 'the big crowned iron smith' at 64 px."
+      "description": "The Foundry Master facing right, LARGER than the iron golem: a colossal iron-and-bronze forge-lord, riveted plate body like the golem but with an ANVIL-SHAPED chest, a heavy leather apron over the plates, a jagged CROWN of iron rivet-spikes on the helm, a gigantic two-handed forge hammer raised overhead, ember-orange seams at every joint (flat bright cracks, no glow). Rust-red iron, bronze, leather, one hot yellow accent in the crown's centre. Tag: BOSS — crowned, huge hammer, apron over iron. Reads as 'the big crowned iron smith' at 64 px.",
+      "brief3": "The FOUNDRY MASTER facing right, larger than the iron golem: a colossal forge-lord of riveted INK/DUSK iron with MIST rims and worn GILT bronze trims, an ANVIL-SHAPED chest, a heavy UMBRA leather apron over the plates, a jagged CROWN of iron rivet-spikes, a gigantic two-handed forge HAMMER raised overhead, EMBER seams at every joint (flat bright cracks). TAG: BOSS — crowned, huge hammer, apron over iron. Reads at 64 px."
     },
     {
       "id": "lurker",
@@ -387,7 +429,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A lurker facing right, hunched: a pallid bone-white cave-thing with NO EYES — a smooth blank brow above a wide lipless mouth of needle teeth, a long neck craned forward, and ARMS FAR LONGER THAN ITS BODY that reach down past its feet, ending in long thin fingers. Skinny torso, knees bent. Bone-white and pale grey washes, blue-black shadow side (all channels low, never saturated blue). Tag: EYELESS and LONG-ARMED — the silhouette is a hunched body with two arms hanging to the bottom edge. Reads at 40 px."
+      "description": "A lurker facing right, hunched: a pallid bone-white cave-thing with NO EYES — a smooth blank brow above a wide lipless mouth of needle teeth, a long neck craned forward, and ARMS FAR LONGER THAN ITS BODY that reach down past its feet, ending in long thin fingers. Skinny torso, knees bent. Bone-white and pale grey washes, blue-black shadow side (all channels low, never saturated blue). Tag: EYELESS and LONG-ARMED — the silhouette is a hunched body with two arms hanging to the bottom edge. Reads at 40 px.",
+      "brief3": "A LURKER facing right, hunched: a pallid BONE-white cave-thing with NO EYES — a smooth blank brow over a wide lipless mouth of needle teeth — a long neck craned forward, and ARMS FAR LONGER THAN ITS BODY hanging down past its feet, long thin fingers; MIST lights, DUSK/INK shadow side. TAG: EYELESS and LONG-ARMED — a hunched body with two arms hanging to the bottom edge. Reads at 40 px."
     },
     {
       "id": "deep_eel",
@@ -396,7 +439,8 @@
       "gen": "1024x1024",
       "master_h": 48,
       "texel_h": 24,
-      "description": "A deep eel facing right: a very long, thin RIBBON of a fish undulating in three waves across the frame, a continuous translucent fin frill along the whole back, a narrow head with a needle jaw at the right, a tapering ribbon tail at the left. Ink-black back, bone-white belly and frill, a few pale teal flecks along the flank (high green, never royal blue). Tag: A RIBBON — thin and wavy with many curves, clearly different from the thick S-curved fens eel. Reads at 32 px."
+      "description": "A deep eel facing right: a very long, thin RIBBON of a fish undulating in three waves across the frame, a continuous translucent fin frill along the whole back, a narrow head with a needle jaw at the right, a tapering ribbon tail at the left. Ink-black back, bone-white belly and frill, a few pale teal flecks along the flank (high green, never royal blue). Tag: A RIBBON — thin and wavy with many curves, clearly different from the thick S-curved fens eel. Reads at 32 px.",
+      "brief3": "A DEEP EEL facing right: a very long thin RIBBON of a fish undulating in three waves across the frame, a continuous translucent MIST fin frill along the whole back, a narrow head with a needle jaw at the right, a tapering tail at the left. INK back, BONE belly, a few pale MIST flecks along the flank. TAG: A RIBBON — thin and wavy, clearly not the thick S-curved eel. Reads at 24 px."
     },
     {
       "id": "cave_troll",
@@ -405,7 +449,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A cave troll facing right: HUNCHED BULK — an enormous rounded back and shoulders, a small head sunk low in front of the chest, both long thick arms reaching down with knuckles at ankle level, short bowed legs, no weapon. Mottled slate-grey and moss-green hide with wart-lumps, a pale belly, blue-black shadow mass (never saturated blue). Tag: HUNCHED BULK — the silhouette is a big boulder with knuckles under it, clearly not the upright club-raising ogre. Reads at 48 px."
+      "description": "A cave troll facing right: HUNCHED BULK — an enormous rounded back and shoulders, a small head sunk low in front of the chest, both long thick arms reaching down with knuckles at ankle level, short bowed legs, no weapon. Mottled slate-grey and moss-green hide with wart-lumps, a pale belly, blue-black shadow mass (never saturated blue). Tag: HUNCHED BULK — the silhouette is a big boulder with knuckles under it, clearly not the upright club-raising ogre. Reads at 48 px.",
+      "brief3": "A CAVE TROLL facing right: HUNCHED BULK — an enormous rounded back and shoulders, a small head sunk low in front of the chest, long thick arms with knuckles at ankle level, short bowed legs, no weapon. Mottled DUSK-and-MOON hide with wart lumps, MIST rims along the boulder back, a paler BONE-grey belly. TAG: HUNCHED BULK — a boulder with knuckles under it, clearly not the upright ogre. Reads at 48 px."
     },
     {
       "id": "siren",
@@ -414,7 +459,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A siren facing right, standing and SINGING: a slender figure in a long robe whose HEAD IS THROWN BACK — chin up, face to the ceiling, mouth wide open — with the deep hood fallen back off the face onto the shoulders, both hands clasped at the chest, the robe hem pooled at the feet; THREE BOLD flat ink voice-arcs stacked in front of the open mouth (each as thick as the contour line and a head-width wide, flat shapes, no glow). Bone-white face and throat, deep violet-black robe (all channels low, never saturated blue), a pale teal lining inside the fallen hood. Tag: HOODED SINGER — the thrown-back open-mouthed head and the voice-arcs are the silhouette at 40 px. Distinct from the floating wraith: this one stands. Not a hooded figure looking down. RETRY NOTE (v2): the last attempt came back as a hooded standing figure — wrong. NO HOOD AT ALL: bare head with long flowing hair, the whole head TILTED BACK so the face points at the ceiling, mouth open wide in song, both arms spread wide and low, and THREE thick pale sound-arcs rising from the open mouth. The upturned face and the arcs must be the top of the silhouette."
+      "description": "A siren facing right, standing and SINGING: a slender figure in a long robe whose HEAD IS THROWN BACK — chin up, face to the ceiling, mouth wide open — with the deep hood fallen back off the face onto the shoulders, both hands clasped at the chest, the robe hem pooled at the feet; THREE BOLD flat ink voice-arcs stacked in front of the open mouth (each as thick as the contour line and a head-width wide, flat shapes, no glow). Bone-white face and throat, deep violet-black robe (all channels low, never saturated blue), a pale teal lining inside the fallen hood. Tag: HOODED SINGER — the thrown-back open-mouthed head and the voice-arcs are the silhouette at 40 px. Distinct from the floating wraith: this one stands. Not a hooded figure looking down. RETRY NOTE (v2): the last attempt came back as a hooded standing figure — wrong. NO HOOD AT ALL: bare head with long flowing hair, the whole head TILTED BACK so the face points at the ceiling, mouth open wide in song, both arms spread wide and low, and THREE thick pale sound-arcs rising from the open mouth. The upturned face and the arcs must be the top of the silhouette.",
+      "brief3": "A SIREN facing right, standing and SINGING: a slender figure in a long INK-and-DUSK robe, NO HOOD — a bare head with long flowing dark hair, the whole head TILTED BACK so the face points at the ceiling, the mouth open wide in song, both arms spread wide and low; THREE thick pale MIST sound-arcs rising from the open mouth (flat shapes, each as thick as the contour). A pale BONE face and throat. TAG: the upturned singing face and the arcs are the top of the silhouette. Distinct from the floating wraith: she stands."
     },
     {
       "id": "mirror_shade",
@@ -423,7 +469,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A mirror shade facing right: a HERO-SHAPED DARK MIRROR — the full-body silhouette of an anime adventurer in a ready stance with a short sword held low, painted as a flat solid blue-black shape (all channels low, never saturated or royal blue) with thin silvered cyan-white edge highlights along the upper-left contours (green channel at least as high as blue), NO face, NO features, one pale crack running across the chest. Bold dark ink outline as always. Tag: A HERO SHAPE, BUT DARK — at 48 px it must read as 'the hero's shadow'. RETRY NOTE (v2): the last attempt lost the sword and read as a dark blob. Make it a clear standing HUMAN hero silhouette in a wide fighting stance (legs apart, visible), a LONG straight sword held out low and forward so the blade sticks out past the body, a short half-cloak; the body blue-black with bright cyan-white edge light along the top and left edges so the shape reads."
+      "description": "A mirror shade facing right: a HERO-SHAPED DARK MIRROR — the full-body silhouette of an anime adventurer in a ready stance with a short sword held low, painted as a flat solid blue-black shape (all channels low, never saturated or royal blue) with thin silvered cyan-white edge highlights along the upper-left contours (green channel at least as high as blue), NO face, NO features, one pale crack running across the chest. Bold dark ink outline as always. Tag: A HERO SHAPE, BUT DARK — at 48 px it must read as 'the hero's shadow'. RETRY NOTE (v2): the last attempt lost the sword and read as a dark blob. Make it a clear standing HUMAN hero silhouette in a wide fighting stance (legs apart, visible), a LONG straight sword held out low and forward so the blade sticks out past the body, a short half-cloak; the body blue-black with bright cyan-white edge light along the top and left edges so the shape reads.",
+      "brief3": "A MIRROR SHADE facing right: the hero's DARK REFLECTION — a clear standing HUMAN hero silhouette in a wide fighting stance (legs apart), a LONG straight sword held out low and forward past the body, a short tattered half-cloak; the whole figure a flat INK/UMBRA shape with bright MIST edge light along its top and left contours, NO face, one pale BONE crack across the chest, a thin CLOT lining in the cloak (the hero's red, drained). TAG: A HERO SHAPE, BUT DARK. Reads at 48 px."
     },
     {
       "id": "boss_lurker_queen",
@@ -432,7 +479,8 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Lurker Queen facing right, LARGER than any lurker: a huge pallid eyeless matriarch, blank brow, wide needle-toothed maw, a tall CROWN of bone spines growing from her skull, FOUR long thin arms reaching down and out, a swollen belly, and three small lurker-hatchlings clinging to her flanks and shoulders. Bone-white and grey washes, blue-black shadow side (never saturated blue), one pale teal accent in the crown. Tag: BOSS — crowned, eyeless, many long arms, hatchlings. Reads at 64 px."
+      "description": "The Lurker Queen facing right, LARGER than any lurker: a huge pallid eyeless matriarch, blank brow, wide needle-toothed maw, a tall CROWN of bone spines growing from her skull, FOUR long thin arms reaching down and out, a swollen belly, and three small lurker-hatchlings clinging to her flanks and shoulders. Bone-white and grey washes, blue-black shadow side (never saturated blue), one pale teal accent in the crown. Tag: BOSS — crowned, eyeless, many long arms, hatchlings. Reads at 64 px.",
+      "brief3": "The LURKER QUEEN facing right, larger than any lurker: a huge pallid eyeless matriarch in BONE and MIST washes with DUSK shadow, a blank brow, a wide needle-toothed maw, a tall CROWN of bone spines, FOUR long thin arms reaching down and out, a swollen belly, three small lurker hatchlings clinging to her flanks. TAG: BOSS — crowned, eyeless, many long arms. Reads at 64 px."
     },
     {
       "id": "warden",
@@ -441,7 +489,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "A sanctum warden facing right, tall and upright in pale stone-white plate armour with gold trim and a slate-grey tabard: a tall rectangular TOWER SHIELD held out in FRONT (to the right, covering knees to chin), and a LONGBOW slung across the BACK so its arc pokes clearly above the left shoulder and below the hip behind the figure, a full quiver beside it. Closed great-helm. Ivory-white, gold, slate. Tag: SHIELD IN FRONT, BOW ON THE BACK — both must be distinct bumps of the silhouette at 48 px."
+      "description": "A sanctum warden facing right, tall and upright in pale stone-white plate armour with gold trim and a slate-grey tabard: a tall rectangular TOWER SHIELD held out in FRONT (to the right, covering knees to chin), and a LONGBOW slung across the BACK so its arc pokes clearly above the left shoulder and below the hip behind the figure, a full quiver beside it. Closed great-helm. Ivory-white, gold, slate. Tag: SHIELD IN FRONT, BOW ON THE BACK — both must be distinct bumps of the silhouette at 48 px.",
+      "brief3": "A sanctum WARDEN facing right, tall and upright in pale BONE-and-MIST plate armour with GILT trim and a DUSK tabard: a tall rectangular TOWER SHIELD held out in FRONT covering knees to chin, a LONGBOW slung across the BACK so its arc pokes above the far shoulder and below the hip, a quiver beside it; a closed great-helm. TAG: SHIELD IN FRONT, BOW ON THE BACK — two distinct bumps at 48 px."
     },
     {
       "id": "acolyte",
@@ -450,7 +499,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A sanctum acolyte facing right, BOWED: a robed figure bent forward at the waist, head bowed low, both arms raised with open palms turned up at shoulder height (an offering gesture), a long white robe with gold hem trim and a slate-grey hood, bare feet. Ivory-white, one gold accent, slate shadow. Tag: BOWED, HANDS UP — a folded figure with two raised hands, clearly not the singing siren (whose head goes back) at 40 px."
+      "description": "A sanctum acolyte facing right, BOWED: a robed figure bent forward at the waist, head bowed low, both arms raised with open palms turned up at shoulder height (an offering gesture), a long white robe with gold hem trim and a slate-grey hood, bare feet. Ivory-white, one gold accent, slate shadow. Tag: BOWED, HANDS UP — a folded figure with two raised hands, clearly not the singing siren (whose head goes back) at 40 px.",
+      "brief3": "A sanctum ACOLYTE facing right, BOWED: a robed figure bent forward at the waist, head bowed low, both arms raised with open palms up at shoulder height (an offering), a long BONE-white robe with a GILT hem and a DUSK hood, bare feet. TAG: BOWED, HANDS UP — a folded figure with two raised hands, clearly not the singing siren. Reads at 40 px."
     },
     {
       "id": "echo",
@@ -459,7 +509,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "An echo facing right: a slender pale humanoid in a plain ivory tunic drawn TWICE — the front figure solid, and an identical DOUBLE offset half a body-width up and to the left behind it, painted as a translucent ghost (much paler washes, the front figure showing through) but with its own dark ink outline. Both figures in the same walking pose. Ivory-white, pale gold, slate-grey ink. Tag: A TRANSLUCENT DOUBLE — at 40 px the silhouette has two heads and two sets of legs, a doubled outline."
+      "description": "An echo facing right: a slender pale humanoid in a plain ivory tunic drawn TWICE — the front figure solid, and an identical DOUBLE offset half a body-width up and to the left behind it, painted as a translucent ghost (much paler washes, the front figure showing through) but with its own dark ink outline. Both figures in the same walking pose. Ivory-white, pale gold, slate-grey ink. Tag: A TRANSLUCENT DOUBLE — at 40 px the silhouette has two heads and two sets of legs, a doubled outline.",
+      "brief3": "An ECHO facing right: a slender pale humanoid in a plain BONE tunic drawn TWICE — the front figure solid, an identical DOUBLE offset half a body-width up and left behind it painted as a translucent MIST ghost with its own INK outline; both in the same walking pose. TAG: A TRANSLUCENT DOUBLE — two heads and two sets of legs at 40 px."
     },
     {
       "id": "sentinel",
@@ -468,7 +519,8 @@
       "gen": "1024x1024",
       "master_h": 80,
       "texel_h": 40,
-      "description": "A sanctum sentinel: a squat standing STONE PILLAR, slightly tapered, with ONE HUGE OPEN EYE carved into its upper face — a wide almond eye with a gold iris and a dark pupil, looking right — and a few gold-inlaid lines below it; no limbs, no face beyond the eye. Pale slate-grey stone with chalk-white lit side, gold accent, no glow. Tag: A STONE EYE — a blunt monolith with an eye. Reads at 40 px; clearly not the bell sentinel (which is a humanoid with a bell head)."
+      "description": "A sanctum sentinel: a squat standing STONE PILLAR, slightly tapered, with ONE HUGE OPEN EYE carved into its upper face — a wide almond eye with a gold iris and a dark pupil, looking right — and a few gold-inlaid lines below it; no limbs, no face beyond the eye. Pale slate-grey stone with chalk-white lit side, gold accent, no glow. Tag: A STONE EYE — a blunt monolith with an eye. Reads at 40 px; clearly not the bell sentinel (which is a humanoid with a bell head).",
+      "brief3": "A sanctum SENTINEL: a squat standing STONE PILLAR, slightly tapered, pale BONE-grey stone with MIST lights and DUSK shadow, ONE HUGE OPEN EYE carved into its upper face — a wide almond eye with a GILT iris and an INK pupil, looking right — a few GILT inlay lines below. No limbs. TAG: A STONE EYE — a blunt monolith with an eye. Reads at 40 px."
     },
     {
       "id": "boss_mirror_king",
@@ -477,7 +529,8 @@
       "gen": "1024x1024",
       "master_h": 128,
       "texel_h": 64,
-      "description": "The Mirror King facing right, LARGER than the warden: a tall regal figure whose whole body is a DARK MIRROR (flat blue-black, all channels low, never saturated blue) with silvered cyan-white edge highlights (green at least as high as blue), wearing a long slate-and-gold robe and a tall spiked GOLD CROWN, holding a tall sceptre topped with a round polished hand-mirror, a single pale crack across the featureless face. Gold, ivory, blue-black. Tag: BOSS — crowned, mirror sceptre, the hero's dark reflection made king. Reads at 64 px."
+      "description": "The Mirror King facing right, LARGER than the warden: a tall regal figure whose whole body is a DARK MIRROR (flat blue-black, all channels low, never saturated blue) with silvered cyan-white edge highlights (green at least as high as blue), wearing a long slate-and-gold robe and a tall spiked GOLD CROWN, holding a tall sceptre topped with a round polished hand-mirror, a single pale crack across the featureless face. Gold, ivory, blue-black. Tag: BOSS — crowned, mirror sceptre, the hero's dark reflection made king. Reads at 64 px.",
+      "brief3": "The MIRROR KING facing right, larger than the warden: a tall regal figure whose whole body is a DARK MIRROR (flat INK/UMBRA with bright MIST edge light), a long DUSK robe with GILT trim, a tall spiked GILT CROWN, a tall sceptre topped with a round polished hand-mirror (a BONE disc), a pale crack across the featureless face. TAG: BOSS — crowned, mirror sceptre: the hero's dark reflection made king. Reads at 64 px."
     },
     {
       "id": "title",
@@ -1579,7 +1632,8 @@
       "gen": "1536x1024",
       "master_h": 64,
       "texel_h": 32,
-      "description": "DEATH POSE of the Goblin Warlord (bright moss-green skin, jagged iron crown, fur mantle, huge cleaver, red war-banner strip), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+      "description": "DEATH POSE of the Goblin Warlord (bright moss-green skin, jagged iron crown, fur mantle, huge cleaver, red war-banner strip), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background.",
+      "brief3": "DEATH POSE of the GOBLIN WARLORD (a towering gaunt goblin king, cold DUSK-green skin, a spiked iron crown, a tattered BLOOD-and-INK mantle, a huge cleaver), the same character as its living boss sprite: fallen and lying still, seen from the same high three-quarter camera, the body stretched out HORIZONTALLY (on its side or back, head to the right), limbs slack, its weapon dropped beside it, crown knocked askew. It must read as 'the boss, dead' — a recognisable body, not a smear: keep its signature shapes and colours, the living colours sunk a step toward UMBRA, moonlight on the top edges only. Wide and low: the body spans most of the canvas width and about a third of its height. A small BLOOD spatter near the wound is allowed; NO blood pool, no floor, no shadow."
     },
     {
       "id": "boss_bloat_mother_dead",
@@ -1588,7 +1642,8 @@
       "gen": "1536x1024",
       "master_h": 64,
       "texel_h": 32,
-      "description": "DEATH POSE of the Bloat Mother (a huge swollen sickly yellow-green bloated brood-mother, pustules, tiny limbs), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+      "description": "DEATH POSE of the Bloat Mother (a huge swollen sickly yellow-green bloated brood-mother, pustules, tiny limbs), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background.",
+      "brief3": "DEATH POSE of the BLOAT MOTHER (a huge sac of pale teal-green gas, a crown of BONE spines, budding bloat-buds) — collapsed and deflated, sagging flat, the same character as its living boss sprite: fallen and lying still, seen from the same high three-quarter camera, the body stretched out HORIZONTALLY (on its side or back, head to the right), limbs slack, its weapon dropped beside it, crown knocked askew. It must read as 'the boss, dead' — a recognisable body, not a smear: keep its signature shapes and colours, the living colours sunk a step toward UMBRA, moonlight on the top edges only. Wide and low: the body spans most of the canvas width and about a third of its height. A small BLOOD spatter near the wound is allowed; NO blood pool, no floor, no shadow."
     },
     {
       "id": "boss_lich_dead",
@@ -1597,7 +1652,8 @@
       "gen": "1536x1024",
       "master_h": 64,
       "texel_h": 32,
-      "description": "DEATH POSE of the Lich (a gaunt skeletal sorcerer in tattered violet-black robes, bone crown, a staff with a dim crystal), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+      "description": "DEATH POSE of the Lich (a gaunt skeletal sorcerer in tattered violet-black robes, bone crown, a staff with a dim crystal), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background.",
+      "brief3": "DEATH POSE of the LICH (a gaunt skeleton king in INK-and-DUSK robes, a BONE skull-crown, a skull-topped staff, the cold flame guttered out), the same character as its living boss sprite: fallen and lying still, seen from the same high three-quarter camera, the body stretched out HORIZONTALLY (on its side or back, head to the right), limbs slack, its weapon dropped beside it, crown knocked askew. It must read as 'the boss, dead' — a recognisable body, not a smear: keep its signature shapes and colours, the living colours sunk a step toward UMBRA, moonlight on the top edges only. Wide and low: the body spans most of the canvas width and about a third of its height. A small BLOOD spatter near the wound is allowed; NO blood pool, no floor, no shadow."
     },
     {
       "id": "boss_foundry_master_dead",
@@ -1606,7 +1662,8 @@
       "gen": "1536x1024",
       "master_h": 64,
       "texel_h": 32,
-      "description": "DEATH POSE of the Foundry Master (a hulking smith-golem of dark iron plates with glowing orange seams, a great hammer), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+      "description": "DEATH POSE of the Foundry Master (a hulking smith-golem of dark iron plates with glowing orange seams, a great hammer), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background.",
+      "brief3": "DEATH POSE of the FOUNDRY MASTER (a colossal riveted iron forge-lord, anvil chest, leather apron, spiked iron crown, a giant hammer; the EMBER seams cooling to CLOT), the same character as its living boss sprite: fallen and lying still, seen from the same high three-quarter camera, the body stretched out HORIZONTALLY (on its side or back, head to the right), limbs slack, its weapon dropped beside it, crown knocked askew. It must read as 'the boss, dead' — a recognisable body, not a smear: keep its signature shapes and colours, the living colours sunk a step toward UMBRA, moonlight on the top edges only. Wide and low: the body spans most of the canvas width and about a third of its height. A small BLOOD spatter near the wound is allowed; NO blood pool, no floor, no shadow."
     },
     {
       "id": "boss_lurker_queen_dead",
@@ -1615,7 +1672,8 @@
       "gen": "1536x1024",
       "master_h": 64,
       "texel_h": 32,
-      "description": "DEATH POSE of the Lurker Queen (a pale many-limbed cave horror, long clawed limbs, eyeless head, chitin plates), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+      "description": "DEATH POSE of the Lurker Queen (a pale many-limbed cave horror, long clawed limbs, eyeless head, chitin plates), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background.",
+      "brief3": "DEATH POSE of the LURKER QUEEN (a huge pallid eyeless matriarch, bone-spine crown, four long thin arms), the same character as its living boss sprite: fallen and lying still, seen from the same high three-quarter camera, the body stretched out HORIZONTALLY (on its side or back, head to the right), limbs slack, its weapon dropped beside it, crown knocked askew. It must read as 'the boss, dead' — a recognisable body, not a smear: keep its signature shapes and colours, the living colours sunk a step toward UMBRA, moonlight on the top edges only. Wide and low: the body spans most of the canvas width and about a third of its height. A small BLOOD spatter near the wound is allowed; NO blood pool, no floor, no shadow."
     },
     {
       "id": "boss_mirror_king_dead",
@@ -1624,7 +1682,8 @@
       "gen": "1536x1024",
       "master_h": 64,
       "texel_h": 32,
-      "description": "DEATH POSE of the Mirror King (a regal figure in cracked silver-glass armour, a shattered mirror crown, a long cape), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background."
+      "description": "DEATH POSE of the Mirror King (a regal figure in cracked silver-glass armour, a shattered mirror crown, a long cape), the same character as its living boss sprite: fallen and lying still on the ground, seen from the same top-down three-quarter camera, the body stretched out HORIZONTALLY (lying on its side or back, head to the right), limbs slack, weapon dropped beside it on the floor, crown/helm knocked askew. It must read clearly as 'the boss, dead' — a recognisable body, not a smear: keep its signature colours and silhouette details. Wide and low: the body spans most of the canvas width and about a third of its height. No blood pool, no floor, no shadow. Flat pure #0000FF background.",
+      "brief3": "DEATH POSE of the MIRROR KING (a tall figure of dark mirror with MIST edge light, a spiked GILT crown, a mirror sceptre) — the mirror body cracked across, the same character as its living boss sprite: fallen and lying still, seen from the same high three-quarter camera, the body stretched out HORIZONTALLY (on its side or back, head to the right), limbs slack, its weapon dropped beside it, crown knocked askew. It must read as 'the boss, dead' — a recognisable body, not a smear: keep its signature shapes and colours, the living colours sunk a step toward UMBRA, moonlight on the top edges only. Wide and low: the body spans most of the canvas width and about a third of its height. A small BLOOD spatter near the wound is allowed; NO blood pool, no floor, no shadow."
     },
     {
       "id": "env_skulls",
@@ -3290,6 +3349,524 @@
       "name": "stump",
       "register": "painted",
       "description": "a short mossy TREE STUMP with gnarled roots spreading into the mud, a few small pale mushrooms on it, lit upper-left; the object only, on flat pure blue #0000FF. Biome: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood."
+    },
+    {
+      "id": "envp_town_grass_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "grass_0",
+      "register": "painted",
+      "description": "short night GRASS filling the tile: tufts blocked in square cells, the tinted DUSK/MOON greens, a few MIST dew glints; calm and low-contrast; seamless in every direction. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_grass_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "grass_1",
+      "register": "painted",
+      "description": "a GRASS variant: the same grass with a few small pale BONE flowers and one darker tuft. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_grass_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "grass_2",
+      "register": "painted",
+      "description": "a GRASS variant: the same grass with two small stones half sunk in it. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_grass_3",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "grass_3",
+      "register": "painted",
+      "description": "a GRASS variant: the same grass, a little darker and longer, windswept. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_dirt_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "dirt_0",
+      "register": "painted",
+      "description": "a packed DIRT PATH filling the tile: pale trodden earth (MOON-grey with the tint), a few pebbles and cart ruts, no grass; seamless in every direction. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_dirt_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "dirt_1",
+      "register": "painted",
+      "description": "a DIRT PATH variant: the same trodden earth with a small puddle reflecting a MIST streak. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_dirt_2",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "dirt_2",
+      "register": "painted",
+      "description": "a DIRT PATH variant: the same trodden earth with two faint boot prints. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_dirt_edge",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "dirt_edge",
+      "register": "painted",
+      "description": "where GRASS meets a DIRT PATH: the top third of the tile grass, a ragged grass fringe, the lower two thirds trodden dirt; seamless left-to-right. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_plaza_0",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "plaza_0",
+      "register": "painted",
+      "description": "PLAZA STONE: four worn square cobbles with INK joints, moonlit tops; seamless in every direction. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_plaza_1",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "plaza_1",
+      "register": "painted",
+      "description": "a PLAZA STONE variant: the same cobbles, one cracked with a tuft of grass. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_water",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "water",
+      "register": "painted",
+      "description": "still dark STREAM WATER: INK-teal depths with a few MIST moon streaks; seamless in every direction. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_cliff",
+      "kind": "env_tile",
+      "bg": "env",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "cliff",
+      "register": "painted",
+      "description": "the FACE of a rocky hill seen from the front: stacked dark rock ledges, MIST rims on each ledge top, INK below; seamless left-to-right. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_fence",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "fence",
+      "register": "painted",
+      "description": "a short run of wooden FENCE seen from the front: two posts and two rails of weathered dark wood, MIST rims on the tops, INK contour; the object only. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_low_wall",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "low_wall",
+      "register": "painted",
+      "description": "a short run of LOW STONE WALL seen from the front: dry-stacked stones two courses high, moonlit capstones, INK contour; the object only. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_gate",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x24",
+      "biome": "town",
+      "name": "gate",
+      "register": "painted",
+      "description": "a TOWN GATE seen from the front: two stone gate posts with a wooden double gate between them, iron bands, a small lantern with an EMBER flame on one post, INK contour; the object only. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_bridge",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x16",
+      "biome": "town",
+      "name": "bridge",
+      "register": "painted",
+      "description": "a short wooden footbridge of planks seen from above at the high three-quarter angle, rope rails, MIST rims; the object only. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_tree_0",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x32",
+      "biome": "town",
+      "name": "tree_0",
+      "register": "painted",
+      "description": "a tall dark PINE TREE: stacked INK/DUSK needle masses with MIST rims on their tops, a short trunk; the object only. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "envp_town_tree_1",
+      "kind": "env_prop",
+      "bg": "env_keyed",
+      "gen": "1024x1024",
+      "texels": "16x24",
+      "biome": "town",
+      "name": "tree_1",
+      "register": "painted",
+      "description": "a gnarled leafless OAK: twisting INK branches with a few MIST-lit edges; the object only. Biome: the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences."
+    },
+    {
+      "id": "town_mouth_cave",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "the DUNGEON MOUTH, stage one: a black cave opening cut into a rocky hillside, rough rock framing it with MIST-lit ledges, two iron torches on poles either side with small EMBER flames, a few bones at the threshold; the opening INK-black and deep. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the DUNGEON MOUTH, stage one: a black cave opening cut into a rocky hillside, rough rock framing it with MIST-lit ledges, two iron torches on poles either side with small EMBER flames, a few bones at the threshold; the opening INK-black and deep."
+    },
+    {
+      "id": "town_mouth_timber",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "the DUNGEON MOUTH, stage two: the same cave opening now braced with heavy timber beams and a lintel, a hanging BLOOD cloth strip, two iron torches with EMBER flames, a small wooden sign post (no letters). (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the DUNGEON MOUTH, stage two: the same cave opening now braced with heavy timber beams and a lintel, a hanging BLOOD cloth strip, two iron torches with EMBER flames, a small wooden sign post (no letters)."
+    },
+    {
+      "id": "town_mouth_gate",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "the DUNGEON MOUTH, stage three: a carved stone GATEHOUSE arch over the cave, gothic pointed arch, a raised iron portcullis, two BLOOD banners, two braziers with EMBER flames. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the DUNGEON MOUTH, stage three: a carved stone GATEHOUSE arch over the cave, gothic pointed arch, a raised iron portcullis, two BLOOD banners, two braziers with EMBER flames."
+    },
+    {
+      "id": "town_campfire_0",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 48,
+      "texel_h": 24,
+      "description": "a CAMPFIRE: a ring of stones around crossed logs with a lively EMBER flame (two tongues), frame 1 of 2. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a CAMPFIRE: a ring of stones around crossed logs with a lively EMBER flame (two tongues), frame 1 of 2."
+    },
+    {
+      "id": "town_campfire_1",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 48,
+      "texel_h": 24,
+      "description": "the same CAMPFIRE, frame 2 of 2: the flame tongues shifted and one taller, a spark above. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the same CAMPFIRE, frame 2 of 2: the flame tongues shifted and one taller, a spark above."
+    },
+    {
+      "id": "town_tent",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "the hero's TENT: a single A-frame canvas tent of DUSK-grey canvas with a BLOOD pennant on its pole, the flap tied open showing an INK interior, guy ropes and pegs. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the hero's TENT: a single A-frame canvas tent of DUSK-grey canvas with a BLOOD pennant on its pole, the flap tied open showing an INK interior, guy ropes and pegs."
+    },
+    {
+      "id": "town_crate",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 40,
+      "texel_h": 20,
+      "description": "the SUPPLY CRATE: a wooden crate with iron corners, a coil of rope and a small sack on top. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the SUPPLY CRATE: a wooden crate with iron corners, a coil of rope and a small sack on top."
+    },
+    {
+      "id": "town_plot",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 40,
+      "texel_h": 20,
+      "description": "a STAKED PLOT: four wooden stakes with a string between them marking a square of bare earth, a small MIST-white rag tied to one stake. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a STAKED PLOT: four wooden stakes with a string between them marking a square of bare earth, a small MIST-white rag tied to one stake."
+    },
+    {
+      "id": "town_scaffold",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "a SCAFFOLD: a timber frame of a house under construction, poles and cross-braces, a ladder, a few stacked planks; no walls yet. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a SCAFFOLD: a timber frame of a house under construction, poles and cross-braces, a ladder, a few stacked planks; no walls yet."
+    },
+    {
+      "id": "town_blacksmith_1",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "an open-fronted timber SMITHY with a stone chimney, an anvil at the front, a glowing EMBER forge inside; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "an open-fronted timber SMITHY with a stone chimney, an anvil at the front, a glowing EMBER forge inside; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_blacksmith_2",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a larger stone-and-timber SMITHY with a tiled roof, two anvils, a quench barrel, a weapon rack, the forge glowing EMBER; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a larger stone-and-timber SMITHY with a tiled roof, two anvils, a quench barrel, a weapon rack, the forge glowing EMBER; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_blacksmith_3",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a grand stone FORGE-HALL with a tall chimney, iron gates, a great bellows, the forge roaring EMBER, a BLOOD banner; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a grand stone FORGE-HALL with a tall chimney, iron gates, a great bellows, the forge roaring EMBER, a BLOOD banner; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_storehouse_1",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a small wooden STORE SHED with a plank door, crates and a barrel stacked by it; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a small wooden STORE SHED with a plank door, crates and a barrel stacked by it; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_storehouse_2",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a timber STOREHOUSE with a loft door and a hoist beam, sacks and crates; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a timber STOREHOUSE with a loft door and a hoist beam, sacks and crates; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_storehouse_3",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a stone WAREHOUSE with iron-bound double doors, a hoist, a GILT lock plate; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a stone WAREHOUSE with iron-bound double doors, a hoist, a GILT lock plate; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_kennel_1",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a small wooden KENNEL shed with a fenced pen and a water trough; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a small wooden KENNEL shed with a fenced pen and a water trough; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_kennel_2",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a longer KENNEL with three stalls, a fenced run, a hay pile; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a longer KENNEL with three stalls, a fenced run, a hay pile; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_kennel_3",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a stone-and-timber BEAST HALL with a large fenced yard, carved beast-head gables; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a stone-and-timber BEAST HALL with a large fenced yard, carved beast-head gables; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_bank_1",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a small squat stone VAULT HOUSE with an iron door and a hanging coin sign (a GILT disc, no letters); seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a small squat stone VAULT HOUSE with an iron door and a hanging coin sign (a GILT disc, no letters); seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_bank_2",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a stone BANK with two short columns, iron-barred windows, a coin sign; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a stone BANK with two short columns, iron-barred windows, a coin sign; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_bank_3",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a grand stone BANK with four columns, a pediment, a heavy iron vault door, GILT trim; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a grand stone BANK with four columns, a pediment, a heavy iron vault door, GILT trim; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing."
+    },
+    {
+      "id": "town_smith",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "a TOWNSFOLK smith walking right: a burly figure in a heavy UMBRA leather apron, a hammer on the shoulder, a pale BONE face; the town's people wear no BLOOD. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a TOWNSFOLK smith walking right: a burly figure in a heavy UMBRA leather apron, a hammer on the shoulder, a pale BONE face; the town's people wear no BLOOD."
+    },
+    {
+      "id": "town_merchant",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "a TOWNSFOLK merchant walking right: a stout figure in a long DUSK coat and a wide hat, a GILT-buckled satchel, a pale BONE face. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a TOWNSFOLK merchant walking right: a stout figure in a long DUSK coat and a wide hat, a GILT-buckled satchel, a pale BONE face."
+    },
+    {
+      "id": "town_child",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 56,
+      "texel_h": 28,
+      "description": "a TOWNSFOLK child running right: a small figure in a DUSK tunic, a wooden toy sword raised, a pale BONE face. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a TOWNSFOLK child running right: a small figure in a DUSK tunic, a wooden toy sword raised, a pale BONE face."
+    },
+    {
+      "id": "town_carter",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 80,
+      "texel_h": 40,
+      "description": "a TOWNSFOLK carter walking right leading by a rope: a lean figure in a hooded MOON-grey cloak with a staff, a pale BONE face. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a TOWNSFOLK carter walking right leading by a rope: a lean figure in a hooded MOON-grey cloak with a staff, a pale BONE face."
+    },
+    {
+      "id": "town_cart",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "a MULE CART going right: a grey mule pulling a small two-wheeled wooden cart loaded with sacks and a barrel. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a MULE CART going right: a grey mule pulling a small two-wheeled wooden cart loaded with sacks and a barrel."
+    },
+    {
+      "id": "town_dog",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 40,
+      "texel_h": 20,
+      "description": "a town DOG trotting right: a shaggy DUSK-grey dog with a curled tail, MIST rims, a BLOOD neckerchief. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a town DOG trotting right: a shaggy DUSK-grey dog with a curled tail, MIST rims, a BLOOD neckerchief."
+    },
+    {
+      "id": "town_sack_small",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 24,
+      "texel_h": 12,
+      "description": "a small loot SACK of BONE canvas tied with a cord, a GILT coin peeking out. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a small loot SACK of BONE canvas tied with a cord, a GILT coin peeking out."
+    },
+    {
+      "id": "town_sack_large",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 32,
+      "texel_h": 16,
+      "description": "a large bulging loot SACK of BONE canvas, tied, GILT coins spilling at its mouth. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a large bulging loot SACK of BONE canvas, tied, GILT coins spilling at its mouth."
+    },
+    {
+      "id": "town_chest_glow",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 32,
+      "texel_h": 16,
+      "description": "a small iron-bound treasure CHEST, the lid cracked open, a cold MIST glow spilling out (a found treasure). (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a small iron-bound treasure CHEST, the lid cracked open, a cold MIST glow spilling out (a found treasure)."
+    },
+    {
+      "id": "town_flag_0",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 48,
+      "texel_h": 24,
+      "description": "a tall wooden pole with a swallow-tailed BLOOD flag streaming right, frame 1 of 2. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "a tall wooden pole with a swallow-tailed BLOOD flag streaming right, frame 1 of 2."
+    },
+    {
+      "id": "town_flag_1",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 48,
+      "texel_h": 24,
+      "description": "the same flag pole, frame 2 of 2: the BLOOD flag's ripple shifted. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the same flag pole, frame 2 of 2: the BLOOD flag's ripple shifted."
     }
   ]
 }

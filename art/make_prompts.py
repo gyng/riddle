@@ -86,6 +86,83 @@ pool, NO scenery, NO glow halo, NO pedestal — the subject floats on flat blue.
 === ASSETS ===
 """
 
+# ---- Art direction phase 2 (docs/ART_DIRECTION.md §8): the STYLE PREAMBLE, verbatim, read from its one source ----
+def style_preamble() -> str:
+    t = (ROOT / "prompts" / "style_targets.txt").read_text()
+    a = t.index("=== STYLE PREAMBLE")
+    a = t.index("\n", a) + 1
+    return t[a:t.index("=== BATCH A")].rstrip() + "\n"
+
+
+STYLE_REFS = ("/home/g/p/riddle/art/ui/targets/style/hero_sheet.png", "/home/g/p/riddle/art/ui/targets/style/watch_warrens.png",
+              "/home/g/p/riddle/art/ui/targets/style/watch_fens.png", "/home/g/p/riddle/art/ui/targets/style/boss.png")
+
+# phase 2's hero proportion (the owner: "the hero must be readable"; picked by the blind read test, HANDOFF §6 phase 2)
+HERO_PROPORTION = "LONG and ELEGANT like the hero_sheet target: the head about 1/6.5 of the full height, long legs, a long trailing cloak; still one bold mass, with a clear pale BONE face patch and a bright MIST rim on the blade so the figure reads (picked by the blind read test at game size: 98 % vs 90 % at 1/5 and 81 % at 1/4)"
+FOE_PROPORTION = "the creature's own build, long and elegant where it allows, but always ONE bold readable mass; a humanoid's head at least one fifth of its height; the defining feature (its tag) drawn LARGE"
+
+HEADER3 = """You are painting CHARACTER SPRITE masters for the game "Riddle" (a gothic dark-fantasy roguelike on a phone, seen
+top-down at a high three-quarter angle). FIRST look at these approved STYLE TARGETS (you may open these images and nothing
+else in the repository): {refs}. They show the target look: moonlit ink and wash on a visible pixel grid, one BLOOD accent.
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix; do NOT
+touch anything outside {outdir}. Do not leave _inspection_*.png or any other scratch file behind. OVERWRITE existing files.
+
+For each asset: generate at the stated size and save the final PNG (sRGB) to the exact path. BACKGROUND: a TRANSPARENT
+background (PNG alpha) is best; if the tool returns an opaque image, the background must be ONE flat uniform pure MAGENTA
+#FF00FF (255,0,255) edge to edge (the pipeline keys it) — never paper, never a floor, never a gradient. Self-check each
+output: the four corners transparent or magenta, no magenta/pink-violet inside the subject, the subject not cropped;
+regenerate that asset once if not.
+
+=== STYLE (docs/ART_DIRECTION.md, approved — the FIRST and loudest rule) ===
+{preamble}
+=== SPRITE RULES (on top of the style) ===
+- ONE full-body figure, a three-quarter view from slightly above, facing RIGHT, centred with ~10 % margin, nothing cropped.
+- Proportions (these override \"tall\" in the style above): {proportion}.
+- INK: one closed blue-black INK #0d0c14 contour around the whole silhouette, 12-16 px thick at 1024 px (it must survive a
+  downscale to 40-96 px tall), thicker on the lower/right shadow side; a few interior ink lines on the big forms only.
+- LIGHT: cold MOONLIGHT from ABOVE: MIST #a4bcd6 rims on the top edges (head, shoulders, weapon), the lower half falling
+  into DUSK/UMBRA. The lit side must stay clearly lighter than a dark stone floor; keep one pale element (BONE face,
+  MIST blade edge, bone) high on the figure so it pops at game size.
+- WASH on the GRID at sprite scale: chunky clusters (~12 px at 1024), washes with granulation inside them; no hairline
+  detail, no smooth airbrushed gradients, no noisy speckle. Paper grain only faintly inside the lightest washes.
+- COLOUR: only the palette above (+ the monster's one local hue when the brief names it). BLOOD only where the brief puts it.
+- NOTHING but the figure: NO floor, NO contact shadow, NO cast-shadow pool, NO scenery, NO paper sheet, NO frame, NO glow
+  halo, NO text or letters.
+
+=== READABILITY (the sprites are shown TINY: {tiny}) ===
+One bold readable mass, one clear gesture, 3-4 signature details. The defining feature (the "tag" in each brief) must
+be visible in the SILHOUETTE alone. Judge each output shrunk to that size before accepting it.
+
+=== ASSETS ===
+"""
+
+
+def header3(outdir: str = "/home/g/p/riddle/art/generated/", proportion: str = FOE_PROPORTION,
+            tiny: str = "heroes ~48 px tall, monsters 20-48 px, bosses ~64 px") -> str:
+    return HEADER3.format(refs=", ".join(STYLE_REFS), outdir=outdir, preamble=style_preamble(), proportion=proportion, tiny=tiny)
+
+
+def sprite_block3(i: int, aid: str, size: str, texel_h: int, brief: str, out: str | None = None) -> str:
+    w, h = size.split("x")
+    out = out or f"/home/g/p/riddle/art/generated/{aid}.png"
+    return (f"--- {i}. id: {aid}\nOutput path: {out}\nSize: exactly {w}x{h} px (width x height), PNG.\n"
+            f"Shown in game at about {texel_h} px tall; judge readability at that size.\nBrief: {brief}\n\n")
+
+
+def build3(name: str, ids: list[str], briefs: dict[str, str] | None = None, proportion: str | None = None) -> Path:
+    """phase 2: art/prompts/<name>.txt for keyed sprites under the style preamble; briefs[id] overrides the manifest brief"""
+    heroes = all(BY_ID[i]["kind"] == "hero" for i in ids)
+    prop = proportion or (HERO_PROPORTION if heroes else FOE_PROPORTION)
+    body = header3(proportion=prop)
+    for n, aid in enumerate(ids, 1):
+        a = BY_ID[aid]
+        body += sprite_block3(n, aid, a["gen"], int(a["texel_h"]), (briefs or {}).get(aid, a.get("brief3") or a["description"]))
+    body += "When all assets are saved, list the final paths and their pixel sizes. Do nothing else.\n"
+    p = ROOT / "prompts" / f"{name}.txt"
+    p.write_text(body)
+    return p
+
+
 ENV_HEADER = """You are generating ENVIRONMENT PIXEL ART for the game "Riddle" (a phone roguelike seen top-down).
 FIRST look at /home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read nothing
 else in the repository). Its dungeon is the target: top-down dark-fantasy PIXEL ART — dressed stone

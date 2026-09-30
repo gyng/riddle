@@ -30,7 +30,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from make_tiles import BOSS_FLASH, PALETTES  # noqa: E402  single source of truth for ramps
+from make_tiles import BOSS_FLASH, PALETTES, style_ramp  # noqa: E402  single source of truth for ramps
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "generated"
@@ -56,11 +56,23 @@ def key_source(src: Path) -> np.ndarray:
     if min(corners) < 0.95:
         return rgba  # authored alpha
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-    dist = np.sqrt(r * r + g * g + (b - 255.0) ** 2)
+    kr = key_red(rgb)
+    dist = np.sqrt((r - kr) ** 2 + g * g + (b - 255.0) ** 2)
     alpha = np.clip((dist - LO) / (HI - LO), 0.0, 1.0)
     spill = alpha < 1.0
-    b = np.where(spill, np.minimum(b, np.maximum(r, g)), b)
+    if kr:   # art direction phase 2: a magenta key (#FF00FF, far from the moonlit blues) — pull r and b down to g where they spill
+        ex = np.maximum(0.0, np.minimum(r, b) - g)
+        r = np.where(spill, r - ex, r)
+        b = np.where(spill, b - ex, b)
+    else:
+        b = np.where(spill, np.minimum(b, np.maximum(r, g)), b)
     return np.dstack([r, g, b, alpha * 255.0])
+
+
+def key_red(rgb: np.ndarray) -> float:
+    """The source's key: pure blue #0000FF (v1/v2) or magenta #FF00FF (phase 2), by the corners' red channel."""
+    c = np.array([rgb[0, 0], rgb[0, -1], rgb[-1, 0], rgb[-1, -1]])
+    return 255.0 if float(np.median(c[:, 0])) > 128 else 0.0
 
 
 def crop_to_alpha(rgba: np.ndarray, thresh: float = 8.0) -> np.ndarray:
@@ -211,7 +223,7 @@ def main(argv: list[str]) -> int:
             "tile": 8,
             "sprites": meta_sprites,
             "tiles": tile_ids,
-            "palettes": {**PALETTES, "boss_flash": BOSS_FLASH},
+            "palettes": {**PALETTES, "burrows": style_ramp("burrows"), "town": style_ramp("town"), "boss_flash": BOSS_FLASH},
         },
     }
     (DST / "atlas.json").write_text(json.dumps(data, indent=1, sort_keys=True) + "\n")

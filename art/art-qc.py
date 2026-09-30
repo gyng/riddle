@@ -50,6 +50,10 @@ def main() -> int:
     optional = {a["id"] for a in assets if a.get("register") == "painted"}   # gfx round 18: a painted piece not yet drawn falls back to the ramp tile
     if optional - generated_ids:
         warnings.append(f"painted register: {len(optional - generated_ids)} pieces not drawn yet (the ramp register stands in)")
+    town = {a["id"] for a in assets if a.get("kind") == "town"}   # art direction phase 2: the town's sprites (Cut 30) fall back to a block + icon
+    if town - generated_ids:
+        warnings.append(f"town: {len(town - generated_ids)} sprites not drawn yet (the town scene draws a block + its icon)")
+    optional |= town
     missing_sources = sorted(manifest_ids - generated_ids - optional)
     if missing_sources:
         failures.append(f"missing generated sources: {', '.join(missing_sources)}")
@@ -132,7 +136,8 @@ def main() -> int:
         if alpha.max() == 0:
             failures.append(f"{fid}: empty alpha")
         dist = np.sqrt(rgb[..., 0] ** 2 + rgb[..., 1] ** 2 + (rgb[..., 2] - 255) ** 2)
-        leaked = visible & (dist <= 30)
+        dist_m = np.sqrt((rgb[..., 0] - 255) ** 2 + rgb[..., 1] ** 2 + (rgb[..., 2] - 255) ** 2)   # phase 2's magenta key
+        leaked = visible & ((dist <= 30) | (dist_m <= 30))
         if leaked.any():
             failures.append(f"{fid}: {int(leaked.sum())} visible pure-key pixels remain")
         fringe = (alpha > 0) & (alpha < 250)

@@ -59,7 +59,32 @@ OWN_PIECES: dict[str, dict[str, tuple[str, str, str]]] = {
 }
 
 
+# art direction phase 2 (docs/TOWN.md §7, Cut 30's town v1): the town's terrain is a place of its own — only its own pieces
+OWN_PIECES["town"] = {
+    "grass_0": ("env", "16x16", "short night GRASS filling the tile: tufts blocked in square cells, the tinted DUSK/MOON greens, a few MIST dew glints; calm and low-contrast; seamless in every direction"),
+    "grass_1": ("env", "16x16", "a GRASS variant: the same grass with a few small pale BONE flowers and one darker tuft"),
+    "grass_2": ("env", "16x16", "a GRASS variant: the same grass with two small stones half sunk in it"),
+    "grass_3": ("env", "16x16", "a GRASS variant: the same grass, a little darker and longer, windswept"),
+    "dirt_0": ("env", "16x16", "a packed DIRT PATH filling the tile: pale trodden earth (MOON-grey with the tint), a few pebbles and cart ruts, no grass; seamless in every direction"),
+    "dirt_1": ("env", "16x16", "a DIRT PATH variant: the same trodden earth with a small puddle reflecting a MIST streak"),
+    "dirt_2": ("env", "16x16", "a DIRT PATH variant: the same trodden earth with two faint boot prints"),
+    "dirt_edge": ("env", "16x16", "where GRASS meets a DIRT PATH: the top third of the tile grass, a ragged grass fringe, the lower two thirds trodden dirt; seamless left-to-right"),
+    "plaza_0": ("env", "16x16", "PLAZA STONE: four worn square cobbles with INK joints, moonlit tops; seamless in every direction"),
+    "plaza_1": ("env", "16x16", "a PLAZA STONE variant: the same cobbles, one cracked with a tuft of grass"),
+    "water": ("env", "16x16", "still dark STREAM WATER: INK-teal depths with a few MIST moon streaks; seamless in every direction"),
+    "cliff": ("env", "16x16", "the FACE of a rocky hill seen from the front: stacked dark rock ledges, MIST rims on each ledge top, INK below; seamless left-to-right"),
+    "fence": ("env_keyed", "16x16", "a short run of wooden FENCE seen from the front: two posts and two rails of weathered dark wood, MIST rims on the tops, INK contour; the object only"),
+    "low_wall": ("env_keyed", "16x16", "a short run of LOW STONE WALL seen from the front: dry-stacked stones two courses high, moonlit capstones, INK contour; the object only"),
+    "gate": ("env_keyed", "16x24", "a TOWN GATE seen from the front: two stone gate posts with a wooden double gate between them, iron bands, a small lantern with an EMBER flame on one post, INK contour; the object only"),
+    "bridge": ("env_keyed", "16x16", "a short wooden footbridge of planks seen from above at the high three-quarter angle, rope rails, MIST rims; the object only"),
+    "tree_0": ("env_keyed", "16x32", "a tall dark PINE TREE: stacked INK/DUSK needle masses with MIST rims on their tops, a short trunk; the object only"),
+    "tree_1": ("env_keyed", "16x24", "a gnarled leafless OAK: twisting INK branches with a few MIST-lit edges; the object only"),
+}
+
+
 def pieces(biome: str) -> dict[str, tuple[str, str, str]]:
+    if biome == "town":
+        return dict(OWN_PIECES["town"])
     return {**PIECES, **OWN_PIECES.get(biome, {})}
 
 
@@ -72,6 +97,7 @@ BIOMES: dict[str, str] = {
     "foundry": "a FOUNDRY: soot-black iron floor plates with rivets and scorched brick, walls of blackened brick with glowing orange seams and rust streaks, a hot orange-and-charcoal palette.",
     "deep": "the DEEP caves: wet blue-black cave rock floors, rounded stone walls glistening with moisture, tiny bioluminescent cyan fungus specks, an abyssal navy-and-slate palette.",
     "sanctum": "a SANCTUM: pale cream marble flagstones with thin gold inlay lines, walls of polished pale stone with gilt trim, a calm ivory-and-gold palette (keep the values mid, never pure white).",
+    "town": "the TOWN at night (docs/TOWN.md): a moonlit clearing at the dungeon's mouth, grass, dirt paths, cobbles, fences.",
 }
 
 HEADER = """You are painting ENVIRONMENT TILES for the game "Riddle" (a phone roguelike seen top-down). FIRST look at
@@ -99,6 +125,134 @@ BIOME: {biome_desc}
 
 === TILES ===
 """
+
+
+# ---- Art direction phase 2 (docs/ART_DIRECTION.md): the register redrawn in moonlit ink and wash, per-place tint ----
+STYLE_TINT = {"warrens": "#4a3b2c", "burrows": "#5a4527", "fens": "#2d5752", "crypt": "#2f2c4f", "foundry": "#5a2a1e", "deep": "#1f2e4f",
+              "sanctum": "#6b6048", "town": "#3a4a3a"}
+
+
+def tinted(biome: str) -> tuple[str, str]:
+    """§2's tint rule (web/src/render/wash.ts): DUSK 60 % toward the tint, MOON 40 % toward tint x 1.7"""
+    hx = lambda h: [int(h[i:i + 2], 16) for i in (1, 3, 5)]  # noqa: E731
+    t = hx(STYLE_TINT[biome])
+    dusk = [round(d + (c - d) * 0.6) for d, c in zip(hx("#2b3350"), t)]
+    moon = [round(m + (min(255, c * 1.7) - m) * 0.4) for m, c in zip(hx("#4d6c99"), t)]
+    return "#%02x%02x%02x" % tuple(dusk), "#%02x%02x%02x" % tuple(moon)
+
+
+BIOMES3: dict[str, str] = {
+    "warrens": "the WARRENS (the first dungeon, goblin warrens): rough dressed stone flagstones and block walls exactly like watch_warrens.png — cold stone washes, moonlit capstones, a few dark moss seams, rare dried BLOOD specks. Tint: umber.",
+    "burrows": "the BURROWS, a dug-out burrow — a DIFFERENT PLACE from every stone dungeon: floors of PACKED EARTH with pebbles and dark root tendrils (no flagstones, no mortar grid), walls of rough earth banks shored with dark TIMBER beams and posts. Tint: ochre — the earthiest place, but still lit by cold moonlight (no amber cast).",
+    "fens": "the FENS, a drowned marsh exactly like watch_fens.png — a DIFFERENT PLACE from the Burrows at a glance: the floor is a BOARDWALK of long weathered planks with black WATER showing in the gaps, open pools with MIST moon streaks, reed tufts; walls of piled mossy stones and rotten logs. Tint: cold teal — the wettest, coldest place.",
+    "crypt": "the CRYPT, like boss.png's hall: large engraved burial slabs with carved borders, walls of tomb niches with skulls, carved tomb doors, BONE accents. Tint: indigo — solemn, orderly.",
+    "foundry": "the FOUNDRY: riveted iron floor plates, gratings, soot-black firebrick walls with thin EMBER seams glowing between the bricks (the only warm light), rust streaks. Tint: rust — hard-edged, industrial.",
+    "deep": "the DEEP caves: unworked wet cave rock (no masonry, every edge irregular), fissures, pale MIST crystals and tiny cold fungus specks, black pools. Tint: navy — the darkest place.",
+    "sanctum": "the SANCTUM: a pale temple of polished marble — diagonal checker and rosette inlays with thin GILT lines, fluted pilasters, gilded doors. Tint: pale gold — the brightest place, but keep the stone in mid values (BONE only on lit edges), still moonlit.",
+    "town": "the TOWN at night, exactly like town.png: a moonlit clearing at the mouth of the dungeon — night grass, pale trodden dirt paths, worn cobbles, weathered fences, dark pines. Tint: moss — calm and cool, lit by a huge pale moon; warm light only from windows and fires the game adds.",
+}
+
+# phase 2: the shared briefs say "flagstone" and "dressed stone"; three places are not masonry at all, so their floors and walls get their
+# own briefs (the D5 fork's two lanes — the Burrows and the Fens — must tell apart at a glance: earth and timber vs planks over water)
+BRIEF3: dict[str, dict[str, str]] = {
+    "fens": {
+        "floor_0": "the common FLOOR: a sunken BOARDWALK — three LONG weathered grey-green PLANKS running left-to-right across the whole tile, INK-black WATER showing in the narrow gaps between them, the planks' top edges lit MIST; NO flagstones, NO mortar grid; seamless left-to-right",
+        "floor_1": "a FLOOR variant: the same boardwalk planks with one plank missing — a strip of black water with a MIST moon glint where it was",
+        "floor_2": "a FLOOR variant: the same boardwalk planks with a clump of dark moss and a reed tuft growing through a gap at one corner",
+        "floor_3": "a FLOOR variant: the same boardwalk planks, older and darker, one plank cracked along its length, a nail head",
+        "wall_face_0": "the FRONT FACE of a wall: a PALISADE of upright rotten LOG posts standing in black water, their rounded tops lit MIST (the ledge), hanging moss between them; seamless left-to-right",
+        "wall_face_1": "a WALL FACE variant: the same log palisade, one log broken shorter, a rope lashing; seamless left-to-right",
+        "wall_top": "the TOP of the palisade seen straight down: the round cut ends of heaped logs and piled mossy stones, lit on their upper-left; seamless in every direction",
+        "door": "a DOORWAY in the palisade: a gap between two thick log posts with a lashed plank gate half open onto darkness",
+        "stairs_down": "STAIRS GOING DOWN: a short wooden LADDER-STAIR of planks descending into black water and darkness, rope rails",
+        "stairs_up": "STAIRS GOING UP: wooden plank steps rising toward the viewer out of the water, the top step lit MIST",
+    },
+    "burrows": {
+        "floor_0": "the common FLOOR: PACKED EARTH filling the tile — a trodden ochre-tinted earth field with a few pebbles and one dark root tendril; NO flagstones, NO mortar lines; calm; seamless in every direction",
+        "floor_1": "a FLOOR variant: the same packed earth with a thick dark ROOT crossing it and a scatter of pebbles",
+        "floor_2": "a FLOOR variant: the same packed earth with claw scrapes and a small pile of loose soil",
+        "floor_3": "a FLOOR variant: the same packed earth, a little darker and damp",
+        "wall_face_0": "the FRONT FACE of a wall: a rough EARTH BANK held up by dark TIMBER shoring — two upright posts and a horizontal beam across the top (the beam's top edge is the lit MIST ledge), roots hanging out of the earth between them; seamless left-to-right",
+        "wall_face_1": "a WALL FACE variant: the same earth bank and timber shoring, one post leaning, earth spilling from behind a cracked plank; seamless left-to-right",
+        "wall_top": "the TOP of the earth wall seen straight down: heaped packed earth with roots and a few buried stones, lit on their upper-left, never black; seamless in every direction",
+        "door": "a DOORWAY: a low tunnel mouth dug into the earth bank, framed by a timber lintel and two posts, a lashed plank door ajar onto darkness",
+        "stairs_down": "STAIRS GOING DOWN: rough steps cut into packed earth, each edged with a timber board, descending into darkness",
+        "stairs_up": "STAIRS GOING UP: timber-edged earth steps rising toward the viewer, the top step lit",
+    },
+    "deep": {
+        "floor_0": "the common FLOOR: unworked wet CAVE ROCK, irregular slabs and fissures (NO straight mortar lines, NO square stones), a few tiny pale MIST crystal specks; seamless in every direction",
+        "floor_1": "a FLOOR variant: the same cave rock with a wide fissure and loose stones",
+        "floor_2": "a FLOOR variant: the same cave rock with a patch of small pale cave mushrooms",
+        "floor_3": "a FLOOR variant: the same cave rock, a shallow black puddle catching a MIST glint",
+        "wall_face_0": "the FRONT FACE of a cave wall: jagged unworked rock with rounded bulges and dripstone, the top edge a MIST-lit ridge, no courses, no blocks; seamless left-to-right",
+        "wall_face_1": "a CAVE WALL variant: the same jagged rock with a vein of pale crystals",
+        "wall_top": "the TOP of cave rock seen straight down: lumpy irregular rock masses lit on their upper-left, never black; seamless in every direction",
+        "door": "a DOORWAY: a narrow natural rock CLEFT opening onto darkness, jagged edges",
+        "stairs_down": "STAIRS GOING DOWN: rough natural rock ledges descending into black",
+        "stairs_up": "STAIRS GOING UP: rough natural rock ledges rising toward the viewer",
+    },
+}
+
+
+HEADER3 = """You are painting ENVIRONMENT TILES for the game "Riddle" (a gothic dark-fantasy roguelike on a phone, seen top-down at a
+high three-quarter angle). FIRST look at these approved STYLE TARGETS (you may open these images and nothing else in the
+repository): /home/g/p/riddle/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/art/ui/targets/style/watch_fens.png,
+/home/g/p/riddle/art/ui/targets/style/boss.png, /home/g/p/riddle/art/ui/targets/style/town.png. Their dungeon (and town) floors and walls are the TARGET LOOK.
+
+Use your built-in image_gen tool, one call per tile below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT touch
+anything outside /home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. OVERWRITE
+existing files.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+{preamble}
+=== THIS PLACE ===
+{biome_desc}
+Its tinted mid-tones: DUSK here is {dusk}, MOON here is {moon} (use these instead of the plain DUSK/MOON); INK, UMBRA, MIST,
+BONE, BLOOD, EMBER, GILT are unchanged.
+
+=== HOW THE TILES ARE USED (critical) ===
+Each 1024x1024 image is box-downscaled to a 16x16 tile and drawn tiled edge to edge in a top-down room, beside characters
+about 1.5 tiles tall. So:
+- Paint each tile as a 16x16 PIXEL GRID blown up 64x: every cell a 64 px square, the forms blocked in those square cells with
+  STEPPED edges — but each cell a transparent watercolour WASH (granulation, pigment pooling at the wash edge), not a flat
+  digital fill. INK joints / mortar / gaps about one cell (64 px) thick. BOLD shapes, 2-4 large forms, no hairline detail.
+- Opaque tiles fill the square edge to edge and TILE SEAMLESSLY with themselves (floors and wall tops in every direction,
+  wall faces left-to-right). The four floor variants share one overall value and hue so they mix.
+- VALUES: floors are mid-dark and calm (UMBRA and the tinted DUSK, the tinted MOON on the lit side of each stone, MIST only as
+  a rare moonlit edge) — the characters must read on top of them; wall tops are built masonry a little lighter than the
+  floor (never black void); a wall face's top ledge is the brightest line of the set (a MIST moonlit rim).
+- LIGHT: cold moonlight from above (lit top edges, shadowed bottom edges). NO warm light, NO torch glow, NO amber or brown
+  cast in any tile (the game adds torch pools itself). Paper grain very faint; halftone only in the deepest joints.
+- Keyed props: the object only, centred, filling about 70 % of the square, INK contour, on a TRANSPARENT background (or, if
+  the tool gives an opaque image, flat uniform pure MAGENTA #FF00FF edge to edge); no ground shadow, no magenta on the
+  object. A flame (lantern, brazier) may be EMBER; everything else stays in the palette.
+Save each as a 1024x1024 PNG at the exact path.
+
+=== TILES ===
+"""
+
+
+def write_prompts3(biomes: list[str], split: bool = True) -> list[str]:
+    """phase 2: art/prompts/p2_tiles_<biome>_{a,b}.txt — (a) the opaque tiles, (b) the props and the place's own pieces"""
+    import sys as _s
+    _s.path.insert(0, str(ROOT))
+    from make_prompts import style_preamble
+    out = []
+    for b in biomes:
+        dusk, moon = tinted(b)
+        head = HEADER3.format(preamble=style_preamble(), biome_desc=BIOMES3[b], dusk=dusk, moon=moon)
+        allp = list(pieces(b).items())
+        groups = {"a": [x for x in allp if x[1][0] == "env"], "b": [x for x in allp if x[1][0] != "env"]} if split else {"": allp}
+        for g, items in groups.items():
+            lines = [head]
+            for i, (n, (bg, tx, what)) in enumerate(items, 1):
+                what = BRIEF3.get(b, {}).get(n, what)
+                tall = f" (a TALL piece: {tx} texels — paint it on a 1024x1536 canvas, the object filling the height)" if tx != "16x16" else ""
+                lines.append(f"{i}) /home/g/p/riddle/art/generated/envp_{b}_{n}.png — {what}{tall}.")
+            name = f"p2_tiles_{b}_{g}" if g else f"p2_tiles_{b}"
+            (ROOT / "prompts" / f"{name}.txt").write_text("\n".join(lines) + "\nWhen all tiles are saved, list the final paths. Do nothing else.\n")
+            out.append(name)
+    return out
 
 
 def ids(biome: str) -> list[str]:
@@ -202,6 +356,8 @@ if __name__ == "__main__":
         write_prompts(sys.argv[2:] or list(BIOMES))
     elif cmd == "own":   # python3 art/painted.py own <biome>: a batch of only that biome's own pieces
         write_prompts([sys.argv[2]], set(OWN_PIECES[sys.argv[2]]), "_own")
+    elif cmd == "p2":   # python3 art/painted.py p2 [biome ...]: art direction phase 2 prompts
+        print(write_prompts3(sys.argv[2:] or list(BIOMES)))
     elif cmd == "manifest":
         add_manifest()
     else:

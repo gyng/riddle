@@ -222,6 +222,23 @@ move ±2 lineages, so compare two runs before believing a move):
 Also done earlier: `noise_discipline` is earnable (a blind foe in view teaches `foe:<kind>:blind`); the repeat offers a
 `throw` row's kind as one tap (`Lineage.repeat_added`).
 
+### Art direction phase 2 (2026-09-30, the owner approved docs/ART_DIRECTION.md: regenerate the library to the guide)
+Owner decisions: the primary/SEND gem is BLOOD; "the hero must be readable" — the proportion is picked by a blind read at game size.
+Pipeline (all under `art/`): `make_prompts.py` `header3()` puts the guide's STYLE PREAMBLE (read verbatim from `prompts/style_targets.txt`)
+first in every sprite prompt and points Codex at the style targets; briefs are `brief3` in `manifest.json` (heroes; `phase2_briefs.py`
+the bestiary; `phase2_ui.py` UI/portraits/items/town; `painted.py p2` the tiles, `BRIEF3` for the places that are not masonry).
+Sprites come back on alpha or a MAGENTA key (`pack.key_source` reads the key off the corners; blue still works). `art/p2sheet.py`
+makes the before/after sheets (`scratchpad/style/phase2/`) and `qc` composites every sprite with the hero into its biome's dressed room
+and runs `art-qc.py --style`. Codex batches: `art/prompts/p2_*.txt`, logs `art/logs/p2_*.log`, ~8 concurrent, ~10 min a batch.
+
+1. **Heroes** (4 classes × man/woman/cat + the 4 default-look aliases, 16 portraits). Blind read test (`scratchpad/style/phase2/readtest/`:
+   fighter-man, rogue-woman, ranger-cat at 1/4, 1/5 and 1/6.5 head, 18 panels at true device size on two floors, random facing and
+   hurt; two fresh screenshot-only readers): class 12/12 at every proportion, look **5/12 · 7/12 · 11/12**, facing 10 · 12 · 12, hurt
+   12 · 12 · 12 — overall **81 % · 90 % · 98 %**, so the long 1/6.5 figure ships (its BONE face patch and MIST blade rim carry the
+   read; the chunky 1/4 figure's face and ears drowned in the dark kit). The three tested sprites are the shipped ones; the other nine
+   were drawn against them. Every hero wears the BLOOD cloak (the rogue's retried once: 0.1 % blood in a frame). Style QC: every hero
+   frame passes in the Warrens.
+
 ### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
 Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,
 slash arcs, desktop meters in the side column (d-watch 6.2), darker memory and warmer torches. The closer zoom was reverted. The floor
