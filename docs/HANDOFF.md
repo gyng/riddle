@@ -220,13 +220,21 @@ the fake engine (`web/src/engine/fake.ts` ~2082–2195) already has Cut 29 stand
 
 ## 7. Queued cuts
 
-- **Cut 30 — traits** (`docs/TRAITS.md`, `docs/CUT30.md` draft). Prototype (`examples/traits_proto.rs`):
-  stat-bonus traits are too strong and mostly just numbers (2/66 pass); real builds come from traits
-  that change what a rule's condition reads (`hale`, `light sleeper`) and from costs. Ship only traits
-  that pass the strict build test; a trait never acts on its own; arrives at heir 3 / first death past D5.
-- **Cut 31 — specialisation forks at class levels 3/5/7 and weapon/armour properties** (reach, cleave,
-  stagger, bleed, pin; quiet, fireproof) with conditions like `weapon: reach`; each fork must change the
-  best set by ≥ 2 rows and stay under the lever.
+- **Cut 30 — idle first: the hero climbs on his own** (`docs/CUT30.md`, contract 2026-09-30; after Cut 29
+  merges). Eight parts: (1) the idle floor — the `Steady` school stance, drills at a boss's second meeting,
+  scars, the quartermaster packing known counters (IDLE: D8 day 1, D23 by day 12, gold every day); (2)
+  packages v1 — 4 stances, 6 tactics (today's cards), 4 temperaments (the trait core's mapped shapes: lexicon,
+  fact learning, wake cards, ladder arrival, neutral bots, old-save mapping), levelling from runs; the editor
+  becomes the pen, a late stage; (3) the town hub v1 (`docs/TOWN.md`: camp → blacksmith, storehouse, kennel,
+  bank; walkers; the mouth = send; a three.js `town` scene with DOM targets); (4) the tracks panel; (5) oaths
+  as a one-quest board with no stake, or deferred; (6) the replacement invariants (IDLE/PICKED/TUNED/RANDOM,
+  1.5× · 1.5×, nothing required) with the exact AGENTS.md/PLAN.md edits, made at merge; (7) a control cohort on
+  the pre-pivot build under `idle-hybrid` first (can run now), then cohort 25; (8) the owner checks each new
+  system (agent readers only filter). Hold before Cut 31. The superseded traits draft is
+  `docs/CUT30-traits-superseded.md`.
+- **Cut 31 — to re-scope under the pivot**: parallel heroes (houses, tavern, expedition board, aggregated
+  report) first; specialisation forks and weapon/armour properties (reach, cleave, stagger, bleed, pin; quiet,
+  fireproof) return as packages/loot later, not as rows to write.
 - The owner's listening pass (`eval/AUDIO.md`) would let raters score audio for the first time.
 
 ## 8. Gotchas learned the hard way
