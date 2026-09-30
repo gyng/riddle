@@ -267,6 +267,16 @@ and runs `art-qc.py --style`. Codex batches: `art/prompts/p2_*.txt`, logs `art/l
    (a fork's pass: tokens `--ink … --gilt` in `:root`; `--acc` GILT for trim/text, the primary action BLOOD, `--hp` BLOOD, ok/info MIST,
    warn EMBER; ~900 literals moved by role; EMBER kept only where a flame is; the old `--ink` text token is `--ink-text`). Style QC
    on the walked screens: death, report and the second camp pass; the first camp sits at p99 L* 60 (bar 62).
+5. **Pets, items, effects**: the pet portraits (rat, jackal, monkey, goblin; the pet sprites are the bestiary's), the item glyphs
+   (potion, scroll, sword, breastplate, coins), the torch (EMBER, retried once: its flame read as a red stick), the BLOOD banner and
+   blood decals, shrine, vault / open vault, nest, bones, moss, crack, rubble — the shared hue assets and ramp decals (`p2_items*`).
+6. **The town** (docs/TOWN.md §7, enough for Cut 30's town v1): the dungeon mouth ×3 (cave · timber · gatehouse), campfire ×2
+   frames, tent, supply crate, staked plot, scaffold; blacksmith, storehouse, kennel and bank × 3 looks (built · improved · grand);
+   townsfolk (smith, merchant, child, carter), the mule cart, a dog, loot sacks ×2, a glowing chest, a BLOOD flag ×2 frames; a walk
+   frame per class (`walk_<class>`, the default look); the town terrain as painted tiles (`envp_town_*` → `town_env_*`: grass ×4,
+   dirt ×3 + edge, plaza ×2, water, cliff, fence, low wall, gate, bridge, two trees); the `!` rune marker (`icons/alert`) and the
+   minimap / roster plaques (`frames/plaque_*`, 9-slice 64). All keyed sprites are `kind: "town"` in the manifest (art-qc treats an
+   undrawn one as optional: the town scene draws a block + its icon). Nothing renders them yet — Cut 30 wires the scene.
 
 ### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
 Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,
