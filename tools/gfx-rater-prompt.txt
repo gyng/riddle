@@ -24,3 +24,6 @@ Finish with a JSON block, exactly this shape, and nothing after it:
 ```json
 {"m01": {"readability": 7, "hierarchy": 6, "target": 5, "motion": 4, "juice": 5}, "m02": {...}, ...}
 ```
+
+
+BUDGET (hard): at most 60 tool calls and 80 image reads in total. View each screenshot/strip once; do not re-open images to double-check. When you reach the budget, stop and file your scores with what you have.
