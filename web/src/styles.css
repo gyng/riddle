@@ -1575,10 +1575,11 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
    bars as sunken brass troughs (cut29.css thinned them to 4 px) with a molten gold fill and a hot tip */
 :is(.sheet, .panel, .parchment) .forecast .bar .track { height: 9px; border-radius: 2px; background: linear-gradient(var(--umbra), #2e3756);
   box-shadow: inset 0 2px 3px rgba(13, 12, 20, .85), 0 0 0 1px var(--mist), 0 1px 0 rgba(255, 244, 217, .5); }
-:is(.sheet, .panel, .parchment) .forecast .bar .track .fill { background: linear-gradient(#f0e8d6, #adc0d4 40%, #6984ac 60%, var(--moon));
-  box-shadow: inset 0 1px 0 rgba(255, 253, 227, .7), 0 0 6px rgba(170, 190, 213, .6); }
+/* (phase 2, round 28 — r27: "plain steel-blue gradients, not molten"): the fill is hot metal again, BLOOD to EMBER with a BONE-hot tip */
+:is(.sheet, .panel, .parchment) .forecast .bar .track .fill { background: linear-gradient(90deg, var(--clot), var(--blood) 45%, var(--ember)), var(--blood);
+  box-shadow: inset 0 1px 0 rgba(234, 223, 197, .55), inset 0 -2px 0 rgba(92, 11, 28, .6), 0 0 6px rgba(232, 146, 58, .5); }
 :is(.sheet, .panel, .parchment) .forecast .bar .track .fill::before { content: ""; position: absolute; right: -2px; top: -2px; bottom: -2px; width: 4px; border-radius: 2px;
-  background: #fef3d8; box-shadow: 0 0 6px 2px rgba(208, 209, 204, .9); }
+  background: var(--bone); box-shadow: 0 0 6px 2px rgba(232, 146, 58, .9); }
 /* (raters: "the EDIT slab is a plain dark bar — a carved gold button with a glow"): the why sheet's EDIT is a gilt-edged iron plate */
 :is(.sheet, .panel, .parchment) button.btn.primary.why-edit { background: linear-gradient(#364668, #1f1f32 55%, #161520); color: var(--bone); border: 2px solid var(--gilt);
   text-shadow: 0 1px 0 var(--ink), 0 0 10px rgba(183, 196, 210, .6); box-shadow: inset 0 1px 0 rgba(240, 232, 212, .45), 0 0 0 2px var(--ink), 0 0 16px rgba(170, 190, 213, .35), 0 4px 8px rgba(13, 12, 20, .6); }
@@ -1620,9 +1621,11 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .div-scene .div-view.a { left: 0; right: auto; }
 .div-scene .div-view.b { left: auto; right: 0; }
 .div-scene:not([data-state="still"])::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(50% - 2px); width: 4px; background: linear-gradient(#415880, #272c44); box-shadow: 0 0 0 1px var(--ink); }
-.div-scene .div-view { transition: filter .25s; }
-.div-scene[data-phase="sent"] .div-view.b { filter: brightness(.45) saturate(.5); }
-.div-scene[data-phase="new"] .div-view.a { filter: brightness(.75) saturate(.8); }
+/* phase 2, round 28 (r27: "the insets are murky dark grey"): the playing pane lifted out of the moonlit night (the watch's grade is
+   tuned for a full screen, an inset needs more light), the waiting pane dimmed less */
+.div-scene .div-view { transition: filter .25s; filter: brightness(1.45) contrast(1.08); }
+.div-scene[data-phase="sent"] .div-view.b { filter: brightness(.8) saturate(.6); }
+.div-scene[data-phase="new"] .div-view.a { filter: brightness(1.05) saturate(.8); }
 .div-scene .div-tag { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .div-scene .div-ptag { position: absolute; top: 5px; max-width: calc(50% - 14px); padding: 2px 6px; border-radius: 3px; background: rgba(13, 12, 20, .8); font: 700 12px/1.25 var(--sans);
   color: #e2d7bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 1; }
@@ -1650,3 +1653,15 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 /* gfx round 26 (raters: "'rat slain' ghosted, nearly invisible"): the watch's caption sits on a soft dark band across the view */
 .watch .ticker { padding: 5px 12px 6px; background: linear-gradient(90deg, transparent, rgba(13, 12, 20, .72) 22%, rgba(13, 12, 20, .72) 78%, transparent);
   text-shadow: 0 2px 0 var(--ink), 0 0 10px rgba(13, 12, 20, .9); }
+
+/* art direction phase 2, round 28 (r27, every rater: "info plaques are flat navy slabs"): the carved plaques and tablets catch the moon —
+   a MIST bevel on the top edge, a shadowed lower lip, a soft wash of light from above and pigment pooling at the sides, drawn over the
+   9-slice art (inset shadows sit inside the border box, so the frame stays the frame) */
+.skin-tile .report .tile.plaque, .skin-tablet :is(.row.tablet, .patch.tablet, .oath.tablet) {
+  box-shadow: inset 0 1px 0 rgba(164, 188, 214, .38), inset 0 2px 0 rgba(164, 188, 214, .12), inset 0 -2px 0 rgba(13, 12, 20, .55),
+    inset 0 -10px 14px -8px rgba(13, 12, 20, .7), 0 3px 5px rgba(13, 12, 20, .6);
+  background: radial-gradient(120% 90% at 50% -10%, rgba(164, 188, 214, .16), rgba(164, 188, 214, .04) 55%, transparent 75%),
+    linear-gradient(90deg, rgba(13, 12, 20, .28), transparent 12%, transparent 88%, rgba(13, 12, 20, .28));
+}
+.skin-tablet .patch.tablet:first-child { box-shadow: inset 0 1px 0 rgba(184, 148, 72, .55), inset 0 -2px 0 rgba(13, 12, 20, .55),
+    inset 0 -10px 14px -8px rgba(13, 12, 20, .7), 0 0 10px rgba(184, 148, 72, .25), 0 3px 5px rgba(13, 12, 20, .6); }

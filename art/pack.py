@@ -144,11 +144,36 @@ def quantise(rgba: np.ndarray, colours: int) -> np.ndarray:
     return out
 
 
-def build_sprite(src: Path, master_h: int, quant: bool) -> Image.Image:
+RIM = (234, 223, 197)   # BONE
+
+
+def moon_rim(before: np.ndarray, after: np.ndarray, k: float = 0.6) -> np.ndarray:
+    """art direction phase 2 (the owner: "the hero must be readable"; blind round 27: "the hero a tiny grey blob"): a thin BONE moon
+    rim on the hero — the silhouette's top- and left-facing edge pixels (just inside the ink ring) take the moon instead of the ring's
+    darkening. `before` is the resampled master, `after` the same padded and outlined."""
+    p = OUTLINE_PX
+    m = np.pad(before[..., 3] >= 128, p)
+    q = np.pad(m, 1)
+    edge = m & ~q[:-2, 1:-1] & q[2:, 1:-1]   # top-facing (the moon is above), not a one-texel strand (a bowstring, a hair)
+    e = np.pad(edge, ((0, 0), (1, 1)))
+    edge &= e[:, :-2] | e[:, 2:]   # runs of two or more (a lone step on a diagonal would read as a dotted line)
+    rows = np.where(m.any(1))[0]
+    if rows.size:   # the upper 60 % of the figure (head, shoulders, the raised weapon), where the moon lands
+        edge[int(rows[0] + 0.6 * (rows[-1] - rows[0])):] = False
+    src = np.pad(before[..., :3], ((p, p), (p, p), (0, 0)))
+    out = after.copy()
+    out[edge, :3] = src[edge] * (1 - k) + np.array(RIM, np.float32) * k
+    return out
+
+
+def build_sprite(src: Path, master_h: int, quant: bool, rim: bool = False) -> Image.Image:
     rgba = key_source(src)
     rgba = crop_to_alpha(rgba)
     rgba = resample_master(rgba, master_h)
-    rgba = outline(rgba)
+    out = outline(rgba)
+    if rim:
+        out = moon_rim(rgba, out)
+    rgba = out
     if quant:
         rgba = quantise(rgba, QUANT_COLOURS)
     return Image.fromarray(np.clip(rgba, 0, 255).astype(np.uint8), "RGBA")
@@ -188,7 +213,7 @@ def main(argv: list[str]) -> int:
             missing.append(aid)
             continue
         if asset["bg"] == "keyed":
-            im = build_sprite(src, int(asset["master_h"]), quant)
+            im = build_sprite(src, int(asset["master_h"]), quant, rim=aid.startswith(("hero_", "walk_")))
             items.append((aid, im))
             meta_sprites[aid] = {"kind": asset["kind"], "texel_h": asset["texel_h"], "master_h": asset["master_h"]}
             print(f"  {aid:<20} {im.width}x{im.height}  keyed")

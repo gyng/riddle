@@ -20,6 +20,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parent
 MOON_LIFT = {"burrows": 0.8, "fens": 0.4, "deep": 0.75, "foundry": 0.45}   # art direction phase 2: see convert()
 EDGE_LIFT = {"burrows"}
+CALM = {"fens": 0.7}   # places whose floors are damped to background (convert)
 PAINT_COLOURS = 24   # per tile (art-qc allows this for the painted register, `_painted.json`)
 
 # the pieces: name -> (bg, texels, what) — the drawing brief shared by every biome; the biome adds its materials
@@ -296,7 +297,16 @@ def convert(src: Path, bg: str, texels: tuple[int, int], key_source) -> Image.Im
         a = np.asarray(im, np.float32)
         m = a.mean(axis=(0, 1), keepdims=True)
         a = np.clip(m + (a - m) * 1.12, 0, 255)
+        if src.stem.startswith("envp_") and src.stem.split("_")[1] in CALM and "_floor_" in src.stem:
+            # blind round 27 (the Fens "noisy blue stripes"): a floor is background — each plank smoothed along its grain (a
+            # wrapped 5-texel run, so it still tiles), the texel speckle and contrast damped toward the tile's mean
+            sm = sum(np.roll(a, d, axis=1) for d in (-2, -1, 0, 1, 2)) / 5
+            a = a * 0.35 + sm * 0.65
+            m = a.mean(axis=(0, 1), keepdims=True)
+            a = m + (a - m) * CALM[src.stem.split("_")[1]]
         k = MOON_LIFT.get(src.stem.split("_")[1], 0.0) if src.stem.startswith("envp_") else 0.0
+        if src.stem.startswith("envp_") and src.stem.split("_")[1] in CALM and "_floor_" in src.stem:
+            k = 0.0   # (no moon sparkle on a calm floor: the walls carry the moon)
         if src.stem.split("_")[1] in EDGE_LIFT and "_floor_" in src.stem:
             k *= 0.3   # (the earth floors stay calm: the ledges carry the moon)
         if k:   # phase 2 (§3: every frame spans INK to MIST): the places painted darkest get their lit edges lifted toward MIST

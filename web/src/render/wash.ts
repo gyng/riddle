@@ -95,7 +95,9 @@ vec3 washLook(vec3 o, vec2 tuv, vec2 world, float sa) {
   c *= 0.94 + 0.12 * gran * smoothstep(0.03, 0.2, l);
   c = mix(c, W_INK, ink * 0.4);
   // 4 · paper: grain and fibre in CSS px (screen-anchored, like print); the brightest lights lean to BONE
-  vec2 sp = gl_FragCoord.xy / uWashDpr;
+  //    (blind round 27: screen-fixed grain and dots on the ground made the whole floor "shimmer" in motion as the camera glided — on
+  //    world texels they are anchored to the world instead, ~4 CSS px per env texel, so the ground carries its grain with it)
+  vec2 sp = mix(gl_FragCoord.xy / uWashDpr, world * 4.0, step(0.95, sa));
   float grain = wHash(floor(sp)) * 0.55 + wNoise(sp * vec2(0.08, 0.5)) * 0.45;
   c *= 0.96 + 0.07 * grain;
   c = mix(c, W_BONE * (0.9 + 0.1 * grain), smoothstep(0.7, 0.98, l) * 0.2 * (1.0 - red));

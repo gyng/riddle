@@ -262,15 +262,15 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
   // art direction phase 2 (docs/ART_DIRECTION.md §2, §6): the art carries the palette and the place's tint itself, so the grade is a cold
   // moonlit night over it — rgb a touch toward MOON, a low ambient (~60 % of the frame in INK/UMBRA), the EMBER pools (lift) the warm
   // counterpoint. The v2 grades (warm brown Warrens, ochre Burrows) are in git history at 7253bb9.
-  default: [0.96, 0.99, 1.05, 0.74, 0.95, 1],
-  warrens: [0.96, 0.98, 1.04, 0.74, 1.0, 1],
-  burrows: [1, 0.98, 0.97, 0.74, 0.95, 1],
-  fens: [0.94, 1, 1.05, 0.62, 1.0, 0.95],
-  crypt: [0.95, 0.97, 1.06, 0.74, 0.85, 0.95],
-  foundry: [1, 0.97, 0.97, 0.76, 0.8, 1],
-  deep: [0.94, 0.98, 1.08, 0.7, 0.85, 1],
-  sanctum: [0.96, 0.97, 1.0, 0.78, 0.45, 0.9],
-  town: [0.95, 1, 1.04, 0.74, 1.0, 1],
+  default: [0.96, 0.99, 1.05, 0.84, 0.95, 1],
+  warrens: [0.96, 0.98, 1.04, 0.84, 1.0, 1],   // round 28: ambient a step up (0.74; r27 "half the screen near-black")
+  burrows: [1, 0.98, 0.97, 0.84, 0.95, 1],
+  fens: [0.94, 1, 1.05, 0.72, 1.0, 0.9],
+  crypt: [0.95, 0.97, 1.06, 0.84, 0.85, 0.95],
+  foundry: [1, 0.97, 0.97, 0.86, 0.8, 1],
+  deep: [0.94, 0.98, 1.08, 0.8, 0.85, 1],
+  sanctum: [0.96, 0.97, 1.0, 0.84, 0.45, 0.9],
+  town: [0.95, 1, 1.04, 0.84, 1.0, 1],
   boss_flash: [1, 1, 1, 1, 0.3, 1],
 };
 

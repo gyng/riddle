@@ -142,7 +142,7 @@ const fadeDim = (e: { fade: number }): number => e.fade <= 0 ? 1 : Math.max(0.12
  *  their tint and moonlight, not by the torch colour (the v2 per-biome casts are in git history at 7253bb9) */
 const LIGHT_TINT: Record<string, [number, number, number]> = { default: [1, 1, 1] };
 /** §6: the hero's own small light is cold MIST, not amber */
-const HERO_LIGHT: [number, number, number] = [0.66, 0.78, 0.95];
+const HERO_LIGHT: [number, number, number] = [0.88, 0.98, 1.12];   // round 28: brighter (was 0.66/0.78/0.95: "the hero a tiny grey blob")
 const HERO_Z = 3.2, HERO_COVER = 0.3, BOSS_COVER = 0.1, HIDDEN_MAX = 0.5; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
 const MAX_LIGHTS = 12;             // art pass: torches lighting the blit (nearest the camera)
 const ROOM_LOOK = 9;               // gfx round 5: the camera's lean looks this many tiles around the hero
@@ -1055,7 +1055,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const tint = LIGHT_TINT[st.biome] ?? LIGHT_TINT.default!;
       // gfx round 16 (raters, the Fens: "light the hero with a warm radius"): the hero's own light stays warm in every biome (torches keep the cast)
       // (round 22, the Fens at 5.5: "warm the hero's pool further" — there it is wider and a lantern's amber against the cold water)
-      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(7, st.vision + 1.5), c: HERO_LIGHT }); }   // phase 2: a cold MIST pool (was a warm amber one; the Fens' was a lantern)
+      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(8, st.vision + 2.5), c: HERO_LIGHT }); }   // phase 2: a cold MIST pool (was a warm amber one; the Fens' was a lantern)
       juice.lights(now, fieldLights);
       for (const [px, py] of st.projectilePositions()) fieldLights.push({ x: px + 0.5, y: py + 0.5, r: 2, c: [0.7, 0.6, 0.4] });
       for (const [cx, cy] of candles.slice(0, 3)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: cx / TILE, y: -cy / TILE, r: 2.2, c: [0.7, 0.45, 0.2] });
