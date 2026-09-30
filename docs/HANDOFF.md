@@ -136,6 +136,24 @@ deterministic (8.3 · 13 · 11/18 · 1.82×, exactly the 28th's). Checkpoint 1 (
   AS-stall s1 6, AV s1 6: late days with nothing left to buy and oaths sworn that the set never keeps), dayplayer stall.
   Diagnostics: `PROG_MARKS=1` / `PROG_OATHS=1` on `examples/progression` print the check-ins over ◆8 and each day's oaths.
 
+Checkpoint 2 (item 3 + the oath a player keeps):
+- **Titles come again, numbered** (`oath::next_title`: `Bold at D34`, `Bold at D34 II`, … — the first of its line
+  neither owned nor on the board); a numbered title stands while its line is the kind's line. A draw may re-draw the
+  replaced oath's own kind when it gives something else (AP s1 at D33: every other kind's reward already on the
+  board → `no oath to draw`, ◆9). The ◆2 draw is now a sink that never dries.
+- **The replay's player reads the oath line before swearing** (`progression_lib::pick_oath`, the day's first
+  check-in): the unsworn oath the set keeps most on the camp's panel, when a night keeps it ≥ 50 %. It swore the
+  board's first oath whatever the set could keep (`Warlord · fire` nine days by a set with no fire; `tame · a new
+  kind` 53 times on empty days by sets with no tame row) — PROGRESSION.md §7's projection assumed kept oaths.
+- Measured (p3): unlock days **10.2 PASS**, marks **8 PASS**, purse **0.93× PASS**, stall **11/18 FAIL** (was 14–15:
+  chaotic — kept oaths grant waystones/routes; the stalls are the Queen D28 ×3, the King D33, and walls after an
+  ascension: AU s1 D28 5 d, AQ s2 D23 5 d). Dayplayer unchanged (10.0 PASS, stall 4). `WALL_DAYS` 1 was tried on
+  the dayplayer: stall 4 → 6 (reverted). The Queen: from D24, 48 % reach her floor and 0 past on every candidate
+  (21 of 32 deaths to her lurkers); FULL passes her on ~23 % of the sends that reach her.
+- Harness gaps found (not changed): the replays never buy supplies (a `read silence` / `throw fire` row packs only
+  what is found; the repeat's `+ fire · for throw fire` offer is never tapped); an absence fields the vault only on
+  its first send (`start_run` takes `Game.loadout`), so the camp's panel (fielded) overstates the night.
+
 State at `08a880b` (2026-09-28, core agent): 450 cargo tests (+1 ignored), clippy -D warnings (incl. examples), wasm rebuilt, qa all
 PASS, every bot / lever / oath / dice / stall / dance / lane / divergence / return gate PASS (FULL−D23/28/33 held 100 %,
 kitted too; COUNTERED ≥ D14 70 %; lever with every oath reward 4/4). `node tools/gates.mjs --full` exits 1 on exactly

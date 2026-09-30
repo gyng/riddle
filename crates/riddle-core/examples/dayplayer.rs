@@ -578,7 +578,9 @@ fn main() {
     let verbose = a.iter().any(|x| x == "--verbose");
     // Seeds in parallel (each is ~4 min of simulation).
     let outs: Vec<SeedOut> = std::thread::scope(|sc| {
-        let hs: Vec<_> = (1..=seeds).map(|s| sc.spawn(move || play(s, days, checkins, verbose))).collect();
+        // `--only N`: that seed alone (a verbose trace one can read)
+        let only = a.iter().position(|x| x == "--only").and_then(|i| a.get(i + 1)).and_then(|s| s.parse::<u64>().ok());
+        let hs: Vec<_> = (1..=seeds).filter(|s| only.is_none_or(|o| o == *s)).map(|s| sc.spawn(move || play(s, days, checkins, verbose))).collect();
         hs.into_iter().map(|h| h.join().unwrap()).collect()
     });
     // Cut 7 §6: the first hour, over more seeds than the fortnight (it is cheap).

@@ -168,10 +168,11 @@ pub fn draw(game: &mut Game) -> Result<String, String> {
     kinds.rotate_left(off);
     kinds.sort_by_key(|k| l.oaths.iter().any(|o| o.kind == *k));
     let replace = l.oaths.iter().position(|o| !sworn.contains(&o.id));
+    // (the replaced oath's own kind last: a fresh one of it only when it gives something else — AP
+    // s1 at D33: every other kind's reward already on the board, the draw failed and marks piled)
+    let own = replace.map(|i| l.oaths[i].kind.clone());
+    kinds.sort_by_key(|k| own.as_deref() == Some(*k));
     for kind in kinds {
-        if replace.is_some_and(|i| l.oaths[i].kind == kind) {
-            continue;
-        }
         l.oath_drawn += 1;
         if let Some(o) = draw_kind(l, kind, l.oath_drawn) {
             if l.oaths.iter().any(|x| x.kind == o.kind && x.reward == o.reward) {
@@ -216,10 +217,39 @@ fn owned(l: &LineageState, id: &str) -> bool {
     l.unlocks.contains(id)
 }
 
-/// The reward a kind would give now, if one is left to give.
-fn reward_for(l: &LineageState, kind: &str, boss: Option<&str>) -> Option<OathReward> {
+/// Cut 29 core (marks at the deepest wall: once the catalogue was bought and every title of the
+/// pool owned, draws failed and marks piled — rater AP s1 ◆25): a title is earned again, numbered
+/// (`Bold at D34`, `Bold at D34 II`, …) — the first of its line neither owned nor offered by another
+/// oath on the board (`except`: the oath asking). Titles are the chronicle's: no stat, no card.
+fn next_title(l: &LineageState, base: &str, except: Option<&str>) -> String {
+    const ROMAN: [&str; 9] = ["II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+    let taken = |t: &str| l.titles.iter().any(|x| x == t) || l.oaths.iter().any(|o| Some(o.id.as_str()) != except && o.reward.kind == "title" && o.reward.id == t);
+    (1..)
+        .map(|n: usize| match n {
+            1 => base.to_string(),
+            n if n <= ROMAN.len() + 1 => format!("{base} {}", ROMAN[n - 2]),
+            n => format!("{base} {n}"),
+        })
+        .find(|t| !taken(t))
+        .unwrap_or_else(|| base.to_string())
+}
+
+/// A numbered title's line (`Bold at D34 III` → `Bold at D34`).
+fn title_line(t: &str) -> &str {
+    match t.rsplit_once(' ') {
+        Some((head, n)) if n.parse::<u32>().is_ok() || (!n.is_empty() && n.chars().all(|c| matches!(c, 'I' | 'V' | 'X'))) => head,
+        _ => t,
+    }
+}
+
+/// The reward a kind would give now, if one is left to give (`except`: the board's oath asking —
+/// its own title is not taken from it).
+fn reward_for(l: &LineageState, kind: &str, boss: Option<&str>, except: Option<&str>) -> Option<OathReward> {
     let pool = |pool: &[&'static str], _k: &str| next_of(l, pool).map(|id| OathReward { kind: reward_kind(id).into(), id: id.into(), label: reward_label(id) });
-    let title = |t: String| (!l.titles.contains(&t)).then(|| OathReward { kind: "title".into(), label: format!("title: {t}"), id: t });
+    let title = |base: String| {
+        let t = next_title(l, &base, except);
+        Some(OathReward { kind: "title".into(), label: format!("title: {t}"), id: t })
+    };
     match kind {
         "bold" => pool(&BOLD_REWARDS, "verb").or_else(|| title(depth_title("bold", goal(l, "bold")))),
         "lean" => pool(&LEAN_REWARDS, "card").or_else(|| title(depth_title("lean", goal(l, "lean")))),
@@ -254,7 +284,7 @@ pub fn draw_kind(l: &LineageState, kind: &str, n: u32) -> Option<OathState> {
         }
         _ => return None,
     };
-    let reward = reward_for(l, kind, boss.as_deref())?;
+    let reward = reward_for(l, kind, boss.as_deref(), None)?;
     Some(OathState { id: format!("{kind}:{n}"), kind: kind.into(), depth, boss, seen: if kind == "tamer" { tamed(l) } else { Vec::new() }, n: 0, reward, price: price(l) })
 }
 
@@ -263,7 +293,13 @@ fn stands(l: &LineageState, o: &OathState) -> bool {
     if o.kind == "slayer" && o.boss.as_deref().is_some_and(|b| l.kills.contains(b)) {
         return false;
     }
-    reward_for(l, &o.kind, o.boss.as_deref()).is_some_and(|r| r.id == o.reward.id)
+    // (a numbered title stands while its line is the kind's line now and it is not yet owned)
+    let now = reward_for(l, &o.kind, o.boss.as_deref(), Some(&o.id));
+    match now {
+        Some(r) if r.kind == "title" && o.reward.kind == "title" => title_line(&r.id) == title_line(&o.reward.id) && !l.titles.contains(&o.reward.id),
+        Some(r) => r.id == o.reward.id,
+        None => false,
+    }
 }
 
 /// Keep the board full: drop the oaths that no longer stand (never the sworn one while it stands),

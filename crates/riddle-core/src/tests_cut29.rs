@@ -301,3 +301,36 @@ fn a_commission_costs_at_most_a_days_net() {
     g.lineage.last_day_net = 0;
     assert_eq!(price(&g), 100 * crate::kit::COMMISSION_FLOOR as i32, "the floor");
 }
+
+/// Cut 29 core (item 3, marks at the deepest wall): with the pool spent and every title of the day
+/// owned, a draw still draws — the titles come again, numbered (`Lean at D33 II`) — so the ◆2 draw
+/// is a sink that never dries; a numbered title stands on the board until it is owned.
+#[test]
+fn titles_come_again_numbered_so_draws_never_dry() {
+    let mut g = Game::new(11);
+    g.lineage.best_depth = 33;
+    g.lineage.banked_depths.insert(33);
+    for (boss, _) in crate::descent::BOSS_DEPTHS {
+        g.lineage.facts.insert(format!("foe:{boss}"));
+    }
+    crate::oath::grant_all(&mut g.lineage);
+    for kind in ["bold", "lean", "fire"] {
+        let o = crate::oath::draw_kind(&g.lineage, kind, 50).unwrap();
+        assert_eq!(o.reward.kind, "title", "{kind}");
+        crate::oath::grant(&mut g.lineage, &o);
+        let again = crate::oath::draw_kind(&g.lineage, kind, 51).unwrap();
+        let line = o.reward.id.trim_end_matches(['I', 'V', 'X', ' ']);
+        assert!(again.reward.id.starts_with(line) && again.reward.id != o.reward.id && !g.lineage.titles.contains(&again.reward.id), "{kind}: the line again, numbered ({} → {})", o.reward.id, again.reward.id);
+    }
+    crate::oath::refresh(&mut g.lineage);
+    g.lineage.marks = 40;
+    for i in 0..15 {
+        g.draw_oath().unwrap_or_else(|e| panic!("draw {i}: {e}"));
+    }
+    assert_eq!(g.lineage.marks, 10);
+    let titles: Vec<&str> = g.lineage.oaths.iter().filter(|o| o.reward.kind == "title").map(|o| o.reward.id.as_str()).collect();
+    let mut dedup = titles.clone();
+    dedup.sort();
+    dedup.dedup();
+    assert_eq!(dedup.len(), titles.len(), "no title offered twice: {titles:?}");
+}

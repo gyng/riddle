@@ -488,10 +488,35 @@ pub fn buy_gold(g: &mut Game, id: &str, rec: &mut DayRec) -> bool {
     }
 }
 
+/// The oath a player swears for the day: each unsworn oath the purse pays (with $150 to spare) read
+/// on the camp's forecast as the sworn one (`Forecast.oath`: the share of the sends that keep it) —
+/// the one the set keeps most, when a night of sends keeps it at least half the time (`oath::night`).
+/// Cut 29 core: the replay swore the board's first oath whatever the set could keep (rater AS s2:
+/// `Warlord · fire` sworn nine days running by a set that throws no fire; `tame · a new kind` 53
+/// times on empty days by sets with no tame row) — PROGRESSION.md §7 projected the oaths a player
+/// keeps, and a player reads the forecast's oath line before swearing.
+pub fn pick_oath(g: &Game) -> Option<String> {
+    let sworn = riddle_core::oath::sworn_ids(&g.lineage);
+    let mut best: Option<(f64, String)> = None;
+    for o in g.lineage.oaths.iter().filter(|o| !sworn.contains(&o.id) && g.lineage.gold >= o.price + 150) {
+        let mut h = g.sim_clone();
+        h.lineage.oath_sworn = Some(o.id.clone());
+        let panel = camp_panel(&h, h.lineage.rules(), FORECAST_SIMS);
+        let p = riddle_core::oath::share(&h.lineage, &panel).map_or(0.0, |s| s.share);
+        if riddle_core::oath::night(p) >= 0.5 && best.as_ref().is_none_or(|b| p > b.0) {
+            best = Some((p, o.id.clone()));
+        }
+    }
+    best.map(|b| b.1)
+}
+
 /// Gold sinks a player of this build uses: every forge step the purse pays with $150 to spare
-/// for the shelf, and an oath sworn when the board is open, none is sworn and the purse holds
-/// twice its price (the first standing oath).
+/// for the shelf, the oaths the set keeps (`pick_oath`, read once a day: `read`) in every free
+/// slot, and commissions with the rest.
 pub fn spend_gold(g: &mut Game, rec: &mut DayRec) {
+    spend_gold_reading(g, rec, true)
+}
+pub fn spend_gold_reading(g: &mut Game, rec: &mut DayRec, read: bool) {
     loop {
         let lads = riddle_core::kit::ladders(&g.lineage);
         let Some((slot, price)) = lads.iter().filter_map(|l| l.next.as_ref().map(|n| (l.slot.clone(), n.price))).min_by_key(|x| x.1) else { break };
@@ -508,7 +533,10 @@ pub fn spend_gold(g: &mut Game, rec: &mut DayRec) {
             if sworn.len() >= riddle_core::oath::slots(&g.lineage) {
                 break;
             }
-            let Some(o) = g.lineage.oaths.iter().find(|o| !sworn.contains(&o.id) && g.lineage.gold >= o.price + 150).cloned() else { break };
+            if !read {
+                break;
+            }
+            let Some(o) = pick_oath(g).and_then(|id| g.lineage.oaths.iter().find(|o| o.id == id).cloned()) else { break };
             if g.swear_oath(&o.id).is_err() {
                 break;
             }
@@ -783,7 +811,8 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                     if let Some(u) = opts.first() {
                         buy_gold(&mut g, &u.id.clone(), &mut d);
                     }
-                    spend_gold(&mut g, &mut d);
+                    // (the oaths read on the forecast at the day's first check-in: a player swears for the day)
+                    spend_gold_reading(&mut g, &mut d, ci == 0);
                     draw_down(&mut g, &mut d);
                     let p = project(&g, set);
                     if g.set_rules(p.clone()).is_err() {
@@ -800,7 +829,9 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
             }
             if g.lineage.marks > 8 && std::env::var("PROG_MARKS").is_ok() {
                 let cat: Vec<String> = g.unlocks().into_iter().filter(|u| !u.owned).map(|u| format!("{}◆{}{}", u.id, u.cost, u.needs.map(|n| format!("[{n}]")).unwrap_or_default())).collect();
-                eprintln!("{name} s{seed} day {} ci {ci}: ◆{} tier {} best D{} draw {:?} oaths {:?} | {}", day + 1, g.lineage.marks, riddle_core::meta::tier(&g.lineage), g.lineage.best_depth, riddle_core::oath::draw_wire(&g.lineage).needs, g.lineage.oaths.iter().map(|o| o.reward.label.clone()).collect::<Vec<_>>(), cat.join(" "));
+                let mut h = g.sim_clone();
+                let tried = h.draw_oath();
+                eprintln!("{name} s{seed} day {} ci {ci}: ◆{} tier {} best D{} draw {:?} {tried:?} sworn {:?} oaths {:?} | {}", day + 1, g.lineage.marks, riddle_core::meta::tier(&g.lineage), g.lineage.best_depth, riddle_core::oath::draw_wire(&g.lineage).needs, riddle_core::oath::sworn_ids(&g.lineage), g.lineage.oaths.iter().map(|o| format!("{}:{}", o.id, o.reward.label)).collect::<Vec<_>>(), cat.join(" "));
             }
             d.marks_max = d.marks_max.max(g.lineage.marks);
             d.gold_max = d.gold_max.max(g.lineage.gold);
@@ -935,7 +966,7 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
             }
         }
         if std::env::var("PROG_OATHS").is_ok() {
-            eprintln!("{name} s{seed} day {} D{} ◆{} ${} kept {} draws {} works {} oaths {:?} board {:?} unl {}", day + 1, d.best, d.marks_end, d.gold_end, d.oaths_kept, d.draws, d.works, d.oaths, g.lineage.oaths.iter().map(|o| format!("{}:{}", o.kind, o.reward.label)).collect::<Vec<_>>(), unlock_day(&d));
+            eprintln!("{name} s{seed} day {} D{} ◆{} ${} kept {} draws {} works {} oaths {:?} board {:?} unl {} wall {:?} start {} lday {} wday {:?}", day + 1, d.best, d.marks_end, d.gold_end, d.oaths_kept, d.draws, d.works, d.oaths, g.lineage.oaths.iter().map(|o| format!("{}:{}", o.kind, o.reward.label)).collect::<Vec<_>>(), unlock_day(&d), d.wall_taken, g.lineage.start, g.lineage.day, g.lineage.wall_day);
         }
         if verbose {
             eprintln!("{name} s{seed} day {} best D{} marks {} gold {} buys {:?}", day + 1, d.best, d.marks_end, d.gold_end, d.buys.iter().map(|b| format!("{}:{}", b.id, b.via)).collect::<Vec<_>>());
