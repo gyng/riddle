@@ -434,7 +434,12 @@ writeFileSync(join(out, "anims.json"), JSON.stringify(anims, null, 1));
 writeFileSync(join(out, "layout.json"), JSON.stringify(layout, null, 1));
 const tpl = readFileSync(join(ROOT, "tools/gfx-rater-prompt.txt"), "utf8");
 const list = key.map((k) => { const st = shots.find((s) => s.name === k.name)?.strip; const mv = movesOf(k.name); return `- ${rd}/${k.m}.png${st ? `, ${rd}/${k.m}-strip.png and ${rd}/${k.m}-motion.png` : ""} — ${k.what}${mv ? ` — moves: ${mv}` : ""}`; }).join("\n");
-writeFileSync(join(rd, "prompt.txt"), tpl.replaceAll("{{LIST}}", list).replaceAll("{{TARGETS}}", join(ROOT, "art/ui/targets")));
+// art direction phase 2: `--targets style` shows the raters the approved style targets (docs/ART_DIRECTION.md §11) instead of the four v2
+// mockups — the look the art now aims at; the old set stays the default so earlier rounds re-run as they were
+const STYLE_TARGETS = "First look at the approved TARGET frames (the look the team is aiming for — moonlit ink and wash on a visible pixel grid, one blood-red accent, an ink-and-iron frame): " +
+  ["watch_warrens", "watch_fens", "boss", "death", "town", "ui_sheet"].map((n) => join(ROOT, "art/ui/targets/style", `${n}.png`)).join(", ") + ".";
+const tplT = arg("--targets", "") === "style" ? tpl.replace(/^First look at the four TARGET mockups[^.]*\([^)]*\): [^.]*\.png, [^.]*\.png, [^.]*\.png, [^.]*\.png\./m, STYLE_TARGETS) : tpl;
+writeFileSync(join(rd, "prompt.txt"), tplT.replaceAll("{{LIST}}", list).replaceAll("{{TARGETS}}", join(ROOT, "art/ui/targets")));
 log(`\n${shots.length} moments → ${out}`);
 const bad = Object.entries(layout).filter(([, r]) => !r.ok).map(([n]) => n);
 log(`layout: ${bad.length ? `FAIL ${bad.join(", ")}` : "ok"}`);

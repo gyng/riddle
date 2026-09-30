@@ -11,15 +11,13 @@ const hex = (h: string): Rgb => [
 ];
 
 export const PALETTES: Record<string, Palette> = {
-  // Ramps are the art register's (art/ART.md "Register 2", art/make_tiles.py PALETTES): index 0
-  // darkest → 7 lightest. The packed tiles are authored in exactly these colours, so quantisation
-  // is lossless for tile art and only bites on fog/dim, sprites (50%) and fallbacks.
-  warrens: ["#14120d", "#2e2a1c", "#4a4326", "#6b6a2f", "#8c7a3c", "#b09a5a", "#d4c58a", "#efe6c0"].map(hex), // olive/umber/bone
-  // Cut 16 §3: the Burrows (D5–8) — red clay and torch amber on the Warrens' ramp shape (same luminance steps); no tile art of
-  // its own: its tiles are the Warrens' recoloured index for index (atlas.ts `TILE_ALIAS`)
-  burrows: ["#140b05", "#2b190b", "#43280f", "#5e3f18", "#7a5724", "#a57d3a", "#c9a25a", "#ecd6a0"].map(hex), // warm ochre earth (juice pass 3; was red clay)
-  fens:    ["#0c1416", "#1a2b2e", "#24443f", "#2f6a5a", "#4d8a72", "#6f9f8a", "#9dbfa8", "#d6e6da"].map(hex), // teal/moss/slate
-  crypt:   ["#0b0a14", "#1c1a30", "#33304f", "#4f4d6d", "#77738c", "#a39fae", "#d3cfc9", "#f1ede0"].map(hex), // indigo/ash/bone
+  // Ramps are the art register's (art/make_tiles.py PALETTES, atlas.json meta.palettes is the authority at runtime): index 0 darkest →
+  // 7 lightest. Art direction phase 2 (docs/ART_DIRECTION.md §2): the named palette with the place's tint — INK, UMBRA, DUSK', ·,
+  // MOON', ·, MIST, BONE (DUSK and MOON lean toward the tint). These are the fallbacks until the atlas loads.
+  warrens: ["#0d0c14", "#1c1b2b", "#3e383a", "#4f505a", "#61697a", "#8292a8", "#a4bcd6", "#eadfc5"].map(hex),
+  burrows: ["#0d0c14", "#1c1b2b", "#473e37", "#595757", "#6b7076", "#8896a6", "#a4bcd6", "#eadfc5"].map(hex),
+  fens:    ["#0d0c14", "#1c1b2b", "#2c4951", "#3c6272", "#4d7c94", "#789cb5", "#a4bcd6", "#eadfc5"].map(hex),
+  crypt:   ["#0d0c14", "#1c1b2b", "#2d2f4f", "#3e4770", "#4e5f92", "#798db4", "#a4bcd6", "#eadfc5"].map(hex),
 };
 
 // Replace ramps at runtime (atlas.json meta.palettes is the authority when present).

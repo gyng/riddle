@@ -1,4 +1,4 @@
-# Riddle — art direction: moonlit ink and wash (phase 1, for the owner's approval)
+# Riddle — art direction: moonlit ink and wash (approved; phase 2 shipped 2026-09-30)
 
 *2026-09-30. The owner's call: a **hybrid pixel–painted** look, leaning a little more **painted**, more **stylistic**,
 consistent across sprites, tiles, props, portraits, UI, backdrops and the town. References (for people, never in a
@@ -91,7 +91,19 @@ the tint rule · 60 % shadow, moonlight above, EMBER pools, BLOOD ≤ 8 % · NEV
 airbrushed gradients, lens flare, a warm brown/amber cast, rainbow saturation, noisy detail, flat vector, chibi.
 Prompts describe the look only: no artist, film or game names (ART.md provenance).
 
-## 9. The renderer prototype — `?look=wash`
+## 9. The renderer — the look (phase 1's `?look=wash` prototype, the default since phase 2)
+
+**Phase 2 (2026-09-30):** the art now carries the palette itself, so the pass is **on by default** (FX > 0; `?look=off` turns it
+off, sticky; the `low` tier's shader is still byte-identical) and no longer maps the frame onto the ramp — phase 1's night curve and
+gradient map sank the new art to mush. It keeps a light pull toward the place's ramp (a fifth), a lighter ink line on hard edges,
+pigment pooling, granulation on the grid, screen paper grain, the BONE lift in the lights and the halftone in the shadow band. The DOM
+palette map is gone (the CSS is on the palette); the paper-grain overlay stays (0.4). `?look=grade` brings the DOM map back for a
+comparison. The grades (`blit.ts GRADES`) are a cold moonlit night over the art (rgb a touch toward MOON, ambient ~0.74); torches are
+EMBER in every place (the per-biome torch casts are gone), the hero's own light is MIST, and a few **moon pools** fall on open floor
+(`index.ts moons`, deterministic in the tile) — the "shafts through cracks". In-world plates, name tags, boss plates and stamps
+(`tags.ts`) are ink plates with MIST bevels, the boss's in BLOOD and GILT.
+
+Phase 1's prototype, for the record:
 
 `web/src/render/wash.ts`, off by default, sticky via localStorage `riddle.look` (`?look=off` clears). Canvas: the blit's
 last step (`LOOK` define, compiled only when FX > 0: the `low` tier's shader is byte-identical): the frame onto the §2 ramp
