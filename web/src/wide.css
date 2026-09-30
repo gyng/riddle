@@ -169,3 +169,12 @@
   .sheet-wrap.wide-beside > .sheet .why-row { font-size: 22px; }
   .sheet-wrap.wide-beside > .sheet .why-gloss { font-size: 17px; }
 }
+/* gfx round 26 (raters, every round: "an empty black box top right", "the meters cramped, broken-wrapped"): on the watch an unknown reach
+   (no forecast yet) gives its place to the meters, and each meter's label sits over its value, the value on one line */
+@media (min-width: 1024px) {
+  main.watch .side-col .shaft.unknown { display: none; }
+  .side-col .meters .mrow { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .side-col .meters .mrow + .mrow { margin-top: 6px; }
+  .side-col .meters .mval { white-space: nowrap; }
+  .side-col .meters .mval small { white-space: normal; }
+}

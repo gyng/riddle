@@ -210,7 +210,10 @@ move ±2 lineages, so compare two runs before believing a move):
 Also done earlier: `noise_discipline` is earnable (a blind foe in view teaches `foe:<kind>:blind`); the repeat offers a
 `throw` row's kind as one tap (`Lineage.repeat_added`).
 
-### Gfx/UI eval (resumed by the coordinator after round 23; round 24 6.74 — JUICE §10.14)
+### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
+Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,
+slash arcs, desktop meters in the side column (d-watch 6.2), darker memory and warmer torches. The closer zoom was reverted. The floor
+is the map watch (Warrens 5.8): the camera needs the rule's target on the wire to frame the encounter ahead of time.
 Round 24: the carved EDIT + candle + desktop sheet kept (edit 7.2, d-edit 7.0); the closer zoom (80/58) reverted (every watch moment fell).
 Earlier (stopped on the rule 2026-09-30 after round 23: 6.77 · 6.77; boss break 7.70, Fens 6.00; JUICE §10.12–10.13 has the blockers)
 Round 23 (raters AY, AZ): 6.77 again (−0.06, +0.09, +0.00: three rounds under +0.2). The floor is the map watch (Warrens 5.8, desktop 6.0):

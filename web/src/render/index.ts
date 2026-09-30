@@ -120,7 +120,7 @@ export type ViewerStats = {
 
 const TILE = 8;
 const WALL_TOP_DIM = 0.72; // second art pass: a wall top a step under the floor
-const MEMORY_DIM = 0.68;  // second art pass: a remembered tile (Cut 14 §3; was 0.6)
+const MEMORY_DIM = 0.52;  // second art pass: a remembered tile (Cut 14 §3; was 0.6); gfx round 26 0.68 → 0.52 (raters: "dim unexplored stone harder" — the lit room pops)
 const FLASH_MIX = 0.5;     // QA 1a2a4a9: a hit's flash, the share mixed toward the palette's brightest (was 1: a cream silhouette)
 const HERO_FLASH = 0.16;     // gfx round 3: the hero's hurt flash (FLASH_MIX washed him pale on every blow of a long fight); round 10 0.28 → 0.16 (raters: "the hero a pale noisy blob" at half size)
 const BOSS_FALL_FLASH = 0.2; // juice pass 3: the flash on a boss's killing blow (the slow-mo holds it; FLASH_MIX washed him out)
@@ -1060,7 +1060,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       fires.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD - 4) { const k = fl(i, 0.017, 0.041) * 0.9; fieldLights.push({ x: x / TILE, y: -y / TILE, r: 3, c: [1 * k, 0.5 * k, 0.15 * k] }); } });
       gases.slice(0, 4).forEach(([x, y]) => fieldLights.push({ x: x / TILE, y: -y / TILE, r: 1.8, c: [0.12, 0.2, 0.03] }));
       for (const sp of stairPlates) if (fieldLights.length < MAX_FIELD - 2) fieldLights.push({ x: sp.x + 0.5, y: sp.y + 0.5, r: sp.taken ? 2.6 : 1.6, c: sp.taken ? [0.95, 0.75, 0.35] : [0.35, 0.3, 0.22] });
-      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 4.8, c: [1 * k * tint[0], 0.72 * k * tint[1], 0.4 * k * tint[2]] }); } });
+      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 5.6, c: [1.12 * k * tint[0], 0.78 * k * tint[1], 0.42 * k * tint[2]] }); } });   // (round 26: r 4.8 → 5.6, a touch brighter — "torches barely glow")
       field.setLights(fieldLights);
       field.render(renderer);
     }

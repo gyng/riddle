@@ -736,3 +736,22 @@ report stamp without the blank; the sent pane replays beside the edited one. Sce
 the map watch stays the floor (Warrens 5.50, desktop 5.40: "torches barely glow", "rubble merges with the floor", "the right meters
 cramped"). The count since the resume: 24 (−0.03), 25 (+0.01).
 
+**Round 26** (raters BE, BF): **6.84**, the best mean on the motion-aware harness. Changes: on the desktop watch an unknown reach gives
+its place to the meters, each meter's label over its value (d-watch 5.40 → 6.20); remembered tiles darker (0.68 → 0.52), torch pools
+wider and warmer (r 4.8 → 5.6), the Warrens a darker room with stronger pools; the watch caption on a dark band ("'rat slain'
+ghosted"). Report 6.80 → 7.15, edit 7.45, boss break 7.45; the Warrens watch 5.80 and the Fens 6.00 remain the floor.
+
+**Stopped on the rule again**: since the resume, 24 (−0.03), 25 (+0.01), 26 (+0.09). Suites green each round (audio 70, ctxloss 13,
+layout 55, fights 48, cut27 35, cut29 34); copy-lint 0; art pack + QC clean.
+
+**What blocks the next gain** (every rater, rounds 24–26):
+1. **The map watch** (Warrens 5.8, Fens 6.0, fight 6.4): "the hero is a small sprite in a sea of walls", "the camera pan paints the
+   whole field red". A closer zoom was tried and lost on every watch moment (no foe in frame, empty corridors). What is left is the
+   camera's job itself: it should frame the *encounter* (the hero and the next foe/item the rule is about) and hold still during an
+   exchange. That needs the engine's intent (the target a rule acts on) on the wire, so the viewer can frame it ahead of time; today the
+   viewer only sees positions.
+2. **Target consistency in the dungeon** (~6 on every dungeon moment): the pixel-vs-painted register, left with the owner.
+3. **The camp** (6.45, "tablets flat brown slabs", "SEND gem shows no pulse in the motion image") and the **oath board** (6.65): both
+   out of scope (Cut 30's town and quest board).
+4. Smaller, repeated asks: a white flash and slow-motion beat on the boss fall, a proper death pose for the Warlord (a Codex sprite),
+   the forecast's D8 `try` chip off the bar, the death gem's MEASURING label as a spinner.
