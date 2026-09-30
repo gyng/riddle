@@ -96,6 +96,8 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             conds.push(Cond::t("in", b.name()));
         }
     }
+    // Cut 30 §4: `trait <head>` per learned trait, `gift live` once any is.
+    crate::traits::vocab_conds(l, &mut conds);
     if l.all_companions().next().is_some() && owned("party_hp<") {
         conds.push(Cond::n("party_hp<", 50));
     }
@@ -173,6 +175,10 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
             verbs.push(Verb::arg("tame", &format!("tag:{t}")));
         }
     }
+    // Cut 29 §1: `hold` (stand and let the foe come), a `bold` oath's reward.
+    if l.unlocks.contains("hold") {
+        verbs.push(Verb::new("hold"));
+    }
     if !l.party.is_empty() {
         verbs.push(Verb::new("recall"));
         verbs.push(Verb::new("send"));
@@ -216,7 +222,7 @@ pub fn locked_conds(l: &LineageState, open: &[Cond]) -> Vec<LockedCond> {
             // Owned: only `party_hp<` stays shut (no companion yet).
             "tame a foe".to_string()
         } else {
-            crate::meta::gate(l, u).unwrap_or_else(|| format!("◆{}", crate::meta::unlock_cost(u)))
+            crate::meta::gate(l, u).unwrap_or_else(|| crate::meta::lock_text(l, u))
         };
         lock(cond, needs);
     }

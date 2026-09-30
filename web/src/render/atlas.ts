@@ -14,8 +14,11 @@
 // them and the viewer draws the 8×8 register as before. `wallTop(biome, mask)` derives an edge-rimmed wall top per
 // 4-neighbour mask (N 1, E 2, S 4, W 8 = the side that meets open floor) on first request.
 import { heroBase } from "./look";
+/** gfx round 1: a kind drawn with another's sprite (the fake engine's summoned `blade` is the core's `spectral_blade`; its fallback read
+ *  as a magenta placeholder jug) */
+const KIND_ALIAS: Record<string, string> = { blade: "spectral_blade" };
 import * as THREE from "three";
-import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, paletteFor, setPalettes, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
+import { css, ENTITY_BOX, ENTITY_COLOURS, ENTITY_SIZE, PALETTES, paletteFor, setPalettes, spriteScale, TILE_ALIAS, TILE_IDS, type Rgb } from "./palette";
 import { FONT_CELL_H, FONT_CELL_W, FONT_H, FONT_W, glyphBits } from "./font";
 
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -122,6 +125,8 @@ export class Atlas {
   dot(): Slot { return this.envSlot("dot:2"); }
   // Cut 8A: a 2×2 flat colour (`#rrggbb`) for the fight frame's hp bars; the hud layer stretches it to any texel size
   solid(hex: string): Slot { return this.envSlot(`solid:${hex.replace("#", "")}`); }
+  /** gfx round 21 (raters: "the coins are square debug pixels"): a 6x6 gold coin (dark rim, lit face, a glint) for the loot burst */
+  coin(): Slot { return this.envSlot("coin:6"); }
   // Cut 5 §4 props: shrine (2 frames at 1 Hz), vault / vault_open, nest (frame 0 asleep, 1 woken). Per-biome atlas
   // art when present, else a procedural altar / barred square / mound (`drawProp`).
   prop(biome: string, tile: string, frame: number): Slot {
@@ -136,17 +141,24 @@ export class Atlas {
     const id = `tile:${biome}_env_wall_top_${mask}`;
     const have = this.env.get(id); if (have) return have;
     const src = this.envTile(biome, "wall_top"); if (!src) return undefined;
-    if (!mask) return src;
     const g = this.env, w = src.w, h = src.h;
     const img = g.ctx.getImageData(src.x, src.y, w, h);
+    // gfx round 20 (raters: "walls and floor are the same grey-olive block"): the painted capstones a step darker than the floor, a lit
+    // bevel one texel inside every edge that meets open ground and a near-black outline on it
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) { d[i] = d[i]! * 0.72; d[i + 1] = d[i + 1]! * 0.72; d[i + 2] = d[i + 2]! * 0.74; }
+    const lit = (x: number, y: number) => { const i = (y * w + x) * 4; d[i] = Math.min(255, d[i]! * 1.9 + 18); d[i + 1] = Math.min(255, d[i + 1]! * 1.85 + 14); d[i + 2] = Math.min(255, d[i + 2]! * 1.7 + 8); };
+    for (let k = 0; k < w; k++) { if (mask & 1) lit(k, 1); if (mask & 4) lit(k, h - 2); }
+    for (let k = 0; k < h; k++) { if (mask & 8) lit(1, k); if (mask & 2) lit(w - 2, k); }
     const dst = g.alloc(id, w, h);
     g.ctx.putImageData(img, dst.x, dst.y);
+    g.version++;
     const p = paletteFor(biome), P = (i: number) => css(p[Math.min(i, p.length - 1)]!);
     const line = (x: number, y: number, lw: number, lh: number, col: string) => { g.ctx.fillStyle = col; g.ctx.fillRect(dst.x + x, dst.y + y, lw, lh); };
-    if (mask & 1) { line(0, 0, w, 1, P(0)); line(0, 1, w, 1, P(4)); }
-    if (mask & 8) { line(0, 0, 1, h, P(0)); line(1, 1, 1, h - 1, P(4)); }
-    if (mask & 2) { line(w - 1, 0, 1, h, P(0)); line(w - 2, 1, 1, h - 1, P(1)); }
-    if (mask & 4) { line(0, h - 1, w, 1, P(0)); line(0, h - 2, w, 1, P(1)); }
+    if (mask & 1) line(0, 0, w, 1, P(0));
+    if (mask & 8) line(0, 0, 1, h, P(0));
+    if (mask & 2) line(w - 1, 0, 1, h, P(0));
+    if (mask & 4) line(0, h - 1, w, 1, P(0));
     return dst;
   }
   // bones pile (Cut 2 §2): per-biome 2-frame tile art if the atlas has it, else the `bones` item
@@ -156,7 +168,9 @@ export class Atlas {
   }
   // ---- sprite-density ids -------------------------------------------------------------------
   // hero looks: `hero_<class>_<look>` when packed, else `hero_<class>` (atlas or procedural)
-  entity(kind: string): Slot { const base = heroBase(kind); return (base && this.sprite.get(`ent:${kind}`)) || this.spriteSlot(`ent:${base ?? kind}`); }
+  /** gfx round 10: a boss's death pose (`boss_<kind>_dead`, packed as `ent:<kind>_dead`), when the atlas has one */
+  corpse(kind: string): Slot | undefined { return this.sprite.get(`ent:${kind}_dead`); }
+  entity(kind: string): Slot { kind = KIND_ALIAS[kind] ?? kind; const base = heroBase(kind); return (base && this.sprite.get(`ent:${kind}`)) || this.spriteSlot(`ent:${base ?? kind}`); }
 
   private envSlot(id: string): Slot {
     const s = this.env.get(id);
@@ -181,6 +195,14 @@ export class Atlas {
     if (cat === "glyph") { const slot = g.alloc(id, 8, 8); drawGlyph(g.ctx, slot, rest); return slot; }
     if (cat === "font") { const slot = g.alloc(id, FONT_CELL_W, FONT_CELL_H); drawFontCell(g.ctx, slot, rest); return slot; }
     if (cat === "dot") { const slot = g.alloc(id, 2, 2); g.ctx.fillStyle = "#f4ecd8"; g.ctx.fillRect(slot.x, slot.y, 2, 2); return slot; }
+    if (cat === "coin") {
+      const slot = g.alloc(id, 6, 6), c = g.ctx;
+      const put = (x: number, y: number, col: string) => { c.fillStyle = col; c.fillRect(slot.x + x, slot.y + y, 1, 1); };
+      const rows = ["..rr..", ".rggr.", "rgwgdr", "rggddr", ".rddr.", "..rr.."];
+      const col: Record<string, string> = { r: "#5a3408", g: "#f2c14a", w: "#fff4c0", d: "#b77b1c" };
+      rows.forEach((row, y) => [...row].forEach((ch, x) => { if (col[ch]) put(x, y, col[ch]!); }));
+      return slot;
+    }
     if (cat === "solid") { const slot = g.alloc(id, 2, 2); g.ctx.fillStyle = `#${rest}`; g.ctx.fillRect(slot.x, slot.y, 2, 2); return slot; }
     // shadow:<w>: w×2 ellipse (top row w-2 wide, bottom row w-4), one slot per exact width so
     // no quad is ever stretched to a non-integer texel size. ring:<w>: the same ellipse inside a
@@ -208,9 +230,12 @@ export class Atlas {
     if (s) return s;
     const kind = id.slice(4);
     const [w, h] = ENTITY_SIZE[kind] ?? [16, 32];
-    const slot = this.sprite.alloc(id, w, h);
-    drawEntity(this.sprite.ctx, slot, kind);
-    return slot;
+    const ks = spriteScale(kind);
+    if (ks === 1) { const slot = this.sprite.alloc(id, w, h); drawEntity(this.sprite.ctx, slot, kind); return slot; }
+    // gfx round 7: drawn at its authored size, then cut down by area like a loaded sprite
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    drawEntity(c.getContext("2d")!, { x: 0, y: 0, w, h, u0: 0, v0: 0, u1: 1, v1: 1 }, kind);
+    return putDown(this.sprite, id, c, { x: 0, y: 0, w, h }, Math.max(1, Math.round(w * ks)), Math.max(1, Math.round(h * ks)));
   }
 
   // ---- external atlas ----------------------------------------------------------------------
@@ -226,6 +251,7 @@ export class Atlas {
       for (const [id, r] of Object.entries(json.frames)) this.override(id, img, r, json.meta?.sprites?.[id]?.texel_h);
       this.loadedIds = new Set(Object.keys(json.frames));
       this.aliasTiles();
+      this.waterTiles();
       return true;
     } catch {
       return false;
@@ -256,6 +282,27 @@ export class Atlas {
     }
   }
 
+  /** gfx round 1 (raters: "the checkered water reads as noise"): only the Fens have drawn water — every other biome's pool is the
+   *  Fens' drawing moved into its own ramp (index for index), a calm pool with a few ripples instead of a 1-texel checker. */
+  private waterTiles(): void {
+    const g = this.env, src = g.get("tile:fens_env_water"); if (!src) return;
+    const from = paletteFor("fens").map((c) => c.map((x) => Math.round(x * 255)));
+    const base = g.ctx.getImageData(src.x, src.y, src.w, src.h);
+    for (const biome of Object.keys(PALETTES)) {
+      if (biome === "fens" || biome === "boss_flash") continue;
+      const dst = g.get(`tile:${biome}_env_water`); if (!dst || dst.w !== src.w || dst.h !== src.h) continue;
+      const to = paletteFor(biome).map((c) => c.map((x) => Math.round(x * 255)));
+      const px = new ImageData(new Uint8ClampedArray(base.data), src.w, src.h), d = px.data;
+      for (let i = 0; i < d.length; i += 4) {
+        if (!d[i + 3]) continue;
+        let best = 0, bd = Infinity;
+        for (let k = 0; k < from.length; k++) { const f = from[k]!, e = (d[i]! - f[0]!) ** 2 + (d[i + 1]! - f[1]!) ** 2 + (d[i + 2]! - f[2]!) ** 2; if (e < bd) { bd = e; best = k; } }
+        const t = to[Math.min(best, to.length - 1)]!; d[i] = t[0]!; d[i + 1] = t[1]!; d[i + 2] = t[2]!;
+      }
+      g.ctx.putImageData(px, dst.x, dst.y);
+    }
+  }
+
   private override(id: string, img: HTMLImageElement, r: Rect, texelH?: number): void {
     const put = (sheet: Sheet, slotId: string, w: number, h: number) => {
       const slot = sheet.alloc(slotId, w, h);
@@ -269,7 +316,7 @@ export class Atlas {
       // meta.sprites[id].texel_h is the intended runtime height in sprite texels (masters are 2×)
       const kind = id.replace(/^boss_/, "");
       const [bw, bh] = ENTITY_BOX[kind] ?? [32, 32];
-      const sc = texelH ? texelH / r.h : Math.min(bw / r.w, bh / r.h);
+      const sc = (texelH ? texelH / r.h : Math.min(bw / r.w, bh / r.h)) * spriteScale(kind);
       putDown(this.sprite, `ent:${kind}`, img, r, Math.max(1, Math.round(r.w * sc)), Math.max(1, Math.round(r.h * sc)));
     } else if (ovm) {
       const frames = ovm[2] === undefined ? [0, 1] : [Number(ovm[2])];
@@ -286,9 +333,9 @@ export class Atlas {
  *  keeps every other texel of its dither — the ogre's hide read as noise. A sprite is cut down by area: each texel the coverage-weighted
  *  mean of the master texels under it (colour weighted by alpha), kept where the master covers ≥ half of it (a crisp silhouette, the
  *  shader's alpha test unchanged). Same slot, same size; a master already at size is copied as before. */
-function putDown(sheet: Sheet, id: string, img: HTMLImageElement, r: Rect, w: number, h: number): void {
+function putDown(sheet: Sheet, id: string, img: CanvasImageSource, r: Rect, w: number, h: number): Slot {
   const slot = sheet.alloc(id, w, h);
-  if (w >= r.w && h >= r.h) { sheet.ctx.imageSmoothingEnabled = false; sheet.ctx.drawImage(img, r.x, r.y, r.w, r.h, slot.x, slot.y, w, h); return; }
+  if (w >= r.w && h >= r.h) { sheet.ctx.imageSmoothingEnabled = false; sheet.ctx.drawImage(img, r.x, r.y, r.w, r.h, slot.x, slot.y, w, h); return slot; }
   const src = document.createElement("canvas"); src.width = r.w; src.height = r.h;
   const sc = src.getContext("2d", { willReadFrequently: true })!; sc.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h);
   const s = sc.getImageData(0, 0, r.w, r.h).data, out = sheet.ctx.createImageData(w, h), d = out.data;
@@ -310,6 +357,7 @@ function putDown(sheet: Sheet, id: string, img: HTMLImageElement, r: Rect, w: nu
     }
   }
   sheet.ctx.putImageData(out, slot.x, slot.y);
+  return slot;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

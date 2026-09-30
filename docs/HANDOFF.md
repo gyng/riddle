@@ -119,6 +119,53 @@ then QA → cohort 25. On the branch:
 ## 6. Open work, in order
 
 ### Cut 29 core (built; the progression bars still fail — not mergeable; resume here first)
+**2026-09-30 (core agent, resuming the list below).** Baseline re-measured at `bdb9d25`: the progression run is
+deterministic (8.3 · 13 · 11/18 · 1.82×, exactly the 28th's). Checkpoint 1 (items 1, 2, 4):
+- **Record spikes** (`wall.rs`): the wall's search measures from the deepest lit waystone at or above the record
+  (the offer carries `WallEdit.start`, its first edit `start D24`; the client's apply and the harnesses set it), past
+  `wall_floor` — the record, or the floor the set reaches on ≥ 25 % of its sends when the record was one lucky send's
+  (AP s1 d10: `start D24 · R6 → boss → cadence` past D33 0 → 43 %). The counters/stock rows are gated to that floor.
+  **The last exit row is never dropped or written over**: AO s1 / AR s1 lost their only bank to a wall edit and
+  earned nothing for 8–9 days (every send died).
+- **Cadence** strikes a boss in view first (the old `cadence-boss.patch`); FULL rows unchanged (D34 9.7 % vs 9.9 %,
+  FULL−D33 still 0 past D33).
+- **Commissions** priced against income: min(10 units × 1.25ⁿ, max(one day's net, 5 units)) (`kit::COMMISSION_FLOOR`).
+- Measured: progression unlock days 8.3 → **9.2**, marks 13 → **9**, stall 11 → **15/18 PASS**, purse 1.82 → **0.85× PASS**;
+  dayplayer unlock days 7.0 → **10.0 PASS**, stall 9 → **4** (seed 3 at the Queen D28, days 7–10).
+- Remaining: marks (AP s1 / AS s2 at 9: draws fail once the oath pool is dry — item 3), unlock days (AS s2 5,
+  AS-stall s1 6, AV s1 6: late days with nothing left to buy and oaths sworn that the set never keeps), dayplayer stall.
+  Diagnostics: `PROG_MARKS=1` / `PROG_OATHS=1` on `examples/progression` print the check-ins over ◆8 and each day's oaths.
+
+Checkpoint 2 (item 3 + the oath a player keeps):
+- **Titles come again, numbered** (`oath::next_title`: `Bold at D34`, `Bold at D34 II`, … — the first of its line
+  neither owned nor on the board); a numbered title stands while its line is the kind's line. A draw may re-draw the
+  replaced oath's own kind when it gives something else (AP s1 at D33: every other kind's reward already on the
+  board → `no oath to draw`, ◆9). The ◆2 draw is now a sink that never dries.
+- **The replay's player reads the oath line before swearing** (`progression_lib::pick_oath`, the day's first
+  check-in): the unsworn oath the set keeps most on the camp's panel, when a night keeps it ≥ 50 %. It swore the
+  board's first oath whatever the set could keep (`Warlord · fire` nine days by a set with no fire; `tame · a new
+  kind` 53 times on empty days by sets with no tame row) — PROGRESSION.md §7's projection assumed kept oaths.
+- Measured (p3): unlock days **10.2 PASS**, marks **8 PASS**, purse **0.93× PASS**, stall **11/18 FAIL** (was 14–15:
+  chaotic — kept oaths grant waystones/routes; the stalls are the Queen D28 ×3, the King D33, and walls after an
+  ascension: AU s1 D28 5 d, AQ s2 D23 5 d). Dayplayer unchanged (10.0 PASS, stall 4). `WALL_DAYS` 1 was tried on
+  the dayplayer: stall 4 → 6 (reverted). The Queen: from D24, 48 % reach her floor and 0 past on every candidate
+  (21 of 32 deaths to her lurkers); FULL passes her on ~23 % of the sends that reach her.
+
+Checkpoint 3 (the walls and the purse — every progression and dayplayer bar passes):
+- **The wall's start is chosen, not assumed** (`wall::search`): the wall floor is the deeper of the set's floor from
+  its own start and from the deepest lit stone, and the stone is offered only when it passes that floor more often (a
+  deep start skips the shallow finds and levels: the dayplayer from D19 met the Foundry at D19–20 while its D1 sends
+  met the Queen at D28, and the offer optimised past D19). Every band boss's known counter between the floor and the
+  record is weighed (AS-stall s1 at D33 read a D31 floor and never weighed `cadence` for four days). Stock: `hp < 90%
+  → noise discipline` and `summoned → attack summoned` (the Queen's brood shields and mends her).
+- **Commissions at half a day's net** (floor 5 units): at a whole day's net a purse keeping tomorrow's oath beside it
+  sat at 1.02× (AS s2: $3078, a $2020 work, a $930 oath). `PROG_PURSE=1` prints check-ins over 0.9 of the bar.
+- Measured (p6): progression unlock days **10.5**, marks **8**, stall **14/18**, purse **0.76×**, frontier 0 — all PASS;
+  dayplayer (dp7) **all PASS**: unlock days 10.0, stall 3, marks 8 (every seed passes D34 and ascends by day 11).
+- Harness gaps found (not changed): the replays never buy supplies (a `read silence` / `throw fire` row packs only
+  what is found; the repeat's `+ fire · for throw fire` offer is never tapped); an absence fields the vault only on
+  its first send (`start_run` takes `Game.loadout`), so the camp's panel (fielded) overstates the night.
+
 State at `08a880b` (2026-09-28, core agent): 450 cargo tests (+1 ignored), clippy -D warnings (incl. examples), wasm rebuilt, qa all
 PASS, every bot / lever / oath / dice / stall / dance / lane / divergence / return gate PASS (FULL−D23/28/33 held 100 %,
 kitted too; COUNTERED ≥ D14 70 %; lever with every oath reward 4/4). `node tools/gates.mjs --full` exits 1 on exactly
@@ -175,7 +222,18 @@ move ±2 lineages, so compare two runs before believing a move):
 Also done earlier: `noise_discipline` is earnable (a blind foe in view teaches `foe:<kind>:blind`); the repeat offers a
 `throw` row's kind as one tap (`Lineage.repeat_added`).
 
-### Gfx/UI eval (paused for the owner's stop after round 21; motion-aware baseline 6.74, round 21 6.68)
+### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
+Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,
+slash arcs, desktop meters in the side column (d-watch 6.2), darker memory and warmer torches. The closer zoom was reverted. The floor
+is the map watch (Warrens 5.8): the camera needs the rule's target on the wire to frame the encounter ahead of time.
+Round 24: the carved EDIT + candle + desktop sheet kept (edit 7.2, d-edit 7.0); the closer zoom (80/58) reverted (every watch moment fell).
+Earlier (stopped on the rule 2026-09-30 after round 23: 6.77 · 6.77; boss break 7.70, Fens 6.00; JUICE §10.12–10.13 has the blockers)
+Round 23 (raters AY, AZ): 6.77 again (−0.06, +0.09, +0.00: three rounds under +0.2). The floor is the map watch (Warrens 5.8, desktop 6.0):
+raters want a closer zoom (a PHONE_TEXELS call against the fights gates), a carved EDIT button and bigger desktop sheet, a side-by-side scene.
+Round 22 (raters AW, AX): Fens props (7 Codex pieces) + a warmer pool, the boss break re-staged (shield above him, white-hot crack, arcs),
+the map camera frames the seen floor, the vista grows under the phone scene. Round 23's changes are committed unscored (camera hold,
+OPENED medallions, desktop meters 16 px, Fens fog + ghost wisps). The stop rule's count: 21 (−0.06), 22 (+0.09) — two rounds under +0.2.
+Earlier:
 The harness now shows raters full-resolution motion (`-motion.png`: changed pixels in red) and each moment's intended movement; round 20's
 build re-rated under it is the new baseline **6.74** (death 7.90, boss entrance 7.70, forecast 7.40). Round 21 (c6008ad: 35 more painted
 props, denser dressing, deeper wall-foot shadow, pixel-register boss shield, coin sprites) scored **6.68**. Bar 8.0 not met.
@@ -220,13 +278,21 @@ the fake engine (`web/src/engine/fake.ts` ~2082–2195) already has Cut 29 stand
 
 ## 7. Queued cuts
 
-- **Cut 30 — traits** (`docs/TRAITS.md`, `docs/CUT30.md` draft). Prototype (`examples/traits_proto.rs`):
-  stat-bonus traits are too strong and mostly just numbers (2/66 pass); real builds come from traits
-  that change what a rule's condition reads (`hale`, `light sleeper`) and from costs. Ship only traits
-  that pass the strict build test; a trait never acts on its own; arrives at heir 3 / first death past D5.
-- **Cut 31 — specialisation forks at class levels 3/5/7 and weapon/armour properties** (reach, cleave,
-  stagger, bleed, pin; quiet, fireproof) with conditions like `weapon: reach`; each fork must change the
-  best set by ≥ 2 rows and stay under the lever.
+- **Cut 30 — idle first: the hero climbs on his own** (`docs/CUT30.md`, contract 2026-09-30; after Cut 29
+  merges). Eight parts: (1) the idle floor — the `Steady` school stance, drills at a boss's second meeting,
+  scars, the quartermaster packing known counters (IDLE: D8 day 1, D23 by day 12, gold every day); (2)
+  packages v1 — 4 stances, 6 tactics (today's cards), 4 temperaments (the trait core's mapped shapes: lexicon,
+  fact learning, wake cards, ladder arrival, neutral bots, old-save mapping), levelling from runs; the editor
+  becomes the pen, a late stage; (3) the town hub v1 (`docs/TOWN.md`: camp → blacksmith, storehouse, kennel,
+  bank; walkers; the mouth = send; a three.js `town` scene with DOM targets); (4) the tracks panel; (5) oaths
+  as a one-quest board with no stake, or deferred; (6) the replacement invariants (IDLE/PICKED/TUNED/RANDOM,
+  1.5× · 1.5×, nothing required) with the exact AGENTS.md/PLAN.md edits, made at merge; (7) a control cohort on
+  the pre-pivot build under `idle-hybrid` first (can run now), then cohort 25; (8) the owner checks each new
+  system (agent readers only filter). Hold before Cut 31. The superseded traits draft is
+  `docs/CUT30-traits-superseded.md`.
+- **Cut 31 — to re-scope under the pivot**: parallel heroes (houses, tavern, expedition board, aggregated
+  report) first; specialisation forks and weapon/armour properties (reach, cleave, stagger, bleed, pin; quiet,
+  fireproof) return as packages/loot later, not as rows to write.
 - The owner's listening pass (`eval/AUDIO.md`) would let raters score audio for the first time.
 
 ## 8. Gotchas learned the hard way

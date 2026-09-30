@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Cut 13 §6 — the screen lint: the QA brief's itinerary walked on the fake engine (`?engine=fake&dev=1`, headless through
+// Cut 13 §6 — the screen lint: the QA brief's itinerary walked on the fake engine (`?engine=fake&systems=none&dev=1`, headless through
 // tools/browser.mjs against the dev server, tools/dev.sh :5219) and, on EVERY screen and sheet it opens, the checks the four
 // QA players reconciled by hand:
 //   · the text holds no `undefined` / `NaN` / `[object`
@@ -31,7 +31,7 @@ const note = (what) => { if (verbose) out.push(`     ${what}`); };
 
 // buttons the itinerary walks (they lead to another screen) and the documented toggles (a click need not change the text)
 const NAV = new Set(["send", "keep", "edit", "camp", "open", "worst", "deepest", "buy", "insert", "add", "ok", "import", "export", "reset", "again", "trace", "watch"]);
-const TOGGLES = new Set(["mute", "fights", "fast", "⏸", "▶", "▶▶|", "bail", "▲", "▼", "≡"]);
+const TOGGLES = new Set(["mute", "fights only", "fast", "⏸", "▶", "▶▶|", "bail", "▲", "▼", "≡"]);
 // QA 912e135: the death screen's seal and banner scroll to the patches / the trace (in-page links: the text does not change), and a
 // row's name opens the camp's editor on it (a death cannot be re-entered from here: ui.mjs clicks it)
 const INERT_SEL = ".gem.patch-gem, .grip, .interstitial, .prefs .chip.on, .tabs .tab.on, .classes .chip.on, .chip.trait.on, .chip.cls-offer.on, button.patch, .cline.kept, .chip.mini.trace, .bar.try, .death-line .cause-btn, .death-line button.verdict, button.row-link";
@@ -147,7 +147,7 @@ const rowsText = () => page.evaluate(() => [...document.querySelectorAll(".edito
 const t0 = Date.now();
 try {
   // 1. fresh camp (marks and gold so the shelf and the shop have something to sell)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   const seeded = await page.evaluate(async () => {
@@ -272,7 +272,7 @@ try {
   await lintScreen("camp (supply dropped)");
   await page.evaluate(() => window.__riddle.flush());
   // 10. the absence: the report, its buttons, the worst death
-  await page.goto(`${url}?dev=1&engine=fake&absent=8h`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&absent=8h`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && (x.screen === "report" || x.screen === "ending"), "the 8 h report", 120_000);
   await settle();
   await lintScreen("report (8 h)");
@@ -303,8 +303,8 @@ try {
     await page.evaluate((exits) => { const r = window.__riddle; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: r.lineage.live ?? null, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, stalled: 2, exits } }); },
       [ex("returned $0 · $161 carried · keeps 0% · stalled", 161, 0, 0), ex("returned $30 · $50 carried · keeps 60%", 50, 30, 60), ex("returned $0 · $40 carried · keeps 0% · stalled", 40, 0, 0)]);
     await waitFor((x) => x?.screen === "report", "the fabricated report"); await sleep(200);
-    const t = await page.evaluate(() => { const tile = [...document.querySelectorAll(".report .tile")].find((x) => x.querySelector(".label")?.textContent === "stalled"); return { tile: tile && [...tile.children].map((c) => c.textContent.trim()).filter(Boolean).join(" "), chips: [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => c.textContent.trim()) }; });
-    check(t.tile === "2 stalled $201 lost", `the stalled tile carries its cost: "${t.tile}"`);
+    const t = await page.evaluate(() => { const tile = [...document.querySelectorAll(".report .tile")].find((x) => x.dataset.k === "stalled"); return { tile: tile && [...tile.children].map((c) => c.textContent.trim()).filter(Boolean).join(" "), chips: [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => c.textContent.trim()) }; });
+    check(t.tile === "2/3 runs stalled $201 lost", `the stalled tile carries its cost: "${t.tile}"`);
     // (a fabricated line can still claim a real ledger line of the same tier and sum, and then carries its depth)
     check(t.chips.length === 3 && t.chips.every((c) => /^(D\d+ · )?returned · trace$/.test(c)), `the lines' chips read their exit: ${t.chips.join(" · ")}`);
     await lintScreen("report (stalls)");

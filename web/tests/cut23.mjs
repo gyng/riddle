@@ -59,7 +59,7 @@ const camp = async () => { await waitFor((s) => s?.booted && s.screen === "camp"
 
 try {
   const rules = encodeURIComponent("hp<30% → drink heal\nfoes>=1 → attack nearest\nfoe:ranged → throw fire");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=231&rules=${rules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=231&rules=${rules}`, { waitUntil: "domcontentloaded" });
   await camp();
   await page.evaluate(() => { localStorage.removeItem("riddle.reveal"); localStorage.setItem("riddle.editing", "0"); });
 
@@ -74,7 +74,7 @@ try {
   await page.locator(".cmd .tile[data-tile=forge]").click({ timeout: 5000 });
   await until(() => page.evaluate(() => document.querySelectorAll(".sheet-wrap .forge .kit-slot").length === 3), "the forge's three slots");
   const moves = await until(() => page.evaluate(() => { const t = [...document.querySelectorAll(".sheet-wrap .forge .kit-next")].map((b) => b.textContent.replace(/\s+/g, " ").trim()); return t.every((x) => !/…/.test(x)) ? t : null; }), "the steps' measured moves");
-  check(moves.length === 3 && moves.every((m) => /^[a-z][\w +]* · (D\d+ ([+−]\d+|≈)|(bank|death) [+−]\d+) · \$\d+( · \d+ nights?)?$/.test(m)), `each next step reads its kit, its move and its price (${moves.join(" | ")})`);
+  check(moves.length === 3 && moves.every((m) => /^[a-z][\w +]* · (reach D\d+ ([+−]\d+|same)|(bank|death) [+−]\d+) · \$\d+( · \d+ nights?)?$/.test(m)), `each next step reads its kit, its move and its price (${moves.join(" | ")})`);
   const later = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .forge .kit-later")].map((l) => l.textContent.trim()));
   check(later.every((l) => /\$\d+/.test(l)), `every later step shows its price (${later.join(" | ")})`);
   await shot("cut23-forge");
@@ -131,7 +131,7 @@ try {
   await page.locator(tab).click({ timeout: 5000 }); await sleep(250);
   const why = await page.evaluate(() => { const s = document.querySelector(".sheet-wrap .row-why"); return s ? { line: s.querySelector(".why-line")?.textContent ?? "", gloss: [...s.querySelectorAll(".why-gloss")].map((g) => g.textContent.replace(/\s+/g, " ").trim()), edit: !!s.querySelector(".why-edit") } : null; });
   const tr = await rect(tab), sr = await rect(".sheet-wrap .sheet");
-  check(!!why && /^\d+\/\d+ acts · blocked · no item( · \d+ sends?)?$/.test(why.line) && why.gloss.some((g) => /^no item · none in pack$/.test(g)) && why.edit, `a blocked row's tablet opens its why-not with the reason's gloss (${JSON.stringify(why)})`);
+  check(!!why && /^fired \d+\/\d+ turns · blocked · no item( · \d+ runs?)?$/.test(why.line) && why.gloss.some((g) => /^no item · none in pack$/.test(g)) && why.edit, `a blocked row's tablet opens its why-not with the reason's gloss (${JSON.stringify(why)})`);
   check(!overlap(tr, sr), `the why sheet sits beside the tablet, never over it (tablet ${Math.round(tr?.top)}–${Math.round(tr?.bottom)}, sheet ${Math.round(sr?.top)}–${Math.round(sr?.bottom)})`);
   await shot("cut23-row-why");
   await page.locator(".sheet-wrap .why-edit").click({ timeout: 5000 }); await sleep(250);

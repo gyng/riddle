@@ -46,6 +46,11 @@ pub struct SimResult {
     /// close it came (`oath::progress`, 0..1).
     pub oath: bool,
     pub oath_progress: f64,
+    /// Cut 28b (AW: "the Mother oath sat at 9% ±8 with no lever I could find"): the oath's steps
+    /// this send passed (`oath::steps` bits: the floor reached, the boss met, the boss burned).
+    pub oath_steps: u8,
+    /// Cut 29 §6: the waystone passage paid at the send (in `loot_kept`).
+    pub passage: i32,
 }
 
 /// Simulate `sims` fresh expeditions from the current lineage with `rules`, each stopping once
@@ -143,7 +148,8 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
     let sworn = crate::oath::sworn(&g.lineage);
     let oath = sworn.is_some_and(|o| crate::oath::kept(o, run));
     let oath_progress = sworn.map_or(0.0, |o| crate::oath::progress(o, run));
-    (n, SimResult { oath, oath_progress, ..sim_result(run, n, keyed) })
+    let oath_steps = sworn.map_or(0, |o| crate::oath::steps(o, run));
+    (n, SimResult { oath, oath_progress, oath_steps, ..sim_result(run, n, keyed) })
 }
 
 /// Cut 27 §2: a row's key in `SimResult.fires` — its conditions and verb (not its origin).
@@ -172,7 +178,7 @@ fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> S
     let tier = run.over.unwrap_or(ExitTier::Return);
     // (Cut 27 §1: a waystone start's passage is the send's gold too — paid at the send)
     let loot_kept = run.loot.max(0) * run.yield_pct(tier) / 100 + run.passage;
-    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0 }
+    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage }
 }
 
 /// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
@@ -527,7 +533,10 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let stall = ended.iter().filter(|r| r.timed_out).count() as f64 / n;
     let gold = ended.iter().map(|r| r.loot_kept as f64).sum::<f64>() / n;
     let death = share(ExitTier::Death);
-    let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()) });
+    // Cut 29 §6 (AX: a D12 bank of $81 under a ~$260 forecast — the forecast counts the waystone's
+    // passage, paid at the send, the exit line does not): the passage's share of `gold`, its own.
+    let passage = ended.iter().map(|r| r.passage as f64).sum::<f64>() / n;
+    let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()), passage });
     let n_sims = ended.len() as u32;
     let mut depths: Vec<ForecastDepth> = depths;
     for d in depths.iter_mut().filter(|d| d.depth >= start) {
@@ -765,7 +774,7 @@ pub fn fork_forecast_at(game: &Game, fork: u32, sims: u32) -> Vec<crate::wire::F
     let sims = if sims > FORECAST_SIMS { REFINE_SIMS } else { FORECAST_SIMS };
     let Some(i) = FORKS.iter().position(|f| *f == fork) else { return Vec::new() };
     let route = rules.route();
-    if !route.fork_open(fork) || !crate::descent::OPEN_FORKS.contains(&fork) {
+    if !route.fork_open(fork) || !crate::descent::fork_open_for(game.lineage.unlocks.contains("route2"), fork) {
         return Vec::new();
     }
     // QA on 308f045 (qaAD: `burrows D8 <2% · fens D8 <2%` before the absence, the shaft differing at D6 27 % vs 14 %): the
@@ -1009,6 +1018,10 @@ fn part_text(kind: &str, was: &crate::engine::LineageState, now: &crate::engine:
         _ => {
             if was.heir != now.heir {
                 "new heir".into()
+            } else if crate::traits::key(was) != crate::traits::key(now) {
+                // Cut 30 §4: a trait's move is the heir's (`heir wrathful · frail`)
+                let c = crate::traits::chip(now);
+                if c.is_empty() { "heir neutral".into() } else { format!("heir {c}") }
             } else if was.trait_ != now.trait_ || was.class != now.class {
                 format!("heir {}", now.trait_.name())
             } else if was.class_level() != now.class_level() {
@@ -1244,6 +1257,7 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&l.seed.to_string());
     feed(&l.heir.to_string());
     feed(l.trait_.name());
+    feed(&crate::traits::key(l));
     feed(l.class.name());
     feed(&l.class_level().to_string());
     feed(&format!("{:?}", l.facts));

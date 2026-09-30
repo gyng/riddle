@@ -118,7 +118,7 @@ const SPARKY = /skeleton|golem|sentinel|warden|mirror|echo|bell|slag|forge_imp|i
 const GHOSTLY = /wraith|spectral|shade|lich|siren/;
 
 /** what the viewer tells juice about one entity this frame (world env texels: feet at x, y; h = drawn height) */
-export type EntView = { x: number; y: number; h: number; kind: string; hero: boolean; boss: boolean; maxHp: number; ally: boolean };
+export type EntView = { x: number; y: number; h: number; w?: number; kind: string; hero: boolean; boss: boolean; maxHp: number; ally: boolean };
 
 export type JuiceCtx = {
   ent(id: number): EntView | null;
@@ -130,14 +130,17 @@ export type JuiceCtx = {
   half: [number, number];           // half the view in world units
   fires: [number, number][];        // visible fire overlays (world centre of the tile)
   gases: [number, number][];        // visible gas overlays
+  waters: [number, number][];       // gfx round 5: visible water tiles (world centre): glints on the surface, a low mist
   torches: readonly (readonly [number, number])[];   // torch flames (world)
   motes: boolean;                   // the hero stands in a lit room (dust motes drift in it)
+  ghosts?: readonly (readonly [number, number])[];   // gfx round 22: ethereal foes (world, mid-body) — a cold wisp trails off each
+  fog?: number;                     // gfx round 22: the biome's low fog over its water (the Fens 1; 0 elsewhere)
   dust: Rgb;                        // a mid colour of the biome's ramp (death dust)
 };
 
-type Num = { x: number; y: number; text: string; col: Rgb; t0: number; big: boolean };
+type Num = { x: number; y: number; text: string; col: Rgb; t0: number; big: boolean; id?: number; n?: number };
 type Pop = { x: number; y: number; r: number; c: Rgb; t0: number; life: number };
-type Squash = { t0: number; kind: "hurt" | "lunge" | "spawn" | "die"; ax: number; ay: number };
+type Squash = { t0: number; kind: "hurt" | "lunge" | "spawn" | "die" | "drop" | "stagger"; ax: number; ay: number };
 
 export class Juice {
   readonly emit: TintLayer;
@@ -167,10 +170,17 @@ export class Juice {
   private lastBoss = -1;
   private bossPlayed = new Set<number>();
   private rnd = 0x2545f491;
+  readonly breaks: number[] = [];
+  readonly falls: number[] = [];   // gfx round 10: bosses fallen this frame (the viewer stamps `SLAIN`)
+  domNums = true;   // gfx round 6: numbers drawn by the viewer's DOM layer (the list below), not as bitmap quads
+  readonly shown: { x: number; y: number; text: string; col: Rgb; sc: number; a: number; big: boolean }[] = [];   // gfx round 1: bosses whose guard broke this frame (the viewer drains it)
   private emitAcc = 0;
   clock = 0;   // the replay clock (ticks) as of the last update: squash is timed in ticks
 
-  constructor(env: THREE.Texture, q: Quality, white: () => Slot, font: (ch: string) => Slot) {
+  private coinSlot: (() => Slot) | null = null;
+  private coin = new Uint8Array(POOL);   // gfx round 21: a particle drawn as the coin sprite, spinning
+  constructor(env: THREE.Texture, q: Quality, white: () => Slot, font: (ch: string) => Slot, coin?: () => Slot) {
+    this.coinSlot = coin ?? null;
     this.q = q;
     this.emit = new TintLayer(env, POOL, EMISSIVE_TAG, false, 8);
     this.matte = new TintLayer(env, POOL, 0.5, false, 8);
@@ -222,7 +232,7 @@ export class Juice {
     if (p >= 0 && p < 1) { const va = this.vig.a * (this.q.motion ? (1 - p) * (1 - p) : 0.5 * (1 - p)); if (va > a) { a = va; c = this.vig.c; } }
     let desat = 0;
     if (this.deadAt > 0) { const d = Math.min(1, (now - this.deadAt) / 1200); desat = 0.55 * d; a = Math.max(a, 0.32 * d); c = [0.4, 0.02, 0.02]; }
-    return { c, a, base: 0.24, desat };
+    return { c, a, base: 0.17, desat };
   }
 
   /** squash & stretch for an entity (multipliers on its drawn width and height; feet stay put) */
@@ -234,9 +244,23 @@ export class Juice {
     if (s.kind === "hurt") { const p = dt / 2.5; if (p >= 1 || p < 0) return [1, 1]; const e = (1 - p) * Math.cos(p * Math.PI * 1.5); return [1 + 0.16 * e, 1 - 0.14 * e]; }
     if (s.kind === "lunge") { const p = dt / 3; if (p >= 1 || p < 0) return [1, 1]; const e = Math.sin(p * Math.PI) * (1 - p * 0.5); return [1 + 0.12 * e * s.ax - 0.05 * e * s.ay, 1 + 0.1 * e * s.ay - 0.05 * e * s.ax]; }
     if (s.kind === "spawn") { const p = dt / 3; if (p >= 1 || p < 0) return [1, 1]; const b = 1 + 2.7 * Math.pow(p - 1, 3) + 1.7 * Math.pow(p - 1, 2); return [0.7 + 0.3 * b, 0.4 + 0.6 * b]; }
+    // gfx round 18 (raters: "stagger the boss at his break"): a big reel — crushed down and wide, then two wobbles back up over 8 ticks
+    if (s.kind === "stagger") { const p = dt / 8; if (p >= 1 || p < 0) return [1, 1]; const e = (1 - p) * Math.cos(p * Math.PI * 2.5); return [1 + 0.26 * e, 1 - 0.3 * e]; }
+    if (s.kind === "drop") {   // falling (stretched), the landing (squashed), the settle
+      if (dt < 0 || dt >= 7) return [1, 1];
+      if (dt < 3) return [0.9, 1.12];
+      const p = (dt - 3) / 4, e = (1 - p) * Math.cos(p * Math.PI * 1.5); return [1 + 0.22 * e, 1 - 0.2 * e];
+    }
     const p = Math.min(1, dt / 12); return [1 + 0.25 * p, 1 - 0.45 * p];
   }
 
+  /** gfx round 5: an entity's drop height this frame (world units above its feet) — a boss falling into his arena over 3 ticks */
+  lift(id: number, clock: number): number {
+    if (!this.moving()) return 0;
+    const s = this.squashes.get(id); if (!s || s.kind !== "drop") return 0;
+    const dt = clock - s.t0; if (dt < 0 || dt >= 3) return 0;
+    const p = dt / 3; return Math.round(36 * (1 - p * p));
+  }
   /** the first 0.7 tick of a hit on a foe flashes near-white (med+; the hero keeps the viewer's half flash — QA 1a2a4a9) */
   hitFlash(id: number, clock: number, hero: boolean): number {
     if (!this.on() || hero) return 0;
@@ -258,13 +282,13 @@ export class Juice {
 
   private pop(x: number, y: number, r: number, c: Rgb, life: number, now: number): void { if (this.pops.length < 16) this.pops.push({ x, y, r, c, t0: now, life }); }
 
-  private spawn(x: number, y: number, vx: number, vy: number, life: number, size: number, c: Rgb, o: { glow?: boolean; grav?: number; floor?: number; drag?: number; disc?: boolean; alpha?: number; fadeTo?: number; sway?: number } = {}): void {
+  private spawn(x: number, y: number, vx: number, vy: number, life: number, size: number, c: Rgb, o: { glow?: boolean; grav?: number; floor?: number; drag?: number; disc?: boolean; alpha?: number; fadeTo?: number; sway?: number; coin?: boolean } = {}): void {
     if (this.live >= POOL) return;
     const i = this.live++;
     this.px[i] = x; this.py[i] = y; this.vx[i] = vx; this.vy[i] = vy; this.life[i] = life; this.max[i] = life; this.size[i] = size;
     this.r0[i] = c[0]; this.g0[i] = c[1]; this.b0[i] = c[2];
     this.glow[i] = o.glow ? 1 : 0; this.grav[i] = o.grav ?? 0; this.floor[i] = o.floor ?? -1e9; this.drag[i] = o.drag ?? 0;
-    this.disc[i] = o.disc ? 1 : 0; this.alpha[i] = o.alpha ?? 1; this.fadeTo[i] = o.fadeTo ?? 1; this.sway[i] = o.sway ?? 0;
+    this.disc[i] = o.disc ? 1 : 0; this.coin[i] = o.coin ? 1 : 0; this.alpha[i] = o.alpha ?? 1; this.fadeTo[i] = o.fadeTo ?? 1; this.sway[i] = o.sway ?? 0;
   }
 
   private burst(n: number, x: number, y: number, speed: number, c: Rgb, life: number, size: number, o: Parameters<Juice["spawn"]>[7] = {}, up = 0): void {
@@ -278,7 +302,7 @@ export class Juice {
   update(dtMs: number, now: number, clock: number, x: JuiceCtx): void {
     this.clock = clock;
     this.emit.begin(); this.matte.begin(); this.nums.begin();
-    if (!this.on()) { this.live = 0; this.queue.length = 0; this.numbers.length = 0; this.emit.end(); this.matte.end(); this.nums.end(); return; }
+    if (!this.on()) { this.live = 0; this.queue.length = 0; this.numbers.length = 0; this.shown.length = 0; this.emit.end(); this.matte.end(); this.nums.end(); return; }
     for (const ev of this.queue) this.handle(ev, now, x);
     this.queue.length = 0;
     const sim = x.speed > 0 ? Math.min(2.5, Math.max(1, x.speed)) * (dtMs / 1000) : 0;
@@ -297,7 +321,7 @@ export class Juice {
         const heavy = e.maxHp > 0 && ev.dmg >= e.maxHp * 0.15;
         if (e.boss) this.lastBoss = ev.id;
         this.squashes.set(ev.id, { t0: ev.t, kind: "hurt", ax: 0, ay: 0 });
-        const n = Math.min(14, 5 + ev.dmg);
+        const n = e.hero ? Math.min(6, 2 + (ev.dmg >> 1)) : Math.min(14, 5 + ev.dmg);   // gfx round 19 (raters: "the hero a noisy red speckle"): fewer drops off the hero
         if (SPARKY.test(e.kind)) this.burst(n, cx, cy, 55, C.spark, 0.35, 0.5, { glow: true, grav: -90, drag: 2 }, 12);
         else if (GHOSTLY.test(e.kind)) this.burst(n, cx, cy, 22, C.soul, 0.7, 1, { glow: true, drag: 1.5, alpha: 0.8 }, 10);
         else if (/bloat|jelly|slime/.test(e.kind)) this.burst(n, cx, cy, 40, /pink/.test(e.kind) ? C.pink : C.goo, 0.8, 1, { grav: -160, floor: e.y - 2 - this.rand() * 3 }, 25);
@@ -311,8 +335,22 @@ export class Juice {
         } else {
           this.pop(cx, cy, 2.2, [1.0, 0.8, 0.5], 150, now);
           if (e.boss && x.speed <= 1.5) this.hitStop(45, now);
+          // gfx round 25 (raters, every watch moment: "a slash arc on the attack", "hits lack impact"): the blow draws a bright crescent
+          // across the foe — a short arc of glowing points swept upper-left to lower-right, gone in ~0.2 s; a heavy blow kicks the view
+          if (this.q.motion) {
+            const r = Math.max(5, (e.h ?? 12) * 0.45), a0 = 2.3 + (this.rand() - 0.5) * 0.5;
+            for (let i = 0; i < 11; i++) {
+              const a = a0 - (i / 10) * 1.9, px = cx + Math.cos(a) * r, py = cy + Math.sin(a) * r * 0.8, tip = i === 0 || i === 10;
+              this.spawn(px, py, -Math.sin(a) * 14, Math.cos(a) * 14, 0.14 + i * 0.008, tip ? 0.5 : 1, [1, 0.95, 0.8], { glow: true, drag: 8, fadeTo: 0.4 });
+            }
+            if (heavy && !x.fight) this.kickShake(1, 110, now);
+          }
         }
-        if (!x.quiet) this.numbers.push({ x: cx, y: e.y + e.h + 1, text: String(ev.dmg), col: e.hero ? [1, 0.3, 0.22] : e.ally ? [0.7, 1, 0.6] : [1, 0.96, 0.85], t0: now, big: heavy });
+        // gfx round 1 (raters: "stacked '4' numbers"): blows on one body within 350 ms add up on one number (re-popped), not a stack
+        const prev = this.numbers.find((m) => m.id === ev.id && now - m.t0 < 350);
+        if (!x.quiet && prev) { prev.n = (prev.n ?? 0) + ev.dmg; prev.text = String(prev.n); prev.t0 = now; prev.big = prev.big || heavy; prev.x = cx; }
+        // gfx round 7 (raters: "the hero hidden under a big '5'"): a number starts over the head's shoulder, not on the face
+        else if (!x.quiet) this.numbers.push({ x: cx + (e.hero ? -1 : 1) * Math.round((e.w ?? 8) * 0.3), y: e.y + e.h + 3, text: String(ev.dmg), col: e.hero ? [1, 0.3, 0.22] : e.ally ? [0.7, 1, 0.6] : [1, 0.96, 0.85], t0: now, big: heavy, id: ev.id, n: ev.dmg });
         if (this.numbers.length > 24) this.numbers.shift();
         break;
       }
@@ -322,6 +360,9 @@ export class Juice {
         const ax = d ? Math.sign(d.x - s.x) : 0, ay = d ? Math.sign(d.y - s.y) : 0;
         this.squashes.set(ev.src, { t0: ev.t, kind: "lunge", ax: Math.abs(ax), ay: Math.abs(ay) });
         if (!ev.hit && d) this.burst(4, d.x, d.y + 2, 18, x.dust, 0.35, 1, { drag: 3, alpha: 0.7 }, 6);   // a whiff: dust at the dodger's feet
+        // gfx round 1 (raters: "no slash arc, the hit lacks impact"): a melee blow that lands draws a bright crescent across the target,
+        // swept from the attacker's side — white-gold from the hero and his allies, blood-red from a foe
+        if (ev.hit && d && Math.abs(d.x - s.x) <= 14 && Math.abs(d.y - s.y) <= 14) this.slash(s, d, s.hero || s.ally);
         break;
       }
       case "die": {
@@ -339,11 +380,16 @@ export class Juice {
           // "pale blob": a cream plume, a white-gold light and a long flash washed the Warlord out before he fell): all in the boss's own
           // colour, smaller and shorter — the light a small pop at his chest, the motes few and rising off him, the flash and slow-mo brief
           const bc = bossCol(e.kind);
+          this.falls.push(ev.id);
           if (mv) { this.slowUntil = now + 700; this.slowRate = 0.3; }
           this.kickShake(3, 420, now); this.flashVig(bc, 0.3, 480, now);
+          this.pop(cx, cy, 7, [1.4, 1.35, 1.2], 170, now);   // (round 16, raters: "a white flash on the killing blow"): a short white burst of light
           this.ring(28, cx, e.y + 1, 60, x.dust, 0.6, false); this.ring(16, cx, e.y + 1, 32, bc, 0.5, true);
           this.burst(10, cx, e.y + e.h * 0.7, 8, bc, 0.9, 0.5, { glow: true, drag: 0.6, sway: 5 }, 18);
           this.pop(cx, cy, 3.5, [bc[0] * 0.8, bc[1] * 0.8, bc[2] * 0.8], 420, now);
+          // gfx round 1 (raters: "a boss kill deserves a loot burst"): his hoard spills — gold fountains up and rains down around him
+          // gfx round 18 (raters, every round: "a loot burst from the corpse"): twice the coins, bigger, spilling wider and lying glinting
+          for (let i = 0; i < 52; i++) { const a = -Math.PI / 2 + (this.rand() - 0.5) * 2.6; const sp = 55 + this.rand() * 75; this.spawn(cx + (this.rand() - 0.5) * 8, e.y + e.h * 0.5, Math.cos(a) * sp * 0.75, -Math.sin(a) * sp, 2.2 + this.rand() * 1.4, this.rand() < 0.55 ? 2 : 1, C.gold, { glow: i % 3 === 0, coin: i % 3 !== 0, grav: -150, floor: e.y - 3 - this.rand() * 10, drag: 0.5 }); }   // (round 21: two in three are coin sprites, the rest glints)
         }
         else if (x.speed <= 1.5) this.hitStop(55, now);
         break;
@@ -391,11 +437,14 @@ export class Juice {
           const cx = e.x, cy = e.y + e.h * 0.5;
           // pass 3: the break's pop lit the hero beside the boss into a cream silhouette — a smaller, dimmer, shorter light
           this.burst(22, cx, cy, 80, C.spark, 0.4, 0.5, { glow: true, grav: -120, drag: 2 }, 20);
+          // gfx round 1 (raters: "no shield-shatter shards"): his guard breaks into iron shards that fly, fall and lie on the floor
+          for (let i = 0; i < 18; i++) { const a = this.rand() * Math.PI * 2, sp = 40 + this.rand() * 55; this.spawn(cx + Math.cos(a) * 3, cy + Math.sin(a) * 3, Math.cos(a) * sp, Math.sin(a) * sp * 0.7 + 30, 1.1 + this.rand() * 0.6, this.rand() < 0.4 ? 1.5 : 1, i % 3 ? [0.62, 0.64, 0.7] : [0.9, 0.92, 1], { grav: -190, floor: e.y - 2 - this.rand() * 6, drag: 0.8 }); }
           this.ring(22, cx, e.y + 1, 50, C.ember, 0.35, true);
           this.pop(cx, cy, 3, [0.9, 0.45, 0.14], 380, now);
           this.flashVig([1, 0.5, 0.12], 0.3, 420, now); this.kickShake(3, 380, now);
           if (x.speed <= 1.5) this.hitStop(110, now);
-          this.squashes.set(this.lastBoss, { t0: this.clock, kind: "hurt", ax: 0, ay: 0 });
+          this.squashes.set(this.lastBoss, { t0: this.clock, kind: "stagger", ax: 0, ay: 0 });
+          this.breaks.push(this.lastBoss);   // gfx round 1: the viewer draws his guard shattering over him (tags.ts `shatter`)
         }
         break;
       }
@@ -413,7 +462,20 @@ export class Juice {
     this.pop(e.x, e.y + e.h * 0.5, 6.5, [0.75, 0.3, 1.1], 1000, now);
     this.flashVig([0.35, 0.05, 0.45], 0.55, 1100, now); this.kickShake(3, 520, now);
     if (x.speed <= 1.5) this.hitStop(140, now);
-    this.squashes.set(id, { t0: this.clock, kind: "spawn", ax: 0, ay: 0 });
+    this.squashes.set(id, { t0: this.clock, kind: "drop", ax: 0, ay: 0 });   // gfx round 5 (raters: "the boss doesn't step in"): he drops in
+  }
+  /** gfx round 1: a slash — a crescent of bright points across the target's chest, swept away from the attacker, gone in ~0.2 s */
+  private slash(s: EntView, d: EntView, friendly: boolean): void {
+    const cx = d.x, cy = d.y + d.h * 0.5, side = Math.sign(d.x - s.x) || (this.rand() < 0.5 ? -1 : 1);
+    // gfx round 4 (raters, round 2: "no slash arc" — the 11 half-texel points lived 0.2 s): a fuller crescent, two strokes deep, ~0.3 s
+    const r = Math.max(7, Math.min(14, d.h * 0.5)), a0 = side > 0 ? 2.3 : 0.85, span = 2.1 * (side > 0 ? -1 : 1);
+    const c: Rgb = friendly ? [1, 0.95, 0.75] : [1, 0.35, 0.22], c2: Rgb = friendly ? [1, 0.75, 0.35] : [0.8, 0.12, 0.08];
+    for (let i = 0; i < 18; i++) {
+      const u = i / 17, a = a0 + span * u, w = Math.sin(u * Math.PI), rr = r * (0.82 + 0.3 * w);
+      const x0 = cx + Math.cos(a) * rr - side * 2, y0 = cy + Math.sin(a) * rr * 0.9, vx = -Math.sin(a) * 22 * Math.sign(span), vy = Math.cos(a) * 22 * Math.sign(span);
+      this.spawn(x0, y0, vx, vy, 0.16 + 0.18 * w, w > 0.45 ? 1.5 : 1, c, { glow: true, drag: 7, fadeTo: 0.5 });
+      if (w > 0.3) this.spawn(x0 - Math.cos(a) * 1.5, y0 - Math.sin(a) * 1.35, vx * 0.8, vy * 0.8, 0.12 + 0.14 * w, 1, c2, { glow: true, drag: 7, fadeTo: 0.4 });
+    }
   }
   /** a flat ring (top-down: squashed vertically) of n particles flying out from (cx, cy) */
   private ring(n: number, cx: number, cy: number, speed: number, c: Rgb, life: number, glow: boolean): void {
@@ -433,7 +495,15 @@ export class Juice {
     const dt = dtMs / 1000;
     const near = (p: readonly [number, number]): boolean => Math.abs(p[0] - x.cam[0]) < x.half[0] + 8 && Math.abs(p[1] - x.cam[1]) < x.half[1] + 8;
     for (const f of x.fires) if (near(f) && this.rand() < 9 * dt) this.spawn(f[0] + (this.rand() - 0.5) * 7, f[1] - 3 + this.rand() * 3, (this.rand() - 0.5) * 4, 9 + this.rand() * 9, 0.7 + this.rand() * 0.6, this.rand() < 0.3 ? 1 : 0.5, C.ember, { glow: true, fadeTo: 0.25, sway: 5 });
-    for (const g of x.gases) if (near(g) && this.rand() < 2.2 * dt) this.spawn(g[0] + (this.rand() - 0.5) * 7, g[1] - 3 + this.rand() * 5, (this.rand() - 0.5) * 3, 1.5 + this.rand() * 2, 1.6 + this.rand(), 3 + this.rand() * 2, C.gas, { disc: true, alpha: 0.55, drag: 0.3, sway: 2 });
+    for (const g of x.gases) if (near(g) && this.rand() < 4.5 * dt) this.spawn(g[0] + (this.rand() - 0.5) * 7, g[1] - 3 + this.rand() * 5, (this.rand() - 0.5) * 3, 1.5 + this.rand() * 2, 1.6 + this.rand(), 2 + this.rand() * 1.5, [C.gas[0] * 0.45, C.gas[1] * 0.5, C.gas[2] * 0.4], { disc: true, glow: true, drag: 0.3, sway: 2, fadeTo: 0.3 });   // gfx round 1: a glowing puff (the 55 % screen-door read as a checker)
+    for (const w of x.waters) {   // gfx round 5: the pools catch the light — a glint that winks out, now and then a breath of mist
+      if (this.rand() < 0.55 * dt) this.spawn(w[0] + (this.rand() - 0.5) * 7, w[1] + (this.rand() - 0.5) * 6, 0, 0, 0.35 + this.rand() * 0.35, this.rand() < 0.3 ? 1 : 0.5, [0.75, 0.95, 1], { glow: true, fadeTo: 0.2 });
+      if (this.rand() < 0.08 * dt) this.spawn(w[0] + (this.rand() - 0.5) * 6, w[1] - 2, (this.rand() - 0.5) * 2, 1 + this.rand(), 2.5 + this.rand(), 2.5, [0.16, 0.22, 0.24], { disc: true, glow: true, drag: 0.3, sway: 1.5, fadeTo: 0.2 });
+    }
+    // gfx round 22 (raters, the Fens: "no mist, fog or water shimmer in a fen"; "wraiths read as grey blobs — a glow and a trailing wisp")
+    const fog = x.fog ?? 0;
+    if (fog > 0) for (const w of x.waters) if (near(w) && this.rand() < 0.45 * fog * dt) this.spawn(w[0] + (this.rand() - 0.5) * 8, w[1] - 3 + this.rand() * 4, 2.5 + this.rand() * 2.5, 0.4 + this.rand() * 0.8, 3.5 + this.rand() * 2, 3 + this.rand() * 2, [0.13, 0.19, 0.19], { disc: true, glow: true, drag: 0.1, sway: 1.2, fadeTo: 0.1 });
+    for (const g of x.ghosts ?? []) if (near(g) && this.rand() < 7 * dt) this.spawn(g[0] + (this.rand() - 0.5) * 6, g[1] - 4 + this.rand() * 6, (this.rand() - 0.5) * 3, 4 + this.rand() * 5, 0.7 + this.rand() * 0.5, this.rand() < 0.4 ? 1.5 : 1, [0.45, 0.7, 1], { glow: true, fadeTo: 0, sway: 3 });
     for (const t of x.torches) if (near(t) && this.rand() < 0.9 * dt) this.spawn(t[0] + (this.rand() - 0.5) * 2, t[1] + 2, (this.rand() - 0.5) * 3, 7 + this.rand() * 6, 0.6 + this.rand() * 0.5, 0.5, C.ember, { glow: true, fadeTo: 0.3, sway: 3 });
     if (x.motes && this.q.at("high")) {
       this.emitAcc += dt * 3;
@@ -468,22 +538,33 @@ export class Juice {
     const w = this.white();
     for (let i = 0; i < this.live; i++) {
       const p = this.life[i]! / this.max[i]!;   // 1 → 0
-      const k = this.fadeTo[i]! + (1 - this.fadeTo[i]!) * p;
-      const a = this.alpha[i]! * Math.min(1, p * 2.5);
+      // (gfx round 23: an additive (glow) particle fades by dimming — its screen-door dissolve read as checkered discs in the Fens' fog)
+      const out = Math.min(1, p * 2.5), g = !!this.glow[i];
+      const k = (this.fadeTo[i]! + (1 - this.fadeTo[i]!) * p) * (g ? out : 1);
+      const a = this.alpha[i]! * (g ? 1 : out);
       const s = this.size[i]!;
       const L = this.glow[i] ? this.emit : this.matte;
       // whole target pixels (half env texels): crisp
       const X = Math.round(this.px[i]! * 2) / 2, Y = Math.round(this.py[i]! * 2) / 2;
+      if (this.coin[i] && this.coinSlot) {   // a coin: its own sprite at 3 world units (6 target pixels, 1:1), spinning on its axis
+        const sp = Math.abs(Math.cos(this.life[i]! * 9 + i)), cw = Math.max(1, Math.round(6 * sp)) / 2;
+        this.matte.push(X, Y, 3.9, cw, 3, this.coinSlot(), k, k, k, a, 0); continue;
+      }
       L.push(X, Y, 3.9, s, s, w, this.r0[i]! * k, this.g0[i]! * k, this.b0[i]! * k, a, this.disc[i]!);
     }
     // numbers: pop in at 2× for 90 ms, then rise and dissolve over 800 ms
+    this.shown.length = 0;
     this.numbers = this.numbers.filter((n) => now - n.t0 < 900);
     for (const n of this.numbers) {
       const t = now - n.t0;
-      const sc = (t < 90 && this.q.motion ? 1 : 0.5) * (n.big ? 1.5 : 1);
-      const rise = this.q.motion ? 8 * (1 - Math.pow(1 - Math.min(1, t / 800), 3)) : 2;
+      // gfx round 1 (raters: "damage '4' tiny glyphs"): full env size, popping in at 2× (a heavy blow 1.4×)
+      const sc = (t < 90 && this.q.motion ? 1.15 : 0.75) * (n.big ? 1.3 : 1);
+      const rise = this.q.motion ? 12 * (1 - Math.pow(1 - Math.min(1, t / 800), 3)) : 2;
       const a = t > 550 ? 1 - (t - 550) / 350 : 1;
-      this.text(n.text, n.x, n.y + rise, sc, n.col, a);
+      // gfx round 6 (raters, every round: "damage digits tiny/crude", "the 80 reads as '$0'"): the numbers are DOM glyphs in the game's
+      // face with an outline (tags.ts `numbers`), placed from here; the bitmap quads stay for a viewer with no DOM layer
+      if (this.domNums) this.shown.push({ x: n.x, y: n.y + rise, text: n.text, col: n.col, sc, a, big: n.big });
+      else this.text(n.text, n.x, n.y + rise, sc, n.col, a);
     }
     this.emit.end(); this.matte.end(); this.nums.end();
     void x;

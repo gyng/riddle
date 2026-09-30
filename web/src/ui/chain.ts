@@ -8,7 +8,7 @@ import type { Because, Row, Trace } from "../engine/types";
 import { h } from "./dom";
 import { lastRun, replayable } from "./runlog";
 import { openReplay } from "./replay";
-import { verbLabel, whyGloss } from "./tokens";
+import { refName, refRowsHas, verbLabel, whyGloss } from "./tokens";
 
 /** Cut 23 §3: a reason (`no use`, `no path`) with a gloss is a tap target — the tap adds the gloss after it (`no use · no effect now`). */
 export function whySpan(why: string): HTMLElement {
@@ -31,7 +31,8 @@ export type ChainCtx = { rows?: Row[]; verbs?: string[]; runId?: number; chain?:
 
 /** QA 912e135: a row's name (`R1` and its verb) — a button that opens the row when the screen can (`ChainCtx.onRow`), else text. */
 export function rowRef(row: number, verb: string | undefined, onRow?: (row: number) => void): HTMLElement {
-  const kids = [`R${row + 1}`, verb ? h("small", { class: "dim" }, ` ${verb}`) : ""];
+  // docs/COPY.md §2: the rule by what it does (`drink heal at 30%`), never a number
+  const kids = [refRowsHas(row) ? refName(row) : verb ?? refName(row)];
   return onRow ? h("button", { class: "r row-link", "data-row": row, onclick: (e: Event) => { e.stopPropagation(); onRow(row); } }, ...kids) : h("span", { class: "r" }, ...kids);
 }
 

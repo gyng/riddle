@@ -114,6 +114,16 @@ fn attack_rules(g: &mut Game) {
 }
 
 /// Cut 8B §3: a lineage that has tamed keeps no free leash on the shelf (for the supply tests).
+/// Cut 29 §1: every tier of the catalogue open (a bank, every band boss seen), and the free
+/// vocabulary their gates open — for the tests of cards and rows bought.
+fn tiers(g: &mut Game) {
+    g.lineage.banked_depths.insert(1);
+    for (k, _) in crate::descent::BOSS_DEPTHS {
+        g.lineage.facts.insert(format!("foe:{k}"));
+    }
+    crate::meta::grant_free(&mut g.lineage);
+}
+
 fn no_kennel_leash(g: &mut Game) {
     g.lineage.facts.insert("tamed:rat".into());
     g.lineage.supplies.clear();
@@ -301,13 +311,14 @@ fn card_rows_sit_outside_the_cap() {
     g.set_rules(RuleSet { rows: with_attack, name: None, route: Vec::new() }).unwrap();
     g.lineage.facts.insert("foe:bloat:gas".into());
     let cat = crate::meta::catalogue(&g.lineage);
-    let gas = cat.iter().find(|u| u.id == "gas_step").unwrap();
+    // (Cut 29 §1: gas step is an oath's reward, off the shelf — pack break is sold)
+    let gas = cat.iter().find(|u| u.id == "pack_break").unwrap();
     assert_eq!(gas.insert_at, Some(2));
-    assert_eq!(crate::meta::delta_row(&g.lineage, "gas_step").unwrap().1, 2);
+    assert_eq!(crate::meta::delta_row(&g.lineage, "pack_break").unwrap().1, 2);
     assert_eq!(cat.iter().find(|u| u.id == "thief_guard").unwrap().insert_at, None, "an owned card has no place to go");
     assert_eq!(cat.iter().find(|u| u.id == "throw").unwrap().insert_at, None, "a verb unlock's row is the player's");
     g.set_rules(RuleSet { rows, name: None, route: Vec::new() }).unwrap();
-    assert_eq!(crate::meta::catalogue(&g.lineage).iter().find(|u| u.id == "gas_step").unwrap().insert_at, Some(6), "no engagement row: the end");
+    assert_eq!(crate::meta::catalogue(&g.lineage).iter().find(|u| u.id == "pack_break").unwrap().insert_at, Some(6), "no engagement row: the end");
     // The rows in play: an own row fires with its set index (`R6` = `hp<40`; indices are 0-based).
     let mut g = arena();
     g.lineage.unlocks.insert("thief_guard".into());
@@ -778,7 +789,7 @@ fn lich_reflects_throws_and_chants_skeletons() {
 #[test]
 fn grudge_monster_is_named_and_stronger() {
     let mut g = Game::new(5);
-    g.lineage.grudges.push(crate::descent::Grudge { kind: "rat".into(), name: "Grak".into(), depth: 1, heir: 1, avenged: false, biome: None });
+    g.lineage.grudges.push(crate::descent::Grudge { kind: "rat".into(), name: "Grak".into(), depth: 1, heir: 1, avenged: false, tamed: false, biome: None });
     g.start_run(None);
     let run = g.run.as_ref().unwrap();
     let m = run.monsters.iter().find(|m| m.grudge).expect("grudge spawned on its floor");
@@ -1761,7 +1772,7 @@ fn marks_are_earned_on_new_bests_only() {
     g.run.as_mut().unwrap().max_depth = 3;
     g.run.as_mut().unwrap().kills.push((1, "rat".into(), 1));
     finish_with(&mut g, ExitTier::Bank);
-    assert_eq!(g.lineage.marks, 5, "D1..D3 (3) + first bank from D3 (Cut 4) + the frontier (Cut 15 §1); first kills no longer mark (Cut 2 §2)");
+    assert_eq!(g.lineage.marks, 4, "D1..D3 (3) + first bank from D3 (Cut 4); no frontier mark (Cut 29 §1); first kills no longer mark (Cut 2 §2)");
     assert!(g.batch.bests.iter().any(|b| b == "first kill: rat"), "but stay in bests");
     assert!(g.batch.bests.iter().any(|b| b == "home:D3"));
     g.auto_keep();
@@ -1770,13 +1781,13 @@ fn marks_are_earned_on_new_bests_only() {
     g2.run.as_mut().unwrap().max_depth = 3;
     g2.run.as_mut().unwrap().kills.push((1, "rat".into(), 1));
     finish_with(&mut g2, ExitTier::Bank);
-    assert_eq!(g2.lineage.marks, 6, "no new best, no marks but the frontier's (Cut 15 §1: D3 banked at a best of D3)");
+    assert_eq!(g2.lineage.marks, 4, "no new best, no marks (Cut 29 §1: the frontier mark is gone)");
     let mut g3 = arena();
     g3.lineage = g2.lineage.clone();
     g3.run.as_mut().unwrap().kills.push((1, "goblin_warlord".into(), 5));
     g3.run.as_mut().unwrap().trophies_run.push("pacifist_floor".into());
     finish_with(&mut g3, ExitTier::Bank);
-    assert_eq!(g3.lineage.marks, 6 + 3 + 2 + 1, "boss 3, trophy 2, first bank from D1 1 (D1 is not the frontier of D3)");
+    assert_eq!(g3.lineage.marks, 4 + 3 + 2 + 1, "boss 3, trophy 2, first bank from D1 1");
 }
 
 #[test]
@@ -1784,13 +1795,18 @@ fn unlocks_cost_marks_and_gate_rows() {
     let mut g = Game::new(1);
     assert!(g.buy("row5").is_err());
     g.lineage.marks = 5;
+    assert_eq!(g.buy("row5").unwrap_err(), "needs bank once", "Cut 29 §1: T1 opens at the first bank");
+    g.lineage.banked_depths.insert(2);
     g.buy("row5").unwrap();
-    assert_eq!(g.lineage.marks, 3);
+    assert_eq!(g.lineage.marks, 2);
     assert_eq!(g.vocabulary().max_rows, 5);
     assert!(g.buy("row5").is_err(), "already owned");
     assert!(g.buy("row7").is_err(), "prerequisite");
     assert!(g.buy("corridor_fighting").is_err(), "needs the pack fact");
     g.lineage.facts.insert("foe:jackal:pack".into());
+    assert_eq!(g.buy("corridor_fighting").unwrap_err(), "needs meet Warlord", "T2");
+    g.lineage.facts.insert("foe:goblin_warlord".into());
+    g.lineage.marks = 5;
     g.buy("corridor_fighting").unwrap();
     assert!(g.vocabulary().verbs.contains(&Verb::arg("tactic", "corridor_fighting")));
     let cat = g.unlocks();
@@ -2242,7 +2258,8 @@ fn auto_keep_follows_the_chip_and_never_evicts_across_categories() {
     finish_with(&mut a, ExitTier::Bank);
     a.auto_keep();
     assert_eq!(kinds(&a), ["mail+0", "summon_ally+0"]);
-    assert_eq!(a.lineage.to_wire().keep_auto, ["armour"]);
+    // (Cut 29 §4: the quartermaster's keep is the default — the chip's category, then the other)
+    assert_eq!(a.lineage.to_wire().keep_auto, ["armour", "weapon"]);
     // A better armour replaces the weaker armour, never the scroll.
     let mut a = arena();
     vaulted(&mut a, &["leather", "summon_ally"]);
@@ -3333,17 +3350,19 @@ fn tier_two_unlocks_need_bosses_and_open_rows_to_ten() {
         g.lineage.unlocks.insert(u.into());
     }
     g.lineage.marks = 100;
-    assert!(g.buy("row9").is_err(), "three bosses first");
-    for k in ["goblin_warlord", "bloat_mother", "lich"] {
-        g.lineage.kills.insert(k.into());
+    g.lineage.banked_depths.insert(2);
+    // Cut 29 §1: row 9 opens at T5 (the Foundry Master met), row 10 at T6 (the Lurker Queen met)
+    assert!(g.buy("row9").is_err(), "four bosses met first");
+    for k in ["goblin_warlord", "bloat_mother", "lich", "foundry_master"] {
+        g.lineage.facts.insert(format!("foe:{k}"));
     }
     g.buy("row9").unwrap();
     assert_eq!(g.lineage.max_rows(), 9);
-    assert!(g.buy("row10").is_err(), "four bosses for the tenth row");
-    g.lineage.kills.insert("foundry_master".into());
+    assert!(g.buy("row10").is_err(), "five bosses met for the tenth row");
+    g.lineage.facts.insert("foe:lurker_queen".into());
     g.buy("row10").unwrap();
     assert_eq!(g.lineage.max_rows(), 10);
-    assert_eq!(g.lineage.marks, 100 - 8 - 12);
+    assert_eq!(g.lineage.marks, 100 - 7 - 8);
     let ten: Vec<Row> = (0..10).map(|_| Row::new(vec![], Verb::new("hold"))).collect();
     assert!(g.set_rules(RuleSet { rows: ten.clone(), name: None, route: Vec::new() }).is_ok());
     assert_eq!(g.lineage.rules().rows.len(), 10);
@@ -3472,7 +3491,7 @@ fn finished_lineage() -> Game {
     g.lineage.vault.push(Item::new(100_001, "plate"));
     g.lineage.facts.insert("foe:lich:boss".into());
     g.lineage.forge.insert("sword".into(), ForgeRow::at(20));
-    g.lineage.grudges.push(crate::descent::Grudge { kind: "ogre".into(), name: "Grak".into(), depth: 7, heir: 3, avenged: false, biome: None });
+    g.lineage.grudges.push(crate::descent::Grudge { kind: "ogre".into(), name: "Grak".into(), depth: 7, heir: 3, avenged: false, tamed: false, biome: None });
     g.lineage.graveyard.push(Grave { heir: 3, depth: 7, cause: "ogre".into(), deeds: vec![], death_id: None });
     g.set_rules(crate::probes::good()).unwrap();
     g
@@ -3692,10 +3711,11 @@ fn first_bank_at_each_depth_is_a_mark() {
     assert!(!g.batch.bests.iter().any(|b| b == "home:D4"));
 }
 
-/// Cut 15 §1: a bank from depth ≥ the lineage's best (before the run) − 1 pays ◆1 on top of
-/// whatever else it earns, named on the exit line; a shallower bank and a return pay nothing.
+/// Cut 29 §1 (docs/PROGRESSION.md §3: the frontier mark paid for the same D13 bank every run):
+/// a bank at the record pays no mark of its own — a new best still pays its depth and its first
+/// bank; the night's mark (◆1 per day whose absences brought a send home) is the absence's.
 #[test]
-fn a_frontier_bank_pays_a_mark() {
+fn no_mark_for_the_frontier_and_one_a_night() {
     let exit_text = |g: &Game| g.last_exit.as_ref().map(|l| l.text.clone()).unwrap_or_default();
     let mut g = arena();
     g.lineage.rank = 50; // no rank-up mark from the watched run's renown
@@ -3706,35 +3726,31 @@ fn a_frontier_bank_pays_a_mark() {
     let marks = g.lineage.marks;
     finish_with(&mut g, ExitTier::Bank);
     g.keep(vec![]).unwrap();
-    assert_eq!(g.lineage.marks, marks + 1, "D7 against a best of D8 is the frontier");
-    assert_eq!(g.batch.frontier_banks, 1);
-    assert!(exit_text(&g).ends_with(" · ◆+1 frontier"), "{}", exit_text(&g));
-    // A shallower bank (D6 < 8 − 1): nothing.
-    g.start_run(Some(9));
-    g.lineage.banked_depths.insert(6);
-    g.run.as_mut().unwrap().depth = 6;
-    g.run.as_mut().unwrap().max_depth = 6;
-    finish_with(&mut g, ExitTier::Bank);
-    g.keep(vec![]).unwrap();
-    assert_eq!(g.lineage.marks, marks + 1, "a shallow bank pays nothing: {:?} {}", g.batch.bests, exit_text(&g));
+    assert_eq!(g.lineage.marks, marks, "D7 against a best of D8 pays nothing now");
+    assert_eq!(g.batch.frontier_banks, 0);
     assert!(!exit_text(&g).contains('◆'), "{}", exit_text(&g));
-    // A return from the frontier: nothing.
-    g.start_run(Some(10));
-    g.run.as_mut().unwrap().depth = 8;
-    g.run.as_mut().unwrap().max_depth = 8;
-    finish_with(&mut g, ExitTier::Return);
-    g.keep(vec![]).unwrap();
-    assert_eq!(g.lineage.marks, marks + 1, "a return pays nothing");
-    // A new-best bank (D10 from a best of D8): two depth marks, the first bank from D10, and
-    // the frontier's — measured against the best *before* this run.
+    // A new-best bank (D10 from a best of D8): two depth marks and the first bank from D10.
     g.start_run(Some(11));
     g.run.as_mut().unwrap().depth = 10;
     g.run.as_mut().unwrap().max_depth = 10;
     finish_with(&mut g, ExitTier::Bank);
     g.keep(vec![]).unwrap();
-    assert_eq!(g.lineage.marks, marks + 1 + 2 + 1 + 1);
-    assert!(exit_text(&g).ends_with(" · ◆+4 (1 frontier)"), "{}", exit_text(&g));
-    assert_eq!(g.batch.frontier_banks, 2);
+    assert_eq!(g.lineage.marks, marks + 2 + 1);
+    assert!(exit_text(&g).ends_with(" · ◆+3"), "{}", exit_text(&g));
+    // The night's mark: an absence whose sends came home pays ◆1 for its day, once.
+    let mut g = Game::new(5);
+    g.max_deaths = 1000;
+    let r = crate::offline::run_offline_counts(&mut g, 8 * 3600);
+    assert!(r.banked + r.returned > 0, "sends came home");
+    assert_eq!(r.night_marks, 1);
+    let r = crate::offline::run_offline_counts(&mut g, 4 * 3600);
+    assert_eq!(r.night_marks, 0, "the same day pays once");
+    let r = crate::offline::run_offline_counts(&mut g, 14 * 3600);
+    assert_eq!(r.night_marks, 1, "the next day (the absence reached it) pays");
+    // an absence of three whole days pays each day it covered
+    let r = crate::offline::run_offline_counts(&mut g, 3 * 24 * 3600);
+    assert_eq!(r.night_marks, 3);
+    assert_eq!(g.lineage.day, 1, "the day an absence starts on");
 }
 
 /// Cut 15 §6: a hazard pre-emption is said once — one `RowWhy` on the first row, naming the
@@ -3760,42 +3776,41 @@ fn a_hazard_preemption_is_said_once_with_its_name() {
     assert!(crate::turn::row_reason_ok(&rows[0].why));
 }
 
-/// Cut 15 §2: a gold buy spends gold (a ledger line `unlock <id>`), leaves the marks, owns the
-/// unlock and raises the next gold price by a quarter of the first; a free unlock, an owned
-/// one or a shut gate is refused.
+/// Cut 15 §2, Cut 29 §1: a gold buy spends gold (a ledger line `unlock <id>`), leaves the marks
+/// and owns the unlock — gold buys the row slots (the forge's ladder) and the automations (forge
+/// units, at the Lich) only; a card, an owned one or a shut gate is refused.
 #[test]
-fn a_gold_buy_spends_gold_and_raises_the_price() {
+fn a_gold_buy_spends_gold_on_rows_and_automations() {
     let mut g = Game::new(3);
     let price = |g: &Game, id: &str| g.unlocks().into_iter().find(|u| u.id == id).unwrap().gold;
-    assert_eq!(price(&g, "vault2"), 450, "◆3 × 150");
+    assert_eq!(price(&g, "vault2"), 0, "a card or a vault slot is marks only");
     // Cut 23 §1: a row slot sits on the forge's ladder (2 × the unit, $100 at best 0).
     assert_eq!(price(&g, "row5"), 2 * crate::kit::unit(0));
-    assert_eq!(price(&g, "rogue"), 0, "a free unlock has no gold price");
-    assert!(g.buy_unlock_gold("rogue").is_err());
-    assert!(g.buy_unlock_gold("vault2").is_err(), "no gold yet");
+    assert!(g.buy_unlock_gold("vault2").is_err());
     g.lineage.gold_move(20000, "test");
     g.lineage.marks = 1;
-    g.buy_unlock_gold("vault2").unwrap();
-    assert!(g.lineage.unlocks.contains("vault2"));
+    assert!(g.buy_unlock_gold("row5").is_err(), "row5 needs the first bank (T1)");
+    g.lineage.banked_depths.insert(2);
+    g.lineage.best_depth = 2;
+    g.buy_unlock_gold("row5").unwrap();
+    assert!(g.lineage.unlocks.contains("row5"));
     assert_eq!(g.lineage.marks, 1, "marks untouched");
-    assert_eq!(g.lineage.gold, 20000 - 450);
-    assert_eq!(g.lineage.gold_ledger.last().map(|l| (l.delta, l.why.as_str())), Some((-450, "unlock vault2")));
-    assert_eq!(g.lineage.gold_buys, 1);
-    assert_eq!(price(&g, "vault2"), 0, "owned");
-    assert_eq!(price(&g, "quartermaster"), 150 * 5 * 5 / 4, "the second gold buy costs a quarter more");
-    assert_eq!(price(&g, "row5"), 2 * crate::kit::unit(0), "a row slot's price is the ladder's, not climbing with gold buys");
-    assert!(g.buy_unlock_gold("vault2").is_err(), "already owned");
+    assert_eq!(g.lineage.gold_ledger.last().map(|l| l.why.as_str()), Some("unlock row5"));
+    assert_eq!(g.lineage.gold_buys, 0, "a row slot's price is the ladder's");
+    assert!(g.buy_unlock_gold("row5").is_err(), "already owned");
     assert!(g.buy_unlock_gold("row7").is_err(), "prerequisite missing");
-    assert!(g.buy_unlock_gold("caster").is_err(), "a shut gate");
-    for _ in 0..3 {
-        let id = g.unlocks().into_iter().find(|u| !u.owned && u.gold > 0 && !crate::meta::is_row_unlock(&u.id) && g.buy_unlock_gold(&u.id.clone()).is_ok()).map(|u| u.id);
-        assert!(id.is_some());
-    }
-    assert_eq!(g.lineage.gold_buys, 4);
-    assert_eq!(crate::meta::gold_price(3, g.lineage.gold_buys), 900, "the fifth gold buy costs double the first");
-    // The save round-trips the count; an old save without it reads 0.
+    // an automation: gold only, at the Lich (T4), `units × unit`
+    assert!(g.buy_unlock_gold("bone_sense").is_err(), "a shut tier");
+    g.lineage.best_depth = 18;
+    g.lineage.facts.insert("bones:1".into());
+    let p = price(&g, "bone_sense");
+    assert_eq!(p, 3 * crate::kit::unit_of(&g.lineage));
+    assert!(g.buy("bone_sense").is_err(), "not for marks");
+    let gold = g.lineage.gold;
+    g.buy_unlock_gold("bone_sense").unwrap();
+    assert_eq!(g.lineage.gold, gold - p as i32);
     let back = Game::load(&g.save()).unwrap();
-    assert_eq!(back.lineage.gold_buys, 4);
+    assert!(back.lineage.unlocks.contains("bone_sense"));
 }
 
 /// Cut 4 §3: a row that acted on a foe keeps hunting it when it steps out of view: the
@@ -3970,6 +3985,7 @@ fn a_cards_best_place_does_not_stall() {
         g.lineage.unlocks.insert(u.into());
     }
     g.lineage.best_depth = 6;
+    tiers(&mut g);
     for m in crate::defs::MONSTERS.iter() {
         for t in m.tags {
             g.lineage.facts.insert(format!("foe:{}:{}", m.kind, t));
@@ -4179,6 +4195,7 @@ fn unlock_catalogue_carries_a_forecast_delta_for_open_cards() {
     g.lineage.facts.insert("foe:jackal:fast".into());
     g.lineage.facts.insert("item:leash".into());
     g.lineage.best_depth = 2;
+    tiers(&mut g);
     assert!(g.unlocks().iter().all(|u| u.delta.is_none()), "no sims before unlock_deltas");
     let t = std::time::Instant::now();
     let cat = g.unlock_deltas();
@@ -4186,10 +4203,10 @@ fn unlock_catalogue_carries_a_forecast_delta_for_open_cards() {
     let by = |id: &str| cat.iter().find(|u| u.id == id).unwrap().clone();
     assert!(by("corridor_fighting").delta.is_some(), "open card: {:?}", by("corridor_fighting"));
     assert!(by("pack_break").delta.is_some());
-    assert!(by("kite_archers").delta.is_none(), "gated on the ranged fact");
+    assert!(cat.iter().all(|u| u.id != "kite_archers"), "Cut 29 §1: a card a row could type is free, off the shelf");
     assert!(by("row5").delta.is_none(), "rows have no row to add");
     assert!(by("throw").delta.is_none(), "Cut 13: a verb carries no delta — its canonical row is nobody's policy (QA on 50bb162: `reach −92% ±11`)");
-    assert!(by("tame").owned && by("tame").delta.is_none(), "Cut 8B: tame is owned from the start");
+    assert!(g.lineage.unlocks.contains("tame"), "Cut 8B: tame is owned from the start");
     for u in &cat {
         if let Some(d) = u.delta {
             assert!((-1.0..=1.0).contains(&d), "{u:?}");
@@ -4218,18 +4235,19 @@ fn unlock_catalogue_carries_a_forecast_delta_for_open_cards() {
 /// screen; a condition no row uses has nothing to measure.
 #[test]
 fn cond_unlock_carries_the_locked_rows_delta() {
+    // Cut 29 §1: a condition word is free vocabulary — never on the shelf, owned with its gate; a
+    // row waiting on it wakes the moment the gate opens (the end of the run that opened it).
     let mut g = Game::new(2);
     g.lineage.facts.insert("den".into());
-    g.lineage.facts.insert("foe:jackal:pack".into()); // the gate: a foe met
-    g.lineage.best_depth = 2;
     let mut rules = g.lineage.rules().clone();
     rules.rows.insert(0, Row::new(vec![Cond::t("on_see", "den")], Verb::arg("attack", "nearest")));
     g.set_rules_raw(rules).unwrap();
-    let cat = g.unlock_deltas();
-    let by = |id: &str| cat.iter().find(|u| u.id == id).unwrap().clone();
-    let on_see = by("cond_on_see");
-    assert!(!on_see.owned && on_see.delta.is_some() && on_see.pm.is_some(), "{on_see:?}");
-    assert!(by("cond_alert").delta.is_none(), "no row waits on it: {:?}", by("cond_alert"));
+    assert!(g.unlocks().iter().all(|u| !u.id.starts_with("cond_")), "no condition word is sold");
+    assert!(!g.lineage.unlocks.contains("cond_on_see"));
+    g.lineage.facts.insert("foe:jackal:pack".into()); // the gate: a foe met
+    crate::meta::grant_free(&mut g.lineage);
+    assert!(g.lineage.unlocks.contains("cond_on_see"));
+    assert!(g.vocabulary().conds.iter().any(|c| c.k == "on_see"));
 }
 
 /// Cut 4: `Lineage.ascended` lists the variants already finished.
@@ -4902,7 +4920,8 @@ fn row_reasons_name_the_condition_or_the_block() {
         vec![
             Row::new(vec![], Verb::arg("tactic", "gas_step")),
             Row::new(vec![Cond::flag("unknown_item")], Verb::arg("drink", "unknown")),
-            Row::new(vec![Cond::n("loot>=", 1)], Verb::new("return")),
+            // (Cut 29 §1: `loot ≥` is free from the start; `alert ≥` waits on its gate)
+            Row::new(vec![Cond::n("alert>=", 1)], Verb::new("return")),
             Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest")),
         ],
     );
@@ -5636,7 +5655,8 @@ fn vocabulary_lists_locked_conds_and_set_rules_refuses_them() {
     let needs = |v: &crate::rules::Vocabulary, c: &Cond| v.locked.iter().find(|l| l.cond.same_token(c)).map(|l| l.needs.clone());
     assert_eq!(needs(&v, &Cond::t("on_see", "stray")).as_deref(), Some("see: stray"));
     assert_eq!(needs(&v, &Cond::flag("on_see")).as_deref(), Some("meet a foe"), "the unlock's own gate while shut");
-    assert_eq!(needs(&v, &Cond::n("turns>", 100)).as_deref(), Some("◆2"), "an open unlock: its price");
+    // (Cut 29 §1: a condition word is free — `turns>` has no gate, so it is open from the start)
+    assert!(v.conds.iter().any(|c| c.k == "turns>") && needs(&v, &Cond::n("turns>", 100)).is_none());
     assert!(needs(&v, &Cond::t("foe_tag", "pack")).is_none(), "no jackal met yet: its tag is not on the sheet");
     g.lineage.facts.insert("foe:jackal".into());
     let v = g.vocabulary();
@@ -5656,13 +5676,10 @@ fn vocabulary_lists_locked_conds_and_set_rules_refuses_them() {
     let row = |c: Cond| RuleSet { rows: vec![Row::new(vec![c], Verb::arg("tame", "nearest"))], name: None, route: Vec::new() };
     let e = g.set_rules(row(Cond::t("on_see", "stray"))).unwrap_err();
     assert!(e.contains("see stray") && e.contains("locked") && e.contains("see: stray"), "{e}");
-    let e = g.set_rules(row(Cond::n("turns>", 7))).unwrap_err();
-    assert!(e.contains("turns 7+") && e.contains("◆2"), "{e}");
     let e = g.set_rules(row(Cond::n("alert>=", 7))).unwrap_err();
     assert!(e.contains("alert 7+") && e.contains("see alert rise"), "{e}");
     // Open the gates: the fact, the unlock.
     g.lineage.facts.insert("stray".into());
-    g.lineage.unlocks.insert("cond_turns".into());
     let v = g.vocabulary();
     assert!(v.conds.contains(&Cond::t("on_see", "stray")) && needs(&v, &Cond::t("on_see", "stray")).is_none());
     assert!(v.conds.iter().any(|c| c.k == "turns>") && needs(&v, &Cond::n("turns>", 7)).is_none());
@@ -5694,7 +5711,10 @@ fn every_unavailable_unlock_carries_needs() {
     let mut g = Game::new(4);
     check(&g, "fresh");
     let by = |g: &Game, id: &str| g.unlocks().into_iter().find(|u| u.id == id).unwrap();
-    assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame a foe"));
+    // (Cut 29 §1: the party slots are oath rewards, off the shelf; the rows open at the first bank)
+    assert!(g.unlocks().iter().all(|u| u.id != "party_slot_2"));
+    assert_eq!(by(&g, "row5").needs.as_deref(), Some("bank once"));
+    tiers(&mut g);
     // Cut 10 §3: a row unlock is dimmed while the set has a free row (the preset is two of four).
     assert_eq!(by(&g, "row5").needs.as_deref(), Some("fill rows"));
     assert_eq!(by(&g, "row6").needs.as_deref(), Some("row5"));
@@ -5708,9 +5728,8 @@ fn every_unavailable_unlock_carries_needs() {
     assert_eq!(g.lineage.rules().rows.len(), 4, "the set is truncated to its four rows");
     assert!(by(&g, "row5").available && by(&g, "row5").needs.is_none(), "{:?}", by(&g, "row5"));
     g.lineage.marks = 0;
-    assert_eq!(by(&g, "row5").needs.as_deref(), Some("◆2 more"));
+    assert_eq!(by(&g, "row5").needs.as_deref(), Some("◆3 more"));
     g.lineage.marks = 100;
-    assert_eq!(by(&g, "party_slot_2").needs.as_deref(), Some("tame a foe"));
     let mut g = finished_lineage();
     g.ascend("short_list").unwrap();
     check(&g, "ascended");
@@ -5720,8 +5739,9 @@ fn every_unavailable_unlock_carries_needs() {
     let mut g = Game::new(2);
     g.lineage.facts.insert("foe:jackal:pack".into());
     g.lineage.best_depth = 1;
+    tiers(&mut g);
     let c = g.unlock_deltas().into_iter().find(|u| u.id == "corridor_fighting").unwrap();
-    assert_eq!(c.needs.as_deref(), Some("◆3 more"));
+    assert_eq!(c.needs.as_deref(), Some("◆4 more"));
     assert!(c.delta.is_some(), "{c:?}");
 }
 
@@ -5772,6 +5792,7 @@ fn forecast_pm_and_refine_share_the_panel_seeds() {
     let mut g = Game::new(7);
     g.set_rules(dive.clone()).unwrap();
     g.lineage.best_depth = 2;
+    tiers(&mut g);
     let rules = g.lineage.rules().clone();
     let tag = crate::forecast::forecast_tag(&g, 3);
     let a = crate::forecast::simulate_budget(&g, &rules, 50, tag, 3, u64::MAX);
@@ -6263,10 +6284,12 @@ fn card_delta_is_measured_where_the_buy_puts_it() {
     g.lineage.facts.insert("foe:jackal:pack".into());
     g.lineage.facts.insert("foe:bloat:gas".into());
     g.lineage.best_depth = 1;
+    g.lineage.facts.insert("foe:jackal:fast".into());
+    tiers(&mut g);
     g.set_rules_raw(RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], name: None, route: Vec::new() }).unwrap();
     let l = &g.lineage;
-    let (row, at) = crate::meta::delta_row(l, "gas_step").unwrap();
-    assert_eq!(row, Row::new(vec![], Verb::arg("tactic", "gas_step")), "the bare card row the client appends");
+    let (row, at) = crate::meta::delta_row(l, "pack_break").unwrap();
+    assert_eq!(row, Row::new(vec![], Verb::arg("tactic", "pack_break")), "the bare card row the client appends");
     assert_eq!(row.origin.as_deref(), Some("card"));
     assert_eq!(at, 1, "before the set's `attack nearest` (Cut 12 §1)");
     let (row, at) = crate::meta::delta_row(l, "throw").unwrap();
@@ -6279,23 +6302,23 @@ fn card_delta_is_measured_where_the_buy_puts_it() {
     // heal at R1 keeps the top
     assert_eq!(crate::meta::card_positions(g.lineage.rules()), vec![1]);
     let cat = g.unlock_deltas();
-    let card = cat.iter().find(|u| u.id == "gas_step").unwrap();
+    let card = cat.iter().find(|u| u.id == "pack_break").unwrap();
     let delta = card.delta.expect("open card");
     let rules = g.lineage.rules().clone();
     let depth = g.lineage.best_depth + 1;
     let tag = crate::forecast::forecast_tag(&g, depth);
     let (base, n) = crate::forecast::reach_counted(&g, &rules, depth, crate::forecast::FORECAST_SIMS, tag, crate::forecast::CATALOGUE_TICK_BUDGET);
     let mut sim = g.sim_clone();
-    sim.lineage.unlocks.insert("gas_step".into());
+    sim.lineage.unlocks.insert("pack_break".into());
     let at = |i: usize| {
         let mut set = rules.clone();
-        set.rows.insert(i, Row::new(vec![], Verb::arg("tactic", "gas_step")).from("card"));
+        set.rows.insert(i, Row::new(vec![], Verb::arg("tactic", "pack_break")).from("card"));
         crate::forecast::reach_paired(&sim, &set, depth, n, tag)
     };
     let (best_at, best) = (1, at(1));
     assert!((delta - (best - base)).abs() < 1e-9, "delta {delta} vs best {best} − base {base}");
     assert_eq!(card.insert_at, Some(best_at), "the card goes where it was measured best");
-    assert_eq!(card.situation.as_deref(), Some("gas"));
+    assert_eq!(card.situation.as_deref(), Some("pack"));
 }
 
 /// Cut 18 §5 (Y, Z: "every card read `reach ~0 at R4`"): a card is measured at each of its
@@ -6320,9 +6343,10 @@ fn a_card_reads_its_best_place_and_its_situation() {
     assert_eq!((sit("corridor_fighting"), sit("last_stand"), sit("row5"), sit("throw")), (None, None, None, None));
     let g = Game::new(3);
     let cat = crate::meta::catalogue(&g.lineage);
-    let kite = cat.iter().find(|u| u.id == "kite_archers").unwrap();
+    // (Cut 29 §1: kite archers is free vocabulary, off the shelf — thief guard is sold)
+    let kite = cat.iter().find(|u| u.id == "thief_guard").unwrap();
     let j = serde_json::to_value(kite).unwrap();
-    assert_eq!(j["situation"], "ranged");
+    assert_eq!(j["situation"], "thief");
     assert!(serde_json::to_value(cat.iter().find(|u| u.id == "row5").unwrap()).unwrap().get("situation").is_none(), "absent, not null");
     // Rater Y's set (a boss row, bank rows, gas retreat above `attack nearest`): with `kite
     // archers` measured at every place, its delta is the best of them.
@@ -6331,26 +6355,27 @@ fn a_card_reads_its_best_place_and_its_situation() {
     for u in ["row5", "row6", "row7", "row8"] {
         g.lineage.unlocks.insert(u.into());
     }
-    for f in ["foe:goblin_archer:ranged", "foe:goblin_archer:telegraph", "foe:bloat:gas"] {
+    for f in ["foe:goblin_archer:ranged", "foe:goblin_archer:telegraph", "foe:bloat:gas", "foe:jackal:pack", "foe:jackal:fast"] {
         g.lineage.facts.insert(f.into());
     }
+    tiers(&mut g);
     let set = RuleSet::parse(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../eval/cards/32971ad.raterY.rules.json")).unwrap()).unwrap();
     g.set_rules_raw(set.clone()).unwrap();
     let cat = g.unlock_deltas();
-    let kite = cat.iter().find(|u| u.id == "kite_archers").unwrap();
+    let kite = cat.iter().find(|u| u.id == "pack_break").unwrap();
     let (delta, at) = (kite.delta.expect("open card"), kite.insert_at.expect("a place"));
     let depth = g.lineage.best_depth + 1;
     let tag = crate::forecast::forecast_tag(&g, depth);
     let (base, n) = crate::forecast::reach_counted(&g, &set, depth, crate::forecast::FORECAST_SIMS, tag, crate::forecast::CATALOGUE_TICK_BUDGET);
     let mut sim = g.sim_clone();
-    sim.lineage.unlocks.insert("kite_archers".into());
+    sim.lineage.unlocks.insert("pack_break".into());
     for i in crate::meta::card_positions(&set) {
         let mut s = set.clone();
-        s.rows.insert(i, Row::new(vec![], Verb::arg("tactic", "kite_archers")).from("card"));
+        s.rows.insert(i, Row::new(vec![], Verb::arg("tactic", "pack_break")).from("card"));
         let r = crate::forecast::reach_paired(&sim, &s, depth, n, tag);
         assert!(r - base <= delta + 1e-9, "R{} reads {:+.2} over the shown {delta:+.2} at R{}", i + 1, r - base, at + 1);
     }
-    assert_eq!(kite.situation.as_deref(), Some("ranged"));
+    assert_eq!(kite.situation.as_deref(), Some("pack"));
 }
 
 /// Cut 10 (client finding): `choose` after the run ended returned a wasm panic and poisoned the
@@ -6496,7 +6521,8 @@ fn because_names_the_lost_target_the_cooldown_the_lock_and_the_blocker() {
     let t = g.run.as_ref().unwrap().trace.last().unwrap().clone();
     let w = &t.rows.as_ref().unwrap()[0];
     assert_eq!(w.why, "locked cond");
-    assert_eq!(w.because.as_ref().map(|b| b.text.as_str()), Some("◆2 cond: alert"));
+    // (Cut 29 §1: a condition word is free — its lock is its gate)
+    assert_eq!(w.because.as_ref().map(|b| b.text.as_str()), Some("see alert rise"));
     // A captive chained on the stairs: `path_stairs` fails with `no path` and the chain names it.
     let mut g = arena();
     rules(&mut g, vec![Row::new(vec![Cond::flag("path_stairs")], Verb::new("descend")), Row::new(vec![], Verb::new("hold"))]);
@@ -6665,26 +6691,16 @@ fn den_theft_root_offers_the_raid_or_its_unlock() {
         panic!("the hero did not die");
     };
     let raid = crate::probes::situation_answer("den");
-    // Without the unlock: the pseudo-patch.
+    // Cut 29 §1: `on see` is free vocabulary — the run met a foe, so the word came with its gate:
+    // no pseudo-patch; the raid is a writable row at the top either way.
     let (mut g, id) = build(false);
+    assert!(g.lineage.unlocks.contains("cond_on_see"), "the word arrived with its gate");
     let rec = g.deaths.get(&id).unwrap().clone();
     assert_eq!(rec.root.as_ref().map(|r| r.text.as_str()), Some("den took the heal"));
     let d = g.death(id).unwrap();
     let r = d.patches.iter().find(|p| p.root.is_some()).unwrap_or_else(|| panic!("{:?}", d.patches));
-    assert_eq!(r.insert_at, -1);
-    assert_eq!(r.root.as_ref().unwrap().text, "◆2 cond: on see");
+    assert_eq!(r.insert_at, 0);
     assert_eq!(r.row, raid);
-    assert!((0.0..=1.0).contains(&r.survive));
-    assert_eq!(g.deaths.get(&id).unwrap().root.as_ref().unwrap().unlock.as_deref(), Some("cond_on_see"));
-    let json = serde_json::to_string(r).unwrap();
-    assert!(json.contains(r#""insert_at":-1"#) && json.contains(r#""root":{"text":"◆2 cond: on see"}"#), "{json}");
-    assert!(!json.contains("below_bar"));
-    // The pseudo-patch changes no row for the bots; its fired rate is measured on the row at
-    // the top with the token unlocked.
-    assert_eq!(crate::offline::apply_patch(&rec.rules, r, 8), rec.rules);
-    let rules = crate::trace::patched_rules(&rec.rules, r, 8);
-    assert_eq!(rules.rows[0], raid);
-    let _ = crate::trace::patch_fired_rate(&g, &rec, r);
     // With the unlock: a writable row at the top, the root it answers as its text.
     let (mut g, id) = build(true);
     let d = g.death(id).unwrap();
@@ -6720,11 +6736,11 @@ fn lock_root_offers_the_unlock_pseudo_patch() {
     let id = id.expect("died");
     let rec = g.deaths.get(&id).unwrap().clone();
     let root = rec.root.clone().expect("a lock root");
-    assert_eq!((root.kind.as_str(), root.text.as_str(), root.row, root.unlock.as_deref()), ("lock", "◆2 cond: alert", 0, Some("cond_alert")));
-    assert_eq!(rec.death.chain.as_ref().unwrap()[0].text, "◆2 cond: alert");
+    assert_eq!((root.kind.as_str(), root.text.as_str(), root.row, root.unlock.as_deref()), ("lock", "see alert rise", 0, Some("cond_alert")));
+    assert_eq!(rec.death.chain.as_ref().unwrap()[0].text, "see alert rise");
     let d = g.death(id).unwrap();
     let r = d.patches.iter().find(|p| p.root.is_some()).unwrap_or_else(|| panic!("{:?}", d.patches));
-    assert_eq!((r.insert_at, r.root.as_ref().unwrap().text.as_str()), (-1, "◆2 cond: alert"));
+    assert_eq!((r.insert_at, r.root.as_ref().unwrap().text.as_str()), (-1, "see alert rise"));
     assert_eq!(r.row, locked);
     // With the alert at 5 and the row unlocked, the return fires in the replays: it survives.
     assert!(r.survive >= 0.5, "{r:?}");
@@ -6778,7 +6794,7 @@ fn dice_seed(seed: u64) -> Option<(u64, u32, crate::wire::Death, Vec<Row>)> {
             let telegraphed = d.trace.turns.iter().any(|t| !t.telegraphs.is_empty());
             if telegraphed && found.is_none() {
                 let rec = g.deaths.get(&id).unwrap();
-                if crate::trace::telegraph_row(&rec.vocab, &d.trace).is_some() {
+                if crate::trace::telegraph_row(&rec.vocab, &d.trace, &rec.t10_facts).is_some() {
                     let cands = crate::trace::candidates(&rec.vocab, &rec.rules, rec.t10.as_ref().unwrap(), &rec.t10_facts, &g.lineage.flavours, &d.trace);
                     found = Some((seed, id, d.clone(), cands));
                 }
@@ -7361,8 +7377,10 @@ fn a_catalogue_delta_carries_its_half_width() {
     let mut g = Game::new(11);
     g.lineage.facts.insert("foe:jackal:pack".into());
     g.lineage.facts.insert("foe:goblin_archer:ranged".into());
+    g.lineage.facts.insert("foe:jackal:fast".into());
     g.lineage.marks = 9;
     g.lineage.best_depth = 3;
+    tiers(&mut g);
     let cat = g.unlock_deltas();
     let with: Vec<&UnlockInfo> = cat.iter().filter(|u| u.delta.is_some()).collect();
     assert!(with.len() >= 2, "{}", with.len());
@@ -7884,7 +7902,7 @@ fn a_stall_names_the_rules_loop_and_its_first_patch_addresses_the_row() {
 /// moving row alone; a targeting row alone, a trait's step or three actors are no loop.
 #[test]
 fn row_loop_reads_two_actors_or_one_moving_row() {
-    let turn = |row: i32, verb: Verb| TraceTurn { max_hp: 0, t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() };
+    let turn = |row: i32, verb: Verb| TraceTurn { max_hp: 0, t: 0, row, verb, hp: 18, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None };
     let alt = |a: TraceTurn, b: TraceTurn| (0..6).flat_map(|_| [a.clone(), b.clone()]).collect::<Vec<_>>();
     let tr = alt(turn(1, Verb::new("retreat")), turn(-2, Verb::new("explore")));
     assert_eq!(crate::turn::row_loop(&tr), Some(("R2 retreat ↔ explore".to_string(), 1)));
@@ -8556,7 +8574,7 @@ fn a_grudge_is_avenged_once() {
         notes
     };
     let mut g = Game::new(9);
-    g.lineage.grudges.push(crate::descent::Grudge { kind: "rat".into(), name: "Zeleth".into(), depth: 1, heir: 1, avenged: false, biome: None });
+    g.lineage.grudges.push(crate::descent::Grudge { kind: "rat".into(), name: "Zeleth".into(), depth: 1, heir: 1, avenged: false, tamed: false, biome: None });
     let first = kill_grudge(&mut g);
     assert!(first.iter().any(|n| n == "Zeleth the rat is avenged."), "{first:?}");
     assert!(g.lineage.grudges[0].avenged);
@@ -9591,6 +9609,7 @@ fn unlock_names_the_chains_next_price() {
     assert_eq!(next.gold_after_gold, next.gold);
     assert_eq!(row5.gold_next, crate::kit::row_gold(&g.lineage, "row5").unwrap());
     g.lineage.marks = 10;
+    tiers(&mut g);
     g.buy("row5").unwrap();
     let row6 = g.unlocks().into_iter().find(|u| u.id == "row6").unwrap();
     assert_eq!((row6.cost, row6.gold), (next.cost, next.gold), "the named next price is the price");
@@ -9640,8 +9659,8 @@ fn a_gambles_harm_that_made_the_difference_names_its_row() {
         let rec = {
             let run = g.run.as_mut().unwrap();
             run.turn = 500;
-            run.trace.push(TraceTurn { max_hp: 0, t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
-            run.trace.push(TraceTurn { max_hp: 0, t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() });
+            run.trace.push(TraceTurn { max_hp: 0, t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None });
+            run.trace.push(TraceTurn { max_hp: 0, t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None });
             run.gambles.push((400, "poison".into(), true));
             run.gamble_harm = harm;
             run.death_short = short;
@@ -10202,7 +10221,8 @@ fn cards_carry_outside_the_vocabulary() {
     let mut bad: Vec<String> = Vec::new();
     for class in crate::hero::Class::ALL {
         let mut g = Game::new(3);
-        for u in crate::meta::UNLOCKS {
+        // (Cut 29 §1: not the verb `hold` — an oath's reward: with it, the `hold` cards are typed rows)
+        for u in crate::meta::UNLOCKS.iter().filter(|u| u.id != "hold") {
             g.lineage.unlocks.insert(u.id.into());
         }
         crate::probes::learn_everything(&mut g);
@@ -10661,7 +10681,7 @@ fn a_fight_that_moves_is_never_driven_off() {
 fn an_avenged_grudge_retires() {
     for avenged in [false, true] {
         let mut g = Game::new(11);
-        g.lineage.grudges.push(crate::descent::Grudge { kind: "goblin".into(), name: "Ulak".into(), depth: 2, heir: 1, avenged, biome: None });
+        g.lineage.grudges.push(crate::descent::Grudge { kind: "goblin".into(), name: "Ulak".into(), depth: 2, heir: 1, avenged, tamed: false, biome: None });
         g.start_run(None);
         g.descend_to(2);
         let met = g.run.as_ref().unwrap().monsters.iter().any(|m| m.name.as_deref() == Some("Ulak"));
@@ -11116,7 +11136,7 @@ fn safe_slot_is_under_the_top_safety_block() {
 #[test]
 fn whole_run_move_judges_a_patch() {
     use crate::forecast::SimResult;
-    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { oath_progress: 0.0, oath: false, max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new() };
+    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { oath_progress: 0.0, oath_steps: 0, oath: false, max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new(), passage: 0 };
     let base: Vec<SimResult> = (0..50).map(|i| if i < 25 { sim(6, ExitTier::Return, None) } else { sim(5, ExitTier::Death, Some("goblin")) }).collect();
     // ten seeds that returned now die to fire
     let worse: Vec<SimResult> = (0..50).map(|i| if i < 10 { sim(5, ExitTier::Death, Some("fire")) } else { base[i].clone() }).collect();
@@ -11204,6 +11224,35 @@ fn strip_array(json: &str, key: &str) -> String {
     out
 }
 
+/// `strip_key` for a key whose value is an object (`,"key":{…}`, braces balanced).
+fn strip_object(json: &str, key: &str) -> String {
+    let pat = format!(",\"{key}\":{{");
+    let mut out = String::with_capacity(json.len());
+    let mut rest = json;
+    while let Some(i) = rest.find(&pat) {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i + pat.len() - 1..];
+        let mut depth = 0i32;
+        let mut end = tail.len();
+        for (k, c) in tail.char_indices() {
+            match c {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = k + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// `strip_key` only where the numeric key closes its object (`,"key":N}`) — a trace turn's last
 /// field, not an entity's `max_hp` mid-object.
 fn strip_tail_key(json: &str, key: &str) -> String {
@@ -11243,6 +11292,10 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
                 // QA on 308f045 (qaAC): what the screen is told, not what is played — a max-HP loss's own
                 // event (drain, the shrine; hunger's was 307dbed's) and the exit note a drive-off or a stall
                 // no longer writes (`Returned with $0.`)
+                // (Cut 29 §3: the meters' heal events and a line's meters are new reads of the same run)
+                if matches!(e, Ev::Heal { .. }) {
+                    continue;
+                }
                 if matches!(e, Ev::MaxHp { cause, .. } if cause != "hunger") || matches!(e, Ev::Note { text, .. } if text.starts_with("Returned with") || text.starts_with("Came home with")) {
                     continue;
                 }
@@ -11252,6 +11305,8 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
                 // its words — `got him out`, `pulled him through` — and says the same)
                 let j = strip_key(&serde_json::to_string(e).unwrap(), "hp_healed").replace("hero quit chasing", "out of reach");
                 let j = strip_tail_key(&strip_array(&j, "max_steps"), "max_hp").replace(" got him out.", " saved him.").replace(" pulled him through.", " saved him.");
+                // (Cut 29 §1: the frontier mark is gone — its words on the exit line with it)
+                let j = strip_object(&j, "meters");
                 fnv(&mut h, &j);
             }
             if r.run_over {
@@ -11278,6 +11333,13 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
 fn saves_from_307dbed_send_identically() {
     let mut g = Game::load(include_str!("fixtures/save_307dbed.json")).unwrap();
     assert!(g.lineage.rules().route.is_empty());
+    // (Cut 29 §1: re-recorded — the frontier mark and its words left the exit lines; with the old
+    // mark's text restored the stream hashed to 307dbed's d59e321d76373469 exactly)
+    // (Cut 29, the Queen's silence slot: re-recorded `21e701bd6e6b9c2d` → `3754cfc8a2604f4b` — the
+    // full event diff of the 10 sends against the tree before it first differs at send 6, t 42131, on
+    // D28: a `pick_up` chore walks to a silence scroll the full pack now takes (`turn::queen_slot`)
+    // where it explored; everything before is identical, and with `QUEEN_PACK_DEPTH` out of reach
+    // the save hashes to `21e701bd6e6b9c2d` again)
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }
@@ -11483,7 +11545,7 @@ fn waystones_per_route_prefix() {
 #[test]
 fn grudges_live_on_their_biome() {
     use crate::descent::{Biome, Grudge};
-    let g = Grudge { kind: "eel".into(), name: "Grak".into(), depth: 6, heir: 1, avenged: false, biome: Some(Biome::Fens) };
+    let g = Grudge { kind: "eel".into(), name: "Grak".into(), depth: 6, heir: 1, avenged: false, tamed: false, biome: Some(Biome::Fens) };
     assert!(g.lives_on(6, Biome::Fens) && !g.lives_on(6, Biome::Burrows));
     let old = Grudge { biome: None, ..g };
     assert!(old.lives_on(6, Biome::Burrows) && !old.lives_on(6, Biome::Fens), "a save's grudge is the base order's");
@@ -11628,7 +11690,7 @@ fn a_stamp_never_contradicts_its_counts() {
 fn the_chain_keeps_each_rows_newest_reason() {
     use crate::wire::{Because, RowWhy, TraceTurn};
     let b = |text: &str, t: u32| Some(Because { text: text.into(), t, depth: 8 });
-    let turn = |t: u32, row: i32, rows: Vec<RowWhy>| TraceTurn { max_hp: 0, t, row, verb: Verb::new("attack"), hp: 10, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: Some(rows), blows: Vec::new() };
+    let turn = |t: u32, row: i32, rows: Vec<RowWhy>| TraceTurn { max_hp: 0, t, row, verb: Verb::new("attack"), hp: 10, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: Some(rows), blows: Vec::new(), gift: None };
     let turns = vec![
         // R1 (`attack boss`) never met the boss, R2's heal was drunk by R4
         turn(10, 2, vec![RowWhy { row: 0, why: "not in view".into(), because: b("never met", 10) }, RowWhy { row: 1, why: "no item".into(), because: b("R4 drank heal at 17/36 hp", 5) }]),
@@ -11653,7 +11715,7 @@ fn the_chain_keeps_each_rows_newest_reason() {
 #[test]
 fn a_patch_reads_the_floor_the_camp_leads_with() {
     use crate::forecast::SimResult;
-    let sim = |depth: u32, tier: ExitTier| SimResult { oath_progress: 0.0, oath: false, max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new() };
+    let sim = |depth: u32, tier: ExitTier| SimResult { oath_progress: 0.0, oath_steps: 0, oath: false, max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new(), passage: 0 };
     // the sent set: half reach D7, none D9; the patch: 11 of those stop at D5 (D6 and D7 both −22: the deeper leads), still none D9
     let base: Vec<SimResult> = (0..50).map(|i| sim(if i < 25 { 7 } else { 5 }, ExitTier::Death)).collect();
     let worse: Vec<SimResult> = (0..50).map(|i| if i < 11 { sim(5, ExitTier::Death) } else { base[i].clone() }).collect();

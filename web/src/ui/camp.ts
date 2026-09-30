@@ -15,15 +15,19 @@
 // Cut 16 §2: beside them, while `Lineage.class_offer` stands, a chip per owned class with its signature verb (`rogue · vanish`;
 // one not yet open reads `ranger · mark L7`); the chosen one `on`; a tap is `setClass(name)` (it sticks until changed). The chip
 // row stands in for the class button while it is up.
+import { conceptCap, conceptIcon } from "./concepts";
+import { wallTablet } from "./wall";
+import { meterCompare, meterPanel } from "./meters";
+import { anyNew, hasCurriculum, sysOpen } from "./systems";
 import { lookStud } from "./look";
 import type { App, Mounted } from "../app";
-import type { CageOption, ForkOption, Lineage, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
+import type { CageOption, ForkOption, Lineage, StandingOrders, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
 import { lowOf, renderForecast, renderShaft, share } from "./forecast";
 import { renderScene } from "./divergence";
-import { gem, portrait, renderBar, renderConsole, stud, tile } from "./frame";
+import { gem, metersSlot, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
 import { openChronicle } from "./chronicle";
@@ -32,7 +36,7 @@ import { afterOf, labelOf, stallLabel, classList, deltaClass, deltaLabel, deltaP
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
-import { isFreeSupply, ownRowCount, verbLabel } from "./tokens";
+import { isFreeSupply, ownRowCount, setRefRows, verbLabel } from "./tokens";
 import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
 import { setBusyHost } from "./progress";
 import { icon } from "./skin";
@@ -99,7 +103,18 @@ export function ruleShort(rule: string): string | undefined {
 }
 export const setName = (s: { name?: string }, i: number): string => (s.name ?? "").trim().slice(0, SET_NAME_MAX) || `${i + 1}`;
 
+/** Cut 29 §3: the camp's meters (the desktop's column under the shaft): the last two runs compared, else the last run's breakdown. */
+function campMeters(app: App): HTMLElement | null {
+  const runs = app.lineage.meters?.runs ?? [];
+  if (runs.length >= 2) return meterCompare(runs[runs.length - 2], runs[runs.length - 1]);
+  return runs.length ? meterPanel(runs[0], app.rules.rows, { title: /* copy:label */ "last run" }) : null;
+}
 const SEND_ARM_MS = 800;
+/** Cut 29 §4: the exit's keep order, in the vault panel's words. */
+const KEEP_ORDERS = ["best_weapon", "best_armour", "none"];
+/* copy:label */
+const KEEP_WORD: Record<string, string> = { best_weapon: "weapon", best_armour: "armour", none: "none" };
+const SEEN_MS = 1800;   // Cut 29 §2: a new system's glint plays before the core clears its `new`
 /** QA 92eb880 (M: "kept `sealed scroll?` … reappear as `summon ally scroll` with no line saying they were identified"): an identified
  *  item's flavour off the lineage's facts (`item:sealed=summon_ally` → `sealed`); undefined while unknown or unmatched. */
 export function keptAs(facts: string[], it: { kind: string; known: boolean }): string | undefined {
@@ -117,6 +132,7 @@ export function simKey(app: Pick<App, "lineage" | "loadout">): string {
  *  (`invisibility`); the shop's chip keeps the full name. */
 export const shelfLabel = (label: string): string => label.length > 14 ? label.replace(/ (potion|scroll)$/, "") : label;
 export function renderCamp(app: App, highlight?: number): Mounted {
+  setRefRows(() => app.rules.rows);
   // Cut 17: the frame — the bar (the strip: heir, `$`, `◆`, `★`, best, the stud; the wake's offers under it), the well (the
   // tablets and the depth shaft; the set tabs from the 5th heir; the panels over it), the console (the portrait, the command
   // card as revealed, the gem `send`)
@@ -137,6 +153,14 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 26 §2: the set's route — a chip line above the rows (`⑂ D5 fens · D14 crypt`), carved once a hero has stood on two stairs (the
   // fact `fork D5`); the tap opens the fork tablet (both stairs priced for this set)
   const routeTab = h("button", { class: "route-line", hidden: true, onclick: () => openRoutePicker() });
+  // Cut 29 §4: the standing orders in one tablet (the exit's keep, the cage's pick, the start, the repeat, insuring) — with a Cut 29
+  // core the cage and start tablets fold into it; the tap opens the orders sheet
+  const ordersTab = h("button", { class: "row tablet compact orders-tab", hidden: true, onclick: () => openOrders() });
+  // Cut 29 §4: a kind a `throw` row names that the repeat lacks — one tap packs it (`+ fire · for throw fire`), the repeat keeps it after
+  const repeatAdd = h("div", { class: "chips repeat-add", hidden: true });
+  // Cut 29 §1 (E1): the wall's edit the core cached for the day (`Lineage.wall`) as a patch tablet under the rules
+  const wallBox = h("div", { class: "wall-host", hidden: true });
+  const paintWall = (): void => { const w = app.lineage.wall && JSON.stringify(app.lineage.wall.rules.rows.map((r) => [r.conds, r.verb])) !== JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb])) ? app.lineage.wall : undefined; wallBox.hidden = !w; if (w) replace(wallBox, wallTablet(app, w, () => undefined)); };
   // Cut 28 §1: the oath board — its own tablet under the start's (`oath → D10 no drink · 34%`, or `oaths 3`), carved when an oath is
   // first affordable; the tap opens the board (three oaths, each its chips, its reward, its price)
   const oathTab: HTMLButtonElement = h("button", { class: "row tablet compact oath-tab", hidden: true, onclick: () => openOathBoard(app, oathTab) });
@@ -179,7 +203,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
   // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
   const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, oathTab), shaft.el));
+  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   const restLine = h("div", { class: "rest-line" }, rest);
@@ -187,12 +211,24 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
   // Cut 27 §2: the edit as a scene — over the well's foot after an edit's refine (before · after on the renderer), then its line under `vs sent`
   const scene = renderScene(app);
+  // gfx raters ("the edit scene covers the rule list mid-row"): when the scene rises over the tablets its top edge moves to the nearest
+  // gap between two tablets (it shrinks to clear a row it would cut, or grows over it when shrinking would leave it too short)
+  const fitScene = (): void => {
+    const s0 = scene.el; if (s0.hidden) { s0.style.height = ""; return; }
+    s0.style.height = "";
+    const box = s0.getBoundingClientRect(), top = box.top;
+    const cut = [...el.querySelectorAll<HTMLElement>(".camp-main .tablets .row.tablet, .camp-main .tablets .orders-tab")].map((r) => r.getBoundingClientRect()).find((r) => r.height > 0 && r.top < top && r.bottom > top);
+    if (!cut) return;
+    const shrink = box.bottom - (cut.bottom + 4), grow = box.bottom - (cut.top - 4);
+    s0.style.height = `${Math.round(shrink >= 140 ? shrink : grow)}px`;
+  };
+  new MutationObserver(() => fitScene()).observe(scene.el, { attributes: true, attributeFilter: ["hidden"] });
   const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, scene.el, shaft.vsEl, scene.line, restLine, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
 
   // QA 1a2a4a9 (P: "nothing on the camp shows what's packed — only opening SUPPLIES does"): the loadout tile carries the pack's count
-  const withPack = (el: HTMLElement): HTMLElement => { const n = app.lineage.supplies?.length ?? 0; if (n) el.appendChild(h("span", { class: "pack-n num" }, `${n}/${supplyCap(app.lineage.unlocks)}`)); return el; };
+  const withPack = (el: HTMLElement): HTMLElement => { const n = app.lineage.supplies?.length ?? 0; if (n) el.appendChild(h("span", { class: "pack-n num" }, `${n}/${app.lineage.supply_cap ?? supplyCap(app.lineage.unlocks)}`)); return el; };
   /** Cut 23 §1: the forge tile's badge — the kit steps the purse can buy now (`2`), none when there are none. */
   const kitBadge = (): HTMLElement | null => { const n = kitAffordable(app.lineage); return n ? h("span", { class: "kit-n num", "data-n": n }, `${n}`) : null; };
   const withBadge = (el: HTMLElement, badge: HTMLElement | null): HTMLElement => { if (badge) { el.appendChild(badge); el.classList.add("badged"); } return el; };
@@ -259,7 +295,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintRest(): void {
     const restS = app.lineage.rest_left_s ?? 0;
     // QA 912e135 (qaW: "`rest 20m · send skips` — no screen says what rests or what `send skips` means"): who rests, and what the send skips
-    replace(rest, /* copy:callout */ `heir rests ${spanOf(restS)}`, /* copy:callout */ " · send skips rest");
+    replace(rest, /* copy:callout */ `heir rests ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
     rest.hidden = restS <= 0; restLine.hidden = rest.hidden;
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
@@ -297,8 +333,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     app.sets.forEach((s, i) => {
       const named = !!(s.name ?? "").trim();
       tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },
-        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, ` · ${ownRowCount(s.rows)}`)));   // `fighter · 3` like `set 2 · 0` (QA on 56f2a1d: `fighter 3` read as a hero number); own rows, the editor's `6/6` (QA on 3d71c33: `fighter · 8` beside `6/6 · 3 cards`)
-      if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", onclick: () => renameSet(i) }, "✎"));
+        named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, ownRowCount(s.rows) ? /* copy:callout */ ` · ${ownRowCount(s.rows)} rules` : "")));   // `fighter · 3` like `set 2 · 0` (QA on 56f2a1d: `fighter 3` read as a hero number); own rows, the editor's `6/6` (QA on 3d71c33: `fighter · 8` beside `6/6 · 3 cards`)
+      if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", "aria-label": "rename", onclick: () => renameSet(i) }, /* copy:button */ "rename"));
     });
   }
   function renameSet(i: number): void {
@@ -338,7 +374,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // keep preference for offline exits
     // QA 23ed91f: two rows that cannot be confused — `home` (what an unwatched exit keeps for the vault) and `cage` (what an
     // unanswered cage in the dungeon takes); K set `vault potion` as "what the home vault keeps"
-    const prefs = h("div", { class: "chips prefs home" }, h("span", { class: "dim" }, /* copy:label */ "home"),
+    const prefs = h("div", { class: "chips prefs home" }, h("span", { class: "dim" }, conceptIcon("vault"), /* copy:callout */ "keep for heirs", conceptCap("vault")),   // docs/COPY.md pass 3: `keep weapon` read as "keep it as a weapon"
       /* copy:label */ ...[["best_weapon", "weapon"], ["best_armour", "armour"], ["none", "none"]].map(([id, lbl]) =>
         h("button", { class: `chip${(L.keep_pref ?? "best_weapon") === id ? " on" : ""}`, onclick: () => void app.mutate(() => app.engine.setKeepPref(id)) }, lbl)));
     // what the home pref does at an unwatched exit, on its row (the core's `keep_auto`, in order: `keeps armour · weapon`)
@@ -360,22 +396,22 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // Cut 19 §1: the cage's preference left this panel for its own tablet beside the rules (`cage → armour`)
     // QA 912e135 (qaW: `home: armour` set here, `cage → weapon` on the tablet — "one preference, one name"): they are two settings, and
     // this panel shows both — the cage's row under the home row, its chip opening the same picker as the tablet
-    if (revealed(app).has("cage")) vault.appendChild(h("div", { class: "chips prefs cage" }, h("span", { class: "dim" }, /* copy:label */ "cage"),
-      h("button", { class: "chip on cage-pref", onclick: () => openCagePicker() }, /* copy:callout */ `takes ${L.vault_pref ?? "weapon"}`)));
+    if (revealed(app).has("cage")) vault.appendChild(h("div", { class: "chips prefs cage" }, h("span", { class: "dim" }, /* copy:rule_token */ "from cages"),
+      h("button", { class: "chip on cage-pref", onclick: () => openCagePicker() }, L.vault_pref ?? "weapon")));   // docs/COPY.md: the tablet's own words (`cage pick → weapon`)
   }
   function paintCage(): void {
     const on = revealed(app).has("cage");
-    cageTab.hidden = !on;
+    cageTab.hidden = !on || ordersOn();
     if (!on) return;
-    replace(cageTab, h("span", { class: "rn num" }, icon("vault", "▣")),
+    replace(cageTab, h("span", { class: "rn num" }, conceptIcon("cage")),
       // QA 524827b (qaAA: `cage → weapon` after the first death, "no source" for the D4 cage's "take one, leave two"): the tablet names
       // what it sets — the pick at a cage (`cage pick → weapon`)
-      h("span", { class: "rtext" }, /* copy:rule_token */ "cage pick", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon"));
+      h("span", { class: "rtext" }, /* copy:rule_token */ "from cages", h("span", { class: "arrow" }, " → "), app.lineage.vault_pref ?? "weapon", conceptCap("cage")));
   }
   /** Cut 19 §1: the picker — the four preferences, each with its forecast delta against the current one (`armour +36%`); the tap sets it.
    *  The deltas are `cageForecast()` (three extra camp panels, memoised by the core; seconds in wasm): the last measure paints at once
    *  when it is this set's, `…` until the fresh one lands. */
-  function openCagePicker(): void {
+  function openCagePicker(anchor: HTMLElement = cageTab): void {
     // QA 0c6e126 (qaY: `weapon D5 72%` on the sheet beside the camp's D5 66% — the memo was measured before a purchase): the memo is
     // this set's under this lineage — what a sim starts from (`simKey`: the purse, the shelf, the vault, the kit, the facts…)
     // QA 524827b (qaAA: `weapon D6 6%` on the sheet under the camp's refined `D6 11%`; `armour 60% ▲54`, picked: `57% · cage +46`): the
@@ -396,11 +432,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       paint(memo, !memo && !!app.engine.cageForecast);
       if (!memo && app.engine.cageForecast) void app.engine.cageForecast(refined).then((opts) => { cageMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); }).catch((e) => { console.warn("cageForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body cage-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"), list);
-    }, { anchor: cageTab });   // Cut 23 §4: beside the tablet it sets, never over it
+    }, { anchor: ordersOn() ? ordersTab : anchor });   // Cut 23 §4: beside the tablet it sets, never over it
   }
   function paintStart(): void {
     const L = app.lineage, on = revealed(app).has("start");
-    startTab.hidden = !on;
+    startTab.hidden = !on || ordersOn();
     if (!on) return;
     const st = L.start ?? 1, o = startMemo?.opts.find((x) => x.start === st && x.current), toll = L.start_toll ?? startToll(st, o);
     // QA a946e04 (T): a toll the purse cannot pay says so on the tablet — that send starts on D1 (`start → D5 · $50 short`)
@@ -408,11 +444,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const pass = st > 1 && (L.start_pass === true || o?.pass === true);
     const short = !pass && startShort(L, st, o);
     startTab.classList.toggle("short", short);
-    replace(startTab, h("span", { class: "rn num" }, icon("depth", "▼")),
+    replace(startTab, h("span", { class: "rn num" }, conceptIcon("waystone")),
       h("span", { class: "rtext" }, /* copy:rule_token */ "start", h("span", { class: "arrow" }, " → "), h("span", { class: "num" }, `D${st}`),
         st > 1 && seenForks(L).length && laneOf(st, o) ? h("span", { class: "lane" }, ` ${laneOf(st, o)}`) : "",
         pass ? h("small", { class: "num toll pass dim" }, /* copy:rule_token */ " · pass")
-          : toll > 0 ? h("small", { class: `num toll${short ? " short warn" : " dim"}` }, short ? /* copy:rule_token */ ` · $${toll} short` : ` · $${toll}`) : ""));
+          : toll > 0 ? h("small", { class: `num toll${short ? " short warn" : " dim"}` }, short ? /* copy:rule_token */ ` · $${toll} short` : ` · $${toll}`) : "", conceptCap("waystone")));
   }
   /** Cut 21 §1: the start picker — D1 and each lit waystone, each with its forecast move against the current start (`bank +12%`, the
    *  cage picker's measure) and its toll (`D9 · bank +12% · $90`); the tap is `setStart`. The moves are `startForecast()` (extra camp
@@ -468,13 +504,55 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         }),
         // Cut 26 §2: the (lane, depth) pairs lit on another route (`Lineage.lanes`, not `current`) — shown dim, not a start for this set
         ...(app.lineage.lanes ?? []).filter((x) => !onRoute(x) && x.depth > 1).map((x) => h("span", { class: "chip start-opt other-lane off dim", "data-start": x.depth, "data-biome": x.lane, "aria-disabled": "true" },
-          h("span", { class: "num" }, `D${x.depth}`), h("span", { class: "lane" }, ` ${x.lane}`), x.route?.length ? h("small", { class: "num dim" }, ` · ⑂ ${x.route.map((f) => `D${f}`).join(" ")}`) : "")));
+          h("span", { class: "num" }, `D${x.depth}`), h("span", { class: "lane" }, ` ${x.lane}`), x.route?.length ? h("small", { class: "num dim" }, ` · fork ${x.route.map((f) => `D${f}`).join(" ")}`) : "")));
       };
       const k = key(), memo = startMemo?.key === k ? startMemo.opts : null;
       paint(memo, !memo && !!app.engine.startForecast);
       if (!memo && app.engine.startForecast) void app.engine.startForecast(refined).then((opts) => { startMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); paintStart(); }).catch((e) => { console.warn("startForecast", e); if (list.isConnected) paint(null, false); });
       return h("div", { class: "sheet-body start-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "start"), list);
-    }, { anchor: startTab });
+    }, { anchor: ordersOn() ? ordersTab : startTab });
+  }
+  /** Cut 29 §4: the orders tablet stands for the cage's and the start's when the core sends the orders with its curriculum. */
+  function ordersOn(): boolean { return !!app.lineage.orders && hasCurriculum(app.lineage) && !!app.engine.setOrders; }
+  function setOrder(patch: Partial<StandingOrders>, move: string): Promise<boolean> {
+    const cur = app.lineage.orders!;
+    return app.mutate(() => app.engine.setOrders!({ ...cur, ...patch }), move);
+  }
+  function paintOrders(): void {
+    const L = app.lineage, R = revealed(app);
+    const on = ordersOn() && (R.has("loadout") || R.has("vault") || R.has("cage") || R.has("start"));
+    ordersTab.hidden = !on;
+    if (!on) return;
+    const o = L.orders!;
+    const bits = [
+      /* copy:callout */ `keep ${KEEP_WORD[o.keep] ?? o.keep}`,
+      R.has("cage") ? /* copy:callout */ `cages → ${o.cage}` : "",
+      R.has("start") && o.start > 1 ? /* copy:callout */ `start D${o.start}` : "",
+      o.repeat ? "" : /* copy:callout */ "no repeat",
+      o.insure ? "" : /* copy:callout */ "no insure",
+    ].filter(Boolean);
+    replace(ordersTab, h("span", { class: "rn num" }, icon("ledger", "☰")), h("span", { class: "rtext" }, h("b", { class: "orders-head" }, /* copy:label */ "orders"), " ", h("span", { class: "orders-sum dim num" }, bits.join(" · "))));
+  }
+  function openOrders(): void {
+    openSheet((close) => {
+      const body = h("div", { class: "sheet-body orders-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "standing orders"));
+      const paint = (): void => {
+        const row = (label: string, ...chips: HTMLElement[]): HTMLElement => h("div", { class: "order-row" }, h("span", { class: "olab" }, label), " ", h("span", { class: "chips" }, ...chips.flatMap((c, i) => [i ? " " : "", c])));
+        const pick = <T,>(cur: T, v: T, text: string, set: () => void): HTMLElement => h("button", { class: `chip order${cur === v ? " on" : ""}`, "aria-pressed": cur === v ? "true" : "false", onclick: () => { if (cur !== v) set(); } }, text);
+        const act = (p: Partial<StandingOrders>, move: string) => (): void => { void setOrder(p, move).then(() => { if (body.isConnected) { replace(rows, ...build()); paintOrders(); } }); };
+        const build = (): HTMLElement[] => { const o = app.lineage.orders!, R = revealed(app); return [
+          row(/* copy:callout */ "keep for heirs", ...KEEP_ORDERS.map((k) => pick(o.keep, k, KEEP_WORD[k], act({ keep: k }, /* copy:callout */ "keep")))),
+          R.has("cage") ? row(/* copy:label */ "from cages", h("button", { class: "chip order on", onclick: () => { close(); openCagePicker(ordersTab); } }, o.cage, h("small", { class: "dim" }, " ▸"))) : null,
+          R.has("start") ? row(/* copy:label */ "start", h("button", { class: "chip order on", onclick: () => { close(); openStartPicker(); } }, `D${o.start}`, h("small", { class: "dim" }, " ▸"))) : null,
+          row(/* copy:label */ "repeat pack", pick(o.repeat, true, /* copy:button */ "on", act({ repeat: true }, /* copy:callout */ "repeat")), pick(o.repeat, false, /* copy:button */ "off", act({ repeat: false }, /* copy:callout */ "repeat"))),
+          row(/* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
+        ].filter((x): x is HTMLElement => !!x); };
+        const rows = h("div", { class: "order-rows" }, ...build());
+        body.appendChild(rows);
+      };
+      paint();
+      return body;
+    }, { anchor: ordersTab });
   }
   /** Cut 26 §2: the lane a start sits in for this set — the core's lit pair on this set's route (`onRoute`), the option's own biome, else
    *  the base order's table while the set takes every near stair */
@@ -489,10 +567,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function paintRoute(): void {
     const chips = routeChips(app.rules, app.lineage);
-    routeTab.hidden = !chips.length;
+    routeTab.hidden = !chips.length || !sysOpen(app.lineage, "route");   // Cut 29 §2: the route opens with the D5 fork seen twice
     if (!chips.length) return;
     // a fork the stair above closed (its biome deferred here) is no choice: its chip is dim
-    replace(routeTab, h("span", { class: "fork-glyph", "aria-hidden": "true" }, "⑂"), " ",
+    // docs/COPY.md pass 3: the `⑂` read "no idea" 8/8, the chip `D5 burrows` as "on floor 5" — the tablet says what it sets: the route taken
+    // at each fork (`route · D5 burrows`)
+    replace(routeTab, h("span", { class: "fork-glyph dim" }, /* copy:label */ "route"), " ",
       ...chips.flatMap((c, i) => [i ? h("span", { class: "sep dim" }, " · ") : "", h("span", { class: `route-chip${c.isFar ? " far" : ""}${c.open ? "" : " closed dim"}`, "data-fork": c.depth, "data-biome": c.taken }, h("span", { class: "num" }, `D${c.depth}`), " ", c.taken)]));
   }
   /** Cut 26 §2: the fork tablet — per open fork, both stairs for the current set: the lane and its reach at the band's end (`fens D8 61%
@@ -522,7 +602,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
               // (`…` after it, dim) until the camp's refine lands — the forecast's own mark
               h("span", null, biome), reach !== undefined && at !== undefined ? h("b", { class: `num level${cur ? " cur" : ""}${refined ? "" : " rough"}` }, ` D${at} ${share(reach, low)}`, refined ? "" : h("small", { class: "dim" }, "…")) : pending ? h("small", { class: "num dim" }, " …") : "");
           };
-          return h("div", { class: "route-fork", "data-fork": c.depth }, h("span", { class: "num fork-at" }, `⑂ D${c.depth}`), stair(false), stair(true));
+          return h("div", { class: "route-fork", "data-fork": c.depth }, h("span", { class: "num fork-at" }, /* copy:callout */ `fork D${c.depth}`), stair(false), stair(true));
         }));
       };
       paint();
@@ -573,7 +653,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     return badge;   // QA 524827b (qaAB: `≤$24` beside the shop's `heal potion $26` — the repeat pays the quote it showed, held)   // QA 778fa1b (qaV: `repeat on · $104` read as a per-send cost; nothing was charged when the supplies came back): the most it re-buys
   }
   function paintSupplies(): void {
-    const L = app.lineage; const picks = L.supplies ?? []; const cap = supplyCap(L.unlocks); const full = picks.length >= cap;
+    const L = app.lineage; const picks = L.supplies ?? []; const cap = L.supply_cap ?? supplyCap(L.unlocks); const full = picks.length >= cap;   // Cut 29 §6 (AX: `pack 4` bought, the shelf read 3/3): the core's cap (forge pack steps included)
+    const adds = (L.repeat_added ?? []).filter((a) => !picks.some((p) => p.kind === a.kind));
+    repeatAdd.hidden = !adds.length || !revealed(app).has("loadout");
+    replace(repeatAdd, ...adds.map((a) => h("button", { class: "chip repeat-add-chip num", "data-kind": a.kind, disabled: full, onclick: () => void app.mutate(() => app.engine.buySupply(a.kind), /* copy:callout */ "buy") },
+      h("b", null, `+ ${a.kind.replace(/_/g, " ")}`), h("small", { class: "dim" }, /* copy:callout */ ` · for ${a.row}`))));
     clear(supplies);
     supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`)));
     // Cut 23 §4 (AJ: "a layout jump bought a confusion potion"): the shelf is `cap` fixed slots (a bought line fills the next empty one)
@@ -665,7 +749,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       was.forEach((x, i) => { if (x > (cellHeights[i] ?? 0)) cellHeights[i] = x; });
       clear(unlocks);
       // Cut 10 §3: `+1 row` waits for the rows to fill (a client-side gate; the core may send the same `needs`)
-      const list = visible(cat).map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows));   // Cut 12 §1: own rows
+      const list = visible(cat, app.lineage).map((u) => withRowsGate(u, app.ownRows(), app.vocab.max_rows));   // Cut 12 §1: own rows
       // Cut 6 §6: owned cards and automations stay on the shelf as chips that open their rows
       const owned = ownedRows(cat);
       if (!list.length && !owned.length) return;
@@ -716,7 +800,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         const byGold = !u.available && goldAffordable(u, app.lineage.gold);
         grid.appendChild(h("button", { class: `card${u.available ? " buyable" : byGold ? " buyable gold-ok" : u.gated ? " gated" : " off"}`, onclick: () => openUnlockSheet(app, u) },
           // QA 92eb880 (N: "`AUTO: RESTOCK · ⊘ ◆1 more` while `$ buy` is enabled"): a marks shortfall the gold covers carries no `⊘`
-          h("span", { class: "card-main" }, h("span", null, u.label), u.carries ? h("small", { class: "carries dim" }, u.carries) : "", u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
+          h("span", { class: "card-main" }, h("span", null, u.label), u.carries ? h("small", { class: "carries dim" }, u.carries) : "", u.needs ? h("small", { class: "needs dim" }, u.gated && !byGold && !/^\$\d+ more$/.test(u.needs) ? "⊘ " : "", u.needs.replace(/_/g, " ")) : "",
             d ? h("small", { class: `num delta ${deltaClass(u, d)}` }, deltaLabel(u, d, app.rules.rows.length)) : "",
             stallLabel(u) ? h("small", { class: "num delta down stall-risk" }, stallLabel(u)) : ""),   // QA 92eb880: the stall risk before buying
           h("span", { class: "num cost" }, priceLabel(u))));
@@ -749,11 +833,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     send.dataset.mode = app.watchMode;
     const MODES = ["fights", "one", "fast"] as const;
     /* copy:label */
-    const MODE_LABEL: Record<string, string> = { fights: "fights", one: "1×", fast: "fast" };
+    const MODE_LABEL: Record<string, string> = { fights: "fights only", one: "normal", fast: "fast" };
     const pill = h("small", { class: "send-mode", role: "switch", "aria-checked": "true", "data-mode": app.watchMode, title: "watch pace",
       onclick: (e: Event) => { e.stopPropagation(); e.preventDefault(); app.watchMode = MODES[(MODES.indexOf(app.watchMode) + 1) % MODES.length]; app.persist(); paintSend(); } },
       /* copy:none */ "▸ ", MODE_LABEL[app.watchMode] ?? app.watchMode);
-    replace(send, empty ? /* copy:callout */ "no rows" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
+    replace(send, empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
       : h("span", { class: "send-l" }, /* copy:button */ "send", pill));   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
@@ -765,7 +849,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     fn();
     boxes.forEach((b, i) => { if (b && b.scrollTop !== tops[i]) b.scrollTop = tops[i]; });
   }
-  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintWall(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
@@ -776,5 +860,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     editor.paintShadow(); clearTimeout(kitTimer); paintOath();
     if (f.refined && kitAffordable(app.lineage) > 0 && (revealed(app).has("forge") || revealed(app).has("kit"))) { const seq = app.forecastSeq, rows = JSON.stringify(app.rules.rows); kitTimer = window.setTimeout(() => { if (seq === app.forecastSeq && rows === JSON.stringify(app.rules.rows) && el.isConnected) void measureKit(app)?.catch(() => undefined); }, KIT_QUIET_MS); }
   });   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
-  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  // Cut 29 §2: the systems the core opened since the camp last looked glint on this paint (reveal.ts reads `new`); once shown the core
+  // forgets them (`seenSystems`), quietly — the next paint is an ordinary one
+  // (asked as the camp is left, never mid-edit: a mutating call re-syncs the forecast lanes, and one landing in a burst of edits cost the
+  // next edit's first pass ~1 s in wasm — clarity:paint)
+  const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
+  const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
+  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

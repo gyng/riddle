@@ -259,3 +259,51 @@ pub fn deltas(game: &Game) -> Vec<KitLadder> {
     }
     out
 }
+
+/// Cut 29 §5: a commission's price in forge units, before the climb (`commission_price`).
+pub const COMMISSION_UNITS: u32 = 10;
+
+/// The works a lineage commissions, in order (then numbered): no sim reads them.
+pub const WORKS: [&str; 8] = ["heir's statue", "camp hall", "chronicle wall", "boss trophies", "the forge's bell", "a banner", "the long table", "a lantern tower"];
+
+/// Cut 29 §5: the next commission's price — 10 forge units × 1.25ⁿ (n the works built), in tens —
+/// priced against income: never more than half a day's net (`LineageState::last_day_net`, fixed
+/// through a day), nor under `COMMISSION_FLOOR` units. The climb alone outran the purse at a stall
+/// (rater AS s1: $5959 held on day 5, a work at ~$5900 against a day's net of ~$2600); at a whole
+/// day's net a purse holding tomorrow's oath beside it still sat over 1.5 days' net (AS s2: $3078,
+/// a $2020 work, a $930 oath).
+pub fn commission_price(l: &LineageState) -> i32 {
+    let unit = unit_of(l) as f64;
+    let climb = COMMISSION_UNITS as f64 * unit * 1.25f64.powi(l.works.len() as i32);
+    let income = (l.last_day_net.max(0) as f64 / 2.0).max(COMMISSION_FLOOR as f64 * unit);
+    (climb.min(income) / 10.0).round() as i32 * 10
+}
+
+/// The fewest forge units a commission costs (its price against a day's net: `commission_price`).
+pub const COMMISSION_FLOOR: u32 = 5;
+
+fn work_label(n: usize) -> String {
+    match WORKS.get(n) {
+        Some(w) => w.to_string(),
+        None => format!("{} {}", WORKS[n % WORKS.len()], n / WORKS.len() + 1),
+    }
+}
+
+pub fn commission_wire(l: &LineageState) -> crate::wire::Commission {
+    let price = commission_price(l);
+    crate::wire::Commission { price, label: work_label(l.works.len()), available: l.gold >= price }
+}
+
+/// Cut 29 §5: commission the next work (policy-neutral: the gold's sink, the chronicle's line).
+pub fn commission(game: &mut Game) -> Result<String, String> {
+    let l = &mut game.lineage;
+    lock_unit(l);
+    let price = commission_price(l);
+    if l.gold < price {
+        return Err("not enough gold".into());
+    }
+    let label = work_label(l.works.len());
+    l.gold_move(-price, &format!("forge commission {label}"));
+    l.works.push(label.clone());
+    Ok(label)
+}

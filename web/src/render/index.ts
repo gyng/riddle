@@ -44,15 +44,16 @@ import { Atlas, type Slot } from "./atlas";
 import { Blit } from "./blit";
 import { QuadLayer } from "./layers";
 import { GpuTimer, Hist } from "./gputimer";
-import { paletteFor } from "./palette";
-import { FONT_ADVANCE, FONT_CELL_H, FONT_CELL_W } from "./font";
-import { TAG_CHAR, TAG_H, TAG_PAD, TagLayer, allyName, type Tag } from "./tags";
+import { ETHEREAL, paletteFor, SPRITE_SCALE } from "./palette";
+import { CALL_CHAR, CALL_H, CALL_PAD, TAG_CHAR, TAG_H, TAG_PAD, TagLayer, allyName, type Plate, type Tag } from "./tags";
 import { PROPS, ReplayState, type EntState } from "./state";
 import { Quality } from "./quality";
 import { LightField, MAX_FIELD, type FieldLight } from "./light";
 import { Bloom, EMISSIVE_TAG } from "./bloom";
 import { SpriteNormals } from "./normals";
 import { Juice } from "./fx";
+import { View2D } from "./view2d";
+export { createFallbackViewer } from "./fallback";
 import type { Ev, Snapshot } from "./types";
 
 /** deterministic per-tile hash in [0, 1) (render-only dressing; never game truth) */
@@ -114,15 +115,18 @@ export type ViewerStats = {
   // the last 120 frames; fps over the last second of rAF callbacks.
   cpuMs: number; cpuP95: number; buildMs: number; gpuMs: number; gpuP95: number; gpuTimer: boolean; fps: number;
   fx: string;   // juice (docs/JUICE.md): the effects tier this frame (low · med · high)
+  glLost: boolean;   // cohort 24 (AW): the GL context is gone — the clock runs on, the 2D view (view2d.ts) stands in until it is restored
 };
 
 const TILE = 8;
 const WALL_TOP_DIM = 0.72; // second art pass: a wall top a step under the floor
-const MEMORY_DIM = 0.68;  // second art pass: a remembered tile (Cut 14 §3; was 0.6)
+const MEMORY_DIM = 0.52;  // second art pass: a remembered tile (Cut 14 §3; was 0.6); gfx round 26 0.68 → 0.52 (raters: "dim unexplored stone harder" — the lit room pops)
 const FLASH_MIX = 0.5;     // QA 1a2a4a9: a hit's flash, the share mixed toward the palette's brightest (was 1: a cream silhouette)
+const HERO_FLASH = 0.16;     // gfx round 3: the hero's hurt flash (FLASH_MIX washed him pale on every blow of a long fight); round 10 0.28 → 0.16 (raters: "the hero a pale noisy blob" at half size)
 const BOSS_FALL_FLASH = 0.2; // juice pass 3: the flash on a boss's killing blow (the slow-mo holds it; FLASH_MIX washed him out)
 const REMEMBERED_DIM = 0.5; // Cut 4 §3: a remembered foe, like a memory tile
-const CUT_FRAMES = 2;       // Cut 8A: dark frames on a frame change (a cut, not a tween)
+const CUT_FRAMES = 0;       // Cut 8A: dark frames on a frame change (a cut, not a tween). gfx round 3: 0 — the cut stays a cut, the two black frames
+                            // read as "a full black blank in the strip" to every blind rater
 const BAR_W = 8;            // Cut 8A: hp bar width in env texels (1 tall)
 const BAR_RED = "#c8302c"; // the missing part of an hp bar; the rest is the palette's brightest
 const FIGHT_TOP_CSS = 96;   // Cut 8A: the caption sits this many CSS px below the top edge (under the DOM hud)
@@ -132,14 +136,20 @@ const ROOM_MAX = 600;              // Cut 14 §3: the room flood's cap in tiles 
 /** 307dbed control rater AR ("the ogre drew as a checkerboard blob"): a sprite's fade (a death's dissolve, a spawn, the fallen hero's
  *  half) was a screen door on the pixel grid — at ½ a checkerboard over the sprite, held on a paused last frame. It darkens instead:
  *  the sprite stays whole and readable, its light going (the fallen hero at ½ reads dimmed, never checkered). */
+const CORPSE_T = 4;                // gfx round 10: ticks after a boss's killing blow before his death pose replaces him
 const fadeDim = (e: { fade: number }): number => e.fade <= 0 ? 1 : Math.max(0.12, 1 - e.fade * 0.9);
 /** the cast of the hero's and the torches' light per biome (rgb multipliers on the warm amber; the Warrens and the Burrows keep it) */
 const LIGHT_TINT: Record<string, [number, number, number]> = {
-  default: [1, 1, 1], fens: [0.6, 1, 1.1], crypt: [0.8, 0.88, 1.2], deep: [0.7, 0.85, 1.25], sanctum: [0.95, 0.95, 1.05], foundry: [1.08, 0.9, 0.8],
+  default: [1, 1, 1], fens: [0.95, 0.92, 0.8],   // gfx round 18 (raters: the Fens "no light source, the room feels dead"): lantern-warm torches (was cold 0.6/1/1.1)
+  crypt: [0.8, 0.88, 1.2], deep: [0.7, 0.85, 1.25], sanctum: [0.95, 0.95, 1.05], foundry: [1.08, 0.9, 0.8],
 };
-const HERO_Z = 3.2, HERO_COVER = 0.3; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
+const HERO_Z = 3.2, HERO_COVER = 0.3, BOSS_COVER = 0.1, HIDDEN_MAX = 0.5; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
 const MAX_LIGHTS = 12;             // art pass: torches lighting the blit (nearest the camera)
-const HERO_TEXELS = 24;            // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels); the fight k keeps it ≤ 1/5 of the screen
+const ROOM_LOOK = 9;               // gfx round 5: the camera's lean looks this many tiles around the hero
+const ATLAS_WAIT_MS = 1500;        // gfx round 6: the longest the first frame waits for the atlas
+const PLATE_MAX = 5;               // gfx round 1: name plates in a crowd (the nearest hostiles; round 6: 3 → 5, the stacking rule culls a pile)
+const BOSS_TITLE_MS = 2200;        // gfx round 1: the boss's title plate on his entrance
+const HERO_TEXELS = 24 * SPRITE_SCALE;   // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels; gfx round 7: × SPRITE_SCALE); the fight k keeps it ≤ 1/5 of the screen
 
 export type ViewerOpts = {
   atlasUrl?: string;   // default "/art/atlas.json" (+ atlas.png beside it)
@@ -155,7 +165,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   renderer.setPixelRatio(1);
   renderer.autoClear = true;
   renderer.info.autoReset = false;
-  const gpu = new GpuTimer(renderer.getContext() as WebGL2RenderingContext);
+  let gpu = new GpuTimer(renderer.getContext() as WebGL2RenderingContext);
   const cpuHist = new Hist(), buildHist = new Hist();
   const frameTimes: number[] = [];
   let frameNo = 0;
@@ -182,6 +192,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     hud: new QuadLayer(env, 128, 0.5, 7), // Cut 8A: hp bars (sprite-tagged so the red keeps its hue in every biome)
     decor: new QuadLayer(env, 512, 1, 0),       // art pass: floor decals (moss, cracks, rubble, bones) and props (barrel, crate, pot)
     decorHue: new QuadLayer(env, 256, 0.5, 1),  // art pass: blood, torches, banners — sprite-tagged so red and flame keep their hue
+    ghosts: new QuadLayer(spr, 64, 0.5, 4, true),  // gfx round 10: ethereal sprites, half over what is under them (FX > 0; `low` draws them in `ents`)
   };
   for (const l of Object.values(L)) scene.add(l.mesh);
   const blit = new Blit(rt.texture);
@@ -189,8 +200,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
   const st = new ReplayState();
   const cam = { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 };
+  let held: [number, number] | null = null;   // gfx round 22: the map camera's held framing (updateCamera)
   const stats: ViewerStats = { calls: 0, triangles: 0, k: 1, dpr: 1, frame: "map", kMap: 1, shake: [0, 0], glyphs: 0, caption: null, device: [0, 0], envTexels: [0, 0], target: [0, 0], pending: 0, tick: 0, fade: 0, hero: [0, 0], projectiles: 0, ents: 0, drawn: 0, camera: [0, 0],
-    cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN, fx: "low" };
+    cpuMs: NaN, cpuP95: NaN, buildMs: NaN, gpuMs: NaN, gpuP95: NaN, gpuTimer: gpu.available, fps: NaN, fx: "low", glLost: false };
   let k = 1, kMap = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
   let lastCss = "";
   let mode: Frame = "map", fixedFocus: Focus | null = null, cutFrames = 0; // Cut 8A
@@ -198,6 +210,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // Cut 14 §3: the hero's room, lit whole once seen — a flood from the hero's tile over room tiles (index → 1), recomputed when
   // the hero's logical tile changes (or the floor reloads); empty in a corridor
   let roomLit = new Uint8Array(0), roomKey = "";
+  const ghostAt: [number, number][] = [];   // gfx round 10: this frame's ethereal sprites (world), for their light
   const rects: DebugRect[] = [], labels: DebugLabel[] = [];   // Cut 14 §3: what this frame drew, for the gates
   const texts: { kind: "callout" | "caption"; text: string; x?: number; y?: number; w?: number; h?: number }[] = [];   // Cut 18 §2
   // Cut 28 §4 (AU, AV: `R3 BANK` over the docked fold chips `gas>pack · bp 5/40`; `archer` printed across `R7 ATTACK ARCHER`): the
@@ -205,14 +218,17 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // the caption and the name plates are placed off them (and the plates off the caption)
   let keepOut: { x: number; y: number; w: number; h: number }[] = [];
   let quiet = false;   // Cut 22: `setQuiet` — the watch's held beat owns the line
-  const tags: Tag[] = [], tagLayer = new TagLayer(canvas);   // second art pass: the hostiles' serif name plates (DOM)
+  const tags: Tag[] = [], plates: (Plate | null)[] = [null, null, null], tagLayer = new TagLayer(canvas);
+  const numCss: { x: number; y: number; text: string; col: readonly number[]; sc: number; a: number; big: boolean }[] = [];   // gfx round 6: this frame's numbers (CSS px)
+  let bossTitle: { text: string; until: number } | null = null; const bossTitled = new Set<number>();   // gfx round 1: the boss's title plate   // second art pass: the hostiles' serif name plates (DOM)
   const lights: [number, number][] = [];   // art pass: this frame's torch flames (world env texels)
+  const candles: [number, number][] = [];   // gfx round 10: candle clusters (a small warm light each)
   const syncPx = new Uint8Array(4);
   // juice (docs/JUICE.md): the effects tier, the light field, bloom and the event-driven feedback; `low` keeps the pre-juice look
   const quality = new Quality(renderer.getContext());
   const field = new LightField();
   const bloom = new Bloom(rt.texture);
-  const juice = new Juice(env, quality, () => atlas.solid("#ffffff"), (ch) => atlas.font(ch));
+  const juice = new Juice(env, quality, () => atlas.solid("#ffffff"), (ch) => atlas.font(ch), () => atlas.coin());
   const normals = new SpriteNormals(spr);   // juice pass 2: derived sprite normals, drawn by a twin of the entity layer (high)
   normals.add(L.ents.twin(normals.material));
   scene.add(juice.emit.mesh, juice.matte.mesh, juice.nums.mesh);
@@ -220,7 +236,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const fieldLights: FieldLight[] = [];
   const stairsSeen: [number, number][] = [];                                       // Cut 26 §2: this frame's seen down stairs
   const stairPlates: { x: number; y: number; text: string; taken: boolean }[] = [];   // …and the plates a fork floor gave them
-  const fires: [number, number][] = [], gases: [number, number][] = [];
+  const fires: [number, number][] = [], gases: [number, number][] = [], waters: [number, number][] = [];
   let fxLevel = -1, simDt = 0;
   function applyFx(): void {
     const lv = quality.at("high") ? 2 : quality.at("med") ? 1 : 0;
@@ -238,8 +254,34 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   let raf = 0;
   let last = performance.now();
   let disposed = false;
+  // cohort 24 (AW: `CONTEXT_LOST_WEBGL` froze the watch for 7 minutes, ▶▶| dead until a reload): a lost context never stops the
+  // clock — the frame loop keeps ticking the replay (the watch's pacing reads `tick()` / `idle()`), draws a 2D view of it over the
+  // canvas meanwhile, and on `webglcontextrestored` three.js re-creates its GL state (textures, the atlas, render targets and the
+  // light / bloom / normal passes re-upload on first use); the GPU timer and the keyed uploads are rebuilt here
+  let glLost = false, view2d: View2D | null = null;
+  const onLost = (e: Event): void => {
+    e.preventDefault();   // ask for a restore
+    if (disposed) return;
+    glLost = true; stats.glLost = true;
+    tagLayer.sync([]); tagLayer.plates([]); tagLayer.numbers([]);
+    (view2d ??= new View2D({ host: canvas })).show(true);
+  };
+  const onRestored = (): void => {
+    if (disposed) return;
+    glLost = false; stats.glLost = false;
+    gpu = new GpuTimer(renderer.getContext() as WebGL2RenderingContext); stats.gpuTimer = gpu.available;
+    env.needsUpdate = true; spr.needsUpdate = true;
+    field.invalidate(); normals.invalidate();
+    lastCss = ""; measure();
+    view2d?.show(false);
+  };
+  canvas.addEventListener("webglcontextlost", onLost, false);
+  canvas.addEventListener("webglcontextrestored", onRestored, false);
 
-  void atlas.load(opts.atlasUrl ?? "/art/atlas.json");
+  // gfx round 6 (raters: "a white 'F' placeholder silhouette" — the edit's scene drew its first frames before the atlas landed): the
+  // viewer waits for the atlas up to ATLAS_WAIT_MS (a dark frame, as between floors); past that, or on a failed load, the primitives draw
+  let atlasReady = false; const born = performance.now();
+  void atlas.load(opts.atlasUrl ?? "/art/atlas.json").finally(() => { atlasReady = true; });
 
   function measure(): boolean {
     const cw = canvas.clientWidth || canvas.width, ch = canvas.clientHeight || canvas.height;
@@ -248,6 +290,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     if (key === lastCss) return false;
     lastCss = key;
     dpr = d;
+    blit.material.uniforms.uWashDpr!.value = d;   // the wash look's grain and dots in CSS px (wash.ts)
     devW = Math.max(1, Math.round(cw * d));
     devH = Math.max(1, Math.round(ch * d));
     kMap = Math.max(1, Math.floor(Math.min(devW, devH) / baseTexels));
@@ -269,8 +312,14 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // the short axis, never below the map's k (odd k would split sprite texels across device pixels)
   function fightK(): number {
     // Cut 14 §3: never so big that the hero is over a fifth of the screen's height (even k, never below the map's)
-    const cap = Math.floor(devH / (5 * HERO_TEXELS));
-    const kf = Math.max(kMap, Math.min(2 * kMap, cap - (cap & 1)));
+    // gfx round 6 (raters: "tiny sprites in a black box" — the edit's scene is ~210 CSS px tall): a small view (< 320 CSS px) lets
+    // the hero take up to 2/5 of its height
+    const small = (canvas.clientHeight || 1000) < 320;
+    const cap = Math.floor(devH / ((small ? 2.5 : 5) * HERO_TEXELS));
+    // gfx round 7 (pick raters O, P: at half-size sprites the fight's 2× zoom "smears the hero and rat into blocky noise"): ≤ 1.25× the map's
+    // (raters Q, R on the scene's inset: "zoom the inset so the hero and foe are twice their size" — ui/viewer.ts halves a small view's texels; under 480 CSS px 1.5×)
+    const most = small ? 2 * kMap : (canvas.clientHeight || 1000) < 480 ? Math.round(kMap * 1.5) : Math.max(kMap, Math.round(kMap * 1.25));
+    const kf = Math.max(kMap, Math.min(most - (most & 1), cap - (cap & 1)));
     if (!fixedFocus) return kf;
     const fit = Math.floor(Math.min(devW, devH) / ((2 * Math.max(1, fixedFocus.radius) + 1) * TILE));
     return Math.max(kMap, Math.min(kf, fit - (fit & 1)));
@@ -336,11 +385,27 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         const mx = (hx + ex) / 2, my = (hy + ey + TILE) / 2, lx = iw / 6, ly = ih / 6;
         cam.tx = Math.max(hx - lx, Math.min(hx + lx, mx));
         cam.ty = Math.max(hy - ly, Math.min(hy + ly, my));
-      } else { cam.tx = hx; cam.ty = hy; }
+      } else {
+        // gfx round 5 (raters: "the hero crammed at the edge, the lower half an empty void"): with no hostile to frame, the camera leans
+        // toward the middle of the ground he can see (the seen open tiles within ROOM_LOOK tiles), at most a sixth of the view — the
+        // explored floor fills the frame; nothing unseen is drawn
+        const [ox, oy] = seenLean(h);
+        cam.tx = hx + Math.max(-iw / 6, Math.min(iw / 6, ox)); cam.ty = hy + Math.max(-ih / 6, Math.min(ih / 6, oy));
+      }
+      if (mode !== "fight" && !fixedFocus) {
+        frameSeen(hx, hy);
+        // gfx round 22 (rater AW: "the camera pan reds the whole map", "the whole screen swims"): the map camera holds still while its
+        // framing moves less than a fifth of the view across / a sixth down, then glides to the new framing in one move — the room
+        // stays put while the hero and his foes move in it
+        // (the hero must stay inside the held view's middle — a hold that ignored him let him walk out under the top bar)
+        if (!snapNow && held && Math.abs(cam.tx - held[0]) < iw * 0.26 && Math.abs(cam.ty - held[1]) < ih * 0.2
+          && Math.abs(hx - held[0]) < iw * 0.3 && Math.abs(hy - held[1]) < ih * 0.26) { cam.tx = held[0]; cam.ty = held[1]; }
+        else held = [cam.tx, cam.ty];
+      } else held = null;
     }
     if (snapNow) { cam.x = cam.tx; cam.y = cam.ty; cam.vx = cam.vy = 0; return; }
     // critically damped spring (ζ = 1), semi-implicit Euler, then snap when settled
-    const w0 = 9, s = Math.min(dt, 0.05);
+    const w0 = mode === "fight" ? 9 : 6, s = Math.min(dt, 0.05);   // (gfx round 25, raters: "the pan repaints the whole frame": the map camera glides slower)
     for (const a of ["x", "y"] as const) {
       const v = a === "x" ? "vx" : "vy", t = a === "x" ? "tx" : "ty";
       const acc = w0 * w0 * (cam[t] - cam[a]) - 2 * w0 * cam[v];
@@ -350,6 +415,41 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
   }
 
+  /** gfx round 22 (raters: "on early floors the void eats 40 % of the screen"): the map camera keeps the explored floor in frame — on an
+   *  axis where the seen tiles span less than the view, the view centres on them; where they span more, its edge never passes theirs;
+   *  either way the hero stays within the middle ~45 % of the view. */
+  let boxKey = "", box: [number, number, number, number] = [0, 0, 0, 0];
+  function frameSeen(hx: number, hy: number): void {
+    const h = st.hero; if (!h) return;
+    const key = `${st.depth}:${h.x},${h.y}`;
+    if (key !== boxKey) {
+      boxKey = key;
+      let x0 = st.w, x1 = -1, y0 = st.h, y1 = -1;
+      for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) if (st.seen[y * st.w + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      box = x1 < 0 ? [0, 0, 0, 0] : [x0 * TILE, (x1 + 1) * TILE, -(y1 + 1.5) * TILE, -(y0 - 0.5) * TILE];   // world: left, right, bottom, top
+    }
+    if (box[1] <= box[0]) return;
+    const fit = (t: number, lo: number, hi: number, half: number, hero: number): number => {
+      const c = hi - lo <= 2 * half ? (lo + hi) / 2 : Math.max(lo + half, Math.min(hi - half, t));
+      const m = half * 0.45;   // the hero stays in the middle ~45 % of the view (a sixth put him under the top bar's lines)
+      return Math.max(hero - m, Math.min(hero + m, c));
+    };
+    cam.tx = fit(cam.tx, box[0], box[1], iw / 2, hx);
+    cam.ty = fit(cam.ty, box[2], box[3], ih / 2, hy);
+  }
+  /** gfx round 5: half the offset (world units) from the hero to the centroid of the seen open tiles around him (cached per hero tile). */
+  let leanKey = "", lean: [number, number] = [0, 0];
+  function seenLean(h: EntState): [number, number] {
+    const key = `${st.depth}:${h.x},${h.y}:${st.seen.length}`;
+    if (key === leanKey) return lean;
+    leanKey = key;
+    let sx = 0, sy = 0, n = 0;
+    for (let y = Math.max(0, h.y - ROOM_LOOK); y <= Math.min(st.h - 1, h.y + ROOM_LOOK); y++) for (let x = Math.max(0, h.x - ROOM_LOOK); x <= Math.min(st.w - 1, h.x + ROOM_LOOK); x++) {
+      const i = y * st.w + x; if (!st.seen[i] || st.tiles[i] === "wall") continue; sx += x; sy += y; n++;
+    }
+    lean = n < 6 ? [0, 0] : [((sx / n - h.x) * TILE) * 0.5, (-(sy / n - h.y) * TILE) * 0.5];
+    return lean;
+  }
   // Cut 14 §3: a room tile is a passable tile inside some 2×2 passable block (a one-wide corridor has none); a door is not passable
   // here, so the flood ends at the door. The flood is 4-connected from the hero's tile, capped at ROOM_MAX tiles.
   function passable(i: number): boolean { const t = st.tiles[i]; return t !== undefined && t !== "wall" && t !== "door"; }
@@ -418,6 +518,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     if (t === "door" && !portcullis(x, y)) return atlas.envTile(b, h < 0.5 ? "floor_0" : "floor_1");   // an open doorway
     return atlas.envTile(b, t);   // door (portcullis), stairs, water, chasm
   }
+  const isWater = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < st.w && y < st.h && st.tiles[y * st.w + x] === "water";
   const isDoor = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < st.w && y < st.h && st.tiles[y * st.w + x] === "door";
   /** second art pass: a portcullis only where it reads as one — a door in a horizontal wall (wall or door on both sides); a run
    *  of doors (the generator's room mouths) gets one, at its middle; a door in a vertical wall is an open doorway (the
@@ -438,7 +539,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const wx = x * TILE + TILE / 2, wy = -(y + 1) * TILE;
     if (t === "wall") {
       if (!wallFace(x, y) || st.tiles[(y + 1) * st.w + x] !== "floor") return;
-      if ((x + 2 * y) % 5 === 0 && hash2(x, y, 3) < 0.8) {
+      if ((x + 2 * y) % 4 === 0 && hash2(x, y, 3) < 0.85) {   // gfx round 2: a sconce every ~4 wall faces (was 5; watch.png's rooms are ringed with them)
         const f = atlas.hue(`torch_${torchFrame}`) ?? atlas.hue("torch_0");
         if (!f) return;
         L.decorHue.push(wx, wy + 1, 0.35, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, Math.max(dim, 0.85));
@@ -449,16 +550,62 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       return;
     }
+    // gfx round 22 (raters, every round: the Fens "a flat undressed teal field"): the Fens dress with their own pieces — lily pads on
+    // the water, reeds along its edge, logs and stumps in the corners, a ruined pillar or a warm lantern post against a wall
+    const fens = b === "fens" && !!atlas.envTile(b, "reeds");
+    if (fens && t === "water" && hash2(x, y, 17) < 0.2) {
+      const f = atlas.envTile(b, "lilies");
+      if (f) L.decor.push(wx, wy, 0.2, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim);
+      return;
+    }
     if (t !== "floor") return;
     const n = isWall(x, y - 1), sw = isWall(x, y + 1), e = isWall(x + 1, y), w = isWall(x - 1, y);
     const walls = +n + +sw + +e + +w, corner = (n || sw) && (e || w);
     const hp = hash2(x, y, 7);
-    if (walls >= 1 && walls <= 2 && (corner ? hp < 0.42 : hp < 0.035) && !st.items.some((it) => it.x === x && it.y === y)) {
-      const k = hash2(x, y, 8), name = k < 0.45 ? "barrel" : k < 0.8 ? "crate" : "pot";
-      const f = atlas.envTile(b, name);
+    const free = !st.items.some((it) => it.x === x && it.y === y);
+    if (fens && free) {
+      const wet = +isWater(x - 1, y) + +isWater(x + 1, y) + +isWater(x, y - 1) + +isWater(x, y + 1);
+      if (wet && hash2(x, y, 18) < 0.34) {   // (round 22b: 0.6 → 0.34, raters: "thin out the weed props")
+        const f = atlas.envTile(b, hash2(x, y, 19) < 0.55 ? "reeds" : "reeds_1");
+        if (f) { L.decor.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+      }
+      if (walls === 0 && hash2(x, y, 20) < 0.022) {   // (round 25: 0.05 → 0.022, raters: "foliage noise everywhere")
+        const f = atlas.envTile(b, hash2(x, y, 21) < 0.7 ? "reeds_1" : "stump");
+        if (f) { L.decor.push(wx, wy, 0.25, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+      }
+    }
+    if (walls >= 1 && walls <= 2 && (corner ? hp < 0.78 : hp < 0.15) && free) {   // (round 21: set dressing denser — raters: "bare grey tile fields")   // gfx round 2: props at more corners and along walls
+      // gfx round 10 (raters: "rooms are empty brown grids — barrels, bones, banners"): skull piles and chests join the corners
+      const k = hash2(x, y, 8), name = fens ? (k < 0.22 ? "log" : k < 0.42 ? "stump" : k < 0.62 ? "reeds" : k < 0.76 ? "barrel" : k < 0.88 ? "pot" : "skulls")
+        : k < 0.34 ? "barrel" : k < 0.6 ? "crate" : k < 0.74 ? "pot" : k < 0.9 ? "skulls" : "chest";
+      const f = atlas.envTile(b, name) ?? atlas.envTile(b, "barrel");
       if (f) { L.decor.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
     }
-    const hd = hash2(x, y, 9), near = walls > 0 ? 0.1 : 0;
+    // gfx round 10: against a north wall, now and then a weapon rack or a broken statue; candles at a wall's foot (a small warm light)
+    if (n && !sw && !e && !w && free && hp > 0.5 && hp < 0.66) {
+      const r = hash2(x, y, 13), f = atlas.envTile(b, fens ? (r < 0.5 ? "lantern" : "ruin") : r < 0.5 ? "rack" : "statue");
+      if (f) {
+        L.decor.push(wx, wy + 1, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, fens && r < 0.5 ? Math.max(dim, 0.9) : dim);
+        if (fens && r < 0.5 && dim > 0.5) lights.push([wx + 2, wy + f.h / 2 - 3]);   // the lantern's warm light
+        return;
+      }
+    }
+    if (walls >= 1 && free && hp > 0.9 && hp < 0.935) {
+      const f = atlas.hue("candles");
+      if (f) { L.decorHue.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, Math.max(dim, 0.9)); if (dim > 0.5) candles.push([wx, wy + 3]); return; }
+    }
+    // gfx round 21: the odd bones or skull heap on the open floor (floor detail, painted per biome)
+    if (walls === 0 && free && hash2(x, y, 15) < 0.025) {
+      const f = atlas.envTile(b, hash2(x, y, 16) < 0.6 ? "bones" : "skulls");
+      if (f) { L.decor.push(wx, wy, 0.25, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, dim); return; }
+    }
+    // a standing brazier in the open floor of a big room (its fire lights the room)
+    if (walls === 0 && free && hash2(x, y, 14) < 0.018 && !isWall(x - 2, y) && !isWall(x + 2, y) && !isWall(x, y - 2) && !isWall(x, y + 2)) {
+      const f = atlas.hue("brazier");
+      if (f) { L.decorHue.push(wx, wy, 0.3, f.w / 2, f.h / 2, f.u0, f.v0, f.u1, f.v1, Math.max(dim, 0.9)); if (dim > 0.5) lights.push([wx, wy + f.h / 2 - 2]); return; }
+    }
+    // gfx round 18: the painted floors carry their own wear — the ramp register's decals at 40 % of their old density
+    const hd = hash2(x, y, 9) / 0.4, near = walls > 0 ? 0.1 : 0;
     const pick = hd < 0.07 + near ? "moss_" + (hash2(x, y, 10) < 0.5 ? 0 : 1)
       : hd < 0.12 + near ? "crack" : hd < 0.16 + near ? "rubble" : hd < 0.19 + near ? "blood" : hd < 0.205 + near ? "bones" : null;
     if (!pick) return;
@@ -478,7 +625,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const b = st.biome;
     const fight = mode === "fight";
     updateRoom();
-    rects.length = 0; labels.length = 0; texts.length = 0; tags.length = 0;
+    rects.length = 0; labels.length = 0; texts.length = 0; tags.length = 0; plates.fill(null); ghostAt.length = 0;
     const bright = p[p.length - 1]!;
     // Cut 8A: a hit flashes to the palette's brightest in the fight frame; the map keeps its paper white
     if (fight) L.ents.setFlash(bright[0], bright[1], bright[2]); else L.ents.setFlash(0.98, 0.95, 0.9);
@@ -489,7 +636,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const torchFrame = Math.floor(now / 180) & 1;
     const hd = atlas.envTile(b, "floor_0") !== undefined;   // art pass: register 3 loaded for this biome
     L.tiles.begin(); L.decor.begin(); L.decorHue.begin();
-    lights.length = 0;
+    lights.length = 0; candles.length = 0;
     stairsSeen.length = 0;
     for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
       const i = y * st.w + x;
@@ -520,6 +667,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const i = o.y * st.w + o.x;
       if (!st.visible[i]) continue;
       const s = atlas.overlay(o.k, frame);
+      // gfx round 5 (raters: "the gas is flat green squares"): with the juice on, a gas tile is a smaller drifting blob inside its glowing
+      // puffs (fx.ts), not a tile-sized square
+      if (o.k === "gas" && fxLevel > 0) { const b = Math.sin(now / 420 + i) * 0.8; L.overlays.push(o.x * TILE + TILE / 2 + b, -(o.y + 1) * TILE + 1 + Math.abs(b), 0.5, 6, 6, s.u0, s.v0, s.u1, s.v1); continue; }
       L.overlays.push(o.x * TILE + TILE / 2, -(o.y + 1) * TILE, 0.5, TILE, TILE, s.u0, s.v0, s.u1, s.v1);
     }
     L.overlays.end();
@@ -544,40 +694,38 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
 
     // entities (sprite density: 1 sprite texel = 0.5 world), shadows, glyphs. A remembered foe (Cut 4 §3) is drawn
     // at its last seen tile dimmed like a memory tile: no shadow, no flash, no telegraph glyph.
-    L.shadows.begin(); L.ents.begin(); L.glyphs.begin(); L.hud.begin(); L.text.begin();
+    L.shadows.begin(); L.ents.begin(); L.ghosts.begin(); L.glyphs.begin(); L.hud.begin(); L.text.begin();
     stats.ents = st.ents.size; stats.drawn = 0;
     // Cut 13 §4: the callout's box (clamped inside the frame, see `textX`), so a hostile's name never shares its line (rater Q's
     // `JACKALCKAL`: the callout above the hero and the name under a foe one tile up, on one row)
     const heroEnt = st.hero;
     let calloutBox: [number, number, number, number] | null = null;   // x0, y0, x1, y1 (world; y up)
     const keeps = keepBoxes();
-    let calloutY = 0;   // Cut 28 §4: the callout's baseline — above the hero, else under his feet, else stepped down off the DOM
     if (st.callout && heroEnt && !quiet) {
       const [hx, hy] = feet(heroEnt);
-      const width = st.callout.text.length * FONT_ADVANCE + 1;
-      const above = hy + atlas.entity(heroEnt.kind).h / 2 + (fight ? (heroEnt.glyph ? (fight ? TILE * 2 : TILE) + 6 : 5) : 6);
+      // gfx round 1: the callout is an iron plate (tags.ts `Plate`) — its box in world texels from its CSS metrics; the notch under it
+      const px = dpr / k, width = (st.callout.text.length * CALL_CHAR + CALL_PAD) * px, ph = CALL_H * px, notch = 7 * px;
+      const above = hy + atlas.entity(heroEnt.kind).h / 2 + notch + (fight ? (heroEnt.glyph ? (fight ? TILE * 2 : TILE) + 6 : 5) : 6);
       const cx = textX(width, hx);
-      const boxAt = (y: number): [number, number, number, number] => [cx - width / 2, y - 1, cx + width / 2, y + FONT_CELL_H + 1];
+      const boxAt = (y: number): [number, number, number, number] => [cx - width / 2, y, cx + width / 2, y + ph];
       const clear = (y: number): boolean => !keeps.some((b) => boxHit(boxAt(y), b));
       let cy = above;
       if (!clear(cy)) {
-        const below = hy - FONT_CELL_H - 3, floor = camSY - ih / 2 + 2;
+        const below = hy - ph - 3, floor = camSY - ih / 2 + 2;
         cy = below;
-        for (let i = 0; i < 24 && !clear(cy) && cy - FONT_CELL_H > floor; i++) cy -= FONT_CELL_H;
-        if (!clear(cy)) { cy = above; for (let i = 0; i < 24 && !clear(cy); i++) cy += FONT_CELL_H; }
+        for (let i = 0; i < 24 && !clear(cy) && cy - ph > floor; i++) cy -= ph * 0.5;
+        if (!clear(cy)) { cy = above; for (let i = 0; i < 24 && !clear(cy); i++) cy += ph * 0.5; }
       }
-      calloutY = cy;
       calloutBox = boxAt(cy);
     }
     // Cut 28 §4: the caption's box (the fight frame's top line), placed under any DOM it would sit on; the plates keep off it too
-    let captionY = 0, captionBox: [number, number, number, number] | null = null;
+    let captionBox: [number, number, number, number] | null = null;
     if (fight && st.caption && !quiet && !(st.callout && heroEnt)) {
-      const room = iw - 2, w1 = st.caption.text.length * FONT_ADVANCE + 1;
-      const w = w1 <= room ? w1 : Math.min(room, st.caption.text.length * FONT_ADVANCE * 0.5 + 0.5), hgt = w1 <= room ? FONT_CELL_H : st.caption.text.length * FONT_ADVANCE * 0.5 + 0.5 <= room ? FONT_CELL_H * 0.5 : FONT_CELL_H + 1;
-      const boxAt = (y: number): [number, number, number, number] => [camSX - w / 2, y - 1, camSX + w / 2, y + hgt + 1];
-      let y = camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - FONT_CELL_H;
+      const px = dpr / k, w = Math.min(iw - 2, (st.caption.text.length * CALL_CHAR + CALL_PAD) * px), hgt = CALL_H * px;   // gfx round 1: a plate
+      const boxAt = (y: number): [number, number, number, number] => [camSX - w / 2, y, camSX + w / 2, y + hgt];
+      let y = camSY + ih / 2 - Math.ceil((FIGHT_TOP_CSS * dpr) / k) - hgt;
       for (let i = 0; i < 8; i++) { const hit = keeps.find((b) => boxHit(boxAt(y), b)); if (!hit) break; y = hit[1] - hgt - 3; }
-      captionY = y; captionBox = boxAt(y);
+      captionBox = boxAt(y);
     }
     const barBg = fight ? atlas.solid(BAR_RED) : null, barFg = fight ? atlas.solid(cssHex(bright)) : null;
     const gs = fight ? TILE * 2 : TILE; // Cut 8A: telegraph glyphs at 2× in the fight frame
@@ -611,7 +759,24 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // Cut 22 (AH: "goblin nameplates stacked — cluttered at the key moment"): while a boss is in view his plate is the one drawn (and
     // the allies'); his horde carries the small pixel hp bar instead of a plate
     let bossInView = false;
-    for (const e of st.ents.values()) if (e.boss && !e.dying && !e.remembered && st.visible[e.y * st.w + e.x]) { bossInView = true; if (st.speed > 0 && !e.ally) juice.bossIn(e.id); break; }   // juice pass 2: the entrance
+    for (const e of st.ents.values()) if (e.boss && !e.dying && !e.remembered && st.visible[e.y * st.w + e.x]) {
+      bossInView = true;
+      if (st.speed > 0 && !e.ally) {
+        juice.bossIn(e.id);   // juice pass 2: the entrance
+        // gfx round 1 (raters: "no entrance title card"): the boss's name (his plate's word) steps in as a title plate for BOSS_TITLE_MS
+        if (!bossTitled.has(e.id) && fxLevel > 0) { bossTitled.add(e.id); bossTitle = { text: e.name, until: now + BOSS_TITLE_MS }; }
+      }
+      break;
+    }
+    if (bossTitle && now > bossTitle.until) bossTitle = null;
+    // gfx round 1 (raters: "six labels pile up; the hero lost inside the swarm"): the PLATE_MAX hostiles nearest the hero carry their name
+    // plate; the rest of a crowd carries the small pixel hp bar (the fight frame) or nothing (the map)
+    const plated = new Set<number>();
+    if (heroEnt) {
+      const near = [...st.ents.values()].filter((e) => !e.hero && !e.ally && !e.neutral && !e.dying && e.kind !== "bones" && !e.remembered && st.visible[e.y * st.w + e.x])
+        .sort((a, c) => Math.max(Math.abs(a.x - heroEnt.x), Math.abs(a.y - heroEnt.y)) - Math.max(Math.abs(c.x - heroEnt.x), Math.abs(c.y - heroEnt.y)) || a.id - c.id);
+      for (const e of near.slice(0, quiet ? 1 : PLATE_MAX)) plated.add(e.id);   // (a quiet view — a held beat, the edit's scene — names one)
+    }
     // Cut 18 §2: the hero's drawn rect (world: x0, x1, y0, y1) — his feet with his stack's fan — so a sprite over him can be moved off
     let heroBox: [number, number, number, number] | null = null;
     if (heroEnt && !heroEnt.dying) {
@@ -627,6 +792,13 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // QA 1a2a4a9 (P: jackal silhouettes on black left of a wall): a remembered foe is drawn only over a tile the map draws
       if (!e.hero && !st.visible[vi] && !(e.remembered && st.seen[vi])) continue;
       stats.drawn++;
+      // gfx round 10 (raters: the fallen boss "a dark smear"): a boss's body lies in its death pose from CORPSE_T ticks after the blow, for
+      // the rest of the floor; without the art he dissolves as before (then is not drawn)
+      if (e.boss && e.dying) {
+        const dead = st.clock - e.dying.t0 >= CORPSE_T ? atlas.corpse(e.kind) : undefined;
+        if (dead) { const [cx, cy] = feet(e); L.ents.push(cx, cy, 1.9, dead.w / 2, dead.h / 2, dead.u0, dead.v0, dead.u1, dead.v1, 0.92, 0, 0, e.flip ? 1 : 0); continue; }
+        if (e.fade >= 1) continue;
+      }
       let [fx, fy] = feet(e);
       const fx0 = fx;
       const group = stacks.get(vi), stackN = group?.length ?? 1, stackI = group ? group.indexOf(e.id) : 0;
@@ -656,10 +828,22 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         const [x0, x1, y0, y1] = heroBox, hw = x1 - x0, hh = y1 - y0;
         const oy = Math.max(0, Math.min(fy + h, y1) - Math.max(fy, y0)) / hh;
         const ox = Math.max(0, Math.min(fx + w / 2, x1) - Math.max(fx - w / 2, x0));
-        if (oy > 0 && (ox / hw) * oy > HERO_COVER) {
+        const cover = e.boss ? BOSS_COVER : HERO_COVER;   // gfx round 4 (raters: "unstack the hero and the boss — the hit is not visible")
+        if (oy > 0 && (ox / hw) * oy > cover) {
           const cx = (x0 + x1) / 2, dir = fx !== cx ? Math.sign(fx - cx) : st.hero?.flip ? 1 : -1;
-          const keep = Math.floor((HERO_COVER * hw) / oy);   // the most of his width it may still cover
+          const keep = Math.floor((cover * hw) / oy);   // the most of his width it may still cover
           fx = dir > 0 ? Math.ceil(x1 - keep + w / 2) : Math.floor(x0 + keep - w / 2);
+          // gfx round 7 (half-size sprites: a stack pushed off the hero landed its members on one x): they keep their fan, outward
+          if (stackN > 1 && stackI >= 0) fx += dir * stackI * Math.round(Math.max(STACK_SPREAD, w / 2));
+        }
+        // gfx round 5 (raters: "the rat hides under the hero"): the hero draws in front, so a small foe at his feet vanished behind him — a
+        // live foe the hero's rect would hide more than HIDDEN_MAX of steps sideways, away from him, until at least half of it shows
+        const oyF = Math.max(0, Math.min(fy + h, y1) - Math.max(fy, y0)) / Math.max(1, h);
+        const oxF = Math.max(0, Math.min(fx + w / 2, x1) - Math.max(fx - w / 2, x0)) / Math.max(1, w);
+        if (!e.dying && !e.boss && stackN <= 1 && oxF * oyF > HIDDEN_MAX && oyF > 0) {   // (a stack's members fan instead)
+          const cx = (x0 + x1) / 2, dir = fx !== cx ? Math.sign(fx - cx) : st.hero?.flip ? 1 : -1;
+          const nx = dir > 0 ? Math.ceil(x1 - w * 0.5 + w / 2) : Math.floor(x0 + w * 0.5 - w / 2);
+          if (openFeet(nx, fy) || Math.abs(nx - fx0) <= TILE) fx = nx;
         }
       }
       // entities sort by row (lower rows in front); the hero above them all (under the glyphs at 3.5)
@@ -679,16 +863,22 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // toward the palette's brightest, never a solid silhouette (the hero hit every tick read as a blob), and a stopped clock (⏸, the
       // replay's pause on its last frame) holds no flash
       // juice pass 3: a falling boss's killing blow flashes lightly — the slow-mo stretched its two-tick flash into a pale silhouette
-      const flash = !st.flashing(e) || st.speed <= 0 ? 0 : e.boss && e.dying ? BOSS_FALL_FLASH : Math.max(FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero));
+      // gfx round 3 (raters: "the hero whited out mid-flash reads as a pale smear"): the hero's own hurt flash is lighter (HERO_FLASH)
+      const flash = !st.flashing(e) || st.speed <= 0 ? 0 : e.boss && e.dying ? BOSS_FALL_FLASH : e.hero ? HERO_FLASH : Math.max(FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero));
       // juice: squash & stretch (a hit, a lunge, a spawn's pop, a death's slump) — the feet stay put; `rects` keep the true size
       const [sqx, sqy] = juice.squash(e.id, st.clock);
-      L.ents.push(fx, fy, z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.ally && !e.hero ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);
+      // gfx round 20 (raters: "the hero only slides between tiles"): a walking step bobs one texel on each half of the move (FX > 0)
+      const step = fxLevel > 0 && e.move && !e.dying && !e.boss ? ((st.clock - e.move.t0) / Math.max(0.01, e.move.dur) < 0.5 ? 1 : 0) : 0;
+      const lift = juice.lift(e.id, st.clock) + step;   // gfx round 5: a boss drops into his arena
+      const ghost = fxLevel > 0 && !e.hero && ETHEREAL.has(e.kind);
+      if (ghost) ghostAt.push([fx, fy + h / 2]);
+      (ghost ? L.ghosts : L.ents).push(fx, fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0), z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.hero ? 1.12 : e.ally ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);   // (round 16: the hero a touch brighter — "muddy on the ochre floor")
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
       let top = fy + h + 2;
       // QA e75ec29 (R: "the pet is an unlabelled sprite with no hp"): an ally carries a tag too — green-tinted, its kind and name
       // (`jackal Skog`; a summoned ally, unnamed, its kind), with the same short hp bar
-      const tagged = !e.hero && !e.neutral && !e.dying && (!bossInView || e.boss || !!e.ally);
+      const tagged = !e.hero && !e.neutral && !e.dying && (!bossInView || e.boss || !!e.ally) && (e.boss || !!e.ally || plated.has(e.id));
       const tagText = e.ally ? allyName(e.kind, e.name) : e.name;
       if (fight && barBg && barFg && !tagged && !e.dying && !e.neutral && e.maxHp > 0) {
         const fill = Math.max(0, Math.min(BAR_W, Math.round((BAR_W * e.hp) / e.maxHp)));
@@ -707,14 +897,17 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         const hits = (y: number): boolean => tagBoxes.some((b) => nx - nw / 2 < b[2] && nx + nw / 2 > b[0] && y < b[3] && y + th > b[1]);
         const clash = (y: number): boolean => [calloutBox, captionBox, ...keeps].some((b) => !!b && nx + nw / 2 > b[0] && nx - nw / 2 < b[2] && y + th > b[1] && y < b[3]);
         const ny0 = ny;
-        for (let i = 0; i < 8 && (hits(ny) || clash(ny)); i++) ny += th + px;
+        let stacked = 0;   // gfx round 6: rows climbed past other plates (not past the callout or the DOM)
+        for (let i = 0; i < 8 && (hits(ny) || clash(ny)); i++) { if (hits(ny)) stacked++; ny += th + px; }
         // Cut 28 §4: a plate pushed up into the HUD's chips tries under its foe instead
         if (hits(ny) || clash(ny)) { ny = ny0 - th - px - h - 1; for (let i = 0; i < 8 && (hits(ny) || clash(ny)); i++) ny -= th + px; }
-        if (!hits(ny) && !clash(ny)) {
+        // gfx round 6 (raters: "the labels pile onto the hero"): a plate that would climb over more than two other plates is left off — a
+        // crowd keeps two rows of names, not a tower (a boss's and an ally's always draw)
+        if (!hits(ny) && !clash(ny) && (stacked <= 2 || e.boss || !!e.ally)) {
           tagBoxes.push([nx - nw / 2, ny, nx + nw / 2, ny + th]);
           const [cx, cy] = toCss(nx, ny);
           labels.push({ text: tagText, x: cx, y: cy, id: e.id, w: (nw * k) / dpr, h: TAG_H });
-          tags.push({ id: e.id, text: tagText, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1, ally: e.ally });
+          tags.push({ id: e.id, text: tagText, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1, ally: e.ally, boss: !!e.boss });
           top = ny + th + 1;
         }
       }
@@ -746,68 +939,62 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         L.glyphs.push(Math.round(px * TILE) + TILE / 2, -Math.round(py * TILE) - TILE / 2 - 1, 3.6, 2, 2, d.u0, d.v0, d.u1, d.v1);
       }
     }
-    L.shadows.end(); L.ents.end(); L.glyphs.end(); L.hud.end();
+    L.shadows.end(); L.ents.end(); L.ghosts.end(); L.glyphs.end(); L.hud.end();
     // juice: particles, numbers and this frame's events (fx.ts); nothing at `low`
     fires.length = 0; gases.length = 0;
     if (fxLevel > 0) {
       for (const o of st.overlays) if (st.visible[o.y * st.w + o.x]) (o.k === "fire" ? fires : gases).push([o.x * TILE + TILE / 2, -(o.y + 1) * TILE + TILE / 2]);
+      // gfx round 5 (raters: "the water is static, no reflections"): the visible pools, for the juice's glints and mist
+      waters.length = 0;
+      const hh0 = st.hero;
+      if (hh0) for (let y = Math.max(0, hh0.y - 9); y <= Math.min(st.h - 1, hh0.y + 9) && waters.length < 48; y++) for (let x = Math.max(0, hh0.x - 7); x <= Math.min(st.w - 1, hh0.x + 7) && waters.length < 48; x++) {
+        const i = y * st.w + x; if (st.tiles[i] === "water" && (st.visible[i] || roomLit[i])) waters.push([x * TILE + TILE / 2, -(y + 1) * TILE + TILE / 2]);
+      }
       const hh = st.hero, dustC = p[Math.min(3, p.length - 1)]!;
       juice.update(simDt, now, st.clock, {
-        ent: (id) => { const e = st.ents.get(id); if (!e) return null; const [x, y] = feet(e); return { x, y, h: atlas.entity(e.kind).h / 2, kind: e.kind, hero: e.hero, boss: e.boss, maxHp: e.maxHp, ally: e.ally }; },
-        heroId: st.heroId, speed: st.speed, fight, quiet, cam: [camSX, camSY], half: [iw / 2, ih / 2], fires, gases, torches: lights,
+        ent: (id) => { const e = st.ents.get(id); if (!e) return null; const [x, y] = feet(e); return { x, y, h: atlas.entity(e.kind).h / 2, w: atlas.entity(e.kind).w / 2, kind: e.kind, hero: e.hero, boss: e.boss, maxHp: e.maxHp, ally: e.ally }; },
+        heroId: st.heroId, speed: st.speed, fight, quiet, cam: [camSX, camSY], half: [iw / 2, ih / 2], fires, gases, waters, torches: lights, ghosts: ghostAt, fog: st.biome === "fens" ? 1 : 0,
         motes: !!hh && !!roomLit[hh.y * st.w + hh.x], dust: [dustC[0], dustC[1], dustC[2]],
       });
-    } else juice.update(0, now, st.clock, { ent: () => null, heroId: -1, speed: 0, fight, quiet, cam: [0, 0], half: [0, 0], fires, gases, torches: lights, motes: false, dust: [0, 0, 0] });
+      numCss.length = 0;
+      // gfx round 11 (raters Y, Z: "the red '1' sits on top of 'DRAINED'"): a number that would land on the callout plate or a name plate
+      // steps beside it (world texels; a number is ~2.5 CSS glyphs wide)
+      const npx = dpr / k, nw = 22 * npx, nh = 20 * npx;
+      const boxes = [calloutBox, ...tagBoxes].filter((b): b is [number, number, number, number] => !!b);
+      for (const n of juice.shown) {
+        let x = n.x;
+        for (const b of boxes) if (x + nw / 2 > b[0] && x - nw / 2 < b[2] && n.y + nh > b[1] && n.y < b[3]) x = x < (b[0] + b[2]) / 2 ? b[0] - nw / 2 - 2 * npx : b[2] + nw / 2 + 2 * npx;
+        const [cx, cy] = toCss(x, n.y); numCss.push({ ...n, x: cx, y: cy });
+      }
+      for (const id of juice.breaks.splice(0)) { const e = st.ents.get(id); if (e) { const [x, y] = feet(e); const [cx, cy] = toCss(x, y + atlas.entity(e.kind).h / 2 * 0.95); tagLayer.shatter(cx, cy); const [sx, sy] = toCss(x, y + atlas.entity(e.kind).h / 2 + 10); tagLayer.stamp(/* copy:callout */ "BROKEN", sx, sy - 96, "broken"); } }
+      for (const id of juice.falls.splice(0)) { const e = st.ents.get(id); if (e) { const [x, y] = feet(e); const [sx, sy] = toCss(x, y + atlas.entity(e.kind).h / 2 + 8); tagLayer.stamp(/* copy:callout */ "SLAIN", sx, sy - 24, "slain"); } }
+    } else { juice.falls.length = 0; juice.update(0, now, st.clock, { ent: () => null, heroId: -1, speed: 0, fight, quiet, cam: [0, 0], half: [0, 0], fires, gases, waters, torches: lights, motes: false, dust: [0, 0, 0] }); }
 
     // callout: bitmap text above the hero (env density)
     const hero = st.hero;
     if (st.callout && hero && !quiet) {
-      const [fx] = feet(hero);
       // in the fight frame the callout clears the hp bar and, when up, the 2× glyph above it
       // Cut 13 §4: centred on the hero but kept inside the frame — a hero at the edge used to lose its callout's right half
-      fitText(st.callout.text, fx, calloutY, 4, true);
+      // gfx round 1: drawn as the DOM plate over its box (tags.ts)
+      if (calloutBox) { const [x0, y0] = toCss(calloutBox[0], calloutBox[1]), [x1] = toCss(calloutBox[2], calloutBox[1]); plates[1] = ({ kind: "callout", text: st.callout.text, x: (x0 + x1) / 2, y: y0, w: x1 - x0 }); }
       texts.push({ kind: "callout", text: st.callout.text, ...cssBox(calloutBox) });
     }
     // Cut 8A: the firing row as a caption at the top of the fight frame (`R2 attack goblin`), under the DOM hud
     // Cut 18 §2: one line over the fight — a telegraph (the core's callout over the hero) takes it; the row goes to the ticker (watch)
-    if (fight && st.caption && !quiet && !(st.callout && hero)) { fitText(st.caption.text, camSX, captionY, 4.1, false); texts.push({ kind: "caption", text: st.caption.text, ...cssBox(captionBox) }); }
+    if (bossTitle && !quiet) plates[0] = ({ kind: "boss", text: bossTitle.text, x: (iw * k) / dpr / 2, y: (ih * k) / dpr * 0.2, w: bossTitle.text.length * 15 + 56 });
+    if (fight && st.caption && !quiet && !(st.callout && hero)) {
+      if (captionBox && !bossTitle) { const [x0, y0] = toCss(captionBox[0], captionBox[1]), [x1] = toCss(captionBox[2], captionBox[1]); plates[2] = ({ kind: "caption", text: st.caption.text, x: (x0 + x1) / 2, y: y0, w: x1 - x0 }); }
+      texts.push({ kind: "caption", text: st.caption.text, ...cssBox(captionBox) });
+    }
     L.text.end();
   }
 
-  /** Cut 14 §3: text that never clips — at env density when it fits the frame's width, else at sprite density (half size), else
-   *  two rows at half size split at the last space that fits (the caption at a big fight k read `R2 ATTACK JACK`). `y` is the
-   *  bottom row's baseline; `follow`: the text wants `cx` and is kept inside the frame (`textX`), else it is centred on `cx`. */
-  function fitText(text: string, cx: number, y: number, z: number, follow: boolean): void {
-    const room = iw - 2;
-    const width = (t: string, sc: number): number => t.length * FONT_ADVANCE * sc + sc;
-    const place = (t: string, sc: number, yy: number): void => drawText(t, follow ? textX(width(t, sc), cx) : cx, yy, z, sc);
-    if (width(text, 1) <= room) { place(text, 1, y); return; }
-    if (width(text, 0.5) <= room) { place(text, 0.5, y); return; }
-    const max = Math.max(1, Math.floor((room - 0.5) / (FONT_ADVANCE * 0.5)));
-    let cut = text.lastIndexOf(" ", max); if (cut <= 0) cut = max;
-    const a = text.slice(0, cut).trimEnd(), b = text.slice(cut).trimStart().slice(0, max);
-    place(a, 0.5, y + FONT_CELL_H * 0.5 + 1); if (b) place(b, 0.5, y);
-  }
   /** Cut 13 §4: the centre x for a text `width` wide that wants `cx`, kept inside the frame's iw texels (1-texel margin);
    *  a text wider than the frame stays centred on the frame. */
   function textX(width: number, cx: number): number {
     const half = width / 2, lo = camSX - iw / 2 + 1 + half, hi = camSX + iw / 2 - 1 - half;
     return lo > hi ? camSX : Math.max(lo, Math.min(hi, cx));
   }
-  // bitmap text centred on x, its baseline (cell bottom) at y. scale 1 = env density; 0.5 = sprite density (one font
-  // texel per target px, half the size on screen: the fight frame's names), positions snapped to that grid
-  function drawText(text: string, cx: number, y: number, z: number, scale = 1): void {
-    const t = text.toUpperCase();
-    const adv = FONT_ADVANCE * scale, cw = FONT_CELL_W * scale, chh = FONT_CELL_H * scale;
-    const width = t.length * adv + scale;
-    let x = Math.round((cx - width / 2) / scale) * scale;
-    for (const ch of t) {
-      const g = atlas.font(ch);
-      L.text.push(x + cw / 2, y, z, cw, chh, g.u0, g.v0, g.u1, g.v1);
-      x += adv;
-    }
-  }
-
   function frame(now: number): void {
     if (disposed) return;
     raf = requestAnimationFrame(frame);
@@ -826,6 +1013,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     st.cameraSnap = false;
     updateCamera(dt / 1000, snapCam);
     if (!st.loaded) return;
+    if (!atlasReady && now - born < ATLAS_WAIT_MS) return;
+    if (glLost) { view2d?.draw(st); stats.tick = st.tickNow(); stats.pending = st.pending(); stats.calls = 0; return; }
     const t0 = performance.now();
     // snap camera to the env-texel grid; remainder → blit UV offset quantised to device px. Cut 8A: the fight frame's
     // screen shake displaces the snapped centre by whole texels
@@ -835,7 +1024,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const sx = Math.round(cam.x) + shx, sy = Math.round(cam.y) + shy;
     camSX = sx; camSY = sy;
     build(now);
-    tagLayer.sync(cutFrames > 0 ? [] : tags);
+    tagLayer.sync(cutFrames > 0 ? [] : tags); tagLayer.plates(cutFrames > 0 ? [] : plates); tagLayer.numbers(fxLevel > 0 ? numCss : []);
     const t1 = performance.now();
 
     const fx = Math.round((cam.x + shx - sx) * k) / k, fy = Math.round((cam.y + shy - sy) * k) / k;
@@ -860,14 +1049,19 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // 307dbed control rater AR ("the Fens looked like the Burrows"): the pools were one warm amber everywhere, and an amber pool on the
       // Fens' teal reads as the Burrows' clay — the hero's and the torches' light take the biome's own cast (the flames stay flames)
       const tint = LIGHT_TINT[st.biome] ?? LIGHT_TINT.default!;
-      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(5.5, st.vision + 0.5), c: [0.78 * tint[0], 0.64 * tint[1], 0.46 * tint[2]] }); }
+      // gfx round 16 (raters, the Fens: "light the hero with a warm radius"): the hero's own light stays warm in every biome (torches keep the cast)
+      // (round 22, the Fens at 5.5: "warm the hero's pool further" — there it is wider and a lantern's amber against the cold water)
+      const fensHero = st.biome === "fens";
+      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(fensHero ? 8 : 7, st.vision + (fensHero ? 2.5 : 1.5)), c: fensHero ? [1.12, 0.8, 0.46] : [0.95, 0.74, 0.48] }); }   // gfx round 1: a wider, warmer pool ("dim flat lighting", "brown mush")
       juice.lights(now, fieldLights);
       for (const [px, py] of st.projectilePositions()) fieldLights.push({ x: px + 0.5, y: py + 0.5, r: 2, c: [0.7, 0.6, 0.4] });
+      for (const [cx, cy] of candles.slice(0, 3)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: cx / TILE, y: -cy / TILE, r: 2.2, c: [0.7, 0.45, 0.2] });
+      for (const [gx, gy] of ghostAt.slice(0, 4)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: gx / TILE, y: -gy / TILE, r: 3.2, c: [0.3, 0.5, 0.9] });   // gfx round 10: a ghost's own cold glow (round 22: brighter, wider)
       const fl = (i: number, a: number, b: number): number => quality.at("high") ? 0.88 + 0.08 * Math.sin(now * a + i * 1.7) + 0.05 * Math.sin(now * b + i * 4.1) : 1;
       fires.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD - 4) { const k = fl(i, 0.017, 0.041) * 0.9; fieldLights.push({ x: x / TILE, y: -y / TILE, r: 3, c: [1 * k, 0.5 * k, 0.15 * k] }); } });
       gases.slice(0, 4).forEach(([x, y]) => fieldLights.push({ x: x / TILE, y: -y / TILE, r: 1.8, c: [0.12, 0.2, 0.03] }));
       for (const sp of stairPlates) if (fieldLights.length < MAX_FIELD - 2) fieldLights.push({ x: sp.x + 0.5, y: sp.y + 0.5, r: sp.taken ? 2.6 : 1.6, c: sp.taken ? [0.95, 0.75, 0.35] : [0.35, 0.3, 0.22] });
-      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 4.2, c: [1 * k * tint[0], 0.72 * k * tint[1], 0.4 * k * tint[2]] }); } });
+      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 5.6, c: [1.12 * k * tint[0], 0.78 * k * tint[1], 0.42 * k * tint[2]] }); } });   // (round 26: r 4.8 → 5.6, a touch brighter — "torches barely glow")
       field.setLights(fieldLights);
       field.render(renderer);
     }
@@ -883,7 +1077,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       (u.uMap!.value as THREE.Vector2).set(st.w, st.h);
       (u.uTexel!.value as THREE.Vector2).set(1 / (W * 2), 1 / (H * 2));
       (u.uVig!.value as THREE.Vector4).set(vg.c[0], vg.c[1], vg.c[2], vg.a);
-      u.uVigBase!.value = vg.base; u.uDesat!.value = vg.desat; u.uBloomK!.value = 1.35; u.uAmbK!.value = 0.66; u.uTime!.value = now / 1000;
+      u.uVigBase!.value = vg.base; u.uDesat!.value = vg.desat; u.uBloomK!.value = 1.35; u.uAmbK!.value = 0.95; u.uTime!.value = now / 1000;
       const heat = u.uHeat!.value as THREE.Vector2[];
       const hn = quality.at("high") && quality.motion ? Math.min(8, fires.length) : 0;
       for (let i = 0; i < hn; i++) heat[i]!.set(fires[i]![0], fires[i]![1]);
@@ -943,6 +1137,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     resize() { lastCss = ""; measure(); },
     dispose() {
       disposed = true;
+      canvas.removeEventListener("webglcontextlost", onLost, false);
+      canvas.removeEventListener("webglcontextrestored", onRestored, false);
+      view2d?.dispose(); view2d = null;
       cancelAnimationFrame(raf);
       for (const l of Object.values(L)) l.dispose();
       blit.dispose();
@@ -952,6 +1149,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       rt.dispose();
       env.dispose(); spr.dispose();
       renderer.dispose();
+      renderer.forceContextLoss();   // free the context now (Chrome loses the oldest past ~16 live ones: the scene and its stills make many)
     },
     preload(snap) { st.preload(snap); },
     atlasInfo() { const out: Record<string, unknown> = {}; for (const k of ["hero_fighter", "monkey", "goblin", "jackal"]) { const e = atlas.entity(k); out[k] = { w: e.w, h: e.h, u0: +e.u0.toFixed(3), v0: +e.v0.toFixed(3), u1: +e.u1.toFixed(3), v1: +e.v1.toFixed(3), fallback: (e as { fallback?: boolean }).fallback ?? "?" }; } return out; },

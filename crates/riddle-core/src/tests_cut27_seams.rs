@@ -101,7 +101,7 @@ fn a_drive_off_with_its_counter_in_the_set_is_order() {
         name: None,
         route: Vec::new(),
     };
-    let turn = |row: i32| TraceTurn { max_hp: 0, t: 0, row, verb: Verb::new("attack"), hp: 10, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new() };
+    let turn = |row: i32| TraceTurn { max_hp: 0, t: 0, row, verb: Verb::new("attack"), hp: 10, foes: 3, rule_foes: 3, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None };
     let trace = vec![turn(1), turn(2), turn(1), turn(1), turn(-2)];
     assert_eq!(crate::trace::driven_order(&set, &counter, &trace), (Some(3), Some(1)));
     let without = RuleSet { rows: set.rows[..3].to_vec(), ..set.clone() };

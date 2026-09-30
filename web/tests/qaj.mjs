@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// QA on 3d71c33 (qaJ, seed 816) — the client-side lapses, each reproduced on the fake engine (`?engine=fake&dev=1`) through the
+// QA on 3d71c33 (qaJ, seed 816) — the client-side lapses, each reproduced on the fake engine (`?engine=fake&systems=none&dev=1`) through the
 // headless harness (tools/browser.mjs) against the dev server (tools/dev.sh; RIDDLE_PORT picks the port):
 //   1  the exit beat (`BANKED $N`) shows when the PLAYHEAD reaches the exit, never over an earlier fight the viewer replays behind
 //      the frontier (`fast`, the picture paused while the world runs to the bank)
@@ -58,7 +58,7 @@ try {
   // then, the bar unchanged; tests/lib/load.mjs)
   const banked = await measured(async () => {
     const rules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=2 → bank");
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fast&rules=${rules}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=fast&rules=${rules}`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s) && Number.isFinite(s.tick), "the fast watch");
     await recordExit();
     await page.locator(".gem.hud-btn").first().click({ timeout: 2000 });   // ⏸: the world runs on to the bank
@@ -80,7 +80,7 @@ try {
 
   // ---- 2: a chain link's clip — its floor, its tick inside the window, no caption from before the window
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=fast&fake_depth=3`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=fast&fake_depth=3`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s) && Number.isFinite(s.tick), "the fast watch for the clip");
     // ▶▶| in `fast` is the run's end: 100-tick engine batches, so a floor's snapshot lands after its first events
     const t0 = Date.now();
@@ -136,7 +136,7 @@ try {
         v.apply([{ t: t + 1, k: "rule", row: 6, verb: { v: "attack", a: "nearest" }, text: "foes>=1 → yyy at" }]); v.seek(t + 1); await frame();
         return { before, at: v.stats().caption };
       });
-      check(cap.before === null && cap.at === "R7 yyy at", `a seek drops a caption from before its tick (${cap.before ?? "none"}) and keeps one at it (${cap.at})`);
+      check(cap.before === null && cap.at === "yyy at", `a seek drops a caption from before its tick (${cap.before ?? "none"}) and keeps one at it (${cap.at})`);
       await page.keyboard.press("Escape"); await sleep(200);
     }
     check(pick.early === 2 && pick.other === null && pick.late === 2, `a link before its floor's snapshot finds its floor, never another depth's (t520 D2 → D${pick.early}, t520 D3 → ${pick.other === null ? "none" : `D${pick.other}`}, t650 D2 → D${pick.late})`);
@@ -158,7 +158,7 @@ try {
       }
       const allowed = await page.evaluate(({ from, to, depth }) => {
         const l = window.__riddle.runLog(); const f = l.floors.find((x) => x.snap.depth === depth);
-        return (f?.evs ?? []).filter((e) => e.k === "rule" && e.row >= -1 && e.t >= from && e.t <= to).map((e) => { const tail = e.text.includes("→") ? e.text.slice(e.text.lastIndexOf("→") + 1).trim() : e.text; return (e.row >= 0 ? `R${e.row + 1} ${tail}` : e.text.replace(/→/g, ">")).slice(0, 24); });
+        return (f?.evs ?? []).filter((e) => e.k === "rule" && e.row >= -1 && e.t >= from && e.t <= to).map((e) => { const tail = e.text.includes("→") ? e.text.slice(e.text.lastIndexOf("→") + 1).trim() : e.text; return (e.row >= 0 ? tail.trim().split(/\s+/).slice(0, 3).join(" ") : e.text.replace(/→/g, ">")).slice(0, 24); });   // render/state.ts: ≤ 3 words of the verb, no row id (docs/COPY.md)
       }, clip ?? { from: 0, to: 0, depth: 0 });
       const stale = caps.filter((c) => !allowed.includes(c));
       check(!!clip && clip.depth === k.depth && clip.from <= k.t && k.t <= clip.to, `D${k.depth} t${k.t} (floor snap t${k.snap}, first t${k.first}): the clip is on D${clip?.depth}, t${clip?.from}–t${clip?.to}`);
@@ -172,7 +172,7 @@ try {
   // (read off the frames as they come — a card's tick is the frame's: `measured` takes the run once more on a loaded machine)
   for (const seed of [516, 7]) {
     const cards = await measured(async () => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), "the fights watch");
     await page.evaluate(() => {
       const r = window.__riddle, orig = r.engine.step.bind(r.engine);
@@ -211,7 +211,7 @@ try {
   // ---- 4: the tab counts own rows; the counter the cards beside. Three cards bought on a full set (the fake's own buy; cards sit
   // outside the cap, Cut 12 §1): no drop is asked, the set stays full, the tab and the counter follow what is listed
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "the camp");
     await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
     await page.evaluate(async () => {
@@ -230,12 +230,12 @@ try {
     }
     const c = await read();
     check(bought.length === 3, `three cards bought on a full set (${bought.join(", ")})`);
-    check(c.own === c.max && c.tab === `fighter · ${c.own}` && c.count.startsWith(`${c.own}/${c.max} rows + 3 cards`) && c.rows === c.own + 3 && (await state()).sheets === 0, `the tab counts own rows: "${c.tab}" beside "${c.count}" (${c.rows} rows listed, no sheet)`);
+    check(c.own === c.max && c.tab === `fighter · ${c.own} rules` && c.count.startsWith(`${c.own}/${c.max} rules + 3 tactics`) && c.rows === c.own + 3 && (await state()).sheets === 0, `the tab counts own rows: "${c.tab}" beside "${c.count}" (${c.rows} rows listed, no sheet)`);
   }
 
   // ---- 5: the unlock sheet's disabled buys look disabled; a short `$ buy` says `$N short` (a fresh lineage: ◆0, $120)
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the unlock sheet");
     await openPanel(page, "unlocks", { all: true });   // Cut 17: the unlock shelf is a panel (its whole catalogue behind `more`)
     await page.locator(".unlocks .card", { hasText: "+1 vault" }).first().click({ timeout: 5000 }); await sleep(200);
@@ -254,7 +254,7 @@ try {
   // ---- 6: the cage sheet — its title, ⏸ and ▶▶| live under it, `vault full` when the pick will be salvaged. Cut 19 §1: the sheet is the
   //      override — opened by a tap on the cage beat (`took sword`) within its hold
   for (const mode of ["fast", "fights"]) {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), `the ${mode} watch for the cage`);
     const full = mode === "fights";
     await page.evaluate((full) => {
@@ -294,7 +294,7 @@ try {
 
   // ---- 7: the lit chip's rate reads `16×`
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), "the watch for the chip");
     let c = null; const t0 = Date.now();
     while (Date.now() - t0 < 10_000) { c = await page.evaluate(() => { const on = document.querySelector(".cmd .hud-btn.on"); return on?.dataset.rate ? { rate: on.dataset.rate, after: getComputedStyle(on, "::after").content } : null; }); if (c) break; await sleep(50); }
@@ -303,7 +303,7 @@ try {
 
   // ---- 8: the drop sheet — a × close; tied least-fired rows mark none, a unique minimum marks one
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the drop sheet");
     const max = await page.evaluate(() => { const r = window.__riddle; while (r.ownRows() < r.vocab.max_rows) r.insertRow({ conds: [{ k: "hp<", n: 30 + r.rules.rows.length }], verb: { v: "retreat" } }, r.rules.rows.length); r.go({ kind: "camp" }); return r.vocab.max_rows; });
     const death = { run_id: 0, depth: 3, cause: "goblin_archer", margin: "3 hp short", verdict: "gap", baseline: 0.25, trace: { turns: [] }, morgue: "",

@@ -54,12 +54,50 @@ pub struct OathState {
     pub price: i32,
 }
 
-/// The paid tactic cards an oath may give, in order (a free card is the player's to take).
-const CARD_REWARDS: [&str; 6] = ["gas_step", "pack_break", "thief_guard", "boss_focus", "last_stand", "corridor_fighting"];
-/// The verbs and condition words an oath may give.
-const VERB_REWARDS: [&str; 7] = ["throw", "cond_on_kill", "cond_on_see", "cond_alert", "cond_turns", "cond_loot", "cond_party_hp"];
-const SLOT_REWARDS: [&str; 3] = ["party_slot_2", "party_slot_3", "party_slot_4"];
-const ROW_REWARDS: [&str; 6] = ["row5", "row6", "row7", "row8", "row9", "row10"];
+/// Cut 29 §1 (docs/PROGRESSION.md §4–5): the oath rewards are a pool of their own, never sold — so
+/// the board never empties when the marks catalogue is bought out. Per kind, in order, each opened by
+/// its tier (`meta::UnlockDef::tier`): `bold` the verb `hold` then the D9 route; `lean` gas step,
+/// last stand, then the heir pick (three traits, not two); `tamer` the party slots. A kind whose
+/// pool is spent gives a chronicle title (`bold`/`lean`: the floor sworn to — no stat).
+pub const BOLD_REWARDS: [&str; 2] = ["hold", "route2"];
+pub const LEAN_REWARDS: [&str; 3] = ["gas_step", "last_stand", "heir_pick"];
+pub const SLOT_REWARDS: [&str; 3] = ["party_slot_2", "party_slot_3", "party_slot_4"];
+
+/// The next reward of a pool the lineage can be given now (its tier open, its prerequisite owned).
+fn next_of(l: &LineageState, pool: &[&'static str]) -> Option<&'static str> {
+    let t = crate::meta::tier(l);
+    pool.iter().copied().find(|id| !owned(l, id) && crate::meta::def(id).is_none_or(|d| d.tier <= t && d.prereq.is_none_or(|p| owned(l, p))))
+}
+
+/// The kind of a pool reward (`OathReward.kind`): `verb` · `route` · `heir` · `slot` · `card`.
+fn reward_kind(id: &str) -> &'static str {
+    match id {
+        "hold" => "verb",
+        "route2" => "route",
+        "heir_pick" => "heir",
+        c if c.starts_with("party_slot") => "slot",
+        _ => "card",
+    }
+}
+
+/// The label of a pool reward (≤ 3 words).
+fn reward_label(id: &str) -> String {
+    match id {
+        "hold" => "verb: hold".into(),
+        "route2" => "route: D9 fork".into(),
+        "heir_pick" => "heir pick: 3".into(),
+        c if c.starts_with("party_slot") => "+1 party".into(),
+        c => format!("card: {}", c.replace('_', " ")),
+    }
+}
+
+/// The title a `bold` or `lean` oath gives once its pool is spent: the floor it swore to.
+fn depth_title(kind: &str, depth: u32) -> String {
+    match kind {
+        "lean" => format!("Lean at D{depth}"),
+        _ => format!("Bold at D{depth}"),
+    }
+}
 
 /// The chronicle title a `fire` oath earns (one per boss burned).
 fn fire_title(boss: &str) -> String {
@@ -71,13 +109,85 @@ fn fire_title(boss: &str) -> String {
     }
 }
 
-/// The oath's price: the lineage's income decides it — half the last full night's net
-/// (`LineageState::last_night_net`: fixed through a night, so the board does not re-price as the
-/// purse moves), never under the forge's unit (`kit::unit`: $100 + $25 a floor of the best depth), in tens.
+/// The oath's price: the lineage's income decides it — Cut 29 §5: a quarter of the last whole day's
+/// net per slot (`LineageState::last_day_net`: fixed through a day), or half the last full night's
+/// while no day has closed (Cut 28), never under the forge's unit (`kit::unit`: $100 + $25 a floor of
+/// the best depth), in tens.
 pub fn price(l: &LineageState) -> i32 {
     let unit = crate::kit::unit(l.best_depth) as i32;
-    let night = l.last_night_net.max(0) / 2;
-    (unit.max(night) + 5) / 10 * 10
+    let income = if l.day > 0 { l.last_day_net.max(0) / 4 } else { l.last_night_net.max(0) / 2 };
+    (unit.max(income) + 5) / 10 * 10
+}
+
+/// Cut 29 §1: the oaths a lineage may hold sworn at once (1, `oath_slot_2`, `oath_slot_3`).
+pub fn slots(l: &LineageState) -> usize {
+    1 + l.unlocks.contains("oath_slot_2") as usize + l.unlocks.contains("oath_slot_3") as usize
+}
+
+/// Every sworn oath's id, the first slot's first.
+pub fn sworn_ids(l: &LineageState) -> Vec<String> {
+    l.oath_sworn.iter().chain(l.oath_extra.iter()).cloned().collect()
+}
+
+/// Cut 29 §1: a new day on the lineage's clock (`offline`): the last day's net closes (the oaths'
+/// price), and every oath sworn on an earlier day lapses unkept — no refund (a bet the player chose).
+pub fn new_day(l: &mut LineageState, day: u32) {
+    if day <= l.day {
+        return;
+    }
+    l.last_day_net = std::mem::take(&mut l.day_net);
+    l.day = day;
+    let stale = |id: &String, l: &LineageState| l.oath_days.get(id).is_some_and(|d| *d < day);
+    if l.oath_sworn.as_ref().is_some_and(|id| stale(id, l)) {
+        l.oath_sworn = None;
+    }
+    let extra: Vec<String> = l.oath_extra.iter().filter(|id| !stale(id, l)).cloned().collect();
+    l.oath_extra = extra;
+    let live = sworn_ids(l);
+    l.oath_days.retain(|id, _| live.contains(id));
+    refresh(l);
+}
+
+/// Cut 29 §1: an oath draw — ◆`meta::OATH_DRAW_COST`, from tier `meta::OATH_DRAW_TIER`: the first
+/// unsworn standing oath is replaced by a fresh one of a kind not on the board (the board grows by
+/// one when every standing oath is sworn). The new oath's id.
+pub fn draw(game: &mut Game) -> Result<String, String> {
+    let l = &mut game.lineage;
+    if crate::meta::tier(l) < crate::meta::OATH_DRAW_TIER {
+        return Err(format!("needs {}", crate::meta::tier_need(crate::meta::OATH_DRAW_TIER)));
+    }
+    if l.marks < crate::meta::OATH_DRAW_COST {
+        return Err("not enough marks".into());
+    }
+    refresh(l);
+    let sworn = sworn_ids(l);
+    let mut rng = Rng::derive(l.seed, hash_str("oath draw") ^ l.oath_drawn as u64);
+    let mut kinds: Vec<&str> = KINDS.to_vec();
+    // a seeded order; kinds not on the board first
+    let off = rng.below(kinds.len() as u32) as usize;
+    kinds.rotate_left(off);
+    kinds.sort_by_key(|k| l.oaths.iter().any(|o| o.kind == *k));
+    let replace = l.oaths.iter().position(|o| !sworn.contains(&o.id));
+    // (the replaced oath's own kind last: a fresh one of it only when it gives something else — AP
+    // s1 at D33: every other kind's reward already on the board, the draw failed and marks piled)
+    let own = replace.map(|i| l.oaths[i].kind.clone());
+    kinds.sort_by_key(|k| own.as_deref() == Some(*k));
+    for kind in kinds {
+        l.oath_drawn += 1;
+        if let Some(o) = draw_kind(l, kind, l.oath_drawn) {
+            if l.oaths.iter().any(|x| x.kind == o.kind && x.reward == o.reward) {
+                continue;
+            }
+            let id = o.id.clone();
+            match replace {
+                Some(i) => l.oaths[i] = o,
+                None => l.oaths.push(o),
+            }
+            l.marks -= crate::meta::OATH_DRAW_COST;
+            return Ok(id);
+        }
+    }
+    Err("no oath to draw".into())
 }
 
 /// The floor a depth oath asks for: one past the lineage's best for `bold` (a push), the best itself
@@ -107,17 +217,44 @@ fn owned(l: &LineageState, id: &str) -> bool {
     l.unlocks.contains(id)
 }
 
-/// The reward a kind would give now, if one is left to give.
-fn reward_for(l: &LineageState, kind: &str, boss: Option<&str>) -> Option<OathReward> {
-    let r = |k: &str, id: String, label: String| Some(OathReward { kind: k.into(), id, label });
+/// Cut 29 core (marks at the deepest wall: once the catalogue was bought and every title of the
+/// pool owned, draws failed and marks piled — rater AP s1 ◆25): a title is earned again, numbered
+/// (`Bold at D34`, `Bold at D34 II`, …) — the first of its line neither owned nor offered by another
+/// oath on the board (`except`: the oath asking). Titles are the chronicle's: no stat, no card.
+fn next_title(l: &LineageState, base: &str, except: Option<&str>) -> String {
+    const ROMAN: [&str; 9] = ["II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+    let taken = |t: &str| l.titles.iter().any(|x| x == t) || l.oaths.iter().any(|o| Some(o.id.as_str()) != except && o.reward.kind == "title" && o.reward.id == t);
+    (1..)
+        .map(|n: usize| match n {
+            1 => base.to_string(),
+            n if n <= ROMAN.len() + 1 => format!("{base} {}", ROMAN[n - 2]),
+            n => format!("{base} {n}"),
+        })
+        .find(|t| !taken(t))
+        .unwrap_or_else(|| base.to_string())
+}
+
+/// A numbered title's line (`Bold at D34 III` → `Bold at D34`).
+fn title_line(t: &str) -> &str {
+    match t.rsplit_once(' ') {
+        Some((head, n)) if n.parse::<u32>().is_ok() || (!n.is_empty() && n.chars().all(|c| matches!(c, 'I' | 'V' | 'X'))) => head,
+        _ => t,
+    }
+}
+
+/// The reward a kind would give now, if one is left to give (`except`: the board's oath asking —
+/// its own title is not taken from it).
+fn reward_for(l: &LineageState, kind: &str, boss: Option<&str>, except: Option<&str>) -> Option<OathReward> {
+    let pool = |pool: &[&'static str], _k: &str| next_of(l, pool).map(|id| OathReward { kind: reward_kind(id).into(), id: id.into(), label: reward_label(id) });
+    let title = |base: String| {
+        let t = next_title(l, &base, except);
+        Some(OathReward { kind: "title".into(), label: format!("title: {t}"), id: t })
+    };
     match kind {
-        "bold" => VERB_REWARDS.iter().find(|c| !owned(l, c)).and_then(|c| r("verb", c.to_string(), format!("verb: {}", c.trim_start_matches("cond_").replace('_', " ")))),
-        "lean" => CARD_REWARDS.iter().find(|c| !owned(l, c)).and_then(|c| r("card", c.to_string(), format!("card: {}", c.replace('_', " ")))),
-        "tamer" => SLOT_REWARDS.iter().find(|c| !owned(l, c)).and_then(|c| r("slot", c.to_string(), "+1 party".into())),
-        "fire" => {
-            let t = fire_title(boss?);
-            (!l.titles.contains(&t)).then(|| OathReward { kind: "title".into(), label: format!("title: {t}"), id: t })
-        }
+        "bold" => pool(&BOLD_REWARDS, "verb").or_else(|| title(depth_title("bold", goal(l, "bold")))),
+        "lean" => pool(&LEAN_REWARDS, "card").or_else(|| title(depth_title("lean", goal(l, "lean")))),
+        "tamer" => pool(&SLOT_REWARDS, "slot"),
+        "fire" => title(fire_title(boss?)),
         "slayer" => {
             let d = crate::descent::BOSS_DEPTHS.iter().find(|(k, _)| Some(*k) == boss)?.1 + 1;
             (crate::engine::WAYSTONES.contains(&d) && !l.waystones.contains(&d)).then(|| OathReward { kind: "waystone".into(), id: d.to_string(), label: format!("waystone D{d}") })
@@ -147,7 +284,7 @@ pub fn draw_kind(l: &LineageState, kind: &str, n: u32) -> Option<OathState> {
         }
         _ => return None,
     };
-    let reward = reward_for(l, kind, boss.as_deref())?;
+    let reward = reward_for(l, kind, boss.as_deref(), None)?;
     Some(OathState { id: format!("{kind}:{n}"), kind: kind.into(), depth, boss, seen: if kind == "tamer" { tamed(l) } else { Vec::new() }, n: 0, reward, price: price(l) })
 }
 
@@ -156,22 +293,34 @@ fn stands(l: &LineageState, o: &OathState) -> bool {
     if o.kind == "slayer" && o.boss.as_deref().is_some_and(|b| l.kills.contains(b)) {
         return false;
     }
-    reward_for(l, &o.kind, o.boss.as_deref()).is_some_and(|r| r.id == o.reward.id)
+    // (a numbered title stands while its line is the kind's line now and it is not yet owned)
+    let now = reward_for(l, &o.kind, o.boss.as_deref(), Some(&o.id));
+    match now {
+        Some(r) if r.kind == "title" && o.reward.kind == "title" => title_line(&r.id) == title_line(&o.reward.id) && !l.titles.contains(&o.reward.id),
+        Some(r) => r.id == o.reward.id,
+        None => false,
+    }
 }
 
 /// Keep the board full: drop the oaths that no longer stand (never the sworn one while it stands),
 /// re-price the unsworn to the lineage's income now, and draw new ones from the kinds not on it —
 /// in a seeded order, so a lineage's board is a function of its seed and its history.
 pub fn refresh(l: &mut LineageState) {
-    let sworn = l.oath_sworn.clone();
-    let keep: Vec<OathState> = l.oaths.iter().filter(|o| stands(l, o) || Some(&o.id) == sworn.as_ref()).cloned().collect();
+    let sworn = sworn_ids(l);
+    let keep: Vec<OathState> = l.oaths.iter().filter(|o| stands(l, o) || sworn.contains(&o.id)).cloned().collect();
     l.oaths = keep;
-    if sworn.as_ref().is_some_and(|s| !l.oaths.iter().any(|o| &o.id == s)) {
+    if l.oath_sworn.as_ref().is_some_and(|s| !l.oaths.iter().any(|o| &o.id == s)) {
         l.oath_sworn = None;
     }
+    let ids: Vec<String> = l.oaths.iter().map(|o| o.id.clone()).collect();
+    l.oath_extra.retain(|s| ids.contains(s));
+    // (an extra slot's oath moves up when the first slot is free)
+    if l.oath_sworn.is_none() && !l.oath_extra.is_empty() {
+        l.oath_sworn = Some(l.oath_extra.remove(0));
+    }
     let p = price(l);
-    let sworn = l.oath_sworn.clone();
-    for o in l.oaths.iter_mut().filter(|o| Some(&o.id) != sworn.as_ref()) {
+    let sworn = sworn_ids(l);
+    for o in l.oaths.iter_mut().filter(|o| !sworn.contains(&o.id)) {
         o.price = p;
     }
     let mut tries = 0;
@@ -213,7 +362,18 @@ pub fn swear(game: &mut Game, id: &str) -> Result<(), String> {
     let l = &mut game.lineage;
     refresh(l);
     let o = l.oaths.iter().find(|o| o.id == id).cloned().ok_or("no such oath")?;
-    if l.oath_sworn.as_deref() == Some(id) {
+    if sworn_ids(l).iter().any(|s| s == id) {
+        return Ok(());
+    }
+    // Cut 29 §1: a free slot takes it beside the sworn one (`oath_slot_2`, `oath_slot_3`).
+    let day = l.day;
+    if l.oath_sworn.is_some() && sworn_ids(l).len() < slots(l) {
+        if l.gold < o.price {
+            return Err("not enough gold".into());
+        }
+        l.gold_move(-o.price, &format!("oath {}", o.kind));
+        l.oath_extra.push(o.id.clone());
+        l.oath_days.insert(o.id.clone(), day);
         return Ok(());
     }
     let refund = sworn(l).map(|s| s.price * REFUND_PCT / 100).unwrap_or(0);
@@ -226,6 +386,24 @@ pub fn swear(game: &mut Game, id: &str) -> Result<(), String> {
     let l = &mut game.lineage;
     l.gold_move(-o.price, &format!("oath {}", o.kind));
     l.oath_sworn = Some(o.id.clone());
+    l.oath_days.insert(o.id.clone(), day);
+    Ok(())
+}
+
+/// Cut 29 §1: forswear the sworn oath `id` (either slot): half its price back; it stays on the board.
+pub fn forswear_id(game: &mut Game, id: &str) -> Result<(), String> {
+    if game.lineage.oath_sworn.as_deref() == Some(id) {
+        return forswear(game);
+    }
+    let l = &mut game.lineage;
+    if !l.oath_extra.iter().any(|x| x == id) {
+        return Err("not sworn".into());
+    }
+    let o = l.oaths.iter().find(|o| o.id == id).cloned().ok_or("no such oath")?;
+    l.gold_move(o.price * REFUND_PCT / 100, &format!("forswear {}", o.kind));
+    l.oath_extra.retain(|x| x != id);
+    l.oath_days.remove(id);
+    refresh(l);
     Ok(())
 }
 
@@ -235,6 +413,7 @@ pub fn forswear(game: &mut Game) -> Result<(), String> {
     let o = sworn(l).cloned().ok_or("no oath sworn")?;
     l.gold_move(o.price * REFUND_PCT / 100, &format!("forswear {}", o.kind));
     l.oath_sworn = None;
+    l.oath_days.remove(&o.id);
     refresh(l);
     Ok(())
 }
@@ -244,13 +423,106 @@ pub fn kept(o: &OathState, run: &Run) -> bool {
     let tier = run.over.unwrap_or(ExitTier::Return);
     let boss_slain = |b: &str| run.boss_kills.iter().any(|(_, k)| k == b);
     match o.kind.as_str() {
-        "bold" => run.max_depth >= o.depth && (tier != ExitTier::Return || run.over.is_none()) && !run.timed_out,
+        // (Cut 28b: a `return` a row committed to breaks it there — the walk home that dies on the way keeps nothing)
+        "bold" => run.max_depth >= o.depth && (tier != ExitTier::Return || run.over.is_none()) && !run.timed_out && !run.home_return,
         "lean" => run.max_depth >= o.depth && !run.rested,
         "tamer" => run.tamed.iter().any(|(_, k)| !o.seen.contains(k)),
         "fire" => o.boss.as_deref().is_some_and(|b| boss_slain(b) && run.burned.iter().any(|k| k == b)),
         "slayer" => o.boss.as_deref().is_some_and(boss_slain),
         _ => false,
     }
+}
+
+/// Cut 28b: a sworn oath's fate is said once in the run, the moment it is decided (`Ev::Oath`):
+/// kept the moment a lasting condition is met (a new kind tamed, the boss slain — or slain burning)
+/// or, for a depth oath, when the run ends past the floor with its rule held; broken the moment the
+/// forbidden tool is used (`no rest`: a rest; `no return`: a `return` committed, or the run
+/// returned — stalled, driven off); missed when the run ends short of it. `row` is the row whose
+/// verb did it (−1: a chore, a trait, the run's end). The run's notes carry it into the chronicle;
+/// the settle (`engine`) carries the cause into the exit line and the report.
+pub fn beat(run: &mut Run, cx: &mut crate::engine::Ctx, row: i32) {
+    let Some(o) = run.oath.as_ref() else { return };
+    if run.oath_said.is_some() {
+        return;
+    }
+    let ended = run.over.is_some();
+    let lasting = matches!(o.kind.as_str(), "tamer" | "fire" | "slayer");
+    let broke = match o.kind.as_str() {
+        "lean" => run.rested.then_some("rest"),
+        "bold" if run.home_return => Some("return"),
+        "bold" if run.over == Some(ExitTier::Return) => Some(if run.timed_out { "stalled" } else if run.driven_off.is_some() { "driven" } else { "return" }),
+        _ => None,
+    };
+    let (ok, cause) = if kept(o, run) && (ended || lasting) {
+        (true, "")
+    } else if let Some(c) = broke {
+        (false, c)
+    } else if ended {
+        (false, "")
+    } else {
+        return;
+    };
+    let row = if matches!(cause, "stalled" | "driven") { -1 } else { row };
+    let verb = (row >= 0).then(|| cx.rules.rows.get(row as usize).map(|r| r.verb.short())).flatten();
+    // the kept oath's row is the verb that did it (`R3 tame`); a broken one's the tool it forbade (`R2 return`)
+    let word = if ok { verb.clone().unwrap_or_default() } else { cause.to_string() };
+    let text = match (row >= 0 && !word.is_empty(), word.is_empty()) {
+        (true, _) => format!("R{} {word}", row + 1),
+        (false, false) => word.clone(),
+        _ => String::new(),
+    };
+    cx.events.push(crate::wire::Ev::Oath { t: run.turn, kept: ok, row, cause: word });
+    if ok {
+        crate::chronicle::note(run, cx, "Kept the oath.".into());
+    } else if !cause.is_empty() {
+        crate::chronicle::note(run, cx, format!("Broke the oath: {text}."));
+    }
+    run.oath_said = Some((ok, if ok || !cause.is_empty() { text } else { String::new() }));
+}
+
+/// Cut 28b (AW: a boss oath at `9% ±8` with no visible lever): the steps a send took toward the
+/// oath, as bits — `STEP_FLOOR` its floor reached (the goal floor, or the boss's), `STEP_MET` the
+/// boss met, `STEP_BURNED` the boss burned. The panel reads each as a share (`OathShare.steps`).
+pub const STEP_FLOOR: u8 = 1;
+pub const STEP_MET: u8 = 2;
+pub const STEP_BURNED: u8 = 4;
+pub fn steps(o: &OathState, run: &Run) -> u8 {
+    let mut s = 0;
+    if o.depth > 0 && run.max_depth >= o.depth {
+        s |= STEP_FLOOR;
+    }
+    if let Some(b) = o.boss.as_deref() {
+        if run.boss_seen_t.is_some() && run.max_depth >= o.depth || run.boss_kills.iter().any(|(_, k)| k == b) || run.burned.iter().any(|k| k == b) {
+            s |= STEP_MET;
+        }
+        if run.burned.iter().any(|k| k == b) {
+            s |= STEP_BURNED;
+        }
+    }
+    s
+}
+
+/// The steps a kind's panel names, in order (≤ 2 words each): a depth oath its floor (`D9`, the
+/// share that reached it — the rest is what its rule cost), a boss oath the floor and the meeting,
+/// and a `fire` oath the burning too.
+pub fn step_names(o: &OathState) -> Vec<(String, u8)> {
+    let d = format!("D{}", o.depth);
+    match o.kind.as_str() {
+        "bold" | "lean" => vec![(d, STEP_FLOOR)],
+        "slayer" => vec![(d, STEP_FLOOR), ("met".into(), STEP_MET)],
+        "fire" => vec![(d, STEP_FLOOR), ("met".into(), STEP_MET), ("burned".into(), STEP_BURNED)],
+        _ => Vec::new(),
+    }
+}
+
+/// Cut 28b: the board has a use — a band boss seen, a plateau met (`LineageState::oath_open`), or an
+/// oath sworn or kept before (an old save), or a band boss slain or his counter known.
+pub fn open(l: &LineageState) -> bool {
+    l.oath_open
+        || l.oath_sworn.is_some()
+        || !l.titles.is_empty()
+        || l.oaths_kept > 0
+        || crate::descent::BOSS_DEPTHS.iter().any(|(k, _)| l.kills.contains(*k) || crate::facts::boss_counter_known(&l.facts, k))
 }
 
 /// How close a send came to keeping the oath (0..1; 1 when kept): the floor reached toward the
@@ -287,7 +559,7 @@ pub fn progress(o: &OathState, run: &Run) -> f64 {
 /// Give the oath's reward (its price was spent into it at the swearing).
 pub fn grant(l: &mut LineageState, o: &OathState) {
     match o.reward.kind.as_str() {
-        "card" | "verb" | "row" | "slot" => {
+        "card" | "verb" | "row" | "slot" | "route" | "heir" => {
             l.unlocks.insert(o.reward.id.clone());
         }
         "title" => {
@@ -314,7 +586,7 @@ pub fn grant(l: &mut LineageState, o: &OathState) {
 /// Every reward the pool can give, owned (the metrics' lever row with every oath reward: policy
 /// stays the lever).
 pub fn grant_all(l: &mut LineageState) {
-    for id in CARD_REWARDS.iter().chain(VERB_REWARDS.iter()).chain(SLOT_REWARDS.iter()).chain(ROW_REWARDS.iter()) {
+    for id in BOLD_REWARDS.iter().chain(LEAN_REWARDS.iter()).chain(SLOT_REWARDS.iter()) {
         l.unlocks.insert(id.to_string());
     }
     for (boss, depth) in crate::descent::BOSS_DEPTHS {
@@ -340,10 +612,33 @@ pub fn settle(l: &mut LineageState, run: &Run) -> Option<(OathState, bool)> {
     }
     grant(l, &o);
     l.oath_sworn = None;
+    l.oath_days.remove(&o.id);
     l.oaths.retain(|x| x.id != o.id);
     l.oaths_kept += 1;
     refresh(l);
     Some((o, true))
+}
+
+/// Cut 29 §1: the oaths sworn in the extra slots, settled against a finished real run — the ones
+/// kept (granted, off the board). They are read at the run's end (the forecast and the run's
+/// beats follow the first slot's).
+pub fn settle_extra(l: &mut LineageState, run: &Run) -> Vec<OathState> {
+    let mut out = Vec::new();
+    for id in l.oath_extra.clone() {
+        let Some(o) = l.oaths.iter().find(|o| o.id == id).cloned() else { continue };
+        if kept(&o, run) {
+            grant(l, &o);
+            l.oath_extra.retain(|x| *x != id);
+            l.oath_days.remove(&id);
+            l.oaths.retain(|x| x.id != id);
+            l.oaths_kept += 1;
+            out.push(o);
+        }
+    }
+    if !out.is_empty() {
+        refresh(l);
+    }
+    out
 }
 
 /// The board on the wire.
@@ -359,7 +654,7 @@ pub fn wire(l: &LineageState) -> Vec<Oath> {
                 chips,
                 reward: o.reward.clone(),
                 price: o.price,
-                sworn: l.oath_sworn.as_ref() == Some(&o.id),
+                sworn: sworn_ids(l).contains(&o.id),
                 boss: o.boss.clone(),
                 depth: (o.depth > 0).then_some(o.depth),
                 counter: o.boss.as_deref().map(|b| counter_fact(l, b)),
@@ -372,8 +667,9 @@ pub fn wire(l: &LineageState) -> Vec<Oath> {
 pub fn chips(o: &OathState) -> Vec<String> {
     let boss = o.boss.as_deref().map(crate::sifter::boss_short).unwrap_or("boss");
     match o.kind.as_str() {
-        "bold" => vec![format!("D{}", o.depth), "no return".into()],
-        "lean" => vec![format!("D{}", o.depth), "no rest".into()],
+        // (Cut 28b, AX: "never understood what `D3 · no return` required" — the floor is a goal: `reach D3`)
+        "bold" => vec![format!("reach D{}", o.depth), "no return".into()],
+        "lean" => vec![format!("reach D{}", o.depth), "no rest".into()],
         "tamer" => vec!["tame".into(), "a new kind".into()],
         "fire" => vec![boss.into(), "fire".into()],
         "slayer" => vec!["slay".into(), boss.into()],
@@ -447,10 +743,25 @@ pub fn share(l: &LineageState, ended: &[crate::forecast::SimResult]) -> Option<O
     let o = sworn(l)?;
     let n = ended.len();
     let p = ended.iter().filter(|r| r.oath).count() as f64 / n.max(1) as f64;
-    Some(OathShare { id: o.id.clone(), text: text(o), share: p, pm: crate::forecast::half_width(p, n), night: night(p) })
+    let at = |bit: u8| ended.iter().filter(|r| r.oath_steps & bit != 0).count() as f64 / n.max(1) as f64;
+    let steps = step_names(o).into_iter().map(|(k, bit)| crate::wire::OathStep { k, share: at(bit) }).collect();
+    Some(OathShare { id: o.id.clone(), text: text(o), share: p, pm: crate::forecast::half_width(p, n), night: night(p), steps })
 }
 
 /// The chance a night of `NIGHT` sends keeps an oath each send keeps with `p`.
 pub fn night(p: f64) -> f64 {
     1.0 - (1.0 - p.clamp(0.0, 1.0)).powi(NIGHT)
+}
+
+/// Cut 29 §1: the oath draw on the wire.
+pub fn draw_wire(l: &LineageState) -> crate::wire::OathDraw {
+    let cost = crate::meta::OATH_DRAW_COST;
+    let needs = if crate::meta::tier(l) < crate::meta::OATH_DRAW_TIER {
+        Some(crate::meta::tier_need(crate::meta::OATH_DRAW_TIER).to_string())
+    } else if l.marks < cost {
+        Some(format!("◆{} more", cost - l.marks))
+    } else {
+        None
+    };
+    crate::wire::OathDraw { cost, available: needs.is_none(), needs }
 }

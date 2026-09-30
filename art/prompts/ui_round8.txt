@@ -1,0 +1,26 @@
+You are painting UI SKIN ASSETS for the game "Riddle" (a phone roguelike held in portrait). The
+target look is in /home/g/p/riddle/art/ui/targets/report.png and death.png — LOOK AT THOSE IMAGES
+FIRST (you may read them; read nothing else in the repository) and match their material language:
+aged, stained parchment, dark wood, blackened iron, warm amber torchlight. Dark fantasy, Warcraft III
+interface style, painterly-but-crisp.
+
+Use your built-in image_gen tool, one call per asset. Do NOT write code beyond a PIL resample/alpha
+fix. Do NOT modify anything outside /home/g/p/riddle/art/ui/frames/. Save each final PNG (RGBA,
+sRGB) to the exact path; resample to the exact size with PIL (Lanczos) if needed. Every asset has a
+TRANSPARENT background outside the object (true alpha, no checkerboard, no blue key, no black
+fill); verify the four corners of the canvas are alpha 0, and regenerate once if not. No text, no
+letters, no numbers, no icons. No watermarks.
+
+NINE-SLICE RULE (critical): the frame will be stretched by CSS border-image with the given insets.
+All ornament must sit INSIDE the corner regions; the edges between corners must be plain and
+stretchable (uniform along their length); the centre must be plain, evenly lit parchment (low
+contrast, faint stains only, no focal detail).
+
+1) /home/g/p/riddle/art/ui/frames/scroll.png — 768x1152 — [9-slice, insets: top 160, bottom 160,
+   left 72, right 72] a hanging parchment SCROLL seen straight on, exactly like the report.png
+   target's centre scroll: a thick rolled-up curl of parchment across the whole top edge and another
+   across the whole bottom edge (the curls stick out a little past the sheet's sides, with shading
+   that shows the roll), the sheet between them aged cream-tan parchment with ragged, slightly burnt
+   and darkened left and right edges, faint stains and vignette toward the edges. The curls must span
+   the full width uniformly (their middle part is stretched horizontally), with their curled ends
+   inside the left/right 72 px corner regions. Transparent everywhere outside the paper.

@@ -110,6 +110,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         route_cause: None,
         lean: None,
         luck: None,
+        // Cut 29 §3: the fight he died in, metered (the death screen's breakdown).
+        fight: (!run.meters.is_empty() && run.meters.fight.ticks > 0).then(|| crate::meters::wire(&run.meters.fight)),
     };
     let n = game.history.len();
     let pick = if stall {
@@ -403,7 +405,7 @@ fn boss_of(run: &Run, cause: &str) -> Option<String> {
 /// somewhere is not patched with a second copy). Whether it fires from the checkpoint is the
 /// replays' call (`FIRED_BAR`).
 pub fn pinnable_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
-    let kind = rec.boss.clone()?;
+    let Some(kind) = rec.boss.clone() else { return card_counter(game, rec) };
     let row = crate::facts::boss_counter_row(&game.lineage.facts, &kind)?;
     // QA on 778fa1b (qaU: `foe: boss → attack boss` beside an editor whose lists had neither):
     // the counter is offered only as a row the editor can write — its verb and every cond in
@@ -414,6 +416,25 @@ pub fn pinnable_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
         return None;
     }
     Some(row)
+}
+
+/// Cut 29 (the Foundry wall: rater lineages died to iron golems at D19 for ten days with the
+/// `reflect_read` card owned and the golem's fact known — no death offered the card): a death to a
+/// foe that reflects melee, with the card owned and the tag in the lineage's words, pins the
+/// card's row (`foe: reflect_melee → reflect read`) as a boss's counter is pinned.
+fn card_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
+    let kind = rec.death.cause.as_str();
+    let def = crate::defs::MONSTERS.iter().find(|m| m.kind == kind)?;
+    let l = &game.lineage;
+    if !def.tags.contains(&"reflect_melee") || !l.unlocks.contains("reflect_read") || !crate::facts::tag_known(&l.facts, kind, "reflect_melee") {
+        return None;
+    }
+    if rec.rules.rows.iter().any(|r| r.card() == Some("reflect_read")) {
+        return None;
+    }
+    let row = Row::new(vec![Cond::t("foe_tag", "reflect_melee")], crate::rules::Verb::arg("tactic", "reflect_read"));
+    let v = game.vocabulary();
+    row.conds.iter().all(|c| v.conds.iter().any(|x| x.same_token(c))).then_some(row)
 }
 
 /// A row with the counter's verb (`attack tag:boss` under any conditions) is in the set.
@@ -674,7 +695,7 @@ pub fn candidates(vocab: &Vocabulary, rules: &RuleSet, state: &Run, facts: &BTre
     }
     // Cut 11 §4: a telegraph preceded the blow — `foe_tag:telegraph → retreat` is a named
     // alternative even when it ends under the bar (`dice` is never empty).
-    if let Some(row) = telegraph_row(vocab, trace) {
+    if let Some(row) = telegraph_row(vocab, trace, facts) {
         if !out.contains(&row) {
             out.push(row);
         }
@@ -684,9 +705,15 @@ pub fn candidates(vocab: &Vocabulary, rules: &RuleSet, state: &Run, facts: &BTre
 }
 
 /// Cut 11 §4: `foe_tag:telegraph → retreat` when a telegraph shows in the trace and the
-/// lineage owns the tag.
-pub fn telegraph_row(vocab: &Vocabulary, trace: &Trace) -> Option<Row> {
-    if !trace.turns.iter().any(|t| !t.telegraphs.is_empty()) {
+/// lineage owns the tag. Cut 29: not when every telegraph is a band boss's whose counter is
+/// known (`facts`) — the answer to her is the counter; a retreat walked the hero off the Lurker
+/// Queen (the D28 wall: the patch row that held it).
+pub fn telegraph_row(vocab: &Vocabulary, trace: &Trace, facts: &BTreeSet<String>) -> Option<Row> {
+    // a telegraph reads `<title's last word> <what>` (`turn.rs`): a boss's, with its counter known
+    let countered = |t: &str| {
+        crate::defs::MONSTERS.iter().any(|m| m.boss && crate::facts::boss_counter_known(facts, m.kind) && m.title.split_whitespace().last().is_some_and(|w| t.strip_prefix(w.to_lowercase().as_str()).is_some_and(|r| r.starts_with(' '))))
+    };
+    if !trace.turns.iter().any(|t| t.telegraphs.iter().any(|x| !countered(x))) {
         return None;
     }
     let has_tag = vocab.conds.iter().any(|c| c.k == "foe_tag" && c.t.as_deref() == Some("telegraph"));
@@ -1366,11 +1393,8 @@ fn set_drops(rec: &mut DeathRec) {
 
 /// Cut 11 §2: an unlock as the root text: `◆2 cond: on see`, `◆3 card: thief guard`.
 pub fn unlock_label(id: &str) -> String {
-    let cost = crate::meta::unlock_cost(id);
-    match id.strip_prefix("cond_") {
-        Some(k) => format!("◆{cost} cond: {}", k.replace('_', " ")),
-        None => format!("◆{cost} card: {}", id.replace('_', " ")),
-    }
+    // (Cut 29 §1: a free word's or card's lock is its gate — `lock_text_static`)
+    crate::meta::lock_text_static(id)
 }
 
 /// Cut 11 §2: the row that answers a theft, and the unlock it needs when the lineage cannot
@@ -2282,7 +2306,7 @@ fn shape_patches(game: &Game, rec: &mut DeathRec) {
     if is_dice {
         // The telegraph's answer leads a dice death (after the pinned counter): it is *the*
         // alternative the screen names, whatever its number.
-        if let Some(t) = telegraph_row(&rec.vocab, &rec.death.trace) {
+        if let Some(t) = telegraph_row(&rec.vocab, &rec.death.trace, &rec.t10_facts) {
             if let Some(p) = pre_retain.iter().find(|p| p.row == t) {
                 let pinned = usize::from(rec.death.patches.first().is_some_and(|p| counter.as_ref() == Some(&p.row)));
                 rec.death.patches.retain(|x| x.row != t);
@@ -2333,7 +2357,7 @@ fn shape_patches(game: &Game, rec: &mut DeathRec) {
 /// in full and joins the list (`below_bar` when it is) unless a retreat-family patch is
 /// already there — the screen names the telegraph's answer with its number.
 fn dice_telegraph(game: &Game, rec: &mut DeathRec) {
-    let Some(row) = telegraph_row(&rec.vocab, &rec.death.trace) else { return };
+    let Some(row) = telegraph_row(&rec.vocab, &rec.death.trace, &rec.t10_facts) else { return };
     if rec.death.patches.iter().any(|p| p.row == row || family(&p.row) == "retreat") {
         return;
     }
@@ -2356,7 +2380,7 @@ fn dice_fallback(game: &Game, rec: &mut DeathRec) {
     let Some((base, ticks)) = replay_base(game, rec) else { return };
     let Some(t10) = rec.t10.clone() else { return };
     let mut rows: Vec<Row> = Vec::new();
-    if let Some(r) = telegraph_row(&rec.vocab, &rec.death.trace).filter(|_| !rec.stall) {
+    if let Some(r) = telegraph_row(&rec.vocab, &rec.death.trace, &rec.t10_facts).filter(|_| !rec.stall) {
         rows.push(r);
     }
     // The candidate list, one family each (the telegraph retreat keeps its family), measured
@@ -2800,7 +2824,7 @@ pub fn pick_gem(patches: &mut Vec<Patch>) {
 /// where `compute_deltas` put them; on a boss death the escape family stays below the rest.
 fn rerank_free(rec: &mut DeathRec) {
     let counter = rec.counter.clone();
-    let tele = if rec.death.verdict == "dice" { telegraph_row(&rec.vocab, &rec.death.trace) } else { None };
+    let tele = if rec.death.verdict == "dice" { telegraph_row(&rec.vocab, &rec.death.trace, &rec.t10_facts) } else { None };
     let pinned = |p: &Patch| counter.as_ref() == Some(&p.row) || is_loop_patch(p) || is_move(p) || p.root.is_some() || tele.as_ref() == Some(&p.row);
     let slots: Vec<usize> = (0..rec.death.patches.len()).filter(|&i| !pinned(&rec.death.patches[i])).collect();
     let mut free: Vec<Patch> = slots.iter().map(|&i| rec.death.patches[i].clone()).collect();

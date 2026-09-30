@@ -114,10 +114,11 @@
 // ticks after the last of those stops holding. Entry and exit are released at the viewer's clock (the engine runs ahead),
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
+import { compactLine, meterPanel } from "./meters";
 import type { App, Mounted } from "../app";
-import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Row, Snapshot, StepResult, Trace, VaultChoice } from "../engine/types";
+import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Row, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
-import { gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile } from "./frame";
+import { gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
 import { icon } from "./skin";
 import { syncLook } from "./look";
 import { makeViewer, type Viewer } from "./viewer";
@@ -127,10 +128,11 @@ import { salvageValue } from "./salvage";
 import { mergeFinds } from "./report";
 import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
-import { glossOf, kindGlyph, noteText, verbLabel } from "./tokens";
+import { glossOf, kindGlyph, noteText, ruleName, setRefRows, verbLabel } from "./tokens";
 import { EXIT_TRACE_ROWS, traceTable } from "./trace";
 import { drivenDeath, exitExtras } from "./death";
 import { laneTitle, seenForks } from "./route";
+import { oathBeat } from "./oaths";
 import { lastRun, markEnd, recordRun } from "./runlog";
 import { FoldTally, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
@@ -239,6 +241,10 @@ const BOSS_BANNER_MS = 3000;
 const FOLD_MIN_MS = 1400, FOLD_WALL_MS = 8000, FOLD_DOCK_MS = 5000;        // Cut 2 §7: `counter: known|unknown` on first sight (Cut 22: the boss bar's lit second line)
 const REST_BEAT_MS = 1400;
 const REST_BEAT_FAST_MS = 700;      // QA e75ec29: in `fast` the rest line holds 0.7 s — `fights` on D1–3 ramps its travel now, and `fast` keeps ≤ 0.4 of it (Cut 20 §3)
+const METER_PAINT_MS = 400;          // Cut 29 §3: the compact meter repaints at most this often (its numbers move every snapshot)
+const METERS_KEY = "riddle.meters";
+const readMetersOn = (): boolean => { try { return localStorage.getItem(METERS_KEY) === "1"; } catch { return false; } };
+const writeMetersOn = (on: boolean): void => { try { localStorage.setItem(METERS_KEY, on ? "1" : "0"); } catch { /* a per-viewer convenience */ } };
 const VAULT_FULL_MS = 1200;         // QA e75ec29: `vault full` before the report when the preference kept (no sheet)          // Cut 2 §1: `rest 12m` after the exit, before the exit flow continues
 const CHORE_CALLOUT: Record<string, string> = { descend: /* copy:callout */ "descend", pick_up: /* copy:callout */ "pick up" }; // explore never (Cut 4 §4)
 const CORE_LINE_MS = 1000, CAPTION_LINE_MS = 1500;   // Cut 18 §2: the renderer's callout and caption lifetimes (render/state.ts)
@@ -267,7 +273,7 @@ const BEAT_RE = /^(A den\.|A cage:|A shrine\.|The cage opens|A cry from the dark
 /** The cause of a `hurt` as one word: `goblin_archer` → `archer`. */
 const oneWord = (cause: string): string => cause.replace(/_/g, " ").trim().split(/\s+/).pop() ?? "";
 /** A player row's callout, ≤ 3 words: `R2 · attack nearest`, `R4 · pack break` (QA 23ed91f, L: `R4 PACK BREAK GOBLIN` — the target goes). */
-export const rowCallout = (row: number, verb: string): string => `R${row + 1} · ${verb.trim().split(/\s+/).slice(0, 2).join(" ")}`;
+export const rowCallout = (_row: number, verb: string): string => verb.trim().split(/\s+/).slice(0, 3).join(" ");
 /** The hero's hp lost as a callout: `−3 hp · archer` (QA 23ed91f, K: `−1 rat` read as a kill count, "one rat fewer"). */
 export const hurtText = (dmg: number, cause: string): string => /* copy:callout */ `−${dmg} hp · ${oneWord(cause)}`;
 /** Cut 13 §3: the automations' purchases at this exit — the ledger's outgoings after the newest exit line that are not salvage
@@ -315,6 +321,7 @@ export const bossDown = (kind: string): string => /* copy:callout */ `${kind.rep
 export const withArticle = (w: string): string => { const x = oneWord(w); return `${/^[aeiou]/i.test(x) ? "an" : "a"} ${x}`; };
 
 export function renderWatch(app: App): Mounted {
+  setRefRows(() => app.rules.rows);
   const canvas = h("canvas", { class: "view" });
   // Cut 17 §1: the hero's hp is the ring around the console's portrait (its numbers on the plate under it)
   const hpText = h("span", { class: "num hp-text" });
@@ -343,9 +350,9 @@ export function renderWatch(app: App): Mounted {
   // the last chosen mode is the next run's (app.watchMode, persisted — QA on e0f87e7: "`fast` chosen in run 3 was not remembered")
   const mode0: Mode = app.watchMode === "fast" || app.watchMode === "one" ? app.watchMode : "fights";
   const modeBtn: Record<Mode, HTMLButtonElement> = {
-    fights: tile({ id: "fights", cls: "hud-btn", on: mode0 === "fights", icon: "fights", label: /* copy:button */ "fights", onclick: () => setMode("fights") }),
+    fights: tile({ id: "fights", cls: "hud-btn", on: mode0 === "fights", icon: "fights", label: /* copy:button */ "fights only", onclick: () => setMode("fights") }),   // docs/COPY.md pass 3: `fights` read as a combat log 6/6
     fast: tile({ id: "fast", cls: "hud-btn", on: mode0 === "fast", icon: "fast", label: /* copy:button */ "fast", onclick: () => setMode("fast") }),
-    one: tile({ id: "one", cls: "hud-btn", on: mode0 === "one", icon: "one", glyph: "1", label: /* copy:button */ "1×", onclick: () => setMode("one") }),
+    one: tile({ id: "one", cls: "hud-btn", on: mode0 === "one", icon: "one", glyph: "1×", label: /* copy:button */ "normal", onclick: () => setMode("one") }),   // docs/COPY.md pass 5: `1` over `1×` read "no idea"
   };
   const skip = tile({ id: "skip", cls: "hud-btn", icon: "skip", label: "▶▶|", onclick: () => skipToEvent() });
   const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
@@ -361,12 +368,27 @@ export function renderWatch(app: App): Mounted {
   const scrub = h("div", { class: "scrub", hidden: true }, scrubHead, scrubDot);
   const bar = renderBar(app, { watch: true });
   const busyHost = h("span", { hidden: true });   // the engine's busy label at the end (the next gem says it): not in the corner
-  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail], gem: pause, top: scrub });
+  // Cut 29 §3: the compact meter over the stage (the fight in progress, else the run so far), toggled from the command card and
+  // remembered per viewer; the desktop's right column carries the run's whole breakdown
+  let metersOn = readMetersOn(), lastMeters: SnapMeters | undefined, meterPaintAt = 0;
+  const meterBox = h("div", { class: "meter-box", hidden: !metersOn });
+  const meterTile = tile({ id: "meters", cls: "meter-btn", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
+    metersOn = !metersOn; writeMetersOn(metersOn); meterTile.classList.toggle("on", metersOn); meterBox.hidden = !metersOn; paintMeters(true);
+  } });
+  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile], gem: pause, top: scrub });
+  const wideMeters = h("div", { class: "meters-live" });
+  const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
+  function paintMeters(now = false): void {
+    if (!lastMeters) return;
+    const t = performance.now(); if (!now && t - meterPaintAt < METER_PAINT_MS) return; meterPaintAt = t;
+    if (metersOn) replace(meterBox, compactLine(lastMeters));
+    if (wide.slot) replace(wideMeters, meterPanel(lastMeters.run, app.rules.rows, { title: /* copy:label */ "this run" }));
+  }
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, alert, bossBar, stake),
-      banner, ticker, whyTip),
-    cons.el);
+      meterBox, banner, ticker, whyTip),
+    cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
   let mode: Mode = mode0, paused = false, slowUntil = -Infinity, lastHp = NaN;
@@ -451,7 +473,7 @@ export function renderWatch(app: App): Mounted {
   // viewer behind the world slows where the events are, not where the engine is (`slowUntil` / `sceneUntil` stay the world's)
   const nearTicks: number[] = [], scenes: { from: number; until: number }[] = [];
   let exitTier: Tier | null = null, exitAt = 0;
-  let pendingExit: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] } | undefined;
+  let pendingExit: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[]; decide?: boolean; note?: string } | undefined;
   // what the exit sheet let go, at the engine's worth — the report's `salvaged` rows (QA on 952e306: "camp $76 after
   // 'Returned with $57'; only the gold sheet shows +$19 salvage"); the deepest floor this send reached (its `deepest` tile)
   let salvagedRows: { kind: string; n: number; gold: number }[] = [];
@@ -503,7 +525,10 @@ export function renderWatch(app: App): Mounted {
   let bossHud: { id: number; kind: string; hp: number; max: number } | null = null;
   const broke = new Set<string>();
   const timed: { t: number; f: () => void }[] = [];
+  let lastRuleIsRow = false;   // docs/COPY.md: a row's callout has no `R2 ·` marker any more
   let lastRuleText = "", lastRuleAt = 0, lastShown = "", lastCoreAt = -Infinity;
+  /** gfx round 2: the wide frame's read-only tablet of the rule that just acted glows (a phone has no rules column: nothing to light). */
+  const lightRow = (row: number): void => { const t = el.querySelector<HTMLElement>(`.rules-col .row[data-i="${row}"]`); if (!t) return; t.classList.remove("firing"); void t.offsetWidth; t.classList.add("firing"); };
   // placeholder viewer (no clock): a wall clock at 10 ticks/s × speed stands in
   let fbTick = 0, fbAt = performance.now();
   function viewerTick(): number {
@@ -517,7 +542,7 @@ export function renderWatch(app: App): Mounted {
     const p = hud.maxHp ? hud.hp / hud.maxHp : 0;
     face.set(p);
     stake.classList.toggle("warn", p < 0.4);
-    replace(hpText, `${Math.max(0, hud.hp)}/${hud.maxHp}`);
+    replace(hpText, /* copy:callout */ `${Math.max(0, hud.hp)}/${hud.maxHp} hp`);   // docs/COPY.md pass 5: `28/36` read as XP or rooms
     replace(depth, `D${hud.depth}`);
     // QA 23ed91f (K: "`!` / `!!` / `!!!` after the depth label, and `alert 1` / `alert 3`"): one name for one thing — the HUD reads
     // `alert 3`, as the callout does when it rises; nothing at 0
@@ -562,6 +587,7 @@ export function renderWatch(app: App): Mounted {
     // older snapshot of the same run is behind what the strip already shows, and never reads as a fall
     if (s.stake && s.run.id === lastLootRun && s.turn < lastLootTurn) return;
     hudSnap = s;
+    if (s.meters) { lastMeters = s.meters; paintMeters(); }   // Cut 29 §3: the meter as the viewer reaches the batch
     if (cardUp) paintCardText();
     const st = s.stake;
     stake.hidden = !st;
@@ -588,7 +614,7 @@ export function renderWatch(app: App): Mounted {
       lootWhy = why; }
     lastLoot = st.loot; lastLootRun = s.run.id; lastLootTurn = s.turn; lastSwapped = st.swapped ?? 0;
     // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
-    const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "carry"), ` $${st.loot}`];
+    const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "carrying"), ` $${st.loot}`];
     if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? `${lootWhy === "left" ? " " : " → "}${lootItem.replace(/_/g, " ")}` : ""}`));
     // Cut 6 §1: the kept number while a return/bank row exists (`$84 · keeps $50`)
     // Cut 13 §1: while the guard has fired a stall pays nothing, and the line says so before it is lost (`keeps $0 · stalling`)
@@ -619,7 +645,7 @@ export function renderWatch(app: App): Mounted {
     const v = verbLabel({ v: row?.verb.v ?? "return" });
     const d = row?.conds.find((c) => c.k === "depth>=" && c.n !== undefined); if (d) return /* copy:callout */ `${v} at D${d.n}`;
     const hp = row?.conds.find((c) => c.k === "hp<" && c.n !== undefined); if (hp) return /* copy:callout */ `${v} at ${hp.n}%`;
-    return `${v} R${i + 1}`;
+    return ruleName(app.rules.rows, i);
   }
   function showBanner(text: string, ms: number, cls = ""): void {
     replace(banner, text); banner.className = `banner num show ${cls}`;
@@ -778,7 +804,7 @@ export function renderWatch(app: App): Mounted {
   /** A core callout was released: a row's caption from the last CAPTION_LINE_MS is now hidden by it — its text goes to the ticker. */
   function coreLine(): void {
     const now = performance.now(); lastCoreAt = now;
-    if (frame === "fight" && /^R\d+ · /.test(lastRuleText) && now - lastRuleAt < CAPTION_LINE_MS) ruleLine(lastRuleText);
+    if (frame === "fight" && lastRuleIsRow && now - lastRuleAt < CAPTION_LINE_MS) ruleLine(lastRuleText);
   }
   function ruleCallout(ev: Extract<Ev, { k: "rule" }>): string | null {
     if (ev.row >= 0) return rowCallout(ev.row, verbLabel(ev.verb));
@@ -811,6 +837,7 @@ export function renderWatch(app: App): Mounted {
     timed.length = 0; timed.push(...keep);
   }
   const victims = new Map<number, string>();   // id → label, remembered across batches so a kill inside a batch still has a name
+  let exitOath = "";   // Cut 28b: an oath decided at the run's end, for the exit's beat
   function absorb(evs: Ev[], s: Snapshot): Tier | null {
     let exit: Tier | null = null;
     const heroId = s.hero.id;
@@ -854,9 +881,10 @@ export function renderWatch(app: App): Mounted {
             const now = performance.now();
             // Cut 18 §2: a telegraph over the fight has the line — the row's callout goes to the ticker (`rule`, shown in the fight frame)
             if (text !== lastRuleText || now - lastRuleAt > 4000) { if (ev.row >= 0 && frame === "fight" && now - lastCoreAt < CORE_LINE_MS) ruleLine(text); else callout(text); }
-            lastRuleText = text; lastRuleAt = now;
+            lastRuleText = text; lastRuleAt = now; lastRuleIsRow = ev.row >= 0;
           });
           if (ev.row >= 0) at(ev.t, () => cue("rule"));   // Cut 10 §4: a player row, never a chore or a trait
+          if (ev.row >= 0) { const row = ev.row; at(ev.t, () => lightRow(row)); }   // gfx round 2: the desktop's rules column lights the rule that acted
           if (ev.row >= 0) { const home = ev.verb.v === "return"; at(ev.t, () => { if (home !== walkingHome) { walkingHome = home; if (hudSnap) paintStake(hudSnap); } }); }   // Cut 19 §2
           break;
         }
@@ -962,9 +990,14 @@ export function renderWatch(app: App): Mounted {
           // QA 308f045 (qaAC: `DRIVEN $0` at 19/36 over `carry $186` — "nothing says a drive-off also loses the carry"): an end that kept
           // less than it carried says what it lost (`DRIVEN $0 · −$186`)
           const lostC = ev.line ? Math.max(0, ev.line.carried - ev.line.kept) : 0;
-          if (tier !== "death") beatAt(ev.t, tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${lead.toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`, true);
+          const oathW = exitOath ? ` · ${exitOath}` : ""; exitOath = "";
+          if (tier !== "death") beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true);
           break;
         }
+        // Cut 28b (owner: "it's not clear what oaths do"): the sworn oath's fate is a beat as it happens — `OATH KEPT`, or `OATH BROKEN · R2 return`
+        // (the row that used the tool it forbade); a miss (the run ended short of it) is the exit line's, not a beat
+        // (decided by the run's end — a depth oath kept by a bank — it rides the exit's own beat: `BANKED $120 · OATH KEPT`)
+        case "oath": if (ev.kept || ev.cause) { if (evs.some((x) => x.k === "exit" && x.t === ev.t)) exitOath = ev.kept ? /* copy:callout */ "OATH KEPT" : /* copy:callout */ "OATH BROKEN"; else beatAt(ev.t, oathBeat(ev, app.rules.rows), false, true); } break;
         case "ending": endingCue = ev.t; break;                                                                                       // Cut 7 §4: the core's marker (see `exit`)
         case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); allies.add(ev.id); victims.delete(ev.id); const id = ev.id; at(ev.t, () => petLine(/* copy:callout */ `tamed ${compLabel(id).replace(" · ", " ").replace(/_/g, " ")}`)); } break;
         case "ally": if (ev.state === "lost") lostIds.push(ev.id); else {
@@ -979,7 +1012,7 @@ export function renderWatch(app: App): Mounted {
         case "rest": restS = ev.seconds; break;
         case "bones":
           if (ev.heir === s.run.heir) bonesLeft = ev.items;                                        // this heir's kit, left on death
-          else { bonesFound.push(/* copy:callout */ `D${s.depth} · ${items(ev.items)}`); at(ev.t, () => callout(`♟${ev.heir} · ${ev.items}`)); }
+          else { bonesFound.push(/* copy:callout */ `D${s.depth} · ${items(ev.items)}`); at(ev.t, () => callout(/* copy:callout */ `heir ${ev.heir} · ${ev.items}`)); }
           break;
         default: break;
       }
@@ -1998,9 +2031,14 @@ export function renderWatch(app: App): Mounted {
       const fresh = pendingExit?.items.length ? await bounded(app.engine.lineage(), 4000, "lineage at exit") : undefined;
       const vaultNow = fresh ?? app.lineage;
       const freeSlots = Math.max(0, vaultSlots(vaultNow.unlocks) - vaultNow.vault.length);
-      if (pendingExit && pendingExit.items.length && freeSlots > 0) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, freeSlots, () => { done = false; void finish(tier); }); return; }
+      // Cut 29 §4 (AW: "one ▲ per tap"): the core says whether the sheet is a decision (`decide`: a find beats something in the full
+      // vault, or finds outnumber its free slots). Not one → settled by the standing order (`autoKeep`) with its one line (`note`).
+      // A decision on a full vault opens the sheet as a swap: one pick, which the core keeps in place of the vault's weakest.
+      const decide = pendingExit?.decide;
+      if (pendingExit && pendingExit.items.length && (decide === undefined ? freeSlots > 0 : decide)) { const p = pendingExit; pendingExit = undefined; clearTimeout(guard); exitSheet(p, Math.max(1, freeSlots), () => { done = false; void finish(tier); }, freeSlots === 0); return; }
+      const settledNote = decide === false ? pendingExit?.note : undefined;
       // the vault full: the preference keeps (as designed) — and the screen says so before the report (R: "keep chosen for me?")
-      const vaultFull = !!(pendingExit?.items.length && fresh);
+      const vaultFull = !!(pendingExit?.items.length && fresh && (decide === false ? true : freeSlots === 0));
       // the sheet skipped (the vault full): the engine keeps by preference and the rest is salvage all the same — its rows
       // are built here too (QA on e0f87e7: "no SALVAGED block at all when the vault is full … yet the gold sheet shows +$16
       // salvage"); what the vault gained across the keep is what was kept, matched to the pending items by kind
@@ -2015,8 +2053,12 @@ export function renderWatch(app: App): Mounted {
       // `axe +1 → vault` — and `vault full` stands alone only when nothing went in
       if (vaultFull) {
         const inVault = app.lineage.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.label);
-        showBanner(inVault.length ? /* copy:callout */ `${inVault.join(", ")} → vault` : /* copy:callout */ "vault full", VAULT_FULL_MS, "rest");
-        await new Promise((r) => setTimeout(r, VAULT_FULL_MS));
+        // Cut 29 §4: a settled exit says its one line (`kept leather +1`); with nothing new kept it says nothing unless the vault is full
+        const full = vaultSlots(app.lineage.unlocks) <= app.lineage.vault.length;
+        if (settledNote || inVault.length || full) {
+          showBanner(settledNote ?? (inVault.length ? /* copy:callout */ `${inVault.join(", ")} → vault` : /* copy:callout */ "vault full"), VAULT_FULL_MS, "rest keep-note");
+          await new Promise((r) => setTimeout(r, VAULT_FULL_MS));
+        }
       }
       if (skipped) {
         const kept = new Set<number>();
@@ -2117,7 +2159,7 @@ export function renderWatch(app: App): Mounted {
   }
   const spentRows = (ledger: { t: number; delta: number; why: string; n?: number }[]): { kind: string; n: number; gold: number }[] => spentOf(ledger, app.supplyCat);
   // Addendum D: choose what to keep before the run settles
-  function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] }, free: number, then: () => void): void {
+  function exitSheet(p: { items: InvItem[]; tier: string; worth?: number[]; auto_keep?: number[] }, free: number, then: () => void, swap = false): void {
     // QA 23ed91f: the owned automations' picks come pre-ticked (`ExitPending.auto_keep`), as many as the free slots take
     const keep = new Set<number>((p.auto_keep ?? []).filter((id) => p.items.some((it) => it.id === id)).slice(0, free));
     let sent = false;
@@ -2164,7 +2206,8 @@ export function renderWatch(app: App): Mounted {
         exitLine.salvaged.map((r) => `${r.kind.replace(/_/g, " ")}${r.n > 1 ? ` ×${r.n}` : ""} $${r.gold}`).join(" · ")) : null;
       return h("div", { class: "sheet-body" },
         // QA 0c6e126 (qaZ: `KEEP 1/1` after a bought slot, read as "the vault is one slot"): the count is of the free slots — `keep 1/1 free`
-        h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, h("small", { class: "dim" }, /* copy:label */ " free"), trace),
+        // Cut 29 §4: a full vault's decision is a swap — the pick replaces the vault's weakest (the core's `keep`)
+        h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, h("small", { class: "dim" }, swap ? /* copy:label */ " swap" : /* copy:label */ " free"), trace),
         chips, legend, cut, bones, news, ledger, traceBox,
         h("button", { class: "btn primary wide", onclick: () => {
           if (sent) return; sent = true;
@@ -2177,6 +2220,7 @@ export function renderWatch(app: App): Mounted {
 
   async function init(): Promise<void> {
     let s: Snapshot;
+    if (app.seenPending && app.engine.seenSystems) { app.seenPending = false; try { app.lineage = await app.engine.seenSystems(); } catch { /* the glint repeats */ } }   // Cut 29 §2
     try { s = await app.engine.send(); } catch (e) { console.warn("send failed", e); if (!disposed) app.go({ kind: "camp" }); return; }
     if (disposed) return;
     snap = s; runId = s.run.id; engineTick = startTick = s.turn;
@@ -2208,7 +2252,7 @@ export function renderWatch(app: App): Mounted {
   const onVisibility = (): void => { freeze(paused, document.hidden); if (!hidden) goLiveOwed = true; applySpeed(); };
   document.addEventListener("visibilitychange", onVisibility);
   return { el, dispose: () => {
-    disposed = true; audio.bed(null); clearTimeout(dockTimer); bar.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
+    disposed = true; audio.bed(null); clearTimeout(dockTimer); bar.dispose(); wide.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
     if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
     if (prepended && !done) void app.engine.setRules(app.rules);
   } };

@@ -411,6 +411,49 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 29 §1: forswear the sworn oath `id` (either slot); returns the Lineage.
+    #[wasm_bindgen(js_name = forswearOathId)]
+    pub fn forswear_oath_id(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.forswear_oath_id(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 29 §1: an oath draw (◆2): a fresh standing oath; returns the Lineage.
+    #[wasm_bindgen(js_name = drawOath)]
+    pub fn draw_oath(&mut self) -> Result<String, JsError> {
+        self.inner.draw_oath().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 29 §5: commission the next work with gold; returns the Lineage.
+    pub fn commission(&mut self) -> Result<String, JsError> {
+        self.inner.commission().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 29 §1 (E1): at a wall, the one-row edit that passes it (`WallEdit` JSON, or `null`) —
+    /// searched once a day (seconds to minutes in wasm: call it on the report, off the foreground),
+    /// the cached offer after (`Lineage.wall`).
+    #[wasm_bindgen(js_name = wallEdit)]
+    pub fn wall_edit(&mut self) -> String {
+        js(&self.inner.wall_edit())
+    }
+
+    /// Cut 29 §2: the camp showed the newly opened systems (clears `Lineage.systems[].new`); returns the Lineage.
+    #[wasm_bindgen(js_name = seenSystems)]
+    pub fn seen_systems(&mut self) -> String {
+        self.inner.seen_systems();
+        js(&self.inner.lineage())
+    }
+
+    /// Cut 29 §4: set the standing orders (a `StandingOrders` JSON); returns the Lineage.
+    #[wasm_bindgen(js_name = setOrders)]
+    pub fn set_orders(&mut self, orders_json: &str) -> Result<String, JsError> {
+        let o: riddle_core::wire::StandingOrders = serde_json::from_str(orders_json).map_err(|e| JsError::new(&e.to_string()))?;
+        self.inner.set_orders(&o).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 23 §1: buy the next forge step of `weapon | armour | pack`; returns the Lineage.
     #[wasm_bindgen(js_name = buyKit)]
     pub fn buy_kit(&mut self, slot: &str) -> Result<String, JsError> {

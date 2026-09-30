@@ -1,0 +1,19 @@
+You are painting two BACKDROP PAINTINGS for the game "Riddle" (a phone roguelike with a Warcraft III / StarCraft II
+carved-stone-and-iron UI). LOOK FIRST at /home/g/p/riddle/art/ui/targets/death.png and
+/home/g/p/riddle/art/ui/targets/report.png and /home/g/p/riddle/web/public/art/title.png (you may read those three
+images; read nothing else in the repository) and match their painterly dark-fantasy look: painted, moody, warm
+torchlight against deep brown-black shadow, ink-and-wash detail, no text.
+
+Use your built-in image_gen tool, one call per image. Do NOT modify anything outside /home/g/p/riddle/art/ui/backdrops/.
+Each image: 1024 wide x 1536 tall (portrait), opaque RGB PNG. NO text, NO letters, NO UI, NO frame, NO banner, NO
+characters' faces. Keep the upper 45 % dark and low-detail (a banner and text sit over it); detail belongs in the lower
+half. Resample with PIL (Lanczos) to exactly 1024x1536 if needed. Delete any scratch/inspection files you create.
+
+/home/g/p/riddle/art/ui/backdrops/death.png — the spot where a lone adventurer fell in a dungeon: a cracked flagstone
+floor seen at a low three-quarter angle, a dropped notched sword and a dented round shield lying on the stones, a torn
+red cloak crumpled beside them, a guttering wall torch far left casting warm orange light and long shadows, dust in the
+air, the far corridor dissolving into black. Mournful, still, beautiful. Colour: umber, charcoal, dried-blood red accents.
+
+/home/g/p/riddle/art/ui/backdrops/report.png — a war-camp tent interior at night seen from inside: a heavy wooden table in
+the lower half with a spread (blank, unwritten) parchment map, brass compass, a few gold coins and a burning candle, a
+hanging lantern, canvas walls lit warm amber fading to deep shadow at the top. Calm, earned rest after an expedition.

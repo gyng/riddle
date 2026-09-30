@@ -191,8 +191,8 @@ pub fn because_for(run: &mut Run, cx: &mut Ctx, why: &str, row: Option<&Row>, co
         "locked cond" => {
             let c = cond?;
             let id = crate::meta::cond_unlock(&c.k)?;
-            let cost = crate::meta::unlock_cost(id);
-            Some(Because { text: format!("◆{cost} cond: {}", cond_word(&c.k)), t: run.turn, depth: run.depth })
+            // (Cut 29 §1: a condition word is free — the lock is its gate: `see alert rise`)
+            Some(Because { text: crate::meta::lock_text_static(id), t: run.turn, depth: run.depth })
         }
         "stuck" => last(cx.prov, "stuck").map(Prov::because),
         // Cut 13 §2: the row bravery held links to the hold (`← brave held it, D4 · t3120`).

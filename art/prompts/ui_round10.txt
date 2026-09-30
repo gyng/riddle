@@ -1,0 +1,33 @@
+You are painting UI and effect assets for the game "Riddle" (a dark-fantasy phone roguelike). The
+target look is in /home/g/p/riddle/art/ui/targets/report.png, death.png and watch.png — LOOK AT THOSE
+IMAGES FIRST (you may read them; read nothing else in the repository) and match their material
+language: blackened hammered iron, dark weathered wood, worn gilding, aged parchment, warm amber
+torchlight. Warcraft III interface style, painterly-but-crisp.
+
+Use your built-in image_gen tool, one call per asset. Do NOT write code beyond a PIL resample/alpha
+fix. Do NOT modify anything outside /home/g/p/riddle/art/ui/fx/ and /home/g/p/riddle/art/ui/backdrops/.
+Save each final PNG (sRGB) to the exact path at the exact size (PIL Lanczos if needed). No text, no
+letters, no numbers, no watermarks. Assets 1–5 are RGBA with a TRUE TRANSPARENT background outside the
+object (no checkerboard, no blue key, no black fill): verify the four corners are alpha 0 and
+regenerate once if not.
+
+1) /home/g/p/riddle/art/ui/fx/shield.png — 512x512 RGBA — a boss's great battle SHIELD seen straight
+   on, filling ~85% of the canvas: a heavy round shield of dark planks bound in blackened iron, a
+   riveted iron rim, a big iron boss in the centre with a crude skull emblem, dents and gouges, warm
+   torchlight on the upper-left rim. A deep jagged CRACK already runs top to bottom through the
+   middle (it is about to split). Strong dark outline so it reads at 90 px over a busy scene.
+2) /home/g/p/riddle/art/ui/fx/shard_0.png — 256x256 RGBA — one broken FRAGMENT of that shield: a
+   jagged wedge of dark planks with a bent piece of the iron rim and two rivets, splintered edges.
+3) /home/g/p/riddle/art/ui/fx/shard_1.png — 256x256 RGBA — another fragment: a chunk of the central
+   iron boss with part of the skull emblem, torn metal edges.
+4) /home/g/p/riddle/art/ui/fx/shard_2.png — 256x256 RGBA — a long splintered plank shard with one
+   rivet, raw light wood at the break.
+5) /home/g/p/riddle/art/ui/fx/shard_3.png — 256x256 RGBA — a small curved piece of the iron rim,
+   bent, with sparks of bright metal at the torn ends.
+6) /home/g/p/riddle/art/ui/backdrops/report.png — 1024x1536 OPAQUE (no alpha needed) — the painted
+   room BEHIND the report's parchment scroll, exactly the report.png target's surround: a dark stone
+   chamber at night; on the LEFT side a hanging tattered war banner, a sword and a dented knight's
+   helmet on a heap of gear with spilled gold coins at the floor; on the RIGHT side a wall sconce with
+   a burning torch, a lit candle on a stack of old books and a skull. The CENTRE 60% of the width,
+   from 8% to 88% of the height, must be plain, dark, low-detail stone wall (a scroll will cover it).
+   Warm torchlight from the right, deep shadows, painterly.

@@ -3,35 +3,35 @@
 // hidden until row5 is owned, etc.) so the camp shows one step at a time.
 // Cut 9 §2: every buy goes through `openUnlockSheet` — the card's rows / effect, `◆cost`, `needs` when gated, `reach ±N%`
 // when known, then `buy`. No card buys on its own tap; a disabled card still opens the sheet to show its gate.
+import { sysOpen } from "./systems";
 import type { App } from "../app";
 import { revealed } from "./reveal";
 import { engagementRow, safetyEnd } from "../app";
 import type { Lineage, UnlockInfo } from "../engine/types";
 import { CLASSES, isFreeClass } from "../engine/classes";
 import { h } from "./dom";
+import { ruleName } from "./tokens";
 import { rowChips } from "./editor";
 import { openSheet } from "./sheet";
 
 /* copy:unlock_card */
 const LABEL: Record<string, string> = {
-  row5: "+1 row", row6: "+1 row", row7: "+1 row", row8: "+1 row", row9: "+1 row", row10: "+1 row",
+  row5: "+1 rule slot", row6: "+1 rule slot", row7: "+1 rule slot", row8: "+1 rule slot", row9: "+1 rule slot", row10: "+1 rule slot",
   party_slot_2: "+1 party", party_slot_3: "+1 party", party_slot_4: "+1 party",
   vault2: "+1 vault", vault3: "+1 vault", vault4: "+1 vault", vault5: "+1 vault",
   rogue: "class: rogue", ranger: "class: ranger", caster: "class: caster",
-  tame: "verb: tame", throw: "verb: throw",
-  cond_alert: "cond: alert", cond_turns: "cond: turns", cond_loot: "cond: loot", cond_on_kill: "cond: on kill", cond_on_see: "cond: on see", cond_party_hp: "cond: party hp",
-  corridor_fighting: "card: corridor fighting", kite_archers: "card: kite archers", stair_dance: "card: stair dance", gas_step: "card: gas step",
-  pack_break: "card: pack break", thief_guard: "card: thief guard", boss_focus: "card: boss focus", last_stand: "card: last stand",
+  tame: "action: tame", throw: "action: throw",
+  cond_alert: "condition: alert", cond_turns: "condition: turns", cond_loot: "condition: loot", cond_on_kill: "condition: on kill", cond_on_see: "condition: on see", cond_party_hp: "condition: party hp",
+  corridor_fighting: "rule: corridor fighting", kite_archers: "rule: kite archers", stair_dance: "rule: stair dance", gas_step: "rule: gas step",
+  pack_break: "rule: pack break", thief_guard: "rule: thief guard", boss_focus: "rule: boss focus", last_stand: "rule: last stand",
   quartermaster: "auto: keep weapon+armour", auto_supply: "auto: restock", auto_insure: "auto: insure",
   incubator: "eggs: 1 rest", supply_cap_5: "supplies 3 → 5", bone_sense: "path: bones", third_tag: "breed: 3 tags",
   // Cut 3 tier 2
-  cadence: "card: cadence", noise_discipline: "card: noise discipline", reflect_read: "card: reflect read", deep_march: "card: deep march",
+  cadence: "rule: cadence", noise_discipline: "rule: noise discipline", reflect_read: "rule: reflect read", deep_march: "rule: deep march",
   lantern_rig: "sight: lantern rig", recall_sense: "auto: recall sense",
 };
 const AFTER: Record<string, string> = { row6: "row5", row7: "row6", row8: "row7", row9: "row8", row10: "row9", vault3: "vault2", vault4: "vault3", vault5: "vault4", party_slot_3: "party_slot_2", party_slot_4: "party_slot_3" };
 
-/** QA 308f045: a reach band (±, points) past which a card's move is no read (`reach unsettled`). */
-const WIDE_PM = 25;
 /** Cut 25 §6: the chain step a card follows (`row6` → `row5`), undefined for a first step. */
 export const afterOf = (id: string): string | undefined => AFTER[id];
 /** An unlock's shelf label (`+1 row`, `card: kite archers`). */
@@ -40,7 +40,7 @@ export type UnlockCard = UnlockInfo & { label: string; gated: boolean };
 /** Cut 10 §3: a `+1 row` card waits until the set is full: a client-side gate when the core sends none. The gate reads as a
  *  requirement, `⊘ fill rows` — both QA players on 952e306 read the core's `rows full` as a state ("rows full vs 2/4?"), so the
  *  core's own text is rewritten too. */
-const ROWS_GATE = /* copy:unlock_card */ "fill rows";
+const ROWS_GATE = /* copy:unlock_card */ "fill rules";
 export function withRowsGate(u: UnlockCard, rows: number, max: number): UnlockCard {
   if (!/^row\d+$/.test(u.id) || u.owned) return u;
   if (u.needs === "rows full") u = { ...u, needs: ROWS_GATE };
@@ -50,27 +50,29 @@ export function withRowsGate(u: UnlockCard, rows: number, max: number): UnlockCa
 
 /** Catalogue entries worth showing: not owned, and the previous step of a chain owned.
  *  `gated`: unavailable with a `needs` gate still missing (the core sends `needs` only while unmet). */
-export function visible(catalogue: UnlockInfo[]): UnlockCard[] {
+export function visible(catalogue: UnlockInfo[], L?: Pick<Lineage, "systems">): UnlockCard[] {
   const owned = new Set(catalogue.filter((u) => u.owned).map((u) => u.id));
+  const autos = sysOpen(L, "automations");   // Cut 29 §2: the automations (gold) open with the Lich met
   return catalogue
-    .filter((u) => !u.owned && (!AFTER[u.id] || owned.has(AFTER[u.id])))
+    .filter((u) => !u.owned && (!AFTER[u.id] || owned.has(AFTER[u.id])) && (autos || !u.gold_only))
     .map((u) => ({ ...u, label: LABEL[u.id] ?? u.id.replace(/_/g, " "), gated: !u.available && !!u.needs }));
 }
 /** Cut 10 §3 / Cut 12 §1: a card's reach delta says where the card goes — `reach +4% at R3` (the catalogue's `insert_at`), else
  *  `at end`; other unlocks carry the bare delta. Cut 13 §5: the `±` rides the delta when the catalogue sends `pm`
  *  (`reach +7% ±5`); a delta within its own half-width reads `reach ~0` — noise shown as noise. */
-export function deltaLabel(u: UnlockInfo, d: number, rows?: number): string {
+export function deltaLabel(u: UnlockInfo, d: number, _rows?: number): string {
   // QA a946e04 (T: `reach ~0 at R6 · vs packs` on a 5-row set): a place past the set's last row is its end
-  const at = u.insert_at !== undefined && (rows === undefined || u.insert_at < rows) ? u.insert_at : undefined;
-  const where = !isCard(u) ? "" : at !== undefined ? /* copy:unlock_card */ ` at R${at + 1}` : /* copy:unlock_card */ " at end";
+  // docs/COPY.md pass 3 (`reach same above attack boss` read as an unlock requirement): the card's line is its effect; where it joins is
+  // the sheet's (`joins above attack boss`)
+  const where = "";
   // Cut 18 §5: a card whose best reach is within its ± names when it matters (`reach ~0 at R1 · vs archers`) — every card read
   // `reach ~0 at R4` to both raters, so they skipped them all
   // Cut 22 §4: a move is signed points (`reach +12 ±4`), `≈` inside its ± — never a `%`, which reads as a chance
   // Cut 24 §4: `≈` carries the ± it sits inside (`reach ≈ ±5 at R1`) — unresolved, not "no change"
   // QA 308f045 (qaAC: `reach ≈ ±46 at R1 · vs archers` — "the noise band says nothing"): a band wider than `WIDE_PM` points is no read at
   // all — it says so (`reach unsettled`), never a number
-  if (deltaIsNoise(u) && (u.pm ?? 0) * 100 > WIDE_PM) return /* copy:unlock_card */ `reach unsettled${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
-  if (deltaIsNoise(u)) return /* copy:unlock_card */ `reach ≈${u.pm ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : ""}${where}${u.situation ? ` · ${situationLabel(u.situation)}` : ""}`;
+  // docs/COPY.md pass 4 (`reach same · vs archers` read as an unlock requirement): a card that moves nothing says only when it matters
+  if (deltaIsNoise(u)) return u.situation ? situationLabel(u.situation) : "";
   const pm = u.pm !== undefined ? ` ±${Math.max(1, Math.round(u.pm * 100))}` : "";
   return /* copy:unlock_card */ `reach ${d > 0 ? "+" : "−"}${Math.abs(d)}${pm}${where}`;
 }
@@ -136,8 +138,9 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
     // (QA B on 952e306: "CLASS: RANGER ◆6 · ⊘ ◆2 more has an active buy; tapping it did nothing"); any `needs` or a marks
     // shortfall against the live lineage turns `buy` off
     const short = Math.max(0, u.cost - app.lineage.marks);
-    const gateNeeds = u.needs && !/^◆\d+ more$/.test(u.needs) ? u.needs : undefined;   // a gate that is not the marks
-    const needs = gateNeeds ?? (short ? /* copy:unlock_card */ `◆${short} more` : undefined);
+    // Cut 29 §1: an automation short of gold reads the core's `$N more` — a price, not a lock (the `$ buy`'s `$N short` says it)
+    const gateNeeds = u.needs && !/^[◆$]\d+ more$/.test(u.needs) ? u.needs : undefined;   // a gate that is not the marks or the purse
+    const needs = gateNeeds ?? (short && !u.gold_only ? /* copy:unlock_card */ `◆${short} more` : undefined);
     const can = (u.available || (!!u.needs && !gateNeeds)) && !needs;
     // gold buys past a marks shortfall, never past another gate (a fact, a prerequisite, `fill rows`)
     const gold = goldPrice(u), canGold = gold > 0 && !gateNeeds && app.lineage.gold >= gold;
@@ -153,11 +156,12 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       if (sent) return; sent = true;
       void app.buy(u.id, withGold, isCard(u) ? { join: freeCard || u.auto_insert === true, at: joinAt } : undefined).then((ok) => { close(); if (ok) after?.(); });   // QA a946e04: the buy does what the sheet said, where it said
     };
-    const buy = freeCard ? h("button", { class: "btn primary buy marks free-add", onclick: go(false) }, /* copy:button */ "add")
+    // Cut 29 §1: an automation is bought with gold only (at the Lich) — no `◆ buy`
+    const buy = u.gold_only ? "" : freeCard ? h("button", { class: "btn primary buy marks free-add", onclick: go(false) }, /* copy:button */ "add")
       : h("button", { class: `btn primary buy marks${can ? "" : " off"}`, disabled: !can, onclick: go(false) }, "◆ ", /* copy:button */ "buy");
     const buyGold = gold ? h("button", { class: `btn buy gold${canGold ? "" : " off"}`, disabled: !canGold, onclick: go(true) }, "$ ", /* copy:button */ "buy") : "";
     return h("div", { class: "sheet-body unlock-sheet" },
-      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, `◆${u.cost}`, gold ? h("span", { class: "gold-price" }, /* copy:label */ ` or $${gold}`) : "")),
+      h("div", { class: "label row-label" }, u.label, " ", h("span", { class: "num cost" }, u.gold_only ? `$${gold}` : `◆${u.cost}`, gold && !u.gold_only ? h("span", { class: "gold-price" }, /* copy:label */ ` or $${gold}`) : "")),
       u.rows?.length ? h("div", { class: "card-rows" }, ...u.rows.map((r) => h("div", { class: "row locked" }, rowChips(r))))
         : VERB_OF[u.id] ? h("div", { class: "card-rows" }, h("div", { class: "row locked" }, h("div", { class: "chips" }, h("span", { class: "chip verb locked" }, VERB_OF[u.id]), VERB_DOES[u.id] ? h("small", { class: "dim verb-does" }, ` ${VERB_DOES[u.id]}`) : ""))) : "",
       effectLine(app, u) ? h("div", { class: "effect-line num" }, effectLine(app, u)!) : "",
@@ -175,7 +179,7 @@ export function openUnlockSheet(app: App, u: UnlockCard, after?: () => void): vo
       // QA a946e04 (T: three cards bought, all three went into the rules): a card that will not join the set on its buy says so — it is
       // owned, and its chip's `add` puts it in
       isCard(u) ? h("div", { class: `dim num card-joins${u.auto_insert === true ? " joins" : ""}` },
-        u.auto_insert === true || freeCard ? /* copy:unlock_card */ `joins at R${(joinAt ?? app.rules.rows.length) + 1}` : (u.owned ? /* copy:unlock_card */ "owned · add to rules" : /* copy:unlock_card */ "buy, then add to rules")) : "");   // QA 912e135 (qaW: `after buy · add separately` unexplained)   // QA 778fa1b (qaV: `owned · add separately` before the buy read as owned)
+        u.auto_insert === true || freeCard ? (joinAt ?? app.rules.rows.length) < app.rules.rows.length ? /* copy:unlock_card */ `joins above ${ruleName(app.rules.rows, joinAt!)}` : /* copy:unlock_card */ "joins at end" : (u.owned ? /* copy:unlock_card */ "owned · add to rules" : /* copy:unlock_card */ "buy, then add to rules")) : "");   // QA 912e135 (qaW: `after buy · add separately` unexplained)   // QA 778fa1b (qaV: `owned · add separately` before the buy read as owned)
   });
 }
 /** QA a946e04: the chain's next step as the sheet shows it — `next ◆4 or $600` (its price once this one is bought with marks) and,
@@ -205,7 +209,8 @@ export function goldClimb(gold: number, cost: number): number {
 }
 const GOLD_PER_MARK = 150;   // core meta.rs
 /** Cut 6 §4: a tactic card (it becomes a row when bought). */
-export const isCard = (u: UnlockInfo): boolean => /^card:/.test(LABEL[u.id] ?? "");
+// (keyed on the ready-made rules' label, `rule: kite archers` — docs/COPY.md renamed `card:`; `+1 rule slot` is no card)
+export const isCard = (u: UnlockInfo): boolean => /^rule: /.test(LABEL[u.id] ?? "");
 /** The sheet behind an owned shelf chip: the buy sheet's title line, the rows, and — for a card whose row the set no longer
  *  holds — `insert`, which puts the card's row back where a buy would (before the engagement row: `app.insertCard`; the
  *  catalogue carries `insert_at` only while unowned) and opens the camp on it (QA on 952e306: "owned card chip opens a

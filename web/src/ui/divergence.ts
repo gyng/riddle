@@ -5,16 +5,18 @@
 // `vs sent` line: `R5 now → lives · D9 · vs dies · D7` (a tap plays it again). A move inside its ± plays too when the sets act
 // differently somewhere, and its line says what changed (`≈ ±6 · R3 fires 4× more`). Under `prefers-reduced-motion` the scene is the
 // two branches' end frames side by side, still. Shown for a move ≥ SCENE_MOVE outside its ±, or any `≈` move with a divergence.
+import { sysOpen } from "./systems";
 import type { App } from "../app";
-import type { Divergence, DivergenceBranch, DivergenceEnd, RowFires, RuleSet } from "../engine/types";
+import type { Divergence, DivergenceBranch, DivergenceEnd, Row, RowFires, RuleSet } from "../engine/types";
 import { h, replace } from "./dom";
+import { nameRefs, refName, ruleName } from "./tokens";
 import { makeViewer, type Viewer } from "./viewer";
 
 const SCENE_MOVE = 0.05;
 const PHASE_MS = 1500, END_MS = 500, LINGER_MS = 600;   // each branch plays PHASE_MS, its end holds END_MS; the scene lingers, then folds to its line
 type SceneViewer = Viewer & { seek?(t: number): void; setFrame?(frame: "map" | "fight", focus?: { x: number; y: number; radius: number }): void };
 /** The fight frame on the hero where the branch starts (a few tiles around him: the moment, not the floor). */
-const FOCUS_R = 5;
+const FOCUS_R = 3;   // gfx round 1 (raters: "zoom the inset so the sprites are big"; was 5); round 24 tried 2 per pane ("blurry upscaled pixels, sprites cut off"): back to 3
 
 /** `lives · D9` · `dies · D7` · `stalls · D6` — how a branch's whole run ended, in the player's words. */
 export function endText(e: DivergenceEnd): string {
@@ -23,12 +25,12 @@ export function endText(e: DivergenceEnd): string {
   return `${w} · D${e.depth}${e.oath === undefined ? "" : e.oath ? /* copy:callout */ " · oath ✓" : /* copy:callout */ " · oath ✗"}`;
 }
 /** The row a branch fired at the divergence (`R5`), or `—` when none did (a chore, a step). */
-const rowTag = (row: number | undefined): string => (row === undefined ? "—" : `R${row + 1}`);
+const rowTag = (row: number | undefined, text?: string, rows?: Row[]): string => (row === undefined ? "—" : rows?.[row] ? ruleName(rows, row) : text ? nameRefs(text) : refName(row));
 /** `R3 fires 4× more` / `R3 fires 2× less` / `R3 fires new` — the row whose fires moved most (the `≈` edit's what-changed). */
-export function firesText(f: RowFires | undefined): string | null {
+export function firesText(f: RowFires | undefined, rows?: Row[]): string | null {
   if (!f) return null;
   const r = f.new_row ?? f.sent_row; if (r === undefined) return null;
-  const tag = `R${r + 1}`;
+  const tag = rowTag(f.new_row ?? f.sent_row, f.text, f.new_row !== undefined ? rows : undefined);
   if (f.new_row === undefined) return /* copy:callout */ `${tag} gone`;
   if (f.sent <= 0.05 && f.new > 0) return /* copy:callout */ `${tag} fires new`;
   if (f.new <= 0.05 && f.sent > 0) return /* copy:callout */ `${tag} never fires`;
@@ -40,24 +42,30 @@ export function firesText(f: RowFires | undefined): string | null {
 const reducedMotion = (): boolean => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
 
 export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dispose(): void } {
-  const view = h("canvas", { class: "div-view" });
-  const tag = h("div", { class: "div-tag num" });
-  const end = h("div", { class: "div-end num" });
+  // gfx round 24 (the coordinator approved; raters: "show before and after side by side, zoomed on the hero"): two panes, the sent
+  // branch left and the edited one right, both in view the whole scene — the left plays first and holds on its end, then the right
+  const view = h("canvas", { class: "div-view a" }), view2 = h("canvas", { class: "div-view b" });
+  const tag = h("div", { class: "div-tag num" });   // (the phase's label, for the scene's line of sight; the panes carry their own)
+  const capA = h("div", { class: "div-ptag a num" }), capB = h("div", { class: "div-ptag b num" });
+  const end = h("div", { class: "div-end a num" }), end2 = h("div", { class: "div-end b num" });
   // (the scene takes no taps: a tap anywhere lets it go and still reaches what lies under it — the next edit is never a tap away)
-  const el = h("div", { class: "div-scene", hidden: true }, view, tag, end);
+  const el = h("div", { class: "div-scene", hidden: true }, view, view2, capA, capB, tag, end, end2);
   const onTap = (): void => skip();
   window.addEventListener("pointerdown", onTap, { capture: true });
   const line = h("button", { class: "div-line num", hidden: true, onclick: () => { if (cur) void play(cur, true); } });
-  let cur: Divergence | null = null, viewer: SceneViewer | null = null, viewerP: Promise<SceneViewer | null> | null = null;
+  let cur: Divergence | null = null, viewer: SceneViewer | null = null, viewer2: SceneViewer | null = null, viewerP: Promise<SceneViewer | null> | null = null;
   let timers: number[] = [], seq = 0, gone = false, asked = "", stills: SceneViewer[] = [], rulesGen = 0;
   const later = (ms: number, f: () => void): void => { timers.push(window.setTimeout(f, ms)); };
   const clearTimers = (): void => { for (const t of timers) clearTimeout(t); timers = []; };
   const dev = (k: string, v: unknown): void => { if ("__riddle" in window) ((window as unknown as { __scene?: Record<string, unknown> }).__scene ??= {})[k] = v; };
   /** The viewer, made once the scene may play (a WebGL context only while the camp has one to show). */
-  const ensureViewer = (): Promise<SceneViewer | null> => viewerP ??= makeViewer(view).then(({ viewer: v }) => { if (gone) { v.dispose(); return null; } viewer = v as SceneViewer; return viewer; }).catch(() => null);
+  const ensureViewer = (): Promise<SceneViewer | null> => viewerP ??= Promise.all([makeViewer(view), makeViewer(view2)]).then(([{ viewer: v }, { viewer: v2 }]) => {
+    if (gone) { v.dispose(); v2.dispose(); return null; }
+    viewer = v as SceneViewer; viewer.setQuiet?.(true); viewer2 = v2 as SceneViewer; viewer2.setQuiet?.(true); return viewer;
+  }).catch(() => null);
 
   function stop(): void {
-    clearTimers(); seq++; viewer?.setSpeed(0);
+    clearTimers(); seq++; viewer?.setSpeed(0); viewer2?.setSpeed(0);
     el.hidden = true; el.dataset.state = ""; delete el.dataset.phase;
     for (const s of stills) s.dispose(); stills = [];
     el.querySelector(".div-stills")?.remove();
@@ -77,27 +85,32 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
   async function play(d: Divergence, replayed = false): Promise<void> {
     stop();
     const my = ++seq;
-    el.hidden = false; el.dataset.state = "loading"; replace(tag, ""); replace(end, ""); end.classList.remove("show");
+    el.hidden = false; el.dataset.state = "loading"; replace(tag, ""); replace(end, ""); replace(end2, ""); end.classList.remove("show"); end2.classList.remove("show");
     if (reducedMotion()) { await stillsOf(d, my); return; }
     const v = await ensureViewer();
     if (my !== seq || gone) return;
-    if (!v) { stop(); return; }
-    v.resize?.();
+    if (!v || !viewer2) { stop(); return; }
+    v.resize?.(); viewer2.resize?.();
+    const sentTag = /* copy:callout */ `last run · ${rowTag(d.sent_row, d.sent.text)}`, newTag = /* copy:callout */ `${rowTag(d.new_row, d.new.text, app.rules.rows)} now`;
+    replace(capA, h("span", { class: "was" }, sentTag)); replace(capB, h("span", { class: "now" }, newTag));
+    branch(viewer2, d.new); viewer2.setSpeed(0);   // the edited branch waits on its first frame
     // before: the sent set's branch, ending on its run's end
     el.dataset.state = "playing"; el.dataset.phase = "sent";
     dev("playAt", performance.now()); dev("replayed", replayed);
-    replace(tag, h("span", { class: "was" }, /* copy:callout */ `sent · ${rowTag(d.sent_row)}`));
+    replace(tag, h("span", { class: "was" }, sentTag));
     branch(v, d.sent);
     dev("ends", []);
-    later(PHASE_MS, () => { if (my !== seq) return; replace(end, endText(d.sent_end)); ((window as unknown as { __scene?: { ends?: string[] } }).__scene?.ends)?.push(endText(d.sent_end)); end.className = `div-end num show ${d.sent_end.tier === "death" ? "down" : "up"}`; });
+    later(PHASE_MS, () => { if (my !== seq) return; replace(end, endText(d.sent_end)); ((window as unknown as { __scene?: { ends?: string[] } }).__scene?.ends)?.push(endText(d.sent_end)); end.className = `div-end a num show ${d.sent_end.tier === "death" ? "down" : "up"}`; });
     // after: the edited set's branch, ending on its own
     later(PHASE_MS + END_MS, () => {
-      if (my !== seq || !viewer) return;
-      el.dataset.phase = "new"; end.classList.remove("show");
-      replace(tag, h("span", { class: "now" }, /* copy:callout */ `${rowTag(d.new_row)} now`));
-      branch(viewer, d.new);
+      if (my !== seq || !viewer || !viewer2) return;
+      // (round 24b, raters: "only the right pane replays; the before side is frozen"): the sent branch plays again beside the new one,
+      // its end plate kept — both panes move while the edited branch runs
+      el.dataset.phase = "new"; branch(viewer, d.sent);
+      replace(tag, h("span", { class: "now" }, newTag));
+      branch(viewer2, d.new);
     });
-    later(2 * PHASE_MS + END_MS, () => { if (my !== seq) return; replace(end, endText(d.new_end)); ((window as unknown as { __scene?: { ends?: string[] } }).__scene?.ends)?.push(endText(d.new_end)); end.className = `div-end num show ${d.new_end.tier === "death" ? "down" : "up"}`; });
+    later(2 * PHASE_MS + END_MS, () => { if (my !== seq) return; replace(end2, endText(d.new_end)); ((window as unknown as { __scene?: { ends?: string[] } }).__scene?.ends)?.push(endText(d.new_end)); end2.className = `div-end b num show ${d.new_end.tier === "death" ? "down" : "up"}`; });
     later(2 * (PHASE_MS + END_MS) + LINGER_MS, () => { if (my !== seq) return; dev("doneAt", performance.now()); stop(); });
   }
   /** Reduced motion: the two branches' end frames side by side, each with its run's end, still. */
@@ -107,11 +120,11 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
       const c = h("canvas", { class: "div-still" });
       return { c, el: h("div", { class: "div-pane" }, c, h("div", { class: `div-cap num ${e.tier === "death" ? "down" : "up"}` }, label, " → ", endText(e))) };
     };
-    const a = pane(d.sent_end, /* copy:callout */ `sent · ${rowTag(d.sent_row)}`), b = pane(d.new_end, /* copy:callout */ `${rowTag(d.new_row)} now`);
+    const a = pane(d.sent_end, /* copy:callout */ `last run · ${rowTag(d.sent_row, d.sent.text)}`), b = pane(d.new_end, /* copy:callout */ `${rowTag(d.new_row, d.new.text, app.rules.rows)} now`);
     box.append(a.el, b.el); el.append(box);
     el.dataset.state = "still"; dev("playAt", performance.now());
     for (const [p, br] of [[a, d.sent], [b, d.new]] as const) {
-      const { viewer: v } = await makeViewer(p.c);
+      const { viewer: v } = await makeViewer(p.c); v.setQuiet?.(true);   // gfx round 4: a still names one foe, no plate over the hero
       if (my !== seq || gone) { v.dispose(); return; }
       const sv = v as SceneViewer; stills.push(sv); sv.resize?.();
       sv.load(br.end_snapshot); sv.setFrame?.("fight", { x: br.end_snapshot.hero.x, y: br.end_snapshot.hero.y, radius: FOCUS_R }); sv.setSpeed(0);
@@ -119,14 +132,13 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
   }
   /** The line under `vs sent`: `R5 now → lives · D9 · vs dies · D7`; inside the ±, `≈ ±6 · R3 fires 4× more` before it. */
   function paintLine(d: Divergence): void {
-    const vs = app.vsShown(), pm = vs ? Math.max(0, ...vs.depths.map((x) => x.pm ?? 0)) : 0;
-    const fires = firesText(d.fires?.[0]);
+    const fires = firesText(d.fires?.[0], app.rules.rows);
     line.hidden = false;
     replace(line,
-      d.inside ? h("span", { class: "div-flat" }, `≈${pm ? ` ±${Math.max(1, Math.round(pm * 100))}` : ""}${fires ? ` · ${fires}` : ""}`, h("i", { class: "sep" }, " · ")) : "",
-      h("b", { class: "now" }, /* copy:callout */ `${rowTag(d.new_row)} now`), " → ",
+      d.inside ? h("span", { class: "div-flat" }, /* copy:callout */ `same${fires ? ` · ${fires}` : ""}`, h("i", { class: "sep" }, " · ")) : "",
+      h("b", { class: "now" }, /* copy:callout */ `${rowTag(d.new_row, d.new.text, app.rules.rows)} now`), " → ",
       h("span", { class: d.new_end.tier === "death" ? "down" : "up" }, endText(d.new_end)),
-      h("i", { class: "sep" }, " · "), /* copy:callout */ "vs ", h("span", { class: d.sent_end.tier === "death" ? "down" : "up" }, endText(d.sent_end)));
+      h("i", { class: "sep" }, " · "), /* copy:callout */ "was ", h("span", { class: d.sent_end.tier === "death" ? "down" : "up" }, endText(d.sent_end)));
     line.dataset.inside = d.inside ? "1" : "0";
   }
   /** After an edit's refine: ask where the edited set first acts differently from the set sent, then play it (the lane is the refine's). */
@@ -136,6 +148,7 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
     if (gen !== rulesGen) return;
     const f = app.lastForecast, prev: RuleSet | null = app.sentSet();
     if (!f || f.refined !== true || !prev || !app.engine.divergence) return;
+    if (!sysOpen(app.lineage, "divergence")) return;   // Cut 29 §2: the scene opens with the Warlord met
     // Cut 28 §2 (AV: the scene said `R2 now → dies` when the pets had died): the scene is a row edit's — a route or any state change
     // is not a row that fires differently (the state's part is its own line, `party −2 jackals · death +24`)
     if (JSON.stringify(prev.rows.map((r) => [r.conds, r.verb])) === JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb]))) return;
@@ -158,5 +171,5 @@ export function renderScene(app: App): { el: HTMLElement; line: HTMLElement; dis
   // (a tick later: the refine's own `vs` is asked first on the same lane — the divergence then reads the panels it paired, cached)
   const offFc = app.onForecast((f) => { if (f.refined === true) { const at = performance.now(), gen = rulesGen; setTimeout(() => void ask(at, gen), 0); } });
   const offRules = app.onRules(() => { rulesGen++; stop(); cur = null; line.hidden = true; asked = ""; });
-  return { el, line, dispose: () => { gone = true; window.removeEventListener("pointerdown", onTap, { capture: true }); stop(); offFc(); offRules(); viewer?.dispose(); viewer = null; } };
+  return { el, line, dispose: () => { gone = true; window.removeEventListener("pointerdown", onTap, { capture: true }); stop(); offFc(); offRules(); viewer?.dispose(); viewer = null; viewer2?.dispose(); viewer2 = null; } };
 }

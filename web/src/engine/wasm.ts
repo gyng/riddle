@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove } from "./types";
+  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
 type GameCtor = (new (seed: number) => GameObj) & { fromSave?: (save: string) => GameObj };
@@ -107,6 +107,13 @@ export class WasmEngine implements Engine {
   forecastMove(prev: RuleSet): ForecastMove | null { return this.call("forecastMove", JSON.stringify(prev)); }
   swearOath(id: string): Lineage { return this.call("swearOath", id); }
   forswearOath(): Lineage { return this.call("forswearOath"); }
+  // Cut 29: throw `wasm: <name>` on a build without them
+  drawOath(): Lineage { return this.call("drawOath"); }
+  forswearOathId(id: string): Lineage { return this.call("forswearOathId", id); }
+  commission(): Lineage { return this.call("commission"); }
+  seenSystems(): Lineage { return this.call("seenSystems"); }
+  wallEdit(): WallEdit | null { return this.call("wallEdit"); }
+  setOrders(orders: StandingOrders): Lineage { return this.call("setOrders", JSON.stringify(orders)); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

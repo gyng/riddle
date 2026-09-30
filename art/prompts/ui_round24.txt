@@ -1,0 +1,18 @@
+You are painting UI assets for the game "Riddle" (a dark-fantasy phone roguelike). The target look is in
+/home/g/p/riddle/art/ui/targets/camp.png and /home/g/p/riddle/art/ui/targets/death.png — LOOK AT THOSE IMAGES FIRST (you may read
+them; read nothing else in the repository) and match their material language: blackened hammered iron, dark carved wood, worn
+gilding, aged parchment, warm amber candle/torch light. Warcraft III interface style, painterly-but-crisp.
+
+Use your built-in image_gen tool, one call per asset. Do NOT write code beyond a PIL resample/alpha fix. Do NOT modify anything
+outside /home/g/p/riddle/art/ui/frames/ and /home/g/p/riddle/art/ui/deco/. Save each final PNG (sRGB) to the exact path at the exact
+size (PIL Lanczos if needed). No text, no letters, no numbers, no watermarks. Every asset is RGBA with a TRUE TRANSPARENT background
+outside the object (no checkerboard, no blue key, no black fill): verify the four corners are alpha 0 and regenerate once if not.
+Do not leave _inspection_*.png or any other scratch file behind.
+
+1) /home/g/p/riddle/art/ui/frames/button.png — 1024x256 RGBA — a wide horizontal carved BUTTON PLAQUE seen straight on, filling the
+   canvas edge to edge with only a few px of transparent margin: a raised slab of dark carved walnut wood, its face EMPTY and flat in
+   the middle (a label will be written over it), a bevelled edge lit warm on the top and dark underneath, bound by a thin worn GILT
+   moulding all around, and at each short end a blackened iron end-cap clasp with a small round ruby-red gem and two rivets. The left
+   and right 18% hold the end caps; the middle 64% is plain face and moulding only so it can be stretched horizontally (9-slice).
+2) /home/g/p/riddle/art/ui/deco/candle.png — 256x384 RGBA — a short thick melted wax CANDLE, ivory wax with drips, on a small iron
+   dish, a warm bright flame with a soft golden halo, seen front-on, the object only.

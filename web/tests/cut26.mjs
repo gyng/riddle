@@ -48,7 +48,7 @@ const withLineage = (patch) => page.evaluate((patch) => { const r = window.__rid
 
 try {
   // ---- §2: the route chip line — only after the fork fact (a fresh lineage has seen none)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
   await camp();
   {
     await withLineage({ best_depth: 9, gold: 400 }); await sleep(300);
@@ -56,14 +56,14 @@ try {
     check(!before.shown && before.forks === 0, `no route line before a fork is seen (${before.shown ? "shown" : "hidden"}; forks ${before.forks})`);
   }
   // the fake's descent forks at D4 (`?fake_fork=1`: the D4 fork seen at boot, both lanes entered)
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=26&fake_fork=1`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=26&fake_fork=1`, { waitUntil: "domcontentloaded" });
   await camp();
   {
     await page.evaluate(async () => { const r = window.__riddle, b = JSON.parse(r.exportSave()), e = JSON.parse(b.engine); Object.assign(e.lineage, { best_depth: 7, gold: 400 }); b.engine = JSON.stringify(e); await r.importSave(JSON.stringify(b)); });
     await camp(); await sleep(300);
     const line = await txt(".camp .route-line");
     const above = await page.evaluate(() => { const l = document.querySelector(".camp .route-line"), r = document.querySelector(".camp .editor .row"); return !!l && !!r && l.getBoundingClientRect().bottom <= r.getBoundingClientRect().top + 1; });
-    check(line === "⑂ D4 burrows" && above, `after \`fork:4\` the chip line sits above the rows ("${line}"; above R1: ${above})`);
+    check(line === "route D4 burrows" && above, `after \`fork:4\` the chip line sits above the rows ("${line}"; above the first rule: ${above})`);
     await shot("cut26-route-line");
 
     // the fork tablet: both stairs priced for this set (the core's `forkForecast`), the set's lit
@@ -79,7 +79,7 @@ try {
     await page.waitForFunction((s0) => window.__riddle.forecastSeq > s0, seq0, { timeout: 15_000 }).catch(() => {});
     await sleep(400);
     const after = await page.evaluate(() => ({ route: window.__riddle.rules.route, sent: window.__riddle.__setRules.at(-1)?.route, seq: window.__riddle.forecastSeq, line: document.querySelector(".camp .route-line")?.textContent.replace(/\s+/g, " ").trim() }));
-    check(JSON.stringify(after.route) === "[4]" && JSON.stringify(after.sent) === "[4]" && after.seq > seq0 && after.line === "⑂ D4 fens",
+    check(JSON.stringify(after.route) === "[4]" && JSON.stringify(after.sent) === "[4]" && after.seq > seq0 && after.line === "route D4 fens",
       `a tap writes the route — the engine gets route [${after.sent}], the forecast reprices (${seq0} → ${after.seq}), the chips read "${after.line}"`);
     const vs = await page.evaluate(() => { const r = window.__riddle; return { pending: r.vsPending(), shown: !!r.vsShown(), line: document.querySelector(".shaft-vs-host")?.textContent.replace(/\s+/g, " ").trim() ?? "" }; });
     check(vs.pending || vs.shown, `the route change reads as an edit against the sent set (${vs.shown ? "move shown" : "vs sent …"}: "${vs.line}")`);
@@ -100,11 +100,11 @@ try {
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await sleep(400);
     const sh = await page.evaluate(() => ({ dbg: (window.__riddle.lastForecast?.depths ?? []).map((d) => `${d.depth}${d.biome ?? ""}`).join(","), lane4: document.querySelector(".shaft .notch[data-d='4'] .lane")?.textContent.trim(), lane6: document.querySelector(".shaft .notch[data-d='6'] .lane")?.textContent.trim(),
       front: document.querySelector(".shaft .notch[data-d='4'] .frontier")?.textContent.trim() }));
-    check(sh.lane4 === "fens" && sh.lane6 === "burrows" && sh.front === "burrows · D4", `the shaft on route [4]: D4 ${sh.lane4}, D6 ${sh.lane6}; the lane not taken "${sh.front}" (entered: no \`?\`) [${sh.dbg}]`);
+    check(sh.lane4 === "fens" && sh.lane6 === "burrows" && sh.front === "or burrows", `the shaft on route [4]: D4 ${sh.lane4}, D6 ${sh.lane6}; the lane not taken "${sh.front}" (entered: no \`?\`) [${sh.dbg}]`);
     await shot("cut26-shaft");
     await page.evaluate(() => { const r = window.__riddle; delete r.rules.route; r.rulesChanged(); r.lineage = { ...r.lineage, facts: r.lineage.facts.filter((f) => f !== "biome:fens") }; r.go({ kind: "camp" }); }); await sleep(700);
     const f2 = await txt(".shaft .notch[data-d='4'] .frontier");
-    check(f2 === "fens · D4 · untried", `on the near stair the far lane, never entered, is the frontier ("${f2}")`);
+    check(f2 === "or fens · untried", `on the near stair the far lane, never entered, is the frontier ("${f2}")`);
   }
 
   // ---- §2: the start sheet lists lit (lane, depth) pairs — this route's selectable, another route's dim
@@ -161,16 +161,16 @@ try {
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: d }), death(10 / 12));
     await waitFor((x) => x?.screen === "death", "the lucky gap"); await sleep(300);
     const a = await page.evaluate(() => ({ seal: document.querySelector(".death-line .verdict")?.textContent, lean: document.querySelector(".death-line .lean")?.textContent, surv: document.querySelector("button.patch .surv")?.textContent, reach: document.querySelector("button.patch .delta")?.textContent.replace(/\s+/g, " ").trim() }));
-    check(a.seal === "gap" && a.lean === "10/12 live unpatched" && /unpatched 10\/12/.test(a.surv ?? ""), `a gap 10 of 12 unpatched replays survive reads \`${a.seal} · ${a.lean}\` beside "${a.surv}" (the stamp and its counts agree)`);
-    check(a.reach === "reach D5 80→4% ±3", `a patch's reach reads from→to ("${a.reach}"; AP: \`reach D5 −76\`)`);
+    check(a.seal === "you died" && a.lean === "10/12 replays survive" && /was 10\/12/.test(a.surv ?? ""), `a gap 10 of 12 unpatched replays survive reads \`${a.seal} · ${a.lean}\` beside "${a.surv}" (the stamp and its counts agree)`);
+    check(a.reach === "reach D5 80→4%", `a patch's reach reads from→to ("${a.reach}"; AP: \`reach D5 −76\`)`);
     await shot("cut26-dice-lean");
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: d }), death(2 / 12)); await sleep(300);
     const b = await txt(".death-line .verdict"), bl = await txt(".death-line .lean");
-    check(b === "gap" && bl === null, `a gap 2 of 12 unpatched replays survive reads \`${b}\`, no lean`);
+    check(b === "you died" && bl === null, `a gap 2 of 12 unpatched replays survive reads \`${b}\`, no lean`);
     // the core's own `lean` stands whatever the counts
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: { ...d, lean: "dice" } }), death(5 / 12)); await sleep(300);
     const c = await txt(".death-line .lean");
-    check(/live unpatched$/.test(c ?? ""), `the core's \`lean: dice\` reads beside the stamp ("${c}")`);
+    check(/replays survive$/.test(c ?? ""), `the core's \`lean: dice\` reads beside the stamp ("${c}")`);
   }
 
   // ---- Cut 26 (core, risks): a `route` death names the stair (`D5 fens`), its lead tablet takes the other (`take burrows`)
@@ -181,7 +181,7 @@ try {
     await waitFor((x) => x?.screen === "death", "the route death"); await sleep(300);
     const d = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict")?.textContent,
       lead: document.querySelector("button.patch.route-fix")?.textContent.replace(/\s+/g, " ").trim(), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent }));
-    check(d.cause === "bloat · D7 · D5 fens" && d.seal === "route" && /take burrows/.test(d.lead ?? "") && /survives 9\/12 · unpatched 3\/12/.test(d.lead ?? "") && d.gem === "9/12",
+    check(d.cause === "bloat · D7 · D5 fens" && d.seal === "route" && /take burrows/.test(d.lead ?? "") && /survives 9\/12 · was 3\/12/.test(d.lead ?? "") && d.gem === "9/12",
       `a route death: "${d.cause}" · ${d.seal}; lead "${d.lead}", gem ${d.gem}`);
     await shot("cut26-route-death");
     await page.locator(".patch-gem").click({ timeout: 5000 }); await sleep(400);
@@ -203,7 +203,7 @@ try {
     await sleep(300);
     const d = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict")?.textContent,
       tab: document.querySelector("button.patch.driven-line")?.textContent.replace(/\s+/g, " ").trim(), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent, ledger: document.querySelector(".death .ledger-line")?.textContent }));
-    check(has > 0 && d.seal === "driven" && d.cause === "Warlord · D8 · shield wall" && /try: attack boss/.test(d.tab ?? "") && d.gem === "write",
+    check(has > 0 && d.seal === "repelled" && d.cause === "Warlord · D8 · shield wall" && /try: attack boss/.test(d.tab ?? "") && d.gem === "write",
       `a drive-off opens its verdict from the report's line (chip ${has}): "${d.cause}" · ${d.seal}, tablet "${d.tab}", gem \`${d.gem}\`, "${(d.ledger ?? "").slice(0, 30)}"`);
     await shot("cut26-driven");
     // (a kept verdict; the gem writes the counter at the top)

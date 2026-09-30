@@ -1,0 +1,43 @@
+You are painting ENVIRONMENT TILES for the game "Riddle" (a phone roguelike seen top-down). FIRST look at
+/home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read nothing else in the repository): its dungeon is
+the TARGET LOOK — painterly dark-fantasy pixel art, lit stone rooms, moss, torchlight, crisp readable forms.
+
+Use your built-in image_gen tool, one call per tile below. Do NOT write code beyond a PIL resample/alpha fix. Do NOT touch
+anything outside /home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. If a file
+exists at an output path, OVERWRITE it.
+
+HOW THE TILES ARE USED (critical): each 1024x1024 image is box-downscaled to a 16x16 tile and drawn tiled edge to edge in a
+top-down room, beside hand-painted characters about 1.5 tiles tall. So:
+- Paint each tile as if it were a 16x16 pixel-art tile blown up 64x: BOLD shapes, 2-4 large forms, mortar / seam lines about
+  64 px thick at 1024, no fine hairline detail, no text, no frame, no border, no vignette, no drop shadow.
+- Opaque tiles fill the whole square edge to edge and must TILE SEAMLESSLY with themselves (floors and wall tops in every
+  direction, wall faces left-to-right). Keep the floors' overall value and hue the same across variants so they mix.
+- Floors are MID-DARK and calm (the characters must read on top of them); the wall tops are built masonry a little lighter than
+  the floor (never black); the wall faces' ledge is the brightest line in the tile set.
+- Light from the upper-left, warm; no strong cast shadows.
+- Keyed props (barrel, crate, pot): the object only, centred, filling about 70% of the tile, on a flat uniform pure blue
+  #0000FF background, no ground shadow, no blue on the object.
+Save each as a 1024x1024 PNG at the exact path.
+
+
+
+--- BIOME foundry: a FOUNDRY: soot-black iron floor plates with rivets and scorched brick, walls of blackened brick with glowing orange seams and rust streaks, a hot orange-and-charcoal palette.
+1) /home/g/p/riddle/art/generated/envp_foundry_skulls.png — a low PILE OF SKULLS AND BONES, four or five skulls with dark eye sockets and a few long bones, lit upper-left; the object only, on flat pure blue #0000FF.
+2) /home/g/p/riddle/art/generated/envp_foundry_chest.png — a closed TREASURE CHEST with iron bands and a lock plate, domed lid, lit upper-left; the object only, on flat pure blue #0000FF.
+3) /home/g/p/riddle/art/generated/envp_foundry_rack.png — a WEAPON RACK standing against a wall, front view: two spears and a sword upright in a wooden frame, a round shield leaning at its foot; the object only, on flat pure blue #0000FF.
+4) /home/g/p/riddle/art/generated/envp_foundry_statue.png — a small broken STATUE on a square plinth, front view: a hooded kneeling knight carved in the biome's stone, one arm broken off; the object only, on flat pure blue #0000FF.
+5) /home/g/p/riddle/art/generated/envp_foundry_bones.png — a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF.
+
+--- BIOME deep: the DEEP caves: wet blue-black cave rock floors, rounded stone walls glistening with moisture, tiny bioluminescent cyan fungus specks, an abyssal navy-and-slate palette.
+6) /home/g/p/riddle/art/generated/envp_deep_skulls.png — a low PILE OF SKULLS AND BONES, four or five skulls with dark eye sockets and a few long bones, lit upper-left; the object only, on flat pure blue #0000FF.
+7) /home/g/p/riddle/art/generated/envp_deep_chest.png — a closed TREASURE CHEST with iron bands and a lock plate, domed lid, lit upper-left; the object only, on flat pure blue #0000FF.
+8) /home/g/p/riddle/art/generated/envp_deep_rack.png — a WEAPON RACK standing against a wall, front view: two spears and a sword upright in a wooden frame, a round shield leaning at its foot; the object only, on flat pure blue #0000FF.
+9) /home/g/p/riddle/art/generated/envp_deep_statue.png — a small broken STATUE on a square plinth, front view: a hooded kneeling knight carved in the biome's stone, one arm broken off; the object only, on flat pure blue #0000FF.
+10) /home/g/p/riddle/art/generated/envp_deep_bones.png — a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF.
+
+--- BIOME sanctum: a SANCTUM: pale cream marble flagstones with thin gold inlay lines, walls of polished pale stone with gilt trim, a calm ivory-and-gold palette (keep the values mid, never pure white).
+11) /home/g/p/riddle/art/generated/envp_sanctum_skulls.png — a low PILE OF SKULLS AND BONES, four or five skulls with dark eye sockets and a few long bones, lit upper-left; the object only, on flat pure blue #0000FF.
+12) /home/g/p/riddle/art/generated/envp_sanctum_chest.png — a closed TREASURE CHEST with iron bands and a lock plate, domed lid, lit upper-left; the object only, on flat pure blue #0000FF.
+13) /home/g/p/riddle/art/generated/envp_sanctum_rack.png — a WEAPON RACK standing against a wall, front view: two spears and a sword upright in a wooden frame, a round shield leaning at its foot; the object only, on flat pure blue #0000FF.
+14) /home/g/p/riddle/art/generated/envp_sanctum_statue.png — a small broken STATUE on a square plinth, front view: a hooded kneeling knight carved in the biome's stone, one arm broken off; the object only, on flat pure blue #0000FF.
+15) /home/g/p/riddle/art/generated/envp_sanctum_bones.png — a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF.

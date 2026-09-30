@@ -8,7 +8,7 @@ import { chainOf, rowRef, type ChainCtx } from "./chain";
 import { lastRun } from "./runlog";
 import { h } from "./dom";
 import { openSheet } from "./sheet";
-import { verbLabel } from "./tokens";
+import { refName, verbLabel } from "./tokens";
 
 export const TRACE_ROWS = 5;
 export const EXIT_TRACE_ROWS = 10;
@@ -38,14 +38,14 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
   const t0 = turns[0]?.t ?? Infinity;
   const stepsAt = (from: number, to: number): (readonly [number, HTMLElement])[] => (mx?.steps ?? []).filter((s) => s.t > from && s.t <= to && s.t >= t0).map((s) => [s.t, stepRow(s)] as const);
   const table = h("table", { class: `trace num${ctx.home ? " home" : ""}` },
-    h("thead", null, h("tr", null, /* copy:label */ ...["t", "R", "hp", "foes", ...(tele ? ["tele"] : [])].map((s) => h("th", null, s)))),
+    h("thead", null, h("tr", null, /* copy:label */ ...["t", "rule", "hp", "foes", ...(tele ? ["tele"] : [])].map((s) => h("th", null, s)))),
     // QA 524827b (qaAB: `8002 R1 return 12 · 8013 R1 return 6` — hp fell with no row): the blows between two shown actions are rows of
     // their own before the second (engine data: `TraceTurn.blows`), so every hp step reads
     h("tbody", null, ...turns.flatMap((t, i) => [...(i > 0 ? mergeByT((t.blows ?? []).map((b) => [b.t, blowRow(b)] as const), stepsAt(turns[i - 1].t, t.t)) : []), h("tr", null,
       h("td", null, `${t.t}`),
       // QA 912e135: a player row's turn names the row as a button when the screen can open it (`ChainCtx.onRow`)
       h("td", { class: "r" }, ...(t.row >= 0 && ctx.onRow ? [rowRef(t.row, verbLabel(t.verb), ctx.onRow)]
-        : [t.row >= 0 ? `R${t.row + 1}` : t.row === -1 ? /* copy:label */ "trait" : "·", " ", h("small", { class: "dim" }, verbLabel(t.verb))])),
+        : [t.row >= 0 ? refName(t.row) : t.row === -1 ? h("span", null, /* copy:label */ "trait", " ", h("small", { class: "dim" }, verbLabel(t.verb))) : h("span", null, "· ", h("small", { class: "dim" }, verbLabel(t.verb)))])),
       h("td", null, hpCell(t.hp, t.t)),
       h("td", null, `${t.foes}`),
       tele ? h("td", { class: "tele" }, t.telegraphs.join(" · ")) : "",
@@ -127,7 +127,7 @@ function traceTableRest(turns: Trace["turns"], ctx: ChainCtx): HTMLElement[] {
   // each `R2 foes appeared after` whole on its line (the list wraps between reasons, never inside one)
   const last = turns[turns.length - 1];
   const hpAt = (why: string): string => ctx.hpAt && last && /\bhp\b/.test(why) ? ` ${ctx.hpAt(last.t, last.hp)}` : "";
-  const rowsLine = lastRows.length ? h("div", { class: "rows-line num dim" }, ...lastRows.flatMap((r, i) => [i ? " · " : "", ctx.onRow ? h("span", { class: "rw" }, rowRef(r.row, undefined, ctx.onRow), ` ${r.why}${hpAt(r.why)}`) : h("span", { class: "rw" }, `R${r.row + 1} ${r.why}${hpAt(r.why)}`)])) : null;
+  const rowsLine = lastRows.length ? h("div", { class: "rows-line num dim" }, ...lastRows.flatMap((r, i) => [i ? " · " : "", ctx.onRow ? h("span", { class: "rw" }, rowRef(r.row, undefined, ctx.onRow), ` ${r.why}${hpAt(r.why)}`) : h("span", { class: "rw" }, `${refName(r.row)} ${r.why}${hpAt(r.why)}`)])) : null;
   return rowsLine ? [rowsLine] : [];
 }
 /** Cut 9 §5: a `trace` chip; tapping it opens the table (Cut 11 §3: the last 10 turns and the chain) in a sheet.

@@ -51,7 +51,7 @@ void main() {
     acc += uC[i] * f * f * vis;
   }
   // wall-foot AO: the wall density a little around an open texel (walls themselves are the unlit mass: no AO on them)
-  float dens = wall(p + vec2(0.55, 0.0)) + wall(p - vec2(0.55, 0.0)) + wall(p + vec2(0.0, 0.55)) + 1.4 * wall(p - vec2(0.0, 0.6));
+  float dens = wall(p + vec2(0.55, 0.0)) + wall(p - vec2(0.55, 0.0)) + wall(p + vec2(0.0, 0.55)) + 2.2 * wall(p - vec2(0.0, 0.6));   // (round 21: the wall above casts the deepest shadow onto the floor at its foot)
   float ao = 1.0 - uAO * (1.0 - self) * smoothstep(0.0, 2.2, dens);
   gl_FragColor = vec4(min(acc * 0.5, vec3(1.0)), ao);   // stored halved: sums up to 2 survive the 8-bit target
 }`;
@@ -81,7 +81,7 @@ export class LightField {
         uMask: { value: this.mask }, uMap: { value: new THREE.Vector2(1, 1) },
         uL: { value: Array.from({ length: MAX_FIELD }, () => new THREE.Vector4()) },
         uC: { value: Array.from({ length: MAX_FIELD }, () => new THREE.Vector3()) },
-        uN: { value: 0 }, uAO: { value: 0.32 },
+        uN: { value: 0 }, uAO: { value: 0.5 },   // gfx round 21 (raters: "cast wall shadows so the room reads as built"): 0.32 → 0.5
       },
     });
     const q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mat);
@@ -89,6 +89,8 @@ export class LightField {
     this.scene.add(q);
   }
 
+  /** cohort 24: after a GL context restore, the next setMask re-uploads (three re-creates its textures; this drops our key) */
+  invalidate(): void { this.maskKey = ""; this.mask.needsUpdate = true; }
   /** the wall mask (re-uploaded only when `key` — the floor and its tile revision — changes) */
   setMask(w: number, h: number, isWall: (i: number) => boolean, key: string): void {
     if (key === this.maskKey) return;

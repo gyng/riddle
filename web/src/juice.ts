@@ -112,3 +112,34 @@ function chromeSounds(): void {
 if (typeof MutationObserver !== "undefined") {
   if (document.body) chromeSounds(); else addEventListener("DOMContentLoaded", chromeSounds, { once: true });
 }
+
+/** gfx round 7 (the report's strip was a dim, empty parchment for ~0.6 s every round): a new screen's first frame can take ~0.5 s to
+ *  raster on the GPU, and the document timeline does not advance meanwhile — an arrival animation from opacity 0 is frozen invisible
+ *  the whole time, then lands finished. A screen gets `.arrived` two frames after it mounts (its first frame presented); the report's
+ *  plaques draw at rest before that and stamp after it (juice.css). */
+function arrivals(): void {
+  const app = document.getElementById("app"); if (!app) return;
+  const mark = (el: Element): void => { if (el.tagName === "MAIN" && !el.classList.contains("arrived")) requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("arrived"))); };
+  new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n instanceof Element) mark(n); }).observe(app, { childList: true });
+  for (const el of app.children) mark(el);
+  // gfx round 7 (raters Q, R, the camp: "four frames identical; the braziers don't even flicker"): live flames in the vista's braziers —
+  // two decorative tongues each (juice.css `.j-flame`, transforms only), added wherever a vista mounts
+  const flames = (v: Element): void => {
+    if (v.querySelector(":scope > .j-flame")) return;
+    for (const cls of ["j-glow l", "j-glow r", "j-flame l", "j-flame r"]) { const f = document.createElement("i"); f.className = cls; f.setAttribute("aria-hidden", "true"); v.appendChild(f); }
+  };
+  new MutationObserver((ms) => {
+    for (const m of ms) for (const n of m.addedNodes) {
+      if (!(n instanceof Element)) continue;
+      if (n.classList.contains("vista")) flames(n); else if (n.firstElementChild) for (const v of n.querySelectorAll(".vista")) flames(v);
+    }
+  }).observe(app, { childList: true, subtree: true });
+  for (const v of app.querySelectorAll(".vista")) flames(v);
+  // gfx round 10 (the coordinator: the `.arrived` pattern on every opening — the oath board's strip was "only the camp dimming"): a sheet
+  // is drawn at rest in its first frame and settles once that frame is presented (juice.css)
+  const sheet = (n: Node): void => { if (n instanceof HTMLElement && n.classList.contains("sheet-wrap")) requestAnimationFrame(() => requestAnimationFrame(() => n.classList.add("arrived"))); };
+  new MutationObserver((ms) => { for (const m of ms) m.addedNodes.forEach(sheet); }).observe(document.body, { childList: true });
+}
+if (typeof MutationObserver !== "undefined" && on) {
+  if (document.getElementById("app")) arrivals(); else addEventListener("DOMContentLoaded", arrivals, { once: true });
+}

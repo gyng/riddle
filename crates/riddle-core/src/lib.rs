@@ -25,9 +25,13 @@ pub mod rules;
 pub mod save;
 pub mod sifter;
 pub mod situations;
+pub mod systems;
+pub mod wall;
+pub mod meters;
 pub mod tiles;
 pub mod tokens;
 pub mod trace;
+pub mod traits;
 pub mod turn;
 pub mod wire;
 
@@ -112,6 +116,49 @@ impl Game {
     pub fn forswear_oath(&mut self) -> Result<(), String> {
         oath::forswear(self)
     }
+    /// Cut 29 §1: forswear the sworn oath `id` (either slot).
+    pub fn forswear_oath_id(&mut self, id: &str) -> Result<(), String> {
+        oath::forswear_id(self, id)
+    }
+    /// Cut 29 §1: an oath draw (◆2, from T2): a fresh standing oath; its id.
+    pub fn draw_oath(&mut self) -> Result<String, String> {
+        oath::draw(self)
+    }
+    /// Cut 29 §5: commission the lineage's next work with gold; its label.
+    pub fn commission(&mut self) -> Result<String, String> {
+        kit::commission(self)
+    }
+    /// Cut 29 §1 (E1): at a wall (the best depth held `wall::WALL_DAYS` days), the edit that passes
+    /// it — searched once a day of the lineage's clock (`wall::search`, seconds natively, far more in
+    /// wasm: the client asks it on the report, off the foreground), then the cached offer
+    /// (`Lineage.wall`) until a new best clears it. `None` off a wall or when no edit passes.
+    pub fn wall_edit(&mut self) -> Option<crate::wire::WallEdit> {
+        if !crate::wall::at_wall(&self.lineage) {
+            return None;
+        }
+        if self.lineage.wall_day != Some(self.lineage.day) {
+            self.lineage.wall_day = Some(self.lineage.day);
+            self.lineage.wall_offer = crate::wall::search(self);
+        }
+        self.lineage.wall_offer.clone()
+    }
+    /// Cut 29 §2: the camp has shown the systems opened since it last looked (the glint is spent).
+    pub fn seen_systems(&mut self) {
+        self.lineage.systems_new.clear();
+    }
+    /// Cut 29 §4: the standing orders at once (`keep`, `cage`, `start`, `repeat`, `insure`); each
+    /// through its own setter, so each keeps its rules (an unknown keep is refused; the repeat
+    /// off refunds the shelf).
+    pub fn set_orders(&mut self, o: &crate::wire::StandingOrders) -> Result<(), String> {
+        self.set_keep_pref(&o.keep)?;
+        self.set_vault_pref(&o.cage)?;
+        if o.start != self.lineage.start.max(1) {
+            self.set_start(o.start)?;
+        }
+        self.set_restock(o.repeat);
+        self.lineage.orders.insure = o.insure;
+        Ok(())
+    }
     /// Cut 28 §2: the camp's move against the set sent, attributed to state and rows
     /// (`forecast::forecast_move`); `None` when no send was recorded.
     pub fn forecast_move(&self, prev: &RuleSet) -> Option<ForecastMove> {
@@ -133,3 +180,7 @@ mod tests_cut27;
 mod tests_cut27_seams;
 #[cfg(test)]
 mod tests_cut28;
+#[cfg(test)]
+mod tests_cut29;
+#[cfg(test)]
+mod tests_cut30;

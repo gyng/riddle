@@ -16,7 +16,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
-SRC_F, SRC_I, SRC_P = ROOT / "art/ui/frames", ROOT / "art/ui/icons", ROOT / "art/ui/portraits"
+SRC_F, SRC_I, SRC_P, SRC_B, SRC_D = ROOT / "art/ui/frames", ROOT / "art/ui/icons", ROOT / "art/ui/portraits", ROOT / "art/ui/backdrops", ROOT / "art/ui/deco"
 OUT = ROOT / "web/public/ui"
 MANIFEST = ROOT / "web/src/ui/skin.json"
 
@@ -25,8 +25,11 @@ FRAMES = {
     "bar": (0.5, 40), "console": (0.5, 96), "panel": (0.5, 56), "tablet": (0.5, 48), "tablet_card": (0.5, 48),
     "tile": (0.5, 48), "tile_pressed": (0.5, 48), "well": (0.5, None), "gem": (0.5, None), "gem_red": (0.5, None),
     "banner": (0.5, None), "gauge": (0.5, 16), "stud": (1.0, None), "seal": (0.5, None),
+    "button": (0.5, None),   # gfx round 24: the carved primary button (the WHY sheet's EDIT): a 9-slice the CSS slices itself
+    "scroll": (0.5, None),   # gfx round 8: the report's hanging scroll (9-slice top/bottom 160, sides 72 at source: the CSS writes its own slice)
 }
 ICON_PX = 96   # 48 CSS px at 2x
+BACKDROP_W = 720   # gfx round 1: painted backdrops behind a place (death, report), 1024×1536 opaque portraits from Codex
 PORTRAIT_PX = 256   # art pass: the well's face is 56 CSS px (168 device px at 3x); square, opaque — the CSS circle masks it
 
 
@@ -71,8 +74,59 @@ def main() -> None:
             continue
         im.resize((PORTRAIT_PX, PORTRAIT_PX), Image.LANCZOS).save(OUT / "portraits" / f"{p.stem}.webp", quality=88, method=6)
         portraits.append(p.stem)
-    MANIFEST.write_text(json.dumps({"frames": frames, "icons": icons, "portraits": portraits}, indent=1) + "\n")
-    print(f"ui-skin: {len(frames)} frames, {len(icons)} icons, {len(portraits)} portraits -> web/public/ui/" + (f"; unusable: {', '.join(bad)}" if bad else ""))
+    (OUT / "backdrops").mkdir(parents=True, exist_ok=True)
+    backdrops = []
+    for p in sorted(SRC_B.glob("*.png")) if SRC_B.exists() else []:
+        im = Image.open(p).convert("RGB")
+        if im.height < im.width or im.width < 512:
+            bad.append(str(p.relative_to(ROOT)))
+            continue
+        im.resize((BACKDROP_W, round(im.height * BACKDROP_W / im.width)), Image.LANCZOS).save(OUT / "backdrops" / f"{p.stem}.webp", quality=82, method=6)
+        backdrops.append(p.stem)
+    # gfx round 4: decoration (the desktop columns' carved pillar, the camp's braziers): half size, alpha kept where it has one
+    (OUT / "deco").mkdir(parents=True, exist_ok=True)
+    deco = []
+    for p in sorted(SRC_D.glob("*.png")) if SRC_D.exists() else []:
+        im = Image.open(p)
+        im = im.convert("RGBA") if im.mode in ("RGBA", "LA", "P") else im.convert("RGB")
+        if im.mode == "RGBA" and not usable(im):
+            bad.append(str(p.relative_to(ROOT)))
+            continue
+        im.resize((im.width * 3 // 4, im.height * 3 // 4), Image.LANCZOS).save(OUT / "deco" / f"{p.stem}.webp", quality=84, method=6)
+        deco.append(p.stem)
+    # gfx round 10: effect art (the boss's shield and its shards, art/ui/fx): 256 px on its long side, alpha kept
+    (OUT / "fx").mkdir(parents=True, exist_ok=True)
+    fx = []
+    for p in sorted((ROOT / "art/ui/fx").glob("*.png")) if (ROOT / "art/ui/fx").exists() else []:
+        im = Image.open(p).convert("RGBA")
+        if not usable(im):
+            bad.append(str(p.relative_to(ROOT)))
+            continue
+        sc = 256 / max(im.size)
+        im.resize((round(im.width * sc), round(im.height * sc)), Image.LANCZOS).save(OUT / "fx" / f"{p.stem}.webp", quality=88, method=6)
+        fx.append(p.stem)
+        # gfx round 21 (raters: "the painted shield clashes with the pixel sprites"): the same art cut to the sprites' pixel register — a box
+        # downscale (the shield 28 px, a shard 12 px), <= 16 colours, a hard alpha and a 1-px dark outline; drawn `pixelated` 3x in the view
+        px = 32 if p.stem == "shield" else 14
+        s2 = px / max(im.size)
+        small = im.resize((max(1, round(im.width * s2)), max(1, round(im.height * s2))), Image.BOX)
+        a = small.getchannel("A").point(lambda v: 255 if v >= 110 else 0)
+        from PIL import ImageEnhance
+        rgb = ImageEnhance.Contrast(ImageEnhance.Brightness(small.convert("RGB")).enhance(1.35)).enhance(1.4)   # (a box average goes muddy at 28 px)
+        rgb = rgb.quantize(16, method=Image.Quantize.MEDIANCUT).convert("RGB")
+        pix = Image.new("RGBA", small.size, (0, 0, 0, 0))
+        pix.paste(rgb, (0, 0), a)
+        edge = Image.new("RGBA", (small.width + 2, small.height + 2), (0, 0, 0, 0))
+        for dx, dy in ((0, 1), (2, 1), (1, 0), (1, 2)):
+            edge.paste((16, 10, 8, 255), (dx, dy), a)
+        edge.alpha_composite(pix, (1, 1))
+        edge.save(OUT / "fx" / f"{p.stem}_px.png")
+        fx.append(f"{p.stem}_px")
+    # keys other tools own (tools/foe-portraits.py `foes`) are kept
+    old = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
+    old.update({"frames": frames, "icons": icons, "portraits": portraits, "backdrops": backdrops, "deco": deco, "fx": fx})
+    MANIFEST.write_text(json.dumps(old, indent=1) + "\n")
+    print(f"ui-skin: {len(frames)} frames, {len(icons)} icons, {len(portraits)} portraits, {len(backdrops)} backdrops, {len(deco)} deco, {len(fx)} fx -> web/public/ui/" + (f"; unusable: {', '.join(bad)}" if bad else ""))
 
 
 if __name__ == "__main__":

@@ -263,6 +263,8 @@ const BURST_N = 3;
 /** the chrome's cues (clicks) never take a burst slot; the same one at most once per CLICK_GAP_S (a double-fired tap is one click) */
 const CHROME: ReadonlySet<CueName> = new Set(["click", "edit"]);
 const CLICK_GAP_S = 0.035;
+const DUCK = new Set<string>(["boss_in", "boss_break", "boss_down", "verdict", "exit_death", "exit_bank", "exit_return"]);
+const DUCK_DB = 9;
 class Audio {
   private ctx: AudioContext | null = null;
   private bus: GainNode | null = null;
@@ -317,9 +319,21 @@ class Audio {
     }
     const sp = specOf(name, opts, this.rng);
     schedule(ctx, this.bus, t0, sp, this.rng);
+    if (DUCK.has(name)) this.duck(t0);
     this.log.push({ cue: name, at: t0, v: sig(sp) });
     if (this.log.length > 2000) this.log.splice(0, 1000);
     return true;
+  }
+
+  /** gfx round 2 (docs/JUICE.md §10): a big moment (a boss's entrance, break or fall, the verdict, a run's end) ducks the ambience bed
+   *  under it — down DUCK_DB in 40 ms, held, back over ~0.9 s — so the moment owns the room. `ducks` counts them (dev / tests). */
+  ducks = 0;
+  private duck(t0: number): void {
+    const b = this.bed_; if (!b) return;
+    this.ducks++;
+    const g = b.g.gain, low = BED_GAIN * Math.pow(10, -DUCK_DB / 20);
+    g.cancelScheduledValues(t0); g.setValueAtTime(g.value, t0); g.linearRampToValueAtTime(low, t0 + 0.04);
+    g.setValueAtTime(low, t0 + 0.65); g.linearRampToValueAtTime(BED_GAIN, t0 + 1.55);
   }
 
   /** The camp pad: on with a biome (root by biome), off with null. */

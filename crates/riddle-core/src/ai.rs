@@ -828,7 +828,9 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
 /// Rest: +4 HP with no foe in view, not poisoned, not in a hazard. Every rest is a noise.
 fn verb_rest(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     if run.hero.hp < run.hero.max_hp && v.foes.is_empty() && run.hero.poison.1 == 0 && !in_hazard(run, run.hero.pos) {
-        run.hero.hp = (run.hero.hp + 4).min(run.hero.max_hp);
+        // Cut 30: `rested` — a live gift heals more on a rest.
+        let extra = crate::traits::rest_extra_now(run, cx);
+        run.hero.hp = (run.hero.hp + 4 + extra).min(run.hero.max_hp);
         crate::turn::rest_clock(run, cx);
         true
     } else {
@@ -1559,7 +1561,8 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
     let boost = 100 + 25 * item.enchant.max(0);
     let outcome = match kind.as_str() {
         "heal" => {
-            let add = run.hero.max_hp / 2 * boost / 100;
+            // Cut 30: `thin` — a heal potion heals ⅔.
+            let add = run.hero.max_hp / 2 * boost / 100 * crate::traits::heal_pct(run) / 100;
             run.hero.hp = (run.hero.hp + add).min(run.hero.max_hp);
             run.hero.poison = (0, 0);
             run.drank_heal = true;
@@ -1614,6 +1617,8 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
         }
         _ => "nothing".into(),
     };
+    // Cut 30: `iron gut` — a malevolent drink harms half.
+    crate::traits::after_drink(run, cx, &kind);
     // Cut 13 §3: a use to no effect (a heal at full HP, a kind with nothing to do) is not
     // rebought by the restock.
     if outcome == "nothing" || (kind == "heal" && hp >= run.hero.max_hp) {
@@ -2342,10 +2347,18 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                 _ => "attack",
             };
             if !(repeat && last == basic) {
-                return match basic {
+                // Cut 29 (the dayplayer's `always → cadence`, bought for the Mirror King, struck the
+                // Warlord's shield-goblins until he drove the hero off, every send, for nine days):
+                // the plain blow goes to a boss in view first, as the boss's own counter would.
+                let target = if v.foes.iter().any(|&i| run.monsters[i].is_boss()) { "tag:boss" } else { "nearest" };
+                let hit = match basic {
+                    "bolt" => verb_bolt(run, cx, target, v),
+                    _ => verb_attack(run, cx, target, v, false),
+                };
+                return hit || (target != "nearest" && match basic {
                     "bolt" => verb_bolt(run, cx, "nearest", v),
                     _ => verb_attack(run, cx, "nearest", v, false),
-                };
+                });
             }
             let hp = run.hero.pos;
             if last != "shield_bash" && class_has_verb(run.hero.class, run.hero.level, "shield_bash") && run.hero.bash_cd == 0 && v.adj >= 1 && verb_attack(run, cx, "nearest", v, true) {
@@ -3617,10 +3630,17 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         let n = run.tamed.len() as u32;
         let cid = 1_000_000 + run.id * 100 + n;
         // A stray keeps the name a previous heir gave it.
-        let name = match run.monsters[mi].name.clone().filter(|_| stray) {
+        // Cut 29 §6 (AX): a grudge tamed keeps its name — its grudge closes as tamed (never
+        // avenged: `LineageState::grudges`, at the run's end).
+        let grudge = run.monsters[mi].grudge.then(|| run.monsters[mi].name.clone()).flatten();
+        let name = match run.monsters[mi].name.clone().filter(|_| stray).or(grudge.clone()) {
             Some(n) => n,
             None => crate::descent::grudge_name(&mut run.rng),
         };
+        if let Some(g) = grudge {
+            run.monsters[mi].grudge = false;
+            run.tamed_grudges.push(g);
+        }
         {
             let m = &mut run.monsters[mi];
             m.ally = true;
@@ -3645,6 +3665,7 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         run.tamed.push((run.turn, kind.clone()));
         learn(run, cx, format!("tamed:{kind}"));
         note(run, cx, format!("Tamed a {}: {}.", crate::engine::kind_title(&kind), name));
+        crate::oath::beat(run, cx, run.acting_row);   // Cut 28b: a `tame a new kind` oath is kept here
         callout(run, cx, "tamed!");
     } else {
         callout(run, cx, "slipped");

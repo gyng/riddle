@@ -1,0 +1,50 @@
+You are painting ENVIRONMENT TILES for the game "Riddle" (a phone roguelike seen top-down). FIRST look at
+/home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read nothing else in the repository): its dungeon is
+the TARGET LOOK — painterly dark-fantasy pixel art, lit stone rooms, moss, torchlight, crisp readable forms.
+
+Use your built-in image_gen tool, one call per tile below. Do NOT write code beyond a PIL resample/alpha fix. Do NOT touch
+anything outside /home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. If a file
+exists at an output path, OVERWRITE it.
+
+HOW THE TILES ARE USED (critical): each 1024x1024 image is box-downscaled to a 16x16 tile and drawn tiled edge to edge in a
+top-down room, beside hand-painted characters about 1.5 tiles tall. So:
+- Paint each tile as if it were a 16x16 pixel-art tile blown up 64x: BOLD shapes, 2-4 large forms, mortar / seam lines about
+  64 px thick at 1024, no fine hairline detail, no text, no frame, no border, no vignette, no drop shadow.
+- Opaque tiles fill the whole square edge to edge and must TILE SEAMLESSLY with themselves (floors and wall tops in every
+  direction, wall faces left-to-right). Keep the floors' overall value and hue the same across variants so they mix.
+- Floors are MID-DARK and calm (the characters must read on top of them); the wall tops are built masonry a little lighter than
+  the floor (never black); the wall faces' ledge is the brightest line in the tile set.
+- Light from the upper-left, warm; no strong cast shadows.
+- Keyed props (barrel, crate, pot): the object only, centred, filling about 70% of the tile, on a flat uniform pure blue
+  #0000FF background, no ground shadow, no blue on the object.
+Save each as a 1024x1024 PNG at the exact path.
+
+
+
+--- BIOME warrens: EXACTLY the target watch.png dungeon: grey-green dressed flagstones with olive moss in the seams, charcoal mortar, dried blood specks here and there, warm amber torchlight on grey stone. Walls: grey stone blocks with a pale capstone ledge.
+1) /home/g/p/riddle/art/generated/envp_warrens_skulls.png — a low PILE OF SKULLS AND BONES, four or five skulls with dark eye sockets and a few long bones, lit upper-left; the object only, on flat pure blue #0000FF.
+2) /home/g/p/riddle/art/generated/envp_warrens_chest.png — a closed TREASURE CHEST with iron bands and a lock plate, domed lid, lit upper-left; the object only, on flat pure blue #0000FF.
+3) /home/g/p/riddle/art/generated/envp_warrens_rack.png — a WEAPON RACK standing against a wall, front view: two spears and a sword upright in a wooden frame, a round shield leaning at its foot; the object only, on flat pure blue #0000FF.
+4) /home/g/p/riddle/art/generated/envp_warrens_statue.png — a small broken STATUE on a square plinth, front view: a hooded kneeling knight carved in the biome's stone, one arm broken off; the object only, on flat pure blue #0000FF.
+5) /home/g/p/riddle/art/generated/envp_warrens_bones.png — a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF.
+
+--- BIOME burrows: a dug-out BURROW, warm and earthy (nothing grey): packed ochre-brown earth floors with pebbles and root tendrils instead of flagstones (the floor 'stone' is a slab of packed earth), walls of rough sandstone blocks shored with REDDISH TIMBER beams, a warm orange-brown palette.
+6) /home/g/p/riddle/art/generated/envp_burrows_skulls.png — a low PILE OF SKULLS AND BONES, four or five skulls with dark eye sockets and a few long bones, lit upper-left; the object only, on flat pure blue #0000FF.
+7) /home/g/p/riddle/art/generated/envp_burrows_chest.png — a closed TREASURE CHEST with iron bands and a lock plate, domed lid, lit upper-left; the object only, on flat pure blue #0000FF.
+8) /home/g/p/riddle/art/generated/envp_burrows_rack.png — a WEAPON RACK standing against a wall, front view: two spears and a sword upright in a wooden frame, a round shield leaning at its foot; the object only, on flat pure blue #0000FF.
+9) /home/g/p/riddle/art/generated/envp_burrows_statue.png — a small broken STATUE on a square plinth, front view: a hooded kneeling knight carved in the biome's stone, one arm broken off; the object only, on flat pure blue #0000FF.
+10) /home/g/p/riddle/art/generated/envp_burrows_bones.png — a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF.
+
+--- BIOME fens: a drowned FEN, cool and wet (nothing ochre): the floor is a sunken BOARDWALK of weathered grey-green planks with dark teal bog water showing between them and reed tufts at the edges; walls of mossy piled stones and rotten logs; a cold teal-green palette with pale grey wood.
+11) /home/g/p/riddle/art/generated/envp_fens_skulls.png — a low PILE OF SKULLS AND BONES, four or five skulls with dark eye sockets and a few long bones, lit upper-left; the object only, on flat pure blue #0000FF.
+12) /home/g/p/riddle/art/generated/envp_fens_chest.png — a closed TREASURE CHEST with iron bands and a lock plate, domed lid, lit upper-left; the object only, on flat pure blue #0000FF.
+13) /home/g/p/riddle/art/generated/envp_fens_rack.png — a WEAPON RACK standing against a wall, front view: two spears and a sword upright in a wooden frame, a round shield leaning at its foot; the object only, on flat pure blue #0000FF.
+14) /home/g/p/riddle/art/generated/envp_fens_statue.png — a small broken STATUE on a square plinth, front view: a hooded kneeling knight carved in the biome's stone, one arm broken off; the object only, on flat pure blue #0000FF.
+15) /home/g/p/riddle/art/generated/envp_fens_bones.png — a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF.
+
+--- BIOME crypt: a CRYPT: cold blue-grey granite flagstones with carved borders, walls of tomb-niche blocks with engraved runes, faint violet shadows, bone-ivory accents.
+16) /home/g/p/riddle/art/generated/envp_crypt_skulls.png — a low PILE OF SKULLS AND BONES, four or five skulls with dark eye sockets and a few long bones, lit upper-left; the object only, on flat pure blue #0000FF.
+17) /home/g/p/riddle/art/generated/envp_crypt_chest.png — a closed TREASURE CHEST with iron bands and a lock plate, domed lid, lit upper-left; the object only, on flat pure blue #0000FF.
+18) /home/g/p/riddle/art/generated/envp_crypt_rack.png — a WEAPON RACK standing against a wall, front view: two spears and a sword upright in a wooden frame, a round shield leaning at its foot; the object only, on flat pure blue #0000FF.
+19) /home/g/p/riddle/art/generated/envp_crypt_statue.png — a small broken STATUE on a square plinth, front view: a hooded kneeling knight carved in the biome's stone, one arm broken off; the object only, on flat pure blue #0000FF.
+20) /home/g/p/riddle/art/generated/envp_crypt_bones.png — a scatter of old BONES and a cracked skull lying flat on the floor, seen from above; the object only, on flat pure blue #0000FF.

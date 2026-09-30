@@ -5,7 +5,7 @@
 // gone and the patch lands at its measured `insert_at` (one up when the dropped row sat above it); dismissing the sheet leaves the
 // set whole on the death screen. A patch the set already holds reads `at R1` and inserts nothing; a stall `replace` never overflows.
 // Runs on the browser harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219) with the fake engine
-// (`?engine=fake&dev=1`; the fake's max_rows is 4 without row unlocks).
+// (`?engine=fake&systems=none&dev=1`; the fake's max_rows is 4 without row unlocks).
 //
 //   node web/tests/patch-overflow.mjs        (or `pnpm test` in web/)
 //
@@ -45,7 +45,7 @@ const editor = () => page.evaluate(() => ({
 }));
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
 
@@ -81,7 +81,7 @@ try {
   let rows = await sheet();
   check((await state()).screen === "death" && rows.length === max, `the tap opens the drop sheet on the death screen (${rows.length} rows)`);
   check((await setNow()) === set0, "no row left before a row is tapped");
-  check(rows.every((r, i) => r.row === i && r.text.startsWith(`R${i + 1} `) && r.fired === ""), `the sheet lists the set's rows, no count when none is known (${rows.map((r) => r.text.slice(0, 18)).join(" · ")})`);
+  check(rows.every((r, i) => r.row === i && / → /.test(r.text) && r.fired === ""), `the sheet lists the set's rows, no count when none is known (${rows.map((r) => r.text.slice(0, 18)).join(" · ")})`);
   check(rows.filter((r) => r.least).length === 0, "nothing fired: all rows tie, none is marked (QA on 3d71c33: the last row was an arbitrary pick)");
   // dismissed: the set whole, the death screen up
   await page.keyboard.press("Escape"); await sleep(200);
@@ -141,7 +141,7 @@ try {
   await waitFor((s) => s?.screen === "death", "death again");
   const heldText = await page.locator("button.patch .surv").first().innerText();
   const heldTarget = await page.evaluate(() => document.querySelector("button.patch .target")?.textContent.trim() ?? "");
-  check(heldText === "at R2" && heldTarget === "", `a held patch reads where it sits: "${heldText}" (no drop)`);
+  check(heldText === "already written" && heldTarget === "", `a held patch reads where it sits: "${heldText}" (no drop)`);
   await applyTop();
   await waitFor((s) => s?.screen === "camp", "camp after the held tap");
   await sleep(200);

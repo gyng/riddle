@@ -61,6 +61,10 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     let facts_before = game.lineage.facts.clone();
     let class = game.lineage.class.name().to_string();
     let rank_before = game.lineage.rank;
+    // Cut 29 §1: the lineage's clock — a new day closes the last one's net and lapses the oaths
+    // sworn on an earlier day.
+    let day0 = (game.lineage.clock_s / crate::engine::DAY_S) as u32;
+    crate::oath::new_day(&mut game.lineage, day0);
     let mut consumed: u64 = 0;
     let mut stall = game.stall_runs;
     let mut sampled = false;
@@ -192,6 +196,20 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     }
     game.stall_runs = stall;
     game.offline = false;
+    // Cut 29 §1: the night's mark — ◆1 for each day this absence covered whose sends came home (a
+    // bank or a return), each day once.
+    game.lineage.clock_s += elapsed_s;
+    if elapsed_s > 0 && game.batch.banked + game.batch.returned > 0 {
+        let last = ((game.lineage.clock_s - 1) / crate::engine::DAY_S) as u32;
+        let first = day0.max(game.lineage.mark_day);
+        if last >= first {
+            let n = last - first + 1;
+            game.lineage.marks += n;
+            game.lineage.mark_day = last + 1;
+            game.batch.night_marks += n;
+            game.batch.marks += n;
+        }
+    }
     report_with(game, elapsed_s, &facts_before, &class, rank_before, sampled, full, with_stall)
 }
 
@@ -226,6 +244,13 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
     let worst_death = if full { worst_death_id.and_then(|id| crate::trace::death(game, id)) } else { None };
     let pending = crate::meta::pending(game);
     let stall = if with_stall { stall_verdict(game) } else { None };
+    // Cut 29 §1 (E1): the wall's edit is not searched here (20–60 s native at a wall, minutes in
+    // wasm, inside an offline slice): the client asks `Game::wall_edit` on the report.
+    // Cut 28b: the lineage's first plateau (the stall's window, verdict or not) opens the oath board
+    game.lineage.oath_open |= game.stall.runs >= STALL_MIN_RUNS;
+    // Cut 29 §2: the first plateau opens the order and the vs line (and the oaths).
+    let opened = crate::systems::update(&mut game.lineage, game.stall.runs >= STALL_MIN_RUNS);
+    game.batch.systems_opened.extend(opened);
     // Cut 12: no run is started here — an idle run at turn 0 would have packed the supplies
     // before the player bought them at camp (`start_run` packs). `live` is the run in
     // progress only when one exists (never after an absence; kept on the wire as optional).
@@ -266,7 +291,8 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
     for &(_, i) in order.iter().rev().filter(|&&(_, i)| salvaged[i].gold > 0).take((-short).max(0) as usize).collect::<Vec<_>>() {
         salvaged[i].gold -= 1;
     }
-    let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price });
+    let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price,
+        broken: b.oath_breaks.values().sum(), cause: b.oath_breaks.iter().max_by_key(|(c, n)| (**n, std::cmp::Reverse(c.len()))).map(|(c, _)| c.clone()) });
     let mut r = ReturnReport { lead: Vec::new(), oath,
         elapsed_s,
         runs: b.runs,
@@ -279,6 +305,11 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
         pending,
         reel,
         marks_earned: b.marks,
+        night_marks: b.night_marks,
+        systems_opened: b.systems_opened.clone(),
+        meters: (!b.meters.is_empty()).then(|| crate::meters::wire(&b.meters)),
+        fallen: b.fallen.clone(),
+        oaths_kept: b.oaths_kept.iter().map(|o| crate::wire::OathReward { kind: o.kind.clone(), id: o.id.clone(), label: crate::oath::text(o) }).collect(),
         worst_death,
         worst_death_id,
         live,
@@ -348,7 +379,12 @@ pub fn lead_of(game: &Game, r: &ReturnReport) -> Vec<crate::wire::ReportLead> {
     let mut out: Vec<crate::wire::ReportLead> = Vec::new();
     let mut push = |k: &str, text: String| out.push(crate::wire::ReportLead { k: k.into(), text });
     if let Some(o) = &r.oath {
-        push("oath", if o.done { format!("oath kept: {}", o.text) } else { format!("oath {} · {}/{}", o.text, o.kept, o.runs) });
+        // Cut 28b: a send that broke it says what did (`oath broken: R2 return ×11`)
+        push("oath", match (&o.cause, o.done) {
+            (_, true) => format!("oath kept: {}", o.text),
+            (Some(c), false) if o.broken > 0 => format!("oath broken: {c} ×{}", o.broken),
+            _ => format!("oath {} · {}/{}", o.text, o.kept, o.runs),
+        });
     }
     if r.stall.is_some() {
         push("plateau", format!("plateau: none past D{}", game.lineage.best_depth));

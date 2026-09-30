@@ -235,3 +235,523 @@ of the three passed on a quiet re-run (`clarity: ok (67)`, `cut25: ok (22)`, `qa
 - **Numbers**: rAF p50/p95 16.7/16.7–16.8 in every scene of `measure.mjs` (headed D3D12, high, 1.5×; `scratchpad/juice3/perf-after`),
   as in pass 2; draw calls 17–18. Client gates fights, looks, cut13, cut16, cut22, cut25, cut26, qaj pass (fights/cut13/cut25/qaj
   failed differently under load 30–78 and passed alone on a quiet window).
+
+## 10. The gfx eval (2026-09-27): a blind-rated harness, six rounds, the desktop frame, context loss
+
+Brief (`scratchpad/queued/gfx-eval-brief.md`): an eval harness with blind visual raters, then improve → re-rate rounds until the mean is
+≥ 8.0 with no moment under 7.0, or stop after three consecutive rounds of < +0.2 and name what blocks the next gain. It stopped on that rule:
+**4.90 → 5.97** (min 3.65 → 5.00), rounds 4–6 at −0.04, −0.02, +0.19.
+
+### 10.1 The harness (tools/)
+
+- `tools/gfx-round.sh <out>` — one round on a **frozen server** (a fresh no-HMR Vite, `web/tests/vite.test.config.ts`: another agent's edit
+  reloaded the walk's pages mid-capture twice) → `tools/gfx-eval.mjs`: headed Chromium on the GPU, the same walk every round — the real
+  engine (seed 4242: a run watched at `normal`, `?absent=8h` → the report, the worst death, the camp with four rules, an edit and its scene,
+  the why sheet, the forecast, the oath board), the fake engine with `?fake_god=1` (new dev knob, `engine/fake.ts`: the hero never drops under
+  1 hp) for the Fens at D6 and a fight, `render-demo.html?boss=1` for the boss's entrance, break and fall, and 1440 × 900 for desktop
+  camp / watch / death / report / why sheet. Per moment: `<name>.png`; `<name>-strip.png`, 4 frames 180 ms apart from the compositor's
+  screencast (CDP `Page.startScreencast`, timestamped — screenshots took 100–300 ms each under load and missed openings), anchored on the
+  tap for sheets (a DOM click: Playwright's actionability waits pushed the opening out of the window); `frames.json` (rAF p50/p95/p99, the
+  viewer's cpuMs); `anims.json` (every CSS animation running after the trigger: name, duration, delay, easing); `layout.json` (the owner's
+  check (a): console, portrait and gem on screen, nothing over the gem at its centre and four inner points, no horizontal scroll).
+- `rater/`: every shot under a neutral name + `prompt.txt` (`tools/gfx-rater-prompt.txt`): an art director's brief, the four targets, 0–10 on
+  readability · hierarchy · target · motion · juice with one quoted reason each and three changes. Two fresh general-purpose raters a round,
+  never reused (A–N); `scratchpad/gfx-eval/score.py` averages them. The two raters' means agreed within 0.52 every round.
+- `tools/gfx-audio.mjs` — the §7 measurement as a tool (OfflineAudioContext through the game's chain).
+- `web/tests/layout.mjs` — the IA checks as a gate (phone: every screen, every sheet, the scene; desktop: three columns, console ≥ 90 %,
+  a sheet beside its tablet). `web/tests/ctxloss.mjs` — the context-loss must-fix (§10.4).
+
+### 10.2 Scores (mean of the two raters' five criteria; `scratchpad/gfx-eval/round*/`)
+
+| moment | r0 | r1 | r2 | r3 | r4 | r5 | r6 (final) | Δ |
+|---|---|---|---|---|---|---|---|---|
+| watch-warrens | 5.35 | 5.20 | 5.25 | 5.55 | 5.50 | 5.50 | 5.75 | +0.40 |
+| report | 5.45 | 5.60 | 5.90 | 6.15 | 5.40 | 6.30 | 5.35 | -0.10 |
+| death | 5.95 | 6.80 | 6.65 | 6.70 | 6.90 | 6.90 | 7.20 | +1.25 |
+| camp | 5.35 | 5.70 | 5.55 | 5.15 | 6.15 | 5.80 | 5.40 | +0.05 |
+| scene | 4.80 | 5.80 | 5.40 | 5.15 | 6.40 | 4.50 | 5.45 | +0.65 |
+| edit | 4.55 | 5.40 | 5.60 | 5.90 | 5.45 | 6.30 | 6.10 | +1.55 |
+| forecast | 4.75 | 5.30 | 5.75 | 6.30 | 5.75 | 6.40 | 6.35 | +1.60 |
+| oaths | 4.75 | 4.60 | 5.20 | 5.90 | 5.80 | 6.10 | 6.25 | +1.50 |
+| watch-fens | 3.65 | 4.60 | 4.80 | 5.00 | 4.80 | 3.90 | 5.05 | +1.40 |
+| fight | 4.80 | 5.10 | 5.35 | 5.90 | 5.15 | 5.40 | 5.55 | +0.75 |
+| boss-in | 5.85 | 6.50 | 6.40 | 6.95 | 5.80 | 6.70 | 7.00 | +1.15 |
+| boss-break | 5.45 | 5.70 | 5.15 | 6.10 | 6.20 | 6.10 | 6.80 | +1.35 |
+| boss-fall | 5.15 | 5.70 | 5.65 | 6.35 | 6.05 | 5.60 | 6.65 | +1.50 |
+| d-watch | 3.85 | 4.40 | 4.85 | 5.15 | 6.15 | 5.50 | 5.90 | +2.05 |
+| d-report | 4.65 | 4.60 | 5.35 | 5.50 | 5.20 | 5.80 | 5.00 | +0.35 |
+| d-death | 5.20 | 5.80 | 5.60 | 6.10 | 6.75 | 6.20 | 6.60 | +1.40 |
+| d-camp | 4.55 | 6.10 | 5.60 | 5.75 | 5.65 | 5.50 | 5.75 | +1.20 |
+| d-edit | 4.05 | 4.50 | 5.00 | 5.45 | 5.35 | 5.60 | 5.35 | +1.30 |
+| **mean** | **4.90** | **5.41** | **5.50** | **5.84** | **5.80** | **5.78** | **5.97** | **+1.08** |
+| min | 3.65 | 4.40 | 4.80 | 5.00 | 4.80 | 3.90 | 5.00 | |
+
+Before/after: `scratchpad/gfx-eval/sheet.png` (phone, round 0 over round 6), `sheet-desktop.png`.
+
+### 10.3 What each round changed (all kept: each round's losses were strip timing or a regression fixed the round after)
+
+- **Round 1** — render: the callout and the fight caption are a DOM iron plate with a notch (`tags.ts` `Plate`; `debugText` boxes kept), the
+  unexplored void a dark Voronoi rock that fades from the lit edge (`blit.ts`, FX ≥ 1 only), ambient 0.66 → 0.95 of the field, a wider warmer
+  hero light, the Warrens' saturation 0.55 → 0.78, damage numbers at full size, slash crescents on landed blows, the Burrows/Warrens/Crypt
+  water redrawn from the Fens' art in their ramps (it was a 1-texel checker), glowing gas puffs (the 55 % screen-door read as a checker), the
+  phone watch zoomed (`PHONE_TEXELS` 120 → 100, desktop 112). Fake engine: `R2 attack` callouts in the core's order (`attack attack nearest`),
+  `blade` drawn as `spectral_blade` (a magenta fallback jug). Art (Codex, QC'd): 13 action icons `v_*`, the death and report backdrops.
+  CSS: the gilded primary plaque, amber reach troughs, the scene's iron frame, embers, the vista's fire, the banner's sway and seal glint.
+- **Round 2** — the action's icon plaque on every rule tablet, the why sheet, the fix tablets and the desktop's read-only tablets; the forecast's
+  try row back in ink on parchment; the primary as a dark iron plaque with rivets and gilt letters (the gold face drowned its word at 1440);
+  the report's plaques stamp in; the seal slams with a dust ring; name plates capped to the hostiles nearest the hero; the ambience bed
+  ducks 9 dB under a boss's entrance, break or fall, the verdict and a run's end (`audio.ts`, gated in `audio.mjs`); the desktop rules column
+  lights the rule that acted.
+- **Round 3** — no black frames on a frame cut (`CUT_FRAMES` 2 → 0); the hero's hurt flash 0.5 → 0.28; sheets and panels unroll from their
+  top edge (they faded from 30–40 % opacity: "a double exposure"); the oath board deals its tablets in; rune plates in empty command slots (at QA K's ≤ 0.2 opacity, `ui.mjs`);
+  the stock in sunk wells (and the frame's grid column pinned to the viewport: the wells' min-content once pushed the console 6 px off
+  screen — the harness's layout check caught it).
+- **Round 4** — art (Codex): the carved pillar (a hooded knight's alcove, banner, sconce) behind the desktop's side columns and the braziers
+  at the vista's feet; the edit's scene is quiet (one name, no plate over the hero); a boss keeps off the hero (`BOSS_COVER` 0.1); the guard's
+  break splits his shield over him (`tags.ts` `shatter`); the shaft a size up.
+- **Round 5** — a boss drops into his arena (`fx.ts` `lift`, 3 ticks, then the landing squash); a small foe steps out from behind the hero;
+  gas tiles drift as smaller blobs inside denser puffs; the camera leans toward the seen ground when no foe frames it; glints and mist on
+  visible water; sheets without the backdrop blur (it cost their first frame ~0.2 s).
+- **Round 6** — damage numbers are outlined DOM glyphs (the bitmap `80` read as `$0`); a plate that would climb over more than two other plates
+  is left off (a crowd keeps three rows of names); a small view (< 320 CSS px: the scene) lets the hero take 2/5 of its height; the viewer waits
+  ≤ 1.5 s for the atlas before its first frame (the scene showed the primitive fallback); rising sparks off the braziers.
+
+### 10.4 The must-fix and the IA additions
+
+- **WebGL context loss** (`render/index.ts`, new `render/view2d.ts`, `render/fallback.ts`): `webglcontextlost` is prevented, the view drops to a
+  Canvas-2D drawing of the same replay state (atlas tiles and sprites, hero light) while the clock, `▶▶|`, the beats and the exit run on;
+  `webglcontextrestored` rebuilds (a new GPU timer, textures and the light mask re-uploaded, normals re-derived) and hides the 2D view. A
+  renderer that cannot be created mounts the 2D viewer with the full Viewer API (the old placeholder had no clock: `▶▶|` died on it). Disposal
+  now forces the context loss, so the scene's and the stills' contexts are freed at once (Chrome drops the oldest past ~16 — a likely cause
+  of AW's). `web/tests/ctxloss.mjs`: loss mid-watch → 2D view, ticks advance, restore → GL again; loss → `▶▶|` reaches the exit; a page with no
+  WebGL at all → the run reaches its exit.
+- **Desktop** (`web/src/wide.css`, `ui/frame.ts` `wideCols`, `ui/sheet.ts` `placeWide`): ≥ 1024 px the frame is one grid edge to edge — the
+  rules column left, the well centre, the shaft right with the meters' slot under it, the console across the bottom, the top bar unchanged;
+  sheets open beside their tablet. Phones are untouched (everything inside the media query).
+- **Mobile**: the layout gate holds the console, portrait and gem visible and uncovered on every screen, sheet and the scene.
+
+### 10.5 Audio (`scratchpad/gfx-eval/round6/audio.json`)
+
+Unchanged cues measure as §7.1 (0 clipped samples; the three-cue stack −0.6 dBFS before the limiter; 12 live strikes, 0 consecutive
+identical). New: the bed ducks 9 dB (40 ms down, held 0.6 s, back over 0.9 s) under `boss_in`, `boss_break`, `boss_down`, `verdict`, `exit_*`.
+
+### 10.6 Frame times
+
+Captured on a machine another agent held at load 30–70 on 32 cores for the whole session, so no number here is a clean claim: round 0 (load
+13–30) read p50/p95 16.7/16.7–16.8 on every phone moment and the desktop watch; round 1 (load 15–20, after the ember layer was moved to a
+compositor transform — a blended background-position animation had taken the camp's p95 to 33 ms) read 16.7/16.7–16.8 on every phone moment,
+the desktop watch 16.7/33.4; round 6 (load 40–69) reads 16.7/16.7–16.8 on the camp, death, Fens, fight and boss, 33/50–83 on the Warrens watch,
+the report and the desktop watch — and the untouched `low` tier read the same 33/50 at 1440 × 900 in the same minute, so load, not the tier,
+sets those. The `low` tier's shader path is unchanged (the rock is `FX > 0`). A quiet-window run of `tools/gfx-round.sh` is owed.
+
+### 10.7 What blocks the next gain (why rounds 4–6 stalled)
+
+1. **Sprite scale vs tile scale** (every rater, every round: "the hero is 2–3 tiles tall, hides the foe he fights", "sprites at twice the
+   tiles' pixel density"). The sprites are authored at 2× the tiles; shrinking them in the renderer breaks the pixel grid. Needs an art call
+   (re-author the bestiary and heroes at tile density, a Codex batch of ~60) or a design call on the dungeon's zoom.
+2. **The black of the unexplored floor** ("half the view is void"). Fog of war is game truth; the rock texture and the camera's lean helped
+   (+0.40 on the Warrens watch). More needs a design call (a lit fog texture art pass, or a tighter frame per room).
+3. **Motion on still screens** (camp, report, desktop: 2.5–4 every round whatever the flicker, embers, sparks). Four frames 180 ms apart do
+   not show ambient life at half size; the raters score these screens as "frozen". Needs either larger ambient motion (a feel risk the owner
+   should rule on) or a rubric change for screens that should be still.
+4. **The report's arrival** (motion 2–3): its plaques render ~0.6 s after the screen mounts (the report's own async content), so the strip
+   is a dim, empty parchment. A client/engine timing fix (report.ts).
+5. **Copy-bound asks** the copy law forbids a visual pass to answer: `BROKEN`/`SLAIN` plates, the report's four-line head, the D8 row's
+   words, `fired 19/13754 turns`, the fix tablets' three numbers, `highlig…` truncated in the console. Needs the copy owner.
+6. **Fake-engine moments**: the Fens and the fight are shot from the fake engine (the real one never reached D5 in a scripted run); its
+   crowds pile on the hero. A dev fixture (a real save that starts at D6) would rate the real game.
+
+### 10.8 Rounds 7–9 (2026-09-28, resumed from the HANDOFF list): sprite scale, real saves, arrivals, the scroll — stopped again on the rule
+
+| moment | r6 | r7 | r8 | r9 |
+|---|---|---|---|---|
+| watch-warrens | 5.75 | 5.60 | 6.25 | 6.20 |
+| report | 5.35 | 6.10 | 5.90 | 6.10 |
+| death | 7.20 | 6.90 | 6.95 | 7.05 |
+| camp | 5.40 | 6.00 | 5.90 | 6.40 |
+| scene | 5.45 | 5.00 | 5.50 | 5.85 |
+| edit | 6.10 | 6.20 | 6.25 | 6.10 |
+| forecast | 6.35 | 6.40 | 6.25 | 6.10 |
+| oaths | 6.25 | 5.80 | 5.85 | 5.50 |
+| watch-fens | 5.05 | 5.70 | 5.25 | 5.55 |
+| fight | 5.55 | 5.30 | 6.55 | 6.70 |
+| boss-in | 7.00 | 6.80 | 6.80 | 6.90 |
+| boss-break | 6.80 | 6.40 | 6.00 | 5.60 |
+| boss-fall | 6.65 | 6.80 | 6.40 | 6.10 |
+| d-watch | 5.90 | 5.90 | 6.35 | 5.75 |
+| d-report | 5.00 | 6.20 | 5.60 | 5.75 |
+| d-death | 6.60 | 6.70 | 6.50 | 6.25 |
+| d-camp | 5.75 | 6.70 | 6.15 | 6.35 |
+| d-edit | 5.35 | 5.80 | 6.15 | 5.85 |
+| **mean** | **5.97** | **6.13** | **6.14** | **6.12** |
+| min | 5.00 | 5.00 | 5.25 | 5.50 |
+
+Raters Q R (r7), S T (r8), U V (r9), fresh each round; the two raters' means agreed within 0.3 every round. The rounds moved +0.16, +0.01 and −0.02,
+so the stop rule applies again. The Fens and fight moments are real saves from r7 on, and the boss demo runs at the phone's 100 texels, so
+those rows are not strictly comparable with r0–r6.
+
+- **Sprite scale** (the #1 ask, rounds 0–6): `SPRITE_SCALE` (`render/palette.ts`, dev `?sprite=`) multiplies every entity's runtime size, cut
+  down by area on the sprite grid (`atlas.ts putDown`, the procedural fallbacks included); `HERO_TEXELS` and `view2d.ts` follow it (the 2D
+  view had drawn sprites at 2×: `texel_h` now comes from the atlas meta). A blind pick (raters O and P, four candidates: 1.0 at 100 texels,
+  0.62 at 80, 0.5 at 66, 0.5 at 100) put **0.5 at the watch's zoom unchanged** first for both ("one world at one density"). The fight
+  frame's zoom is ≤ 1.25× the map's (2× smeared the half-size sprites). The desktop's `DESK_TEXELS` is 112 → 84, and a view under 320 CSS px
+  (the edit's scene) shows ~half the texels. After a hero-cover push, a stack keeps its fan (fights.mjs's stack checks).
+  "Scale" was no longer named in r8–r9.
+- **Real saves** (`tools/gfx-eval.mjs phoneDeep`): `web/tests/fixtures/deep.json` imported, `setStart(9)` gives the Fens at D9 and `setStart(5)`
+  gives a fight at D6, shot in the fight frame with a foe in view and no title card. `--q` / `--qdemo` pass dev params. `d-edit`'s strip is
+  now its opening.
+- **The report's arrival**: the strip was a dim, empty parchment because the GPU rasters a new screen's first frame for ~0.5 s on this box
+  (LoAF: one 450–500 ms render frame; trace: `RasterDecoderImpl::DoEndRasterCHROMIUM` 400+ ms on the GPU process; no main-thread long
+  task). The document timeline does not advance meanwhile, so every fade-from-0 arrival sits invisible, then lands already finished. A
+  screen now gets `.arrived` two frames after it mounts (`juice.ts arrivals`). The report's plaques and lines draw at rest and hop or nudge
+  once the frame is presented. Plaques are visible at 33 ms (they were at 0 opacity until ~600 ms). The oath board's opening has the same
+  stall: its strip showed "only the camp dimming" in r9 (motion 3.5–4.5).
+- **The lit fog edge** (`blit.ts`, FX > 0): the rock beside explored ground takes the light of the seen texels next to it (8 directions,
+  1–3 half-tiles out; only drawn world texels lend light, so an unseen room never shows through). A 1-texel dark outline goes round every
+  sprite. The Fens grade is darker and less saturated.
+- **UI**: the report is a hanging scroll (`art/ui/frames/scroll.png`, Codex, QC'd; 9-slice rolls in `tools/ui-skin.py` → `skin-scroll`).
+  Sheets carry riveted iron corner brackets and a deep shadow. A rule's ordinal sits in a recessed stud. Oath seals sit whole inside the card,
+  rewards in icon plaques, a short purse in red. The four-stat topbar draws a size down at ≤ 440 px (a D11 save ran `best` under the gear).
+  The death and report wells fade at their foot instead of cutting a text line. `by heirs 2–14` stays on one line. Damage numbers start over
+  the shoulder, not the face.
+- **Still screens**: live flame tongues and a stepped fire-glow pool on the vista's braziers (`i.j-flame`/`i.j-glow`, container units,
+  transforms and opacity only), and embers a size up and quicker. Camp motion went 4 → 5.5 at best, but the desktop camp and report still
+  read "static" at the strip's half size.
+- **Harness**: `tools/gfx-round.sh` leaked its Vite server every round (`setsid` forked, and the trap's group kill missed it). The subshell
+  now `exec`s it.
+
+Frame times: a quiet window at the start of the session (load 0.5; `round7-base`) read p50/p95 **16.7/16.7–16.8 on every phone moment**
+(watch, Fens, fight, boss, camp, report, death). The desktop watch read 33/33.5 as the load rose to 23. Rounds 7–9 were captured at load
+35–100 (other agents' gates) and read 33/50–67; the viewer's CPU stays at 1.6–1.9 ms, and the added shader work (edge light, outline) runs on
+a ≤ 204 × 294 target. A quiet-window desktop measurement is still owed.
+
+**What blocks the next gain** (the same plateau: ~6.1, with rater noise about ±0.2):
+1. **Art that CSS cannot make**, asked for by every rater: corpse and death sprites for bosses ("a dark smear"), translucent spectral wraiths
+   ("grey static blobs": the renderer has no per-sprite alpha, since alpha is the layer tag), props in rooms (barrels, banners, bones), a
+   literal shield-shatter graphic with shards, a painted backdrop behind the report's scroll (candles, helmet, gold) as in `report.png`,
+   killer portraits. This needs a Codex batch of ~15–25 assets plus renderer hooks (a death pose frame, an ethereal flag).
+2. **The GPU raster stall on this box** hides every opening animation (report, oath board, sheets on desktop: motion 3.5–5). A real device
+   may not stall. The rubric measures it here, so either rate on a machine without the WSL D3D12 raster path, or pre-raster (keep screens
+   mounted and hidden) — a client architecture call.
+3. **Layout and IA asks** outside the gfx remit: the report's nine `OPENED` chips before the stat plaques (hierarchy 5–5.5 every round);
+   the forecast as the camp's hex-gem shaft, not web bars; the empty `?` reach column on the desktop report; the scene overlaying the rules
+   mid-row; the desktop death banner's `D8 · NO` wrap; the WHY sheet anchored to its tablet.
+4. **Boss break and fall** fell 6.8 → 5.6 and 6.65 → 6.1 at half-size sprites: the break's shield and the fall read small. This wants
+   bigger boss sprites (a boss-only scale, e.g. 0.75) and the break/slain plates. The copy owner must approve `BROKEN`/`SLAIN` as words.
+
+### 10.9 Rounds 10+ (2026-09-28, unblocked by the coordinator: an art batch, a boss-only scale, `.arrived` everywhere, `BROKEN`/`SLAIN`)
+
+- **Art (Codex, each QC'd by eye; art-qc 0/0)**: six boss death poses (`boss_<kind>_dead`, 1536×1024 masters → atlas `ent:<kind>_dead`), six
+  room props (`env_skulls`, `env_chest`, `env_rack`, `env_statue` in each biome's ramp; `env_brazier`, `env_candles` keep their fire —
+  `make_env.py` HUE), the boss's painted shield and four shards (`art/ui/fx` → `web/public/ui/fx`, `ui-skin.py` `fx`), and a painted room
+  behind the report's scroll (banner, sword and helmet on gold at the left, a torch, candle, books and skull at the right). Killer
+  portraits are cut from the monsters' own masters (`tools/foe-portraits.py` → `web/public/ui/foes`, skin.json `foes`: 37 heads).
+- **Renderer**: bosses at `BOSS_SCALE` 0.75 (`palette.ts spriteScale`; the atlas, the procedural fallback and the 2D view); a fallen
+  boss lies in his death pose from 4 ticks after the blow for the rest of the floor (state keeps his body; no art → he dissolves as before);
+  ethereal kinds (wraith, mirror shade, echo, siren, spectral blade and hound) draw in their own layer (`layers.ts` ghost: a 50/50 blend
+  whose alpha stays the sprite tag, cold-tinted, bobbing) with a faint cold light in the field — FX > 0 only, `low` unchanged; the new props
+  dress corners, north walls and big rooms, a brazier and candles light the field.
+- **UI**: `BROKEN` and `SLAIN` stamps slam over the boss (`tags.ts stamp`), the break throws the painted shield's shards; the killer's
+  portrait hangs in an iron medallion on the death banner; sheets and the oath board are drawn at rest in their first frame and settle / deal
+  in once it is presented (`.arrived` on `.sheet-wrap`, juice.ts).
+- **Harness**: the boss stills are shot before their strips (the strip's 1.5 s outlived the shatter and the stamp).
+
+| moment | r9 | r10 | r11 |
+|---|---|---|---|
+| watch-warrens | 6.20 | 5.65 | 6.10 |
+| report | 6.10 | 6.45 | 6.60 |
+| death | 7.05 | 6.90 | 7.25 |
+| camp | 6.40 | 6.00 | 6.15 |
+| scene | 5.85 | 5.55 | 6.00 |
+| edit | 6.10 | 6.05 | 6.35 |
+| forecast | 6.10 | 5.95 | 6.30 |
+| oaths | 5.50 | 6.05 | 6.65 |
+| watch-fens | 5.55 | 5.20 | 5.35 |
+| fight | 6.70 | 6.05 | 6.30 |
+| boss-in | 6.90 | 6.90 | 7.05 |
+| boss-break | 5.60 | 6.35 | 6.90 |
+| boss-fall | 6.10 | 6.65 | 6.95 |
+| d-watch | 5.75 | 5.55 | 5.90 |
+| d-report | 5.75 | 5.85 | 6.15 |
+| d-death | 6.25 | 6.35 | 6.95 |
+| d-camp | 6.35 | 5.95 | 6.45 |
+| d-edit | 5.85 | 5.85 | 5.90 |
+| **mean** | **6.12** | **6.07** | **6.41** |
+
+Raters W, X. The targeted moments rose (boss break +0.75, fall +0.55, oaths +0.55, report +0.35); the watch moments fell on capture
+variance (the run's frame differs each round: W and X both saw "the top half black void" and a "hero smudge" in this round's D1 frame).
+
+**Round 11** (raters Y, Z; **6.41**, +0.34, the session's best — lowest 5.35, the Fens): the world's contrast per biome (`blit.ts CONTRAST`,
+FX > 0: the Fens 0.6, the Warrens 0.78 — "the floor is louder than the actors"), the rock mass kept in view further out (the void's
+floor 0.15 → 0.3, fade over 11 tiles), the hero's hurt flash 0.28 → 0.16, the edit's scene in the console's riveted bezel with a vignette,
+the death backdrop lifted, the report's deepest plaque gilt. Death 7.25, boss entrance 7.05, fall 6.95, break 6.90, oaths 6.65. The fights
+suite's `fast: the break is a beat` check fails only when run beside three other suites (load); alone it passes (48/48).
+
+**Rounds 12–14** (raters AA AB · AC AD · AE AF): 6.16 · 6.28 · **6.50** (the session's best; lowest 5.60, the Fens).
+- r12: a drifting ground mist (value noise in world space; the Fens 0.42, the Crypt and the Deep lighter; FX > 0), ethereal foes drawn
+  violet-white at ~2× so a 50/50 blend still reads over the Fens' teal, damage numbers step clear of the callout and name plates, the scene
+  inset zoomed further (a view < 320 CSS px shows 0.45× the texels).
+- r13: every sheet and camp panel is the report's parchment scroll (`skin-scroll`: rolls across, ragged sides, a drop shadow); the Fens'
+  floor contrast 0.45.
+- r14: the report's deepest floor is the hero plaque (first, across the row, a size up, gilt — the other six pair up, no empty slot); the
+  oath cards drop in (the round-13 tilt read "skewed, glitchy"), their seals press less; `measuring` fits inside the APPLY gem; desktop
+  embers a size up (the strip is a quarter size at 1440).
+
+| moment | r11 | r12 | r13 | r14 |
+|---|---|---|---|---|
+| watch-warrens | 6.10 | 5.70 | 5.70 | 6.20 |
+| report | 6.60 | 6.30 | 6.45 | 6.70 |
+| death | 7.25 | 6.90 | 7.05 | 7.10 |
+| camp | 6.15 | 6.25 | 5.95 | 6.25 |
+| scene | 6.00 | 6.00 | 6.05 | 6.05 |
+| edit | 6.35 | 6.20 | 6.40 | 6.75 |
+| forecast | 6.30 | 5.75 | 6.15 | 6.35 |
+| oaths | 6.65 | 5.75 | 5.95 | 6.30 |
+| watch-fens | 5.35 | 5.25 | 5.65 | 5.60 |
+| fight | 6.30 | 6.40 | 6.15 | 6.50 |
+| boss-in | 7.05 | 7.05 | 7.10 | 7.15 |
+| boss-break | 6.90 | 6.65 | 6.65 | 6.85 |
+| boss-fall | 6.95 | 6.35 | 6.80 | 6.90 |
+| d-watch | 5.90 | 5.45 | 5.70 | 6.00 |
+| d-report | 6.15 | 5.95 | 5.70 | 6.20 |
+| d-death | 6.95 | 6.60 | 6.85 | 6.85 |
+| d-camp | 6.45 | 6.45 | 6.40 | 6.65 |
+| d-edit | 5.90 | 5.95 | 6.35 | 6.60 |
+| **mean** | **6.41** | **6.16** | **6.28** | **6.50** |
+
+**Rounds 15–17** (raters AG AH · AI AJ · AK AL): 6.26 · 6.43 · 6.49 — stopped on the rule (three rounds under +0.2 after r14's 6.50).
+- r15 (reverted in part): a Codex redraw of the Fens floor as two calm planks per tile took the Fens to 5.00 ("hero and floor one murky
+  teal") — reverted, as was an edge-only hurt vignette; kept: the shield splits from 20 % of its fall, over the boss's head, BROKEN above it.
+- r16: the forecast's bars as brass troughs with a molten fill and a hot tip (cut29.css had thinned them to 4 px), a gilt iron EDIT, the
+  oath rewards a size up, the hero's own light warm in every biome and a touch brighter, a darker Fens room, a white burst on a boss's
+  killing blow.
+- r17: in the Fens a sprite takes less of the light's hue (0.15, was 0.5: "a teal hero on a teal floor"); two first-time captions under
+  neighbouring top-bar stats take two rows.
+
+| moment | r14 | r15 | r16 | r17 |
+|---|---|---|---|---|
+| watch-warrens | 6.20 | 5.65 | 5.85 | 5.85 |
+| report | 6.70 | 6.45 | 6.80 | 6.60 |
+| death | 7.10 | 6.75 | 7.15 | 7.10 |
+| camp | 6.25 | 6.05 | 6.25 | 6.25 |
+| scene | 6.05 | 6.10 | 6.10 | 6.05 |
+| edit | 6.75 | 6.55 | 6.40 | 6.70 |
+| forecast | 6.35 | 6.10 | 6.35 | 6.90 |
+| oaths | 6.30 | 6.10 | 6.40 | 6.15 |
+| watch-fens | 5.60 | 5.00 | 5.30 | 5.40 |
+| fight | 6.50 | 6.15 | 6.65 | 6.40 |
+| boss-in | 7.15 | 7.10 | 7.45 | 7.40 |
+| boss-break | 6.85 | 6.65 | 6.70 | 6.90 |
+| boss-fall | 6.90 | 6.75 | 7.05 | 7.00 |
+| d-watch | 6.00 | 5.70 | 5.85 | 5.95 |
+| d-report | 6.20 | 6.10 | 6.20 | 6.45 |
+| d-death | 6.85 | 6.50 | 6.45 | 6.75 |
+| d-camp | 6.65 | 6.65 | 6.45 | 6.55 |
+| d-edit | 6.60 | 6.35 | 6.35 | 6.40 |
+| **mean** | **6.50** | **6.26** | **6.43** | **6.49** |
+
+Session arc: 5.97 (r6) → 6.49 (r17), best 6.50 (r14); lowest 5.00 → 5.40. Moments at or over 7: death 7.10, boss entrance 7.40, boss fall
+7.00. Frame times: see §10.8 (phone 16.7/16.7–16.8 on a quiet box); the added shader work (ghost layer, mist, contrast, edge light) runs on a
+≤ 204 × 294 target and the viewer's CPU stays ~1.6–1.9 ms.
+
+**What blocks the next gain (the bar is 8.0 / no moment < 7.0; the remaining asks are the same every round):**
+1. **The watch's own look (5.4–6.2, the floor of the table)**: raters want the painted target's lit stone rooms — "the floor is flat sepia
+   mush", "the Fens a teal soup", "half the view black void". The 8×8-texel tile register at the pick raters' zoom cannot carry that
+   detail; a zoom/letterbox that frames the seen rooms, or a new tile register (painted 16×16 at 1:1), is a design call. A first Codex
+   redraw of the Fens floor (calmer planks) scored worse and was reverted.
+2. **IA on every UI screen** (hierarchy 5.5–6.5; Cut 29 client): the report's two-line title and four sub-lines, the `OPENED` chips cut off
+   at the fold, the forecast's D8 row, the scene inset overlapping the rules, the WHY sheet not anchored to its tablet, the desktop meters'
+   clipped text ('trav', '3 hit'), empty console slots.
+3. **Still screens' motion** (desktop camp/report/death 4.5–5.5): the strip at quarter size cannot see ambient CSS motion; the camp is
+   being replaced by the Cut 30 town, so no more effort there.
+4. **Art the raters keep naming**: a boss HP bar under the name plate, a loot/coin burst on a boss kill, a stagger pose, killer portraits
+   in the forecast's KILLERS line, death-scene sprites behind the banner (the killer medallion helped: desktop death target 7.5–8).
+
+### 10.10 Rounds 18–20 (2026-09-28): the painted 16×16 tile register (the owner's call) and the Cut 29 client's UI list — stopped on the rule
+
+**The register** (`art/painted.py`): 15 pieces per biome (4 floors, 2 wall faces, wall top, door, stairs down/up, water, chasm, barrel,
+crate, pot) × 7 biomes = 105 Codex paintings in the target's lit-stone language (the Burrows warm earth and timber, the Fens a cool
+teal boardwalk — kept apart; the Crypt blue granite, the Foundry soot and ember seams, the Deep navy cave rock, the Sanctum cream marble),
+each QC'd by eye as a sample room at game zoom (`scratchpad/gfx-eval/paint/room.py`). Conversion (`make_env.py` → `painted.convert_all`):
+a box downscale to 16×16, a small local-contrast lift, ≤ 24 colours per tile (art-qc reads `art/tiles/_painted.json` for that cap), written
+over the ramp register's `<biome>_env_<name>` — the renderer's ids are unchanged, the 8-colour ramp tiles stay the fallback for any piece
+not painted, and a tile stays 16 texels on the sprite grid (1:1 with the sprites; the hero 1.5 tiles at SPRITE_SCALE 0.5, bosses 0.75 —
+no zoom change was needed). The wall tops were redrawn once as lit capstone masonry (the first pass, "the darkest", read as void); the
+renderer darkens them a step under the floor and lights a one-texel bevel on every edge that meets open ground. The Warrens' grade is now
+neutral (the old one was tuned for the ramp), the ramp decals at 40 %, the Fens' torches lantern-warm and its mist lighter.
+
+**UI and asks**: the report's headline balanced to its width, its other lines one paragraph, OPENED as small plaques; the forecast's try row
+keeps only whose floor it is (the pill tighter) and KILLERS carry the foes' portraits (unmet ones stay faceless); the scene plays over the
+phone's vista, clear of the rules; the desktop meters wrap; no empty console slots on desktop; a boss's name plate carries a long framed
+HP bar; the break is a stagger (a big squash-reel) and the shield halves fly from 6 %; the fall throws twice the coins; a one-texel walking
+bob; fewer blood drops off the hero; frames and backdrops decode at boot. (The WHY sheet was already anchored by the Cut 29 client.)
+
+| moment | r17 | r18 | r19 | r20 |
+|---|---|---|---|---|
+| watch-warrens | 5.85 | 5.70 | 5.65 | 6.20 |
+| watch-fens | 5.40 | 5.40 | 5.45 | 5.70 |
+| forecast | 6.90 | 7.05 | 7.05 | 7.10 |
+| death | 7.10 | 6.95 | 7.10 | 7.20 |
+| **mean** | **6.49** | **6.31** | **6.39** | **6.23** |
+
+Raters AM AN · AO AP · AQ AR2. The dungeon moments moved (the Warrens watch 5.85 → 6.20, the Fens 5.40 → 5.70: "painted walls with lit
+capstones now read as built") but the mean did not: three rounds under +0.2, so the eval stops again.
+
+**What blocks the next gain** (every rater, every round):
+1. **Motion on the still screens** scores 3–4.5 on desktop (camp, report, death) — the strip cannot see ambient CSS at quarter size; the
+   camp becomes the Cut 30 town.
+2. **The oath board** (5.7): "three identical cards, big empty wood" — a layout/content change (reward art per oath) the board's owner
+   should take.
+3. **The painted shield over pixel sprites** ("a style clash", "hides the boss"): a pixel-register shield at sprite scale.
+4. **Coins as square motes** ("debug pixels, not coins"): a coin sprite for the particle system.
+5. **The dungeon**: raters now ask for set dressing density and wall shadows (the rooms read "bare grey tile fields"), not the tile
+   register itself.
+
+### 10.11 Round 21 and the motion-aware harness (2026-09-28; stopped here for the owner's pause)
+
+**The harness now sees motion** (`tools/gfx-eval.mjs`, `tools/gfx-rater-prompt.txt`): the screencast runs at full device resolution and each
+moment gets a `-motion.png` — its first frame beside (phone) or above (desktop) the same frame dimmed with every pixel that changed within
+~1 s in red — and the prompt lists what each moment is meant to move (`moves: …`). Round 20's build re-rated under it (raters AS, AT) is the
+new baseline: **6.74** (the old harness read 6.23) — death 7.90, boss entrance 7.70, forecast 7.40, report 7.10, desktop camp 7.10; rounds
+before 20b are not comparable with it.
+
+**Round 21** (raters AU, AV): **6.68** (−0.06 on the baseline; rater spread 6.49 · 6.87). Committed (c6008ad): five more painted props per
+biome (skulls, chest, rack, statue, bones — 35 Codex pieces), denser dressing at corners and walls, bones on open floor, a deeper wall-foot
+shadow (AO 0.32 → 0.5, the wall above weighted 2.2); the boss's shield and shards cut to the sprites' pixel register (`_px`, pixelated);
+the loot burst's coins a spinning 6×6 coin sprite; a prop-conversion fix (a wrapped rim drew a stray dash over every prop). The oath board's
+reward vignettes were built and then withdrawn (the board is redesigned as a quest board in Cut 30); their Codex sources stay uncommitted
+in `art/ui/oath/` for that cut.
+
+| moment | 20b (baseline) | 21 |
+|---|---|---|
+| watch-warrens | 5.60 | 6.05 |
+| watch-fens | 5.40 | 5.50 |
+| fight | 6.50 | 6.70 |
+| boss-break | 6.90 | 6.30 |
+| boss-fall | 7.00 | 7.05 |
+| death | 7.90 | 7.55 |
+| **mean** | **6.74** | **6.68** |
+
+**Next steps** (in order): (1) the Fens (5.50) — raters still read a "flat undressed teal field": dress it with its own props (reeds,
+ruins, water edges) and warm the hero's pool further; (2) the boss break fell with the pixel shield ("shards hard to parse", "the shield over
+the boss muddles him") — offset the split above him, bigger halves in clear arcs, a crack flash; (3) the camera framing on early floors
+("the void eats 40 %"); (4) the IA asks the raters repeat (the report's OPENED chips, the scene inset over the route row, desktop meters);
+(5) the oath board → Cut 30's quest board.
+
+### 10.12 Round 22 (2026-09-30, resumed from the HANDOFF list)
+
+**Changes** (raters AW, AX): the Fens get their own dressing (`art/painted.py OWN_PIECES`: reeds ×2, lily pads, a log, a stump, a ruined
+pillar, a lantern post — 7 Codex pieces, `art/prompts/paint_fens_own.txt`; `make_env.py` skips the ramp for pieces the ramp never had):
+lily pads on the water, reeds along its edge, logs/stumps/reeds in the corners, a ruin or a lit lantern (a warm light) against a north wall;
+the hero's pool in the Fens wider and warmer (r +1, [1.12, 0.8, 0.46]), the Fens' grade darker with a stronger lift (ambient 0.62 → 0.52,
+lift 0.78 → 1.0), contrast 0.8 → 0.92, mist 0.24 → 0.18. The boss break re-staged (`tags.ts`): the pixel shield sits `SHIELD_LIFT` 84 CSS px
+above his head, flashes white-hot, a jagged glowing crack runs down it (`.rshatter.px s`), then its halves fly apart in wide parabolic arcs
+growing to 1.22×, the shards leaving on the split (0.32 s). A bug fixed on the way: the halves were `:first-child`/`:last-child`, so any
+extra child left one half unclipped. The map camera frames the explored floor (`frameSeen`: centres on the seen tiles where they span less
+than the view, never runs past them where they span more, the hero kept in the middle ~45 %). On a phone the vista grows to the scene's
+height while it plays, so the route row moves down instead of being covered.
+
+| moment | 20b | 21 | 22 |
+|---|---|---|---|
+| watch-warrens | 5.60 | 6.05 | 6.20 |
+| watch-fens | 5.40 | 5.50 | 5.60 |
+| scene | — | 6.10 | 6.50 |
+| oaths | — | 6.10 | 6.75 |
+| boss-break | 6.90 | 6.30 | **7.05** |
+| boss-in | — | 7.35 | 7.00 |
+| death | 7.90 | 7.55 | 7.40 |
+| d-watch | — | 6.00 | 5.90 |
+| **mean** | **6.74** | **6.68** | **6.77** |
+
+Rater spread 6.63 · 6.91. The boss break is the round's gain (+0.75: "crack bolt and shard spray feel impactful"); the Fens barely moved
+("wraiths grey blobs", "noisy teal on teal", "no mist, fog or water shimmer", "thin out the weeds"). Frame p95 16.8 ms on the watch moments
+(the box loaded by a core agent's measurements; the desktop watch 33.4). Committed with the round-23 changes below, unscored at commit:
+the map camera holds its framing until it would move > 1/5 of the view across or 1/6 down (both raters: "the camera pan reds the whole
+map"); the report's OPENED as one row of bronze medallions past four; the desktop meters at 16 px; the Fens' water breathes low fog, each
+ethereal foe trails cold wisps and glows brighter and wider; the edge reeds thinned (0.6 → 0.34), the Fens' contrast 1.02.
+
+### 10.13 Round 23 (2026-09-30) — stopped on the rule
+
+**Changes** (raters AY, AZ): the held map camera (holds until its framing moves > 1/5 across or 1/6 down, and only while the hero stays in
+the held view's middle — a hold that ignored him let him walk under the top bar); OPENED as one row of bronze medallions past four; desktop
+meters at 16 px; the Fens' water breathes low fog, ethereal foes trail cold wisps and glow brighter; edge reeds thinned; additive particles
+fade by dimming (their screen-door dissolve read as checkered discs in the fog).
+
+| moment | 20b | 21 | 22 | 23 |
+|---|---|---|---|---|
+| watch-warrens | 5.60 | 6.05 | 6.20 | 5.80 |
+| watch-fens | 5.40 | 5.50 | 5.60 | 6.00 |
+| fight | 6.50 | 6.70 | 6.55 | 7.10 |
+| boss-break | 6.90 | 6.30 | 7.05 | **7.70** |
+| boss-fall | 7.00 | 7.05 | 6.95 | 7.30 |
+| report | 7.10 | 6.90 | 7.05 | 6.60 |
+| scene | — | 6.10 | 6.50 | 6.00 |
+| d-watch | — | 6.00 | 5.90 | 6.00 |
+| **mean** | **6.74** | **6.68** | **6.77** | **6.77** |
+
+Rater spread 6.76 · 6.79 (AY's strips for m01–m06 failed to load: it rated those moments' motion from the motion image). Three rounds under
++0.2 (−0.06, +0.09, +0.00): the eval stops again. Suites green (audio 70, ctxloss 13, layout 55, fights 48, cut29 34).
+
+**What blocks the next gain** (both raters, both rounds):
+1. **The map watch** (Warrens 5.8, desktop 6.0, Fens 6.0) is the floor: "the hero is tiny, a big dark maze swallows him", "flat tiles, not
+   painted depth". The camera changes moved the void around rather than removing it — a D1 floor is mostly unexplored rock between thin
+   corridors. The raters' fix is a closer zoom (hero+foe ≈ 15 % of the view) and a dimmer periphery; a zoom change hits `fights`' ≥ 24 px /
+   stack-row gates and the texel budget, so it is a design call (PHONE_TEXELS 100 → ~80) the coordinator should make.
+2. **Target consistency of the dungeon is capped at ~6** on every dungeon moment ("a flat tile field", "pixel art next to the painted UI"):
+   the 16×16 register vs the painted target is the owner's register call, not tunable.
+3. **The flat sheets** (edit/d-edit juice 5; "EDIT a plain dark bar", "no candle light", "the sheet small on desktop"): needs a carved
+   EDIT button skin (a Codex piece) and a larger desktop sheet — a UI skin batch.
+4. **The scene inset** (6.0): "show before and after side by side", "zoom on the hero": a divergence-scene layout change.
+5. The report's motion (5–6): the plaques' stamp reads soft ("dust puff and a small shake on each plaque").
+
+### 10.14 Rounds 24+ (2026-09-30, resumed by the coordinator with approved items: zoom, carved EDIT, candle, desktop sheet, side-by-side scene, plaque stamps)
+
+**Round 24** (raters BA, BB; both lost some images to a "request limit" and rated those moments from what they saw): **6.74**. Built:
+the carved EDIT button (`art/ui/frames/button.png`, Codex, a 9-slice: iron end caps with a ruby, walnut face, gilt moulding) and a
+melted candle on the WHY sheet with a flickering warm pool (`art/ui/deco/candle.png`, Codex; `art/prompts/ui_round24.txt`); the desktop
+sheet beside its tile 700 px with desktop type; the divergence scene as two panes (the sent branch left, the edited one right, a carved
+seam; the waiting pane dims); report plaques that slam with a dust puff and a thud of the grid; the closer zoom (PHONE_TEXELS 100 → 80,
+DESK 72 → 58) and the scene's panes at FOCUS_R 2.
+
+| moment | 23 | 24 |
+|---|---|---|
+| edit | 6.60 | **7.20** |
+| d-edit | 6.40 | **7.00** |
+| death | 7.20 | 7.60 |
+| watch-warrens | 5.80 | 5.60 |
+| watch-fens | 6.00 | 5.75 |
+| d-watch | 6.00 | 5.55 |
+| fight | 7.10 | 6.75 |
+| scene | 6.00 | 6.20 |
+| **mean** | **6.77** | **6.74** |
+
+Kept: the carved button, the candle, the desktop sheet (both edit moments +0.6). **Reverted: the closer zoom** — every watch moment fell
+("long empty corridors, no foe in frame", "the camera pan repaints the whole frame"), and the panes' FOCUS_R 2 ("blurry upscaled pixels,
+sprites cut off"). Fixed for round 25: the plaque stamp started from opacity 0 and blanked the plaques in the strip (they draw at rest
+before `.arrived`), now they lift and slam; the sent pane replays beside the edited one (raters: "the before side is frozen").
+
+**Round 25** (raters BC, BD): **6.75**. Changes: a foe hit draws a bright slash crescent across it (a heavy blow kicks the view); the
+map camera glides slower (spring ω 9 → 6) and holds wider (1/4 across, 1/5 down); the Fens' open-floor tufts thinned (0.05 → 0.022); the
+report stamp without the blank; the sent pane replays beside the edited one. Scene 6.20 → 6.70 ("both replays move"), fight 6.75 → 6.90;
+the map watch stays the floor (Warrens 5.50, desktop 5.40: "torches barely glow", "rubble merges with the floor", "the right meters
+cramped"). The count since the resume: 24 (−0.03), 25 (+0.01).
+
+**Round 26** (raters BE, BF): **6.84**, the best mean on the motion-aware harness. Changes: on the desktop watch an unknown reach gives
+its place to the meters, each meter's label over its value (d-watch 5.40 → 6.20); remembered tiles darker (0.68 → 0.52), torch pools
+wider and warmer (r 4.8 → 5.6), the Warrens a darker room with stronger pools; the watch caption on a dark band ("'rat slain'
+ghosted"). Report 6.80 → 7.15, edit 7.45, boss break 7.45; the Warrens watch 5.80 and the Fens 6.00 remain the floor.
+
+**Stopped on the rule again**: since the resume, 24 (−0.03), 25 (+0.01), 26 (+0.09). Suites green each round (audio 70, ctxloss 13,
+layout 55, fights 48, cut27 35, cut29 34); copy-lint 0; art pack + QC clean.
+
+**What blocks the next gain** (every rater, rounds 24–26):
+1. **The map watch** (Warrens 5.8, Fens 6.0, fight 6.4): "the hero is a small sprite in a sea of walls", "the camera pan paints the
+   whole field red". A closer zoom was tried and lost on every watch moment (no foe in frame, empty corridors). What is left is the
+   camera's job itself: it should frame the *encounter* (the hero and the next foe/item the rule is about) and hold still during an
+   exchange. That needs the engine's intent (the target a rule acts on) on the wire, so the viewer can frame it ahead of time; today the
+   viewer only sees positions.
+2. **Target consistency in the dungeon** (~6 on every dungeon moment): the pixel-vs-painted register, left with the owner.
+3. **The camp** (6.45, "tablets flat brown slabs", "SEND gem shows no pulse in the motion image") and the **oath board** (6.65): both
+   out of scope (Cut 30's town and quest board).
+4. Smaller, repeated asks: a white flash and slow-motion beat on the boss fall, a proper death pose for the Warlord (a Codex sprite),
+   the forecast's D8 `try` chip off the bar, the death gem's MEASURING label as a spinner.

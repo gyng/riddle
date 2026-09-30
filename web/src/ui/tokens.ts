@@ -14,13 +14,13 @@ const COND: Record<string, string> = {
 const VERB: Record<string, string> = {
   attack: "attack", retreat: "retreat", back_corridor: "to corridor", drink: "drink", read: "read", throw: "throw",
   descend: "descend", bank: "bank", return: "return", rest: "rest", pick_up: "pick up", free_captive: "free captive",
-  shield_bash: "shield bash", vanish: "vanish", card: "card", explore: "explore", stunned: "stunned",
+  shield_bash: "shield bash", vanish: "vanish", card: "tactic", explore: "explore", stunned: "stunned",
   tame: "tame", recall: "recall", send: "send", follow: "follow", shoot: "shoot", burst: "burst", steal: "steal",
   split: "split", flank: "flank", drain: "drain",
   cleave: "cleave", taunt: "taunt", second_wind: "second wind", bulwark: "bulwark", backstab: "backstab", smoke: "smoke",
   ambush: "ambush", shadowstep: "shadowstep",
   kite: "kite", volley: "volley", trap: "trap", mark: "mark", double_shot: "double shot",
-  bolt: "bolt", ward: "ward", blink: "blink", slow: "slow", nova: "nova", tactic: "card",
+  bolt: "bolt", ward: "ward", blink: "blink", slow: "slow", nova: "nova", tactic: "tactic",
   // Cut 3: chores the trace names, a mirror companion's copy, the cadence card's filler
   hold: "hold", wait: "wait", shuffle: "shuffle", paralysed: "paralysed", stumble: "stumble", mimic: "mimic", feint: "feint",
   // Cut 5: the shrine's verb (`pray row` lends a row, `pray trait` swaps the trait)
@@ -103,6 +103,69 @@ export function isFreeSupply(L: Lineage, it: InvItem): boolean {
 export const isCardRow = (r: Row): boolean => r.verb.v === "tactic";
 export const ownRowCount = (rows: Row[]): number => rows.filter((r) => !isCardRow(r)).length;
 export function rowLabel(r: Row): string { return `${r.conds.map(condLabel).join(" · ")} → ${verbLabel(r.verb)}`; }
+/** docs/COPY.md §2 (owner: "R1/R2 labels don't make sense to humans, can't remember"): a rule is named by what it says — its action,
+ *  and the one condition that places it (`return at 20%`, `drink heal at 30%`, `attack nearest`) — never by a number. Two rules
+ *  that would read alike take their next condition. The tablet's small ordinal is position only, never a name. */
+const qualOf = (c: Cond, verb: string): string | undefined => {
+  switch (c.k) {
+    case "hp<": case "self_hp<": return c.n !== undefined ? /* copy:rule_token */ `at ${c.n}%` : undefined;
+    case "hp>": return c.n !== undefined ? /* copy:rule_token */ `over ${c.n}%` : undefined;
+    case "depth>=": return c.n !== undefined ? /* copy:rule_token */ `at D${c.n}` : undefined;
+    case "foe_tag": return c.t && !verb.includes(nice(c.t)) ? /* copy:rule_token */ `vs ${nice(c.t)}` : undefined;
+    case "foes>=": return c.n !== undefined && c.n > 1 ? /* copy:rule_token */ `vs ${c.n}+` : undefined;
+    default: return undefined;
+  }
+};
+function nameAt(r: Row, depth: number): string {
+  const v = verbLabel(r.verb);
+  const q = r.conds.map((c) => qualOf(c, v)).filter((x): x is string => !!x);
+  // depth 1: the action and its first placing condition; deeper (two rules would read alike): its other conditions, `if …` last
+  const extra = r.conds.filter((c) => !qualOf(c, v)).map((c) => /* copy:rule_token */ `if ${condLabel(c)}`);
+  return [v, ...(depth === 1 ? q.slice(0, 1) : [...q, ...extra].slice(0, depth))].join(" ");
+}
+export function ruleName(rows: Row[], i: number): string {
+  const r = rows[i];
+  if (!r) return /* copy:callout */ "a rule";
+  for (let depth = 1; depth <= 3; depth++) {
+    const name = nameAt(r, depth);
+    if (!rows.some((x, j) => j !== i && nameAt(x, depth) === name)) return name;
+  }
+  return nameAt(r, 3);
+}
+/** The rules the screen being drawn talks about (the camp's set, a death's set as it ran): `nameRefs` names core text's rules by them. */
+let refRowsOf: () => Row[] = () => [];
+export function setRefRows(rows: Row[] | (() => Row[]) | undefined): void { refRowsOf = typeof rows === "function" ? rows : () => rows ?? []; }
+/** The name of rule `i` of the rules the screen talks about. */
+export const refName = (i: number): string => ruleName(refRowsOf(), i);
+export const refRowsHas = (i: number): boolean => !!refRowsOf()[i];
+/** The core and the wire still write a rule as `R2` (traces, notes, the reel, pending lines). On screen it goes: where the rule's verb
+ *  follows (`R2 attack nearest no path`, `R1 drank`) the id is dropped — the verb names it; elsewhere (`same as R2`, `R5 under R2`,
+ *  `cut R3`, `R2 first`) it becomes the rule's name. */
+const NOT_VERB = /^(?:first|fired|ended|under|above|below|and|or|is|was|now)\b/;
+export function nameRefs(s: string): string {
+  if (!/\bR\d/.test(s)) return s;
+  const rows = refRowsOf(), re = /\bR(\d{1,2})\b/g;
+  let out = "", i = 0, m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    out += s.slice(i, m.index);
+    const at = m.index + m[0].length, idx = Number(m[1]) - 1, row = rows[idx];
+    const next = /^ (\S*)/.exec(s.slice(at))?.[1] ?? "";
+    if (next && /^[a-z?]/.test(next) && !NOT_VERB.test(next)) {
+      // its action follows: `R2 return` → the rule's name (`return at 20%`), the action's words taken; another verb form
+      // (`R1 drank`, `R4 hit archer`) keeps its words and loses the id
+      const words = row ? verbLabel(row.verb).split(" ") : [];
+      if (row && next === words[0]) {
+        let k = at;
+        for (const w of words) { const mm = s.slice(k).startsWith(` ${w}`) && !/^[\w]/.test(s.slice(k + w.length + 1)) ? ` ${w}` : ""; if (!mm) break; k += mm.length; }
+        out += ruleName(rows, idx); i = k;
+      } else i = at + 1;
+    } else { out += row ? ruleName(rows, idx) : /* copy:callout */ "a rule"; i = at; }
+    re.lastIndex = i;
+  }
+  return out + s.slice(i);
+}
+/** docs/COPY.md pass 4 (`heir 15` read as a level or an age): the heir is the family's 15th — `15th heir`. */
+export const heirOrd = (n: number): string => { const t = n % 100, u = n % 10; return /* copy:label */ `${n}${t >= 11 && t <= 13 ? "th" : u === 1 ? "st" : u === 2 ? "nd" : u === 3 ? "rd" : "th"} heir`; };
 export const sameCond = (a: Cond, b: Cond): boolean => a.k === b.k && a.t === b.t;
 export const sameVerb = (a: Verb, b: Verb): boolean => a.v === b.v && a.a === b.a;
 
@@ -127,7 +190,7 @@ export function combosIn(rows: Row[], table: Combo[] | undefined): ComboHit[] {
  *  leave a note's text; the note names the thing, not its count. */
 // QA 778fa1b (qaU: `Goblin Captain: telegraph.` read as a sentence under the seal): a fact note (`Name: tag.`) drops its stop
 // QA 778fa1b (qaU: `Recovered heir 1's bones` beside `♟1` everywhere else): an heir reads as the bar names him
-export const noteText = (t: string): string => t.replace(/ \(\d+\)(?=[.?!]?$)/, "").replace(/^([^.!?:]+: [a-z]+(?: [a-z]+)?)\.$/, "$1").replace(/\bheir (\d+)'s\b/g, "♟$1's")
+export const noteText = (t: string): string => t.replace(/ \(\d+\)(?=[.?!]?$)/, "").replace(/^([^.!?:]+: [a-z]+(?: [a-z]+)?)\.$/, "$1")
   // QA 778fa1b (qaU, qaV: `R1 returned; died to jackal.` read as a return that worked): a return row that fired and did not get him home
   .replace(/\bR(\d+) (return|bank)(?:ed); died\b/g, /* copy:diary_line */ "R$1 $2 too late; died");
 

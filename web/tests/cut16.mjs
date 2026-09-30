@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Cut 16 gates, client side (docs/CUT16.md §1–§3; §4's boss bar and break beat are in fights.mjs), on the fake engine
-// (`?engine=fake&dev=1`) through the browser harness (tools/browser.mjs; `--shots` runs headed on the GPU and writes
+// (`?engine=fake&systems=none&dev=1`) through the browser harness (tools/browser.mjs; `--shots` runs headed on the GPU and writes
 // scratchpad/cut16/*.png at 400×800×3) against the dev server (tools/dev.sh, :5219; RIDDLE_PORT overrides):
 //   §1  the report's thinned depths as one dim line under the tiles (`D3–4 · D6 · thinned`); the camp's forecast carries the
 //       same line (small, dim) while `Lineage.picked` holds depths, and none without
@@ -58,7 +58,7 @@ const emptyReport = (extra) => page.evaluate((x) => { const r = window.__riddle;
 
 try {
   // ---- §2: the wake's class chips
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "camp", "camp");
   await sleep(300);
   const classes = () => page.evaluate(() => ({
@@ -118,7 +118,7 @@ try {
   check((await page.evaluate(() => { const e = document.querySelector(".forecast .fc-picked"); return !!e && !e.hidden; })) === false, "none picked: the forecast has no line");
 
   // ---- §3: the Burrows
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&fake_depth=5`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&fake_depth=5`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "watch", "the watch on D5");
   let card = null, biome = null; const t0 = Date.now();
   while (Date.now() - t0 < 10_000 && !card) {

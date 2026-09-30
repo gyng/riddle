@@ -72,3 +72,21 @@ https://claude.ai/artifact/Lt3hD2tNR81Kj6AwmZVkhc), the owner's requests (`scrat
 | ≤ 1 non-decision tap per send | scripted player, QA logs |
 | Lever, bots, dice, stalls, dances, lanes, divergence, oaths, DEFAULT yields 0 | `node tools/gates.mjs --full` |
 | Cohort 25 (three absences): mean ≥ 76; pacing or progression 0.8 from both; α ≥ 0.80 | two blind cards |
+
+## Core half — status (2026-09-27, uncommitted)
+
+Delivered in `crates/riddle-core` (wire fields mirrored, commented, in `web/src/engine/{types,fake,wasm}.ts`):
+§1 frontier mark removed, the night's mark (`LineageState::clock_s`, ◆1 per day whose absences brought a send
+home); catalogue re-tiered T0–T6 (`meta::UNLOCKS` with `tier`/`Via`: free words, marks ≤ ◆8, rows 3·4·5·6·7·8,
+automations gold at the Lich, oath rewards never sold); oath slots 2–3, draws ◆2, the day's lapse and
+¼-of-the-day's-net price, the reward pool of its own (`hold`, `route2` — the D9 fork seen, `heir_pick` — a
+third trait); commissions (10 units × 1.25ⁿ); E1 as `wall::search` (`ReturnReport.wall`). §2 `systems.rs`.
+§3 `meters.rs` (+ `Ev::Heal`), qa `meters leg`. §4 `ExitPending.decide/note`, quartermaster keep and
+insure-by-order default, `StandingOrders`, `repeat_added` (offered, not auto-added — see deviations). §6
+`ReturnReport.fallen`, `Grudge.tamed`, `Lineage.supply_cap` (the 3/3 was the client's `supplyCap`),
+`ForecastEnds.passage` (the $81 vs ~$260: the forecast's gold counts the waystone passage, the exit line not).
+
+**Hard bars that fail (recorded, not loosened):** dayplayer unlock days 7.3/14 (bar 10), stall 8 d (bar 3) —
+E1 breaks the D17 strength wall (all seeds reach D28, one D33) and the next wall is the Lurker Queen (D28:
+silence scroll crowded out of a full pack, a `telegraph → retreat` patch row; see the probe in the report);
+progression rows (final full run): unlock days 5.5 (bar 10), stall ≤ 3 on 2/18 lineages (bar 13), marks unspent 11 on one lineage (bar 8), purse 1.11× on one lineage. Every other gate passes; qa all PASS.

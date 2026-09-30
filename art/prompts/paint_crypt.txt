@@ -1,0 +1,40 @@
+You are painting ENVIRONMENT TILES for the game "Riddle" (a phone roguelike seen top-down). FIRST look at
+/home/g/p/riddle/art/ui/targets/watch.png (you may read that one image; read nothing else in the repository): its dungeon is
+the TARGET LOOK — painterly dark-fantasy pixel art, lit stone rooms, moss, torchlight, crisp readable forms.
+
+Use your built-in image_gen tool, one call per tile below. Do NOT write code beyond a PIL resample/alpha fix. Do NOT touch
+anything outside /home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. If a file
+exists at an output path, OVERWRITE it.
+
+HOW THE TILES ARE USED (critical): each 1024x1024 image is box-downscaled to a 16x16 tile and drawn tiled edge to edge in a
+top-down room, beside hand-painted characters about 1.5 tiles tall. So:
+- Paint each tile as if it were a 16x16 pixel-art tile blown up 64x: BOLD shapes, 2-4 large forms, mortar / seam lines about
+  64 px thick at 1024, no fine hairline detail, no text, no frame, no border, no vignette, no drop shadow.
+- Opaque tiles fill the whole square edge to edge and must TILE SEAMLESSLY with themselves (floors and wall tops in every
+  direction, wall faces left-to-right). Keep the floors' overall value and hue the same across variants so they mix.
+- Floors are MID-DARK and calm (the characters must read on top of them); the wall tops are the darkest; the wall faces'
+  ledge is the brightest line in the tile set.
+- Light from the upper-left, warm; no strong cast shadows.
+- Keyed props (barrel, crate, pot): the object only, centred, filling about 70% of the tile, on a flat uniform pure blue
+  #0000FF background, no ground shadow, no blue on the object.
+Save each as a 1024x1024 PNG at the exact path.
+
+BIOME: a CRYPT: cold blue-grey granite flagstones with carved borders, walls of tomb-niche blocks with engraved runes, faint violet shadows, bone-ivory accents.
+
+=== TILES ===
+
+1) /home/g/p/riddle/art/generated/envp_crypt_floor_0.png — the common FLOOR: one large square flagstone filling the tile, its four edges a thin dark mortar line (about 1/16 of the width), the stone face worn smooth with gentle value variation, lit a touch brighter toward the upper-left.
+2) /home/g/p/riddle/art/generated/envp_crypt_floor_1.png — a FLOOR variant: the same size stone split into two or three slabs by dark mortar lines, one small chip or crack.
+3) /home/g/p/riddle/art/generated/envp_crypt_floor_2.png — a FLOOR variant: the common flagstone with a creeping patch of moss / grime in one corner (a quarter of the tile at most).
+4) /home/g/p/riddle/art/generated/envp_crypt_floor_3.png — a FLOOR variant: the common flagstone, a little darker and more worn, a faint old stain.
+5) /home/g/p/riddle/art/generated/envp_crypt_wall_face_0.png — the FRONT FACE of a wall seen from a top-down three-quarter camera: the top quarter is the lit CAPSTONE LEDGE (a bright edge running the full width), below it three courses of dressed stone blocks with dark mortar, darkening toward the bottom; seamless left-to-right.
+6) /home/g/p/riddle/art/generated/envp_crypt_wall_face_1.png — a WALL FACE variant: the same capstone ledge and block courses, one block cracked or missing a corner, a trickle of grime; seamless left-to-right, same ledge height as the other face.
+7) /home/g/p/riddle/art/generated/envp_crypt_wall_top.png — the TOP of the solid wall mass seen straight down: dark, calm, rough capstones, low contrast and much darker than the floor (it must read as the solid mass between rooms); seamless in every direction.
+8) /home/g/p/riddle/art/generated/envp_crypt_door.png — a DOORWAY front-on in a wall: a stone arch framing a dark IRON PORTCULLIS (a grid of black bars over deep shadow), the arch stones lit on their upper-left.
+9) /home/g/p/riddle/art/generated/envp_crypt_stairs_down.png — STAIRS GOING DOWN seen from above: four stone steps descending away into black darkness at the bottom, each step's lip lit, a stone frame on both sides.
+10) /home/g/p/riddle/art/generated/envp_crypt_stairs_up.png — STAIRS GOING UP seen from above: four stone steps rising toward the viewer, the top step brightest, a stone frame on both sides.
+11) /home/g/p/riddle/art/generated/envp_crypt_water.png — still dark WATER filling the tile: deep, calm, a few soft lighter ripple strokes, no hard edges; seamless in every direction.
+12) /home/g/p/riddle/art/generated/envp_crypt_chasm.png — a CHASM: an almost black void falling away, the faintest rock texture deep inside; seamless in every direction.
+13) /home/g/p/riddle/art/generated/envp_crypt_barrel.png — a wooden BARREL standing upright, its round lid visible on top, two dark iron hoops, lit upper-left; the object only, on flat pure blue #0000FF.
+14) /home/g/p/riddle/art/generated/envp_crypt_crate.png — a wooden CRATE with a diagonal cross-brace and iron corner plates, lit upper-left; the object only, on flat pure blue #0000FF.
+15) /home/g/p/riddle/art/generated/envp_crypt_pot.png — a clay POT / urn with a dark mouth and a cracked lip, lit upper-left; the object only, on flat pure blue #0000FF.

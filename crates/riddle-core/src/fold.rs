@@ -165,6 +165,8 @@ pub fn state_change(e: &Ev) -> bool {
         Ev::Steal { .. } | Ev::Use { .. } | Ev::Fact { .. } | Ev::MaxHp { .. } | Ev::Bones { .. } | Ev::Level { .. } | Ev::Hatch { .. } | Ev::Ally { .. } => true,
         Ev::Pickup { id, .. } => *id == HERO_ID,
         Ev::Tame { ok, .. } => *ok,
+        // Cut 28b: the sworn oath kept or broken on a folded floor rides the fold line (a miss is the exit's)
+        Ev::Oath { kept, cause, .. } => *kept || !cause.is_empty(),
         Ev::Callout { text, .. } => text.starts_with("passage ") || text == "boss down",
         _ => false,
     }
@@ -193,6 +195,8 @@ pub fn beat(e: &Ev, depth: u32, is_ally: impl Fn(u32) -> bool) -> Option<FoldBea
         Ev::Hatch { t, kind } => b(*t, "hatch", format!("hatched {}", kind.replace('_', " "))),
         Ev::Tame { t, kind, ok: true, .. } => b(*t, "pet", format!("tamed {}", kind.replace('_', " "))),
         Ev::Ally { t, state, .. } => b(*t, "pet", format!("pet {state}")),
+        Ev::Oath { t, kept: true, .. } => b(*t, "oath", "oath kept".into()),
+        Ev::Oath { t, kept: false, cause, .. } if !cause.is_empty() => b(*t, "oath", "oath broken".into()),
         Ev::Callout { t, text, .. } if text.starts_with("passage ") => b(*t, "passage", text.clone()),
         Ev::Callout { t, text, .. } if text == "boss down" => b(*t, "boss", text.clone()),
         _ => None,
@@ -210,7 +214,7 @@ fn fact_words(fact: &str) -> String {
 /// words — the beat itself when it is alone, else a count (`2 thefts`); the dip is the lowest.
 /// Gold pickups are the line's `+$` and get no chip.
 pub fn chips(beats: &[FoldBeat]) -> Vec<String> {
-    const ORDER: [(&str, &str); 11] = [("theft", "thefts"), ("dip", ""), ("boss", "bosses down"), ("pet", "pet beats"), ("find", "finds"), ("use", "used"), ("max_hp", ""), ("fact", "learned"), ("bones", "bones"), ("level", ""), ("hatch", "hatched")];
+    const ORDER: [(&str, &str); 12] = [("oath", ""), ("theft", "thefts"), ("dip", ""), ("boss", "bosses down"), ("pet", "pet beats"), ("find", "finds"), ("use", "used"), ("max_hp", ""), ("fact", "learned"), ("bones", "bones"), ("level", ""), ("hatch", "hatched")];
     let mut out = Vec::new();
     for (kind, many) in ORDER {
         let of: Vec<&FoldBeat> = beats.iter().filter(|b| b.kind == kind).collect();

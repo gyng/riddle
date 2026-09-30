@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Cut 11 §2 / §5 gates on the client: the death screen's chain, its replay links, root / below-bar / unlock patches, and the
 // gold sheet filtered to a run. Runs on the GPU harness (tools/browser.mjs) against the dev server (tools/dev.sh, :5219)
-// with the fake engine (`?engine=fake&dev=1`).
+// with the fake engine (`?engine=fake&systems=none&dev=1`).
 //
 //   node web/tests/chain.mjs        (part of `pnpm test` in web/)
 //
@@ -43,7 +43,7 @@ const text = (sel) => page.evaluate((sel) => [...document.querySelectorAll(sel)]
 const shot = async (name) => { if (shots) await page.screenshot({ path: resolve(shots, name) }); };
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=7&autosend=1&fake_depth=4`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&fake_depth=4`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
   // drive the run to its end: ▶▶| every 400 ms (under the card it waives the minimum, in a fight it jumps to its end)
   const t0 = Date.now();
@@ -109,9 +109,9 @@ try {
   // QA 524827b (qaAA: `R4 · fired · ← cowardly ran first` read as why R4 fired): the chain's own entries lead, the fired row closes it
   check(/never found a scroll/.test(chain[0]?.text ?? "") && chain[0].cls.includes("extra"), `Death.chain entries beyond the rows come first: "${chain[0]?.text}"`);
   check(chain[0]?.watch === false && !chain[0]?.at, `a \`never\` entry has no watch chip and no tick: "${chain[0]?.text}"`);
-  check(/^R1 .*no item ← den took the heal, D3/.test(chain[1]?.text ?? ""), `R1 reads reason ← because: "${chain[1]?.text}"`);
+  check(/^drink unknown at 30% no item ← den took the heal, D3/.test(chain[1]?.text ?? ""), `the first rule (named by what it does) reads reason ← because: "${chain[1]?.text}"`);
   check(chain[1]?.watch === true, "R1's because (inside the run) carries a watch chip");
-  check(/^R2 .*no path ← gas cloud rose/.test(chain[2]?.text ?? "") && chain[2].watch === false, `R2's because (past the run) has no watch chip: "${chain[2]?.text}"`);
+  check(/^attack nearest no path ← gas cloud rose/.test(chain[2]?.text ?? "") && chain[2].watch === false, `R2's because (past the run) has no watch chip: "${chain[2]?.text}"`);
   check(new RegExp(`D${fl.depth + 1} · t${outT}$`).test(chain[2]?.at ?? ""), `R2's line ends with the depth and tick instead: "${chain[2]?.at}"`);
   check(/fired$/.test(chain[3]?.text ?? "") && chain[3].cls.includes("fired") && chain.length === 4, `the fired row closes the chain: "${chain[3]?.text}"`);
 

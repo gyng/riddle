@@ -48,7 +48,7 @@ const withLineage = (fn) => page.evaluate(async (src) => {
 const words = (s) => s.trim().split(/\s+/).filter((w) => /\p{L}/u.test(w)).length;
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=2801`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=2801`, { waitUntil: "domcontentloaded" });
   await camp();
   // ---- §1: the ladder — a fresh purse affords no oath, so no board
   const fresh = await page.evaluate(() => ({ tab: !!document.querySelector(".oath-tab:not([hidden])"), board: (window.__riddle.lineage.oaths ?? []).length, gold: window.__riddle.lineage.gold, price: Math.min(...(window.__riddle.lineage.oaths ?? []).map((o) => o.price)) }));
@@ -57,18 +57,21 @@ try {
   await withLineage((L) => { L.gold = 2000; L.best_depth = Math.max(L.best_depth, 9); L.heir = Math.max(L.heir, 2); });
   await camp();
   const tab = await until(() => { const t = document.querySelector(".oath-tab:not([hidden])"); return t ? t.textContent.replace(/\s+/g, " ").trim() : null; }, "the oath tablet");
-  check(/^oaths 3$/.test(tab.replace(/^\S*\s*/, "")) || /oaths\s*3/.test(tab), `an affordable oath carves the oath tablet ("${tab}")`);
+  check(/^oaths 3$/.test(tab.replace(/^\S*\s*/, "")) || /oaths\s*3/.test(tab), `the first wall (the Warlord's floor) carves the oath tablet ("${tab}")`);
   await page.click(".oath-tab");
   await page.waitForSelector(".sheet-wrap .oath-board", { timeout: 5000 });
   await sleep(200);
   const board = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .oath.tablet")].map((t) => ({
     chips: [...t.querySelectorAll(".chip.oath-c")].map((c) => c.textContent.trim()),
     reward: t.querySelector(".oath-reward")?.textContent.trim() ?? "", ico: !!t.querySelector(".oath-reward .ico"),
-    swear: t.querySelector(".chip.swear")?.textContent.trim() ?? "", counter: t.querySelector(".oath-counter")?.textContent.trim() ?? "" })));
+    swear: t.querySelector(".chip.swear")?.textContent.trim() ?? "", counter: t.querySelector(".oath-counter")?.textContent.trim() ?? "",
+    // Cut 28b: the deal reads left to right — the chips, the arrow, the reward
+    formula: (() => { const f = t.querySelector(".oath-formula"); if (!f) return ""; const kids = [...f.children].map((k) => k.classList.contains("oath-chips") ? "chips" : k.classList.contains("oath-arrow") ? "→" : k.classList.contains("oath-reward") ? "reward" : "?"); return kids.join(" "); })() })));
   check(board.length === 3, `the board holds three oaths (${board.length})`);
   check(board.every((o) => o.chips.length >= 1 && o.chips.every((c) => words(c) <= 3)), `each oath is its constraint as chips, ≤ 3 words a chip (${board.map((o) => o.chips.join(" | ")).join(" ; ")})`);
   check(board.every((o) => o.reward && o.ico && words(o.reward) <= 3), `each carries its reward, an icon and ≤ 3 words (${board.map((o) => o.reward).join(" · ")})`);
-  check(board.every((o) => /^swear \$\d+$/.test(o.swear)), `each carries its swear price (${board.map((o) => o.swear).join(" · ")})`);
+  check(board.every((o) => /^stake \$\d+$/.test(o.swear)), `each carries its stake (${board.map((o) => o.swear).join(" · ")})`);
+  check(board.every((o) => o.formula === "chips → reward"), `each deal reads as a formula, chips → reward (${board.map((o) => o.formula).join(" ; ")})`);
   const slayer = board.find((o) => o.counter);
   if (slayer) check(/^mother: (\?|fire)$/.test(slayer.counter), `an oath at a band boss names its counter as a fact ("${slayer.counter}")`);
   await shot("cut28-oath-board");
@@ -81,10 +84,13 @@ try {
   await until(() => window.__riddle.lineage.oath, "the sworn oath");
   const gold1 = await page.evaluate(() => window.__riddle.lineage.gold);
   check(gold0 - gold1 === price, `swearing pays its price ($${gold0} → $${gold1}, price $${price})`);
+  // Cut 28b: the sworn tablet shows the stake's fate (`$130 · 0/1`) and what forswearing returns (`forswear +$65`)
+  const fate = await until(() => { const t = document.querySelector(".sheet-wrap .oath.tablet.sworn"); return t ? { fate: t.querySelector(".oath-fate")?.textContent.replace(/\s+/g, " ").trim() ?? "", fs: t.querySelector(".chip.forswear")?.textContent.trim() ?? "" } : null; }, "the sworn tablet");
+  check(fate.fate.startsWith(`$${price} · 0/1`) && fate.fs === `forswear +$${Math.floor(price / 2)}`, `the sworn tablet shows the stake's fate and the refund ("${fate.fate}", "${fate.fs}")`);
   await page.keyboard.press("Escape"); await sleep(200);
   const onShaft = await until(() => { const s = document.querySelector(".shaft .shaft-oath .oath-share:not(.pending)"); return s ? { shaft: document.querySelector(".shaft .shaft-oath").textContent.replace(/\s+/g, " ").trim(), tab: document.querySelector(".oath-tab").textContent.replace(/\s+/g, " ").trim(), sworn: document.querySelector(".oath-tab").classList.contains("sworn") } : null; }, "the oath's share on the shaft", 15_000);
   check(/\d+%|<\d+%/.test(onShaft.shaft), `the sworn oath rides the shaft with its share ("${onShaft.shaft}")`);
-  check(onShaft.sworn && /^.*oath → .*\d+%/.test(onShaft.tab), `the tablet carries the sworn oath ("${onShaft.tab}")`);
+  check(onShaft.sworn && /→ .*\d+%/.test(onShaft.tab), `the tablet carries the sworn oath as its formula ("${onShaft.tab}")`);
   await shot("cut28-oath-shaft");
 
   // the wall's path and the bounty's terms (the pure readers, on the lineage's walls and bounty)
@@ -94,8 +100,12 @@ try {
     return { wall: m.wallCounter(app, "bloat_mother"), known: m.wallCounter({ lineage: { counters: [{ boss: "goblin_warlord", text: "attack boss" }] } }, "goblin_warlord"),
       bounty: m.bountyText({ depth: 13, pays: "$×2 · item", needs: "reach" }), bare: m.bountyText({ depth: 13 }) };
   });
-  check(wb.wall === "mother: ?" && wb.known === "warlord: attack", `the wall names its counter fact ("${wb.wall}", known "${wb.known}")`);
-  check(wb.bounty === "bounty · D13 · $×2 · item · reach" && wb.bare === "bounty · D13 · $×2 · reach", `the bounty says what it pays and needs ("${wb.bounty}"; bare "${wb.bare}")`);
+  check(wb.wall === "mother: ?" && wb.known === "counter: attack boss", `the wall names its counter fact ("${wb.wall}", known "${wb.known}")`);
+  check(wb.bounty === "bounty · D13 · 2× gold · item" && wb.bare === "bounty · D13 · 2× gold", `the bounty says what it pays and needs ("${wb.bounty}"; bare "${wb.bare}")`);
+
+  // Cut 28b: the oath's fate as the watch beats it, from the core's event
+  const beats = await page.evaluate(async () => { const m = await import("/src/ui/oaths.ts"); return [m.oathBeat({ kept: true, row: 2, cause: "tame" }), m.oathBeat({ kept: false, row: 1, cause: "return" }), m.oathBeat({ kept: false, row: -1, cause: "rest" })]; });
+  check(beats.join(" | ") === "OATH KEPT | OATH BROKEN · return | OATH BROKEN · rest", `the watch says the oath's fate (${beats.join(" | ")})`);
 
   // ---- §2: a run whose state changed — the state's line, no row edited, no scene
   await page.evaluate(() => { window.__riddle.watchMode = "fast"; });
@@ -119,7 +129,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; const row = r.rules.rows[0]; const c = row.conds.find((x) => typeof x.n === "number"); if (c) c.n = c.n >= 50 ? 30 : c.n + 20; else r.rules.rows.reverse(); r.rulesChanged(); });
   const both = await until(() => { const a = document.querySelector(".shaft-vs-host .shaft-state"), b = document.querySelector(".shaft-vs-host .shaft-vs:not(.pending)"); return a && b ? { state: a.textContent.replace(/\s+/g, " ").trim(), rows: b.textContent.replace(/\s+/g, " ").trim() } : null; }, "both lines", 15_000).catch(() => null);
   if (!both || !/^party/.test(both.state)) out.push(`note: ${await page.evaluate(() => JSON.stringify({ fm: window.__riddle.fmove && window.__riddle.fmove.parts.map((p) => p.kind), due: window.__riddle.moveDue, off: window.__riddle.moveOff, has: typeof window.__riddle.engine.forecastMove }))}`);
-  check(!!both && /^party/.test(both.state) && /^vs sent/.test(both.rows), `after a row edit each part has its line ("${both?.state}" · "${both?.rows}")`);
+  check(!!both && /^party/.test(both.state) && /^vs last run/.test(both.rows), `after a row edit each part has its line ("${both?.state}" · "${both?.rows}")`);
   if (both) await shot("cut28-attributed-move-rows");
 
   // ---- §2: the report leads with decisions (an absence with the oath sworn)

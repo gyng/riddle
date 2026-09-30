@@ -426,7 +426,7 @@ button.bar.try:active { background: var(--panel2); }
 .chip.buy .why { font-size: 10px; letter-spacing: .04em; }
 /* Cut 10 §3: exit lines lead with `returned $61`; after an absence the tiles fade in only once the merged report is complete */
 .exit-lines .lead { color: var(--fg); font-weight: 400; }
-.tiles.fade-in { animation: fadein .6s ease-out; }
+html:not([data-juice="on"]) .tiles.fade-in { animation: fadein .6s ease-out; }   /* gfx round 7: with juice the plaques stamp (juice.css) */
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 /* Cut 10 §4: the mute toggle */
 .btn.mute.on { border-color: var(--acc); color: var(--acc); }
@@ -655,7 +655,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .row.tablet { grid-template-columns: 34px 24px minmax(0, 1fr) 32px; gap: 2px; }
 .row.tablet .grip { min-height: var(--tap); }
 .row.tablet .grip { font-size: 10px; color: #6b5a44; }
-.row.tablet .rn { margin: 0; font: 700 17px/1 var(--display); color: #d8c29a; text-shadow: 0 1px 2px #000; }
+.row.tablet .rn { margin: 0; font: 700 13px/1 var(--display); color: #b9a27a; text-shadow: 0 1px 2px #000; }
 .row.tablet .updown .step { width: 24px; font-size: 10px; }
 .row.tablet .x { font-size: 20px; }
 .row.tablet .chips { gap: 4px; }
@@ -668,7 +668,8 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 /* compact: one tablet, one tap — `R1` carved at the left, `cond → verb` in the middle */
 .editor.compact .rows-foot { display: none; }
 .row.tablet.compact { display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; width: 100%; min-height: 60px; padding: 4px 10px 4px 6px; text-align: left; }
-.row.tablet.compact .rn { font-size: 22px; text-align: center; }
+.shaft-head { display: block; font: 600 11px/1 var(--display, serif); letter-spacing: .12em; text-transform: uppercase; color: #b9a27a; text-align: center; margin-bottom: -2px; }   /* docs/COPY.md pass 2 */
+.row.tablet.compact .rn { font-size: 14px; text-align: center; opacity: .7; }   /* docs/COPY.md §2: a small ordinal — position, not a name */
 .row.tablet.compact .rtext { font-size: 18px; color: var(--fg); overflow-wrap: anywhere; }
 .row.tablet.compact:active { filter: brightness(.85); transform: translateY(1px); }
 .rows-foot { padding: 6px 4px 0; }
@@ -1206,6 +1207,10 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .patch .move-tag { color: var(--acc); font-weight: 600; }
 /* Cut 25 §2: `ORDER` is the seal's longest word — one line, a step smaller */
 .death .death-line .verdict.order { font-size: 21px; letter-spacing: 0; white-space: nowrap; }
+.death .death-line .verdict[data-size] { letter-spacing: 0; white-space: nowrap; }   /* docs/COPY.md: the seal's word on one line */
+.death .death-line .verdict[data-size="m"] { font-size: 19px; }
+.death .death-line .verdict[data-size="l"] { font-size: 14px; }
+.death .death-line .verdict[data-size="w2"] { font-size: 20px; line-height: .95; white-space: normal; word-spacing: 100vw; text-align: center; }   /* Cut 29: a two-word seal (YOU DIED) stacks */
 /* QA 524827b: a patch's whole-run move under its reach (`death −8 ±8 · risk fire`) */
 .patch-nums .whole { font-size: 12px; }
 .patch-nums .whole:empty { display: none; }
@@ -1220,7 +1225,7 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .route-line { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 4px; width: 100%; min-height: 36px; margin: 0 0 6px; padding: 4px 10px; box-sizing: border-box;
   border: 1px solid #5a4a30; border-radius: 6px; background: linear-gradient(rgba(60, 48, 30, .55), rgba(20, 16, 10, .6)); color: #e8dcc0; font: 600 15px/1.2 var(--sans); text-align: left; cursor: pointer; }
 .route-line[hidden] { display: none; }
-.route-line .fork-glyph { color: var(--acc); font-size: 18px; margin-right: 4px; }
+.route-line .fork-glyph { color: var(--acc); font-size: 13px; letter-spacing: .06em; margin-right: 4px; }   /* docs/COPY.md pass 3: the word `route`, not ⑂ */
 .route-line .route-chip { display: inline-flex; gap: 4px; align-items: baseline; padding: 2px 8px; border-radius: 10px; background: rgba(0, 0, 0, .35); border: 1px solid rgba(255, 255, 255, .12); }
 .route-line .route-chip .num { color: var(--dim); font-size: 13px; }
 .route-chip[data-biome=burrows], .route-opt[data-biome=burrows] { border-color: #a2522a; }
@@ -1331,6 +1336,22 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .oath.tablet.short .chip.swear { opacity: .55; }
 .oath-progress, .oath-counter { font-size: 13px; }
 .oath-counter { color: #e8a860; }
+/* Cut 28b — the deal as a formula (constraint chips → reward, as a rule reads cond → verb); the stake and its fate; the refund on forswear */
+.oath-formula { display: grid; grid-template-columns: minmax(0, auto) auto minmax(0, 1fr); align-items: center; gap: 5px 8px; }
+.oath-formula .oath-arrow { font: 700 28px/1 var(--sans); color: var(--acc); text-shadow: 0 1px 2px #000; }
+.oath-formula .oath-reward { min-width: 0; }
+.oath-formula.tab { display: inline-flex; gap: 3px 5px; }
+.oath-formula.tab .oath-arrow { font-size: 16px; }
+.oath-reward.icon-only .ico { width: 20px; height: 20px; }
+.shaft-oath .oath-arrow { color: var(--acc); }
+.shaft-oath .oath-reward.icon-only { vertical-align: middle; }
+.shaft-oath .oath-reward.icon-only .ico { width: 15px; height: 15px; }
+.oath-fate { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 0 4px; font: 600 15px/1.2 var(--sans); color: #f0dcb0; }
+.oath-fate .stake { color: #f3d27a; }
+.oath-foot .chip.forswear { margin-left: auto; min-height: 36px; padding: 0 10px; font-size: 14px; }
+.oath-broke { color: #e89a70; }
+.oath-steps { font: 600 13px/1.2 var(--sans); color: #d8c090; }
+.oath-steps b { color: #f3d27a; }
 .shaft-oath-host[hidden] { display: none; }
 .shaft-oath { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; padding: 0 2px 5px; border-bottom: 1px solid #3a2e22; font-size: 11px; line-height: 1.15; color: #e8d0a0; }
 .shaft-oath .oath-seal { width: 18px; height: 18px; }
@@ -1358,3 +1379,270 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 .report .bounty-line .missed-w { font-weight: 600; }
 .row.tablet.compact.oath-tab.reveal { position: relative; overflow: hidden; animation: carve .7s ease-out both; }
 .row.tablet.compact.oath-tab.reveal::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 230, 160, .6) 50%, transparent 70%); transform: translateX(-120%); animation: glint 1.1s .35s ease-out both; pointer-events: none; }
+/* docs/COPY.md pass 3: the shaft's words wrap inside the column instead of running off the panel (`behind warlord`, `counter: attack boss`,
+   `fens · D5 · untried` were clipped at 400 px) */
+.notch .dl .wall, .notch .frontier, .notch .wall-counter, .notch .dl .bounty-x { white-space: normal; overflow-wrap: break-word; }
+.editor .rows-head { display: block; margin: 0 0 2px 10px; font: 600 10px/1 var(--display, serif); letter-spacing: .12em; text-transform: uppercase; color: #b9a27a; }   /* docs/COPY.md pass 5 */
+
+/* ===== gfx round 1 (docs/JUICE.md §10) — the blind raters' round-0 read: "flat saturated orange web button", "flat green web progress
+   bars", "oath reward text clipped", "the before/after scene has no frame". Skin only: no words, no layout a test reads. ===== */
+/* the primary button is a gilded plaque: a bronze face, a bevel, a dark rim — never a flat web fill */
+.btn.primary, .sheet .btn.primary, .panel .btn.primary, :is(.sheet, .panel, .parchment) button.btn.primary {
+  position: relative; border: 1px solid #f6d88c; border-radius: 4px; color: #2a1600; font: 700 17px/1 var(--display); letter-spacing: .06em;
+  background: linear-gradient(#f4c768, #d18f28 48%, #a86412 52%, #8a4e0c); text-shadow: 0 1px 0 rgba(255, 236, 180, .65);
+  box-shadow: inset 0 1px 0 rgba(255, 248, 210, .8), inset 0 -3px 0 rgba(70, 34, 0, .45), 0 0 0 2px #24160a, 0 3px 8px rgba(0, 0, 0, .55); }
+.btn.primary:disabled { filter: grayscale(.7) brightness(.8); }
+/* the forecast's reach: a carved trough filled with a lit green liquid (its level is the reach) */
+:is(.sheet, .panel, .parchment) .bar .track { height: 12px; border-radius: 2px; background: linear-gradient(#3b2a19, #5a4128); overflow: hidden;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, .75), 0 1px 0 rgba(255, 244, 214, .45); }
+:is(.sheet, .panel, .parchment) .bar .fill { position: relative; border-radius: 1px; background: linear-gradient(#9ae67f, #45a852 45%, #2a7a38 55%, #1c5a28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 0 6px rgba(110, 220, 110, .45); }
+:is(.sheet, .panel, .parchment) .bar.unknown .track { background: repeating-linear-gradient(135deg, #4a3622 0 4px, #3b2a19 4px 8px); }
+/* the oath board: the reward line wraps inside its tablet, the tablet hugs its content */
+.oath-formula .oath-reward { overflow-wrap: anywhere; font-size: 13px; line-height: 1.15; }
+.oath-reward .ico { width: 30px; height: 30px; filter: drop-shadow(0 0 4px rgba(255, 200, 90, .45)); }
+.oath.tablet { gap: 4px; padding: 10px 12px 8px; }
+.oath-foot .chip.swear { border-color: #b08a3a; background: linear-gradient(#5a1d12, #3a0f08); color: #f6dfb0; box-shadow: inset 0 1px 0 rgba(255, 200, 150, .25), 0 1px 2px #000; }
+/* the before/after scene: an iron-framed window (studs at the corners), no red wash over the fallen branch */
+.camp .well-wrap > .div-scene { box-shadow: 0 0 0 2px #1a120b, 0 0 0 4px #7a5a32, 0 0 0 6px #1a120b, 0 8px 20px rgba(0, 0, 0, .85), inset 0 0 18px rgba(0, 0, 0, .8); }
+.camp .well-wrap > .div-scene::after { content: ""; position: absolute; inset: 3px; pointer-events: none; z-index: 2;
+  background: radial-gradient(circle, #c9a060 0 2px, #4a3520 3px, transparent 4px) 0 0 / 100% 100% no-repeat,
+    radial-gradient(circle at 5px 5px, #c9a060 0 2px, #4a3520 3px, transparent 4px), radial-gradient(circle at calc(100% - 5px) 5px, #c9a060 0 2px, #4a3520 3px, transparent 4px),
+    radial-gradient(circle at 5px calc(100% - 5px), #c9a060 0 2px, #4a3520 3px, transparent 4px), radial-gradient(circle at calc(100% - 5px) calc(100% - 5px), #c9a060 0 2px, #4a3520 3px, transparent 4px); }
+.div-scene .div-tag { font: 700 13px/1.2 var(--display); letter-spacing: .04em; border: 1px solid #7a5a32; background: linear-gradient(#2c241d, #15100c); box-shadow: 0 2px 5px rgba(0, 0, 0, .7); }
+.div-scene .div-end { border: 1px solid #7a5a32; background: linear-gradient(rgba(44, 36, 29, .94), rgba(21, 16, 12, .94)); box-shadow: 0 3px 10px rgba(0, 0, 0, .8); }
+/* the report's head: one headline, the rest a quieter line under it */
+.report .news-line:not(.lead) { font-size: 12px; letter-spacing: .01em; opacity: .85; }
+/* gfx round 1: the places' back walls — painted backdrops (art/ui/backdrops, packed by tools/ui-skin.py; `skin-bd-*` only when packed) behind
+   the death well (where he fell: his sword and shield on the stones) and the report (the tent's table at night), darkened where text sits */
+.skin-bd-death main.death > .well { background: linear-gradient(rgba(10, 7, 5, .7), rgba(10, 7, 5, .26) 42%, rgba(10, 7, 5, .38) 70%, rgba(10, 7, 5, .78)),   /* gfx round 10: lighter (raters: "the backdrop reads as brown mud") */
+  url(/ui/backdrops/death.webp) 50% 85% / cover no-repeat, #0d0a08; }
+.skin-bd-report main.report > .well { background: linear-gradient(rgba(10, 7, 5, .55), rgba(10, 7, 5, .3) 50%, rgba(10, 7, 5, .65)),
+  url(/ui/backdrops/report.webp) 50% 80% / cover no-repeat, #0d0a08; }
+/* gfx round 1 (camp.png): a compact tablet ends in its action's icon plaque — a recessed iron square with the engraved icon */
+.row.tablet.compact:has(> .vplaque) { grid-template-columns: 38px minmax(0, 1fr) 46px; padding-right: 6px; }
+.row.tablet.compact > .vplaque { display: flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 3px;
+  background: radial-gradient(circle at 50% 40%, #2e241b, #120d09 75%); box-shadow: inset 0 2px 4px #000, inset 0 0 0 1px #5a4630, 0 1px 0 rgba(255, 220, 160, .12); }
+.row.tablet.compact > .vplaque .ico { width: 34px; height: 34px; filter: drop-shadow(0 1px 1px #000) drop-shadow(0 0 3px rgba(255, 190, 90, .25)); }
+/* gfx round 1 (raters: "the D8 row text faded and overlapped by the tooltip chip"): the parchment's control rule painted the try row's
+   words in the chips' light ink on parchment — the row is ink again; its number and notes wrap in their own column; the chip stays dark */
+:is(.sheet, .panel, .parchment) button.bar.try { --fg: var(--ink); --dim: var(--ink-dim); color: var(--ink); }
+:is(.sheet, .panel, .parchment) button.bar.try .try { --fg: #ecdfc4; color: #f3dcb0; background: linear-gradient(#3a2c1e, #231910); border-color: #7a5a32; }
+:is(.sheet, .panel, .parchment) .bounty-x { color: #8a4f00; font-weight: 600; }
+/* the reach liquid is lamplight amber (the shaft's hexes' colour), not a web green */
+:is(.sheet, .panel, .parchment) .bar .fill { background: linear-gradient(#ffe29a, #f0a83a 40%, #c0701a 55%, #7a3c0a); box-shadow: inset 0 1px 0 rgba(255, 255, 240, .6), 0 0 7px rgba(255, 170, 60, .55); }
+/* the primary plaque: a dark forged-iron face, a brass rim with four rivets, gilt letters (the gold face drowned its own word at 1440) */
+.btn.primary, .sheet .btn.primary, .panel .btn.primary, :is(.sheet, .panel, .parchment) button.btn.primary {
+  color: #ffd98a; text-shadow: 0 1px 0 #000, 0 0 10px rgba(255, 170, 60, .55); border: 1px solid #c9a050;
+  background: radial-gradient(circle at 9px 9px, #e8c27a 0 2px, #6a4a22 2.6px, transparent 3.4px), radial-gradient(circle at calc(100% - 9px) 9px, #e8c27a 0 2px, #6a4a22 2.6px, transparent 3.4px),
+    radial-gradient(circle at 9px calc(100% - 9px), #e8c27a 0 2px, #6a4a22 2.6px, transparent 3.4px), radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), #e8c27a 0 2px, #6a4a22 2.6px, transparent 3.4px),
+    linear-gradient(#4e3a24, #2c1e12 52%, #1e140b);
+  box-shadow: inset 0 1px 0 rgba(255, 220, 150, .35), inset 0 -2px 0 rgba(0, 0, 0, .5), inset 0 0 0 3px rgba(20, 12, 6, .6), 0 0 0 2px #120c07, 0 3px 8px rgba(0, 0, 0, .6), 0 0 14px rgba(255, 160, 50, .18); }
+/* the oath board: the reward keeps its words whole (it moves under the chips when it does not fit), each oath carries its wax seal */
+.oath-formula { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.oath-formula .oath-reward { flex: 1 0 auto; max-width: 100%; overflow-wrap: normal; word-break: normal; font-size: 14px; line-height: 1.15; }
+.oath.tablet:not(.sworn)::before { content: ""; position: absolute; top: -9px; right: -7px; width: 30px; height: 30px; pointer-events: none; opacity: .55; filter: grayscale(.4);
+  background: radial-gradient(circle at 40% 35%, #d4483a, #7a120c 70%); border-radius: 50%; box-shadow: 0 1px 2px #000; }
+.skin-seal .oath.tablet:not(.sworn)::before { background: url(/ui/frames/seal.png) center / 100% 100% no-repeat; border-radius: 0; box-shadow: none; }
+/* the report's head: the lines under the headline in the plain face */
+.report .news-line:not(.lead) { font: 500 14px/1.3 var(--sans); letter-spacing: .01em; color: #5a4020; }
+/* the report's tiles carry their icon large, as plaques (report.png) */
+.report .tile.plaque { grid-template-columns: 48px minmax(0, 1fr); }
+.report .tile.plaque .ico { width: 46px; height: 46px; filter: drop-shadow(0 2px 2px #000) drop-shadow(0 0 5px rgba(255, 190, 90, .25)); }
+/* gfx round 2 (raters: "trait chips, tabs, route, rules and reach all shout equally"): the set tabs and the route step back */
+.camp-well .tabs .tab:not(.on) { font-size: 13px; min-height: 30px; opacity: .72; border-color: #2e241b; }
+.camp-well .tabs .tab.on { font-size: 14px; min-height: 32px; }
+/* gfx round 2: the why sheet carries its rule's action plaque, large, beside the rule */
+.row-why .why-row { display: flex; align-items: center; gap: 10px; font-size: 17px; }
+.row-why .why-row > .vplaque { flex: none; display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 4px;
+  background: radial-gradient(circle at 50% 40%, #2e241b, #120d09 75%); box-shadow: inset 0 2px 4px #000, inset 0 0 0 1px #5a4630, 0 1px 0 rgba(255, 245, 220, .5); }
+.row-why .why-row > .vplaque .ico { width: 42px; height: 42px; filter: drop-shadow(0 1px 1px #000) drop-shadow(0 0 4px rgba(255, 190, 90, .35)); }
+/* gfx round 2: a fix tablet carries its action's plaque after its rank */
+.patch > .vplaque { flex: none; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 3px;
+  background: radial-gradient(circle at 50% 40%, #2e241b, #120d09 75%); box-shadow: inset 0 2px 4px #000, inset 0 0 0 1px #5a4630; }
+.patch > .vplaque .ico { width: 32px; height: 32px; filter: drop-shadow(0 1px 1px #000) drop-shadow(0 0 3px rgba(255, 190, 90, .3)); }
+/* gfx round 3 (raters: "the target always fills the empty slots with compass-rune plates"): an unused command slot is a sunk plate with a
+   carved compass rune — present, dim, never a button (no text, no pointer) */
+.cmd .tile.empty { opacity: .2; }   /* (QA K: the unused slots recede — ≤ 0.2, gated in ui.mjs; the rune is carved deep enough to read at it) */
+.cmd .tile.empty::after { content: ""; width: 30px; height: 30px; flex: none; opacity: 1;
+  background: conic-gradient(from 45deg, transparent 0 20deg, rgba(120, 96, 64, .75) 20deg 25deg, transparent 25deg 110deg, rgba(120, 96, 64, .75) 110deg 115deg, transparent 115deg 200deg,
+      rgba(120, 96, 64, .75) 200deg 205deg, transparent 205deg 290deg, rgba(120, 96, 64, .75) 290deg 295deg, transparent 295deg),
+    radial-gradient(circle, rgba(140, 110, 70, .8) 0 9%, transparent 10% 34%, rgba(110, 88, 58, .55) 35% 38%, transparent 39%);
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); filter: drop-shadow(0 1px 0 rgba(255, 220, 160, .15)); }
+/* the top bar's stock sits in sunk wells, as the target's plate (a dark inset, an iron lip) */
+.topbar .stat { padding: 2px 9px 2px 5px; border-radius: 16px; background: linear-gradient(#0b0806, #17110c); box-shadow: inset 0 2px 4px rgba(0, 0, 0, .9), inset 0 0 0 1px #3a2c1e, 0 1px 0 rgba(255, 220, 160, .1); }
+.topbar .stat, .topbar button.stat.gold { min-height: 32px; height: 32px; padding: 0 8px 0 4px; }
+.topbar .stats { gap: 5px; }
+/* (the frame's one column never grows past the phone: the wells' min-content once pushed the console 6 px off the right edge) */
+main.frame { grid-template-columns: minmax(0, 1fr); }
+.topbar > .heir, .topbar > .trait { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* gfx round 4: the braziers outside juice (reduced motion, automation): standing, unlit by animation */
+.skin-deco-brazier .vista { position: relative; }
+html:not([data-juice="on"]).skin-deco-brazier .vista::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: url(/ui/deco/brazier.webp) left -6px bottom -10px / auto 78% no-repeat, url(/ui/deco/brazier.webp) right -6px bottom -10px / auto 78% no-repeat; }
+/* gfx round 4 (raters: "the reach column's text is microscopic"): the shaft a little wider, its numbers a size up */
+.camp-main { grid-template-columns: minmax(0, 1fr) 84px; }
+.notch .dp { font-size: 12.5px; }
+.notch .dl { font-size: 15px; }
+.notch .dl .lane-to, .notch .dp .pm { font-size: 10px; }
+/* gfx round 7 (a D11 save's four purse stats ran the `best D11` pill under the gear at 400 px): four stats on a phone draw a size down */
+@media (max-width: 440px) {
+  .topbar .stats:has(.stat + .stat + .stat + .stat) .stat { font-size: 15px; padding: 0 6px 0 3px; gap: 2px; }
+  .topbar .stats:has(.stat + .stat + .stat + .stat) .stat .ico { width: 16px; height: 16px; }
+  .topbar .stats:has(.stat + .stat + .stat + .stat) { gap: 3px; }
+}
+/* gfx round 7 (raters Q, R, the oath board: "wax seals clipped at the card corners", "stake buttons are muddy disabled blobs", "no clear
+   first choice"): the seal sits whole inside its card's corner, the reward's icon in a recessed plaque, a short purse in warning red */
+.oath.tablet:not(.sworn)::before { top: 8px; right: 10px; width: 34px; height: 34px; opacity: .78; filter: grayscale(.2) drop-shadow(0 2px 2px rgba(0, 0, 0, .7)); transform: rotate(-8deg); }
+.oath.tablet > .oath-seal { top: 6px; right: 8px; }
+.oath-board .oath-formula .oath-reward .ico { width: 34px; height: 34px; padding: 3px; border-radius: 4px;
+  background: radial-gradient(circle at 50% 40%, #2e241b, #120d09 75%); box-shadow: inset 0 2px 4px #000, inset 0 0 0 1px #5a4630, 0 1px 0 rgba(255, 220, 160, .12); }
+.oath-board .oath.tablet.short .oath-foot .why { color: #e8866a; }
+.oath-board .oath.tablet.short .chip.swear { opacity: .8; filter: saturate(.45) brightness(.85); }
+/* gfx round 7 (raters Q, R, the death: "the damage ledger is cut off under the console"): a scrolling well fades out at its foot instead
+   of cutting a line of text in half (the mask is visual only; the text and its scroll are unchanged) */
+main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(#000 calc(100% - 30px), transparent); mask-image: linear-gradient(#000 calc(100% - 30px), transparent); padding-bottom: 34px; }
+/* gfx round 7 (raters Q, R: "the 'by heirs 2–14' wrap is broken"): the heirs line under RUNS stays on one line, across the plaque */
+.report .tile.plaque .heirs-ran { white-space: nowrap; grid-column: 1 / -1; justify-self: start; }
+/* gfx round 8 (raters Q–T, the why sheet and the editor: "a plain web modal", "iron corner brackets", "a drop shadow onto the camp"): a
+   sheet's parchment carries riveted iron L-brackets in its four corners and casts a deep shadow */
+.skin-panel .sheet-wrap > .sheet {
+  --irn: linear-gradient(#3a3028, #1a140f); --irv: linear-gradient(90deg, #3a3028, #1a140f);
+  --rv: #e0c080 0 1.8px, #4a3620 2.5px, transparent 3.2px;
+  background:
+    radial-gradient(circle at 9px 9px, var(--rv)), radial-gradient(circle at calc(100% - 9px) 9px, var(--rv)),
+    radial-gradient(circle at 9px calc(100% - 9px), var(--rv)), radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), var(--rv)),
+    var(--irn) left top / 24px 5px no-repeat, var(--irv) left top / 5px 24px no-repeat,
+    var(--irn) right top / 24px 5px no-repeat, var(--irv) right top / 5px 24px no-repeat,
+    var(--irn) left bottom / 24px 5px no-repeat, var(--irv) left bottom / 5px 24px no-repeat,
+    var(--irn) right bottom / 24px 5px no-repeat, var(--irv) right bottom / 5px 24px no-repeat,
+    radial-gradient(ellipse at 50% 40%, rgba(255, 248, 225, .45), transparent 70%), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(120, 80, 35, .32)), #dcc49a;
+  background-clip: padding-box; background-origin: padding-box;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .85), 0 4px 10px rgba(0, 0, 0, .7), 0 0 0 1px #000; }
+/* gfx round 8 (raters Q–T, the camp: "give each rule tablet a carved number plaque like the target"): a rule's ordinal sits in a recessed
+   iron stud (the same small ordinal: position, not a name) */
+.row.tablet.compact:not(.cage-tab):not(.start-tab):not(.oath-tab) > .grip .rn, .row.tablet.compact:not(.cage-tab):not(.start-tab):not(.oath-tab) > .rn {
+  display: inline-flex; align-items: center; justify-content: center; justify-self: center; width: 24px; height: 24px; border-radius: 50%; opacity: 1;
+  color: #e6c47a; font: 700 13px/1 var(--display); text-shadow: 0 1px 1px #000;
+  background: radial-gradient(circle at 50% 38%, #3a2d21, #120d09 72%);
+  box-shadow: inset 0 2px 3px #000, inset 0 0 0 1px #5a4630, 0 1px 0 rgba(255, 220, 160, .14); }
+/* gfx round 8 (raters Q–T, the report, every one: "a real scroll: rolled top and bottom, burnt edges", report.png's centre): the report's
+   parchment is a hanging scroll (art/ui/frames/scroll.png, Codex; 9-slice: its rolls stretch across, its ragged sides down) */
+.skin-scroll main.report .parchment.report-sheet { border-style: solid; border-color: transparent; border-width: 40px 16px 40px;
+  border-image: url(/ui/frames/scroll.png) 80 36 80 36 fill / 40px 18px 40px 18px stretch; background: none; box-shadow: none; padding: 0 10px; }
+/* (round 8: the seal inside the corner sat over a long reward's words — the formula keeps clear of it) */
+.oath-board .oath.tablet .oath-formula { padding-right: 38px; }
+/* gfx round 10 (raters, every round: "show the killer"): the killer's portrait in an iron medallion pinned to the banner, over its words */
+.banner-cloth > img.killer { display: block; flex: none; width: 58px; height: 58px; margin: -18px auto 6px; border-radius: 50%; object-fit: cover;
+  border: 3px solid #2a2018; box-shadow: 0 0 0 2px #8a6a3a, 0 0 0 4px #140e0a, 0 4px 10px rgba(0, 0, 0, .8), inset 0 0 8px #000; filter: saturate(.9) contrast(1.05); }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .death.arrived .banner-cloth > img.killer { animation: j-killer .5s cubic-bezier(.3, 1.5, .5, 1) .25s backwards; }
+  @keyframes j-killer { from { transform: scale(1.8); opacity: 0; filter: brightness(2); } to { transform: none; opacity: 1; } }
+}
+/* gfx round 10 (raters, every round: "a flat inset pasted over the list, no carved frame — frame it like the console"): the scene sits in
+   the console's own riveted iron bezel, a vignette inside it */
+.skin-console .camp .well-wrap > .div-scene { border: 12px solid transparent; border-image: url(/ui/frames/console.png) 48 fill / 12px stretch; background-clip: padding-box;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .9); }
+.camp .well-wrap > .div-scene::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 50%, transparent 55%, rgba(0, 0, 0, .7)); }
+/* gfx round 10 (raters: "light the most important plaque"): the send's deepest floor carries a gilt rim and a slow glow */
+.report .tiles > .tile.plaque:nth-child(2), .skin-tile .report .tiles > .tile.plaque:nth-child(2) { box-shadow: 0 0 0 1px #d8b060, 0 0 14px rgba(255, 190, 80, .45); }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .report.arrived .tiles > .tile.plaque:nth-child(2) { animation: j-plaque .52s cubic-bezier(.3, 1.2, .5, 1) .07s backwards, j-gilt 2.8s ease-in-out 1s infinite; }
+  @keyframes j-gilt { 0%, 100% { box-shadow: 0 0 0 1px #d8b060, 0 0 10px rgba(255, 190, 80, .3); } 50% { box-shadow: 0 0 0 1px #f0cc78, 0 0 22px rgba(255, 190, 80, .7); } }
+}
+/* gfx round 13 (raters, rounds 7–12, on every sheet: "a flat web modal — torn or scrolled parchment edges", "unfurl it as a scroll"): a sheet
+   is the report's parchment scroll (art/ui/frames/scroll.png), its rolls across the top and bottom, ragged sides; a deep shadow under it */
+.skin-scroll.skin-panel .sheet-wrap > .sheet { border-style: solid; border-color: transparent; border-width: 30px 14px 30px;
+  border-image: url(/ui/frames/scroll.png) 80 36 80 36 fill / 30px 14px 30px 14px stretch; background: none; border-radius: 0;
+  box-shadow: none; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .85)) drop-shadow(0 3px 5px rgba(0, 0, 0, .7)); }
+.skin-scroll.skin-panel .sheet-wrap > .sheet { padding-left: 14px; padding-right: 12px; }
+/* (the forecast and the other camp panels take the same scroll) */
+.skin-scroll.skin-panel .panel-host > .panel { border-style: solid; border-color: transparent; border-width: 30px 14px 30px; padding: 4px 14px 10px;
+  border-image: url(/ui/frames/scroll.png) 80 36 80 36 fill / 30px 14px 30px 14px stretch; background: none; box-shadow: none;
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, .85)); }
+/* gfx round 14 (raters: "seven same-weight plaques, no hero stat", "the empty eighth slot reads unfinished"): the send's deepest floor is
+   the hero plaque — across the row, its number a size up */
+.report .tiles.six > .tile.plaque:nth-child(2) { grid-column: 1 / -1; order: -1; }   /* (first, so the six under it pair up) */
+.report .tiles.six > .tile.plaque:nth-child(2) .num { font-size: 1.3em; }
+/* (raters: "MEASURING overflows the APPLY gem"): the pending word fits inside the gem */
+.gem.patch-gem.pending .gem-w { font-size: 9.5px; letter-spacing: .04em; padding: 1px 3px; }
+/* gfx round 16 (raters, every round: "the bars are thin web progress lines — engraved troughs with a molten fill"): the forecast's reach
+   bars as sunken brass troughs (cut29.css thinned them to 4 px) with a molten gold fill and a hot tip */
+:is(.sheet, .panel, .parchment) .forecast .bar .track { height: 9px; border-radius: 2px; background: linear-gradient(#2a1c10, #4a3420);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, .85), 0 0 0 1px #8a6a3a, 0 1px 0 rgba(255, 244, 214, .5); }
+:is(.sheet, .panel, .parchment) .forecast .bar .track .fill { background: linear-gradient(#ffe7a8, #f3b24a 40%, #c26d18 60%, #7a3c0a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 240, .7), 0 0 6px rgba(255, 170, 60, .6); }
+:is(.sheet, .panel, .parchment) .forecast .bar .track .fill::before { content: ""; position: absolute; right: -2px; top: -2px; bottom: -2px; width: 4px; border-radius: 2px;
+  background: #fff4c8; box-shadow: 0 0 6px 2px rgba(255, 200, 90, .9); }
+/* (raters: "the EDIT slab is a plain dark bar — a carved gold button with a glow"): the why sheet's EDIT is a gilt-edged iron plate */
+:is(.sheet, .panel, .parchment) button.btn.primary.why-edit { background: linear-gradient(#5a4128, #2c1e12 55%, #1e140b); color: #ffe2a0; border: 2px solid #c9a050;
+  text-shadow: 0 1px 0 #000, 0 0 10px rgba(255, 180, 70, .6); box-shadow: inset 0 1px 0 rgba(255, 230, 170, .45), 0 0 0 2px #140e0a, 0 0 16px rgba(255, 170, 60, .35), 0 4px 8px rgba(0, 0, 0, .6); }
+/* (raters: "the oath cards are mostly empty wood — put the reward large"): the reward's icon a size up in its plaque */
+.oath-board .oath-formula .oath-reward .ico { width: 50px; height: 50px; padding: 5px; }
+/* gfx round 17 (raters, the Fens and the fight: "the top bar's 'buys unlocks' / 'rank from deeds' labels collide"): two first-time captions
+   under neighbouring stats take two rows */
+.topbar .stats .stat:nth-child(even) .concept-cap { top: calc(100% + 19px); }
+/* gfx round 18 (raters: "the D8 row's 'try: attac…' pill is truncated"): the hint pill tighter so it reads whole on the track */
+.bar.try .try { padding: 0 4px; font-size: 10.5px; letter-spacing: -.01em; }
+.fc-causes .cause { display: inline-flex; align-items: center; gap: 3px; }
+.fc-causes .foe-face { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 1px #8a6a3a, 0 0 0 2px #140e0a, 0 1px 2px rgba(0, 0, 0, .6); }
+/* gfx round 18 (raters, every round: "the title wraps 'ATTACK / BOSS'", "four grey sub-lines before any stat"): the headline fits its width
+   (balanced, a size down on a phone), the lines under it run on as one paragraph separated by dots */
+.report .news-line.lead { font-size: clamp(15px, 4.4vw, 21px); text-wrap: balance; }
+.report .news-line:not(.lead) { display: inline; }
+.report .news-line:not(.lead) + .news-line:not(.lead)::before { content: " · "; opacity: .6; }
+/* (raters: "the OPENED chips are cut off at the fold"): the opened systems as a compact row of small plaques */
+.report .sys-opened { gap: 4px; margin: 4px 0; }
+.report .sys-opened .sys-plaque { padding: 1px 6px 1px 3px; font-size: 11px; min-height: 0; }
+.report .sys-opened .sys-plaque .ico { width: 16px; height: 16px; }
+/* gfx round 18 (raters, every round: "the scene inset covers the rule list mid-row"): on a phone the scene plays over the camp's vista at the
+   top of the well, clear of the rule tablets */
+@media (max-width: 1023px) { .camp .well-wrap > .div-scene { align-self: start; margin: 2px 8px 0; height: 196px; } }
+/* gfx round 22 (raters, rounds 18–21: "the scene inset covers the route row"): while the scene plays on a phone the vista grows to its
+   height, so the route line and the rules move down under it instead of being covered */
+@media (max-width: 1023px) {
+  .camp .vista { transition: height .26s cubic-bezier(.2, 1, .3, 1); }
+  .camp .well-wrap:has(> .div-scene:not([hidden])) .vista { height: 200px; }
+}
+/* gfx round 22: many opened systems read as one row of bronze medallions (names as titles) */
+.report .sys-opened.icons { flex-wrap: nowrap; gap: 3px; }
+.report .sys-opened.icons .sys-plaque { width: 28px; height: 28px; padding: 0; justify-content: center; border-radius: 50%; flex: 0 1 28px; min-width: 20px;
+  background: radial-gradient(circle at 35% 30%, #6b5431, #3a2a16 70%); box-shadow: inset 0 0 0 1px #c9a45a, 0 0 0 1px #1a1008, 0 2px 3px rgba(0, 0, 0, .6); }
+.report .sys-opened.icons .sys-plaque .ico { width: 18px; height: 18px; }
+.report .sys-opened.icons .sys-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* gfx round 24: the scene's two panes — the sent branch left, the edited one right, a carved seam between; the pane not playing dims */
+.div-scene .div-view.a, .div-scene .div-view.b { width: calc(50% - 2px); }
+.div-scene .div-view.a { left: 0; right: auto; }
+.div-scene .div-view.b { left: auto; right: 0; }
+.div-scene:not([data-state="still"])::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(50% - 2px); width: 4px; background: linear-gradient(#6b5431, #3a2a16); box-shadow: 0 0 0 1px #000; }
+.div-scene .div-view { transition: filter .25s; }
+.div-scene[data-phase="sent"] .div-view.b { filter: brightness(.45) saturate(.5); }
+.div-scene[data-phase="new"] .div-view.a { filter: brightness(.75) saturate(.8); }
+.div-scene .div-tag { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.div-scene .div-ptag { position: absolute; top: 5px; max-width: calc(50% - 14px); padding: 2px 6px; border-radius: 3px; background: rgba(12, 9, 7, .8); font: 700 12px/1.25 var(--sans);
+  color: #e8d6b0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 1; }
+.div-scene[data-state="still"] .div-ptag { display: none; }
+.div-scene .div-ptag.a { left: 6px; } .div-scene .div-ptag.b { left: calc(50% + 6px); }
+.div-scene .div-ptag .was { color: #c9b48f; } .div-scene .div-ptag .now { color: #f3c25a; }
+.div-scene .div-end { font-size: 19px; padding: 3px 9px; white-space: nowrap; }
+.div-scene .div-end.a { left: 25%; } .div-scene .div-end.b { left: 75%; }
+/* gfx round 24 (the coordinator approved; raters: "EDIT a plain dark bar — a carved gilt button, a gem"): the painted carved plaque
+   (art/ui/frames/button.png, Codex) as a 9-slice — iron end caps with a ruby, walnut face, gilt moulding; it glows and sinks on press */
+.skin-button :is(.sheet, .panel, .parchment) button.btn.primary.why-edit { background: none; border: solid transparent; border-width: 11px 39px;
+  border-image: url(/ui/frames/button.png) 22 78 22 78 fill / 11px 39px stretch; box-shadow: none; min-height: 58px; padding: 0 8px;
+  font: 700 21px/1 var(--display); letter-spacing: .14em; color: #ffe6a8; text-shadow: 0 2px 0 #000, 0 0 12px rgba(255, 170, 60, .75);
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .55)) drop-shadow(0 0 8px rgba(255, 160, 60, .25)); transition: filter .15s, transform .1s; }
+.skin-button :is(.sheet, .panel, .parchment) button.btn.primary.why-edit:hover { filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .55)) drop-shadow(0 0 14px rgba(255, 170, 70, .55)) brightness(1.08); }
+.skin-button :is(.sheet, .panel, .parchment) button.btn.primary.why-edit:active { transform: translateY(1px) scale(.99); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .6)) brightness(.95); }
+/* the WHY sheet by candlelight: a melted candle on its parchment (art/ui/deco/candle, Codex), its warm pool flickering on the paper */
+.skin-deco-candle .row-why { position: relative; }
+.skin-deco-candle .row-why::before { content: ""; position: absolute; right: 52px; top: 0; width: 34px; height: 51px; pointer-events: none;
+  background: url(/ui/deco/candle.webp) center / contain no-repeat; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .5)); z-index: 1; }
+.skin-deco-candle .row-why::after { content: ""; position: absolute; right: 0; top: 0; width: min(280px, 100%); height: min(200px, 100%); pointer-events: none; mix-blend-mode: soft-light;
+  background: radial-gradient(circle at 75% 14%, rgba(255, 196, 110, .75), rgba(255, 150, 60, .25) 35%, transparent 65%); animation: j-candle 2.6s ease-in-out infinite; }
+@keyframes j-candle { 0%, 100% { opacity: .85; } 18% { opacity: 1; } 31% { opacity: .78; } 52% { opacity: .95; } 70% { opacity: .82; } 84% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .skin-deco-candle .row-why::after { animation: none; } }
+/* gfx round 26 (raters: "'rat slain' ghosted, nearly invisible"): the watch's caption sits on a soft dark band across the view */
+.watch .ticker { padding: 5px 12px 6px; background: linear-gradient(90deg, transparent, rgba(8, 6, 4, .72) 22%, rgba(8, 6, 4, .72) 78%, transparent);
+  text-shadow: 0 2px 0 #000, 0 0 10px rgba(0, 0, 0, .9); }

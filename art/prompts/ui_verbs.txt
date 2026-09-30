@@ -1,0 +1,27 @@
+You are painting UI ICONS for the game "Riddle" (a phone roguelike). The target look is in
+/home/g/p/riddle/art/ui/targets/camp.png — LOOK AT THAT IMAGE FIRST, and at two existing icons for the exact style:
+/home/g/p/riddle/art/ui/icons/fights.png and /home/g/p/riddle/art/ui/icons/vault.png (you may read those three
+images; read nothing else in the repository). Match the engraved icon style of the rule tablets' right-hand icon
+plaques in camp.png exactly: each icon a single object engraved/embossed in aged bronze-bone metal with a dark
+ink outline and warm amber highlight from the upper left, strong simple silhouette, readable at 32 px.
+
+Use your built-in image_gen tool, one call per icon. Do NOT modify anything outside
+/home/g/p/riddle/art/ui/icons/. Each icon: 256x256, RGBA, TRANSPARENT background (true alpha, the
+four corners alpha 0), the object centred filling ~75% of the canvas, no frame or tile behind it,
+no text, no letters, no numbers. Resample to 256x256 with PIL (Lanczos) if needed. Regenerate once if the
+background is not transparent. Delete any scratch/inspection files you create.
+
+Paths and subjects:
+/home/g/p/riddle/art/ui/icons/v_attack.png — a single broad sword, point up, slightly diagonal
+/home/g/p/riddle/art/ui/icons/v_drink.png — a round glass potion flask with a cork, a small cross embossed on it (keep the liquid a muted red)
+/home/g/p/riddle/art/ui/icons/v_read.png — a partly unrolled parchment scroll with a wax seal (no writing)
+/home/g/p/riddle/art/ui/icons/v_throw.png — a small clay flask with a burning rag in its neck (a firebomb), a small orange flame
+/home/g/p/riddle/art/ui/icons/v_retreat.png — a curved arrow bending back to the left, like a U-turn, heavy and carved
+/home/g/p/riddle/art/ui/icons/v_corridor.png — a narrow stone archway / doorway seen from the front
+/home/g/p/riddle/art/ui/icons/v_descend.png — a short flight of stone stairs going down into a dark opening
+/home/g/p/riddle/art/ui/icons/v_rest.png — a small campfire of crossed logs with a low flame
+/home/g/p/riddle/art/ui/icons/v_shoot.png — a recurve bow with a nocked arrow
+/home/g/p/riddle/art/ui/icons/v_magic.png — a jagged lightning bolt inside a thin rune circle (keep the bolt a pale blue-white glow)
+/home/g/p/riddle/art/ui/icons/v_shadow.png — a hooded rogue's mask half dissolving into smoke
+/home/g/p/riddle/art/ui/icons/v_shield.png — a round iron-rimmed wooden shield with a central boss
+/home/g/p/riddle/art/ui/icons/v_explore.png — an old hanging lantern with a small warm flame

@@ -58,14 +58,20 @@ RAMP: dict[str, tuple[list[int], list[float]]] = {
     "barrel": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
     "crate": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
     "pot": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
+    # gfx round 10: skull piles, chests, weapon racks, broken statues (the ramp's props); braziers and candles are HUE
+    "skulls": ([0, 1, 3, 5, 6, 7], [0.12, 0.28, 0.45, 0.62, 0.8]),
+    "chest": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
+    "rack": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
+    "statue": ([0, 1, 2, 3, 4, 5], [0.15, 0.32, 0.5, 0.7, 0.88]),
     "bones": ([0, 3, 5, 6, 7], [0.2, 0.4, 0.65, 0.88]),
     # second art pass: the Cut 5 situation props at the 16-texel density (the 8x8 register stays the fallback)
     "vault": ([0, 1, 2, 3, 4, 6], [0.2, 0.36, 0.52, 0.72, 0.9]),
     "vault_open": ([0, 1, 2, 3, 4, 6], [0.3, 0.45, 0.6, 0.78, 0.92]),
     "nest": ([0, 1, 2, 3, 4, 5, 6], [0.12, 0.25, 0.42, 0.62, 0.82, 0.95]),
 }
-HUE = {"blood_0", "blood_1", "torch", "banner", "shrine", "item_potion", "item_scroll", "item_weapon", "item_armour", "item_gold"}
-PROPS = {"barrel", "crate", "pot", "bones", "torch", "banner", "shrine", "vault", "vault_open", "nest", "item_gold"}   # bottom-anchored, 1-texel dark rim
+HUE = {"blood_0", "blood_1", "torch", "banner", "shrine", "item_potion", "item_scroll", "item_weapon", "item_armour", "item_gold",
+       "brazier", "candles"}   # gfx round 10: fire keeps its colour
+PROPS = {"barrel", "crate", "pot", "skulls", "chest", "rack", "statue", "brazier", "candles", "bones", "torch", "banner", "shrine", "vault", "vault_open", "nest", "item_gold"}   # bottom-anchored, 1-texel dark rim
 # a biome whose ramp roles differ from the warrens' shape: ramp index -> this biome's index
 BIOME_REMAP: dict[str, dict[int, int]] = {
     # pale dressed stone: slate mortar, pale field (the old sanctum floor's field was 5)
@@ -308,7 +314,7 @@ def main() -> int:
     every = [a for a in manifest["assets"] if a["bg"].startswith("env")]
     assets = [a for a in every if not a.get("biome")]
     # juice pass 2: per-biome drawings (`env_<biome>_<name>`, manifest `biome`/`name`) replace the shared drawing for that biome
-    own: dict[tuple[str, str], dict] = {(a["biome"], a["name"]): a for a in every if a.get("biome") and (SRC / f"{a['id']}.png").exists()}
+    own: dict[tuple[str, str], dict] = {(a["biome"], a["name"]): a for a in every if a.get("biome") and (a.get("register") != "painted" or a["name"] in RAMP) and (SRC / f"{a['id']}.png").exists()}
     written: dict[str, Image.Image] = {}
     missing = []
     for a in assets:
@@ -366,6 +372,13 @@ def main() -> int:
         if n > 8:
             print(f"FAIL {k}: {n} colours")
             return 1
+    # gfx round 18: the painted register (art/painted.py) is drawn over the ramp register where a piece is painted
+    from painted import convert_all  # noqa: E402
+    painted = convert_all(SRC, OUT, key_source)
+    for tid in painted:
+        written[tid] = Image.open(OUT / f"{tid}.png")
+    if painted:
+        print(f"painted: {len(painted)} tiles over the ramp register")
     sheet(written).save(OUT / "_env_sheet.png")
     print(f"wrote {len(written)} env tiles -> {OUT}")
     if missing:

@@ -46,6 +46,25 @@ void main() {
   col = mix(col, uFlash, vParam.y * smoothstep(0.06, 0.3, l));
   gl_FragColor = vec4(col, uTag);
 }`;
+/** gfx round 10: an ethereal sprite (wraiths, shades, spectral summons) — half over what is under it, cold and a little lifted. Written
+ *  with blending src·a + dst·(1 − a) at a = the sprite tag (0.5), so the colour is a 50/50 mix and the target's alpha stays the tag. */
+const GHOST_FRAG = /* glsl */ `
+uniform sampler2D map;
+uniform float uTag;
+uniform vec3 uFlash;
+varying vec2 vUv;
+varying vec4 vParam;
+${BAYER_GLSL}
+void main() {
+  vec4 c = texture2D(map, vUv);
+  if (c.a < 0.5) discard;
+  if (vParam.z > 0.0 && vParam.z > bayer4(gl_FragCoord.xy)) discard;
+  float l = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
+  // (a 50/50 mix halves it: drawn at ~1.7× so the ghost reads over the floor — its dark hood stays dark, its pale edges glow)
+  vec3 col = mix(c.rgb, vec3(0.85, 0.8, 1.0) * (0.2 + 1.6 * l), 0.45) * vParam.x * 1.95;   // (violet-white: reads over the Fens' teal)
+  col = mix(col, uFlash, vParam.y * smoothstep(0.06, 0.3, l));
+  gl_FragColor = vec4(col, uTag);
+}`;
 
 export class QuadLayer {
   readonly mesh: THREE.Mesh;
@@ -59,7 +78,7 @@ export class QuadLayer {
   private dirty = true; // any instance value changed since the last upload
   readonly capacity: number;
 
-  constructor(texture: THREE.Texture, capacity: number, tag: number, renderOrder: number) {
+  constructor(texture: THREE.Texture, capacity: number, tag: number, renderOrder: number, ghost = false) {
     this.capacity = capacity;
     const base = new THREE.PlaneGeometry(1, 1);
     base.translate(0.5, 0.5, 0); // uv (0,0) at bottom-left; shader re-anchors to bottom-centre
@@ -80,12 +99,14 @@ export class QuadLayer {
     this.geom = g;
     const mat = new THREE.ShaderMaterial({
       vertexShader: QUAD_VERT,
-      fragmentShader: FRAG,
+      fragmentShader: ghost ? GHOST_FRAG : FRAG,
       uniforms: { map: { value: texture }, uTag: { value: tag }, uFlash: { value: new THREE.Color(0.98, 0.95, 0.9) } },
-      transparent: false,
+      transparent: ghost,
       depthTest: true,
-      depthWrite: true,
+      depthWrite: !ghost,
       side: THREE.DoubleSide,
+      ...(ghost ? { blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+        blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.ZeroFactor } : {}),
     });
     this.mesh = new THREE.Mesh(g, mat);
     this.mesh.frustumCulled = false;

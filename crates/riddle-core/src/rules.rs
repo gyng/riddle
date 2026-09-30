@@ -158,6 +158,8 @@ pub const COND_KEYS: &[&str] = &[
     "party", "party_hp<", "self_hp<", "self_hp>",
     // Cut 26 §2: the biome the floor sits in (`in: fens`), open once the biome has been entered
     "in",
+    // Cut 30 §4: the heir wears a trait (`trait: wrathful`); a worn gift's context holds now
+    "trait", "gift_live",
 ];
 
 pub const VERB_KEYS: &[&str] = &[
@@ -216,6 +218,8 @@ impl Cond {
             "self_hp<" => format!("self<{n}%"),
             "self_hp>" => format!("self>{n}%"),
             "in" => format!("in {}", self.t.clone().unwrap_or_default()),
+            "trait" => self.t.clone().unwrap_or_default(),
+            "gift_live" => "gift live".into(),
             other => other.to_string(),
         }
     }

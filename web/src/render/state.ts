@@ -9,6 +9,7 @@
 // the actor's next queued event (default 10 ticks, clamped 3..20), progress quantised to whole
 // ticks (10 fps cadence at 1×). Callouts stay on a real-time 1 s cadence.
 import { heroKind } from "./look";
+import { nameRefs } from "../ui/tokens";   // docs/COPY.md: a rule by its words on the canvas too
 import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 import { KNOWN_ENTITY_KINDS } from "./palette";
 
@@ -376,7 +377,7 @@ export class ReplayState {
         const tail = ev.text.includes("→") ? ev.text.slice(ev.text.lastIndexOf("→") + 1).trim() : ev.text;
         // QA 23ed91f (L: `R4 PACK BREAK GOBLIN`, 4 words): a callout is ≤ 3 words — the row number and at most two of the verb's
         // (the target goes first: `R4 pack break`, `R2 attack goblin`)
-        const text = (ev.row >= 0 ? `R${ev.row + 1} ${capWords(this.targetAsTagged(tail), 2)}` : ev.text.replace(/→/g, ">")).slice(0, 24);
+        const text = (ev.row >= 0 ? capWords(this.targetAsTagged(tail), 3) : ev.text.replace(/→/g, ">")).slice(0, 24);
         this.caption = { text, until: performance.now() + CAPTION_MS, t };
         break;
       }
@@ -451,7 +452,7 @@ export class ReplayState {
         // Cut 22 (AH: the boss moment's "clutter of overlapping text"): a boss's break is the watch's beat (`WARLORD BREAKS` on the line
         // under the fight) — one line wins, never a second `WARLORD BREAKS` over the hero at once
         if (/^(?:the )?[a-z]+ breaks\.?$/i.test(ev.text.trim())) break;
-        this.callout = { text: ev.text.slice(0, 24), until: performance.now() + 1000, t };
+        this.callout = { text: nameRefs(ev.text).slice(0, 24), until: performance.now() + 1000, t };
         break;
       case "tame": {
         // leash arc hero → target over LEASH_T ticks, then flash + ring (ok) or shake (fail)
@@ -531,7 +532,7 @@ export class ReplayState {
         // QA e75ec29 (Q: "final frame shows no hero sprite at 0/36 … the body stays where he fell"): the fallen hero dims to
         // HERO_FALLEN_FADE and stays drawn where he fell through the walk-out; only foes dissolve away
         e.fade = e.hero ? Math.min(HERO_FALLEN_FADE, Math.floor(p * 4) / 4) : Math.floor(p * 4) / 4;
-        if (p >= 1 && !e.hero) this.ents.delete(id);
+        if (p >= 1 && !e.hero && !e.boss) this.ents.delete(id);   // gfx round 10: a boss's body stays (the renderer draws his death pose, or nothing)
       } else if (e.spawning) {
         const p = Math.min(1, (c - e.spawning.t0) / SPAWN_T);
         e.fade = 1 - Math.floor(p * 4) / 4;

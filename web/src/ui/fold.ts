@@ -93,7 +93,7 @@ export class FoldTally {
         case "fact": this.learned++; break;
         case "level": add("level", `${ev.class} L${ev.level}`, ev.t); break;
         case "max_hp": if (ev.id === heroId && ev.delta !== 0) { const c = oneWord(ev.cause); this.maxHp.set(c, (this.maxHp.get(c) ?? 0) + ev.delta); } break;
-        case "bones": if (ev.heir !== s.run.heir) add("bones", /* copy:callout */ `♟${ev.heir} bones`, ev.t); break;
+        case "bones": if (ev.heir !== s.run.heir) add("bones", /* copy:callout */ `heir ${ev.heir} bones`, ev.t); break;
         case "tame": if (ev.ok) { this.allies.add(ev.id); add("pet", /* copy:callout */ `tamed ${oneWord(ev.kind)}`, ev.t); } break;
         case "hatch": add("pet", /* copy:callout */ `hatched ${oneWord(ev.kind)}`, ev.t); break;
         case "ally": if (ev.state === "lost") add("pet", /* copy:callout */ `${oneWord(this.names.get(ev.id) ?? "ally")} lost`, ev.t); break;

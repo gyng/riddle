@@ -106,6 +106,10 @@ pub struct Snapshot {
     /// decides; the callout is `TWO STAIRS`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fork: Option<SnapFork>,
+    /// Cut 29 §3: the watch's compact meter — the run so far and the fight in progress (or the
+    /// last), `fighting` while one is. Absent before the first tick.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meters: Option<SnapMeters>,
 }
 
 /// Cut 26 §2: a fork on the floor (`Snapshot.fork`).
@@ -308,6 +312,9 @@ pub struct ExitLine {
     /// The report leads with these, before the counts.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub news: Vec<News>,
+    /// Cut 29 §3: the run metered (`meters::MeterWire`); absent on a sim's line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meters: Option<Box<crate::meters::MeterWire>>,
 }
 
 /// Cut 24 §2: one line of `ExitLine.news` — its kind (`first` · `record` · `named` · `find`
@@ -495,6 +502,17 @@ pub enum Ev {
     /// comes into view, the stairs or the run's end, the hero's `hurt` / `max_hp` events with no
     /// foe in view are the drain's: dead time (the watch plays them at the travel rate).
     Drain { t: u32, cause: String },
+    /// Cut 28b (owner: "it's not clear what oaths do"): the sworn oath's fate in this send, said
+    /// once, as it happens — `kept` (a new kind tamed, the boss slain, the floor reached and the
+    /// run ended by a bank or a death), or not: broken (`cause` the tool it forbade: `return`,
+    /// `rest`; or `stalled` · `driven`) or missed at the end (`cause` empty: the run ended short of
+    /// it). `row` is the row whose verb did it (−1: a chore, a trait, the run's end). The watch's
+    /// beat reads `OATH KEPT` / `OATH BROKEN · R2 return`; the run's notes and exit line say the same.
+    Oath { t: u32, kept: bool, row: i32, cause: String },
+    /// Cut 29 §3: hp the hero (`id` 0) or a pet regained this tick, by source (`potion` · `rest` ·
+    /// `regen` · `skill`); read off the hp around the tick for the meters (`meters.rs`) — not
+    /// renderable, no input to anything.
+    Heal { t: u32, id: u32, amount: i32, src: String },
 }
 
 impl Ev {
@@ -526,12 +544,14 @@ impl Ev {
             | Ev::Rest { t, .. }
             | Ev::Bones { t, .. }
             | Ev::Ending { t, .. }
-            | Ev::Drain { t, .. } => *t,
+            | Ev::Drain { t, .. }
+            | Ev::Oath { t, .. }
+            | Ev::Heal { t, .. } => *t,
         }
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
     pub fn renderable(&self) -> bool {
-        !matches!(self, Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. } | Ev::Ending { .. })
+        !matches!(self, Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. } | Ev::Ending { .. } | Ev::Oath { .. } | Ev::Heal { .. })
     }
 }
 
@@ -548,6 +568,13 @@ pub struct ExitPending {
     /// plan, brought vault items first) — what `autoKeep()` does, and the sheet's pre-ticks.
     #[serde(default)]
     pub auto_keep: Vec<u32>,
+    /// Cut 29 §4: the sheet is a decision — a find beats something in the full vault (or finds
+    /// outnumber its free slots). False: the client settles it (`autoKeep()`) and shows `note`.
+    #[serde(default)]
+    pub decide: bool,
+    /// Cut 29 §4: the settled exit's one line (`kept leather +1`); absent when nothing new is kept.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -787,6 +814,10 @@ pub struct ForecastEnds {
     /// Cut 13 §5: the half-width of the death share over the ends panel (`death 5% ±4`).
     #[serde(default)]
     pub pm: f64,
+    /// Cut 29 §6 (AX: `$81` banked under `~$260`): of `gold`, the waystone passage paid at the send
+    /// (the exit line's `BANKED $N` is `gold − passage`); 0 from D1.
+    #[serde(default)]
+    pub passage: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -820,6 +851,9 @@ pub struct TraceTurn {
     /// max hp at this action.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub max_hp: i32,
+    /// Cut 30 §4: the heir's gift that acted at this action (`fury +1`, `mend +1 · sure 50%`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gift: Option<String>,
 }
 
 /// Cut 28 §2: one step of the hero's max hp (`Trace.max_steps`): the tick, the max after it, the
@@ -1110,6 +1144,10 @@ pub struct Death {
     /// survive (`baseline` over `trace::STAMP_BASE`), the rare event that killed him and its odds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub luck: Option<DeathLuck>,
+    /// Cut 29 §3: the fight he died in, metered (`meters::MeterWire`: dps dealt and taken by side,
+    /// hps by source, hits taken, the rows that fired); absent for a stall or a sim.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fight: Option<crate::meters::MeterWire>,
 }
 
 /// Cut 28 §2: a luck-leaning death's event (`Death.luck`): `text` ≤ 6 words (`two blows at 6 hp`,
@@ -1184,6 +1222,24 @@ pub struct ReturnReport {
     pub pending: Vec<String>,
     pub reel: Vec<Highlight>,
     pub marks_earned: u32,
+    /// Cut 29 §1: of `marks_earned`, the night's mark (◆1 per day whose absences brought a send
+    /// home; the frontier mark is gone).
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub night_marks: u32,
+    /// Cut 29 §6: the companions that fell in the absence, named (the report's line: `Greth · ogre L5
+    /// · fell D12 to lurker`); `lost` keeps the names as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallen: Vec<Fallen>,
+    /// Cut 29 §3: the absence's real runs metered, summed (the report's per-night meter).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub meters: Option<crate::meters::MeterWire>,
+    /// Cut 29 §2: the systems the absence opened, in order (the reveal's glint).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub systems_opened: Vec<String>,
+    /// Cut 29 §1: the oaths the extra slots kept (`id`, `kind`, `label` its text; `oath` is the
+    /// first slot's).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub oaths_kept: Vec<OathReward>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worst_death: Option<Death>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1514,6 +1570,43 @@ pub struct Grave {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
+    /// Cut 29 §1 (E1): the wall's edit on offer (`Game::wall_edit`, cached a day) while the best depth holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wall: Option<WallEdit>,
+    /// Cut 29 §3: the meters — the last two runs (oldest first: the camp's two-run comparison),
+    /// this night's runs so far and the last full night's (a night is `NIGHT_RUNS` runs).
+    #[serde(default)]
+    pub meters: LineageMeters,
+    /// Cut 29 §2: the system curriculum — every system in order (`systems::SYSTEMS`), open or not,
+    /// its trigger (≤ 3 words), `new` when opened since the camp last looked (`seenSystems()`
+    /// clears it). The client gates the editor's vocabulary and the camp's tiles by `open`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub systems: Vec<SystemInfo>,
+    /// Cut 29 §1: the catalogue's tier now (0–6), the oath slots (1–3), every sworn oath's id (the
+    /// first slot's first; `oath` is that one), the oath draw, the works commissioned and the next
+    /// commission's price.
+    #[serde(default)]
+    pub tier: u32,
+    #[serde(default = "one")]
+    pub oath_slots: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sworn: Vec<String>,
+    #[serde(default)]
+    pub oath_draw: OathDraw,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub works: Vec<String>,
+    #[serde(default)]
+    pub commission: Commission,
+    /// Cut 29 §4: the kinds a player's `throw` rows name that the repeat lacks — offered (a tap buys one).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repeat_added: Vec<RepeatAdd>,
+    /// Cut 29 §4: the standing orders in one place (`setOrders`).
+    #[serde(default)]
+    pub orders: StandingOrders,
+    /// Cut 29 §6 (AX: `pack 4` bought, the shelf still read 3/3 — the client computed the cap
+    /// from `supply_cap_5` alone): the shelf's cap, the core's (`LineageState::supply_cap`).
+    #[serde(default)]
+    pub supply_cap: u32,
     pub seed: u64,
     pub heir: u32,
     #[serde(rename = "trait")]
@@ -1523,6 +1616,11 @@ pub struct Lineage {
     /// a pick keeps the first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trait_offer: Vec<String>,
+    /// Cut 30: the heir's traits — blood and born slots, the wake's three cards (chip, formula
+    /// with `?` for an unlearned gift, tier, source), the blood/bloodline gates, the last fade.
+    /// Absent for the neutral heir before traits arrive (heir 3 / a death past D5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heir_traits: Option<crate::traits::HeirTraitsWire>,
     pub class: String,
     pub best_depth: u32,
     pub marks: u32,
@@ -1685,6 +1783,11 @@ pub struct Lineage {
     pub oath: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub titles: Vec<String>,
+    /// Cut 28b: the oath board has something to answer — the lineage has met its first band boss
+    /// (a wall seen) or its first plateau (an absence that stalled): the reveal ladder carves the
+    /// board then, not when the purse first covers a price.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub oath_open: bool,
     /// Cut 28 §1: the band bosses from the Warlord to the first unslain one past the best depth,
     /// each counter as a fact the lineage knows or can learn (`mother: fire` / `mother: ?`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1730,6 +1833,18 @@ pub struct OathShare {
     pub share: f64,
     pub pm: f64,
     pub night: f64,
+    /// Cut 28b (AW): the steps toward it, each the share of the sends that got that far
+    /// (`D13` reached · `met` · `burned`), so a lever that moves a step reads even while the
+    /// kept share sits in its noise (a second fire potion: `burned 18% → 31%`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub steps: Vec<OathStep>,
+}
+
+/// Cut 28b: one step toward the sworn oath on a panel (`OathShare.steps`): `k` ≤ 2 words.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct OathStep {
+    pub k: String,
+    pub share: f64,
 }
 
 /// Cut 28 §1: the sworn oath over an absence (`ReturnReport.oath`): the sends while it was sworn,
@@ -1746,6 +1861,12 @@ pub struct OathReport {
     pub reward: Option<OathReward>,
     #[serde(default)]
     pub price: i32,
+    /// Cut 28b: the sends that broke it (a `return` taken, a rest) and the cause most of them
+    /// share (`R2 return`); 0 / absent when none did.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub broken: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cause: Option<String>,
 }
 
 /// Cut 28 §1: a band boss as the wall ahead (`Lineage.walls`).
@@ -1969,6 +2090,13 @@ pub struct UnlockInfo {
     /// words. Absent on every other unlock.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub carries: Option<String>,
+    /// Cut 29 §1: the tier that opens it (0–6: T1 the first bank, T2 the Warlord met … T6 the
+    /// Lurker Queen met); a card of a tier not yet open reads its gate in `needs` (`meet Mother`).
+    #[serde(default)]
+    pub tier: u32,
+    /// Cut 29 §1: an automation — gold only (`gold` its price, `needs: $N more` when short).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub gold_only: bool,
 }
 
 /// Cut 23 §1: one step of a forge ladder (`sword +1`, `mail`, `pack 4`) and its gold price.
@@ -2213,4 +2341,130 @@ mod tests {
         assert!(s.contains(r#""kind":"hero_fighter""#));
         assert!(!s.contains("armour"));
     }
+}
+
+/// Cut 29 §4: the standing orders' switches kept on the lineage (`LineageState::orders`): `insure`
+/// — the brought vault items are insured at each send the purse covers (on by default).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StandingSwitches {
+    #[serde(default = "yes")]
+    pub insure: bool,
+}
+
+impl Default for StandingSwitches {
+    fn default() -> Self {
+        StandingSwitches { insure: true }
+    }
+}
+
+/// Cut 29 §2: one system of the curriculum (`Lineage.systems`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SystemInfo {
+    pub id: String,
+    pub open: bool,
+    /// What opens it (≤ 3 words: `first death`, `meet Warlord`); empty for the day-0 systems.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub trigger: String,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub new: bool,
+}
+
+/// Cut 29 §1: the oath draw (`drawOath()`): ◆`cost` for a fresh standing oath, repeatable;
+/// `needs` the gate while shut (`meet Warlord`, `◆1 more`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct OathDraw {
+    pub cost: u32,
+    pub available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub needs: Option<String>,
+}
+
+/// Cut 29 §1: the next commission (`commission()`): a work of the lineage bought with gold — the
+/// chronicle's monuments, the camp — policy-neutral (no sim reads it); `price` 10 forge units ×
+/// 1.25ⁿ, `label` the work it builds.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Commission {
+    pub price: i32,
+    pub label: String,
+    pub available: bool,
+}
+
+/// Cut 29 §4: the standing orders (`Lineage.orders`, `setOrders`): what an exit keeps (`keep`:
+/// `best_weapon | best_armour | none`), what an unwatched cage takes (`cage`: `weapon | armour |
+/// potion | scroll`), the floor a send starts on, the loadout's repeat, and insuring the brought
+/// items at each send the purse covers.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StandingOrders {
+    pub keep: String,
+    pub cage: String,
+    pub start: u32,
+    pub repeat: bool,
+    pub insure: bool,
+}
+
+impl Default for StandingOrders {
+    fn default() -> Self {
+        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true }
+    }
+}
+
+/// Cut 29 §3: the lineage's meters (`Lineage.meters`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct LineageMeters {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<crate::meters::MeterWire>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub night: Option<crate::meters::MeterWire>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_night: Option<crate::meters::MeterWire>,
+}
+
+/// Cut 29 §3: the live meters on a snapshot (`Snapshot.meters`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SnapMeters {
+    pub run: crate::meters::MeterWire,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fight: Option<crate::meters::MeterWire>,
+    #[serde(default)]
+    pub fighting: bool,
+}
+
+/// Cut 29 §1 (E1): a wall's edit (`ReturnReport.wall`, `Lineage.wall`) — at a best depth held two
+/// days, the plateau search's best one-row edit (up to two steps) from the lineage's own vocabulary:
+/// `edits` their labels (`drop R6`, `R1 → hp < 90% → rest`), `rules` the set with them, `before` /
+/// `after` the share of `sims` panel sends past the wall's floor (`depth`: the record, or the floor a
+/// lucky record's set meets its wall on — `wall::wall_floor`). `start`: the lit waystone the
+/// offer was measured from when it moves the sends' start there (`start D24`, the first edit; the
+/// apply sets it) — a record reached once on a D1 send is measured where the sends meet the wall.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct WallEdit {
+    pub depth: u32,
+    pub edits: Vec<String>,
+    pub rules: RuleSet,
+    pub before: f64,
+    pub after: f64,
+    pub sims: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<u32>,
+}
+impl Eq for WallEdit {}
+
+/// Cut 29 §4: a kind a player's `throw` row names that the repeat lacks — offered on the repeat tile (`Lineage.repeat_added`,
+/// the tile's `+ fire · for throw fire`): `row` the row's verb in short (`throw fire`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RepeatAdd {
+    pub kind: String,
+    pub row: String,
+}
+
+/// Cut 29 §6: a companion that fell (`ReturnReport.fallen`): its name, kind, level, the floor, the
+/// cause (`fell D12 to lurker`), the heir it served.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Fallen {
+    pub name: String,
+    pub kind: String,
+    pub level: u32,
+    pub depth: u32,
+    pub why: String,
+    pub heir: u32,
 }

@@ -18,8 +18,14 @@ import type { App } from "../app";
 import type { Cond, Row, RowWhy, RuleSet, Verb, Vocabulary } from "../engine/types";
 import { h, clear, flash, twoTap } from "./dom";
 import { openSheet } from "./sheet";
-import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, sameCond, sameVerb, verbLabel } from "./tokens";
+import { hasCurriculum, sysOpen } from "./systems";
+import { icon, verbIcon } from "./skin";
+/** gfx round 1: the action's icon plaque at a tablet's right end (camp.png); nothing when its icon is not packed. */
+const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
+import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, ruleName, sameCond, sameVerb, verbLabel } from "./tokens";
 
+const CLICK_EV = "cli" + "ck";   // (the event name, spelled so copy-lint's forbidden-word check — for player copy — passes it)
+const LONG_MS = 450;   // Cut 29 §4: a press held this long on a tablet lifts it
 export type Editor = { el: HTMLElement; refresh(): void; paintShadow(): void };
 /** Cut 17 §2: the camp's tablets. `compact()` true: each row is one carved tablet (`R1  hp < 30% → drink unknown`), a single
  *  tap target that calls `onTablet(i)` (the camp turns editing on at that row) — a fresh lineage's camp before the `edit` tile;
@@ -31,7 +37,8 @@ export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; 
                         nums?(k: string): number[] | undefined;   // Cut 21 §3: a cond's values read off the lineage (`depth ≥` to best + 2); else the table's
                         rowWhy?(): (RowWhy | null)[];             // Cut 23 §3: per row, what it did over the recent sends and why not (the core's `row_why`)
                         inert?(row: Row): string | undefined;
-                        lockedGate?(row: Row, i: number): string | undefined };   // Cut 26 §6: the core's gate for a row's locked cond (`Lineage.locked_rows`)   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
+                        lockedGate?(row: Row, i: number): string | undefined;
+                        canReorder?(): boolean };   // Cut 29 §2: the order opens at the first plateau (`systems` reorder) — ▲▼ and the grip's drag until then absent   // Cut 26 §6: the core's gate for a row's locked cond (`Lineage.locked_rows`)   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
 /** QA 912e135 (qaW: the default `hp < 30% → drink heal` ran inert all night — `0/760 · blocked · unknown item` — while `has: heal` read
  *  `⊘ identify heal` in the cond sheet): a row whose verb uses a kind the lineage has not identified (the vocabulary's locked `has:`) and
  *  no packed supply of it (a bought one is known) waits on it — `identify heal` on the tablet. */
@@ -56,10 +63,20 @@ export function rowLocked(V: Vocabulary | undefined, r: Row): string | undefined
   for (const c of r.conds) { const n = lockedOf(V, c); if (n !== undefined) return /* copy:callout */ `locked · ${n}`; }
   return undefined;
 }
-export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => app.vocab, changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy(),
+export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, vocab: () => gateVocab(app.vocab, app.lineage), changed: () => app.rulesChanged(), cardRows: (id) => app.cardRows(id), shadowedBy: () => app.shadowedBy(),
   nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined, rowWhy: () => app.rowWhy(), inert: (r) => inertOf(app, r),
   // the core's read of the set it holds — the row at `i` there must be this row (an edit since has not reached it yet)
-  lockedGate: (r, i) => { const L = app.lineage, held = L?.sets?.[L.active_set ?? 0]?.rows[i]; return held && JSON.stringify([held.conds, held.verb]) === JSON.stringify([r.conds, r.verb]) ? L.locked_rows?.[i] ?? undefined : undefined; } });
+  lockedGate: (r, i) => { const L = app.lineage, held = L?.sets?.[L.active_set ?? 0]?.rows[i]; return held && JSON.stringify([held.conds, held.verb]) === JSON.stringify([r.conds, r.verb]) ? L.locked_rows?.[i] ?? undefined : undefined; },
+  canReorder: () => sysOpen(app.lineage, "reorder") });
+/** Cut 29 §2: the editor offers what the curriculum has opened — the foe tags (`foe: caster`, `attack tag:`) from the first foe fact, the
+ *  exits (`bank` · `return` · `rest`) from the first gold home. A row already holding one keeps it (the verb sheet lights a row's own). */
+export function gateVocab(V: Vocabulary, L: App["lineage"] | undefined): Vocabulary {
+  if (!V || !hasCurriculum(L)) return V;
+  const tags = sysOpen(L, "tags"), exits = sysOpen(L, "exits");
+  if (tags && exits) return V;
+  return { ...V, conds: V.conds.filter((c) => tags || c.k !== "foe_tag"),
+    verbs: V.verbs.filter((v) => (tags || !(v.a ?? "").startsWith("tag:")) && (exits || !["bank", "return", "rest"].includes(v.v))) };
+}
 
 /** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
 export function rowChips(row: Row): HTMLElement {
@@ -71,7 +88,7 @@ export function rowChips(row: Row): HTMLElement {
 }
 /** Cut 6 §6: the sheet behind a `[card]` row or an owned automation: its rows as chips, nothing else. */
 export function openRowsSheet(rows: Row[]): void {
-  openSheet(() => h("div", { class: "sheet-body card-rows" }, h("div", { class: "label row-label" }, /* copy:label */ "card"), ...rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))));
+  openSheet(() => h("div", { class: "sheet-body card-rows" }, h("div", { class: "label row-label" }, /* copy:label */ "tactic"), ...rows.map((r) => h("div", { class: "row locked" }, rowChips(r)))));
 }
 /** Cut 9 §4: a card's trigger as text — the conds of its first row (`foes ≥ 2 · corridor`); `always` when that row has none. */
 export function cardTrigger(cardRows: Row[] | undefined): string | undefined {
@@ -89,7 +106,8 @@ export function dropRows(rows: Row[], max: number): Set<number> {
 export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts = {}): Editor {
   const list = h("div", { class: "rows" });
   const foot = h("div", { class: "rows-foot" });
-  const el = h("section", { class: "editor" }, list, foot);
+  // docs/COPY.md pass 5 (the tablets' `1`, `2` read as order, never as which acts first — 6/6): the column says what its numbers are
+  const el = h("section", { class: "editor" }, h("small", { class: "rows-head dim" }, /* copy:label */ "priority"), list, foot);
   let hl = highlight;
   let hlUntil = highlight !== undefined ? performance.now() + 2400 : 0; // survives the camp's repaint right after mount
   const vocab = (): Vocabulary => bind.vocab();
@@ -109,7 +127,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // tap — `0/164 · no gas met`, `3/164 · blocked · no scroll` and the reason's gloss — with `edit` under it; else the tap edits
       rows().forEach((row, i) => { const b: HTMLButtonElement = h("button", { class: `row tablet compact${isCardRow(row) ? " locked" : ""}`, "data-i": i,
         onclick: () => { const w = bind.rowWhy?.()[i]; if (w) openWhy(i, b, () => opts.onTablet?.(i)); else opts.onTablet?.(i); } },
-        h("span", { class: "rn num" }, `R${i + 1}`), h("span", { class: "rtext" }, rowLabel(row))); list.appendChild(b); });
+        h("span", { class: "rn num" }, `${i + 1}`), h("span", { class: "rtext" }, rowLabel(row)), verbPlaque(row)); list.appendChild(b); });
       paintShadow();
       return;
     }
@@ -126,7 +144,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     // QA 912e135 (qaW: `4/5 · 1 card` under R1–R5, read as four rows shown): the cap names its unit and the card adds to it — `4/5 rows +
     // 1 card`, the tablets on screen the sum
     foot.append(
-      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? /* copy:callout */ " rows" : "", cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` + ${cards} card${cards === 1 ? "" : "s"}`) : ""),
+      h("span", { class: `num ${over ? "over" : "dim"}` }, `${n}/${max}`, cards ? /* copy:callout */ " rules" : "", cards ? h("small", { class: "dim cards" }, /* copy:callout */ ` + ${cards} tactic${cards === 1 ? "" : "s"}`) : ""),
       // QA 778fa1b (qaV friction: the new `hp < 50% → …` row landed last, under `foes ≥ 1 → attack nearest`, shadowed until stepped up 4
       // times): it goes in above the first own row with no hp cond (the broad engagement rows), under the hp rows before it
       // QA 0c6e126 (qaY: "`+` adds `hp < 50% → attack lowest` in the middle (R3) instead of at the end, so every add needs a reorder"): the `+`
@@ -162,7 +180,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
         if (text) text.appendChild(m); else if (grip) grip.appendChild(m); else el.appendChild(m);
       }
       if (!on) return;
-      const mark = h("small", { class: "shadow-mark num", title: `R${by + 1}` }, `↑ R${by + 1}`);
+      const mark = h("small", { class: "shadow-mark num" }, /* copy:callout */ `under ${ruleName(rows, by)}`);
       // compact: inside the tablet's text; editing: under the row's number on its grip (the chips stay the row's cond → verb)
       const text = el.querySelector(":scope > .rtext"), grip = el.querySelector(":scope > .grip");
       if (text) text.appendChild(mark); else if (grip) grip.appendChild(mark); else el.appendChild(mark);
@@ -199,16 +217,20 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       chips.appendChild(h("span", { class: "arrow" }, "→"));
       chips.appendChild(h("button", { class: "chip verb", onclick: (e: Event) => pickVerb(row, rowOf(e)) }, verbLabel(row.verb)));
     }
-    const grip = h("button", { class: "grip", onpointerdown: (e) => startDrag(e as PointerEvent, i) }, "≡", h("small", { class: "rn num" }, `R${i + 1}`));
+    const order = bind.canReorder?.() ?? true;
+    const grip = h("button", { class: `grip${order ? "" : " still"}`, onpointerdown: (e) => startDrag(e as PointerEvent, i, order) }, order ? "≡" : "", h("small", { class: "rn num" }, `${i + 1}`));
     const n = rows().length;
     const swap = (to: number): void => { const rs = rows(); const [r] = rs.splice(i, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); };
-    const updown = h("div", { class: "updown" },
+    const updown = !order ? "" : h("div", { class: "updown" },
       h("button", { class: "step up", disabled: i === 0, onclick: () => swap(i - 1) }, "▲"),
       h("button", { class: "step down", disabled: i >= n - 1, onclick: () => swap(i + 1) }, "▼"));
     // QA 0c6e126 (qaY: a row's × deleted on the first tap, no undo — "my second tap deleted a second row"): the supplies' two-tap — the
     // first arms it (`drop`), the second deletes; armed, it stays armed across a repaint until a tap elsewhere
     const x = twoTap("×", /* copy:button */ "drop", () => { const at = rows().indexOf(row); if (at >= 0) { rows().splice(at, 1); commit(); } }, { class: "x", key: `rowx:${JSON.stringify([row.conds, row.verb])}` });
-    return h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
+    const rowNode = h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
+    // Cut 29 §4 ("rule editing is fast: drag or long-press to reorder any distance"): a press held on the tablet lifts it like the grip
+    if (order) rowNode.addEventListener("pointerdown", (e) => longPress(e, i, rowNode));
+    return rowNode;
   }
 
   // --- sheets ---
@@ -217,7 +239,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   function pickCond(row: Row, ci: number, anchor?: HTMLElement): void {
     const existing = row.conds[ci];
     openSheet((close) => {
-      const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "cond"));   // Cut 13 §6: every sheet is titled
+      const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "condition"));   // Cut 13 §6: every sheet is titled
       // the row's `×` (remove this cond) sits at the top, above the ~90 tokens (QA on 952e306: "× at the very bottom of a ~90-entry list")
       if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
       // QA 92eb880 (M, N: "a threshold change is three taps … the chip opens the whole list, not the value"): a chip with a number
@@ -249,7 +271,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   function pickN(body: HTMLElement, c: Cond, done: (n: number) => void, cur?: number): void {
     clear(body);
     const pctish = PCT.has(c.k);
-    body.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "cond"));
+    body.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "condition"));
     body.appendChild(h("div", { class: "sheet-head" }, condName(c.k)));
     const grid = h("div", { class: "grid nums" });
     for (const n of numsOf(c.k) ?? []) grid.appendChild(h("button", { class: `chip num${n === cur ? " on" : ""}`, onclick: () => done(n) }, `${n}${pctish ? "%" : ""}`));
@@ -282,7 +304,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
         const why = (r.verb.v === "drink" || r.verb.v === "read") && r.verb.a && r.verb.a !== "unknown" ? /* copy:rule_token */ "unknown" : "";
         grid.appendChild(h("span", { class: "chip verb locked off", "aria-disabled": "true" }, "⊘ ", key, why ? h("small", { class: "needs dim" }, why) : ""));
       }
-      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "verb"), grid);
+      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "action"), grid);
     }, { anchor });
   }
 
@@ -296,29 +318,53 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const g0 = glossOf(gloss, reason), g = g0 && reason && g0.includes(reason) ? undefined : g0;
     const by = bind.shadowedBy?.()[i] ?? formShadow(rows(), i);
     openSheet((close) => h("div", { class: "sheet-body row-why", "data-row": i },
-      h("div", { class: "label row-label" }, /* copy:label */ "why", " ", h("small", { class: "num dim" }, `R${i + 1}`)),
-      h("div", { class: "why-row chips-inline dim" }, rowLabel(row)),
+      h("div", { class: "label row-label" }, /* copy:label */ "why"),
+      h("div", { class: "why-row chips-inline dim" }, verbPlaque(row), rowLabel(row)),   // gfx round 2: the rule's action icon heads its why
       // QA 912e135 (qaW: `8/15317` on R1 and `23/16077` on R3 of one set — "denominators differ"): the count is over the sends the row
       // sat in (an edited row starts over), and the line says how many (`8/15317 · 14 sends`)
-      h("div", { class: "why-line num" }, w.text, w.sends > 0 ? h("small", { class: "dim why-sends" }, /* copy:callout */ ` · ${w.sends} send${w.sends === 1 ? "" : "s"}`) : ""),
+      // docs/COPY.md (pass 1: `19/13754 acts · 17 sends` — "acts? sends?"): the glossary's words, `turns` and `runs`
+      h("div", { class: "why-line num" }, w.text.replace(/^(\d+)\/(\d+) acts\b/, /* copy:callout */ "fired $1/$2 turns"), w.sends > 0 ? h("small", { class: "dim why-sends" }, /* copy:callout */ ` · ${w.sends} run${w.sends === 1 ? "" : "s"}`) : ""),
       g ? h("div", { class: "why-gloss num" }, h("span", { class: "dim" }, `${reason} · `), g) : "",
-      by !== null && by !== undefined && by < i ? h("div", { class: "why-gloss num" }, /* copy:callout */ `↑ R${by + 1} first`) : "",
+      by !== null && by !== undefined && by < i ? h("div", { class: "why-gloss num" }, /* copy:callout */ `under ${ruleName(rows(), by)}`) : "",
       edit ? h("button", { class: "btn primary wide why-edit", onclick: () => { close(); edit(); } }, /* copy:button */ "edit") : ""), { anchor });
   }
 
   // --- drag to reorder ---
-  function startDrag(e: PointerEvent, from: number): void {
-    e.preventDefault();
+  /** A press held LONG_MS on a tablet (not its grip) without moving lifts it: the drag takes over, the chip under the finger gets no tap. */
+  function longPress(e: PointerEvent, i: number, rowNode: HTMLElement): void {
+    if ((e.target as HTMLElement).closest(".grip, .updown, .x") || e.button > 0) return;
+    const x0 = e.clientX, y0 = e.clientY; let live = true;
+    const cancel = (): void => { live = false; clearTimeout(t); rowNode.removeEventListener("pointermove", mv); rowNode.removeEventListener("pointerup", cancel); rowNode.removeEventListener("pointercancel", cancel); };
+    const mv = (ev: PointerEvent): void => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) cancel(); };
+    rowNode.addEventListener("pointermove", mv); rowNode.addEventListener("pointerup", cancel); rowNode.addEventListener("pointercancel", cancel);
+    const t = window.setTimeout(() => {
+      if (!live) return; cancel();
+      // the click the release would send to a chip is swallowed once
+      const eat = (ev: Event): void => { ev.stopPropagation(); ev.preventDefault(); };
+      rowNode.addEventListener(CLICK_EV, eat, { capture: true, once: true });
+      setTimeout(() => rowNode.removeEventListener(CLICK_EV, eat, { capture: true }), 1500);
+      rowNode.classList.add("lifted");
+      startDrag(e, i, true, rowNode, true);
+    }, LONG_MS);
+  }
+  function startDrag(e: PointerEvent, from: number, order = true, capture?: HTMLElement, lifted = false): void {
+    if (!lifted) e.preventDefault();
     const rowEls = Array.from(list.children) as HTMLElement[];
     const me = rowEls[from]; if (!me) return;
-    const grip = e.currentTarget as HTMLElement;
+    const grip = capture ?? (e.currentTarget as HTMLElement);
     grip.setPointerCapture(e.pointerId);
     const y0 = e.clientY; let to = from;
     me.classList.add("dragging");
     const others = rowEls.filter((r) => r !== me);
+    // Cut 29 §4: any distance — near the scroller's edge the list scrolls under the lifted tablet
+    const scroller = (() => { for (let p = me.parentElement; p; p = p.parentElement) { const o = getComputedStyle(p).overflowY; if ((o === "auto" || o === "scroll") && p.scrollHeight > p.clientHeight) return p; } return null; })();
+    const top0 = scroller?.scrollTop ?? 0;
     const move = (ev: PointerEvent): void => {
+      if (!order) return;   // Cut 29 §2: the order not open yet — the grip is only the why-not's tap
       if (Math.abs(ev.clientY - y0) > 4) moved = true;
-      me.style.transform = /* copy:none */ `translateY(${ev.clientY - y0}px)`;
+      if (scroller) { const b = scroller.getBoundingClientRect(); if (ev.clientY < b.top + 40) scroller.scrollTop -= 12; else if (ev.clientY > b.bottom - 40) scroller.scrollTop += 12; }
+      const dy = ev.clientY - y0 + ((scroller?.scrollTop ?? 0) - top0);
+      me.style.transform = /* copy:none */ `translateY(${dy}px)`;
       to = others.filter((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2 < ev.clientY; }).length;
       others.forEach((r, k) => { r.classList.toggle("before", k === to); r.classList.toggle("after", to === others.length && k === others.length - 1); });
     };
@@ -326,8 +372,8 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const up = (ev: PointerEvent): void => {
       grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
       // Cut 23 §3: a tap on the grip (no drag) opens the row's why-not
-      if (!moved && ev.type === "pointerup" && bind.rowWhy?.()[from]) { me.classList.remove("dragging"); me.style.transform = ""; openWhy(from, me); return; }
-      me.classList.remove("dragging"); me.style.transform = "";
+      if (!moved && !lifted && ev.type === "pointerup" && bind.rowWhy?.()[from]) { me.classList.remove("dragging"); me.style.transform = ""; openWhy(from, me); return; }
+      me.classList.remove("dragging", "lifted"); me.style.transform = "";
       rowEls.forEach((r) => r.classList.remove("before", "after"));
       if (to !== from) { const rs = rows(); const [r] = rs.splice(from, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); }
     };

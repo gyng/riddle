@@ -98,6 +98,8 @@ export class SpriteNormals {
     deriveNormals(sheet.canvas, this.canvas);
     this.tex.needsUpdate = true;
   }
+  /** cohort 24: a GL context restore re-uploads the derived normals */
+  invalidate(): void { this.tex.needsUpdate = true; }
   setSize(w: number, h: number): void { this.target.setSize(w, h); }
   render(renderer: THREE.WebGLRenderer, camera: THREE.Camera): void {
     renderer.setRenderTarget(this.target);

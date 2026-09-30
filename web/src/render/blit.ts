@@ -11,6 +11,7 @@
 import * as THREE from "three";
 import { BAYER_GLSL } from "./layers";
 import type { Palette } from "./palette";
+import { hex3, lookWash, WASH_GLSL, WASH_TINT } from "./wash";
 
 const VERT = /* glsl */ `
 varying vec2 vUv;
@@ -38,6 +39,9 @@ uniform float uAmbient;   // world light away from any torch
 uniform float uLiftK;     // torch/hero pool strength on the world
 uniform vec3 uLightCol;   // the torch colour
 uniform float uSat;       // the world's saturation (1 = the ramp's own)
+uniform float uSprHue;    // gfx round 17: how much of the light's hue a sprite takes (0.5; the Fens 0.15)
+uniform float uMist;      // gfx round 11: a drifting ground mist over the world (the Fens), 0 = none
+uniform float uCon;       // gfx round 10: the world's contrast (1 = the ramp's own; lower pulls the floor's texture toward its mid tone)
 #if FX > 0
 // juice (docs/JUICE.md): the light field (light.ts), bloom (bloom.ts), the vignette and the death's desaturation
 uniform sampler2D uLightMap;  // rgb = light / 2, a = wall-foot AO; S texels per tile, row space
@@ -56,6 +60,9 @@ uniform sampler2D uNormal;    // juice pass 2: the sprites' derived normals (nor
 #endif
 varying vec2 vUv;
 ${BAYER_GLSL}
+#if LOOK > 0
+${WASH_GLSL}
+#endif
 vec3 nearestPal(vec3 c) {
   vec3 best = uPal[0];
   float bd = 1e9;
@@ -117,7 +124,9 @@ void main() {
   // steps: the memory dim and the fog darken stone, they no longer break it into speckle.
 #if FX > 0
   float shrink = 1.0 - 0.75 * smoothstep(0.25, 0.8, lum);
-  vec3 wc = mix(vec3(lum), s.rgb, uSat) * uGrade * fog * mix(1.0, lm.a, world_) * (uAmbient * uAmbK + uLiftK * 1.15 * shrink * LF);
+  // gfx round 10 (raters, every round: "the floor's texture is louder than the actors"): the world's luminance pulled toward a mid tone
+  vec3 sc = s.rgb * (mix(0.3, lum, uCon) / max(lum, 0.02));
+  vec3 wc = mix(vec3(dot(sc, vec3(0.2126, 0.7152, 0.0722))), sc, uSat) * uGrade * fog * mix(1.0, lm.a, world_) * (uAmbient * uAmbK + uLiftK * 1.15 * shrink * LF);
 #if FX > 1
   // the stone's relief under the light: the luma as a height, embossed along the light's gradient (high)
   vec2 gl2 = vec2(dot(texture2D(uLightMap, luv + vec2(0.5 / (4.0 * uMap.x), 0.0)).rgb - texture2D(uLightMap, luv - vec2(0.5 / (4.0 * uMap.x), 0.0)).rgb, vec3(1.0)),
@@ -135,7 +144,7 @@ void main() {
   // SPRITES (a=0.5) and ENV CHROME (a=0.875): as before — sprites lifted and tinted 30 % toward the ramp, chrome quantised
   vec3 c = s.rgb * fog * (1.0 + 0.9 * lift);
 #if FX > 0
-  c *= mix(vec3(1.0), 0.75 + 0.5 * normalize(LF + vec3(0.05)), min(1.0, lfl) * 0.5);   // a sprite takes the light's hue (fire reads orange on a foe)
+  c *= mix(vec3(1.0), 0.75 + 0.5 * normalize(LF + vec3(0.05)), min(1.0, lfl) * uSprHue);   // a sprite takes the light's hue (fire reads orange on a foe); round 17: less in the Fens ("a teal hero on a teal floor")
 #endif
 #if FX > 1
   {  // rim light: a sprite's edge that faces the light catches it (high)
@@ -164,14 +173,83 @@ void main() {
   o += uWarm * lit * 0.2;
   o = mix(o, wc, world_);
   o += vec3(1.0, 0.55, 0.18) * 0.32 * min(glow, 1.0) * (1.0 - 0.7 * smoothstep(0.4, 0.85, lum)) * uLightK * step(0.25, s.a) * (1.0 - env * (1.0 - world_));
-  o = mix(uPal[0], o, step(0.25, s.a));   // the void is exactly the palette's darkest (as before the art pass)
 #if FX > 0
+  {  // gfx round 1 (the blind raters: "half the viewport is empty black void"): the unexplored rock is a dark coursed-stone mass in the
+     // biome's darkest two colours — texel-crisp blocks and mortar that fade out away from the hero — never a flat black (no truth: it
+     // draws only where no tile drew, and never reveals one)
+    vec2 wt = floor(world) + 0.5;
+    vec2 cell = floor(wt / 7.0);
+    float f1 = 1e9, f2 = 1e9, n = 0.0;
+    for (int yy = -1; yy <= 1; yy++) for (int xx = -1; xx <= 1; xx++) {
+      vec2 c = cell + vec2(float(xx), float(yy));
+      vec2 h = fract(sin(vec2(dot(c, vec2(127.1, 311.7)), dot(c, vec2(269.5, 183.3)))) * 43758.5453);
+      float dd = length(wt - (c + 0.15 + 0.7 * h) * 7.0);
+      if (dd < f1) { f2 = f1; f1 = dd; n = h.x; } else if (dd < f2) { f2 = dd; }
+    }
+    float crack = 1.0 - smoothstep(0.6, 1.4, f2 - f1);
+    float g = fract(sin(dot(wt, vec2(39.3468, 11.1353))) * 24634.6345);
+    vec3 rock = mix(uPal[0], uPal[1], 0.16 + 0.3 * n + 0.08 * g) * mix(1.0, 0.45, crack) * (1.0 - 0.25 * smoothstep(1.0, 3.5, f1) * n);
+    vec3 rockC = rock;
+    rock *= 0.62 * (0.3 + 0.7 * (1.0 - smoothstep(1.5, 11.0, d)));   // gfx round 10: the rock mass stays in view further out ("top half black void")   // gfx round 4: the rock shows at the lit edge, fading to black (raters: "a flat black pattern")
+    // gfx round 7 (the lit fog edge; raters, every round: "half the view is void"): the rock face at the explored edge catches the light
+    // of the seen ground beside it — eight directions, one to three half-tiles out; only drawn world texels (seen tiles) lend their light,
+    // so an unseen room's light never shows through the rock
+    vec3 edgeL = vec3(0.0);
+    for (int i = 0; i < 8; i++) {
+      float ang = float(i) * 0.7853982;
+      vec2 dir = vec2(cos(ang), sin(ang));
+      for (int j = 1; j <= 3; j++) {
+        float r = float(j) * 4.0;
+        vec4 s2 = texture2D(tex, tuv + dir * r / uTargetEnv);
+        if (s2.a > 0.95) {
+          vec2 w2 = world + dir * r;
+          vec3 L2 = texture2D(uLightMap, vec2(w2.x / (8.0 * uMap.x), 1.0 + w2.y / (8.0 * uMap.y))).rgb * 2.0 * uLightK;
+          edgeL = max(edgeL, L2 * (1.0 - r / 15.0));
+        }
+      }
+    }
+    rock += (rockC + 0.07) * min(edgeL, vec3(1.2)) * 1.7 * mix(1.0, 0.5, crack);
+    o = mix(rock, o, step(0.25, s.a));
+  }
+#else
+  o = mix(uPal[0], o, step(0.25, s.a));   // the void is exactly the palette's darkest (as before the art pass)
+#endif
+#if FX > 0
+  {  // gfx round 7 (raters: "the hero doesn't pop against the busy teal floor"): a one-texel dark rim round every sprite, on the ground
+     // beside it (the classic pixel-art outline; the sprite itself is untouched)
+    float isSpr = 1.0 - step(0.03, abs(s.a - 0.5));
+    if (isSpr < 0.5) {
+      float nbS = 0.0;
+      nbS += 1.0 - step(0.03, abs(texture2D(tex, tuv + vec2(uTexel.x, 0.0)).a - 0.5));
+      nbS += 1.0 - step(0.03, abs(texture2D(tex, tuv - vec2(uTexel.x, 0.0)).a - 0.5));
+      nbS += 1.0 - step(0.03, abs(texture2D(tex, tuv + vec2(0.0, uTexel.y)).a - 0.5));
+      nbS += 1.0 - step(0.03, abs(texture2D(tex, tuv - vec2(0.0, uTexel.y)).a - 0.5));
+      o *= 1.0 - 0.6 * min(1.0, nbS);
+    }
+  }
+  if (uMist > 0.0) {   // gfx round 11 (raters: "add fog layers so the Fens feel wet"): two slow octaves of value noise in world space
+    vec2 mp = world / 26.0 + vec2(uTime * 0.035, uTime * 0.012);
+    vec2 mi = floor(mp), mf = fract(mp); mf = mf * mf * (3.0 - 2.0 * mf);
+    float h00 = fract(sin(dot(mi, vec2(127.1, 311.7))) * 43758.5), h10 = fract(sin(dot(mi + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5);
+    float h01 = fract(sin(dot(mi + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5), h11 = fract(sin(dot(mi + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5);
+    float n1 = mix(mix(h00, h10, mf.x), mix(h01, h11, mf.x), mf.y);
+    vec2 mp2 = world / 11.0 - vec2(uTime * 0.05, 0.0);
+    vec2 ni = floor(mp2), nf = fract(mp2); nf = nf * nf * (3.0 - 2.0 * nf);
+    float g00 = fract(sin(dot(ni, vec2(269.5, 183.3))) * 43758.5), g10 = fract(sin(dot(ni + vec2(1.0, 0.0), vec2(269.5, 183.3))) * 43758.5);
+    float g01 = fract(sin(dot(ni + vec2(0.0, 1.0), vec2(269.5, 183.3))) * 43758.5), g11 = fract(sin(dot(ni + vec2(1.0, 1.0), vec2(269.5, 183.3))) * 43758.5);
+    float n2 = mix(mix(g00, g10, nf.x), mix(g01, g11, nf.x), nf.y);
+    float m = smoothstep(0.35, 0.85, n1 * 0.65 + n2 * 0.35) * uMist * step(0.25, s.a);
+    o = mix(o, vec3(0.55, 0.68, 0.66) * (0.35 + 0.65 * min(1.0, lfl + 0.3)), m);
+  }
   o += texture2D(uBloom, tuv).rgb * uBloomK * fog;
   float vr = length((vUv - 0.5) * vec2(0.9, 1.0));
   float vg = smoothstep(0.32, 0.78, vr);
   o *= 1.0 - uVigBase * vg;
   o = mix(o, uVig.rgb, clamp(uVig.a * (0.35 + 0.65 * vg), 0.0, 1.0) * smoothstep(0.15, 0.7, vr));
   o = mix(o, vec3(dot(o, vec3(0.2126, 0.7152, 0.0722))), uDesat);
+#endif
+#if LOOK > 0
+  o = washLook(o, tuv, world, s.a);   // the wash look (wash.ts, docs/ART_DIRECTION.md §9): FX > 0 and the flag only
 #endif
   o = mix(o, uPal[0], uFade);
   gl_FragColor = vec4(o, 1.0);
@@ -182,10 +260,10 @@ void main() {
 // stone (watch.png's floor averages (63, 50, 27)); the pale Sanctum gets a low ambient and a weak lift so a torch never blooms.
 const GRADES: Record<string, [number, number, number, number, number, number]> = {
   default: [1, 1, 1, 0.84, 0.65, 1],
-  warrens: [1.14, 0.96, 0.78, 0.8, 0.95, 0.55],
+  warrens: [1.05, 0.98, 0.9, 0.78, 1.05, 0.95],   // round 26: a darker room (ambient 0.86 → 0.78), stronger pools (0.95 → 1.05)   // gfx round 18: the painted register is authored in the target's colours (was 1.14/0.96/0.78, sat 0.78: a grade for the 8-colour ramp)
   // juice pass 3: the fork's two lanes apart at a glance — the Burrows warm ochre (full saturation), the Fens cool teal
   burrows: [1, 0.92, 0.8, 0.78, 0.72, 1],
-  fens: [0.88, 1, 1.06, 0.82, 0.62, 1],
+  fens: [0.9, 1, 1.04, 0.52, 1.0, 0.9],   // round 22: a darker room (0.62 → 0.52), a stronger pool (lift 0.78 → 1.0), a touch more colour   // round 16: a darker room, a stronger pool (the hero's warm light reads)   // gfx round 7 (raters Q, R: "teal-on-teal floor swamps the sprites"): a darker room, the light pools read, a little less saturation
   crypt: [1, 1, 1.02, 0.82, 0.65, 0.9],
   foundry: [1, 0.94, 0.88, 0.82, 0.6, 0.9],
   deep: [1, 1, 1, 0.9, 0.7, 1],
@@ -193,10 +271,16 @@ const GRADES: Record<string, [number, number, number, number, number, number]> =
   boss_flash: [1, 1, 1, 1, 0.3, 1],
 };
 
+/** gfx round 10: the world's contrast per biome (FX > 0; the Fens' plank stripes and the Warrens' flagstones read as noise behind the cast) */
+const CONTRAST: Record<string, number> = { fens: 1.02, warrens: 1, burrows: 1, crypt: 0.9, foundry: 0.9, deep: 0.9 };   // gfx round 18: the painted register carries its own values
+
+const MIST: Record<string, number> = { fens: 0.18, crypt: 0.12, deep: 0.14 };   // (round 18: 0.42 "flattens the floor, walls and items together")   // gfx round 11: ground mist per biome (FX > 0)
+
 export class Blit {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   readonly material: THREE.ShaderMaterial;
+  private readonly wash = lookWash();
   private palArr: THREE.Vector3[] = Array.from({ length: 8 }, () => new THREE.Vector3());
 
   constructor(texture: THREE.Texture) {
@@ -224,13 +308,14 @@ export class Blit {
         uAmbient: { value: 0.86 },
         uLiftK: { value: 0.6 },
         uLightCol: { value: new THREE.Vector3(1.0, 0.72, 0.4) },
-        uSat: { value: 1 },
+        uSat: { value: 1 }, uCon: { value: 1 }, uMist: { value: 0 }, uSprHue: { value: 0.5 },
         // juice (docs/JUICE.md): read only when FX > 0
         uLightMap: { value: null }, uMap: { value: new THREE.Vector2(1, 1) }, uBloom: { value: null }, uBloomK: { value: 0 },
         uTexel: { value: new THREE.Vector2(1, 1) }, uVig: { value: new THREE.Vector4(0, 0, 0, 0) }, uVigBase: { value: 0 }, uDesat: { value: 0 },
         uAmbK: { value: 0.8 }, uTime: { value: 0 }, uNormal: { value: null }, uHeat: { value: Array.from({ length: 8 }, () => new THREE.Vector2()) }, uHeatN: { value: 0 },
+        uWashTint: { value: new THREE.Vector3(...hex3(WASH_TINT.default!)) }, uWashDpr: { value: 1 },
       },
-      defines: { FX: 0 },
+      defines: { FX: 0, LOOK: 0 },
       depthTest: false,
       depthWrite: false,
     });
@@ -251,7 +336,8 @@ export class Blit {
   setGrade(biome: string): void {
     const g = GRADES[biome] ?? GRADES.default!, u = this.material.uniforms;
     (u.uGrade!.value as THREE.Vector3).set(g[0], g[1], g[2]);
-    u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5];
+    u.uAmbient!.value = g[3]; u.uLiftK!.value = g[4]; u.uSat!.value = g[5]; u.uCon!.value = CONTRAST[biome] ?? 1; u.uMist!.value = MIST[biome] ?? 0; u.uSprHue!.value = biome === "fens" ? 0.15 : 0.5;
+    (u.uWashTint!.value as THREE.Vector3).set(...hex3(WASH_TINT[biome] ?? WASH_TINT.default!));
   }
 
   /** art pass: this frame's torch flames (world env texels; the first 12 are used) and the flicker scale */
@@ -264,9 +350,10 @@ export class Blit {
 
   /** juice: the effects tier compiled into the shader (0 = low: the pre-juice blit exactly; 1 = med; 2 = high) */
   setFx(level: number): void {
-    const d = this.material.defines as { FX: number };
-    if (d.FX === level) return;
-    d.FX = level; this.material.needsUpdate = true;
+    const d = this.material.defines as { FX: number; LOOK: number };
+    const look = level > 0 && this.wash ? 1 : 0;   // the wash look never reaches the `low` tier
+    if (d.FX === level && d.LOOK === look) return;
+    d.FX = level; d.LOOK = look; this.material.needsUpdate = true;
   }
 
   dispose(): void { this.material.dispose(); }

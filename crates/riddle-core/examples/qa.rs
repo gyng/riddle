@@ -930,6 +930,48 @@ fn check_report_leg(t: &mut Tally, g: &Game, seed: u64) {
 /// QA on 912e135 (qaW, qaX): an exit line's mechanics — one tier word, at its lead (`returned $0 ·
 /// … · stalled` read as two); a lead that kept nothing keeps 0; the `bones: N items` count is
 /// the pile the line lists (`ExitLine.bones`, Σ n == N; `leash ×3` counted charges).
+/// Cut 29 §3: the meters are pure reads of the event stream — two watched sends, every event kept:
+/// the run's meter on its exit line holds the stream's sums (damage dealt by every hit, taken by every
+/// hurt, healing, rule fires, supplies used, gold home), its time split sums to its ticks, its row
+/// shares to ≤ 1 per action; the snapshot's live meter at the end is the line's.
+fn check_meters_leg(t: &mut Tally, g: &Game, seed: u64) {
+    let mut g = g.clone();
+    for _ in 0..2 {
+        g.send();
+        let mut evs: Vec<riddle_core::Ev> = Vec::new();
+        let mut line: Option<riddle_core::wire::ExitLine> = None;
+        for _ in 0..4000 {
+            let r = g.step(50);
+            for e in &r.events {
+                if let riddle_core::Ev::Exit { line: Some(l), .. } = e {
+                    line = Some((**l).clone());
+                }
+            }
+            evs.extend(r.events);
+            if r.run_over {
+                break;
+            }
+        }
+        let Some(m) = line.and_then(|l| l.meters) else {
+            t.check("a watched exit carries its meters", false, || format!("seed {seed}: no meters on the exit line"));
+            break;
+        };
+        let (dealt, taken, healed, fires, used, gold) = riddle_core::meters::stream_sums(&evs);
+        let heal: i64 = m.healed.iter().map(|h| h.total).sum();
+        let rows: u32 = m.rows.iter().map(|r| r.fires).sum();
+        let sup: u32 = m.supplies.values().sum();
+        t.check("meter totals == the event stream's sums (dealt · taken · healed · fires · supplies · gold)", m.dealt.total() == dealt && m.taken.total() == taken && heal == healed && rows == fires && sup == used && m.gold == gold, || {
+            format!("seed {seed}: meter {} {} {heal} {rows} {sup} {} vs stream {dealt} {taken} {healed} {fires} {used} {gold}", m.dealt.total(), m.taken.total(), m.gold)
+        });
+        let split = m.time.fight + m.time.travel + m.time.chores + m.time.rest;
+        t.check("meter time split == its ticks", (split as f64 - m.seconds * 10.0).abs() < 0.5, || format!("seed {seed}: split {split} vs {:.1} s", m.seconds));
+        t.check("a row's share of the actions ≤ 1", m.rows.iter().all(|r| r.share <= 1.0 + 1e-9), || format!("seed {seed}: {:?}", m.rows));
+        let _ = g.finish_run();
+        g.auto_keep();
+        g.lineage.rest_left = 0;
+    }
+}
+
 fn check_exit_line(t: &mut Tally, seed: u64, x: &riddle_core::wire::ExitLine, at: &str) {
     const LEADS: [&str; 6] = ["banked ", "returned ", "died ", "stalled ", "lost thread ", "driven "];
     let lead = LEADS.iter().find(|w| x.text.starts_with(**w)).copied();
@@ -1642,6 +1684,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     if seed.is_multiple_of(3) {
         at(pool, 45, "dead row leg", &g, |o, g, seed| check_dead_row(&mut o.t, g, seed));
     }
+    at(pool, 45, "meters leg", &g, |o, g, seed| without_history(|| check_meters_leg(&mut o.t, g, seed)));
     check_report_names(t, &g, seed, &r, "report");
     for x in &r.exits {
         if let Some(tr) = &x.trace {

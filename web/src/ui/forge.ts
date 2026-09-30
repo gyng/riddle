@@ -40,7 +40,7 @@ export function kitTerms(n: NonNullable<KitLadder["next"]>): { label: string; te
   if (n.delta === undefined) return null;
   const d = moveOf({ delta: n.delta, pm: n.pm });
   if (!d) return null;
-  const out = [{ label: `D${n.depth ?? "?"}`, text: d.text, dir: d.dir, worse: false }];
+  const out = [{ label: /* copy:callout */ `reach D${n.depth ?? "?"}`, text: d.text, dir: d.dir, worse: false }];   // docs/COPY.md pass 4: `D7 same` read "no idea"
   const bank = n.bank !== undefined ? moveOf({ delta: n.bank, pm: n.pm }) : null;
   const death = n.death !== undefined ? moveOf({ delta: n.death, pm: n.pm }) : null;
   if (bank && bank.dir !== "flat") out.push({ label: /* copy:label */ "bank", text: bank.text, dir: bank.dir, worse: false });
@@ -70,7 +70,7 @@ export function openForge(app: App): void {
         else {
           const terms = kitTerms(n);
           const inner = [h("span", { class: "kit-label" }, n.label),
-            terms ? h("span", { class: "num kit-move" }, ...terms.flatMap((x) => [" · ", h("b", { class: `dlt ${kitTone(x)}` }, `${x.label} ${x.text}`)])) : pending ? h("small", { class: "num dim kit-move" }, " · …") : "",
+            terms ? h("span", { class: "num kit-move" }, ...terms.flatMap((x) => [" · ", h("b", { class: `dlt ${kitTone(x)}` }, `${x.label} ${x.text}`)])) : pending ? h("small", { class: "num dim kit-move" }, /* copy:callout */ " · measuring…") : "",   // docs/COPY.md pass 2: a bare `…` read "no idea" (2/2)
             h("b", { class: "num gold kit-price" }, ` · $${n.price}`),
             // QA 912e135 (qaW: `7 nights` at 0 banked, 0 returned — "the income behind it is not on screen"): the net it divides by
             !n.affordable && n.nights !== undefined && n.nights > 0 ? h("small", { class: "num dim kit-nights" }, /* copy:callout */ ` · ${n.nights === 1 ? "1 night" : `${n.nights} nights`}`,

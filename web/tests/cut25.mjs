@@ -47,7 +47,7 @@ const camp = async () => { await waitFor((s) => s?.booted && s.screen === "camp"
 const richSave = (gold, marks) => page.evaluate(async ([gold, marks]) => { const b = JSON.parse(window.__riddle.exportSave()); const e = JSON.parse(b.engine); e.lineage.gold = gold; if (marks !== undefined) e.lineage.marks = marks; e.lineage.best_depth = Math.max(5, e.lineage.best_depth); b.engine = JSON.stringify(e); return window.__riddle.importSave(JSON.stringify(b)); }, [gold, marks]);
 
 try {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
   await camp();
 
   // ---- §2: the `order` verdict
@@ -66,8 +66,8 @@ try {
     const d = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict")?.textContent,
       sealUp: getComputedStyle(document.querySelector(".death-line .verdict")).textTransform, lead: document.querySelector("button.patch .target")?.textContent.trim(),
       lit: document.querySelector("button.patch.top .target")?.textContent.trim(), surv: document.querySelector("button.patch .surv")?.textContent }));
-    check(d.cause === "ogre · D8 · R5 under R2" && d.seal === "order" && d.sealUp === "uppercase", `an order death names both rows, the seal one word ("${d.cause}" · ${d.seal})`);
-    check(d.lead === "move R5 above R2" && d.lit === d.lead && /survives 11\/12 · unpatched 0\/12/.test(d.surv ?? ""), `its lead patch is the move, lit for the gem ("${d.lead}" · ${d.surv})`);
+    check(d.cause === "ogre · D8 · return at 20% under attack nearest" && d.seal === "order" && d.sealUp === "uppercase", `an order death names both rows, the seal one word ("${d.cause}" · ${d.seal})`);
+    check(d.lead === "move above attack nearest" && d.lit === d.lead && /survives 11\/12 · was 0\/12/.test(d.surv ?? ""), `its lead patch is the move, lit for the gem ("${d.lead}" · ${d.surv})`);
     await shot("cut25-order");
     await page.locator(".patch-gem").click({ timeout: 5000 }); await sleep(250);
     const after = await page.evaluate(() => ({ screen: window.__riddle.screen, rows: window.__riddle.rules.rows.map((r) => r.verb.v).join(",") }));
@@ -89,7 +89,7 @@ try {
       reel: [{ pattern: "x", score: 1, t: 1, run_id: 1, text: "Lock bloats took him to 7 HP; R1 drank; reached D8.", n: 5 }] } }));
     await sleep(300);
     const rep = await page.evaluate(() => ({ reel: [...document.querySelectorAll(".report .rsec")].find((x) => x.querySelector(".label")?.textContent === "reel")?.innerText.replace(/\s+/g, " ") ?? "", runs: document.querySelector(".report .tiles .tile")?.innerText.replace(/\s+/g, " ") ?? "" }));
-    check(/×5/.test(rep.reel) && /♟4/.test(rep.runs), `the reel's merged line reads ×5 ("${rep.reel.slice(-24)}"); a watched run's tile names its heir ("${rep.runs}")`);
+    check(/×5/.test(rep.reel) && /heir 4/.test(rep.runs), `the reel's merged line reads ×5 ("${rep.reel.slice(-24)}"); a watched run's tile names its heir ("${rep.runs}")`);
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await camp();
   }
 
@@ -106,7 +106,7 @@ try {
   // (a wall-clock reading: `measured` takes the mode's run once more on a loaded machine, the bar unchanged — tests/lib/load.mjs)
   for (const m of ["fights", "fast", "one"]) {
     const drain = await measured(async () => {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=9&fake_drain=1`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=9&fake_drain=1`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate((m) => { window.__riddle.watchMode = m; window.__riddle.go({ kind: "watch" }); }, m);
     const d = await page.evaluate(() => new Promise((res) => {
@@ -141,7 +141,7 @@ try {
   }
   // the plain 1×: a tile beside fights/fast; the chip's clock reads 1×; the mode is remembered and the send gem says it
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=9`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=9`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate(() => { window.__riddle.watchMode = "fights"; window.__riddle.go({ kind: "watch" }); });
     await sleep(600);
@@ -154,12 +154,12 @@ try {
     check([...rates].every((r) => /^1×?$/.test(r) || r === "dead") && [...rates].some((r) => /^1×?$/.test(r)), `the plain 1× runs its live frames at 1× (${[...rates].join(" ")})`);
     await page.evaluate(() => { document.querySelectorAll(".sheet-wrap").forEach((x) => x.remove()); window.__riddle.go({ kind: "camp" }); }); await camp();
     const gemTxt = await page.evaluate(() => document.querySelector(".gem[data-mode]")?.textContent ?? document.querySelector("[data-mode]")?.textContent);
-    check(/send\s*▸?\s*1×/i.test(gemTxt ?? ""), `the send gem says the remembered 1× ("${gemTxt}")`);
+    check(/send\s*▸?\s*normal/i.test(gemTxt ?? ""), `the send gem says the remembered 1× (normal) ("${gemTxt}")`);
   }
 
   // ---- §4: the forge's measure never waits behind the unlock shelf's
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=25&fake_lag=1`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25&fake_lag=1`, { waitUntil: "domcontentloaded" });
     await camp(); await sleep(8000);   // the camp's own measures settle
     const t = await page.evaluate(async () => {
       const E = window.__riddle.engine, t0 = performance.now(), at = {};
@@ -171,7 +171,7 @@ try {
 
   // ---- §6: sheets — one at a time, with a back
   {
-    await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
     await camp();
     const s = await page.evaluate(async () => {
       const { openSheet } = await import("/src/ui/sheet.ts"); const { h } = await import("/src/ui/dom.ts");

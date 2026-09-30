@@ -308,6 +308,8 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // Cut 7 §3: the thief's den pounces on a hero at the stairs.
     crate::situations::before_action(run, cx);
     let v = view(run);
+    // Cut 30 §1: which of the heir's gifts are live at this action (never a verb).
+    crate::traits::on_action(run, cx, &v.foes);
     // Cut 5 §3: the fight clock (no hero lines in a fight's first ten ticks).
     if v.foes.is_empty() {
         run.fight_t = None;
@@ -433,6 +435,8 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // and a stacked potion leave the pack's slots as they were — counted as dry, a sweep's 40th
     // coin gave the floor's heals up (FULL's deaths, `dice` 19.8 → 27.4%).
     let took = inv_after > inv_before || cx.events.get(ev_before..).is_some_and(|es| es.iter().any(|e| matches!(e, Ev::Pickup { id: HERO_ID, .. })));
+    // Cut 30 §1: `sure` and `light hands` act after the verb (energy back); never choose it.
+    crate::traits::after_action(run, cx, &verb, took, &v.foes);
     if took {
         run.pickup_dry = 0;
     } else if verb.v == "pick_up" && row == -2 {
@@ -457,7 +461,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     let whys = std::mem::take(&mut run.rows_why);
     let rows = if whys.is_empty() { None } else { Some(whys) };
     let before: Vec<crate::wire::TraceBlow> = run.blows.drain(..blows_before.min(run.blows.len())).collect();
-    let mut turn = TraceTurn { max_hp: run.hero.max_hp, t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before };
+    let mut turn = TraceTurn { max_hp: run.hero.max_hp, t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before, gift: run.gift.mark.take() };
     foe_reasons(&mut turn, (seen_before - v.foes.len() as i32).max(0));
     run.trace.push(turn);
     if run.trace.len() > 16 {
@@ -671,6 +675,11 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 run.homeward = Some(i as i32);
                 run.home_at = Some((run.turn, hp_pct, run.hero.hp));
                 run.homeward_bank = row.verb.v == "bank";
+                // Cut 28b: a `return` committed breaks a `no return` oath at the row that did it
+                if !run.homeward_bank {
+                    run.home_return = true;
+                    crate::oath::beat(run, cx, i as i32);
+                }
                 if run.homeward_bank {
                     gold_scent(run, cx);
                 }
@@ -958,6 +967,10 @@ fn row_usable(cx: &Ctx, c: &Cond) -> bool {
     if c.k == "on_see" && c.t.as_deref().is_some_and(|t| !t.is_empty()) {
         return c.t.as_deref().is_some_and(|t| cx.facts.contains(t));
     }
+    // Cut 30 §4: `trait <head>` / `gift live` are gated by the trait's fact.
+    if matches!(c.k.as_str(), crate::traits::COND_TRAIT | crate::traits::COND_LIVE) {
+        return crate::traits::cond_usable(cx.facts, c);
+    }
     crate::meta::cond_unlock(&c.k).is_none_or(|u| cx.unlocks.contains(u))
 }
 
@@ -979,6 +992,9 @@ fn cond_reason(run: &Run, cx: &Ctx, c: &Cond) -> String {
     // offered): `on_see: K` is the situation's fact's, not the bare cond's unlock — it reads `no
     // hunger seen` (or `locked cond` while the fact is unknown, as the run holds it).
     let tagged_see = c.k == "on_see" && !t.is_empty();
+    if matches!(c.k.as_str(), crate::traits::COND_TRAIT | crate::traits::COND_LIVE) {
+        return crate::traits::cond_reason(cx, c);
+    }
     if (tagged_see && !cx.facts.contains(t)) || (!tagged_see && crate::meta::cond_unlock(&c.k).is_some_and(|u| !cx.unlocks.contains(u))) {
         return "locked cond".into();
     }
@@ -1390,6 +1406,10 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
     // not by the `cond_on_see` unlock).
     if c.k == "on_see" && !t.is_empty() {
         return cx.facts.contains(t) && run.sees_situation(t);
+    }
+    // Cut 30 §4: the heir's trait and its gift live (fact-gated).
+    if matches!(c.k.as_str(), crate::traits::COND_TRAIT | crate::traits::COND_LIVE) {
+        return crate::traits::cond_holds(run, cx, c);
     }
     // Cut 2 §3: some condition tokens are unlocks; a row using one the lineage does not own
     // never fires.
@@ -1883,6 +1903,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             }
             run.boss_kills.push((run.turn, kind.clone()));
             note(run, cx, format!("Slew the {}.", m.title()));
+            crate::oath::beat(run, cx, run.acting_row);   // Cut 28b: a `slay` / `fire` oath is kept here
             callout(run, cx, "boss down");
             // Cut 5 §1: a boss dying closes the episode (`first boss` the first time the
             // lineage kills the kind).
@@ -2153,6 +2174,7 @@ pub const REST_ALERT_EVERY: u32 = 8;
 pub fn rest_clock(run: &mut Run, cx: &mut Ctx) {
     run.rests += 1;
     run.rested = true;
+    crate::oath::beat(run, cx, run.acting_row);   // Cut 28b: a `no rest` oath breaks here
     let at = run.hero.pos;
     noise(run, cx, at, 8);
     if !run.rests.is_multiple_of(REST_ALERT_EVERY) {
@@ -2480,6 +2502,9 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
         note_saved(run, cx);
     }
     run.over = Some(tier);
+    // Cut 28b: the oath's fate, if the run has not said it yet — before the exit's own event
+    let row = if run.acting_row >= 0 { run.acting_row } else { run.exit_row.or(run.homeward).unwrap_or(-1) };
+    crate::oath::beat(run, cx, row);
     let loot_kept = run.loot * run.yield_pct(tier) / 100;
     // Cut 5 §1: the exit resolves every open episode.
     let res = match tier {
@@ -2750,7 +2775,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
     // Several items may share a tile (a recovered kit that did not fit): take the first
     // that would change anything.
     let here = run.hero.pos;
-    let Some(ii) = run.items.iter().position(|fi| fi.pos == here && can_take(&run.hero, &fi.item)) else { return };
+    let Some(ii) = run.items.iter().position(|fi| fi.pos == here && (can_take(&run.hero, &fi.item) || (queen_wants(run, &fi.item) && queen_slot(run, cx).is_some()))) else { return };
     let item = &run.items[ii].item;
     if item.kind == "bones" {
         recover_bones(run, cx, ii);
@@ -2817,6 +2842,15 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
         learn(run, cx, "item:leash".into());
         return;
     }
+    // Cut 29 (the Lurker Queen, D28): a full pack of enchanted summons and spares walked past
+    // every silence scroll from D24 (205 floors, none held) — its value (18) is under an
+    // enchanted scroll's. From D24 a silence takes the slot of an unread summon or a spare.
+    if run.hero.inv_full() && queen_wants(run, item) {
+        if let Some(k) = queen_slot(run, cx) {
+            swap_in(run, cx, ii, k);
+            return;
+        }
+    }
     if run.hero.inv_full() && !item_replaces_gear(&run.hero, item) {
         // Cut 3: a full pack keeps one spare weapon and one spare armour; a second spare makes
         // way for a consumable or a bow (spares are salvage; potions and scrolls are the run).
@@ -2855,8 +2889,8 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
         // Cut 12 §2: never what a row needs — a kind a `drink` / `read` / `throw` row names,
         // or a supply packed at camp (rater O: `swapped for the poison` took the bought heal
         // `hp<30 → drink heal` was written for).
-        let dup = duplicate_slot(&run.hero, item).filter(|&k| !row_needs(run, cx, &run.hero.inv[k]));
-        let swap = dup.or_else(|| run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+        let dup = duplicate_slot(&run.hero, item).filter(|&k| !row_needs(run, cx, &run.hero.inv[k]) && !queen_keeps(run, &run.hero.inv[k]));
+        let swap = dup.or_else(|| run.hero.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i) && !queen_keeps(run, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
         let swap = swap.map(|k| (k, if dup.is_some() { i32::MIN } else { run.hero.inv[k].value() }));
         match swap {
             Some((k, v)) if item.is_consumable() && item.value() > v => {
@@ -2892,6 +2926,47 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
             drop_near(run, here, old);
         }
     }
+    cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
+}
+
+/// Cut 29: the band where the Lurker Queen's counter (a silence scroll) earns a pack slot.
+pub const QUEEN_PACK_DEPTH: u32 = 24;
+
+/// Cut 29: from `QUEEN_PACK_DEPTH`, a silence scroll is worth a slot while the pack holds fewer
+/// than two (the Queen's summons are read down one scroll at a time).
+pub fn queen_wants(run: &Run, item: &Item) -> bool {
+    item.kind == "silence" && run.depth >= QUEEN_PACK_DEPTH && run.hero.inv.iter().filter(|i| i.kind == "silence").count() < 2
+}
+
+/// Whether a held item is the Queen's counter the pack keeps (never swapped out for a dearer
+/// consumable: a silence taken for a summon would be traded back for it on the next step).
+fn queen_keeps(run: &Run, it: &Item) -> bool {
+    it.kind == "silence" && run.depth >= QUEEN_PACK_DEPTH
+}
+
+/// The slot a silence takes (`queen_wants`): an unread summon (no row names it, not packed at
+/// camp) first, else a spare weapon or armour (not the forged kit, not a bow, not brought from the
+/// vault) — the cheapest.
+pub fn queen_slot(run: &Run, cx: &Ctx) -> Option<usize> {
+    let free = |i: &Item| !row_needs(run, cx, i) && !crate::kit::is_kit_id(i.id) && !run.brought.contains(&i.id);
+    let pick = |f: &dyn Fn(&Item) -> bool| run.hero.inv.iter().enumerate().filter(|(_, i)| free(i) && f(i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k);
+    pick(&|i| i.kind == "summon_ally").or_else(|| pick(&|i| matches!(i.cat(), Cat::Weapon | Cat::Armour) && !i.def().ranged))
+}
+
+/// A full pack puts down its slot `k` and takes the floor item `ii` in its place (a chore).
+fn swap_in(run: &mut Run, cx: &mut Ctx, ii: usize, k: usize) {
+    let dropped = run.hero.inv.remove(k);
+    let here = run.hero.pos;
+    let it = run.items.remove(ii).item;
+    let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
+    let raw = it.value() - run.loot_value(&dropped);
+    swap_loot(run, cx, raw, &dropped);
+    crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
+    crate::provenance::found(run, cx, &it.kind, &label);
+    run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));
+    run.note_found(it.id, &it.kind, 1);
+    run.hero.inv.push(it);
+    run.items.push(crate::engine::FloorItem { pos: here, item: dropped });
     cx.events.push(Ev::Pickup { t: run.turn, id: HERO_ID, item: label });
 }
 
@@ -2992,10 +3067,13 @@ fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {
 /// gripe: "the most expensive outcome in the game").
 pub fn would_take(run: &Run, cx: &Ctx, item: &Item) -> bool {
     let h = &run.hero;
-    if !can_take(h, item) {
+    if !(can_take(h, item) || (queen_wants(run, item) && queen_slot(run, cx).is_some())) {
         return false;
     }
     if !h.inv_full() || item.kind == "bones" || item.cat() == Cat::Gold || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash")) || item_replaces_gear(h, item) {
+        return true;
+    }
+    if queen_wants(run, item) && queen_slot(run, cx).is_some() {
         return true;
     }
     if item.is_consumable() || item.def().ranged {
@@ -3007,8 +3085,8 @@ pub fn would_take(run: &Run, cx: &Ctx, item: &Item) -> bool {
             return true;
         }
     }
-    let dup = duplicate_slot(h, item).filter(|&k| !row_needs(run, cx, &h.inv[k]));
-    let swap = dup.or_else(|| h.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+    let dup = duplicate_slot(h, item).filter(|&k| !row_needs(run, cx, &h.inv[k]) && !queen_keeps(run, &h.inv[k]));
+    let swap = dup.or_else(|| h.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i) && !queen_keeps(run, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
     let swap = swap.map(|k| if dup.is_some() { i32::MIN } else { h.inv[k].value() });
     matches!(swap, Some(v) if item.is_consumable() && item.value() > v)
 }

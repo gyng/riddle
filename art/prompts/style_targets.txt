@@ -1,0 +1,137 @@
+=== HEADER (every batch) ===
+You are painting STYLE TARGETS for the game "Riddle" (a dark-fantasy idle roguelike played on a phone held in
+portrait). These are art-direction frames for the owner's approval, not game assets. Use your built-in image_gen
+tool, one call per image. Do NOT write code beyond a PIL resample. Do NOT read any file in the repository (the
+style is fully described below) and do NOT modify anything outside /home/g/p/riddle/art/ui/targets/style/.
+Save each final PNG (opaque sRGB RGB, no alpha) to the exact path at the exact size given; if the generated
+image is not that size, resample it with PIL (Lanczos) keeping the aspect (crop the long side, never stretch).
+Delete any scratch or _inspection_ files you create. Overwrite existing outputs. When done, look at each output
+once: if it breaks a NEVER below (a smooth digital gradient look, glossy 3D, a warm brown/amber overall cast,
+gibberish text, a missing element), regenerate it once.
+
+=== STYLE PREAMBLE (docs/ART_DIRECTION.md §8 — every future asset prompt starts with this block) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== BATCH A (hero identity + UI kit) ===
+
+1) /home/g/p/riddle/art/ui/targets/style/hero_sheet.png — 1536 x 1024 landscape. A CHARACTER SHEET for the
+default hero class, the WARRIOR, on a sheet of cream watercolour paper (BONE with visible grain, ink-wash
+stains at the edges). LEFT two thirds: three full-body sprites standing in a row, each about 55 % of the image
+height, 3/4 view facing right, the same outfit on three LOOKS: (a) a young man with short dark hair, (b) a young
+woman with a long dark braid swinging behind her, (c) a cat-folk warrior with two tall black cat ears, a long
+curling tail, yellow eyes. The outfit: dull steel pauldrons and cuirass painted in MOON/MIST washes with INK
+shadow, a LONG tattered BLOOD-red cloak that trails to the ankles and flares behind (the signature shape), a
+straight longsword held low, a small round dark shield on the back, tall dark boots. Long elegant proportions
+(head about 1/6.5 of the height), pale BONE faces with sharp gothic-anime features (narrow eyes, a few ink
+strokes). Each figure drawn on a visible pixel grid (chunky square pixel clusters, stepped edges) with
+watercolour washes inside and a hand-inked blue-black outline; under each a small INK contact shadow. Beside
+each sprite, a TINY copy of the same sprite at true game size (about 48 px tall, crisp pixels) so the read is
+testable. RIGHT third: a PORTRAIT bust of the man (a), in a circular vignette: the face three-quarter, cold
+moonlight from above-left, a BLOOD cloak collar, a halftone screen in the shadows, the paper showing through the
+highlights, loose ink hatching in the background. No text.
+
+2) /home/g/p/riddle/art/ui/targets/style/ui_sheet.png — 1536 x 1024 landscape. A UI KIT SHEET laid out on a
+dark INK/UMBRA field with a faint paper grain: the game's interface frame redrawn in the style. Contents, in a
+clean grid with space between: (1) a long horizontal TOP BAR plate of blackened iron drawn as ink and wash (INK
+body, MIST moonlit rim along the top edge, two GILT rivets at each end); (2) a large bottom CONSOLE plate
+(blackened iron and dark stone, ink-hatched, moonlit bevels, a round PORTRAIT WELL socket at the left edged in
+thin GILT); (3) a PARCHMENT PANEL: cream BONE paper with watercolour bloom stains and a deckled, ink-edged border
+inside a thin iron frame with small corner caps; (4) a row of four square COMMAND TILES (dark iron, a single
+BONE ink-drawn icon on each: crossed swords, a boot, a potion flask, a coin stack); (5) one PRESSED tile (darker,
+sunk); (6) the PRIMARY GEM button: a large round faceted BLOOD-red gem in a GILT and iron setting with a pale
+moonlit highlight, the word "SEND" carved in a tall gothic serif across it in BONE; (7) a small red DANGER gem
+and a pale MOON gem; (8) a row of six small RESOURCE ICONS drawn in ink on bone (a coin, a diamond, a star, a
+skull, a stair, a cog); (9) a narrow HP gauge: an iron trough with a BLOOD fill and a MIST tick. Everything reads
+as ink line + watercolour wash on a pixel grid, NOT as glossy metal. Only the word "SEND"; no other text.
+
+=== BATCH B (the watch in two places) ===
+
+3) /home/g/p/riddle/art/ui/targets/style/watch_warrens.png — 1024 x 1536 portrait. An in-game phone
+SCREENSHOT of the WATCH: the top-down view of a dungeon room, seen from high above at a 3/4 angle, filling the
+middle ~70 % of the screen. Place: THE WARRENS (tint: umber #4a3b2c for the mid-tones), rough stone walls with
+moonlit capstones, a flagstone floor drawn as a pixel grid of washes, an iron grate, two wall torches with small
+EMBER pools, bones and a barrel in the corners, shafts of cold moonlight from a crack in the ceiling. A FIGHT:
+the hero (a tall warrior, long BLOOD-red cloak, steel armour, longsword mid-swing leaving a pale MIST slash arc)
+against three goblins (hunched, long-eared, INK-and-DUSK skin, glinting BONE eyes), one of them an archer with a
+drawn bow; a few BLOOD spatters on the floor; a small white "3" damage number. Sprites and tiles share ONE pixel
+density and ONE ink-and-wash treatment, so nothing looks pasted on. Frame (thin, dark, drawn in the same style,
+not glossy): a narrow iron top bar with tiny ink icons and numbers "$ 1 488" and "D5"; a bottom console with a
+round portrait well (the hero's face, a thin BLOOD hp ring), four small square ink-icon tiles, and a round
+moonlit pause gem at the right. No other text.
+
+4) /home/g/p/riddle/art/ui/targets/style/watch_fens.png — 1024 x 1536 portrait. The SAME screen and frame as
+image 3, a different place: THE FENS (tint: cold teal #2d5752 for the mid-tones). A drowned marsh room: a
+boardwalk of long grey planks over black water, open pools with lily pads reflecting the moon as broken BONE
+streaks, reeds, a leaning rotten post with a hanging lantern (a small EMBER pool), low mist washes drifting over
+the water (MIST, paper showing through). A FIGHT: the same hero (long BLOOD cloak) against two WRAITHS
+(tattered floating shrouds, long clawed hands, drawn mostly in MIST and BONE washes with INK hollows for eyes,
+translucent, trailing wisps) and a swollen bloated frog-thing. The hero is hit: a BLOOD flash on him and a red
+"-4". Same frame as image 3, top bar "$ 1 488" and "D9". No other text.
+
+=== BATCH C (boss, death, town) ===
+
+5) /home/g/p/riddle/art/ui/targets/style/boss.png — 1024 x 1536 portrait. A BOSS ENCOUNTER on the watch
+screen (same thin frame: top bar "D8", bottom console with portrait well and a moonlit gem). A long crypt hall
+(tint: indigo #2f2c4f), pillars casting long INK shadows across moonlit floor. The boss, three times the
+hero's height: the WARLORD, a towering gaunt goblin king in a long tattered BLOOD-and-INK mantle, an iron crown
+of spikes, a great cleaver, glowing BONE eyes; drawn with the same ink line and washes, bold silhouette. The
+hero (small, long BLOOD cloak) faces him from below, sword raised. A long framed boss HP bar across the top of
+the play area with the carved name plate "WARLORD" in a gothic serif. A dramatic diagonal of cold moonlight
+from a high window cuts between them. No other text.
+
+6) /home/g/p/riddle/art/ui/targets/style/death.png — 1024 x 1536 portrait. The DEATH SCREEN. Behind: the frozen
+dungeon floor darkened to INK with a halftone screen, the fallen hero small in the middle in a pool of BLOOD,
+the long cloak spread. Over it: a tall torn hanging BANNER of BLOOD-red cloth with ink-drawn tears and dripping
+edges, carrying in a tall gothic serif, in BONE: "YOU DIED", and under it a small carved plate: "BURST · D7".
+Below the banner, three narrow parchment strips (BONE paper, watercolour bloom stains, ink edges) each with a
+tiny ink icon and a short line "hp < 30% → retreat", with a small MIST gauge at the right end; the top strip
+edged in GILT (the recommended one). Bottom console as the other frames, its gem a BLOOD-red gem reading
+"APPLY". Cold moonlight from above, one EMBER candle at a corner. Only the words given.
+
+7) /home/g/p/riddle/art/ui/targets/style/town.png — 1024 x 1536 portrait. The HOME SCREEN as a small TOWN HUB
+at NIGHT under a huge pale moon (BONE disc with a watercolour bloom halo, MIST cloud washes, halftone in the
+night sky). Seen from a high 3/4 top-down angle. At the top, the DUNGEON MOUTH: a black stone archway cut into
+a rocky hill, two EMBER torches. Below it, on a moonlit clearing (tint: moss #3a4a3a for the mid-tones), a
+village joined by pale dirt paths leading to the mouth: a blacksmith with an open forge (EMBER glow, sparks), a
+tall narrow gothic tavern with lit windows, a small stone bank with columns, two timber cottages with steep
+roofs, a kennel with a fence and a dog, a central fire ring. Walking figures: a hero in a long BLOOD cloak
+walking up to the mouth; a returning party of two carrying a sack. Chimney smoke as MIST wash. Everything on
+the pixel grid with ink line and watercolour washes, tall steep gothic roof shapes. Frame: a thin iron top bar
+with "$ 3 240" and "D11"; a bottom console with a portrait well, four ink-icon tiles and a large BLOOD-red gem
+reading "SEND". No other text.
+
+=== BATCH R1 (retry after QC: the watch frames read more pixel than painted; the death screen's hero had white hair) ===
+Paint each again with the SAME content as its original brief above (images 3 and 6), but LEAN FURTHER TOWARD PAINTED:
+the pixel grid stays visible (stepped edges on every silhouette), but every surface inside it is an obvious transparent
+WATERCOLOUR WASH on cream paper: wet-in-wet colour bleed where two washes meet, darker pigment rings pooled at the edge of
+each wash, granulation specks, the warm paper grain clearly visible through the floor's lit areas and the moon shafts,
+loose hand-inked contour lines (visible brush-pen line weight), a halftone dot screen in the shadow areas like a printed
+magazine page. Keep the palette, the frame and the layout. Top-down 3/4 view from high above (not isometric diamonds).
+Save to the _retry_ path given, do not overwrite the originals.
+
+3r) /home/g/p/riddle/art/ui/targets/style/_retry_watch_warrens.png — 1024 x 1536 portrait — image 3's brief (the Warrens fight).
+6r) /home/g/p/riddle/art/ui/targets/style/_retry_death.png — 1024 x 1536 portrait — image 6's brief (the death screen); the
+fallen hero has SHORT DARK (near-black) hair and the long BLOOD-red cloak, the same young man as the portrait in the
+console's well.

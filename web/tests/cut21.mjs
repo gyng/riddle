@@ -49,7 +49,7 @@ const patchLineage = (patch) => page.evaluate(async (p) => {
 try {
   // ---- §1: the start tablet
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=12 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=21&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=21&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await sleep(300);
   const before = await txt(".camp .start-tab");
@@ -106,7 +106,7 @@ try {
   check(tolls[9] ? toll?.delta === -tolls[9] || gold0 - gold1 === tolls[9] : !toll, `the send pays the toll the wire named (${tolls[9] ?? 0}) (${toll ? `${toll.delta} ${toll.why}` : `$${gold0} → $${gold1}`})`);
 
   // ---- §2: found supplies to the shelf; `no row`
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=22`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=22`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   const x = (text, kept, pct, extra = {}) => ({ carried: 80, keep_pct: pct, kept, spent: 0, spent_on: [], text, run_id: 1, ...extra });
   const report = { elapsed_s: 100, runs: 2, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, tamed: [], hatched: [], lost: [],
@@ -144,7 +144,7 @@ try {
   await closeSheets();
 
   // ---- §3: the depth picker to best + 2
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=23&rules=${encodeURIComponent("foes>=1 → attack nearest\ndepth>=8 → bank")}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=23&rules=${encodeURIComponent("foes>=1 → attack nearest\ndepth>=8 → bank")}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await patchLineage({ best_depth: 20, heir: 3 }); await sleep(400);
   await editRows(page); await sleep(200);
@@ -170,9 +170,9 @@ try {
   await waitFor((s) => s?.screen === "death", "the death"); await sleep(300);
   const chain = await page.evaluate(() => [...document.querySelectorAll(".death .chain .chain-row")].map((r) => ({ cls: r.className, text: [...r.childNodes].map((c) => c.textContent.trim()).filter(Boolean).join(" ").replace(/\s+/g, " ") })));
   const ticks = chain.filter((c) => /\btick\b/.test(c.cls)).map((c) => c.text);
-  check(ticks.some((t) => /^t800–820 R2 bank no way ← foes held the way/.test(t)), `an earlier stretch's reason carries its because (${ticks.join(" | ") || "none"})`);
-  check(!ticks.some((t) => /R1 drink heal/.test(t)), "a reason the last tick repeats stays on the last tick's line");
-  check(chain.some((c) => /^R1 drink heal no item ← drank the last heal/.test(c.text)) && chain.some((c) => /fired/.test(c.cls) && /^R2 bank fired$/.test(c.text)), `the last tick's lines stand (${chain.filter((c) => !/tick/.test(c.cls)).map((c) => c.text).join(" | ")})`);
+  check(ticks.some((t) => /^t800–820 bank at 30% no way ← foes held the way/.test(t)), `an earlier stretch's reason carries its because (${ticks.join(" | ") || "none"})`);
+  check(!ticks.some((t) => /drink heal at 30%/.test(t)), "a reason the last tick repeats stays on the last tick's line");
+  check(chain.some((c) => /^drink heal at 30% no item ← drank the last heal/.test(c.text)) && chain.some((c) => /fired/.test(c.cls) && /^bank at 30% fired$/.test(c.text)), `the last tick's lines stand (${chain.filter((c) => !/tick/.test(c.cls)).map((c) => c.text).join(" | ")})`);
   await shot("cut21-chain");
 } catch (e) {
   errors.push(`exception: ${e.message}`);

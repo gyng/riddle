@@ -51,7 +51,7 @@ const patchLineage = (patch) => page.evaluate(async (p) => {
 }, patch);
 const vsText = () => txt(".camp .shaft-vs-host .shaft-vs");
 // QA 778fa1b: while an edit's move is measured the line reads `vs sent…`; a landed move is anything else
-const PENDING = "vs sent…";
+const PENDING = "vs last run…";
 const vsLanded = async () => { const t = await vsText(); return t && t !== PENDING ? t : null; };
 /** The shaft's notches: the absolute text (`54%±6`, the move's mark taken out) and the mark. */
 const notches = () => page.evaluate(() => [...document.querySelectorAll(".camp .shaft .notch:not(.fold)")].map((n) => {
@@ -63,7 +63,7 @@ const pctOf = (x) => `${Math.round(x * 100)}%`;
 try {
   // ---- §3: the edit's paired move
   const rules3 = encodeURIComponent("hp<30% → drink heal\nfoes>=1 → attack nearest\ndepth>=6 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=221&rules=${rules3}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=221&rules=${rules3}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await patchLineage({ best_depth: 5, heir: 3 });
   await until(() => page.evaluate(() => document.querySelector(".camp .shaft")?.dataset.fc), "the first forecast");
@@ -90,15 +90,15 @@ try {
   const line0 = await until(vsLanded, "the move under the shaft");
   // QA 778fa1b: the first pass's move is marked (`vs sent…`, dim) and asked again once the refine lands — the refined move replaces it
   const line = await until(async () => (await page.evaluate(() => document.querySelector(".camp .shaft-vs-host .shaft-vs")?.dataset.refined)) === "1" ? vsLanded() : null, "the refined move", 15_000);
-  const vsSeen = await page.evaluate(() => window.__riddle.__vsSeen.filter((x) => x.t !== "vs sent…"));
+  const vsSeen = await page.evaluate(() => window.__riddle.__vsSeen.filter((x) => x.t !== "vs last run…"));
   const rough = vsSeen.find((x) => x.refined === "0"), fine = vsSeen.findLast((x) => x.refined === "1");
-  check(!!rough && /^vs sent…/.test(rough.t) && !!fine && vsSeen.indexOf(rough) < vsSeen.indexOf(fine) && !/…/.test(line), `the first-pass move reads \`vs sent…\`, the refine's replaces it ("${rough?.t ?? line0}" → "${line}")`);
+  check(!!rough && /^vs last run…/.test(rough.t) && !!fine && vsSeen.indexOf(rough) < vsSeen.indexOf(fine) && !/…/.test(line), `the first-pass move reads \`vs last run…\`, the refine's replaces it ("${rough?.t ?? line0}" → "${line}")`);
   const log = await page.evaluate(() => window.__riddle.__log);
   check(log[0] === "forecast" && log[1] === `vs:${fc0 + 1}:3`, `the paired call waits for the paint and measures against the set before the edit (${log.join(" → ")})`);
-  check(/^vs sent · D\d+ ([+−]\d+|≈( ±\d+)?) · bank ([+−]\d+|≈( ±\d+)?)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
+  check(/^vs last run · D\d+ ([+−]\d+|same) · bank ([+−]\d+|same)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
   const ns = await notches(), f = await page.evaluate(() => window.__riddle.lastForecast);
   const marked = ns.filter((n) => n.mark !== null);
-  check(marked.every((n) => /^[▲▼]\d+$/.test(n.mark)) && ns.every((n) => n.mark === null || !/≈/.test(n.mark)), `a notch carries its move when it clears its ± (nothing inside it) (${ns.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
+  check(marked.every((n) => /^[+−]\d+$/.test(n.mark)) && ns.every((n) => n.mark === null || !/≈|same/.test(n.mark)), `a notch carries its move when it clears its ± (nothing inside it) (${ns.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
   const absOk = ns.every((n) => { const d = f.depths.find((x) => x.depth === n.d); return !d || (n.abs.startsWith(pctOf(d.reach)) || (Math.round(d.reach * 100) === 0 && /^<\d+%/.test(n.abs))); });
   check(absOk, `the notches' absolute numbers are the forecast's own (${ns.map((n) => n.abs).join(" · ")})`);
   const gems = await page.evaluate(() => [...document.querySelectorAll(".camp .shaft-ends .end .vsm")].map((m) => m.closest(".end").className.replace("end ", "") + " " + m.textContent));
@@ -122,16 +122,16 @@ try {
   const cleared = await vsText();
   check(cleared === null || cleared === PENDING, `the next edit clears the line at once ("${cleared}")`);
   const line2 = await until(vsLanded, "the second move");
-  check(line2 === "vs sent · D6 −7 · bank +4", `the largest move outside its ± heads the line, a death inside its ± is left out ("${line2}")`);
+  check(line2 === "vs last run · D6 −7 · bank +4", `the largest move outside its ± heads the line, a death inside its ± is left out ("${line2}")`);
   const gems2 = await page.evaluate(() => [...document.querySelectorAll(".camp .shaft-ends .end .vsm")].map((m) => m.closest(".end").className.replace("end ", "") + " " + m.textContent));
   check(gems2.join() === "bank ▲", `the bank gem carries its arrow, a death inside its ± none (${gems2.join(" · ") || "none"})`);
   const ns2 = await notches();
-  check(ns2.filter((n) => n.d < 6).every((n) => n.mark === null) && ns2.find((n) => n.d === 6)?.mark === "▼7", `a notch inside its paired ± is unmarked, one outside it \`▼7\` (${ns2.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
+  check(ns2.filter((n) => n.d < 6).every((n) => n.mark === null) && ns2.find((n) => n.d === 6)?.mark === "−7", `a notch inside its paired ± is unmarked, one outside it \`−7\` (${ns2.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
   // nothing clears: the frontier's `≈`
   await page.evaluate(() => { window.__riddle.engine.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: 0.02, pm: 0.04 })), bank: { delta: 0.004, pm: 0.03 } }); });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 45; r.rulesChanged(); });
   const line3 = await until(vsLanded, "the flat move");
-  check(/^vs sent · D6 ≈ ±\d+ · bank ≈ ±\d+$/.test(line3), `an edit that moves nothing reads ≈ ±N on the frontier (Cut 24 §4) ("${line3}")`);
+  check(line3 === "vs last run · D6 same · bank same", `an edit that moves nothing reads same on the frontier (Cut 24 §4) ("${line3}")`);
   await shot("cut22-vs-flat");
   // a set switch is not an edit
   await page.evaluate(() => window.__riddle.selectSet(1));
@@ -148,11 +148,11 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 25; r.rulesChanged(); });
   const line4 = await until(vsLanded, "the inline move");
   const calls = await page.evaluate(() => window.__riddle.__vsCalls);
-  check(line4 === "vs sent · D6 +12 · bank +9" && calls === 0, `a forecast's own \`vs\` is read without a call ("${line4}", ${calls} calls)`);
+  check(line4 === "vs last run · D6 +12 · bank +9" && calls === 0, `a forecast's own \`vs\` is read without a call ("${line4}", ${calls} calls)`);
 
   // ---- §4: the start picker's death share; signed deltas
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=12 → bank");
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=222&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=222&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   await patchLineage({ best_depth: 12, heir: 3, gold: 500, waystones: [5, 9], start: 1, facts: ["item:leash", "vault"] });
   await until(() => page.evaluate(() => document.querySelector(".camp .shaft")?.dataset.fc), "the forecast"); await sleep(300);
@@ -198,10 +198,10 @@ try {
   await shot("cut22-send-fast");
   await page.evaluate(() => { const r = window.__riddle; r.watchMode = "fights"; r.go({ kind: "camp" }); }); await sleep(250);
   const sendFights = await page.evaluate(() => document.querySelector(".gem.send")?.textContent.trim());
-  check(sendFights === "send▸ fights", `\`fights\` is named on the send too (Cut 28 §3: "${sendFights}")`);
+  check(sendFights === "send▸ fights only", `\`fights\` is named on the send too (Cut 28 §3: "${sendFights}")`);
 
   // ---- AH: the boss moment — one line wins
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=223`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=223`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   // the engine's first batch after tick 20 puts the warlord and a horde of goblins around the hero, the warlord's rally and his break
   await page.evaluate(() => {
