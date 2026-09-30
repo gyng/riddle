@@ -492,7 +492,7 @@ export class Juice {
     }
     // gfx round 22 (raters, the Fens: "no mist, fog or water shimmer in a fen"; "wraiths read as grey blobs — a glow and a trailing wisp")
     const fog = x.fog ?? 0;
-    if (fog > 0) for (const w of x.waters) if (near(w) && this.rand() < 0.45 * fog * dt) this.spawn(w[0] + (this.rand() - 0.5) * 8, w[1] - 3 + this.rand() * 4, 2.5 + this.rand() * 2.5, 0.4 + this.rand() * 0.8, 3.5 + this.rand() * 2, 3 + this.rand() * 2, [0.2, 0.28, 0.28], { disc: true, glow: true, drag: 0.1, sway: 1.2, fadeTo: 0.1, alpha: 0.8 });
+    if (fog > 0) for (const w of x.waters) if (near(w) && this.rand() < 0.45 * fog * dt) this.spawn(w[0] + (this.rand() - 0.5) * 8, w[1] - 3 + this.rand() * 4, 2.5 + this.rand() * 2.5, 0.4 + this.rand() * 0.8, 3.5 + this.rand() * 2, 3 + this.rand() * 2, [0.13, 0.19, 0.19], { disc: true, glow: true, drag: 0.1, sway: 1.2, fadeTo: 0.1 });
     for (const g of x.ghosts ?? []) if (near(g) && this.rand() < 7 * dt) this.spawn(g[0] + (this.rand() - 0.5) * 6, g[1] - 4 + this.rand() * 6, (this.rand() - 0.5) * 3, 4 + this.rand() * 5, 0.7 + this.rand() * 0.5, this.rand() < 0.4 ? 1.5 : 1, [0.45, 0.7, 1], { glow: true, fadeTo: 0, sway: 3 });
     for (const t of x.torches) if (near(t) && this.rand() < 0.9 * dt) this.spawn(t[0] + (this.rand() - 0.5) * 2, t[1] + 2, (this.rand() - 0.5) * 3, 7 + this.rand() * 6, 0.6 + this.rand() * 0.5, 0.5, C.ember, { glow: true, fadeTo: 0.3, sway: 3 });
     if (x.motes && this.q.at("high")) {
@@ -528,8 +528,10 @@ export class Juice {
     const w = this.white();
     for (let i = 0; i < this.live; i++) {
       const p = this.life[i]! / this.max[i]!;   // 1 → 0
-      const k = this.fadeTo[i]! + (1 - this.fadeTo[i]!) * p;
-      const a = this.alpha[i]! * Math.min(1, p * 2.5);
+      // (gfx round 23: an additive (glow) particle fades by dimming — its screen-door dissolve read as checkered discs in the Fens' fog)
+      const out = Math.min(1, p * 2.5), g = !!this.glow[i];
+      const k = (this.fadeTo[i]! + (1 - this.fadeTo[i]!) * p) * (g ? out : 1);
+      const a = this.alpha[i]! * (g ? 1 : out);
       const s = this.size[i]!;
       const L = this.glow[i] ? this.emit : this.matte;
       // whole target pixels (half env texels): crisp

@@ -669,3 +669,37 @@ Rater spread 6.63 · 6.91. The boss break is the round's gain (+0.75: "crack bol
 the map camera holds its framing until it would move > 1/5 of the view across or 1/6 down (both raters: "the camera pan reds the whole
 map"); the report's OPENED as one row of bronze medallions past four; the desktop meters at 16 px; the Fens' water breathes low fog, each
 ethereal foe trails cold wisps and glows brighter and wider; the edge reeds thinned (0.6 → 0.34), the Fens' contrast 1.02.
+
+### 10.13 Round 23 (2026-09-30) — stopped on the rule
+
+**Changes** (raters AY, AZ): the held map camera (holds until its framing moves > 1/5 across or 1/6 down, and only while the hero stays in
+the held view's middle — a hold that ignored him let him walk under the top bar); OPENED as one row of bronze medallions past four; desktop
+meters at 16 px; the Fens' water breathes low fog, ethereal foes trail cold wisps and glow brighter; edge reeds thinned; additive particles
+fade by dimming (their screen-door dissolve read as checkered discs in the fog).
+
+| moment | 20b | 21 | 22 | 23 |
+|---|---|---|---|---|
+| watch-warrens | 5.60 | 6.05 | 6.20 | 5.80 |
+| watch-fens | 5.40 | 5.50 | 5.60 | 6.00 |
+| fight | 6.50 | 6.70 | 6.55 | 7.10 |
+| boss-break | 6.90 | 6.30 | 7.05 | **7.70** |
+| boss-fall | 7.00 | 7.05 | 6.95 | 7.30 |
+| report | 7.10 | 6.90 | 7.05 | 6.60 |
+| scene | — | 6.10 | 6.50 | 6.00 |
+| d-watch | — | 6.00 | 5.90 | 6.00 |
+| **mean** | **6.74** | **6.68** | **6.77** | **6.77** |
+
+Rater spread 6.76 · 6.79 (AY's strips for m01–m06 failed to load: it rated those moments' motion from the motion image). Three rounds under
++0.2 (−0.06, +0.09, +0.00): the eval stops again. Suites green (audio 70, ctxloss 13, layout 55, fights 48, cut29 34).
+
+**What blocks the next gain** (both raters, both rounds):
+1. **The map watch** (Warrens 5.8, desktop 6.0, Fens 6.0) is the floor: "the hero is tiny, a big dark maze swallows him", "flat tiles, not
+   painted depth". The camera changes moved the void around rather than removing it — a D1 floor is mostly unexplored rock between thin
+   corridors. The raters' fix is a closer zoom (hero+foe ≈ 15 % of the view) and a dimmer periphery; a zoom change hits `fights`' ≥ 24 px /
+   stack-row gates and the texel budget, so it is a design call (PHONE_TEXELS 100 → ~80) the coordinator should make.
+2. **Target consistency of the dungeon is capped at ~6** on every dungeon moment ("a flat tile field", "pixel art next to the painted UI"):
+   the 16×16 register vs the painted target is the owner's register call, not tunable.
+3. **The flat sheets** (edit/d-edit juice 5; "EDIT a plain dark bar", "no candle light", "the sheet small on desktop"): needs a carved
+   EDIT button skin (a Codex piece) and a larger desktop sheet — a UI skin batch.
+4. **The scene inset** (6.0): "show before and after side by side", "zoom on the hero": a divergence-scene layout change.
+5. The report's motion (5–6): the plaques' stamp reads soft ("dust puff and a small shake on each plaque").

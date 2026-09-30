@@ -396,7 +396,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         // gfx round 22 (rater AW: "the camera pan reds the whole map", "the whole screen swims"): the map camera holds still while its
         // framing moves less than a fifth of the view across / a sixth down, then glides to the new framing in one move — the room
         // stays put while the hero and his foes move in it
-        if (!snapNow && held && Math.abs(cam.tx - held[0]) < iw * 0.2 && Math.abs(cam.ty - held[1]) < ih * 0.16) { cam.tx = held[0]; cam.ty = held[1]; }
+        // (the hero must stay inside the held view's middle — a hold that ignored him let him walk out under the top bar)
+        if (!snapNow && held && Math.abs(cam.tx - held[0]) < iw * 0.2 && Math.abs(cam.ty - held[1]) < ih * 0.16
+          && Math.abs(hx - held[0]) < iw * 0.3 && Math.abs(hy - held[1]) < ih * 0.26) { cam.tx = held[0]; cam.ty = held[1]; }
         else held = [cam.tx, cam.ty];
       } else held = null;
     }

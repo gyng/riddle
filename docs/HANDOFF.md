@@ -175,7 +175,9 @@ move ±2 lineages, so compare two runs before believing a move):
 Also done earlier: `noise_discipline` is earnable (a blind foe in view teaches `foe:<kind>:blind`); the repeat offers a
 `throw` row's kind as one tap (`Lineage.repeat_added`).
 
-### Gfx/UI eval (resumed 2026-09-30: round 22 6.77 — boss break 6.30 → 7.05; the Fens still lowest at 5.60; JUICE §10.12)
+### Gfx/UI eval (stopped on the rule 2026-09-30 after round 23: 6.77 · 6.77; boss break 7.70, Fens 6.00; JUICE §10.12–10.13 has the blockers)
+Round 23 (raters AY, AZ): 6.77 again (−0.06, +0.09, +0.00: three rounds under +0.2). The floor is the map watch (Warrens 5.8, desktop 6.0):
+raters want a closer zoom (a PHONE_TEXELS call against the fights gates), a carved EDIT button and bigger desktop sheet, a side-by-side scene.
 Round 22 (raters AW, AX): Fens props (7 Codex pieces) + a warmer pool, the boss break re-staged (shield above him, white-hot crack, arcs),
 the map camera frames the seen floor, the vista grows under the phone scene. Round 23's changes are committed unscored (camera hold,
 OPENED medallions, desktop meters 16 px, Fens fog + ghost wisps). The stop rule's count: 21 (−0.06), 22 (+0.09) — two rounds under +0.2.
