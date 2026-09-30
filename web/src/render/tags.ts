@@ -2,7 +2,7 @@
 // short framed hp bar (thin red fill on a dark trough) — drawn in the DOM over the canvas (crisp at any k), placed by the viewer
 // (index.ts lays the boxes out in world texels so no two intersect and none crosses the callout; `debugLabels` reports them).
 // The layer is a sibling of the canvas with the canvas's offset box, so the viewer's CSS coordinates (`toCss`) are its own.
-// Pooled elements; a frame writes only what changed. Cut 19: the serif is Alegreya (Google Fonts, index.html), Georgia before it loads.
+// Pooled elements; a frame writes only what changed. The faces are the chrome's tokens (styles.css, docs/ART_DIRECTION.md §Typography).
 
 export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number; ally?: boolean; boss?: boolean;
                     stair?: "taken" | "other" };   // Cut 26 §2: a fork floor's stair plate (its lane), the route's stair lit   // x centre, y bottom (CSS px); hp 0..1, <0 = no bar; ally: the green plate
@@ -19,7 +19,7 @@ export function allyName(kind: string, name: string): string {
  *  crisp at any k, placed by the viewer like the name tags. `CALL_*` are its CSS metrics (the viewer lays its box out from them). */
 export type Plate = { kind: "callout" | "caption" | "boss"; text: string; x: number; y: number; w: number };   // x centre, y bottom (CSS px)
 export const CALL_H = 24;        // CSS px: the plate (the notch hangs below it)
-export const CALL_CHAR = 8.6;    // CSS px per character of the 12 px Cinzel caps
+export const CALL_CHAR = 7.2;    // CSS px per character of the 12 px display caps (Grenze 700 + .06em averages 6.5; Cinzel was 8.1 → 8.6)
 export const CALL_PAD = 20;      // CSS px of side padding
 export const TAG_H = 19;          // CSS px: the name's line (13) + the bar (4) + gaps
 export const TAG_CHAR = 6.4;      // CSS px per character of the 12 px serif (lowercase average; the plate's width estimate)
@@ -28,7 +28,7 @@ export const TAG_PAD = 8;         // CSS px of side padding inside the plate
 const CSS = `
 .rtags { position: absolute; pointer-events: none; overflow: hidden; }
 .rtag { position: absolute; left: 0; top: 0; height: ${TAG_H}px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; will-change: transform; }
-.rtag b { font: 600 12px/13px "Alegreya", "Cormorant Garamond", Georgia, "Times New Roman", serif; color: #eadfc5; white-space: nowrap; letter-spacing: .01em;
+.rtag b { font: 600 12px/13px var(--display, Georgia, serif); color: #eadfc5; white-space: nowrap; letter-spacing: .01em;
   text-shadow: 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000, 0 1px 3px rgba(0,0,0,.8); }
 .rtag i { display: block; width: 24px; height: 4px; margin-top: 2px; background: #14131f; border: 1px solid #0d0c14; box-shadow: 0 0 0 1px rgba(77,108,153,.45); box-sizing: border-box; }
 .rtag i > s { display: block; height: 100%; background: linear-gradient(#d8283f, #8e1025); text-decoration: none; }
@@ -44,7 +44,7 @@ const CSS = `
 .rtag.stair.taken b { color: #eadfc5; text-shadow: 0 0 6px rgba(164, 188, 214, .9), 0 1px 0 #000, 1px 0 0 #000, -1px 0 0 #000, 0 -1px 0 #000; }
 .rtag.stair.other b { opacity: .7; }
 .rcall { position: absolute; left: 0; top: 0; height: ${CALL_H}px; display: flex; align-items: center; justify-content: center; box-sizing: border-box;
-  padding: 0 8px; white-space: nowrap; font: 700 12px/1 "Cinzel", "Trajan Pro", Georgia, serif; letter-spacing: .06em; text-transform: uppercase; color: #eadfc5;
+  padding: 0 8px; white-space: nowrap; font: 700 12px/1 var(--display, Georgia, serif); letter-spacing: .06em; text-transform: uppercase; color: #eadfc5;
   background: linear-gradient(#232235, #12111c); border: 1px solid #3c4a6a; border-radius: 3px;
   box-shadow: inset 0 1px 0 rgba(164, 188, 214, .22), inset 0 0 0 1px #0d0c14, 0 2px 6px rgba(0, 0, 0, .75); text-shadow: 0 1px 0 #000, 0 0 6px rgba(164, 188, 214, .3); will-change: transform; }
 .rcall::after { content: ""; position: absolute; left: 50%; bottom: -6px; width: 9px; height: 9px; margin-left: -5px; background: #12111c; border: solid #3c4a6a; border-width: 0 1px 1px 0; transform: rotate(45deg); }
@@ -55,7 +55,7 @@ const CSS = `
   text-shadow: 0 2px 0 #000, 0 0 12px rgba(192, 21, 48, .8); }
 .rcall.boss::after { display: none; }
 .rnum { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; will-change: transform, opacity;
-  font: 800 18px/1 "Barlow Condensed", "Arial Narrow", sans-serif; letter-spacing: .01em;
+  font: 800 18px/1 var(--num, "Arial Narrow", sans-serif); font-variant-numeric: tabular-nums lining-nums; letter-spacing: .01em;
   text-shadow: 0 2px 0 #000, 2px 0 0 #000, -2px 0 0 #000, 0 -2px 0 #000, 1.5px 1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px -1.5px 0 #000, 0 0 8px rgba(0, 0, 0, .8); }
 .rnum.big { font-size: 24px; }
 .rshatter { position: absolute; left: 0; top: 0; width: 92px; height: 92px; pointer-events: none; }
@@ -69,7 +69,7 @@ const CSS = `
   animation: rsh-shard 1.3s cubic-bezier(.15, .7, .35, 1) .18s both; }
 @keyframes rsh-shard { 0% { opacity: 0; transform: scale(.6); } 8% { opacity: 1; } 60% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), calc(var(--dy) + 40px)) rotate(var(--rot)) scale(.9); } }
 .rstamp { position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; padding: 4px 14px 3px;
-  font: 700 22px/1 "Cinzel", "Trajan Pro", Georgia, serif; letter-spacing: .14em; color: #eadfc5; text-shadow: 0 2px 0 #000, 0 0 14px rgba(192, 21, 48, .9);
+  font: 700 22px/1 var(--display, Georgia, serif); letter-spacing: .14em; color: #eadfc5; text-shadow: 0 2px 0 #000, 0 0 14px rgba(192, 21, 48, .9);
   background: linear-gradient(#3a0a14, #14060a); border: 2px solid #b89448; box-shadow: inset 0 0 0 1px #000, 0 0 0 2px #14060a, 0 0 26px rgba(192, 21, 48, .6), 0 6px 14px rgba(0, 0, 0, .8);
   animation: rstamp 1.6s cubic-bezier(.2, 1.4, .4, 1) both; }
 .rstamp.slain { color: #eadfc5; border-color: #d0b36a; background: linear-gradient(#2b3350, #12111c); box-shadow: inset 0 0 0 1px #000, 0 0 0 2px #0d0c14, 0 0 30px rgba(164, 188, 214, .7), 0 6px 14px rgba(0, 0, 0, .8); }

@@ -85,8 +85,30 @@ Ghosts and magic glow MIST; fire and forge glow EMBER; nothing glows BLOOD excep
   hammered texture — never glossy metal. Parchment is BONE paper with bloom stains and an inked, deckled edge.
 - The primary gem is **BLOOD** (was amber); secondary gems MOON; danger gauges BLOOD, health MIST.
 - Icons: BONE ink drawings on dark tiles, one weight, no gradients.
-- Type unchanged in role: a tall carved gothic/serif display face (Cinzel / IM Fell) in BONE for titles and verdicts, the
-  condensed sans for numbers, the pixel face for in-world callouts. The copy budget (≤ 3 words) is untouched.
+- Type: see §7.1. The copy budget (≤ 3 words) is untouched.
+
+### 7.1 Typography (2026-09-30, the owner: "find better fonts")
+
+| role | face | where | why |
+|---|---|---|---|
+| display (`--display`) | **Grenze** 400–900 (Omnibus-Type, OFL) | titles, verdicts, seals, the death headline, callout plates, name tags | a roman built on blackletter bones: the gothic pen angle and pointed serifs of Bloodlust's titles, with a real lowercase that stays readable at 12 px (Cinzel is caps-only; its small caps read as capitals blind) |
+| labels (`--sans`) | **Fira Sans Extra Condensed** 400/500/600/700 (Mozilla, OFL) | chrome text, rules, chips, sheets | a humanist condensed with open counters and a distinct `1 l I`; ~Barlow's width, so the 400 px phone layout holds |
+| numbers (`--num`, `.num`) | **Fira Sans Condensed** SemiBold, `tabular-nums lining-nums` | `$1 488`, `11/12`, `D12`, stats, damage numbers | tabular lining figures that do not jitter as they count; one step wider than the labels so digits separate |
+| in-world pixel callouts | the 3×5 bitmap face (`web/src/render/font.ts`) | canvas callouts, damage in the pixel layer | kept: it sits on the pixel grid (§4), which is the structure |
+
+- **Self-hosted**, never a CDN: `web/public/fonts/*.woff2` (licences beside them), subset to Latin-1 + the punctuation,
+  arrows, maths and shapes blocks the game prints (`→ ≤ ≥ ± × · … ◆`); the service worker precaches them (`web/vite.config.ts`).
+  Glyphs no face has (`★ ♟ ⚔ ⚜ ☠`) fall back to the system as before. `font-display: swap`; Grenze and Fira 400 are preloaded.
+- **Lining figures everywhere** (`html { font-variant-numeric: lining-nums }`): Grenze defaults to old-style figures and
+  `D12` read `DI2` in the blind check. Grenze's 1.48 em box is trimmed to 1.32 (`ascent-override: 96%; descent-override: 36%`)
+  so a display line never overhangs its box and caps sit centred in a button.
+- Blackletter (Grenze Gotisch, Texturina, UnifrakturMaguntia) only ever for a one-word title, never a line.
+- The pick (blind, one screenshot-only reader, 5 pairings × 20 small strings at 10–14 px on a 400 px phone at 2×; exact
+  transcriptions · legibility · style): **Grenze / Fira 20/20 · 8 · 6** · Texturina / Sofia Sans Condensed 20/20 · 7 · 6 ·
+  Cinzel / Barlow (was) 18/20 · 7 · 8 · Marcellus SC / IBM Plex Sans Condensed 19/20 · 7 · 7 · IM Fell English SC / Alegreya Sans
+  19/20 · 5 · 7. Legibility first, then style. Every miss was a caps-only or small-caps display face (lowercase read as capitals)
+  or an old-style `1` read as `I`. The reader called Grenze's heavy weights "western poster" rather than gothic: keep display
+  text at 600–700, lean on the pen serifs and BLOOD, not weight 900. Specimens: `scratchpad/fonts/specimens.png`.
 
 ## 8. The Codex preamble (every future asset prompt starts with this block, verbatim)
 
