@@ -88,6 +88,16 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
     const place = (): void => { if (anchor.isConnected) placeBeside(wrap, panel, anchor); };
     place();
     if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(panel.firstElementChild ?? panel); }
+    // Cut 29 (cut23's flake: the camp repainted under an open verb sheet — a line above the rows went, R1 rose 63 px — and the
+    // sheet hung above R1 covered it): re-placed whenever its anchor moves, while it is open
+    let last = anchor.getBoundingClientRect().top;
+    const follow = (): void => {
+      if (!stack.includes(wrap) || !anchor.isConnected) return;
+      const t = anchor.getBoundingClientRect().top;
+      if (Math.abs(t - last) > 0.5) { last = t; place(); }
+      requestAnimationFrame(follow);
+    };
+    requestAnimationFrame(follow);
   }
 }
 /** The wide frame (wide.css): a tap's control, kept so a sheet it opens can stand beside it. */

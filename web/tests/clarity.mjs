@@ -122,7 +122,8 @@ try {
     });
     await settle();
     const bar = await page.evaluate(() => { const b = document.querySelector(".fc-bars .bar.try"); return b ? { tag: b.tagName, text: [...b.children].map((c) => c.textContent.replace(/\s+/g, " ").trim()).filter(Boolean).join(" ") } : null; });
-    check(!!bar && bar.tag === "BUTTON" && /^D5 try: attack boss <?\d+%( ±\d+…?)? · killer: goblin warlord$/.test(bar.text), `the boss floor names the counter: "${bar?.text}"`);   // QA on 50bb162: the hint rides the track, before the number
+    // (gfx round 18, 83a1e6d: a try row keeps only whose floor it is — the killer line left it; the counter is the gate)
+    check(!!bar && bar.tag === "BUTTON" && /^D5 try: attack boss <?\d+%( ±\d+…?)?( · killer: goblin warlord)?$/.test(bar.text), `the boss floor names the counter: "${bar?.text}"`);   // QA on 50bb162: the hint rides the track, before the number
     const before = await rowTexts();
     await openPanel(page, "forecast");   // Cut 17: the bars live in the forecast panel behind the shaft
     await page.locator(".fc-bars .bar.try").click({ timeout: 5000 });
