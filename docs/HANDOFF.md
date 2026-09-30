@@ -119,6 +119,23 @@ then QA → cohort 25. On the branch:
 ## 6. Open work, in order
 
 ### Cut 29 core (built; the progression bars still fail — not mergeable; resume here first)
+**2026-09-30 (core agent, resuming the list below).** Baseline re-measured at `bdb9d25`: the progression run is
+deterministic (8.3 · 13 · 11/18 · 1.82×, exactly the 28th's). Checkpoint 1 (items 1, 2, 4):
+- **Record spikes** (`wall.rs`): the wall's search measures from the deepest lit waystone at or above the record
+  (the offer carries `WallEdit.start`, its first edit `start D24`; the client's apply and the harnesses set it), past
+  `wall_floor` — the record, or the floor the set reaches on ≥ 25 % of its sends when the record was one lucky send's
+  (AP s1 d10: `start D24 · R6 → boss → cadence` past D33 0 → 43 %). The counters/stock rows are gated to that floor.
+  **The last exit row is never dropped or written over**: AO s1 / AR s1 lost their only bank to a wall edit and
+  earned nothing for 8–9 days (every send died).
+- **Cadence** strikes a boss in view first (the old `cadence-boss.patch`); FULL rows unchanged (D34 9.7 % vs 9.9 %,
+  FULL−D33 still 0 past D33).
+- **Commissions** priced against income: min(10 units × 1.25ⁿ, max(one day's net, 5 units)) (`kit::COMMISSION_FLOOR`).
+- Measured: progression unlock days 8.3 → **9.2**, marks 13 → **9**, stall 11 → **15/18 PASS**, purse 1.82 → **0.85× PASS**;
+  dayplayer unlock days 7.0 → **10.0 PASS**, stall 9 → **4** (seed 3 at the Queen D28, days 7–10).
+- Remaining: marks (AP s1 / AS s2 at 9: draws fail once the oath pool is dry — item 3), unlock days (AS s2 5,
+  AS-stall s1 6, AV s1 6: late days with nothing left to buy and oaths sworn that the set never keeps), dayplayer stall.
+  Diagnostics: `PROG_MARKS=1` / `PROG_OATHS=1` on `examples/progression` print the check-ins over ◆8 and each day's oaths.
+
 State at `08a880b` (2026-09-28, core agent): 450 cargo tests (+1 ignored), clippy -D warnings (incl. examples), wasm rebuilt, qa all
 PASS, every bot / lever / oath / dice / stall / dance / lane / divergence / return gate PASS (FULL−D23/28/33 held 100 %,
 kitted too; COUNTERED ≥ D14 70 %; lever with every oath reward 4/4). `node tools/gates.mjs --full` exits 1 on exactly

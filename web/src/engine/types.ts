@@ -506,7 +506,7 @@ export type StandingOrders = { keep: string; cage: string; start: number; repeat
 export type RepeatAdd = { kind: string; row: string };
 /** Cut 29 §1 (core; E1) — a wall's edit: the floor, the edit labels (`drop R6`, `R1 → hp < 90% → rest`), the whole set with them, the share of
  *  `sims` sends past the record before and after. */
-export type WallEdit = { depth: number; edits: string[]; rules: RuleSet; before: number; after: number; sims: number };
+export type WallEdit = { depth: number; edits: string[]; rules: RuleSet; before: number; after: number; sims: number; start?: number };   // `start`: the lit waystone the offer was measured from (its first edit `start D24`; apply sets it)
 /** Cut 29 §6 (core) — a companion that fell: `why` `fell D12 to lurker`, the heir it served. */
 export type Fallen = { name: string; kind: string; level: number; depth: number; why: string; heir: number };
 /** Cut 29 §3 (core) — a meter (a fight, a run, a night): totals by side (`dealt`/`taken`: hero · pets · foes), per game second (`dps_*`),

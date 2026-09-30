@@ -2347,10 +2347,18 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                 _ => "attack",
             };
             if !(repeat && last == basic) {
-                return match basic {
+                // Cut 29 (the dayplayer's `always → cadence`, bought for the Mirror King, struck the
+                // Warlord's shield-goblins until he drove the hero off, every send, for nine days):
+                // the plain blow goes to a boss in view first, as the boss's own counter would.
+                let target = if v.foes.iter().any(|&i| run.monsters[i].is_boss()) { "tag:boss" } else { "nearest" };
+                let hit = match basic {
+                    "bolt" => verb_bolt(run, cx, target, v),
+                    _ => verb_attack(run, cx, target, v, false),
+                };
+                return hit || (target != "nearest" && match basic {
                     "bolt" => verb_bolt(run, cx, "nearest", v),
                     _ => verb_attack(run, cx, "nearest", v, false),
-                };
+                });
             }
             let hp = run.hero.pos;
             if last != "shield_bash" && class_has_verb(run.hero.class, run.hero.level, "shield_bash") && run.hero.bash_cd == 0 && v.adj >= 1 && verb_attack(run, cx, "nearest", v, true) {

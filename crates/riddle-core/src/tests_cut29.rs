@@ -249,7 +249,7 @@ fn wall_edit_is_lazy_and_cached() {
     // at the wall, searched today already: the cached offer, no search
     g.lineage.day = 5;
     g.lineage.wall_day = Some(5);
-    let offer = crate::wire::WallEdit { depth: 9, edits: vec!["drop R6".into()], rules: g.lineage.rules().clone(), before: 0.0, after: 0.2, sims: 48 };
+    let offer = crate::wire::WallEdit { depth: 9, edits: vec!["drop R6".into()], rules: g.lineage.rules().clone(), before: 0.0, after: 0.2, sims: 48, start: None };
     g.lineage.wall_offer = Some(offer.clone());
     assert_eq!(g.wall_edit(), Some(offer.clone()));
     assert_eq!(g.lineage().wall, Some(offer));
@@ -258,4 +258,46 @@ fn wall_edit_is_lazy_and_cached() {
     let rep = serde_json::to_value(crate::offline::run_offline_quick(&mut g, 60)).unwrap();
     assert!(rep.get("wall").is_none());
     assert!(g.lineage.wall_day == Some(5) || g.lineage.day != day);
+}
+
+/// §1 (E1, record spikes): the wall's edits never take the set's way home — its only exit row is
+/// neither dropped nor written over (rater AO s1: nine days without a send home after a wall edit
+/// replaced its bank) — while a second exit may go; an offer saved before `start` reads none.
+#[test]
+fn the_wall_keeps_the_last_way_home() {
+    let g = Game::new(5);
+    let bank = Row::new(vec![Cond::n("hp<", 30)], Verb::new("bank"));
+    let push = Row::new(vec![Cond::n("depth>=", 6)], Verb::new("bank"));
+    let heal = Row::new(vec![Cond::n("hp<", 40)], Verb::arg("drink", "heal"));
+    let fight = Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"));
+    let exit = |r: &Row| matches!(r.verb.v.as_str(), "bank" | "return");
+    let one = crate::rules::RuleSet { rows: vec![heal.clone(), bank.clone(), fight.clone()], ..Default::default() };
+    let cands = crate::wall::edits(&g, &one, 5);
+    assert!(!cands.is_empty());
+    assert!(cands.iter().all(|(_, s)| s.rows.iter().any(exit)), "every edit keeps an exit: {:?}", cands.iter().map(|c| &c.0).collect::<Vec<_>>());
+    assert!(!cands.iter().any(|(l, _)| l == "drop R2" || l.starts_with("R2 → ")), "the only exit is neither dropped nor written over");
+    let two = crate::rules::RuleSet { rows: vec![heal, push, bank, fight], ..Default::default() };
+    let cands = crate::wall::edits(&g, &two, 5);
+    assert!(cands.iter().any(|(l, _)| l == "drop R2"), "a second exit may go");
+    assert!(cands.iter().all(|(_, s)| s.rows.iter().any(exit)));
+    let old = r#"{"depth":9,"edits":["drop R6"],"rules":{"rows":[]},"before":0.0,"after":0.2,"sims":48}"#;
+    let w: crate::wire::WallEdit = serde_json::from_str(old).unwrap();
+    assert_eq!(w.start, None);
+}
+
+/// §5 (Cut 29 core 4): a commission is priced against income — the climb (10 units × 1.25ⁿ) never
+/// above one day's net, never under `COMMISSION_FLOOR` units.
+#[test]
+fn a_commission_costs_at_most_a_days_net() {
+    let mut g = Game::new(5);
+    g.lineage.kit_unit = Some(100);
+    let price = |g: &Game| crate::kit::commission_price(&g.lineage);
+    g.lineage.last_day_net = 5000;
+    assert_eq!(price(&g), 1000, "the climb's first step under a big day");
+    g.lineage.works = vec!["a".into(), "b".into(), "c".into()];
+    assert_eq!(price(&g), 1950);
+    g.lineage.last_day_net = 1200;
+    assert_eq!(price(&g), 1200, "a day's net caps it");
+    g.lineage.last_day_net = 0;
+    assert_eq!(price(&g), 100 * crate::kit::COMMISSION_FLOOR as i32, "the floor");
 }

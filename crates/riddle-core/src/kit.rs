@@ -266,11 +266,19 @@ pub const COMMISSION_UNITS: u32 = 10;
 /// The works a lineage commissions, in order (then numbered): no sim reads them.
 pub const WORKS: [&str; 8] = ["heir's statue", "camp hall", "chronicle wall", "boss trophies", "the forge's bell", "a banner", "the long table", "a lantern tower"];
 
-/// Cut 29 §5: the next commission's price — 10 forge units × 1.25ⁿ (n the works built), in tens.
+/// Cut 29 §5: the next commission's price — 10 forge units × 1.25ⁿ (n the works built), in tens —
+/// priced against income: never more than one day's net (`LineageState::last_day_net`, fixed
+/// through a day), nor under `COMMISSION_FLOOR` units. The climb alone outran the purse at a stall
+/// (rater AS s1: $5959 held on day 5, a work at ~$5900 against a day's net of ~$2600).
 pub fn commission_price(l: &LineageState) -> i32 {
-    let base = (COMMISSION_UNITS * unit_of(l)) as f64;
-    ((base * 1.25f64.powi(l.works.len() as i32)) / 10.0).round() as i32 * 10
+    let unit = unit_of(l) as f64;
+    let climb = COMMISSION_UNITS as f64 * unit * 1.25f64.powi(l.works.len() as i32);
+    let income = (l.last_day_net.max(0) as f64).max(COMMISSION_FLOOR as f64 * unit);
+    (climb.min(income) / 10.0).round() as i32 * 10
 }
+
+/// The fewest forge units a commission costs (its price against a day's net: `commission_price`).
+pub const COMMISSION_FLOOR: u32 = 5;
 
 fn work_label(n: usize) -> String {
     match WORKS.get(n) {

@@ -628,6 +628,9 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                     let fresh = g.lineage.wall_day != Some(g.lineage.day);
                     if let Some(w) = &g.wall_edit().filter(|_| fresh) {
                         if g.set_rules(w.rules.clone()).is_ok() {
+                            if let Some(s) = w.start {
+                                let _ = g.set_start(s);
+                            }
                             d.wall_taken.push(w.edits.join(" ; "));
                             stalled_days = 0;
                         }
@@ -731,6 +734,9 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                     let fresh = g.lineage.wall_day != Some(g.lineage.day);
                     if let Some(w) = &g.wall_edit().filter(|_| fresh) {
                         goal = Some(w.rules.clone());
+                        if let Some(s) = w.start {
+                            let _ = g.set_start(s);
+                        }
                         d.wall_taken.push(w.edits.join(" ; "));
                     }
                     let set = goal.clone().unwrap_or_default();
@@ -791,6 +797,10 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                 let unit = riddle_core::kit::unit_of(&g.lineage) as f64;
                 let bar = (1.5 * g.lineage.last_day_net.max(0) as f64).max(10.0 * unit);
                 d.purse_ratio = d.purse_ratio.max(g.lineage.gold.max(0) as f64 / bar);
+            }
+            if g.lineage.marks > 8 && std::env::var("PROG_MARKS").is_ok() {
+                let cat: Vec<String> = g.unlocks().into_iter().filter(|u| !u.owned).map(|u| format!("{}◆{}{}", u.id, u.cost, u.needs.map(|n| format!("[{n}]")).unwrap_or_default())).collect();
+                eprintln!("{name} s{seed} day {} ci {ci}: ◆{} tier {} best D{} draw {:?} oaths {:?} | {}", day + 1, g.lineage.marks, riddle_core::meta::tier(&g.lineage), g.lineage.best_depth, riddle_core::oath::draw_wire(&g.lineage).needs, g.lineage.oaths.iter().map(|o| o.reward.label.clone()).collect::<Vec<_>>(), cat.join(" "));
             }
             d.marks_max = d.marks_max.max(g.lineage.marks);
             d.gold_max = d.gold_max.max(g.lineage.gold);
@@ -923,6 +933,9 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                     d.wall.push(j);
                 }
             }
+        }
+        if std::env::var("PROG_OATHS").is_ok() {
+            eprintln!("{name} s{seed} day {} D{} ◆{} ${} kept {} draws {} works {} oaths {:?} board {:?} unl {}", day + 1, d.best, d.marks_end, d.gold_end, d.oaths_kept, d.draws, d.works, d.oaths, g.lineage.oaths.iter().map(|o| format!("{}:{}", o.kind, o.reward.label)).collect::<Vec<_>>(), unlock_day(&d));
         }
         if verbose {
             eprintln!("{name} s{seed} day {} best D{} marks {} gold {} buys {:?}", day + 1, d.best, d.marks_end, d.gold_end, d.buys.iter().map(|b| format!("{}:{}", b.id, b.via)).collect::<Vec<_>>());

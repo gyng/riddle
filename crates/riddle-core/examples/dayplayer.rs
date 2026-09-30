@@ -304,6 +304,9 @@ fn play(seed: u64, days: usize, checkins: u64, verbose: bool) -> SeedOut {
                 let fresh = g.lineage.wall_day != Some(g.lineage.day);
                 if let Some(w) = &g.wall_edit().filter(|_| fresh) {
                     if g.set_rules(w.rules.clone()).is_ok() {
+                        if let Some(s) = w.start {
+                            let _ = g.set_start(s);
+                        }
                         if verbose {
                             eprintln!("  day {} wall D{}: {} ({:.2} → {:.2})", day + 1, w.depth, w.edits.join(" ; "), w.before, w.after);
                         }

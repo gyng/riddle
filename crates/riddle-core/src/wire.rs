@@ -2432,7 +2432,10 @@ pub struct SnapMeters {
 /// Cut 29 §1 (E1): a wall's edit (`ReturnReport.wall`, `Lineage.wall`) — at a best depth held two
 /// days, the plateau search's best one-row edit (up to two steps) from the lineage's own vocabulary:
 /// `edits` their labels (`drop R6`, `R1 → hp < 90% → rest`), `rules` the set with them, `before` /
-/// `after` the share of `sims` panel sends past the record (`depth`).
+/// `after` the share of `sims` panel sends past the wall's floor (`depth`: the record, or the floor a
+/// lucky record's set meets its wall on — `wall::wall_floor`). `start`: the lit waystone the
+/// offer was measured from when it moves the sends' start there (`start D24`, the first edit; the
+/// apply sets it) — a record reached once on a D1 send is measured where the sends meet the wall.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct WallEdit {
     pub depth: u32,
@@ -2441,6 +2444,8 @@ pub struct WallEdit {
     pub before: f64,
     pub after: f64,
     pub sims: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<u32>,
 }
 impl Eq for WallEdit {}
 
