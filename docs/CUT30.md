@@ -435,6 +435,33 @@ Tried: deep drills from D23 (`DEEP_FROM = 23`, 4 seeds) — PICKED slows to D23 
 0.98 · 0.95; reverted. RANDOM: a random package is mostly a good package — on 2 of 6 seeds an early random stance
 (Guarded) passes the Warlord before IDLE's drill; RANDOM is slower than PICKED on every seed at D23.
 
+**Checkpoint 9 — round 6 (owner) and round 7 (tuning)**, 2026-10-02, on `0213315` (cut30 + gate-speed + hotpath).
+The round-6 full gate on `b51dd30` (4 h 37 min on a shared box): metrics and qa all PASS; dayplayer 16 seeds FAIL on
+IDLE D8 day 1 (15/16), PICKED stage days (9.0), TUNED vs PICKED at D29 · D33 (1.16 · 1.13), RANDOM vs PICKED at D13
+(14/16), nothing required (forge s4 D29). Round 7 tuned content and bots (Deviations). Fast tier since, `dayplayer
+--gate --seeds 8 --loo-seeds 8 --tuned-seeds 8` (r18):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days) | 8/8 · 1.7 · 8/8 med 7.2 · 2 · 14 · 0/8 · 1/5 · 336/336 · 8.0 | PASS (16 seeds: D8 16/16) |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.67 · 2.12 · 1.80 | PASS |
+| Never out-paced · stage days ≥ 10 · content reach · stalls | 100 % · 10.0 · 8/8 · ≤ 0.17 % | PASS |
+| RANDOM never beats PICKED at D13 · D23 | 8/8 · 8/8 (2-day probe on 16 seeds: 16/16 at D13) | PASS |
+| Each system by its own output | packages 96/144 h→D23 · pen 28.2/27.3 · forge 28.2/26.2 · pets 38.0/43.8 % · bank $2468/$2281 · quests 12.2/0 | PASS |
+| TUNED beats PICKED by ≥ 15 % at D29 · D33 | 1.02 · 1.26 (the run before the picker's wall answer: 1.17 · 1.27) | FAIL at D29 |
+| Nothing required (TUNED − S never slower than IDLE ± a check-in, every seed × milestone) | packages s8 D18 (also s1, s4 at D13) | FAIL |
+
+`gates.mjs --fast` (metrics quick table, qa 10 seeds): one kept row FAIL on the quick sample — *Return row: 0 < death
+share* — raterAG died on none of its 60 sends at 8 seeds × 8 h (the bar wants > 0; at 30 seeds it has passed).
+
+*Why D29 holds at ~1.0–1.2*: the pen's edge is a deep wall that holds PICKED until its drill. It does not: the scars
+(−5 % a day met) let PICKED through the Queen in 16–104 h, and where the route puts the Foundry at D28 a package
+(Hunter's reflect read) answers it — the pen adds nothing there. TUNED crosses the Queen in 16–56 h with its counter
+(now packed and readable), PICKED in 16–104 h; per seed the D29 ratio runs 0.87–1.65, median ~1.0–1.2.
+*Why nothing required fails*: before the pen opens (day 5) TUNED − packages is IDLE plus the forge and the bank; the
+forge's steps re-roll the runs (a 2-day probe without the forge: identical to IDLE, seed for seed), ±16–32 h at D13/D18
+either way on 3 of 8 seeds — a per-seed bar against a chaotic twin.
+
 ## Deviations
 - **Round 6, owner-approved 2026-10-01.** (1) *TUNED beats PICKED by ≥ 15 %* is measured at **D29** (past D28) and
   D33, not D28 and D33: the D28 floor is gated by the walls above it, which drill before the pen opens.
