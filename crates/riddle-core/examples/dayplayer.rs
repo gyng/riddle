@@ -586,9 +586,12 @@ struct Group {
 /// The groups waiting, longest first (the TUNED family's fortnights before the others, then by the
 /// check-ins left); a group that parts pushes the parting members back. The workers stop when the
 /// queue is empty and no group is playing.
+/// (the groups waiting with their priority and order, groups pushed, groups queued or playing)
+type Queue = (Vec<(u64, u64, Group)>, u64, usize);
+
 #[derive(Default)]
 struct Pool {
-    q: std::sync::Mutex<(Vec<(u64, u64, Group)>, u64, usize)>,
+    q: std::sync::Mutex<Queue>,
     cv: std::sync::Condvar,
 }
 
@@ -739,7 +742,7 @@ fn main() {
     // group of their own from the check-in's start (`Play` cloned there). `--no-share`: each alone.
     let share = !verbose && !a.iter().any(|x| x == "--no-share");
     let mut groups: Vec<Group> = Vec::new();
-    let max_seed = (0..cfgs.len()).map(|c| seeds_of(c)).max().unwrap_or(0);
+    let max_seed = (0..cfgs.len()).map(&seeds_of).max().unwrap_or(0);
     for s in (1..=max_seed).filter(|s| only.is_none_or(|o| o == *s)) {
         let mut members = Vec::new();
         for c in (0..cfgs.len()).filter(|c| s <= seeds_of(*c)) {
