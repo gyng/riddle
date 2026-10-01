@@ -304,9 +304,10 @@ What moved it:
      **oath** jobs (`lever_lib`, `oath_lib`), **lane** jobs (`lanes_lib`, `presets/lanes.json`'s finds, `LANE_*`),
      **IDLE's snapshots** (`idle_lib`) — the retired rows' jobs and the cut30 chains: ~60 % of the table's CPU.
    Without `RIDDLE_SRC_KEY` (a tool run by hand) nothing is kept or read; `--fresh` replays every job and keeps the
-   new results (`RIDDLE_CACHE_FRESH`). A result is kept only when its JSON reads back to the same text (serde_json
-   parses some floats an ulp off without `float_roundtrip`; such a result is replayed, never misread). The legs'
-   own printouts stay cached by binary hash as before.
+   new results (`RIDDLE_CACHE_FRESH`). Floats are kept as their bits (`{"f64bits": 1, "v": …}`): serde_json
+   without `float_roundtrip` reads some decimal floats an ulp off (7 of the 18 progression lineages' purse ratios
+   did not read back; a random-bits test: 56 % of floats), so a plain JSON cache could have misread a result. The
+   legs' own printouts stay cached by binary hash as before.
 7. **`gates.mjs --fast`**: the quick table less the progression lineages (their rows are all retired: `metrics
    --fast`), qa on 10 seeds, the dayplayer's IDLE rows on 2 seeds. `GATES_THREADS=N` sets every leg's threads (the
    cores by default; the legs share them).
@@ -322,19 +323,38 @@ the same arguments, the printouts diffed whole:
   `(Ns)` line); 3654 vs 3671 CPU-s;
 - metrics `--quick` (8 seeds, the 9 progression lineages, everything): identical but for the same wall-clock lines;
   87 → 39 min wall (16 / 14 threads, load 60–100 — the base's first minutes ran on a quieter box);
+- **the full gate at full size** against the Cut 30 agent's own `gates.mjs --full` on `b51dd30` (the same afternoon):
+  the metrics printout (538 lines) and qa's (133) identical but for the wall-clock lines (`death()` mean, per-tick,
+  verdict time, slowest scene, the `(Ns)` lines); **all 106 dayplayer jobs** (16 seeds of IDLE/PICKED/RANDOM, 8 of
+  TUNED and its six leave-one-outs) byte-identical to that run's own job cache (`target/gates/dp/`), the leg's
+  printout identical but for its `(Ns)`; the same again when the legs were reprinted from the kept jobs;
 - `progression --bars` on raterAU/AV with and without the stall verdict: identical;
 - `examples/fingerprint` cbc89a0d92fd3db8 before and after; `cargo test --profile fast -p riddle-core` 460 passed
   (the replay hash among them).
 
-**Wall times.** FILL
+**Wall times** (a shared box: the before run shared it with this round's experiments, the after runs with the other
+agent's dayplayer probes; threads per leg as `gates.mjs` gave them):
 
-**What it cannot do.** A fresh full gate is CPU-bound, and the table is ~35–45 k CPU-s and the dayplayer leg
-~110–150 k (8 TUNED/leave-one-out seeds; ~50 heavy-fortnight equivalents after the sharing, ×2 at 16 seeds): on 32
-threads that is ~1–1.5 h, not 15 min, whatever the scheduling. Under 15 min needs the job caches (a bar or row
-edit, a qa change, a client change: seconds to minutes) or less work per fortnight — the picker's panels, which are
-the content (a core decision, not the harness's). Likewise `--fast` cannot be under 3 min fresh while it plays a
-fourteen-day chain (IDLE's ~150–190 CPU-s, and the 8 cut30 snapshot chains) and ~5 k CPU-s of gated table jobs;
-cached (the snapshot chains, the lanes) it is the table's ~5 k CPU-s over the cores.
+| | Before (`b51dd30`) | After |
+|---|---|---|
+| `gates.mjs --full`, fresh | **4 h 37 m** (16:04–20:41; metrics 31 thr, qa 24, dayplayer 24; load 60–120) | ~1.5 h of a quiet 32-thread box by CPU (dayplayer ~120 k CPU-s + table ~45 k + qa ~3 k); measured in pieces below |
+| — metrics full | 7369 s | 2672 s at 9 threads (11 of 18 lineages and the lever/oath/lane jobs from an interrupted first attempt) |
+| — qa (30 seeds) | 1046 s | 616 s at 8 threads (unchanged code) |
+| — dayplayer (16 seeds; TUNED/leave-one-outs 8) | 16593 s | 6716 s at 24 threads, 113.9 k CPU-s (20 of 106 jobs from the interrupted attempt) |
+| full gate after a **bar edit** (dayplayer `main`) | the dayplayer leg replays: 16593 s | the leg reprints from its 106 jobs: **0 s** (the table's and qa's printouts cached) |
+| full gate after a **row edit** (`metrics.rs`) | the table replays: 7369 s | **1072 s** at 19 threads (lever/oath/lane jobs kept, 7 lineages not yet kept replayed; with all 18 kept, ~10 k CPU-s) |
+| `gates.mjs --fast`, fresh | — | 8 m 14 s at 24 threads per leg, 8.6 k CPU-s (load 15–30) |
+| `gates.mjs --fast` after a row edit | — | **3 m 45 s**, 4.9 k CPU-s (lanes and IDLE snapshots kept) |
+| dayplayer, every bot, seed 1, 5 days | 22.4 min, 7372 CPU-s | 14.8 min, 2523 CPU-s |
+| metrics `--quick` | 87 min (16 thr) | 39 min (14 thr) |
+
+**What it cannot do.** A fresh full gate is CPU-bound: the table is ~45 k CPU-s and the dayplayer leg ~120 k (8
+TUNED/leave-one-out seeds; 16 would add ~60 k) — on 32 threads ~1.5 h, not 15 min, whatever the scheduling. Under 15
+min needs the kept jobs (a bar, row or qa edit, a client change: seconds to ~18 min) or less work per fortnight — the
+picker's camp panels, which are the content (a core decision, not the harness's). `--fast` likewise: ~8.6 k CPU-s
+fresh, 4.9 k with the lanes and the IDLE snapshots kept, and its critical path is a fourteen-day chain (IDLE's,
+~150–190 CPU-s; the snapshots') — ~3.75 min after a row edit, ~4–5 min fresh on a quiet box, never under 3 while it
+plays a fortnight.
 
 **Not done, and why.** *Sequential sampling* (stop a ratio row once settled, the fast tier only): the fast tier
 holds no ratio row — its dayplayer is IDLE alone, because one PICKED fortnight (4–5 k CPU-s) is already past the
