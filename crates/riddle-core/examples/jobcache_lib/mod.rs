@@ -38,7 +38,9 @@ pub fn path(dir: &str, srcs: &[&str], params: &str) -> Option<std::path::PathBuf
 /// `f()`, or its result kept from an earlier run under the same key.
 pub fn cached<T: Serialize + DeserializeOwned>(dir: &str, srcs: &[&str], params: &str, f: impl FnOnce() -> T) -> T {
     let p = path(dir, srcs, params);
-    if let Some(v) = p.as_ref().and_then(|p| std::fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<T>(&t).ok()) {
+    // (`RIDDLE_CACHE_FRESH`: `gates.mjs --fresh` — play every job, keep the results)
+    let read = std::env::var_os("RIDDLE_CACHE_FRESH").is_none();
+    if let Some(v) = p.as_ref().filter(|_| read).and_then(|p| std::fs::read_to_string(p).ok()).and_then(|t| serde_json::from_str::<T>(&t).ok()) {
         return v;
     }
     let v = f();

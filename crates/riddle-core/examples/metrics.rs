@@ -23,7 +23,7 @@ mod idle;
 #[path = "jobcache_lib/mod.rs"]
 mod jobcache;
 
-/// The panel width of the pool's long chains (the progression lineages, the idle snapshots): one while
+/// The panel width of the pool's long chains (the progression lineages): one while
 /// the pool is full, the idle threads shared among the chains as the short jobs run out
 /// (`forecast::with_sim_width`; the results are the same at any width).
 static CHAIN_WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
@@ -1407,10 +1407,6 @@ fn seal(rows: &mut [(String, String, bool)]) {
 /// A stance wins a wall when it passes it this much more often than the next one (shares of sends).
 const STANCE_MARGIN: f64 = 0.02;
 
-fn threads_for_cut30() -> usize {
-    std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8).max(2) - 1
-}
-
 /// Run `f` over `items` on `threads` threads, the results in the items' order.
 fn pool<T: Sync, R: Send>(items: &[T], threads: usize, f: impl Fn(&T) -> R + Sync) -> Vec<R> {
     let next = std::sync::atomic::AtomicUsize::new(0);
@@ -1434,11 +1430,10 @@ fn pool<T: Sync, R: Send>(items: &[T], threads: usize, f: impl Fn(&T) -> R + Syn
 /// pays, a drill's item is packed at its wall, every stance is best at some wall and none at all, each
 /// quest is keepable with the pen closed. The fortnight's own rows are the dayplayer's (`--idle`,
 /// `--picked`, `--tuned`).
-fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize, snaps: Option<Vec<Vec<(u32, String)>>>) {
+fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize) {
     let lineages: Vec<u64> = (1..=seeds.min(8)).collect();
-    // (the snapshots travel between threads as saves: a game's caches are not `Sync`; the table plays
-    // them as jobs of its pool — fourteen-day chains — and hands them in)
-    let snaps: Vec<Vec<(u32, String)>> = snaps.unwrap_or_else(|| pool(&lineages, threads, |s| idle_snaps(*s)));
+    // (the snapshots travel between threads as saves: a game's caches are not `Sync`)
+    let snaps: Vec<Vec<(u32, String)>> = pool(&lineages, threads, |s| idle_snaps(*s));
     let load = |t: &String| Game::load(t).expect("a snapshot loads");
     // a 20-minute absence: 30 fresh lineages and every IDLE lineage standing at D13
     let fresh: Vec<u64> = (1..=30).collect();
@@ -1603,7 +1598,7 @@ fn main() {
     // `--cut30`: the idle floor's rows alone (`cut30_rows`, a few minutes)
     if args.iter().any(|a| a == "--cut30") {
         let mut rows = Vec::new();
-        cut30_rows(&mut rows, get("--seeds", 8), get("--threads", 24) as usize, None);
+        cut30_rows(&mut rows, get("--seeds", 8), get("--threads", 24) as usize);
         for (name, value, ok) in &rows {
             println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
         }
@@ -1646,6 +1641,19 @@ fn main() {
     if std::env::var("METRICS_QUIET_SIGNAL").is_ok() {
         eprintln!("metrics: quiet ticks measured");
     }
+    // Cut 30 §6: the idle floor's rows (`cut30_rows`: IDLE's fourteen-day snapshot chains, then their panels)
+    // read nothing of the pool's jobs — they play beside it from the start (they ran after it, the table's
+    // tail: ~25 min of a quick table under load). The whole table only (a `--gold`-style subset returns
+    // before its rows).
+    let subset = ["--gold", "--deaths", "--forge", "--lever", "--oaths", "--progression", "--forks", "--bots", "--exits", "--diverge"];
+    let cut30 = (!args.iter().any(|a| subset.contains(&a.as_str()))).then(|| {
+        let threads = get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4).min(32)) as usize;
+        std::thread::spawn(move || {
+            let mut rows = Vec::new();
+            cut30_rows(&mut rows, seeds, threads);
+            rows
+        })
+    });
     let results: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     // One pool, one queue, longest first (`pop` takes from the end): the counter trials, then the
     // cohort sets' stalls (one job per (set, seed), 4 h each ≈ 12 sends), then the bots with the FULL
@@ -1683,8 +1691,6 @@ fn main() {
         OathLever(usize),
         /// Cut 29 §1: a rater set's fourteen days from a fresh lineage (`progression_lib::play`, no measures).
         Prog(usize, u64),
-        /// Cut 30 §6: IDLE's snapshots of one lineage (`idle_snaps`).
-        Snap(u64),
     }
     let sets = Arc::new(cohort_sets());
     // `--gold`: the Cut 22 §1 gold table alone (the cohort sets' sends; ~20 s).
@@ -1730,10 +1736,7 @@ fn main() {
     if !fast {
         jobs.extend((0..psets.len()).flat_map(|si| (1..=prog_seeds).map(move |s| Job::Prog(si, s))));
     }
-    // Cut 30 §6: IDLE's fourteen-day snapshots for `cut30_rows` — chains, so they start with the long jobs
-    // (they ran after the pool, the table's tail)
-    let snap_seeds = seeds.min(8);
-    jobs.extend((1..=snap_seeds).map(Job::Snap));
+
     jobs.extend((1..=seeds).map(Job::FirstFork));
     let found = Arc::new(lane_found());
     // (one job per (fork, seed, candidate): `lanes::gate_one`; `gate_seed`'s vector is reassembled in candidate order)
@@ -1797,7 +1800,6 @@ fn main() {
         match j {
             // (a fourteen-day chain: the longest job — it starts first)
             Job::Prog(..) => 900,
-            Job::Snap(..) => 400,
             Job::Lever(..) | Job::OathLever(..) => 300,
             Job::Oath(..) => 280,
             Job::OathBank(..) => 120,
@@ -1836,7 +1838,6 @@ fn main() {
     let oreads: Arc<Mutex<OathReads>> = Arc::new(Mutex::new(BTreeMap::new()));
     let olevers: Arc<Mutex<OathLevers>> = Arc::new(Mutex::new(BTreeMap::new()));
     let pouts: Arc<Mutex<BTreeMap<(usize, u64), prog::Out>>> = Arc::new(Mutex::new(BTreeMap::new()));
-    let snaps: Arc<Mutex<BTreeMap<u64, Vec<(u32, String)>>>> = Arc::new(Mutex::new(BTreeMap::new()));
     // (jobs running, chains among them: `CHAIN_WIDTH`)
     let busy: Arc<Mutex<(usize, usize)>> = Arc::new(Mutex::new((0, 0)));
     let mut handles = Vec::new();
@@ -1848,11 +1849,11 @@ fn main() {
         let diverged = Arc::clone(&diverged);
         let (obanks, oreads, olevers) = (Arc::clone(&obanks), Arc::clone(&oreads), Arc::clone(&olevers));
         let (pouts, psets) = (Arc::clone(&pouts), Arc::clone(&psets));
-        let (snaps, busy) = (Arc::clone(&snaps), Arc::clone(&busy));
+        let busy = Arc::clone(&busy);
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
-            let chain = matches!(job, Job::Prog(..) | Job::Snap(..));
+            let chain = matches!(job, Job::Prog(..));
             let widen = |d: isize, c: isize| {
                 let mut b = busy.lock().unwrap();
                 b.0 = (b.0 as isize + d) as usize;
@@ -1869,7 +1870,6 @@ fn main() {
                 Job::Paired(_) => "paired".into(),
                 Job::Bot(bi, _) => format!("bot-{}", BOTS[bi].name()),
                 Job::Prog(..) => "progression".into(),
-                Job::Snap(..) => "idle-snaps".into(),
                 Job::Kit(bi, _) => format!("kit-{}", KIT_BOTS[bi].name()),
                 Job::Forge(..) => "forge".into(),
                 Job::Lever(..) => "lever".into(),
@@ -1892,12 +1892,19 @@ fn main() {
                     let r = without_history(|| cohort_forge(&sets[si].1, seed, hours));
                     forges.lock().unwrap().insert((si, seed), r);
                 }
+                // (the retired rows' jobs — the lever, the oaths, the lanes, the progression lineages — are kept
+                // across runs by the harness file they run and every argument, named in `params`: change the
+                // call and its `params` together)
                 Job::Lever(si, seed) => {
-                    let r = without_history(|| lever::gate(&sets[si].1, seed, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN));
+                    let params = format!("without_history gate {} s{seed} h{LEVER_HOURS} n{LEVER_SIMS} m{LEVER_MARGIN}", serde_json::to_string(&sets[si].1).unwrap_or_default());
+                    let r = jobcache::cached("lever", &[include_str!("lever_lib/mod.rs")], &params, || without_history(|| lever::gate(&sets[si].1, seed, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN)));
                     levers.lock().unwrap().insert((si, seed), r);
                 }
                 Job::Lane(fork, seed, i) => {
-                    let r = lanes::gate_one(&found, fork, seed, LANE_SIMS, i);
+                    // (`lanes_lib` reads `LANE_*` switches)
+                    let env: Vec<(String, String)> = std::env::vars().filter(|(k, _)| k.starts_with("LANE_")).collect();
+                    let params = format!("gate_one {} D{fork} s{seed} n{LANE_SIMS} #{i} {env:?}", serde_json::to_string(&*found).unwrap_or_default());
+                    let r = jobcache::cached("lane", &[include_str!("lanes_lib/mod.rs")], &params, || lanes::gate_one(&found, fork, seed, LANE_SIMS, i));
                     if std::env::var("METRICS_PHASES").is_ok() {
                         eprintln!("job LANE D{fork} {seed} #{i} {:.1}s", tj.elapsed().as_secs_f64());
                     }
@@ -1970,34 +1977,37 @@ fn main() {
                 }
                 Job::OathBank(si) => {
                     let set = &sets[si].1;
-                    let r = without_history(|| {
-                        let g = oath_lib::lineage(set, 1);
-                        oath_lib::bank_best(&g, set)
+                    let params = format!("without_history bank_best(lineage(set, 1)) {}", serde_json::to_string(set).unwrap_or_default());
+                    let r = jobcache::cached("oath", &[include_str!("oath_lib/mod.rs"), include_str!("lever_lib/mod.rs")], &params, || {
+                        without_history(|| {
+                            let g = oath_lib::lineage(set, 1);
+                            oath_lib::bank_best(&g, set)
+                        })
                     });
                     obanks.lock().unwrap().insert(si, r);
                 }
                 Job::Oath(si, ki) => {
                     let set = &sets[si].1;
                     // (the bank-optimal set is its own job on the same deterministic lineage; the rows between are read at the report)
-                    let r = without_history(|| {
-                        let g = oath_lib::lineage(set, 1);
-                        oath_lib::measure(&g, set, riddle_core::oath::KINDS[ki], None)
+                    let params = format!("without_history measure(lineage(set, 1), {}, None) {}", riddle_core::oath::KINDS[ki], serde_json::to_string(set).unwrap_or_default());
+                    let r = jobcache::cached("oath", &[include_str!("oath_lib/mod.rs"), include_str!("lever_lib/mod.rs")], &params, || {
+                        without_history(|| {
+                            let g = oath_lib::lineage(set, 1);
+                            oath_lib::measure(&g, set, riddle_core::oath::KINDS[ki], None)
+                        })
                     });
                     oreads.lock().unwrap().insert((si, ki), r);
                 }
                 Job::OathLever(si) => {
-                    let r = without_history(|| lever::gate_with(&sets[si].1, 1, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN, |g| riddle_core::oath::grant_all(&mut g.lineage)));
+                    let params = format!("without_history gate_with oath::grant_all {} s1 h{LEVER_HOURS} n{LEVER_SIMS} m{LEVER_MARGIN}", serde_json::to_string(&sets[si].1).unwrap_or_default());
+                    let r = jobcache::cached("lever", &[include_str!("lever_lib/mod.rs")], &params, || without_history(|| lever::gate_with(&sets[si].1, 1, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN, |g| riddle_core::oath::grant_all(&mut g.lineage))));
                     olevers.lock().unwrap().insert(si, r);
                 }
                 Job::Prog(si, seed) => {
                     let (name, set) = psets[si].clone();
-                    let params = format!("rater {name} {} s{seed} d{prog_days} {:?}", serde_json::to_string(&set).unwrap_or_default(), prog::three_absence());
+                    let params = format!("play(name, Rater(set), seed, days, three_absence, false, false) {name} {} s{seed} d{prog_days} {:?}", serde_json::to_string(&set).unwrap_or_default(), prog::three_absence());
                     let o = jobcache::cached("prog", &[include_str!("progression_lib/mod.rs")], &params, || riddle_core::forecast::with_sim_width(&CHAIN_WIDTH, || prog::play(name, prog::Mode::Rater(set), seed, prog_days, &prog::three_absence(), false, false)));
                     pouts.lock().unwrap().insert((si, seed), o);
-                }
-                Job::Snap(seed) => {
-                    let v = riddle_core::forecast::with_sim_width(&CHAIN_WIDTH, || idle_snaps(seed));
-                    snaps.lock().unwrap().insert(seed, v);
                 }
             }
             widen(-1, -(chain as isize));
@@ -2704,8 +2714,14 @@ fn main() {
     let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));
     rows.push((format!("Stall reel line's cause == the trace's (n={sr_n})"), format!("{sr_ok}/{sr_n}"), sr_ok == sr_n));
     phase("rest");
-    let snaps: Vec<Vec<(u32, String)>> = std::mem::take(&mut *snaps.lock().unwrap()).into_values().collect();
-    cut30_rows(&mut rows, seeds, threads_for_cut30(), (snaps.len() as u64 == snap_seeds).then_some(snaps));
+    rows.extend(cut30.map_or_else(
+        || {
+            let mut r = Vec::new();
+            cut30_rows(&mut r, seeds, threads);
+            r
+        },
+        |h| h.join().unwrap(),
+    ));
     phase("cut30");
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");

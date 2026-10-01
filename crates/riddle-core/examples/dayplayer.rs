@@ -219,7 +219,12 @@ fn proc_cpu() -> f64 {
     let t = |i: usize| f.get(i).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
     (t(11) + t(12)) / 100.0
 }
+/// `DP_PHASES=1` (one group at a time, `--threads 1`: the process's CPU is the group's): each phase's CPU
+/// seconds on the group's line, and each day's best and CPU.
 fn ph<R>(name: &'static str, f: impl FnOnce() -> R) -> R {
+    if std::env::var_os("DP_PHASES").is_none() {
+        return f();
+    }
     let t = proc_cpu();
     let r = f();
     let dt = proc_cpu() - t;
@@ -658,14 +663,15 @@ fn ratio(slow: &[SeedOut], fast: &[SeedOut], i: usize) -> f64 {
     median(rs)
 }
 
+/// The panel width of every group playing (`forecast::with_sim_width`): `--threads` shared among the
+/// groups playing — one each while the groups fill the threads, wider as they end (the last fortnights
+/// alone read their camp panels on every thread). The results are the same at any width.
+static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
 fn main() {
-    // The bots fill the machine seed by seed; a panel's sims stay sequential inside a job (a TUNED
-    // bot's wall search and verdicts on every core, 32 jobs at once, ran the load past 150).
-    // (a panel's sims on `RIDDLE_THREADS` threads, 3 unless set, beside `--threads` jobs, 10 unless set:
-    // ~30 at the peak — the jobs are mostly one thread, a PICKED or TUNED camp read widens for a moment)
-    if std::env::var("RIDDLE_THREADS").is_err() {
-        std::env::set_var("RIDDLE_THREADS", "3");
-    }
+    // The groups fill `--threads` (10 unless set) seed by seed; a group's panels take the threads the
+    // others leave (`WIDTH`) — never threads of threads (a TUNED bot's wall search and verdicts on every
+    // core, 32 jobs at once, ran the load past 150).
     let a: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     let seeds = get("--seeds", 8);
@@ -735,7 +741,7 @@ fn main() {
     for s in (1..=max_seed).filter(|s| only.is_none_or(|o| o == *s)) {
         let mut members = Vec::new();
         for c in (0..cfgs.len()).filter(|c| s <= seeds_of(*c)) {
-            let hit = if keep { std::fs::read_to_string(cache_of(&cfgs[c], s)).ok().and_then(|t| serde_json::from_str::<SeedOut>(&t).ok()) } else { None };
+            let hit = if keep && std::env::var_os("RIDDLE_CACHE_FRESH").is_none() { std::fs::read_to_string(cache_of(&cfgs[c], s)).ok().and_then(|t| serde_json::from_str::<SeedOut>(&t).ok()) } else { None };
             match hit {
                 Some(o) => results.lock().unwrap().push((c, o)),
                 None => members.push(c),
@@ -756,10 +762,17 @@ fn main() {
     for g in groups {
         pool.push(g, &cfgs, days, checkins);
     }
+    let playing = std::sync::Mutex::new(0usize);
+    let widen = |d: isize| {
+        let mut p = playing.lock().unwrap();
+        *p = (*p as isize + d) as usize;
+        WIDTH.store((threads / (*p).max(1)).max(1), std::sync::atomic::Ordering::Relaxed);
+    };
     std::thread::scope(|sc| {
         for _ in 0..threads.max(1) {
             sc.spawn(|| {
                 while let Some(Group { seed: s, mut members, state }) = pool.pop() {
+                    widen(1);
                     let t = std::time::Instant::now();
                     let lead = members[0];
                     let part = |ask: &Ask, members: &mut Vec<usize>, snap: Option<Play>| {
@@ -779,14 +792,17 @@ fn main() {
                             p
                         }
                     };
-                    while !p.done() {
-                        let snap = (members.len() > 1).then(|| p.clone());
-                        let ask = Ask::new(&cfgs[lead]);
-                        p.step(&ask);
-                        if members.len() > 1 {
-                            part(&ask, &mut members, snap);
+                    riddle_core::forecast::with_sim_width(&WIDTH, || {
+                        while !p.done() {
+                            let snap = (members.len() > 1).then(|| p.clone());
+                            let ask = Ask::new(&cfgs[lead]);
+                            p.step(&ask);
+                            if members.len() > 1 {
+                                part(&ask, &mut members, snap);
+                            }
                         }
-                    }
+                    });
+                    widen(-1);
                     let phs = PH.with(|m| std::mem::take(&mut *m.borrow_mut()));
                     for &c in &members {
                         if keep {
