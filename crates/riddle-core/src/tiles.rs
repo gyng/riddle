@@ -227,17 +227,22 @@ impl Map {
             // test as the walk's, on every in-bounds end (their points are in the square).
             let (side, h) = (2 * radius + 1, self.h);
             let mut walls = [0u64; LOS_MASK_WORDS];
+            // (a row's in-bounds stretch of the square as one slice, its walls as a run of bits)
+            let (x0, x1) = ((from.x - radius).max(0), (from.x + radius).min(w - 1));
             for dy in -radius..=radius {
                 let y = from.y + dy;
-                if y < 0 || y >= h {
+                if y < 0 || y >= h || x0 > x1 {
                     continue;
                 }
-                for dx in -radius..=radius {
-                    let x = from.x + dx;
-                    if x >= 0 && x < w && tiles[(y * w + x) as usize].blocks_sight() {
-                        let bit = ((dy + radius) * side + dx + radius) as usize;
-                        walls[bit >> 6] |= 1 << (bit & 63);
-                    }
+                let row = &tiles[(y * w + x0) as usize..=(y * w + x1) as usize];
+                let mut bits: u64 = 0;
+                for (j, t) in row.iter().enumerate() {
+                    bits |= (t.blocks_sight() as u64) << j;
+                }
+                let bit = ((dy + radius) * side + x0 - from.x + radius) as usize;
+                walls[bit >> 6] |= bits << (bit & 63);
+                if (bit & 63) + row.len() > 64 {
+                    walls[(bit >> 6) + 1] |= bits >> (64 - (bit & 63));
                 }
             }
             let key = (from, radius, w, h, walls);

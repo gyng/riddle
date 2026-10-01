@@ -550,7 +550,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         // foe ignored, so the same `attack nearest` one row down picked another) or the row
         // guard held the earlier row alone.
         if let Some((j, _)) = rows[..k].iter().find(|(_, a)| (a.verb == row.verb || a.verb.v == "hold") && crate::rules::shadows(a, row, &|c: &Cond| row_usable(cx, c))) {
-            row_why(run, cx, i, &format!("same as R{}", j + 1), None, None);
+            // (a reason is the trace's: a sim keeps none — `row_why` — so none is written)
+            if !cx.sim {
+                row_why(run, cx, i, &format!("same as R{}", j + 1), None, None);
+            }
             continue;
         }
         // The guard ignores the foes at range it paced in front of; one at the hero's elbow
@@ -2079,18 +2082,18 @@ fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
     if run.taunt_t > 0 {
         run.taunt_t -= 1;
     }
-    for mi in 0..run.monsters.len() {
-        if run.monsters[mi].poison.1 > 0 {
-            run.monsters[mi].poison.1 -= 1;
+    let t = run.turn;
+    for m in run.monsters.iter_mut() {
+        if m.poison.1 > 0 {
+            m.poison.1 -= 1;
         }
-        run.monsters[mi].tick_statuses();
-        if run.monsters[mi].ttl.is_some_and(|t| t <= 0) && run.monsters[mi].hp > 0 {
-            run.monsters[mi].hp = 0;
-            let id = run.monsters[mi].id;
-            if run.monsters[mi].ally {
-                cx.events.push(Ev::Ally { t: run.turn, id, state: "lost".into() });
+        m.tick_statuses();
+        if m.ttl.is_some_and(|t| t <= 0) && m.hp > 0 {
+            m.hp = 0;
+            if m.ally {
+                cx.events.push(Ev::Ally { t, id: m.id, state: "lost".into() });
             }
-            cx.events.push(Ev::Die { t: run.turn, id, cause: "faded".into() });
+            cx.events.push(Ev::Die { t, id: m.id, cause: "faded".into() });
         }
     }
 }
