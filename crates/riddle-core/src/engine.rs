@@ -189,7 +189,7 @@ pub struct Run {
     #[serde(default)]
     pub gift: crate::traits::GiftRun,
     pub monsters: Vec<Monster>,
-    pub items: Vec<FloorItem>,
+    pub items: crate::shared::Shared<Vec<FloorItem>>,
     pub overlays: Vec<Overlay>,
     pub turn: u32,
     pub floor_turn: u32,
@@ -200,13 +200,13 @@ pub struct Run {
     pub kills_floor: u32,
     /// (turn, kind, depth) — the lineage's kills (XP, renown, the bestiary); summoned foes
     /// are counted apart (`summoned_kills`).
-    pub kills: Vec<(u32, String, u32)>,
+    pub kills: crate::shared::Shared<Vec<(u32, String, u32)>>,
     /// QA on 23ed91f: summoned foes cut down this run (no XP, renown or bestiary count).
     #[serde(default)]
     pub summoned_kills: u32,
     pub brought: Vec<u32>,
-    pub trace: Vec<TraceTurn>,
-    pub notes: Vec<(u32, String)>,
+    pub trace: Vec<crate::shared::Shared<TraceTurn>>,
+    pub notes: crate::shared::Shared<Vec<(u32, String)>>,
     pub over: Option<ExitTier>,
     pub death_cause: Option<String>,
     pub death_blow: i32,
@@ -245,10 +245,10 @@ pub struct Run {
     /// (item id, kind), one entry per unit (a leash merged into a stack is the stack's id) —
     /// and the units that left the pack on the way, with where (`used` / `left` / `stolen`).
     /// The exit reads them into `ExitLine.found` (`Game::found_rows`).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub found_units: Vec<(u32, String)>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub found_gone: Vec<(u32, String, String)>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub found_units: crate::shared::Shared<Vec<(u32, String)>>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub found_gone: crate::shared::Shared<Vec<(u32, String, String)>>,
     /// Cut 22 §3: a forecast's sim (`forecast::simulate_one`): each floor below the first draws
     /// from a stream of its own, (run seed, depth) — `turn::descend`. A send, and any replay of
     /// one, goes on drawing from the run's stream.
@@ -317,8 +317,8 @@ pub struct Run {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub depth_t: Vec<(u32, u32)>,
     /// Cut 28 §2: the hero's max-hp steps this run, oldest first (`Trace.max_steps`).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub max_steps: Vec<crate::wire::MaxStep>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub max_steps: crate::shared::Shared<Vec<crate::wire::MaxStep>>,
     pub drank_heal: bool,
     pub melee_used: bool,
     pub boss_seen_t: Option<u32>,
@@ -548,7 +548,7 @@ pub struct Run {
     pub aimed: bool,
     /// Cut 2 §2: the lineage's bones piles (copied at start) and the heirs recovered this run.
     #[serde(default)]
-    pub bones: Vec<Bones>,
+    pub bones: crate::shared::Shared<Vec<Bones>>,
     #[serde(default)]
     pub bones_found: Vec<u32>,
     /// Cut 2 §5: kills per kind this run were counted into the lineage's ledger up to here.
@@ -622,7 +622,7 @@ pub struct Run {
     #[serde(default)]
     pub arc: Arc,
     #[serde(default)]
-    pub episodes: Vec<Episode>,
+    pub episodes: crate::shared::Shared<Vec<Episode>>,
     /// §3: the hero's last line and the tick the current fight began (no lines in its first ten).
     #[serde(default)]
     pub voice_t: Option<u32>,
@@ -630,7 +630,7 @@ pub struct Run {
     pub fight_t: Option<u32>,
     /// §4: situations met this run (`shrine | vault | nest | stray`, with the tick).
     #[serde(default)]
-    pub situations: Vec<(u32, String)>,
+    pub situations: crate::shared::Shared<Vec<(u32, String)>>,
     /// §4: this floor's vault cage (three items) and, once opened, the choice waiting
     /// (tick opened, items) for `choose` or the preference.
     #[serde(default)]
@@ -743,10 +743,10 @@ pub struct Run {
     pub named_placed: Vec<String>,
     /// The floor events' lines (by kind: `shrine`, `lock`, `omen:fens` …) shown in the last two
     /// runs and this one, oldest first (`chronicle::variant`), and this run's picks.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub event_recent: BTreeMap<String, Vec<u8>>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub event_used: Vec<(String, u8)>,
+    #[serde(default, skip_serializing_if = "crate::shared::map_is_empty")]
+    pub event_recent: crate::shared::Shared<BTreeMap<String, Vec<u8>>>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub event_used: crate::shared::Shared<Vec<(String, u8)>>,
     /// The facts this run learned, in order (`facts::learn`; `ExitLine.news`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub learned: Vec<String>,
@@ -1028,7 +1028,7 @@ pub fn max_rows_of(unlocks: &BTreeSet<String>, variant: &str) -> usize {
 }
 
 pub struct Ctx<'a> {
-    pub facts: &'a mut BTreeSet<String>,
+    pub facts: &'a mut crate::shared::Shared<BTreeSet<String>>,
     /// The lineage's trophies: a trophy's note is said the first time only (QA on 56f2a1d:
     /// `Trophy: no heal to D5.` in the reel of every D5 run).
     pub trophies: &'a [String],
@@ -1096,7 +1096,7 @@ pub struct LineageState {
     pub class: Class,
     pub best_depth: u32,
     pub marks: u32,
-    pub facts: BTreeSet<String>,
+    pub facts: crate::shared::Shared<BTreeSet<String>>,
     pub unlocks: BTreeSet<String>,
     pub vault: Vec<Item>,
     pub graveyard: Vec<Grave>,
@@ -1540,7 +1540,7 @@ impl LineageState {
             class: Class::Fighter,
             best_depth: 0,
             marks: 0,
-            facts: BTreeSet::new(),
+            facts: BTreeSet::new().into(),
             unlocks: BTreeSet::new(),
             vault: Vec::new(),
             graveyard: Vec::new(),
@@ -2360,7 +2360,7 @@ pub struct DeathRec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub home: Option<(i32, u32)>,
     pub t10: Option<Run>,
-    pub t10_facts: BTreeSet<String>,
+    pub t10_facts: crate::shared::Shared<BTreeSet<String>>,
     pub rules: RuleSet,
     pub vocab: Vocabulary,
     pub verdict_done: bool,
@@ -2782,12 +2782,12 @@ pub struct Game {
     pub deaths: BTreeMap<u32, DeathRec>,
     pub loadout: Vec<u32>,
     pub sim: bool,
-    pub history: VecDeque<(Run, BTreeSet<String>)>,
+    pub history: VecDeque<(Run, crate::shared::Shared<BTreeSet<String>>)>,
     /// QA on e75ec29: the live run as it stood on arriving at its current floor, with the
     /// facts then — a death's patches are replayed from here as well (`trace::floor_fired`):
     /// a row the death's short window fires but the floor never reaches is not the fix.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub floor_start: Option<(Run, BTreeSet<String>)>,
+    pub floor_start: Option<(Run, crate::shared::Shared<BTreeSet<String>>)>,
     /// Cut 11 §1: the live run's provenance log (`provenance.rs`; cap `PROV_CAP`) — the
     /// events a row reason's `because` points at. Cleared at `start_run`; off the run so the
     /// history ring's clones do not carry it; empty on sims.
@@ -3544,7 +3544,7 @@ impl Game {
             worn: crate::traits::Worn::default(),
             gift: crate::traits::GiftRun::default(),
             monsters: Vec::new(),
-            items: Vec::new(),
+            items: Vec::new().into(),
             overlays: Vec::new(),
             turn: 0,
             floor_turn: 0,
@@ -3553,11 +3553,11 @@ impl Game {
             next_id: HERO_ID,
             next_item_id: 10,
             kills_floor: 0,
-            kills: Vec::new(),
+            kills: Vec::new().into(),
             summoned_kills: 0,
             brought,
             trace: Vec::new(),
-            notes: Vec::new(),
+            notes: Vec::new().into(),
             over: None,
             death_cause: None,
             death_blow: 0,
@@ -3581,8 +3581,8 @@ impl Game {
             gamble_harm: 0,
             own_throw: None,
             own_throw_harm: 0,
-            found_units: Vec::new(),
-            found_gone: Vec::new(),
+            found_units: Vec::new().into(),
+            found_gone: Vec::new().into(),
             stolen: Vec::new(),
             stolen_ids: Vec::new(),
             recovered: Vec::new(),
@@ -3603,7 +3603,7 @@ impl Game {
             burned: Vec::new(),
             caged: Vec::new(),
             depth_t: Vec::new(),
-            max_steps: Vec::new(),
+            max_steps: Vec::new().into(),
             drank_heal: false,
             melee_used: false,
             boss_seen_t: None,
@@ -3683,7 +3683,7 @@ impl Game {
             rows_rested: (Vec::new(), 0),
             rests: 0,
             aimed: false,
-            bones: self.lineage.bones.clone(),
+            bones: self.lineage.bones.clone().into(),
             bones_found: Vec::new(),
             kills_counted: 0,
             timed_out: false,
@@ -3697,10 +3697,10 @@ impl Game {
             swap_left: Vec::new(),
             mirrors: Vec::new(),
             arc: Arc::default(),
-            episodes: Vec::new(),
+            episodes: Vec::new().into(),
             voice_t: None,
             fight_t: None,
-            situations: Vec::new(),
+            situations: Vec::new().into(),
             vault_cage: Vec::new(),
             vault_choice: None,
             prayed: false,
@@ -3724,7 +3724,7 @@ impl Game {
             named_rest: self.lineage.named_met.keys().filter(|n| self.lineage.named_resting(n, id)).cloned().collect(),
             named_placed: Vec::new(),
             event_recent: self.lineage.event_recent.iter().map(|(k, v)| (k.clone(), v.iter().filter(|(r, _)| r + 2 >= id).map(|(_, i)| *i).collect::<Vec<u8>>())).filter(|(_, v)| !v.is_empty()).collect(),
-            event_used: Vec::new(),
+            event_used: Vec::new().into(),
             learned: Vec::new(),
             gas_dmg_floor: 0,
             lock_last_pop: 0,
@@ -5038,7 +5038,7 @@ impl Game {
             let row = crate::facts::counter_row(kind);
             // Cut 27 §5: the counter already in the set (a row of its verb, or a card carrying one) is
             // an `order` drive-off — the rows above it that acted in the fight kept it from its turn.
-            let (held, over) = crate::trace::driven_order(self.lineage.rules(), &row, &run.trace);
+            let (held, over) = crate::trace::driven_order_in(self.lineage.rules(), &row, &run.trace);
             let verdict = if held.is_some() { "order" } else { "no counter" };
             let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: verdict.into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row, run_id: run.id, hp: run.hero.hp, max_hp: run.hero.max_hp, lost: line.carried - line.kept, held, over };
             if !self.sim {
@@ -5886,7 +5886,7 @@ pub fn found_in_pack(run: &Run, pack: &BTreeMap<(u32, String), i32>, key: &(u32,
 /// Cut 9 §5: the last `EXIT_TRACE_LEN` hero turns of a run, from its trace ring. Cut 11 §3:
 /// plus the run's provenance log (every `because` event), when it has one.
 pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
-    let turns: Vec<crate::wire::TraceTurn> = run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect();
+    let turns: Vec<crate::wire::TraceTurn> = run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().map(|t| (**t).clone()).collect();
     Trace { max_steps: max_steps_in(run, &turns), turns, provenance: crate::provenance::all(prov), blow: death_blow(run), blows: death_blows(run), hp_lost: hp_lost(run), hp_healed: hp_healed(run) }
 }
 
@@ -5895,7 +5895,7 @@ pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
 /// floors ago still reads (`44 → 29`).
 pub fn max_steps_in(run: &Run, turns: &[crate::wire::TraceTurn]) -> Vec<crate::wire::MaxStep> {
     if run.max_steps.len() <= 6 {
-        return run.max_steps.clone();
+        return (*run.max_steps).clone();
     }
     let from = turns.first().map_or(0, |t| t.t);
     let mut out: Vec<crate::wire::MaxStep> = run.max_steps.iter().filter(|s| s.t >= from).cloned().collect();

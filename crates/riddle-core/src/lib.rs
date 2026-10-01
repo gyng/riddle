@@ -24,6 +24,7 @@ pub mod provenance;
 pub mod rng;
 pub mod rules;
 pub mod save;
+pub mod shared;
 pub mod sifter;
 pub mod situations;
 pub mod systems;

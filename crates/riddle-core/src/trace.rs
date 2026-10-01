@@ -62,7 +62,7 @@ pub fn stall_record(game: &Game, run: &Run) -> DeathRec {
 }
 
 fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
-    let turns: Vec<_> = run.trace.iter().rev().take(TRACE_LEN).rev().cloned().collect();
+    let turns: Vec<crate::wire::TraceTurn> = run.trace.iter().rev().take(TRACE_LEN).rev().map(|t| (**t).clone()).collect();
     let provenance = crate::provenance::all(&game.prov);
     let chain = chain_of(&turns);
     let root = if stall { None } else { root_of(&game.prov, game.lineage.rules(), turns.last()) };
@@ -137,7 +137,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     };
     let (t10, t10_facts) = match game.history.get(pick) {
         Some((r, f)) => (Some(r.clone()), f.clone()),
-        None => (None, BTreeSet::new()),
+        None => (None, BTreeSet::new().into()),
     };
     // The kill counts as they stood at the checkpoint: the lineage's now, less this run's
     // kills after it (`Run.kills` carries the tick of each).
@@ -157,7 +157,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let row_fired = run.row_fired.clone();
     let gamble_row = if stall { None } else { gamble_row(run, &rules) };
     let home = run.home_at.map(|(t, hp, _)| (hp, run.turn.saturating_sub(t)));
-    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth), gamble_row, chase_row: None, moves: Vec::new(), removed: removed_rows(&game.lineage.sent_sets, &game.lineage.rules().clone()) }
+    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.as_ref().filter(|(f, _)| f.id == run.id && f.depth == run.depth).map(|(r, f)| (r.clone(), (**f).clone())), gamble_row, chase_row: None, moves: Vec::new(), removed: removed_rows(&game.lineage.sent_sets, &game.lineage.rules().clone()) }
 }
 
 /// Cut 27 §5: the rows of the latest sent set other than `now` that `now` no longer holds (by
@@ -444,10 +444,15 @@ fn card_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
 /// verb, the row above it that acted most in `trace`, the fight's last actions; ties: the higher
 /// row). (None, None) when no row carries it; `over` None when no row above it acted.
 pub fn driven_order(rules: &RuleSet, counter: &Row, trace: &[crate::wire::TraceTurn]) -> (Option<u32>, Option<u32>) {
+    driven_order_in(rules, counter, trace)
+}
+
+/// `driven_order` over a run's own trace (its rows `Shared`) or a wire trace.
+pub fn driven_order_in<T: std::borrow::Borrow<crate::wire::TraceTurn>>(rules: &RuleSet, counter: &Row, trace: &[T]) -> (Option<u32>, Option<u32>) {
     let carries = |r: &Row| r.verb == counter.verb || r.card().and_then(crate::meta::unlock_rows).is_some_and(|rows| rows.iter().any(|x| x.verb == counter.verb));
     let Some(held) = rules.rows.iter().position(carries) else { return (None, None) };
     let mut counts: Vec<(i32, usize)> = Vec::new();
-    for t in trace.iter().filter(|t| t.row >= 0 && (t.row as usize) < held) {
+    for t in trace.iter().map(|t| t.borrow()).filter(|t| t.row >= 0 && (t.row as usize) < held) {
         match counts.iter_mut().find(|c| c.0 == t.row) {
             Some(c) => c.1 += 1,
             None => counts.push((t.row, 1)),
@@ -762,7 +767,7 @@ pub fn stall_candidates(vocab: &Vocabulary, state: &Run) -> Vec<Row> {
 struct Replayer {
     g: Game,
     run: Run,
-    facts: BTreeSet<String>,
+    facts: crate::shared::Shared<BTreeSet<String>>,
     kill_counts: BTreeMap<String, u32>,
     total_turns: u64,
     ended: bool,
@@ -884,7 +889,7 @@ impl Replayer {
 fn floor_base(game: &Game, rec: &DeathRec) -> Option<(Game, u32)> {
     let (start, facts) = rec.floor.clone()?;
     let mut base = game.sim_clone();
-    base.lineage.facts = facts;
+    base.lineage.facts = facts.into();
     if let Some(k) = &rec.t10_kill_counts {
         base.lineage.kill_counts = k.clone();
     }

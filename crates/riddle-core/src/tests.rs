@@ -9541,8 +9541,8 @@ fn a_gambles_harm_that_made_the_difference_names_its_row() {
         let rec = {
             let run = g.run.as_mut().unwrap();
             run.turn = 500;
-            run.trace.push(TraceTurn { max_hp: 0, t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None });
-            run.trace.push(TraceTurn { max_hp: 0, t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None });
+            run.trace.push(TraceTurn { max_hp: 0, t: 400, row: 0, verb: Verb::arg("drink", "unknown"), hp: 17, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None }.into());
+            run.trace.push(TraceTurn { max_hp: 0, t: 490, row: 1, verb: Verb::arg("attack", "nearest"), hp: 2, foes: 1, rule_foes: 1, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None }.into());
             run.gambles.push((400, "poison".into(), true));
             run.gamble_harm = harm;
             run.death_short = short;
