@@ -11030,7 +11030,7 @@ fn safe_slot_is_under_the_top_safety_block() {
 #[test]
 fn whole_run_move_judges_a_patch() {
     use crate::forecast::SimResult;
-    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { oath_progress: 0.0, oath_steps: 0, oath: false, max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new(), passage: 0 };
+    let sim = |depth: u32, tier: ExitTier, cause: Option<&str>| SimResult { oath_progress: 0.0, oath_steps: 0, oath: false, max_depth: depth, tier, cause: cause.map(str::to_string), loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new(), passage: 0, arrive: Vec::new() };
     let base: Vec<SimResult> = (0..50).map(|i| if i < 25 { sim(6, ExitTier::Return, None) } else { sim(5, ExitTier::Death, Some("goblin")) }).collect();
     // ten seeds that returned now die to fire
     let worse: Vec<SimResult> = (0..50).map(|i| if i < 10 { sim(5, ExitTier::Death, Some("fire")) } else { base[i].clone() }).collect();
@@ -11614,7 +11614,7 @@ fn the_chain_keeps_each_rows_newest_reason() {
 #[test]
 fn a_patch_reads_the_floor_the_camp_leads_with() {
     use crate::forecast::SimResult;
-    let sim = |depth: u32, tier: ExitTier| SimResult { oath_progress: 0.0, oath_steps: 0, oath: false, max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new(), passage: 0 };
+    let sim = |depth: u32, tier: ExitTier| SimResult { oath_progress: 0.0, oath_steps: 0, oath: false, max_depth: depth, tier, cause: None, loot_kept: 0, timed_out: false, ticks: 1, loot: 0, fires: Vec::new(), passage: 0, arrive: Vec::new() };
     // the sent set: half reach D7, none D9; the patch: 11 of those stop at D5 (D6 and D7 both −22: the deeper leads), still none D9
     let base: Vec<SimResult> = (0..50).map(|i| sim(if i < 25 { 7 } else { 5 }, ExitTier::Death)).collect();
     let worse: Vec<SimResult> = (0..50).map(|i| if i < 11 { sim(5, ExitTier::Death) } else { base[i].clone() }).collect();
