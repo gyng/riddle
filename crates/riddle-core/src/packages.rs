@@ -1180,21 +1180,28 @@ pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
     let best = g.lineage.best_depth;
     let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
     let (base, wall_base) = panels(g, g.lineage.rules(), sims, stone);
-    let mut out: Vec<PkgOption> = Vec::new();
-    for (id, action, slot) in candidates(&g.lineage) {
+    let one = |g: &crate::engine::Game, (id, action, slot): &(String, String, usize)| -> Option<PkgOption> {
         let mut c = g.sim_clone();
-        if apply(&mut c.lineage, &id, &action, slot).is_err() {
-            continue;
-        }
+        apply(&mut c.lineage, id, action, *slot).ok()?;
         let set = compile(&c.lineage);
         let ((past, bank, death, reach, mean), wall) = panels(&c, &set, sims, stone);
         let d_wall = match (wall_base, wall) {
             (Some(a), Some(b)) => b - a,
             _ => 0.0,
         };
-        let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
-        out.push(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall });
-    }
+        let price = if action == "level" { level_price(&g.lineage, id).unwrap_or(0) } else { 0 };
+        Some(PkgOption { id: id.clone(), action: action.clone(), slot: *slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall })
+    };
+    // Each move's two panels are a pure function of the game (a clone of it, the move made): with
+    // moves enough to fill the threads, the moves share them (`forecast::par_map`, each worker's
+    // panels one sim after another) rather than each panel its sims — a panel's sims on many threads
+    // run past its tick budget by the sims in flight when it is spent. Same results either way.
+    let moves = candidates(&g.lineage);
+    let mut out: Vec<PkgOption> = if moves.len() > 1 && 2 * moves.len() >= crate::forecast::sim_width() {
+        crate::forecast::par_map(g, moves, one).into_iter().flatten().collect()
+    } else {
+        moves.iter().filter_map(|m| one(g, m)).collect()
+    };
     out.sort_by(|a, b| score(b).total_cmp(&score(a)));
     out
 }

@@ -331,6 +331,15 @@ fn sim_threads() -> usize {
     width().unwrap_or_else(max_threads).max(1)
 }
 
+/// The threads a panel read now would run on (1 when its sims run one after another).
+pub fn sim_width() -> usize {
+    if parallel_sims() {
+        sim_threads()
+    } else {
+        1
+    }
+}
+
 pub fn set_parallel_sims(on: bool) {
     PARALLEL_SIMS.store(on && !cfg!(target_arch = "wasm32"), std::sync::atomic::Ordering::Relaxed);
 }
