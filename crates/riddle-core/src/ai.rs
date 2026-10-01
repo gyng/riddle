@@ -174,7 +174,8 @@ fn nearest_item_step(run: &mut Run, cx: &mut Ctx, chore: bool) -> bool {
     let cands: Vec<Pos> = run
         .items
         .iter()
-        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::would_take(run, cx, &fi.item) && !(chore && run.in_den_zone(fi.pos)) && !(chore && run.skip_items.contains(&fi.item.id)))
+        // (every test is pure: the cheap ones first)
+        .filter(|fi| run.floor.map.is_seen(fi.pos) && !(chore && run.skip_items.contains(&fi.item.id)) && !(chore && run.in_den_zone(fi.pos)) && crate::turn::would_take(run, cx, &fi.item))
         .map(|fi| fi.pos)
         .collect();
     if cands.is_empty() {
@@ -343,7 +344,10 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     // The chore threshold for `descend` is 60% seen (Cut 2 §1): once that much of the floor
     // is known and the way down is too, the chores go down rather than sweep the rest. A
     // heir with no rows at all has no orders and only wanders (the chores never carry it).
-    if !home && !cx.rules.rows.is_empty() && run.floor.map.seen_pct() >= CHORE_DESCEND_SEEN && !stairs_sealed(run) && descend_step(run, cx) {
+    // (unsealed stairs neither stood on nor seen: `descend_step` declines without a side effect, so
+    // the floor's seen share — a pass over every tile — is not read)
+    let s = run.floor.stairs_down;
+    if !home && !cx.rules.rows.is_empty() && (run.hero.pos == s || run.floor.map.is_seen(s)) && run.floor.map.seen_pct() >= CHORE_DESCEND_SEEN && !stairs_sealed(run) && descend_step(run, cx) {
         return Verb::new("descend");
     }
     if explore_step(run, cx) {

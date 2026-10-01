@@ -3028,8 +3028,9 @@ pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
     if item.kind == "bones" {
         return true;
     }
-    let need = if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
-    let second_spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !crate::kit::is_kit_id(i.id)).count() >= need;
+    // (read only when the spares are: a pack with room takes it before)
+    let need = || if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
+    let second_spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !crate::kit::is_kit_id(i.id)).count() >= need();
     matches!(item.cat(), Cat::Gold)
         || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash"))
         || !h.inv_full()
