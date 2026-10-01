@@ -116,12 +116,14 @@ fn insert_row(g: &mut Game, row: Row, at: i32) -> bool {
 
 /// The situation answers a player writes once the pen is open and the fact is held (the stray's
 /// tame row only when pets are in play).
-fn write_own_rows(g: &mut Game, pets: bool) -> u32 {
+fn write_own_rows(g: &mut Game, pets: impl Fn() -> bool) -> u32 {
     if !g.lineage.pkg.pen_open {
         return 0;
     }
     let mut n = 0;
-    let situations = std::iter::once("stray").filter(|_| pets).chain(riddle_core::descent::SITUATION_DEPTHS.iter().map(|(w, _)| *w));
+    // (the stray's row only when its fact is held — the loop's own test — and pets are in play: asked then)
+    let stray = g.lineage.facts.contains("stray") && pets();
+    let situations = std::iter::once("stray").filter(|_| stray).chain(riddle_core::descent::SITUATION_DEPTHS.iter().map(|(w, _)| *w));
     for what in situations {
         if !g.lineage.facts.contains(what) {
             continue;
@@ -174,6 +176,12 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
 const PICK_SIMS: u32 = 32;
 const PICK_BAR: f64 = 0.12;
 
+/// Whether `forge` would take a step (it buys the cheapest when the purse pays it with `reserve` to spare).
+fn forge_due(g: &Game, reserve: i32) -> bool {
+    let lads = riddle_core::kit::ladders(&g.lineage);
+    lads.iter().filter_map(|l| l.next.as_ref().map(|x| x.price)).min().is_some_and(|price| g.lineage.gold >= price as i32 + reserve)
+}
+
 /// A blacksmith step whenever the purse pays it with `reserve` to spare.
 fn forge(g: &mut Game, reserve: i32) -> u32 {
     let mut n = 0;
@@ -201,34 +209,141 @@ fn field_kennel(g: &mut Game) {
     }
 }
 
-fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedOut {
-    let interval = 24 * 3600 / checkins;
-    let mut g = Game::new(seed);
-    if !cfg.has("quests") {
-        g.lineage.town.off = true;
+thread_local! {
+    static PH: std::cell::RefCell<std::collections::BTreeMap<&'static str, f64>> = Default::default();
+}
+/// This process's CPU seconds (user + system, `/proc/self/stat`): a phase's sims run on worker threads.
+fn proc_cpu() -> f64 {
+    let s = std::fs::read_to_string("/proc/self/stat").unwrap_or_default();
+    let f: Vec<&str> = s.rsplit(')').next().unwrap_or("").split_whitespace().collect();
+    let t = |i: usize| f.get(i).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
+    (t(11) + t(12)) / 100.0
+}
+fn ph<R>(name: &'static str, f: impl FnOnce() -> R) -> R {
+    let t = proc_cpu();
+    let r = f();
+    let dt = proc_cpu() - t;
+    PH.with(|m| *m.borrow_mut().entry(name).or_default() += dt);
+    r
+}
+
+/// What a bot's play reads of its configuration. Every read goes through `Ask` and is logged, so two
+/// configurations that answer a check-in's reads alike play that check-in alike from the same state —
+/// the fortnights of a seed share their common prefix (`Tree`): PICKED, TUNED and its leave-one-outs
+/// are one game until a read tells them apart (TUNED's at the pen, TUNED − forge's at its first forge
+/// step …), and TUNED − pen is PICKED throughout. A read is asked where its answer is used, never
+/// earlier (`ask.has("forge")` only when a forge step is affordable), so the shared prefix is the
+/// longest the code allows.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Q {
+    /// the bot's arm: 0 IDLE, 1 RANDOM, 2 PICKED or TUNED
+    Arm,
+    /// TUNED with its pen (the pen's rows written once it opens)
+    Tuned,
+    Has(&'static str),
+}
+
+fn answer(cfg: &Cfg, q: Q) -> u8 {
+    match q {
+        Q::Arm => match cfg.bot {
+            Bot::Idle => 0,
+            Bot::Random => 1,
+            Bot::Picked | Bot::Tuned => 2,
+        },
+        Q::Tuned => (cfg.bot == Bot::Tuned && cfg.has("pen")) as u8,
+        Q::Has(s) => cfg.has(s) as u8,
     }
-    let mut out = SeedOut { seed, hours: vec![None; MILESTONES.len()], ..Default::default() };
-    let mut rng = Rng::derive(seed, 0x5EED_0B07);
-    let mut last_best = 0u32;
-    let mut stall_cur = 0usize;
-    let mut reached23 = false;
-    let mut k = 0u64;
-    let mut last_key: Option<(usize, u32, Vec<String>)> = None;
-    let mut cool = 0u32;
-    let mut last_wall: Option<usize> = None;
-    let mut gap = 0usize;
-    for day in 0..days {
-        let wealth0 = g.lineage.gold as i64 + g.lineage.town.bank as i64;
-        let mut new_today = false;
-        let level0 = g.lineage.class_level();
-        let stages0 = riddle_core::town::stage_set(&g.lineage);
-        let mut opened = false;
-        for ci in 0..checkins {
-            k += 1;
-            let tuned = cfg.bot == Bot::Tuned && cfg.has("pen") && g.lineage.pkg.pen_open;
+}
+
+struct Ask<'a> {
+    cfg: &'a Cfg,
+    log: std::cell::RefCell<Vec<(Q, u8)>>,
+}
+
+impl Ask<'_> {
+    fn new(cfg: &Cfg) -> Ask<'_> {
+        Ask { cfg, log: Default::default() }
+    }
+    fn q(&self, q: Q) -> u8 {
+        let a = answer(self.cfg, q);
+        self.log.borrow_mut().push((q, a));
+        a
+    }
+    fn has(&self, s: &'static str) -> bool {
+        self.q(Q::Has(s)) == 1
+    }
+    /// Whether `other` answers every read logged so far as this configuration did.
+    fn same(&self, other: &Cfg) -> bool {
+        self.log.borrow().iter().all(|(q, a)| answer(other, *q) == *a)
+    }
+}
+
+/// One bot's fortnight as a state that advances a check-in at a time (`step`), cloned where the
+/// configurations sharing it part.
+#[derive(Clone)]
+struct Play {
+    seed: u64,
+    days: usize,
+    checkins: u64,
+    interval: u64,
+    verbose: bool,
+    g: Game,
+    out: SeedOut,
+    rng: Rng,
+    last_best: u32,
+    stall_cur: usize,
+    reached23: bool,
+    k: u64,
+    last_key: Option<(usize, u32, Vec<String>)>,
+    cool: u32,
+    last_wall: Option<usize>,
+    gap: usize,
+    // the day's
+    wealth0: i64,
+    new_today: bool,
+    level0: u32,
+    stages0: Vec<(String, String)>,
+    opened: bool,
+    /// the next check-in
+    day: usize,
+    ci: u64,
+}
+
+impl Play {
+    fn new(seed: u64, days: usize, checkins: u64, verbose: bool, ask: &Ask) -> Play {
+        let interval = 24 * 3600 / checkins;
+        let mut g = Game::new(seed);
+        if !ask.has("quests") {
+            g.lineage.town.off = true;
+        }
+        let out = SeedOut { seed, hours: vec![None; MILESTONES.len()], ..Default::default() };
+        let rng = Rng::derive(seed, 0x5EED_0B07);
+        Play { seed, days, checkins, interval, verbose, g, out, rng, last_best: 0, stall_cur: 0, reached23: false, k: 0, last_key: None, cool: 0, last_wall: None, gap: 0, wealth0: 0, new_today: false, level0: 0, stages0: Vec::new(), opened: false, day: 0, ci: 0 }
+    }
+
+    fn done(&self) -> bool {
+        self.day >= self.days
+    }
+
+    /// One check-in (its day's start before the first, the day's end after the last).
+    fn step(&mut self, ask: &Ask) {
+        let (checkins, interval, verbose, day, ci) = (self.checkins, self.interval, self.verbose, self.day, self.ci);
+        let cfg = ask.cfg;
+        if ci == 0 {
+            let g = &self.g;
+            self.wealth0 = g.lineage.gold as i64 + g.lineage.town.bank as i64;
+            self.new_today = false;
+            self.level0 = g.lineage.class_level();
+            self.stages0 = riddle_core::town::stage_set(&g.lineage);
+            self.opened = false;
+        }
+        let Play { g, out, rng, k, last_key, cool, last_wall, .. } = self;
+        {
+            *k += 1;
+            let tuned = g.lineage.pkg.pen_open && ask.q(Q::Tuned) == 1;
             // (the stall verdict and the death verdict cost more than the absence: TUNED reads the worst
             // death once a day and takes the wall's edit for a plateau)
-            let rep = riddle_core::offline::run_offline_counts(&mut g, interval);
+            let rep = ph("offline", || riddle_core::offline::run_offline_counts(g, interval));
             out.checkins += 1;
             out.sends += rep.runs;
             out.stalled += rep.stalled;
@@ -242,15 +357,15 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                 g.deaths.retain(|_, r| r.death.verdict != "stall");
             }
             out.grew += !rep.grew.is_empty() as u32;
-            opened |= !rep.systems_opened.is_empty();
+            self.opened |= !rep.systems_opened.is_empty();
             // (a reveal is a unit: the pen's group is one)
             let mut triggers: Vec<&str> = rep.systems_opened.iter().filter_map(|id| riddle_core::systems::SYSTEMS.iter().find(|d| d.id == id).map(|d| d.trigger)).collect();
             triggers.dedup();
             let units = triggers.len();
             out.max_systems = out.max_systems.max(units);
             out.max_beats = out.max_beats.max(rep.packages.len() + units);
-            new_today |= !rep.systems_opened.is_empty() || !rep.packages.is_empty() || !rep.bests.is_empty();
-            let hours = (k * interval) as f64 / 3600.0;
+            self.new_today |= !rep.systems_opened.is_empty() || !rep.packages.is_empty() || !rep.bests.is_empty();
+            let hours = (*k * interval) as f64 / 3600.0;
             for (i, m) in MILESTONES.iter().enumerate() {
                 if out.hours[i].is_none() && g.lineage.best_depth >= *m {
                     out.hours[i] = Some(hours);
@@ -265,9 +380,9 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
             if verbose {
                 eprintln!("  [{}] day {} ci {} runs {} bank {} ret {} stalled {} deaths {:?} best D{} wearing {:?}", cfg.label(), day + 1, ci, rep.runs, rep.banked, rep.returned, rep.stalled, rep.deaths.iter().map(|d| format!("{}×{}", d.cause, d.n)).collect::<Vec<_>>(), g.lineage.best_depth, g.lineage.pkg.equipped());
             }
-            match cfg.bot {
-                Bot::Idle => {}
-                Bot::Random => {
+            match ask.q(Q::Arm) {
+                0 => {}
+                1 => {
                     // a random package each check-in, blind: any arrived one (the worn one included)
                     // into its slot — not a forecast's move list, which holds only moves worth making
                     let owned: Vec<String> = g.lineage.pkg.owned.iter().filter(|id| riddle_core::packages::def(id).is_some()).cloned().collect();
@@ -278,7 +393,7 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                     }
                     if g.lineage.pkg.pen_open && rng.chance(34) {
                         let vocab = g.vocabulary();
-                        let set = riddle_core::probes::random_rules(&mut rng, &vocab, 3);
+                        let set = riddle_core::probes::random_rules(rng, &vocab, 3);
                         let mut rules = g.lineage.rules().clone();
                         rules.rows.retain(|r| r.is_pkg());
                         for (i, r) in set.rows.into_iter().enumerate() {
@@ -287,8 +402,8 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                         let _ = g.set_rules(rules);
                     }
                 }
-                Bot::Picked | Bot::Tuned => {
-                    if cfg.has("packages") {
+                _ => {
+                    if ask.has("packages") {
                         // the forecast is read when something new is on the shelf (a package arrived, a
                         // new record, a wake card) and once a day besides
                         // (a swap holds a day before the next is weighed, unless a package arrives)
@@ -296,15 +411,15 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                         let arrived = last_key.as_ref().is_some_and(|k| k.0 != key.0 || k.2 != key.2);
                         // (once a day, and when a package arrives: a new record alone re-reads nothing — the
                         // camp's panels are the harness's costliest call)
-                        let fresh = arrived || (cool == 0 && ci == 0);
+                        let fresh = arrived || (*cool == 0 && ci == 0);
                         let stance = g.lineage.pkg.equipped();
-                        pick_package(&mut g, verbose, day, fresh);
-                        cool = if g.lineage.pkg.equipped() != stance { checkins as u32 } else { cool.saturating_sub(1) };
-                        last_key = Some((g.lineage.pkg.owned.len(), g.lineage.best_depth, g.lineage.pkg.offer.clone()));
+                        ph("pick", || pick_package(g, verbose, day, fresh));
+                        *cool = if g.lineage.pkg.equipped() != stance { checkins as u32 } else { cool.saturating_sub(1) };
+                        *last_key = Some((g.lineage.pkg.owned.len(), g.lineage.best_depth, g.lineage.pkg.offer.clone()));
                     }
                     if tuned {
-                        let pets = cfg.has("pets");
-                        write_own_rows(&mut g, pets);
+                        let pets = || ask.has("pets");
+                        write_own_rows(g, pets);
                         // a wall's counter, written once its fact is known (the drill is days away; at the deep
                         // walls a week): the boss on the record's floor or the next, not yet slain nor drilled
                         let best = g.lineage.best_depth;
@@ -326,16 +441,16 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                                             let _ = g.buy_unlock_gold(&u);
                                         }
                                     }
-                                    insert_row(&mut g, row, 0);
+                                    insert_row(g, row, 0);
                                 }
                             }
                         }
                         if let Some(id) = rep.worst_death_id.filter(|_| ci == 0) {
-                            if let Some(death) = g.death(id) {
+                            if let Some(death) = ph("death", || g.death(id)) {
                                 if death.verdict == "gap" {
                                     if let Some(p) = death.patches.first() {
                                         if p.survive > death.baseline + 0.15 && p.forecast_delta >= 0.0 {
-                                            insert_row(&mut g, p.row.clone(), 0);
+                                            insert_row(g, p.row.clone(), 0);
                                         }
                                     }
                                 }
@@ -343,15 +458,15 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                         }
                         if let Some(stall) = &rep.stall {
                             if let Some(p) = stall.patches.first().filter(|p| !p.remove && !p.replace) {
-                                insert_row(&mut g, p.row.clone(), 0);
+                                insert_row(g, p.row.clone(), 0);
                             }
                         }
                         // (the wall search is the harness's costliest call: at most every other day)
                         let fresh = g.lineage.wall_day != Some(g.lineage.day) && last_wall.is_none_or(|d| day >= d + 2);
                         if fresh && riddle_core::wall::at_wall(&g.lineage) {
-                            last_wall = Some(day);
+                            *last_wall = Some(day);
                         }
-                        if let Some(w) = if fresh { g.wall_edit() } else { None } {
+                        if let Some(w) = if fresh { ph("wall", || g.wall_edit()) } else { None } {
                             if g.set_rules(w.rules.clone()).is_ok() {
                                 if let Some(s) = w.start {
                                     let _ = g.set_start(s);
@@ -362,25 +477,26 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                             }
                         }
                         // room for the pen: the cheapest row unlock the marks pay for
-                        let mut opts: Vec<_> = g.unlocks().into_iter().filter(|u| !u.owned && u.available && u.id.starts_with("row") && u.cost <= g.lineage.marks).collect();
+                        let mut opts: Vec<_> = ph("unlocks", || g.unlocks()).into_iter().filter(|u| !u.owned && u.available && u.id.starts_with("row") && u.cost <= g.lineage.marks).collect();
                         opts.sort_by(|a, b| a.cost.cmp(&b.cost).then(a.id.cmp(&b.id)));
                         if let Some(u) = opts.first() {
                             let _ = g.buy(&u.id);
                         }
-                        if pets {
-                            field_kennel(&mut g);
+                        // (the kennel fielded when pets are in play: nothing to field, nothing asked)
+                        if g.lineage.party.len() < g.lineage.party_slots() as usize && !g.lineage.kennel.is_empty() && pets() {
+                            field_kennel(g);
                         }
                     }
-                    if cfg.has("forge") {
-                        // (the purse keeps the shelf's money: three units — a few sends' potions at depth)
-                        let reserve = 3 * riddle_core::kit::unit(g.lineage.best_depth) as i32;
-                        forge(&mut g, reserve);
+                    // (the purse keeps the shelf's money: three units — a few sends' potions at depth)
+                    let reserve = 3 * riddle_core::kit::unit(g.lineage.best_depth) as i32;
+                    if forge_due(g, reserve) && ask.has("forge") {
+                        forge(g, reserve);
                     }
-                    if cfg.has("bank") && riddle_core::town::built(&g.lineage, "bank") {
+                    if riddle_core::town::built(&g.lineage, "bank") {
                         // the purse keeps the next forge step and the shelf's money; the rest earns
                         let next = riddle_core::kit::ladders(&g.lineage).iter().filter_map(|l| l.next.as_ref().map(|x| x.price as i32)).min().unwrap_or(0);
                         let spare = g.lineage.gold - next - 3 * riddle_core::kit::unit(g.lineage.best_depth) as i32;
-                        if spare > 0 {
+                        if spare > 0 && ask.has("bank") {
                             let _ = g.bank_deposit(spare);
                         }
                     }
@@ -390,40 +506,120 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
             let ids: Vec<u32> = g.lineage.vault.iter().map(|i| i.id).collect();
             g.loadout(ids);
         }
+        self.ci += 1;
+        if self.ci == checkins {
+            self.day_end(cfg);
+            self.ci = 0;
+            self.day += 1;
+            if self.done() {
+                self.out.rules = self.g.lineage.rules().rows.iter().map(|r| r.describe()).collect::<Vec<_>>().join(" | ");
+            }
+        }
+    }
+
+    fn day_end(&mut self, cfg: &Cfg) {
+        let (seed, day, verbose) = (self.seed, self.day, self.verbose);
+        let Play { g, out, .. } = self;
         let best = g.lineage.best_depth;
+        if std::env::var("DP_PHASES").is_ok() {
+            eprintln!("  [{}] s{seed} day {} D{best} pen {} cpu {:.0}", cfg.label(), day + 1, g.lineage.pkg.pen_open, proc_cpu());
+        }
         out.best_day.push(best);
         out.depth_area += best;
         out.quests = g.lineage.town.quests_done;
-        out.gold_day.push(g.lineage.gold as i64 + g.lineage.town.bank as i64 - wealth0);
+        out.gold_day.push(g.lineage.gold as i64 + g.lineage.town.bank as i64 - self.wealth0);
         out.stance_level_day.push(g.lineage.pkg.level(&g.lineage.pkg.stance));
-        opened |= riddle_core::town::stage_set(&g.lineage).len() > stages0.len();
-        out.stage_days += opened as usize;
-        new_today |= g.lineage.class_level() > level0;
+        self.opened |= riddle_core::town::stage_set(&g.lineage).len() > self.stages0.len();
+        out.stage_days += self.opened as usize;
+        self.new_today |= g.lineage.class_level() > self.level0;
         if day == 0 {
             out.day1_systems = g.lineage.systems.len();
         }
-        if new_today {
+        if self.new_today {
             out.new_days += 1;
-            gap = 0;
+            self.gap = 0;
         } else {
-            gap += 1;
-            out.new_gap = out.new_gap.max(gap);
+            self.gap += 1;
+            out.new_gap = out.new_gap.max(self.gap);
         }
-        if best > last_best {
-            last_best = best;
-            stall_cur = 0;
-        } else if !reached23 {
-            stall_cur += 1;
-            out.stall = out.stall.max(stall_cur);
+        if best > self.last_best {
+            self.last_best = best;
+            self.stall_cur = 0;
+        } else if !self.reached23 {
+            self.stall_cur += 1;
+            out.stall = out.stall.max(self.stall_cur);
         }
-        reached23 |= best >= 23;
+        self.reached23 |= best >= 23;
         if verbose {
             let p = &g.lineage.pkg;
             eprintln!("  [{}] s{} day {} D{} ${} bank {} L{} {} L{} drills {} kit {} pen {}", cfg.label(), seed, day + 1, best, g.lineage.gold, g.lineage.town.bank, g.lineage.class_level(), p.stance, p.level(&p.stance), p.drills.len(), riddle_core::kit::KIT_SLOTS.iter().map(|s| riddle_core::kit::owned(&g.lineage, s)).sum::<u32>(), p.pen_open);
         }
     }
-    out.rules = g.lineage.rules().rows.iter().map(|r| r.describe()).collect::<Vec<_>>().join(" | ");
-    out
+}
+
+/// One configuration's fortnight, alone.
+#[allow(dead_code)]
+fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedOut {
+    let ask = Ask::new(&cfg);
+    let mut p = Play::new(seed, days, checkins, verbose, &ask);
+    while !p.done() {
+        p.step(&Ask::new(&cfg));
+    }
+    p.out
+}
+
+/// A seed's configurations playing one game (`Play`) until a read parts them; `state` is `None` before
+/// the lineage is made.
+struct Group {
+    seed: u64,
+    members: Vec<usize>,
+    state: Option<Play>,
+}
+
+/// The groups waiting, longest first (the TUNED family's fortnights before the others, then by the
+/// check-ins left); a group that parts pushes the parting members back. The workers stop when the
+/// queue is empty and no group is playing.
+#[derive(Default)]
+struct Pool {
+    q: std::sync::Mutex<(Vec<(u64, u64, Group)>, u64, usize)>,
+    cv: std::sync::Condvar,
+}
+
+impl Pool {
+    fn push(&self, g: Group, cfgs: &[Cfg], days: usize, checkins: u64) {
+        let weight = g.members.iter().map(|c| match cfgs[*c].bot {
+            Bot::Tuned => 3,
+            Bot::Picked => 2,
+            _ => 1,
+        });
+        let left = g.state.as_ref().map_or(days as u64 * checkins, |p| (days - p.day) as u64 * checkins - p.ci);
+        let prio = weight.max().unwrap_or(1) * left;
+        let mut q = self.q.lock().unwrap();
+        q.1 += 1;
+        q.2 += 1;
+        let seq = q.1;
+        q.0.push((prio, u64::MAX - seq, g));
+        self.cv.notify_one();
+    }
+    fn pop(&self) -> Option<Group> {
+        let mut q = self.q.lock().unwrap();
+        loop {
+            if let Some(i) = (0..q.0.len()).max_by_key(|i| (q.0[*i].0, q.0[*i].1)) {
+                return Some(q.0.swap_remove(i).2);
+            }
+            if q.2 == 0 {
+                return None;
+            }
+            q = self.cv.wait(q).unwrap();
+        }
+    }
+    fn done(&self) {
+        let mut q = self.q.lock().unwrap();
+        q.2 -= 1;
+        if q.2 == 0 {
+            self.cv.notify_all();
+        }
+    }
 }
 
 fn median(mut v: Vec<f64>) -> f64 {
@@ -502,51 +698,105 @@ fn main() {
     let loo_seeds = get("--loo-seeds", 4);
     // (TUNED is a leave-one-out's base: the same seeds, `--tuned-seeds`, the bots' own by default)
     let tuned_seeds = get("--tuned-seeds", seeds);
-    // Per-job results are kept under `target/gates/dp/` by the binary's own hash (a job is a pure function
-    // of the binary, the bot, the seed and the days): a rerun of an unchanged binary reprints at once, and
-    // an interrupted run resumes where it stopped.
-    let bin_key = {
-        let bytes = std::fs::read(std::env::current_exe().expect("exe")).unwrap_or_default();
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for b in &bytes {
+    let seeds_of = |c: usize| if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else if cfgs[c].bot == Bot::Tuned { tuned_seeds.min(seeds) } else { seeds };
+    // Per-job results are kept under `target/gates/dp/` (a job is a pure function of the code, the bot, the
+    // seed and the days): a rerun reprints at once, and an interrupted run resumes where it stopped. The key
+    // is the binary's own hash, or — under `tools/gates.mjs`, which sets `RIDDLE_SRC_KEY` to the hash of the
+    // core's sources, the lockfile and the toolchain — that and this file less `main` (the bars below), so an
+    // edit to a bar reprints the table from the jobs kept.
+    let fnv = |bytes: &[u8], mut h: u64| {
+        for b in bytes {
             h ^= *b as u64;
             h = h.wrapping_mul(0x0100_0000_01b3);
         }
-        format!("{h:016x}")
+        h
     };
+    let bin_key = match std::env::var("RIDDLE_SRC_KEY") {
+        Ok(k) => {
+            let src = include_str!("dayplayer.rs");
+            let body = src.find("\nfn main() {").map_or(src, |i| &src[..i]);
+            let env = std::env::var("RIDDLE_SKIP_TWIST").unwrap_or_default();
+            format!("src{:016x}", fnv(env.as_bytes(), fnv(body.as_bytes(), fnv(k.as_bytes(), 0xcbf2_9ce4_8422_2325))))
+        }
+        Err(_) => format!("{:016x}", fnv(&std::fs::read(std::env::current_exe().expect("exe")).unwrap_or_default(), 0xcbf2_9ce4_8422_2325)),
+    };
+    // (`DP_STALLS` prunes the stall records it prints: a different game, never kept)
+    let keep = !verbose && std::env::var("DP_STALLS").is_err();
     let cache_dir = std::path::PathBuf::from("target/gates/dp");
     let _ = std::fs::create_dir_all(&cache_dir);
     let cache_of = |c: &Cfg, s: u64| cache_dir.join(format!("{bin_key}-{}-s{s}-d{days}-c{checkins}.json", c.label()));
-    let jobs: Vec<(usize, u64)> = (0..cfgs.len())
-        .flat_map(|c| {
-            let n = if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else if cfgs[c].bot == Bot::Tuned { tuned_seeds.min(seeds) } else { seeds };
-            (1..=n).filter(|s| only.is_none_or(|o| o == *s)).map(move |s| (c, s))
-        })
-        .collect();
-    // the longest first (TUNED and its leave-one-outs), so the short ones fill the cores at the end
-    let mut jobs = jobs;
-    jobs.sort_by_key(|(c, s)| (cfgs[*c].bot != Bot::Tuned, *s));
-    let threads = get("--threads", 10) as usize;
-    let next = std::sync::atomic::AtomicUsize::new(0);
     let results: std::sync::Mutex<Vec<(usize, SeedOut)>> = std::sync::Mutex::new(Vec::new());
+    // Each seed's configurations to play (those not kept), as one group: the group plays as its first
+    // member and parts where a member answers a read differently (`Ask`) — the parting members go on as a
+    // group of their own from the check-in's start (`Play` cloned there). `--no-share`: each alone.
+    let share = !verbose && !a.iter().any(|x| x == "--no-share");
+    let mut groups: Vec<Group> = Vec::new();
+    let max_seed = (0..cfgs.len()).map(|c| seeds_of(c)).max().unwrap_or(0);
+    for s in (1..=max_seed).filter(|s| only.is_none_or(|o| o == *s)) {
+        let mut members = Vec::new();
+        for c in (0..cfgs.len()).filter(|c| s <= seeds_of(*c)) {
+            let hit = if keep { std::fs::read_to_string(cache_of(&cfgs[c], s)).ok().and_then(|t| serde_json::from_str::<SeedOut>(&t).ok()) } else { None };
+            match hit {
+                Some(o) => results.lock().unwrap().push((c, o)),
+                None => members.push(c),
+            }
+        }
+        // (the longest bots lead: TUNED first, so a group's first member is the one that parts least)
+        members.sort_by_key(|c| (cfgs[*c].bot != Bot::Tuned || cfgs[*c].without.is_some(), cfgs[*c].bot != Bot::Picked, *c));
+        if share {
+            if !members.is_empty() {
+                groups.push(Group { seed: s, members, state: None });
+            }
+        } else {
+            groups.extend(members.into_iter().map(|c| Group { seed: s, members: vec![c], state: None }));
+        }
+    }
+    let threads = get("--threads", 10) as usize;
+    let pool = Pool::default();
+    for g in groups {
+        pool.push(g, &cfgs, days, checkins);
+    }
     std::thread::scope(|sc| {
         for _ in 0..threads.max(1) {
-            sc.spawn(|| loop {
-                let i = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                let Some(&(c, s)) = jobs.get(i) else { break };
-                let t = std::time::Instant::now();
-                let path = cache_of(&cfgs[c], s);
-                let hit = if verbose { None } else { std::fs::read_to_string(&path).ok().and_then(|t| serde_json::from_str::<SeedOut>(&t).ok()) };
-                let o = match hit {
-                    Some(o) => o,
-                    None => {
-                        let o = play(s, days, checkins, cfgs[c], verbose);
-                        let _ = std::fs::write(&path, serde_json::to_string(&o).unwrap_or_default());
-                        o
+            sc.spawn(|| {
+                while let Some(Group { seed: s, mut members, state }) = pool.pop() {
+                    let t = std::time::Instant::now();
+                    let lead = members[0];
+                    let part = |ask: &Ask, members: &mut Vec<usize>, snap: Option<Play>| {
+                        let (same, diff): (Vec<usize>, Vec<usize>) = members[1..].iter().partition(|m| ask.same(&cfgs[**m]));
+                        if !diff.is_empty() {
+                            pool.push(Group { seed: s, members: diff, state: snap }, &cfgs, days, checkins);
+                        }
+                        members.truncate(1);
+                        members.extend(same);
+                    };
+                    let mut p = match state {
+                        Some(p) => p,
+                        None => {
+                            let ask = Ask::new(&cfgs[lead]);
+                            let p = Play::new(s, days, checkins, verbose, &ask);
+                            part(&ask, &mut members, None);
+                            p
+                        }
+                    };
+                    while !p.done() {
+                        let snap = (members.len() > 1).then(|| p.clone());
+                        let ask = Ask::new(&cfgs[lead]);
+                        p.step(&ask);
+                        if members.len() > 1 {
+                            part(&ask, &mut members, snap);
+                        }
                     }
-                };
-                eprintln!("dayplayer: {} s{s} done in {:.0}s", cfgs[c].label(), t.elapsed().as_secs_f64());
-                results.lock().unwrap().push((c, o));
+                    let phs = PH.with(|m| std::mem::take(&mut *m.borrow_mut()));
+                    for &c in &members {
+                        if keep {
+                            let _ = std::fs::write(cache_of(&cfgs[c], s), serde_json::to_string(&p.out).unwrap_or_default());
+                        }
+                        results.lock().unwrap().push((c, p.out.clone()));
+                    }
+                    eprintln!("dayplayer: {} s{s} done in {:.0}s {}", members.iter().map(|c| cfgs[*c].label()).collect::<Vec<_>>().join(" = "), t.elapsed().as_secs_f64(), phs.iter().map(|(k, v)| format!("{k} {v:.0}")).collect::<Vec<_>>().join(" "));
+                    pool.done();
+                }
             });
         }
     });
