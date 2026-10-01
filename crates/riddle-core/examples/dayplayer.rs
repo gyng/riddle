@@ -9,6 +9,8 @@
 use riddle_core::rules::{Row, RuleSet};
 use riddle_core::rng::Rng;
 use riddle_core::Game;
+#[path = "jobcache_lib/mod.rs"]
+mod jobcache;
 
 /// Milestones (Cut 30 §6: time-to-milestone = simulated hours to reach each).
 const MILESTONES: [u32; 7] = [8, 13, 18, 23, 28, 29, 33];
@@ -806,7 +808,7 @@ fn main() {
                     let phs = PH.with(|m| std::mem::take(&mut *m.borrow_mut()));
                     for &c in &members {
                         if keep {
-                            let _ = std::fs::write(cache_of(&cfgs[c], s), serde_json::to_string(&p.out).unwrap_or_default());
+                            jobcache::keep(&cache_of(&cfgs[c], s), &p.out);
                         }
                         results.lock().unwrap().push((c, p.out.clone()));
                     }

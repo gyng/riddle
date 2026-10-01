@@ -45,11 +45,24 @@ pub fn cached<T: Serialize + DeserializeOwned>(dir: &str, srcs: &[&str], params:
     }
     let v = f();
     if let Some(p) = p {
-        // (written whole, then renamed: a run stopped mid-write leaves no half a result)
-        let tmp = p.with_extension(format!("tmp{}", std::process::id()));
-        if std::fs::write(&tmp, serde_json::to_string(&v).unwrap_or_default()).is_ok() {
-            let _ = std::fs::rename(&tmp, &p);
-        }
+        keep(&p, &v);
     }
     v
+}
+
+/// The text a result is kept as, when it reads back to itself: a number the parser would round off by
+/// an ulp (serde_json without `float_roundtrip`) prints differently once read, and is not kept.
+pub fn text<T: Serialize + DeserializeOwned>(v: &T) -> Option<String> {
+    let t = serde_json::to_string(v).ok()?;
+    let back = serde_json::to_string(&serde_json::from_str::<T>(&t).ok()?).ok()?;
+    (back == t).then_some(t)
+}
+
+/// Keep `v` at `p` (written whole, then renamed: a run stopped mid-write leaves no half a result).
+pub fn keep<T: Serialize + DeserializeOwned>(p: &std::path::Path, v: &T) {
+    let Some(t) = text(v) else { return };
+    let tmp = p.with_extension(format!("tmp{}", std::process::id()));
+    if std::fs::write(&tmp, t).is_ok() {
+        let _ = std::fs::rename(&tmp, p);
+    }
 }

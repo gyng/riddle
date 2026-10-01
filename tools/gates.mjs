@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Bot gate table (examples/metrics.rs) on the `fast` cargo profile.
-//   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~4 min: the per-set rows' edits and lanes do not scale with seeds)
-//   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 3 seeds (~8 min on a shared box; docs/ITERATION_SPEED.md 0d); the number that counts
+//   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds (1 leave-one-out) alongside (~30–40 min fresh on the Cut 30 tree)
+//   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 16 seeds (~1–1.5 h fresh; docs/ITERATION_SPEED.md 0e); the number that counts
 // Cut 13 §6: the wire invariants (examples/qa.rs, 30 seeds, ~700 thread-s: ~45 s alone on the cores, ~120 s beside
 // the table) run beside both as a third job; the run fails if they do. `METRICS_PHASES=1` prints the table's and
 // qa's phase and job walls (qa: thread-seconds per leg). `QA_SHARE=0.5` gives qa that share of the cores (0.75).
@@ -54,7 +54,7 @@ const runtimeInputs = [
 const seeds = full ? 16 : 2;
 const looSeeds = full ? 8 : 1;
 const tunedSeeds = full ? 8 : 2;
-const dpArgs = ["--gate", "--seeds", String(seeds), ...(fast ? ["--bots", "idle"] : ["--loo-seeds", String(looSeeds), "--tuned-seeds", String(tunedSeeds)])];
+const dpArgs = ["--gate", "--seeds", String(seeds), ...(fast ? ["--bots", "idle", "--loo-seeds", "0"] : ["--loo-seeds", String(looSeeds), "--tuned-seeds", String(tunedSeeds)])];
 const qaSeeds = fast ? 10 : 30;
 const tableArgs = [...(full ? [] : [fast ? "--fast" : "--quick"]), ...extra];
 const legs = {

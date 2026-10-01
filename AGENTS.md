@@ -34,10 +34,10 @@ research/              the four research reports behind the plan
 
 ```sh
 tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint            ~45 s
-tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~5 min (the quick gate ~4 min fresh)
-tools/verify.sh --full         # + shipping wasm → full gate table                  ~11 min
+tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~2 min + the quick gate (cached: seconds; fresh after a core edit: ~30–40 min, below)
+tools/verify.sh --full         # + shipping wasm → full gate table                  ~4 min + the full gate (fresh after a core edit: ~1–1.5 h, below)
 cargo test -q --workspace --profile fast                     # ~36 s warm (CPU-bound on the cores); never plain `cargo test` (7× slower)
-node tools/gates.mjs [--full] [--fresh]                      # quick: 8 seeds × 8 h × 3 verdicts + dayplayer + the wire invariants (examples/qa.rs) alongside (~4 min); full: 30 × 8 × 8 (~8 min on a shared box); each leg cached by its own binary hash — a client-only change reprints in 0.2 s, a new qa invariant reruns qa alone
+node tools/gates.mjs [--full|--fast] [--fresh]               # quick: 8 seeds × 8 h × 3 verdicts + the dayplayer (2 seeds, 1 leave-one-out) + the wire invariants (examples/qa.rs) alongside; full: 30 × 8 × 8, dayplayer 16 seeds (TUNED/leave-one-outs 8); --fast: the quick table less the retired progression lineages, qa 10 seeds, IDLE's rows. CPU-bound: fresh, the full gate is ~1–1.5 h of a quiet box (the dayplayer's PICKED/TUNED fortnights, 4–5 k CPU-s each, are most of it) and the quick one ~30–40 min. Each leg's printout cached by its own binary hash (a client-only change reprints in 0.2 s); inside the legs the long jobs (dayplayer fortnights, progression lineages, lever/oath/lane jobs, IDLE snapshots) are kept by the core's sources + their own harness file (`RIDDLE_SRC_KEY`), so a bar or row edit reprints in seconds to minutes and only a core edit replays them (docs/ITERATION_SPEED.md 0e). `GATES_THREADS=N` caps each leg
 (cd web && pnpm -s test)                                     # the client gates, headless, on the suite's own no-HMR Vite server (~5 min); `node tests/run.mjs fights clarity:paint` for a few
 tools/wasm.sh [--ship]                                       # fast wasm (~8 s after a core edit) / wasm-pack release (~2 min)
 tools/ship.sh [--preview]                                    # cohort build on :5230 (fat LTO, ~2 min); --preview: fast wasm, ~25 s, for QA rounds

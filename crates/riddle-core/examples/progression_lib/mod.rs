@@ -575,7 +575,12 @@ thread_local! {
 fn tcpu() -> f64 {
     std::fs::read_to_string("/proc/thread-self/schedstat").ok().and_then(|t| t.split_whitespace().next().and_then(|x| x.parse::<f64>().ok())).map(|ns| ns / 1e9).unwrap_or(0.0)
 }
+/// `PROG_PHASES=1`: each lineage's CPU seconds by phase (this thread's: the panels' sims run on it unless
+/// the caller widens them) on stderr at its end.
 fn ph<R>(name: &'static str, f: impl FnOnce() -> R) -> R {
+    if std::env::var_os("PROG_PHASES").is_none() {
+        return f();
+    }
     let t = tcpu();
     let r = f();
     let dt = tcpu() - t;
