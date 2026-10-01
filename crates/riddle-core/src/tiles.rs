@@ -58,12 +58,29 @@ pub struct Map {
     pub visible: Vec<bool>,
     /// Corridor tiles (narrow passages), for `in_corridor` and retreat preference.
     pub corridor: Vec<bool>,
+    /// What `visible` was last worked out from (`update_vision`): not the map's state, never saved,
+    /// and equal on every map.
+    #[serde(skip)]
+    pub vis_from: VisFrom,
 }
+
+/// `update_vision`'s inputs when it last ran by the walls' bits — (from, radius, w, h, the square's
+/// sight-blocking tiles): the same inputs give the same `visible`, already there, and every tile of
+/// it already `seen` (only `update_vision` writes `visible`; nothing unsees a tile).
+#[derive(Clone, Debug, Default)]
+pub struct VisFrom(Option<(Pos, i32, i32, i32, [u64; LOS_MASK_WORDS])>);
+
+impl PartialEq for VisFrom {
+    fn eq(&self, _: &VisFrom) -> bool {
+        true
+    }
+}
+impl Eq for VisFrom {}
 
 impl Map {
     pub fn new(w: i32, h: i32, fill: Tile) -> Map {
         let n = (w * h) as usize;
-        Map { w, h, tiles: vec![fill; n], seen: vec![false; n], visible: vec![false; n], corridor: vec![false; n] }
+        Map { w, h, tiles: vec![fill; n], seen: vec![false; n], visible: vec![false; n], corridor: vec![false; n], vis_from: VisFrom::default() }
     }
     pub fn in_bounds(&self, p: Pos) -> bool {
         p.x >= 0 && p.y >= 0 && p.x < self.w && p.y < self.h
@@ -177,10 +194,14 @@ impl Map {
     }
     /// Recompute `visible` from `from` with radius and line of sight; marks seen.
     pub fn update_vision(&mut self, from: Pos, radius: i32) {
-        for v in self.visible.iter_mut() {
-            *v = false;
-        }
+        let memo = self.vis_from.0.take();
+        let clear = |visible: &mut [bool]| {
+            for v in visible.iter_mut() {
+                *v = false;
+            }
+        };
         if !self.in_bounds(from) || !(0..=LOS_TABLE_MAX).contains(&radius) {
+            clear(&mut self.visible);
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
                     let p = from.step((dx, dy));
@@ -219,6 +240,12 @@ impl Map {
                     }
                 }
             }
+            let key = (from, radius, w, h, walls);
+            self.vis_from.0 = Some(key);
+            if memo == Some(key) {
+                return;
+            }
+            clear(&mut self.visible);
             let mut k = 0;
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
@@ -236,6 +263,7 @@ impl Map {
             }
             return;
         }
+        clear(&mut self.visible);
         let mut k = 0;
         for dy in -radius..=radius {
             for dx in -radius..=radius {
