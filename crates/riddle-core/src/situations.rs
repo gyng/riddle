@@ -570,7 +570,8 @@ pub fn lock_bloat_act(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
 
 /// The hunger bites on an unlit D12: −1 max HP (never below 5) every `HUNGER_TURNS` turns.
 pub fn hunger_tick(run: &mut Run, cx: &mut Ctx) {
-    if !hunger_floor(run) || lit(run) || run.floor_turn == 0 || !run.floor_turn.is_multiple_of(HUNGER_TURNS * crate::engine::TICKS_PER_TURN) {
+    // (every test is pure: the clock's first, the floor's scan last)
+    if run.floor_turn == 0 || !run.floor_turn.is_multiple_of(HUNGER_TURNS * crate::engine::TICKS_PER_TURN) || lit(run) || !hunger_floor(run) {
         return;
     }
     if run.hero.max_hp <= 5 {

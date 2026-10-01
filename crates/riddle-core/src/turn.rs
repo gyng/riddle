@@ -531,7 +531,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     // (borrowed from the set, which nothing here changes; the lent row is the run's, copied out)
     let set: &crate::rules::RuleSet = cx.rules;
     let lent = run.lent_row.clone();
-    let mut rows: Vec<(usize, &crate::rules::Row)> = set.active(cx.max_rows).collect();
+    let mut rows: Vec<(usize, &crate::rules::Row)> = set.active(cx.max_rows()).collect();
     // Cut 5 §4: the row a shrine lent for this run (last, lowest priority; index past the set).
     if let Some(r) = &lent {
         rows.push((set.rows.len(), r));
@@ -742,7 +742,7 @@ fn answers_on_walk(run: &Run, cx: &Ctx, v: &View, r: &crate::rules::Row) -> bool
 /// decision, and else its first failing cond's key (`unmet_key`).
 fn rows_held(run: &Run, cx: &Ctx, v: &View) -> Vec<(usize, bool, Option<String>)> {
     cx.rules
-        .active(cx.max_rows)
+        .active(cx.max_rows())
         .map(|(i, r)| {
             let failing = r.conds.iter().find(|c| !cond_holds(run, cx, v, c));
             (i, failing.is_none(), failing.map(unmet_key))
@@ -971,7 +971,7 @@ fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str, because: Option<Because>) {
     if cx.sim {
         return;
     }
-    let mut idx: Vec<usize> = cx.rules.active(cx.max_rows).map(|(i, _)| i).collect();
+    let mut idx: Vec<usize> = cx.rules.active(cx.max_rows()).map(|(i, _)| i).collect();
     if run.lent_row.is_some() {
         idx.push(cx.rules.rows.len());
     }
@@ -986,7 +986,7 @@ fn once_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
     if cx.sim {
         return;
     }
-    run.rows_why = cx.rules.active(cx.max_rows).map(|(i, _)| i).next().map(|i| RowWhy { row: i, why: why.into(), because: None }).into_iter().collect();
+    run.rows_why = cx.rules.active(cx.max_rows()).map(|(i, _)| i).next().map(|i| RowWhy { row: i, why: why.into(), because: None }).into_iter().collect();
 }
 
 /// Policy retreats in one engagement (a foe in view throughout, no blow on the hero) before the
@@ -1134,7 +1134,7 @@ pub fn driven_off(run: &mut Run, cx: &mut Ctx, bi: usize) {
     let kind = run.monsters[bi].kind.clone();
     run.driven_off = Some(kind.clone());
     // (the player's own way home carries the pack out; with none written, it is dropped)
-    run.driven_lost = !cx.rules.active(cx.max_rows).any(|(_, r)| matches!(r.verb.v.as_str(), "return" | "bank")) && run.lent_row.as_ref().is_none_or(|r| !matches!(r.verb.v.as_str(), "return" | "bank"));
+    run.driven_lost = !cx.rules.active(cx.max_rows()).any(|(_, r)| matches!(r.verb.v.as_str(), "return" | "bank")) && run.lent_row.as_ref().is_none_or(|r| !matches!(r.verb.v.as_str(), "return" | "bank"));
     crate::facts::learn_boss_counter(run, cx, &kind);
     callout(run, cx, "driven off");
     emit_rule(run, cx, -2, &Verb::new("return"), "driven off");
@@ -2969,7 +2969,7 @@ pub fn row_needs(run: &Run, cx: &Ctx, it: &Item) -> bool {
         return true;
     }
     let names = |r: &crate::rules::Row| matches!(r.verb.v.as_str(), "drink" | "read" | "throw") && r.verb.a.as_deref().and_then(|a| a.split(',').next()) == Some(kind);
-    cx.rules.active(cx.max_rows).map(|(_, r)| r).chain(run.lent_row.iter()).any(|r| names(r) || r.card().is_some_and(|c| crate::meta::unlock_rows_any(c, names)))
+    cx.rules.active(cx.max_rows()).map(|(_, r)| r).chain(run.lent_row.iter()).any(|r| names(r) || r.card().is_some_and(|c| crate::meta::unlock_rows_any(c, names)))
 }
 
 fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {

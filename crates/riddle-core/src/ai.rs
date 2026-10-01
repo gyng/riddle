@@ -277,7 +277,7 @@ pub fn escape_hazard(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
 /// strength at 20/42 hp D7` — the chore drank it before any boss came): a kind a row of the set
 /// uses by name is the row's to use, never the chore's.
 fn use_boosts(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
-    let row_uses = |cx: &Ctx, v: &str, k: &str| cx.rules.active(cx.max_rows).any(|(_, r)| r.verb.v == v && r.verb.a.as_deref() == Some(k));
+    let row_uses = |cx: &Ctx, v: &str, k: &str| cx.rules.active(cx.max_rows()).any(|(_, r)| r.verb.v == v && r.verb.a.as_deref() == Some(k));
     let enchant_known = is_identified(cx.facts, cx.flavours, "enchant") && !row_uses(cx, "read", "enchant");
     let strength_known = is_identified(cx.facts, cx.flavours, "strength") && !row_uses(cx, "drink", "strength");
     if enchant_known && run.hero.weapon.is_some() && run.hero.inv.iter().any(|i| i.kind == "enchant") {
