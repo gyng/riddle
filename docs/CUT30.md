@@ -442,6 +442,24 @@ Tried: deep drills from D23 (`DEEP_FROM = 23`, 4 seeds) — PICKED slows to D23 
   D13, slower to D23* is retired (it prints as retired): a random package is mostly a good package.
   (3) **TUNED and the leave-one-outs run on 8 seeds** (`--tuned-seeds 8 --loo-seeds 8`) until the gate speed-up lands,
   then 16; IDLE, PICKED and RANDOM stay at 16 (the PICKED-vs-IDLE and RANDOM rows: affordable, ~16 CPU-min a bot).
+  The speed-up landed 2026-10-02 (branch `gate-speed` merged): TUNED and the leave-one-outs are back on 16.
+- **Round 7 content (2026-10-02; ours to tune — the owner: "tune content, not the bar"):**
+  - *Guarded arrives at the Captain* (the Burrows' lieutenant, D5 on the base route), not the Warlord met: the picker's
+    first real choice comes before the first wall. It moved PICKED's D13 from 16–40 h to 16–24 h on 16 seeds (2-day
+    probe): PICKED/IDLE at D13 1.50 → 1.67, RANDOM never ahead of PICKED at D13 on 16/16 (was 14–15), IDLE never
+    out-paces PICKED 96 → 100 %. The `second stance` stage and the `stances` reveal read `meet Captain`.
+  - *Steady walks home at 20 % until the record passes D8* (25 % from L3 after): one seed (15) of the sixteen reached
+    D8 only on day 2; the Warrens' attrition sent it home every send. The safety row is read from D8 walls: unchanged.
+  - *A boss's item counter is learned with the item*: learning the Queen's counter (`read silence`) identifies the
+    silence scroll, the Mother's (`throw fire`) the fire flask — the fact named a row the shelf could not hold (the
+    silence scroll stayed unread into the second week; the drill could not pack it either). *The quartermaster packs
+    the pen's counter rows' items* while the boss is in reach, as a drill's.
+  - *`the bottom` (reach D33) is a scale stage* (the King's floor): PICKED reaches it on days 8–12.
+- **Bots (round 7):** the picker takes a swap whose death costs at most half its gain in passes (was ≤ 0.05), and a
+  wall's clear answer whatever the walk reads (score ≥ 0.4: Hunter at the Foundry's golems read +0.3 to +1.1 for two
+  days and lost to a tactic each time); TUNED writes no situation rows (on every floor at the pen's top they slowed the
+  Deep's walk), takes a death's patch only at a wall and never a `return` patch, and writes the Foundry's counter only
+  where the route puts it deep (above that Hunter answers it and a pen row hid that from the picker).
 - **The pen re-scoped** (the owner, 2026-10-01: rules are an optional late fine-tuning layer): `TUNED ≥ 1.5× PICKED at
   D18, D23, D28` → *TUNED beats PICKED by ≥ 15 % at the deepest walls (D28, D33), and is never required* (TUNED on the
   bots' 8 seeds). **Systems by their own output** (the owner): `each system moves TUNED's D23 time` → per-system rows —
