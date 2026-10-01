@@ -436,6 +436,12 @@ Tried: deep drills from D23 (`DEEP_FROM = 23`, 4 seeds) — PICKED slows to D23 
 (Guarded) passes the Warlord before IDLE's drill; RANDOM is slower than PICKED on every seed at D23.
 
 ## Deviations
+- **Round 6, owner-approved 2026-10-01.** (1) *TUNED beats PICKED by ≥ 15 %* is measured at **D29** (past D28) and
+  D33, not D28 and D33: the D28 floor is gated by the walls above it, which drill before the pen opens.
+  (2) The RANDOM row is **RANDOM never beats PICKED at D13 and D23, every seed**; *RANDOM never faster than IDLE to
+  D13, slower to D23* is retired (it prints as retired): a random package is mostly a good package.
+  (3) **TUNED and the leave-one-outs run on 8 seeds** (`--tuned-seeds 8 --loo-seeds 8`) until the gate speed-up lands,
+  then 16; IDLE, PICKED and RANDOM stay at 16 (the PICKED-vs-IDLE and RANDOM rows: affordable, ~16 CPU-min a bot).
 - **The pen re-scoped** (the owner, 2026-10-01: rules are an optional late fine-tuning layer): `TUNED ≥ 1.5× PICKED at
   D18, D23, D28` → *TUNED beats PICKED by ≥ 15 % at the deepest walls (D28, D33), and is never required* (TUNED on the
   bots' 8 seeds). **Systems by their own output** (the owner): `each system moves TUNED's D23 time` → per-system rows —

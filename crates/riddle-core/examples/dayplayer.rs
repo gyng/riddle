@@ -11,7 +11,7 @@ use riddle_core::rng::Rng;
 use riddle_core::Game;
 
 /// Milestones (Cut 30 §6: time-to-milestone = simulated hours to reach each).
-const MILESTONES: [u32; 6] = [8, 13, 18, 23, 28, 33];
+const MILESTONES: [u32; 7] = [8, 13, 18, 23, 28, 29, 33];
 const SYSTEMS: [&str; 6] = ["packages", "pen", "forge", "pets", "bank", "quests"];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -639,18 +639,26 @@ fn main() {
     }
     if !tuned.is_empty() && !picked.is_empty() {
         // (the owner, 2026-10-01: the pen is an optional late fine-tuning layer — it beats the packages at
-        // the deepest walls by ≥ 15 %, and nothing needs it; was `TUNED ≥ 1.5× PICKED at D18, D23, D28`)
-        let rs: Vec<f64> = [4, 5].iter().map(|&i| ratio(&picked, &tuned, i)).collect();
-        bars.push(("TUNED beats PICKED by ≥ 15 % at D28, D33 (median hours)".into(), rs.iter().map(|r| format!("{r:.2}")).collect::<Vec<_>>().join(" · "), rs.iter().all(|r| *r >= 1.15)));
+        // the deepest walls by ≥ 15 %, and nothing needs it; was `TUNED ≥ 1.5× PICKED at D18, D23, D28`;
+        // round 6: past D28 — D29 — not the D28 floor, which the walls above it gate)
+        let rs: Vec<f64> = [5, 6].iter().map(|&i| ratio(&picked, &tuned, i)).collect();
+        bars.push(("TUNED beats PICKED by ≥ 15 % at D29, D33 (median hours)".into(), rs.iter().map(|r| format!("{r:.2}")).collect::<Vec<_>>().join(" · "), rs.iter().all(|r| *r >= 1.15)));
+    }
+    // (the owner, round 6: a random package is mostly a good one, so RANDOM is weighed against the picker —
+    // never ahead of PICKED on any seed at D13 or D23; the RANDOM-vs-IDLE row prints as retired)
+    let mut retired: Vec<(String, String)> = Vec::new();
+    if !random.is_empty() && !picked.is_empty() {
+        let n = random.len().min(picked.len());
+        let at = |i: usize| random.iter().zip(&picked).filter(|(r, p)| hours_or(r, i, cap) >= hours_or(p, i, cap)).count();
+        let (a, b) = (at(1), at(3));
+        bars.push(("RANDOM never beats PICKED at D13, D23 (every seed)".into(), format!("{a}/{n} · {b}/{n}"), a == n && b == n));
     }
     if !random.is_empty() && !idle.is_empty() {
-        // (RANDOM plays IDLE's own sends until its first pick — the Warlord met, D8 — and most seeds reach
-        // D13 a check-in or two later: at D13 it is IDLE's twin, never faster; the random picks tell at D23)
         let n = random.len();
         let not_faster = random.iter().zip(&idle).filter(|(r, i)| hours_or(r, 1, cap) >= hours_or(i, 1, cap)).count();
         let slower = random.iter().zip(&idle).filter(|(r, i)| hours_or(r, 3, cap) > hours_or(i, 3, cap)).count();
         let (a, b) = (100.0 * not_faster as f64 / n as f64, 100.0 * slower as f64 / n as f64);
-        bars.push(("RANDOM never faster than IDLE to D13, slower to D23 (≥ 80 % of seeds each)".into(), format!("{a:.0}% · {b:.0}%"), a >= 80.0 && b >= 80.0));
+        retired.push(("RANDOM never faster than IDLE to D13, slower to D23 (≥ 80 % each)".into(), format!("{a:.0}% · {b:.0}%")));
     }
     if !tuned.is_empty() && !idle.is_empty() {
         let step = (24 / checkins) as f64;
@@ -741,6 +749,9 @@ fn main() {
         if !ok {
             fails += 1;
         }
+    }
+    for (name, value) in &retired {
+        println!("{:<64} {:>18}  retired", name, value);
     }
     println!("dayplayer: {}", if fails > 0 { "FAIL" } else { "all PASS" });
     if gate && fails > 0 {
