@@ -810,7 +810,11 @@ impl Run {
             "stray" => return self.monsters.iter().any(|m| m.stray && m.hp > 0 && map.is_visible(m.pos)),
             _ => return false,
         };
-        let seen = map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]);
+        // (no tile outside the vision's last square is visible: `Map::visible_rows`)
+        let seen = match map.visible_rows() {
+            Some(mut rows) => rows.any(|r| r.into_iter().any(|i| map.tiles[i] == tile && map.visible[i])),
+            None => map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]),
+        };
         seen && match what {
             "nest" => self.monsters.iter().any(|m| m.nest && m.dormant && m.hp > 0),
             // Cut 7 §3: the hunger's shrine can be lit once, whatever was prayed above.
@@ -1010,6 +1014,19 @@ impl Run {
 }
 
 /// Per-turn context borrowed from the game.
+/// The own rows a set may play (`LineageState::max_rows`): 4, one per `row5`…`row10` unlock, at most 6
+/// under the `short_list` variant.
+pub fn max_rows_of(unlocks: &BTreeSet<String>, variant: &str) -> usize {
+    // One descent to the `row…` ids, not six lookups.
+    use std::ops::Bound::{Excluded, Included};
+    let n = 4 + unlocks.range::<str, _>((Included("row"), Excluded("rox"))).filter(|u| ["row5", "row6", "row7", "row8", "row9", "row10"].contains(&u.as_str())).count();
+    if variant == "short_list" {
+        n.min(6)
+    } else {
+        n
+    }
+}
+
 pub struct Ctx<'a> {
     pub facts: &'a mut BTreeSet<String>,
     /// The lineage's trophies: a trophy's note is said the first time only (QA on 56f2a1d:
@@ -1022,7 +1039,9 @@ pub struct Ctx<'a> {
     pub unlocks: &'a BTreeSet<String>,
     pub grudges: &'a [Grudge],
     pub forge: &'a BTreeMap<String, ForgeRow>,
-    pub max_rows: usize,
+    /// The own rows in play (`max_rows_of` the unlocks and the variant, which the context holds
+    /// unchanged): read when a row is chosen, not on every tick — `Ctx::max_rows`. `Some` fixes it.
+    pub max_rows: std::cell::Cell<Option<usize>>,
     pub events: &'a mut Vec<Ev>,
     pub sim: bool,
     /// Cut 11 §1: the live run's provenance log (`Game.prov`; sims never write it).
@@ -1039,6 +1058,20 @@ pub struct Ctx<'a> {
     /// Cut 23 §3: the live run's why-not tally per row of the set (`Game.row_tally`; sims
     /// never write it).
     pub tally: &'a mut Vec<RowTally>,
+}
+
+impl Ctx<'_> {
+    /// The own rows in play (`max_rows_of`), worked out once per context.
+    pub fn max_rows(&self) -> usize {
+        match self.max_rows.get() {
+            Some(n) => n,
+            None => {
+                let n = max_rows_of(self.unlocks, self.variant);
+                self.max_rows.set(Some(n));
+                n
+            }
+        }
+    }
 }
 
 /// Cut 5 §4: a companion that died on an expedition (its kennel entry is gone); a later run
@@ -2043,14 +2076,7 @@ impl LineageState {
     }
     /// Rows the rules may use: 4 plus the row unlocks (cap 10); `short_list` caps at 6.
     pub fn max_rows(&self) -> usize {
-        // One descent to the `row…` ids, not six lookups: this runs on every tick (`ctx`).
-        use std::ops::Bound::{Excluded, Included};
-        let n = 4 + self.unlocks.range::<str, _>((Included("row"), Excluded("rox"))).filter(|u| ["row5", "row6", "row7", "row8", "row9", "row10"].contains(&u.as_str())).count();
-        if self.variant_is("short_list") {
-            n.min(6)
-        } else {
-            n
-        }
+        max_rows_of(&self.unlocks, &self.variant)
     }
     pub fn party_slots(&self) -> u32 {
         1 + self.unlocks.contains("party_slot_2") as u32 + self.unlocks.contains("party_slot_3") as u32 + self.unlocks.contains("party_slot_4") as u32
@@ -3821,7 +3847,6 @@ impl Game {
         let Game { run, lineage, events, sim, prov, row_tally, .. } = self;
         let run = run.as_mut().expect("no live run");
         let set = lineage.active_set.min(lineage.sets.len() - 1);
-        let max_rows = lineage.max_rows();
         let cx = Ctx {
             vault_pref: &lineage.vault_pref,
             lost: &lineage.lost,
@@ -3835,7 +3860,7 @@ impl Game {
             unlocks: &lineage.unlocks,
             grudges: &lineage.grudges,
             forge: &lineage.forge,
-            max_rows,
+            max_rows: std::cell::Cell::new(None),
             events,
             sim: *sim,
             prov,

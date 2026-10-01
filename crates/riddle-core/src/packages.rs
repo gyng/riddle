@@ -1140,7 +1140,10 @@ pub fn apply(l: &mut LineageState, id: &str, action: &str, slot: usize) -> Resul
 }
 
 fn shares(g: &crate::engine::Game, set: &RuleSet, sims: u32) -> (f64, f64, f64, f64, f64) {
-    let rs = crate::forecast::camp_panel(g, set, sims);
+    read_shares(g, &crate::forecast::camp_panel(g, set, sims))
+}
+
+fn read_shares(g: &crate::engine::Game, rs: &[crate::forecast::SimResult]) -> (f64, f64, f64, f64, f64) {
     let k = rs.len().max(1) as f64;
     let best = g.lineage.best_depth;
     let past = rs.iter().filter(|r| r.max_depth > best).count() as f64 / k;
@@ -1151,6 +1154,43 @@ fn shares(g: &crate::engine::Game, set: &RuleSet, sims: u32) -> (f64, f64, f64, 
     (past, bank, death, reach, mean)
 }
 
+/// A game's panel and the wall's, their passages from D1 shared: the wall's sends start at `stone`
+/// and are paid the gold of the floors above it (`forecast::passage_for`: sims from D1, each stopped
+/// at `stone`), and the game's own sends either start at D1 — the same sims, run on (its camp panel,
+/// when the panel is run here, not read from the memo) — or at a shallower start whose passage is the
+/// wall's sims cut there. Priced from those sims (`forecast::passage_from`), each passage is the one
+/// `passage_for` runs; the shares are `shares`' and the wall's past share `at_wall`'s.
+fn panels(g: &crate::engine::Game, set: &RuleSet, sims: u32, stone: Option<u32>) -> ((f64, f64, f64, f64, f64), Option<f64>) {
+    use crate::forecast::{camp_panel, panel_key, passage_from, passage_run, sim_start, FORECAST_SIMS};
+    let wall = stone.map(|s| {
+        let mut w = g.sim_clone();
+        w.lineage.start = s;
+        w
+    });
+    let wall_start = wall.as_ref().map_or(1, sim_start);
+    let start = sim_start(g);
+    // (a panel read from the memo, or continued from a memoised first pass, was run here on a set that
+    // plays alike — `played_key` — not on `set` itself: its passages are left to it)
+    let memo = g.panel_cache.borrow();
+    let cached = memo.contains_key(&panel_key(g, set, sims)) || (sims > FORECAST_SIMS && memo.contains_key(&panel_key(g, set, FORECAST_SIMS)));
+    drop(memo);
+    let own = if wall_start > 1 && start > 1 && start < wall_start && !cached {
+        // (the deeper passage first: the shallower one is its sims cut, then the panel reads it)
+        let w = wall.as_ref().expect("a wall start");
+        let d1 = passage_run(w, set, wall_start);
+        passage_from(w, set, wall_start, &d1);
+        passage_from(g, set, start, &d1);
+        read_shares(g, &camp_panel(g, set, sims))
+    } else {
+        let panel = camp_panel(g, set, sims);
+        if let Some(w) = wall.as_ref().filter(|_| wall_start > 1 && g.lineage.start == 1 && !cached) {
+            passage_from(w, set, wall_start, &panel);
+        }
+        read_shares(g, &panel)
+    };
+    (own, wall.map(|w| shares(&w, set, sims).0))
+}
+
 /// The camp's package prices (`sims` sends each, on the camp's seeds), best move first — read twice:
 /// from where the sends start (the walk and the night), and at the wall (`d_wall`: the share past the
 /// record from the deepest lit waystone at or above it, the wall's own panel as `wall::search` reads it).
@@ -1158,31 +1198,31 @@ fn shares(g: &crate::engine::Game, set: &RuleSet, sims: u32) -> (f64, f64, f64, 
 /// at the frontier while the walk to it suffers reads on the first panel. (Read from the stone alone, a
 /// stance that walks home early looked best.)
 pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
-    let base = shares(g, g.lineage.rules(), sims);
     let best = g.lineage.best_depth;
     let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
-    let at_wall = |c: &crate::engine::Game, set: &RuleSet| -> Option<f64> {
-        let s = stone?;
-        let mut w = c.sim_clone();
-        w.lineage.start = s;
-        Some(shares(&w, set, sims).0)
-    };
-    let wall_base = at_wall(g, g.lineage.rules());
-    let mut out: Vec<PkgOption> = Vec::new();
-    for (id, action, slot) in candidates(&g.lineage) {
+    let (base, wall_base) = panels(g, g.lineage.rules(), sims, stone);
+    let one = |g: &crate::engine::Game, (id, action, slot): &(String, String, usize)| -> Option<PkgOption> {
         let mut c = g.sim_clone();
-        if apply(&mut c.lineage, &id, &action, slot).is_err() {
-            continue;
-        }
+        apply(&mut c.lineage, id, action, *slot).ok()?;
         let set = compile(&c.lineage);
-        let (past, bank, death, reach, mean) = shares(&c, &set, sims);
-        let d_wall = match (wall_base, at_wall(&c, &set)) {
+        let ((past, bank, death, reach, mean), wall) = panels(&c, &set, sims, stone);
+        let d_wall = match (wall_base, wall) {
             (Some(a), Some(b)) => b - a,
             _ => 0.0,
         };
-        let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
-        out.push(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall });
-    }
+        let price = if action == "level" { level_price(&g.lineage, id).unwrap_or(0) } else { 0 };
+        Some(PkgOption { id: id.clone(), action: action.clone(), slot: *slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall })
+    };
+    // Each move's two panels are a pure function of the game (a clone of it, the move made): with
+    // moves enough to fill the threads, the moves share them (`forecast::par_map`, each worker's
+    // panels one sim after another) rather than each panel its sims — a panel's sims on many threads
+    // run past its tick budget by the sims in flight when it is spent. Same results either way.
+    let moves = candidates(&g.lineage);
+    let mut out: Vec<PkgOption> = if moves.len() > 1 && 2 * moves.len() >= crate::forecast::sim_width() {
+        crate::forecast::par_map(g, moves, one).into_iter().flatten().collect()
+    } else {
+        moves.iter().filter_map(|m| one(g, m)).collect()
+    };
     out.sort_by(|a, b| score(b).total_cmp(&score(a)));
     out
 }

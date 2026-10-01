@@ -120,8 +120,20 @@ pub fn ident_fact(flavours: &Flavours, kind: &str) -> Option<String> {
 }
 
 pub fn is_identified(facts: &BTreeSet<String>, flavours: &Flavours, kind: &str) -> bool {
-    match ident_fact(flavours, kind) {
-        Some(f) => facts.contains(&f),
+    // (`ident_fact`'s text, written into a reused buffer: this is read on the tick's hot paths)
+    thread_local! {
+        static BUF: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+    }
+    match flavours.flavour_of(kind) {
+        Some(f) => BUF.with(|b| {
+            let mut b = b.borrow_mut();
+            b.clear();
+            b.push_str("item:");
+            b.push_str(f);
+            b.push('=');
+            b.push_str(kind);
+            facts.contains(b.as_str())
+        }),
         None => true,
     }
 }

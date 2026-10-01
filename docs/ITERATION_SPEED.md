@@ -363,6 +363,103 @@ round to the machinery (the core is changing on `cut30`). *The metrics jobs whos
 (bots, cohort, gold, forge, paired, divergence) are not kept per job: their key would be all of `metrics.rs`, so a
 row edit replays them anyway; the leg's printout cache covers an unchanged binary.
 
+## 0f. Round 5 — the hot path, 2026-10-02 (branch `hotpath`, on `gate-speed` 2fa8532)
+
+*The sim and forecast internals only — no data table, bar or bot policy. Every change is exact: the same
+results by construction, proved below against 2fa8532's own binaries. A shared box (load 13–24 on 32 threads,
+another agent's gate beside it), so times are CPU seconds, A/B pairs side by side; at most 8 threads.*
+
+**Where a PICKED fortnight's CPU went** (seed 1, one thread, `DP_PHASES=1`): 1800 CPU-s = the picker's panels 1534
+(85 %) + the 42 absences 266. Profiled with the pprof scratch crate (`scratchpad/hp/prof`: the dayplayer's own
+`main` linked in, or `package_options` on saved camps — `Game::save` at each check-in of a PICKED-like loop, seed 1
+days 3–11 — with folded stacks and per-line leaf tables). Two findings past the tick itself:
+
+- **The wall's passage was a fifth of the picker.** Each move reads two panels — from the sends' start, and at the
+  wall (the deepest lit stone) — and the wall's sends are paid the floors above the stone, priced by 20 sims from
+  D1 stopped at the stone (`passage_for`): sims the move's own D1 panel had just run, on the same seeds, past the
+  stone.
+- **~11 ticks per hero action** in a panel's sims (5.7 monsters on a floor, 1.2 µs a tick): what every tick did —
+  `max_rows` (a `BTreeSet` range per `ctx()`), `on_vision`'s two `Vec`s, `hunger_tick`'s floor scan before its
+  clock test — was as costly as a flood.
+
+What changed (9 commits; each its own test run and fingerprint):
+
+1. **The wall's passage from sims already run** (`forecast::passage_from`, `packages::panels`). `SimResult.arrive`
+   records each new deepest floor as the sim reached it (depth, ticks, loot): a sim stopped at a shallower floor is
+   that sim cut there (`cut_at`). Sends from D1: the wall's passage reads the move's D1 panel cut at the stone (the
+   sims past it run as before, the passage's budget applied to the whole in order). Sends from a shallower stone:
+   the start's passage is the wall's passage sims cut at the start. Only a panel run here on that very set is read
+   (one from the memo may have run on a set that only plays alike, `played_key`); the memo entries are the ones
+   `passage_for` writes, at the same moment. `package_options` on seed 1's day-3–6 camps: 81.9 → 55.0 s alone.
+2. **The moves share the threads, not each panel its sims** (`packages::options`, `forecast::sim_width`): with
+   2 × moves ≥ the panel's width the moves run on `par_map`, each worker's panels one sim after another. A panel's
+   sims on W threads run past its tick budget by up to W − 1 sims in flight; PICKED 4 days at `--threads 4`:
+   166.7 → 144.4 CPU-s from this alone (one thread: 130.7). Same results at any width.
+3. **The tick's own work.** `item_def` / `monster_def` by an open-addressed index (the first entry of a kind, as the
+   scan; tested against it); `choose_and_act` borrows the set's rows (it cloned every row every action);
+   `rules::shadows` by reference; `oscillation_guard` counts the window's distinct tiles in place; `can_take` reads
+   the spares' need only when it asks for spares; `meta::unlock_rows_any` builds the cards' rows once
+   (`row_needs` built them per item per slot); `is_identified` without a `format!`; `Ctx::max_rows` worked out
+   when a row is chosen, not per tick; `hunger_tick` tests its clock first; `on_vision` compares the monsters in
+   view with the last in place; a shadowed row's reason is not formatted in a sim (`row_why` keeps none there).
+4. **The floods** (`tiles::each_step`): neighbours by index offset, the row's edges tested once — the same tests in
+   `DIRS8` order — for `bfs_layers` and `flood_resume`. The chores' tests reordered cheap-first where every one is
+   pure (the den and skipped items before `would_take`; the stairs seen before the floor's `seen_pct` pass, since
+   `descend_step` declines without a side effect otherwise).
+5. **Vision.** `Map::vis_from` keeps what `update_vision` last worked out (the hero's tile, the radius, the map's
+   size, the square's walls as bits — read a row slice at a time): the same inputs return at once (`visible` is
+   only written there; nothing unsees a tile). And the square itself: no tile outside it is visible, so
+   `situations_seen` and `sees_situation` scan it, not the map. Never saved; equal on every map.
+6. **One look reads the pack once** (`turn::PackRead`): what `would_take` / `can_take` read of the pack alone
+   (each slot's `row_needs`, the spares, the cheapest consumable, the swap, `queen_slot`) worked out once for all
+   the items `nearest_item_step` weighs; the public `would_take` / `can_take` unchanged.
+
+**Measured** (CPU-s; base = 2fa8532's binaries, built the same way):
+
+| | Base | After | |
+|---|---|---|---|
+| `package_options(32)` on seed 1's camps, one thread (days 5 / 8 / 11) | 25.1 / 37.4 / 27.3 s | 10.9 / 15.9 / 12.3 s | **2.3×** |
+| PICKED fortnight, seed 1, `--threads 1` | 1800 (panels 1534, absences 266) | 1002 (panels 729, absences 273) | 1.80× (panels 2.1×) |
+| PICKED fortnight, seed 1, `--threads 8` | 3521 (771 s wall) | 1004 (333 s wall) | **3.5×** (wall 2.3×) |
+| TUNED, seed 1, 8 days, `--threads 1` (phases) | — | 305: panels 238, wall search 24, absences 41, `death()` 2 | |
+| dayplayer, 4 bots × 8 seeds × 5 days, `--threads 4` | 4677 (1175 s wall) | 2783 (701 s wall) | 1.68× |
+| metrics `--quick --seeds 2` (`--threads 2`, `RIDDLE_THREADS=2`) | 7720 (3599 s wall) | 4839 (2210 s wall) | 1.60× |
+| per-tick (the table's quiet FULL batch) | 3.58 µs | 1.23 µs | |
+| `death()` with deltas, mean of 7 | 0.98 s | 0.61 s | |
+
+At a gate's widths the moves' sharing removes the sims run past the budget outright — 8 threads cost what one does
+(1004 vs 1002 CPU-s) — so the fortnight as the gate plays it is 3.5× cheaper; at one thread 1.8×, the absences'
+share now a quarter of it. By the §0e accounting the fresh full gate (dayplayer ~120 k CPU-s, of which the PICKED /
+TUNED / leave-one-out fortnights ~115 k and IDLE / RANDOM's ~5 k; table ~45 k; qa ~3 k) comes to ~33 + 5 + 28 + 3 ≈
+70 k CPU-s, **~40–50 min** on the 32 threads (an estimate: this round could not use more than 8); `cut30`'s
+return of TUNED and the leave-one-outs to 16 seeds adds ~17 k of that, ~10 min. `--fast` keeps its critical path,
+IDLE's fourteen-day chain of absences (below): its table share is ~1.6× cheaper, but it stays over 3 min.
+
+The absences did not move: their cost is the history ring (`Run` + facts cloned every `HISTORY_STRIDE` and dropped
+31 strides later, ~45 % of an absence) and the trace's provenance (`view_because`), which sims never pay. So IDLE
+and RANDOM fortnights — and `--fast`'s critical path, IDLE's chain — are where they were; §4.1 still applies.
+
+**Proof (bit-identical)**, each against 2fa8532's own binaries on the same arguments, printouts diffed whole:
+- `cargo test --profile fast -p riddle-core`: 461 passed (the replay hash among them) after every commit;
+- `examples/fingerprint` **cbc89a0d92fd3db8** after every commit;
+- `package_options` on 6 saved camps (seed 1, days 3–11): the options' `Debug` hash identical every run;
+- dayplayer PICKED seed 1, 14 days at `--threads 1` and `--threads 8`: identical to the base's but for the `(Ns)` and
+  phase-CPU lines (and at 4 threads to one thread: the moves' sharing);
+- dayplayer `--bots idle,picked,tuned,random`, 8 seeds × 5 days: identical but for the `(Ns)` line;
+- metrics `--quick --seeds 2`: identical but for the wall-clock lines (`death()` mean, per-tick cost, divergence's
+  slowest scene, verdict time, the `(Ns)` line);
+- **rebased onto `cut30` 4d08386** (round 7, which moved the fingerprint): clean, no conflict; fingerprint
+  f81bfcfe4fc17ffb, the same as `cut30`'s own build; dayplayer 4 bots × 2 seeds × 4 days identical to `cut30`'s
+  (615 → 344 CPU-s at one thread).
+
+**Not done, and why.** *The history ring* (§4.1): truth-bearing, and its cheap forms (`Arc` facts, interned kinds,
+`clone_from` reuse) change `Run`'s types or need a hand-written `Clone` a later field could silently miss — the
+absences' remaining cost. *Sharing a chore's floods* (one flood from the hero for the item, stairs and frontier
+tests of one action): ~3 % for a refactor of five consumers' side-effect contracts. *Floor generation memoised
+across panels* (a panel's sim i plays the same floors on every move, ~4 % of a panel): population reads the run's
+RNG and the lineage, so its key is not provably complete. *The wall search's screening panels on `par_map`*: 24 of
+TUNED's 305 CPU-s, and its panels land in the real game's memo, whose order would have to be replayed exactly.
+
 ## 1. The evaluation loop (the afternoon)
 
 Today: QA round (2 players, parallel, ~55 min) → triage + fixes → reship → QA round 2 →

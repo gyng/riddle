@@ -58,12 +58,30 @@ pub struct Map {
     pub visible: Vec<bool>,
     /// Corridor tiles (narrow passages), for `in_corridor` and retreat preference.
     pub corridor: Vec<bool>,
+    /// What `visible` was last worked out from (`update_vision`): not the map's state, never saved,
+    /// and equal on every map.
+    #[serde(skip)]
+    pub vis_from: VisFrom,
 }
+
+/// `update_vision`'s inputs when it last ran by the walls' bits — (from, radius, w, h, the square's
+/// sight-blocking tiles): the same inputs give the same `visible`, already there, and every tile of
+/// it already `seen` (only `update_vision` writes `visible`; nothing unsees a tile). And the square
+/// it last ran on (from, radius): no tile outside it is `visible` (`Map::visible_rows`).
+#[derive(Clone, Debug, Default)]
+pub struct VisFrom(Option<(Pos, i32, i32, i32, [u64; LOS_MASK_WORDS])>, Option<(Pos, i32)>);
+
+impl PartialEq for VisFrom {
+    fn eq(&self, _: &VisFrom) -> bool {
+        true
+    }
+}
+impl Eq for VisFrom {}
 
 impl Map {
     pub fn new(w: i32, h: i32, fill: Tile) -> Map {
         let n = (w * h) as usize;
-        Map { w, h, tiles: vec![fill; n], seen: vec![false; n], visible: vec![false; n], corridor: vec![false; n] }
+        Map { w, h, tiles: vec![fill; n], seen: vec![false; n], visible: vec![false; n], corridor: vec![false; n], vis_from: VisFrom::default() }
     }
     pub fn in_bounds(&self, p: Pos) -> bool {
         p.x >= 0 && p.y >= 0 && p.x < self.w && p.y < self.h
@@ -176,11 +194,25 @@ impl Map {
         (seen * 100 / total.max(1)) as i32
     }
     /// Recompute `visible` from `from` with radius and line of sight; marks seen.
+    /// The tiles `visible` may hold, as each row's index range in index order — the square vision
+    /// last ran on, clipped to the map — or `None` when that is not known (every tile then).
+    pub fn visible_rows(&self) -> Option<impl Iterator<Item = std::ops::RangeInclusive<usize>> + '_> {
+        let (from, r) = self.vis_from.1?;
+        let (x0, x1) = ((from.x - r).max(0), (from.x + r).min(self.w - 1));
+        let (y0, y1) = ((from.y - r).max(0), (from.y + r).min(self.h - 1));
+        let w = self.w;
+        Some((y0..=y1).filter(move |_| x0 <= x1).map(move |y| (y * w + x0) as usize..=(y * w + x1) as usize))
+    }
     pub fn update_vision(&mut self, from: Pos, radius: i32) {
-        for v in self.visible.iter_mut() {
-            *v = false;
-        }
+        let memo = self.vis_from.0.take();
+        self.vis_from.1 = Some((from, radius.max(0)));
+        let clear = |visible: &mut [bool]| {
+            for v in visible.iter_mut() {
+                *v = false;
+            }
+        };
         if !self.in_bounds(from) || !(0..=LOS_TABLE_MAX).contains(&radius) {
+            clear(&mut self.visible);
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
                     let p = from.step((dx, dy));
@@ -206,19 +238,30 @@ impl Map {
             // test as the walk's, on every in-bounds end (their points are in the square).
             let (side, h) = (2 * radius + 1, self.h);
             let mut walls = [0u64; LOS_MASK_WORDS];
+            // (a row's in-bounds stretch of the square as one slice, its walls as a run of bits)
+            let (x0, x1) = ((from.x - radius).max(0), (from.x + radius).min(w - 1));
             for dy in -radius..=radius {
                 let y = from.y + dy;
-                if y < 0 || y >= h {
+                if y < 0 || y >= h || x0 > x1 {
                     continue;
                 }
-                for dx in -radius..=radius {
-                    let x = from.x + dx;
-                    if x >= 0 && x < w && tiles[(y * w + x) as usize].blocks_sight() {
-                        let bit = ((dy + radius) * side + dx + radius) as usize;
-                        walls[bit >> 6] |= 1 << (bit & 63);
-                    }
+                let row = &tiles[(y * w + x0) as usize..=(y * w + x1) as usize];
+                let mut bits: u64 = 0;
+                for (j, t) in row.iter().enumerate() {
+                    bits |= (t.blocks_sight() as u64) << j;
+                }
+                let bit = ((dy + radius) * side + x0 - from.x + radius) as usize;
+                walls[bit >> 6] |= bits << (bit & 63);
+                if (bit & 63) + row.len() > 64 {
+                    walls[(bit >> 6) + 1] |= bits >> (64 - (bit & 63));
                 }
             }
+            let key = (from, radius, w, h, walls);
+            self.vis_from.0 = Some(key);
+            if memo == Some(key) {
+                return;
+            }
+            clear(&mut self.visible);
             let mut k = 0;
             for dy in -radius..=radius {
                 for dx in -radius..=radius {
@@ -236,6 +279,7 @@ impl Map {
             }
             return;
         }
+        clear(&mut self.visible);
         let mut k = 0;
         for dy in -radius..=radius {
             for dx in -radius..=radius {
@@ -328,8 +372,9 @@ impl Map {
         if !self.in_bounds(start) {
             return dist;
         }
-        let (w, h) = (self.w, self.h);
+        let w = self.w as usize;
         let tiles = &self.tiles[..];
+        let seen = &self.seen[..];
         let mut queue: Vec<usize> = Vec::with_capacity(n);
         let si = self.idx(start);
         dist[si] = 0;
@@ -346,30 +391,18 @@ impl Map {
             }
             head += 1;
             let d = dist[pi] + 1;
-            let (px, py) = (pi as i32 % w, pi as i32 / w);
-            for (dx, dy) in DIRS8 {
-                let (qx, qy) = (px + dx, py + dy);
-                if qx < 0 || qy < 0 || qx >= w || qy >= h {
-                    continue;
-                }
-                let qi = (qy * w + qx) as usize;
-                // Every test is pure, so their order is free: the visited one first (most
-                // neighbours of a flood are), the closure last.
-                if dist[qi] >= 0 || !tiles[qi].passable() {
-                    continue;
-                }
-                if dx != 0 && dy != 0 && (tiles[(py * w + qx) as usize] == Tile::Wall || tiles[(qy * w + px) as usize] == Tile::Wall) {
-                    continue;
-                }
-                if (seen_only && !self.seen[qi]) || blocked(Pos::new(qx, qy)) {
-                    continue;
+            // Every test is pure, so their order is free: the visited one first (most
+            // neighbours of a flood are), the closure last.
+            each_step(tiles, w, self.h as usize, pi, &mut dist, |dist, qi, qx, qy| {
+                if (seen_only && !seen[qi]) || blocked(Pos::new(qx, qy)) {
+                    return;
                 }
                 dist[qi] = d;
                 if let Some(parent) = parent.as_deref_mut() {
                     parent[qi] = pi as i32;
                 }
                 queue.push(qi);
-            }
+            });
         }
         dist
     }
@@ -391,7 +424,7 @@ impl Map {
         }
     }
     pub fn flood_resume(&self, dist: &mut [i32], queue: &mut Vec<u32>, head: &mut usize, until: Option<usize>, within: Option<i32>) {
-        let (w, h) = (self.w, self.h);
+        let (w, h) = (self.w as usize, self.h as usize);
         let tiles = &self.tiles[..];
         while *head < queue.len() {
             let pi = queue[*head] as usize;
@@ -400,22 +433,10 @@ impl Map {
             }
             *head += 1;
             let d = dist[pi] + 1;
-            let (px, py) = (pi as i32 % w, pi as i32 / w);
-            for (dx, dy) in DIRS8 {
-                let (qx, qy) = (px + dx, py + dy);
-                if qx < 0 || qy < 0 || qx >= w || qy >= h {
-                    continue;
-                }
-                let qi = (qy * w + qx) as usize;
-                if dist[qi] >= 0 || !tiles[qi].passable() {
-                    continue;
-                }
-                if dx != 0 && dy != 0 && (tiles[(py * w + qx) as usize] == Tile::Wall || tiles[(qy * w + px) as usize] == Tile::Wall) {
-                    continue;
-                }
+            each_step(tiles, w, h, pi, dist, |dist, qi, _, _| {
                 dist[qi] = d;
                 queue.push(qi as u32);
-            }
+            });
         }
     }
     /// First step from `start` toward `goal` along BFS parents (None if unreachable or equal).
@@ -453,6 +474,45 @@ impl Map {
             }
         }
         best.filter(|(d, _)| *d < dist[self.idx(p)]).map(|(_, q)| q)
+    }
+}
+
+/// The flood's steps from tile `pi` of a `w` × `h` map, in `DIRS8` order: each neighbour in bounds,
+/// not yet reached (read first: most neighbours of a flood were), passable, and not across a
+/// wall's corner (`Map::can_step`) is passed to `step` with its coordinates (`dist` < 0 is not yet reached). The neighbours by index
+/// offset and the row's edges tested once — the floods' inner loop (`bfs_layers`, `flood_resume`).
+#[inline(always)]
+fn each_step(tiles: &[Tile], w: usize, h: usize, pi: usize, dist: &mut [i32], mut step: impl FnMut(&mut [i32], usize, i32, i32)) {
+    let (py, px) = (pi / w, pi % w);
+    let (l, r, u, d) = (px > 0, px + 1 < w, py > 0, py + 1 < h);
+    let (x, y) = (px as i32, py as i32);
+    let open = |dist: &[i32], q: usize| dist[q] < 0 && tiles[q].passable();
+    // (a diagonal step: neither orthogonal tile it passes between is a wall)
+    let corner = |a: usize, b: usize| tiles[a] != Tile::Wall && tiles[b] != Tile::Wall;
+    // DIRS8: (0,-1) (1,0) (0,1) (-1,0) (1,-1) (1,1) (-1,1) (-1,-1)
+    if u && open(dist, pi - w) {
+        step(dist, pi - w, x, y - 1);
+    }
+    if r && open(dist, pi + 1) {
+        step(dist, pi + 1, x + 1, y);
+    }
+    if d && open(dist, pi + w) {
+        step(dist, pi + w, x, y + 1);
+    }
+    if l && open(dist, pi - 1) {
+        step(dist, pi - 1, x - 1, y);
+    }
+    if r && u && open(dist, pi + 1 - w) && corner(pi + 1, pi - w) {
+        step(dist, pi + 1 - w, x + 1, y - 1);
+    }
+    if r && d && open(dist, pi + 1 + w) && corner(pi + 1, pi + w) {
+        step(dist, pi + 1 + w, x + 1, y + 1);
+    }
+    if l && d && open(dist, pi - 1 + w) && corner(pi - 1, pi + w) {
+        step(dist, pi - 1 + w, x - 1, y + 1);
+    }
+    if l && u && open(dist, pi - 1 - w) && corner(pi - 1, pi - w) {
+        step(dist, pi - 1 - w, x - 1, y - 1);
     }
 }
 

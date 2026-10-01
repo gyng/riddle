@@ -171,10 +171,13 @@ pub fn explore_step(run: &mut Run, cx: &mut Ctx) -> bool {
 
 /// `chore`: the chores leave a sleeping den's gold alone (a `pick_up` row does not).
 fn nearest_item_step(run: &mut Run, cx: &mut Ctx, chore: bool) -> bool {
+    // (one look: the pack read once for every item — `turn::PackRead`)
+    let pack = crate::turn::PackRead::default();
     let cands: Vec<Pos> = run
         .items
         .iter()
-        .filter(|fi| run.floor.map.is_seen(fi.pos) && crate::turn::would_take(run, cx, &fi.item) && !(chore && run.in_den_zone(fi.pos)) && !(chore && run.skip_items.contains(&fi.item.id)))
+        // (every test is pure: the cheap ones first)
+        .filter(|fi| run.floor.map.is_seen(fi.pos) && !(chore && run.skip_items.contains(&fi.item.id)) && !(chore && run.in_den_zone(fi.pos)) && crate::turn::would_take_in(run, cx, &fi.item, &pack))
         .map(|fi| fi.pos)
         .collect();
     if cands.is_empty() {
@@ -276,7 +279,7 @@ pub fn escape_hazard(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
 /// strength at 20/42 hp D7` — the chore drank it before any boss came): a kind a row of the set
 /// uses by name is the row's to use, never the chore's.
 fn use_boosts(run: &mut Run, cx: &mut Ctx) -> Option<Verb> {
-    let row_uses = |cx: &Ctx, v: &str, k: &str| cx.rules.active(cx.max_rows).any(|(_, r)| r.verb.v == v && r.verb.a.as_deref() == Some(k));
+    let row_uses = |cx: &Ctx, v: &str, k: &str| cx.rules.active(cx.max_rows()).any(|(_, r)| r.verb.v == v && r.verb.a.as_deref() == Some(k));
     let enchant_known = is_identified(cx.facts, cx.flavours, "enchant") && !row_uses(cx, "read", "enchant");
     let strength_known = is_identified(cx.facts, cx.flavours, "strength") && !row_uses(cx, "drink", "strength");
     if enchant_known && run.hero.weapon.is_some() && run.hero.inv.iter().any(|i| i.kind == "enchant") {
@@ -343,7 +346,10 @@ pub fn chore(run: &mut Run, cx: &mut Ctx, v: &View) -> Verb {
     // The chore threshold for `descend` is 60% seen (Cut 2 §1): once that much of the floor
     // is known and the way down is too, the chores go down rather than sweep the rest. A
     // heir with no rows at all has no orders and only wanders (the chores never carry it).
-    if !home && !cx.rules.rows.is_empty() && run.floor.map.seen_pct() >= CHORE_DESCEND_SEEN && !stairs_sealed(run) && descend_step(run, cx) {
+    // (unsealed stairs neither stood on nor seen: `descend_step` declines without a side effect, so
+    // the floor's seen share — a pass over every tile — is not read)
+    let s = run.floor.stairs_down;
+    if !home && !cx.rules.rows.is_empty() && (run.hero.pos == s || run.floor.map.is_seen(s)) && run.floor.map.seen_pct() >= CHORE_DESCEND_SEEN && !stairs_sealed(run) && descend_step(run, cx) {
         return Verb::new("descend");
     }
     if explore_step(run, cx) {

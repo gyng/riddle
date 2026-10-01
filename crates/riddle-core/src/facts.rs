@@ -210,6 +210,12 @@ pub fn upgrade_counter_facts(facts: &mut BTreeSet<String>) {
 /// Sight-based facts, called after every vision update. Cheap when nothing changed.
 pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
     let map = &run.floor.map;
+    // (the monsters in view, read in place against the last: the same ids in the same order is the
+    // common tick, and returns before anything is collected)
+    let mut in_view = run.monsters.iter().filter(|m| m.hp > 0 && map.is_visible(m.pos)).map(|m| m.id);
+    if run.last_visible.iter().all(|id| in_view.next() == Some(*id)) && in_view.next().is_none() {
+        return;
+    }
     let visible: Vec<usize> =
         (0..run.monsters.len()).filter(|i| run.monsters[*i].hp > 0 && map.is_visible(run.monsters[*i].pos)).collect();
     let ids: Vec<u32> = visible.iter().map(|&i| run.monsters[i].id).collect();

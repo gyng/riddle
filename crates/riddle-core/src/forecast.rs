@@ -51,6 +51,22 @@ pub struct SimResult {
     pub oath_steps: u8,
     /// Cut 29 §6: the waystone passage paid at the send (in `loot_kept`).
     pub passage: i32,
+    /// Each new deepest floor as the sim reached it — (max depth, ticks, loot carried) after the
+    /// tick that took it there (the start floor at tick 0): the sim stopped at any shallower
+    /// `stop_depth` is this one cut there (`cut_at`), so a passage priced from D1 to a floor reads
+    /// a deeper run's sims instead of running them again (`passage_from`).
+    pub arrive: Vec<(u32, u32, i32)>,
+}
+
+impl SimResult {
+    /// This sim as the same sim stopped on arriving at `stop` would have ended — the fields a
+    /// passage reads (`max_depth`, `loot`, `ticks`); a sim that ended above `stop` is itself.
+    fn cut_at(&self, stop: u32) -> SimResult {
+        match self.arrive.iter().find(|a| a.0 >= stop) {
+            Some(&(depth, ticks, loot)) if self.max_depth >= stop => SimResult { max_depth: depth, tier: ExitTier::Return, cause: None, loot_kept: 0, timed_out: false, ticks, loot, fires: Vec::new(), oath: false, oath_progress: 0.0, oath_steps: 0, passage: 0, arrive: Vec::new() },
+            _ => self.clone(),
+        }
+    }
 }
 
 /// Simulate `sims` fresh expeditions from the current lineage with `rules`, each stopping once
@@ -129,11 +145,17 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
     let mut g = sim_game(game, rules, tag, i, passage);
     let mut n = 0;
     let mut fires = vec![0u32; rules.rows.len()];
+    let mut arrive: Vec<(u32, u32, i32)> = g.run.as_ref().map(|r| vec![(r.max_depth, 0, r.loot.max(0))]).unwrap_or_default();
     while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.max_depth < stop_depth) && n < SIM_MAX_TICKS {
         g.tick();
         count_fires(&mut fires, &g.events);
         g.events.clear();
         n += 1;
+        if let Some(r) = g.run.as_ref() {
+            if arrive.last().is_none_or(|a| r.max_depth > a.0) {
+                arrive.push((r.max_depth, n, r.loot.max(0)));
+            }
+        }
     }
     let run = g.run.as_ref().unwrap();
     let mut keyed: Vec<(u64, u32)> = Vec::new();
@@ -149,7 +171,7 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
     let oath = sworn.is_some_and(|o| crate::oath::kept(o, run));
     let oath_progress = sworn.map_or(0.0, |o| crate::oath::progress(o, run));
     let oath_steps = sworn.map_or(0, |o| crate::oath::steps(o, run));
-    (n, SimResult { oath, oath_progress, oath_steps, ..sim_result(run, n, keyed) })
+    (n, SimResult { oath, oath_progress, oath_steps, arrive, ..sim_result(run, n, keyed) })
 }
 
 /// Cut 27 §2: a row's key in `SimResult.fires` — its conditions and verb (not its origin).
@@ -178,7 +200,7 @@ fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> S
     let tier = run.over.unwrap_or(ExitTier::Return);
     // (Cut 27 §1: a waystone start's passage is the send's gold too — paid at the send)
     let loot_kept = run.loot.max(0) * run.yield_pct(tier) / 100 + run.passage;
-    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage }
+    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage, arrive: Vec::new() }
 }
 
 /// The sims `from..sims` of a panel on the cores, in index order: a worker takes the next index
@@ -307,6 +329,15 @@ fn width() -> Option<usize> {
 /// The worker count of a panel now: this thread's width, else `max_threads`.
 fn sim_threads() -> usize {
     width().unwrap_or_else(max_threads).max(1)
+}
+
+/// The threads a panel read now would run on (1 when its sims run one after another).
+pub fn sim_width() -> usize {
+    if parallel_sims() {
+        sim_threads()
+    } else {
+        1
+    }
 }
 
 pub fn set_parallel_sims(on: bool) {
@@ -671,6 +702,16 @@ pub fn sim_passage(game: &Game, rules: &RuleSet) -> Option<(u32, i32)> {
 /// every floor above it clears ≥ `FOLD_CLEAR`, the mean loot carried on arrival (coins), else 0
 /// (a set that would not have cleared them is paid nothing). Memoised per (lineage, rules).
 pub fn passage_for(game: &Game, rules: &RuleSet, start: u32) -> i32 {
+    passage_from(game, rules, start, &[])
+}
+
+/// `passage_for` reading `have` for its first sims: sims `0..k` of a panel from D1 on this
+/// lineage (its start at 1, no passage) and `rules`, on the camp's seeds, each run at least to
+/// `start` or its end — a camp panel of the lineage at D1, or the sims of a deeper passage.
+/// Each is cut where it arrived at `start` (`SimResult::cut_at`): the sim the passage runs
+/// stops there and has played the same ticks, so the panel is the one `passage_for` runs —
+/// the sims past `have` run as before, the budget applied to the whole in order.
+pub fn passage_from(game: &Game, rules: &RuleSet, start: u32, have: &[SimResult]) -> i32 {
     if start <= 1 {
         return 0;
     }
@@ -681,8 +722,7 @@ pub fn passage_for(game: &Game, rules: &RuleSet, start: u32) -> i32 {
     if let Some(v) = game.forecast_cache.borrow().get(&key) {
         return v.0 as i32;
     }
-    let tag = forecast_tag(game, game.lineage.best_depth + 1);
-    let ended = simulate_budget(&g, rules, PASSAGE_SIMS, tag, start, DELTA_TICK_BUDGET);
+    let ended = passage_sims(&g, rules, start, have);
     let clears = (1..start).all(|d| floor_clear(&ended, d).is_some_and(|c| c >= FOLD_CLEAR - 1e-9));
     let arrived: Vec<&SimResult> = ended.iter().filter(|r| r.max_depth >= start).collect();
     let coins = if clears && !arrived.is_empty() { (arrived.iter().map(|r| r.loot as f64).sum::<f64>() / arrived.len() as f64).round() as i32 } else { 0 };
@@ -692,6 +732,24 @@ pub fn passage_for(game: &Game, rules: &RuleSet, start: u32) -> i32 {
     }
     cache.insert(key, (coins as f64, ended.len() as u32));
     coins
+}
+
+/// The sims a passage to `start` is priced on, for `g` already at D1 with no passage
+/// (`passage_from`'s clone), `have` read first.
+fn passage_sims(g: &Game, rules: &RuleSet, start: u32, have: &[SimResult]) -> Vec<SimResult> {
+    let tag = forecast_tag(g, g.lineage.best_depth + 1);
+    let prefix: Vec<SimResult> = have.iter().take(PASSAGE_SIMS as usize).map(|r| r.cut_at(start)).collect();
+    simulate_budget_from(g, rules, PASSAGE_SIMS, tag, start, DELTA_TICK_BUDGET, prefix)
+}
+
+/// The sims of `game`'s passage to `start` on `rules` (`passage_for`'s, not memoised): for a
+/// caller that prices passages to shallower floors of the same lineage and set from them
+/// (`passage_from`).
+pub fn passage_run(game: &Game, rules: &RuleSet, start: u32) -> Vec<SimResult> {
+    let mut g = game.sim_clone();
+    g.lineage.start = 1;
+    g.passage = None;
+    passage_sims(&g, rules, start, &[])
 }
 
 /// Cut 23 §2: the smallest share one of `sims` sims makes, in whole percent (`⌈100 / sims⌉`;

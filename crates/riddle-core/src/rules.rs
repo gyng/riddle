@@ -447,12 +447,12 @@ pub fn shadows(a: &Row, b: &Row, usable: &impl Fn(&Cond) -> bool) -> bool {
         return false;
     }
     // What changes how a verb acts besides its argument: the party scope and the den raid.
-    let scope = |r: &Row| -> Vec<Cond> {
-        let mut v: Vec<Cond> = r.conds.iter().filter(|c| c.k == "party" || (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief"))).cloned().collect();
+    fn scope(r: &Row) -> Vec<&Cond> {
+        let mut v: Vec<&Cond> = r.conds.iter().filter(|c| c.k == "party" || (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief"))).collect();
         v.sort_by(|x, y| (&x.k, &x.t, x.n).cmp(&(&y.k, &y.t, y.n)));
         v.dedup();
         v
-    };
+    }
     // Cut 19 §2: `return` walks to the stairs like `bank` and fails when a foe stands in the
     // way, so only `hold` always acts.
     let always = a.verb.v == "hold";
@@ -461,11 +461,8 @@ pub fn shadows(a: &Row, b: &Row, usable: &impl Fn(&Cond) -> bool) -> bool {
     }
     // B's moments: its conditions, and a foe in view when its verb strikes one or a
     // condition reads one.
-    let mut eff: Vec<Cond> = b.conds.clone();
-    if matches!(b.verb.v.as_str(), "attack" | "shield_bash" | "cleave" | "backstab" | "taunt") || b.conds.iter().any(|c| matches!(c.k.as_str(), "foe_tag" | "foe_hp<")) {
-        eff.push(Cond::n("foes>=", 1));
-    }
-    a.conds.iter().all(|ca| eff.iter().any(|cb| cond_implies(cb, ca)))
+    let foe = (matches!(b.verb.v.as_str(), "attack" | "shield_bash" | "cleave" | "backstab" | "taunt") || b.conds.iter().any(|c| matches!(c.k.as_str(), "foe_tag" | "foe_hp<"))).then(|| Cond::n("foes>=", 1));
+    a.conds.iter().all(|ca| b.conds.iter().chain(foe.as_ref()).any(|cb| cond_implies(cb, ca)))
 }
 
 /// Whenever `b` holds, `a` holds (the same token, a threshold at least as strict).
