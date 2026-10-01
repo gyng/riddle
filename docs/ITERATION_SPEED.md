@@ -320,7 +320,8 @@ the same arguments, the printouts diffed whole:
 - metrics `--quick --seeds 2 --prog-seeds 0` (every job kind but the lineages, the cut30 rows on their thread):
   identical but for the wall-clock lines (`death()` mean secs, the per-tick and slowest-scene timings, the
   `(Ns)` line); 3654 vs 3671 CPU-s;
-- metrics `--quick` (8 seeds, the 9 progression lineages, everything): FILL;
+- metrics `--quick` (8 seeds, the 9 progression lineages, everything): identical but for the same wall-clock lines;
+  87 → 39 min wall (16 / 14 threads, load 60–100 — the base's first minutes ran on a quieter box);
 - `progression --bars` on raterAU/AV with and without the stall verdict: identical;
 - `examples/fingerprint` cbc89a0d92fd3db8 before and after; `cargo test --profile fast -p riddle-core` 460 passed
   (the replay hash among them).

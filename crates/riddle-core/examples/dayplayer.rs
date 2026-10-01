@@ -743,7 +743,7 @@ fn main() {
     for s in (1..=max_seed).filter(|s| only.is_none_or(|o| o == *s)) {
         let mut members = Vec::new();
         for c in (0..cfgs.len()).filter(|c| s <= seeds_of(*c)) {
-            let hit = if keep && std::env::var_os("RIDDLE_CACHE_FRESH").is_none() { std::fs::read_to_string(cache_of(&cfgs[c], s)).ok().and_then(|t| serde_json::from_str::<SeedOut>(&t).ok()) } else { None };
+            let hit = if keep && std::env::var_os("RIDDLE_CACHE_FRESH").is_none() { jobcache::read::<SeedOut>(&cache_of(&cfgs[c], s)) } else { None };
             match hit {
                 Some(o) => results.lock().unwrap().push((c, o)),
                 None => members.push(c),
