@@ -171,11 +171,13 @@ pub fn explore_step(run: &mut Run, cx: &mut Ctx) -> bool {
 
 /// `chore`: the chores leave a sleeping den's gold alone (a `pick_up` row does not).
 fn nearest_item_step(run: &mut Run, cx: &mut Ctx, chore: bool) -> bool {
+    // (one look: the pack read once for every item — `turn::PackRead`)
+    let pack = crate::turn::PackRead::default();
     let cands: Vec<Pos> = run
         .items
         .iter()
         // (every test is pure: the cheap ones first)
-        .filter(|fi| run.floor.map.is_seen(fi.pos) && !(chore && run.skip_items.contains(&fi.item.id)) && !(chore && run.in_den_zone(fi.pos)) && crate::turn::would_take(run, cx, &fi.item))
+        .filter(|fi| run.floor.map.is_seen(fi.pos) && !(chore && run.skip_items.contains(&fi.item.id)) && !(chore && run.in_den_zone(fi.pos)) && crate::turn::would_take_in(run, cx, &fi.item, &pack))
         .map(|fi| fi.pos)
         .collect();
     if cands.is_empty() {

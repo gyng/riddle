@@ -2478,23 +2478,38 @@ fn situations_seen(run: &mut Run, cx: &mut Ctx) {
     }
     let map = &run.floor.map;
     let mut seen: Vec<&str> = Vec::new();
-    // The visible tiles in index order, 32 at a time: a block with none in view (most of the
-    // map) is one branch-free OR, not 32 tests.
-    const BLOCK: usize = 32;
-    for (b, block) in map.visible.chunks(BLOCK).enumerate() {
-        if !block.iter().fold(false, |a, v| a | v) {
-            continue;
+    let mut look = |i: usize| {
+        let k = match map.tiles[i] {
+            Tile::Shrine => "shrine",
+            Tile::Vault | Tile::VaultOpen => "vault",
+            Tile::Nest => "nest",
+            _ => return,
+        };
+        if !seen.contains(&k) {
+            seen.push(k);
         }
-        for (j, _) in block.iter().enumerate().filter(|(_, v)| **v) {
-            let t = &map.tiles[b * BLOCK + j];
-            let k = match t {
-                Tile::Shrine => "shrine",
-                Tile::Vault | Tile::VaultOpen => "vault",
-                Tile::Nest => "nest",
-                _ => continue,
-            };
-            if !seen.contains(&k) {
-                seen.push(k);
+    };
+    match map.visible_rows() {
+        // The visible tiles in index order: those of the square the vision last ran on, row by row
+        // (none outside it is visible).
+        Some(rows) => {
+            for i in rows.flatten() {
+                if map.visible[i] {
+                    look(i);
+                }
+            }
+        }
+        None => {
+            // … else 32 at a time: a block with none in view (most of the map) is one branch-free
+            // OR, not 32 tests.
+            const BLOCK: usize = 32;
+            for (b, block) in map.visible.chunks(BLOCK).enumerate() {
+                if !block.iter().fold(false, |a, v| a | v) {
+                    continue;
+                }
+                for (j, _) in block.iter().enumerate().filter(|(_, v)| **v) {
+                    look(b * BLOCK + j);
+                }
             }
         }
     }
@@ -2999,32 +3014,95 @@ fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {
 /// `pick up` every action until the stall guard ended the run (cohort 9, both raters' first
 /// gripe: "the most expensive outcome in the game").
 pub fn would_take(run: &Run, cx: &Ctx, item: &Item) -> bool {
+    would_take_in(run, cx, item, &PackRead::default())
+}
+
+/// What `would_take` and `can_take` read of the pack alone — the same for every item one look
+/// weighs (`ai::nearest_item_step` weighs each seen item against an unchanged pack, run and rules) —
+/// worked out once, on first read.
+#[derive(Default)]
+pub struct PackRead {
+    /// `row_needs` of each pack slot.
+    needs: std::cell::OnceCell<Vec<bool>>,
+    /// A ranged item in the pack.
+    ranged: std::cell::OnceCell<bool>,
+    /// The weapon and armour spares `can_take` counts (not ranged, not the forged kit).
+    spares: std::cell::OnceCell<[usize; 2]>,
+    /// … and those `would_take` counts (no row needs them either).
+    free_spares: std::cell::OnceCell<[usize; 2]>,
+    /// The cheapest consumable's value.
+    cheapest: std::cell::OnceCell<Option<i32>>,
+    /// The swap a full pack makes for a dearer consumable when no duplicate gives way.
+    swap: std::cell::OnceCell<Option<usize>>,
+    /// `queen_slot`.
+    queen: std::cell::OnceCell<Option<usize>>,
+}
+
+impl PackRead {
+    fn needs(&self, run: &Run, cx: &Ctx) -> &[bool] {
+        self.needs.get_or_init(|| run.hero.inv.iter().map(|i| row_needs(run, cx, i)).collect())
+    }
+    fn ranged(&self, h: &crate::hero::Hero) -> bool {
+        *self.ranged.get_or_init(|| h.inv.iter().any(|i| i.def().ranged))
+    }
+    fn queen(&self, run: &Run, cx: &Ctx) -> Option<usize> {
+        *self.queen.get_or_init(|| queen_slot(run, cx))
+    }
+}
+
+/// The weapon and armour items of `h`'s pack `keep` passes, by category.
+fn spare_counts(h: &crate::hero::Hero, keep: impl Fn(usize, &Item) -> bool) -> [usize; 2] {
+    let mut n = [0, 0];
+    for (k, i) in h.inv.iter().enumerate() {
+        let c = match i.cat() {
+            Cat::Weapon => 0,
+            Cat::Armour => 1,
+            _ => continue,
+        };
+        if keep(k, i) {
+            n[c] += 1;
+        }
+    }
+    n
+}
+
+/// `would_take`, the pack read through `pk` (`PackRead`: one per unchanged pack, run and rules).
+pub fn would_take_in(run: &Run, cx: &Ctx, item: &Item, pk: &PackRead) -> bool {
     let h = &run.hero;
-    if !(can_take(h, item) || (queen_wants(run, item) && queen_slot(run, cx).is_some())) {
+    if !(can_take_in(h, item, pk) || (queen_wants(run, item) && pk.queen(run, cx).is_some())) {
         return false;
     }
     if !h.inv_full() || item.kind == "bones" || item.cat() == Cat::Gold || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash")) || item_replaces_gear(h, item) {
         return true;
     }
-    if queen_wants(run, item) && queen_slot(run, cx).is_some() {
+    if queen_wants(run, item) && pk.queen(run, cx).is_some() {
         return true;
     }
     if item.is_consumable() || item.def().ranged {
-        let need = if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
+        let need = if item.def().ranged && !pk.ranged(h) { 1 } else { 2 };
         // Cut 25 §3: the forged kit is never put down (`pickup_here`'s own spares skip it) — counted here as a
         // spare it made a full pack walk onto a scroll it could not take, step off, walk back: `pick up ×441`.
-        let spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !row_needs(run, cx, i) && !crate::kit::is_kit_id(i.id)).count() >= need;
-        if spare(Cat::Weapon) || spare(Cat::Armour) {
+        let spare = pk.free_spares.get_or_init(|| {
+            let needs = pk.needs(run, cx);
+            spare_counts(h, |k, i| !i.def().ranged && !needs[k] && !crate::kit::is_kit_id(i.id))
+        });
+        if spare[0] >= need || spare[1] >= need {
             return true;
         }
     }
-    let dup = duplicate_slot(h, item).filter(|&k| !row_needs(run, cx, &h.inv[k]) && !queen_keeps(run, &h.inv[k]));
-    let swap = dup.or_else(|| h.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i) && !queen_keeps(run, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+    let needs = pk.needs(run, cx);
+    let dup = duplicate_slot(h, item).filter(|&k| !needs[k] && !queen_keeps(run, &h.inv[k]));
+    let swap = dup.or_else(|| *pk.swap.get_or_init(|| h.inv.iter().enumerate().filter(|(k, i)| i.is_consumable() && !needs[*k] && !queen_keeps(run, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k)));
     let swap = swap.map(|k| if dup.is_some() { i32::MIN } else { h.inv[k].value() });
     matches!(swap, Some(v) if item.is_consumable() && item.value() > v)
 }
 
 pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
+    can_take_in(h, item, &PackRead::default())
+}
+
+/// `can_take`, the pack read through `pk`.
+fn can_take_in(h: &crate::hero::Hero, item: &Item, pk: &PackRead) -> bool {
     if item.kind == "trap" {
         return false;
     }
@@ -3032,14 +3110,14 @@ pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
         return true;
     }
     // (read only when the spares are: a pack with room takes it before)
-    let need = || if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
-    let second_spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !crate::kit::is_kit_id(i.id)).count() >= need();
+    let need = || if item.def().ranged && !pk.ranged(h) { 1 } else { 2 };
+    let second_spare = |c: usize| pk.spares.get_or_init(|| spare_counts(h, |_, i| !i.def().ranged && !crate::kit::is_kit_id(i.id)))[c] >= need();
     matches!(item.cat(), Cat::Gold)
         || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash"))
         || !h.inv_full()
         || item_replaces_gear(h, item)
-        || (item.is_consumable() && h.inv.iter().filter(|i| i.is_consumable()).map(|i| i.value()).min().is_some_and(|v| item.value() > v))
-        || ((item.is_consumable() || item.def().ranged) && (second_spare(Cat::Weapon) || second_spare(Cat::Armour)))
+        || (item.is_consumable() && pk.cheapest.get_or_init(|| h.inv.iter().filter(|i| i.is_consumable()).map(|i| i.value()).min()).is_some_and(|v| item.value() > v))
+        || ((item.is_consumable() || item.def().ranged) && (second_spare(0) || second_spare(1)))
         || duplicate_slot(h, item).is_some()
 }
 

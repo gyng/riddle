@@ -810,7 +810,11 @@ impl Run {
             "stray" => return self.monsters.iter().any(|m| m.stray && m.hp > 0 && map.is_visible(m.pos)),
             _ => return false,
         };
-        let seen = map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]);
+        // (no tile outside the vision's last square is visible: `Map::visible_rows`)
+        let seen = match map.visible_rows() {
+            Some(mut rows) => rows.any(|r| r.into_iter().any(|i| map.tiles[i] == tile && map.visible[i])),
+            None => map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]),
+        };
         seen && match what {
             "nest" => self.monsters.iter().any(|m| m.nest && m.dormant && m.hp > 0),
             // Cut 7 §3: the hunger's shrine can be lit once, whatever was prayed above.

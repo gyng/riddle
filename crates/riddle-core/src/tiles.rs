@@ -66,9 +66,10 @@ pub struct Map {
 
 /// `update_vision`'s inputs when it last ran by the walls' bits — (from, radius, w, h, the square's
 /// sight-blocking tiles): the same inputs give the same `visible`, already there, and every tile of
-/// it already `seen` (only `update_vision` writes `visible`; nothing unsees a tile).
+/// it already `seen` (only `update_vision` writes `visible`; nothing unsees a tile). And the square
+/// it last ran on (from, radius): no tile outside it is `visible` (`Map::visible_rows`).
 #[derive(Clone, Debug, Default)]
-pub struct VisFrom(Option<(Pos, i32, i32, i32, [u64; LOS_MASK_WORDS])>);
+pub struct VisFrom(Option<(Pos, i32, i32, i32, [u64; LOS_MASK_WORDS])>, Option<(Pos, i32)>);
 
 impl PartialEq for VisFrom {
     fn eq(&self, _: &VisFrom) -> bool {
@@ -193,8 +194,18 @@ impl Map {
         (seen * 100 / total.max(1)) as i32
     }
     /// Recompute `visible` from `from` with radius and line of sight; marks seen.
+    /// The tiles `visible` may hold, as each row's index range in index order — the square vision
+    /// last ran on, clipped to the map — or `None` when that is not known (every tile then).
+    pub fn visible_rows(&self) -> Option<impl Iterator<Item = std::ops::RangeInclusive<usize>> + '_> {
+        let (from, r) = self.vis_from.1?;
+        let (x0, x1) = ((from.x - r).max(0), (from.x + r).min(self.w - 1));
+        let (y0, y1) = ((from.y - r).max(0), (from.y + r).min(self.h - 1));
+        let w = self.w;
+        Some((y0..=y1).filter(move |_| x0 <= x1).map(move |y| (y * w + x0) as usize..=(y * w + x1) as usize))
+    }
     pub fn update_vision(&mut self, from: Pos, radius: i32) {
         let memo = self.vis_from.0.take();
+        self.vis_from.1 = Some((from, radius.max(0)));
         let clear = |visible: &mut [bool]| {
             for v in visible.iter_mut() {
                 *v = false;
