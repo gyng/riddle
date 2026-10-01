@@ -112,12 +112,12 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // docs/COPY.md pass 3 (`UNANSWERED` under `goblin warlord · D8` read as "boss not beaten yet" 4/4): a gap whose margin does not say
   // what went unmet says it (`no rule for it`)
   const gapWord = d.verdict === "gap" && !/unanswered|unused|unmet/.test(margin) ? /* copy:death_line */ " · no rule for it" : "";
-  // death screen v2 (owner, 2026-10-01: "too wordy and incomprehensible"): the headline answers what killed him — the killer, the floor and
+  // death screen v2 (owner, 2026-10-01: "too wordy and incomprehensible"): the headline answers what killed him — the killer, the floor and (`hero at`: blind check read a bare `at 1 hp` as the foe's)
   // the hp he had before the blow (`gas · D7 · at 3 hp`); a stall keeps its loop (its moment is the rules'); the rule, the margin and
   // `no rule for it` move to the why line and the details
   const hpAt = drove?.hp ?? momentHp(d);
   const causeText = d.verdict === "stall" ? /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}${gapWord}`
-    : /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${hpAt !== undefined ? ` · at ${hpAt} hp` : ""}`;
+    : /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${hpAt !== undefined ? ` · hero at ${hpAt} hp` : ""}`;
   const marginText_ = d.verdict === "stall" ? "" : [causeRow, seg].filter(Boolean).join(" · ");
   // QA 1a2a4a9 (P: `STALLED · R2 RETREAT ↔ EXPLORE · D6 · KEEPS $0` ran off both edges at 400 px): a stall's headline wraps between its
   // ` · ` segments (each whole: the loop `R2 retreat ↔ explore` never breaks) and steps its face down until the widest segment fits
@@ -269,7 +269,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     const open = !el.classList.contains("full"); el.classList.toggle("full", open); details.hidden = !open; tail.hidden = !open;
     more.setAttribute("aria-expanded", String(open)); more.classList.toggle("on", open);
     if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details");
+  } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
   const well = h("div", { class: "well death-well" },
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerSrc ? " has-killer" : ""}` },
       // gfx round 10 (raters, every round: "show the killer behind the banner"): the killer's portrait in an iron medallion on the cloth
@@ -562,4 +562,10 @@ export function restLayout(box: HTMLElement, max: number, measuring = false): nu
   }
   box.classList.toggle("rest-none", !shown.size);
   return shown.size;
+}
+
+/** The `details` fold's hint (blind check: "no preview of what is inside"): the fixes it holds, then the trace — `· 3 fixes · trace`. */
+function foldHint(patches: HTMLElement): HTMLElement {
+  const n = patches.querySelectorAll("button.patch").length;
+  return h("small", { class: "fold-hint num" }, n ? /* copy:callout */ ` · ${n} ${n === 1 ? "fix" : "fixes"} · trace` : /* copy:callout */ " · trace");
 }
