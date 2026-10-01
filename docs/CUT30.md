@@ -411,6 +411,30 @@ quarter (the walk's carry), Steady is never first: Guarded is the safer of the t
 Hunter answers the Foundry. Rows tried on Steady (a fire throw at a boss in gas, a step out of gas) moved nothing; they
 are out. Steady's identity — the school, the generalist — has no wall of its own in this row's terms.
 
+**Checkpoint 8** (the owner's round 5, 2026-10-01). `metrics` (30 seeds, 4386 s) and `qa` (30 seeds, 905 s) all PASS
+on `1ddf1ed`, including the new rows: *Steady is the safest default* (deaths a send from D1 across the walls: steady 7 %
+· guarded 9 % · bold 87 % · hunter 21 %) and *Guarded, Bold, Hunter each best at a wall by ≥ 0.02* (bold 3 · guarded
+1 · hunter 3 of 7). The 16-seed full dayplayer leg was stopped (the coordinator: the full gate only once everything
+passes; at 24 threads a TUNED or leave-one-out fortnight takes 35–40 min, so 7 × 16 of them ≈ 3 h). Deep drills now
+read the boss's depth on the lineage's own route (the forks move a boss a band: seed 2's Queen sits at D23), and TUNED
+writes the Foundry's counter from its golems' fact. Fast tier, `dayplayer --seeds 6` on the committed core:
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days) | 6/6 · 2.0 · 6/6 med 7.8 · 3 · 14 · 0/6 · 1/5 · 252/252 · 8.0 | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.75 · 2.12 · 1.74 (4 seeds: 1.70 · 2.12 · 1.50) | PASS |
+| Never out-paced · content reach · stalls IDLE/PICKED/TUNED | 97 % · 6/6 · 0 / 0.43 / 0 % | PASS |
+| Days with a stage opened: PICKED ≥ 10/14 | 9.5 (10 on 4 and 8 seeds) | FAIL at 6 seeds — PICKED reaches the bottom by day 10 |
+| TUNED beats PICKED by ≥ 15 % at D28 · D33 | 0.95 · 1.13 (static-depth deep drills: 0.95 · 1.22) | FAIL |
+| RANDOM never faster than IDLE to D13 · slower to D23 | 67 % · 67 % | FAIL |
+
+Why D28 does not move: `h→D28` is reaching the D28 boss's floor, so it is gated by the walls at or above D23, which
+drill at 3–4 days; PICKED crosses D23→D28 in a day (8–56 h). The pen opens at 72 h and TUNED's D23 times equal
+PICKED's (104–144 h): its counters do not break the D18/D23 walls sooner than the drills and the picker's stances do.
+Tried: deep drills from D23 (`DEEP_FROM = 23`, 4 seeds) — PICKED slows to D23 (152–176 h) and TUNED at D28/D33 reads
+0.98 · 0.95; reverted. RANDOM: a random package is mostly a good package — on 2 of 6 seeds an early random stance
+(Guarded) passes the Warlord before IDLE's drill; RANDOM is slower than PICKED on every seed at D23.
+
 ## Deviations
 - **The pen re-scoped** (the owner, 2026-10-01: rules are an optional late fine-tuning layer): `TUNED ≥ 1.5× PICKED at
   D18, D23, D28` → *TUNED beats PICKED by ≥ 15 % at the deepest walls (D28, D33), and is never required* (TUNED on the
@@ -442,8 +466,16 @@ are out. Steady's identity — the school, the generalist — has no wall of its
   the wall, the record at the wall (every bank row then asks for the floor past it), a death a quarter of a pass.
 - **PROGRESSION_V2 over the contract's reveal**: the pen opens at the Mother met *and* 72 h (fallback 5 days), not "the
   Mother met or a 3-day stall"; Bold/Hunter/tactics drip by day (owner-approved refinement, 2026-10-01).
-- **The leave-one-outs run on 4 seeds** (`--loo-seeds`, the gate's `--full`): a TUNED fortnight costs ~25–40 CPU-min
-  (its wall search and verdicts, sims sequential inside a job); 6 × 8 of them would hold the gate for hours.
+- **The full dayplayer table runs 16 seeds** (the owner, round 5: PICKED vs IDLE, RANDOM, the leave-one-outs and their
+  TUNED base were noisy at 8 and 4): each job cached under `target/gates/dp/` by the binary's hash, an interrupted
+  gate resumes; at 24 threads a fresh full gate grows past an hour (measured below). The picker re-reads its panels
+  once a day and when a package arrives (a PICKED fortnight 1651 → 867 CPU-s).
+- **Steady is exempt from the wall contest** (the owner, round 5: it is the idle default): its part is *Steady is the
+  safest default* — the fewest deaths a send from D1 across the walls, against each other stance. Guarded, Bold and
+  Hunter must each be best at a wall by the margin. Steady returns at 25 % from L3 (20 % before).
+- **Deep drills arrive later** (the owner, round 5): a boss at D28 or deeper drills after 6 days met (3 for the
+  others, the Foundry 4), so a player who writes the counter breaks the wall days earlier — the pen's ≥ 15 % at D28/D33.
+  TUNED writes the counter row for a boss at its record or one past it (its card or throw bought).
 
 - **Steady's bank row reads `depth ≥ record + 1`** (the contract's `depth ≥ best`): a bank at the record itself never
   passes it; the first floor past the record is banked (one new floor a successful send; L4 pushes one further when whole).

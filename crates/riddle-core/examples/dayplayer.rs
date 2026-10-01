@@ -90,10 +90,6 @@ struct SeedOut {
     rules: String,
 }
 
-fn boss_of(depth: u32) -> Option<&'static str> {
-    riddle_core::descent::boss_for(depth)
-}
-
 /// An own row into the pen (the compiled set's top): room is made from the pen's bottom.
 fn insert_row(g: &mut Game, row: Row, at: i32) -> bool {
     if at < 0 || !g.lineage.pkg.pen_open {
@@ -312,8 +308,10 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                         // a wall's counter, written once its fact is known (the drill is days away; at the deep
                         // walls a week): the boss on the record's floor or the next, not yet slain nor drilled
                         let best = g.lineage.best_depth;
-                        for b in [best, best + 1].into_iter().filter_map(boss_of) {
-                            let known = riddle_core::facts::boss_counter_known(&g.lineage.facts, b);
+                        let route = g.lineage.rules().route();
+                        for b in [best, best + 1].into_iter().filter_map(|d| route.boss(d)) {
+                            // (the Foundry's counter is its golems' fact, as its drill's)
+                            let known = riddle_core::facts::boss_counter_known(&g.lineage.facts, b) || (b == "foundry_master" && riddle_core::facts::tag_known(&g.lineage.facts, "iron_golem", "reflect_melee"));
                             if known && !g.lineage.kills.contains(b) && !g.lineage.pkg.drills.iter().any(|d| d.boss == b) {
                                 let heal = riddle_core::packages::heal_pct(&g.lineage.pkg.stance, g.lineage.pkg.level(&g.lineage.pkg.stance));
                                 for row in riddle_core::packages::drill_rows(b, heal) {
@@ -603,7 +601,7 @@ fn main() {
         let cis: u32 = idle.iter().map(|o| o.checkins).sum();
         bars.push(("Every IDLE check-in grows ≥ 1 track".into(), format!("{grew}/{cis}"), grew == cis));
         let sd = median(idle.iter().map(|o| o.stage_days as f64).collect());
-        bars.push((format!("Days with a stage opened: IDLE ≥ 8/{days} (median)"), format!("{sd:.0}"), sd >= 8.0));
+        bars.push((format!("Days with a stage opened: IDLE ≥ 8/{days} (median)"), format!("{sd:.1}"), sd >= 8.0));
     }
     if !picked.is_empty() && !idle.is_empty() {
         let rs: Vec<f64> = [1, 2, 3].iter().map(|&i| ratio(&idle, &picked, i)).collect();
@@ -622,7 +620,7 @@ fn main() {
         let pct = 100.0 * ok as f64 / pairs.max(1) as f64;
         bars.push(("IDLE never out-paces PICKED (≥ 90 % of seed × milestone)".into(), format!("{pct:.0}%"), pct >= 90.0));
         let sd = median(picked.iter().map(|o| o.stage_days as f64).collect());
-        bars.push((format!("Days with a stage opened: PICKED ≥ 10/{days} (median)"), format!("{sd:.0}"), sd >= 10.0));
+        bars.push((format!("Days with a stage opened: PICKED ≥ 10/{days} (median)"), format!("{sd:.1}"), sd >= 10.0));
     }
     // Cut 30 §6, the kept rows re-derived on the new bots (docs/CUT30.md, deviations): content reach (was
     // COUNTERED ≥ D14 ≥ 50 %, a written counter set) is PICKED past the Mother's floor by day 2; stalls (was
@@ -750,5 +748,4 @@ fn main() {
         std::process::exit(1);
     }
     let _ = RuleSet::default();
-    let _ = boss_of(8);
 }

@@ -812,11 +812,13 @@ pub fn on_run_end(l: &mut LineageState, bosses_met: &[String], max_depth: u32, f
         let meets = if b == "goblin_warlord" { met_runs } else { l.pkg.meets.get(b).copied().unwrap_or(0) };
         let known = crate::facts::boss_counter_known(&l.facts, b) || (b == "foundry_master" && crate::facts::tag_known(&l.facts, "iron_golem", "reflect_melee"));
         // (the Foundry is a wall of golems, not one boss: its drill wants a third day)
+        // (the deep walls drill late: the counter written in the pen breaks them days sooner — deep on
+        // the lineage's own route, where the forks may have moved the boss up or down a band)
+        let deep = l.rules().route().boss_depth(b).is_some_and(|d| d >= DEEP_FROM);
         let need = match b.as_str() {
             "goblin_warlord" => DRILL_MEETING,
+            _ if deep => DEEP_DRILL_DAYS,
             "foundry_master" => DRILL_DAYS + 1,
-            // (the deep walls drill late: the counter written in the pen breaks them days sooner)
-            k if crate::descent::boss_depth(k).is_some_and(|d| d >= DEEP_FROM) => DEEP_DRILL_DAYS,
             _ => DRILL_DAYS,
         };
         if meets >= need && known && !l.pkg.drills.iter().any(|d| d.boss == *b) {
