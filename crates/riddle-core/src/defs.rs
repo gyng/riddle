@@ -61,7 +61,63 @@ pub const MONSTERS: &[MonsterDef] = &[
 ];
 
 pub fn monster_def(kind: &str) -> &'static MonsterDef {
-    MONSTERS.iter().find(|m| m.kind == kind).unwrap_or(&MONSTERS[0])
+    static IX: std::sync::OnceLock<KindIndex> = std::sync::OnceLock::new();
+    let ix = IX.get_or_init(|| KindIndex::new(MONSTERS.iter().map(|m| m.kind)));
+    ix.find(kind, |i| MONSTERS[i].kind).map_or(&MONSTERS[0], |i| &MONSTERS[i])
+}
+
+/// A def table's entries by kind (`item_def`, `monster_def`: a lookup on every tick's hot paths) —
+/// the first entry of a kind, as a scan of the table finds it. Open addressing on a hash of the
+/// name's length and three bytes; a slot's name is compared in full, so a kind not in the table is `None`.
+struct KindIndex {
+    mask: usize,
+    slots: Vec<u16>,
+}
+
+impl KindIndex {
+    /// The name's length and three of its bytes (the kinds differ there; a collision only probes on).
+    #[inline]
+    fn hash(s: &str) -> usize {
+        let b = s.as_bytes();
+        let n = b.len();
+        if n == 0 {
+            return 0;
+        }
+        let h = (n as u32).wrapping_mul(0x9E37_79B9) ^ (b[0] as u32).wrapping_mul(0x85EB_CA6B) ^ (b[n - 1] as u32).wrapping_mul(0xC2B2_AE35) ^ (b[n / 2] as u32).wrapping_mul(0x27D4_EB2F);
+        (h ^ (h >> 15)) as usize
+    }
+    fn new<'a>(kinds: impl Iterator<Item = &'a str> + Clone) -> KindIndex {
+        let n = kinds.clone().count();
+        let size = (4 * n).next_power_of_two().max(8);
+        let mut ix = KindIndex { mask: size - 1, slots: vec![u16::MAX; size] };
+        let names: Vec<&str> = kinds.collect();
+        for (i, k) in names.iter().enumerate() {
+            let mut at = Self::hash(k) & ix.mask;
+            loop {
+                match ix.slots[at] {
+                    u16::MAX => {
+                        ix.slots[at] = i as u16;
+                        break;
+                    }
+                    // (a later duplicate never shadows the first)
+                    j if names[j as usize] == *k => break,
+                    _ => at = (at + 1) & ix.mask,
+                }
+            }
+        }
+        ix
+    }
+    #[inline]
+    fn find(&self, kind: &str, name: impl Fn(usize) -> &'static str) -> Option<usize> {
+        let mut at = Self::hash(kind) & self.mask;
+        loop {
+            match self.slots[at] {
+                u16::MAX => return None,
+                j if name(j as usize) == kind => return Some(j as usize),
+                _ => at = (at + 1) & self.mask,
+            }
+        }
+    }
 }
 
 /// The bestiary's observable tags (the 15 monsters + bosses), for vocabulary and tests.
@@ -320,7 +376,9 @@ pub fn biome_kinds(biome: Biome) -> Vec<&'static str> {
 }
 
 pub fn item_def(kind: &str) -> &'static ItemDef {
-    ITEMS.iter().find(|i| i.kind == kind).unwrap_or(&ITEMS[0])
+    static IX: std::sync::OnceLock<KindIndex> = std::sync::OnceLock::new();
+    let ix = IX.get_or_init(|| KindIndex::new(ITEMS.iter().map(|i| i.kind)));
+    ix.find(kind, |i| ITEMS[i].kind).map_or(&ITEMS[0], |i| &ITEMS[i])
 }
 
 pub const POTION_FLAVOURS: [&str; 11] = ["blue", "murky", "red", "amber", "green", "violet", "black", "clear", "smoky", "pearly", "oily"];
@@ -362,6 +420,25 @@ mod tests {
             for (k, ..) in t {
                 assert_eq!(monster_def(k).kind, k);
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod kind_index_tests {
+    use super::*;
+    /// The index finds what a scan of the table finds, for every kind and for names not in it.
+    #[test]
+    fn lookups_match_a_scan() {
+        for m in MONSTERS {
+            assert!(std::ptr::eq(monster_def(m.kind), MONSTERS.iter().find(|x| x.kind == m.kind).unwrap()));
+        }
+        for i in ITEMS {
+            assert!(std::ptr::eq(item_def(i.kind), ITEMS.iter().find(|x| x.kind == i.kind).unwrap()));
+        }
+        for k in ["", "nope", "gold ", "Gold", "rat\\0"] {
+            assert!(std::ptr::eq(monster_def(k), MONSTERS.iter().find(|x| x.kind == k).unwrap_or(&MONSTERS[0])));
+            assert!(std::ptr::eq(item_def(k), ITEMS.iter().find(|x| x.kind == k).unwrap_or(&ITEMS[0])));
         }
     }
 }

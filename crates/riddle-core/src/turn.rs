@@ -528,10 +528,13 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     }
     // Cut 12 §1: the rows in play — every card row and the first `max_rows` own rows, each
     // with its index in the set (`R3` is the set's third row wherever the cards sit).
-    let mut rows: Vec<(usize, crate::rules::Row)> = cx.rules.active(cx.max_rows).map(|(i, r)| (i, r.clone())).collect();
+    // (borrowed from the set, which nothing here changes; the lent row is the run's, copied out)
+    let set: &crate::rules::RuleSet = cx.rules;
+    let lent = run.lent_row.clone();
+    let mut rows: Vec<(usize, &crate::rules::Row)> = set.active(cx.max_rows).collect();
     // Cut 5 §4: the row a shrine lent for this run (last, lowest priority; index past the set).
-    if let Some(r) = &run.lent_row {
-        rows.push((cx.rules.rows.len(), r.clone()));
+    if let Some(r) = &lent {
+        rows.push((set.rows.len(), r));
     }
     // Cut 23 §2: the committed walk home gave way to a row under it that answers (`answers_on_walk`).
     let mut walk_only = false;
@@ -539,7 +542,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     let suppressed = if run.row_suppressed.1 > run.actions { run.row_suppressed.0 } else { -9 };
     run.last_target = None;
     run.blocked_now = None;
-    for (k, (i, row)) in rows.iter().map(|(i, r)| (*i, r)).enumerate() {
+    for (k, (i, row)) in rows.iter().map(|(i, r)| (*i, *r)).enumerate() {
         // QA on a946e04 (qaS: a row the editor marks dead — `hp < 50% → attack nearest` under
         // `foes ≥ 1 → attack nearest`, `↑ R3` — moved the forecast): a row an earlier row
         // shadows (`rules::shadows`, the editor's own test) never acts. It fired whenever the
@@ -1146,10 +1149,11 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     if run.stuck_until > run.actions || run.recent_pos.len() < 12 {
         return;
     }
-    let mut tiles: Vec<Pos> = run.recent_pos.clone();
-    tiles.sort();
-    tiles.dedup();
-    if tiles.len() > 2 || run.actions.saturating_sub(run.last_damage_action) < 12 {
+    // (more than two distinct tiles in the window: not pacing — counted in place, every action)
+    let p = &run.recent_pos;
+    let other = p.iter().find(|q| **q != p[0]);
+    let paced = other.is_none_or(|o| p.iter().all(|q| *q == p[0] || q == o));
+    if !paced || run.actions.saturating_sub(run.last_damage_action) < 12 {
         return;
     }
     // Engaged in melee is not stuck: adjacent foes are always worth a row.
