@@ -369,7 +369,40 @@ overrides): removing the overrides alone reproduces the moves exactly (COUNTERED
 them; the contract removes that policy. Identifying what comes home at camp (a candidate fix) moved nothing: these bots
 die every send.
 
+**Checkpoint 6** (`a0a524c`, the owner's decision 2026-10-01: wall answers + slower idle, the 1.5× bars kept; the old
+rows re-derived on the new bots) and the second `node tools/gates.mjs --full` (metrics 2891 s; qa all PASS on 30 seeds):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days ≥ 8) | 8/8 · 1.5 · 8/8 med 6.7 · 3 · 14/14 · 0/8 · 1/6 · 336/336 · 8 | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.50 · 1.75 · 1.43 (the run before: 1.50 · 1.60 · 1.63) | FAIL at D23 (noise around the bar) |
+| IDLE never out-paces PICKED · RANDOM (re-expressed) · content reach (re-derived) | 100 % · 88 %/88 % · 7/8 | PASS |
+| Stalls ≤ 1 % of sends (re-derived per bot): IDLE · PICKED · TUNED | 0.34 % · 2.16 % · 4.98 % | FAIL (PICKED, TUNED) |
+| Days with a stage opened: PICKED ≥ 10 | 9 | FAIL |
+| TUNED ≥ 1.5× PICKED at D18 · D23 · D28 | 1.00 · 1.00 · 0.94 | FAIL — the pen adds nothing over PICKED |
+| Leave-one-outs: nothing required · each system moves D23 · none > 60 % | forge s1 D28 · packages +28 h, pen +4, forge +4, pets/bank/quests 0 · packages 88 % | FAIL |
+| metrics: Lanes D5 on IDLE (re-derived) · expeditions on IDLE · 20-min absence · drill item packed | near 0.09 · far 0.05 · 16.6/11.0 · 100 % · 100 % | PASS |
+| metrics: every stance best at a wall · quests keepable | bold 7 guarded 3 · worst `bank D22` 0 % | FAIL |
+
+What moved them: the PICKED picker reads the wall (a second panel from the deepest lit stone, `PkgOption.d_wall`) and
+takes no swap that costs the walk; later bosses are drilled at the third day met (the Foundry the fourth); Hunter plays
+the Foundry card first and goes for archers; Bold strikes the boss through its heal and dives when hurt; the pack carries
+what a tactic throws; RANDOM picks blind; a package row that loops rests for the floor (IDLE's stalls 1.66 → 0.34 %).
+
 ## Deviations
+- **Old rows re-derived on the new bots** (the owner's decision): `COUNTERED reaches ≥ D14 ≥ 50 %` (a written counter
+  set on a literal lineage, 70 → 40 % with the temperaments gone) → *content reach: PICKED ≥ D14 by day 2 on ≥ 50 %* (7/8);
+  `Lanes D5: no set dominates` (EDITED's written lane sets; +12/+20 vs 15) → *the D5 lanes on IDLE: both viable, the
+  weaker passes D8 at least half as often as the stronger* (near 0.09 · far 0.05); `Stalls ≤ 1 % on every cohort set`
+  (worst 1.4 %) → *stalls ≤ 1 % of every bot's sends* (the bar kept, measured on IDLE/PICKED/TUNED). The originals print
+  as retired. Bisect in checkpoint 5's notes: the temperaments' removal alone moved them.
+- **RANDOM** is IDLE's twin until its first pick (the Warlord met, D8), which is a check-in or two before D13: the row
+  reads *never faster than IDLE to D13, slower to D23* (each ≥ 80 % of seeds; 88 % · 88 %).
+- **Guarded meets a telegraph with a drink**, not the contract's step back: `telegraph → retreat` looped retreat ↔
+  explore on ~3 % of PICKED's sends. **Light hands** grabs the kill's drop (`on_kill → pick up`), not loose loot (the
+  loose row looped pick up ↔ explore).
+- **The Cut 25 forge lever** (`Whole forge's bank move < best row's`, raterAU +26 vs +20.8) is retired (the contract's
+  list); it prints for the record.
 - **The expeditions-per-8 h row** is gated on IDLE (fresh and at D13) in 6 – one send and its rest per 20 minutes
   (`REST_MIN_TICKS`: the band's own reason, no sortie farm), EDITED still 6–16: DEFAULT, the two-row fighter dead every
   send, is gone.
