@@ -36,7 +36,7 @@ const looSeeds = full ? 4 : 1;
 const legs = {
   metrics: `target/gates/metrics-${keyOf("target/fast/examples/metrics", [...runtimeInputs, ["args", JSON.stringify({ full, extra })]])}.txt`,
   qa: `target/gates/qa-${keyOf("target/fast/examples/qa", [["args", "--seeds 30"]])}.txt`,
-  dayplayer: `target/gates/dayplayer-${keyOf("target/fast/examples/dayplayer", [["args", `--gate --seeds ${seeds} --loo-seeds ${looSeeds} --tuned-seeds ${looSeeds}`]])}.txt`,
+  dayplayer: `target/gates/dayplayer-${keyOf("target/fast/examples/dayplayer", [["args", `--gate --seeds ${seeds} --loo-seeds ${looSeeds} --tuned-seeds ${seeds}`]])}.txt`,
 };
 const cached = (leg) => (!fresh && !extra.length && existsSync(legs[leg]) ? JSON.parse(readFileSync(legs[leg], "utf8")) : null);
 const keep = (leg, r) => { if (!extra.length) { mkdirSync("target/gates", { recursive: true }); writeFileSync(legs[leg], JSON.stringify({ status: r.status, stdout: r.stdout })); } };
@@ -71,7 +71,7 @@ const QA_SHARE = Number(process.env.QA_SHARE ?? 0.75);
 const cores = os.availableParallelism();
 const hit = { metrics: cached("metrics"), qa: cached("qa"), dayplayer: cached("dayplayer") };
 const done = (r) => ({ ready: Promise.resolve(), done: Promise.resolve(r) });
-const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds), "--loo-seeds", String(looSeeds), "--tuned-seeds", String(looSeeds), "--threads", String(Math.max(4, Math.round(cores * 0.3)))])).done;
+const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds), "--loo-seeds", String(looSeeds), "--tuned-seeds", String(seeds), "--threads", String(Math.max(4, Math.round(cores * 0.3)))])).done;
 const table = hit.metrics ? done(hit.metrics) : run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra], "metrics: quiet ticks measured", { METRICS_QUIET_SIGNAL: "1" });
 // The invariants (a job pool of seeds and their legs) start once the table's single-threaded quiet
 // per-tick measurement is done (a few seconds), then take three quarters of the cores beside the

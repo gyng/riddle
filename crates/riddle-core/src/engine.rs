@@ -3967,6 +3967,13 @@ impl Game {
         // Cut 24 §1: a floor stalled before a boss met there (his fight could not progress: a
         // corridor of his goblins, a dance before him, his stairs sealed) is his win — driven
         // off, not a stall.
+        // Cut 30 §1: on the idle floor (a set of packages — ours, not the player's) a floor the guard has
+        // stopped twice is given up: the hero walks home with what he carries (a queued return, `bail`)
+        // instead of pacing to the stall — a foe across a gap or a mirror he will not strike is no reason
+        // to lose the send
+        if run.stuck_fires + 1 >= STALL_FIRES && run.over.is_none() && !run.bail && cx.rules.rows.iter().any(|r| r.is_pkg()) && run.boss_still.is_none() {
+            run.bail = true;
+        }
         if run.stuck_fires >= STALL_FIRES && run.over.is_none() {
             // (met on this floor — `boss_still` is the floor's — and alive: his stairs are sealed)
             let met = run.boss_still.map(|b| b.0);

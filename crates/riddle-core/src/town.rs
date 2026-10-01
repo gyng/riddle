@@ -223,6 +223,12 @@ pub fn stage_set(l: &LineageState) -> Vec<(String, String)> {
     for id in l.pkg.owned.iter().filter(|id| crate::packages::def(id).is_some() && id.as_str() != "steady") {
         v.push(("character".to_string(), format!("+{}", crate::packages::name(id))));
     }
+    // (a building stepped to its next look is a stage of the town's: the forge's steps, the bank's fill)
+    for (b, _) in &l.town.built {
+        for look in 2..=level(l, b) {
+            v.push(("town".to_string(), format!("{b} look {look}")));
+        }
+    }
     for t in TRACKS {
         for (s, _) in stages(t) {
             if reached(l, t, s) {
@@ -356,7 +362,7 @@ pub fn quests_open(l: &LineageState) -> bool {
 pub fn goal_text(q: &Quest) -> String {
     match q.goal.as_str() {
         "reach_no_return" => format!("reach D{} · no return", q.depth),
-        "bank" => format!("bank at D{}", q.depth),
+        "bank" => format!("home from D{}", q.depth),
         "slay" => format!("slay the {}", crate::sifter::boss_short(q.boss.as_deref().unwrap_or(""))),
         _ => format!("reach D{}", q.depth),
     }
@@ -400,9 +406,11 @@ pub fn draw(l: &mut LineageState) {
         _ => "bank",
     };
     let depth = match goal {
-        "reach" => best,
-        "reach_no_return" => best.saturating_sub(2).max(2),
-        "bank" => best.saturating_sub(1).max(2),
+        // (goals a night of the sends from D1 keeps: the record's band, not its last floor)
+        "reach" => best.saturating_sub(3).max(2),
+        "reach_no_return" => best.saturating_sub(5).max(2),
+        // (a cleared floor: the deepest lit waystone at or under the record — banked there before — else three under it)
+        "bank" => l.stones().into_iter().filter(|s| *s <= best).max().unwrap_or(best.saturating_sub(5)).max(2),
         _ => crate::descent::boss_depth(next_boss.as_deref().unwrap_or("")).unwrap_or(best),
     };
     let reward = reward_for(l, seq);
@@ -425,7 +433,7 @@ pub fn swap(l: &mut LineageState) -> Result<(), String> {
 
 /// A run's progress on the quest (`max_depth`, the exit, whether a return was committed, the bosses
 /// it slew); a kept quest pays its reward. The line for the report (`QUEST DONE`), if kept now.
-pub fn on_run(l: &mut LineageState, max_depth: u32, tier: crate::engine::ExitTier, returned: bool, exit_depth: u32, slew: &[String]) -> Option<String> {
+pub fn on_run(l: &mut LineageState, max_depth: u32, tier: crate::engine::ExitTier, returned: bool, _exit_depth: u32, slew: &[String]) -> Option<String> {
     if !quests_open(l) {
         return None;
     }
@@ -442,7 +450,8 @@ pub fn on_run(l: &mut LineageState, max_depth: u32, tier: crate::engine::ExitTie
     let (p, kept) = match q.goal.as_str() {
         "reach" => ((max_depth * 1000 / depth).min(1000), max_depth >= depth),
         "reach_no_return" => (if returned { 0 } else { (max_depth * 1000 / depth).min(1000) }, !returned && max_depth >= depth),
-        "bank" => ((exit_depth * 1000 / depth).min(if tier == crate::engine::ExitTier::Bank { 1000 } else { 999 }), tier == crate::engine::ExitTier::Bank && exit_depth >= depth),
+        // (home from a cleared floor: a bank or a return that reached it)
+        "bank" => ((max_depth * 1000 / depth).min(999), tier != crate::engine::ExitTier::Death && max_depth >= depth),
         _ => {
             let b = q.boss.clone().unwrap_or_default();
             ((max_depth * 900 / depth).min(900), slew.contains(&b))

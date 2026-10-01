@@ -12,6 +12,8 @@ pub const STANCES: [&str; 4] = ["steady", "guarded", "bold", "hunter"];
 /// A death weighed against a send past the wall: nothing — the idle gates are time to a milestone, and a
 /// death's 20-minute wake costs the time a bank's rest does (`WAKE_TICKS` = `REST_MIN_TICKS`); `DW=` probes others.
 pub const DEATH_WEIGHT: f64 = 0.0;
+/// From D1 a death on the walk costs the carry (70 % of it) and the heir: a quarter of a pass.
+pub const WALK_DEATH: f64 = 0.25;
 
 /// IDLE's lineage of `seed` over `days`, snapshot at each wall (the first check-in it stands at
 /// `wall − 1` or deeper, before passing it), and the first check-in at D13 or deeper.
@@ -41,10 +43,12 @@ pub fn twenty_minutes(g: &Game) -> u32 {
 /// The shares of `stance`'s sends from `g` that pass `wall` (a sim panel of `sims`): every stance at
 /// the worn stance's level, the record at the wall's floor (each stance's bank row then asks for the
 /// floor past it — a stance is weighed on passing the wall, not on banking under it).
-pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32) -> f64 {
+pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32, from_stone: bool) -> f64 {
     let mut c = g.sim_clone();
-    // (from the deepest lit waystone at or above the wall: the wall is weighed, not the walk to it)
-    if let Some(s) = c.lineage.stones().into_iter().filter(|s| *s <= wall).max() {
+    // (from the deepest lit waystone at or above the wall: the wall weighed, not the walk to it — or from
+    // D1, the walk and the wall)
+    c.lineage.start = 1;
+    if let Some(s) = c.lineage.stones().into_iter().filter(|s| *s <= wall).max().filter(|_| from_stone) {
         c.lineage.start = s;
     }
     c.lineage.pkg.owned.insert(stance.to_string());
@@ -52,6 +56,10 @@ pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32) -> f64 {
     let runs = c.lineage.pkg.runs.get(&worn).copied().unwrap_or(0);
     c.lineage.pkg.runs.insert(stance.to_string(), runs);
     c.lineage.best_depth = c.lineage.best_depth.max(wall);
+    // (the stances are weighed at the wall before it is drilled: the drill is every stance's, the answer is the stance's own)
+    for d in c.lineage.pkg.drills.iter_mut() {
+        d.revoked = true;
+    }
     if packages::equip(&mut c.lineage, stance, 0).is_err() {
         return 0.0;
     }
@@ -62,7 +70,9 @@ pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32) -> f64 {
     // and 70 % of the carry — passing by dying more is not the better stance)
     let past = rs.iter().filter(|r| r.max_depth > wall).count() as f64 / k;
     let died = rs.iter().filter(|r| r.tier == ExitTier::Death).count() as f64 / k;
-    past - std::env::var("DW").ok().and_then(|v| v.parse().ok()).unwrap_or(DEATH_WEIGHT) * died
+    // (from D1 the walk is weighed too: a send that dies on the way loses the heir's carry — `WALK_DEATH`)
+    let dw = if from_stone { DEATH_WEIGHT } else { WALK_DEATH };
+    past - std::env::var("DW").ok().and_then(|v| v.parse().ok()).unwrap_or(dw) * died
 }
 
 /// Of `sends` sends from a lineage whose Mother drill wants fire (fire named, the purse full), the share
@@ -99,9 +109,9 @@ pub fn quest_night(g: &Game, kind: &str, sims: u32) -> (String, f64) {
     let best = g.lineage.best_depth.max(1);
     let next_boss = riddle_core::descent::BOSS_DEPTHS.iter().find(|(k, d)| !g.lineage.kills.contains(*k) && *d <= best + 2 && *k != "foundry_master" && g.lineage.pkg.drills.iter().any(|x| x.boss == *k && !x.revoked)).map(|(k, d)| (k.to_string(), *d));
     let depth = match kind {
-        "reach" => best,
-        "reach_no_return" => best.saturating_sub(2).max(2),
-        "bank" => best.saturating_sub(1).max(2),
+        "reach" => best.saturating_sub(3).max(2),
+        "reach_no_return" => best.saturating_sub(5).max(2),
+        "bank" => g.lineage.stones().into_iter().filter(|s| *s <= best).max().unwrap_or(best.saturating_sub(5)).max(2),
         _ => match &next_boss {
             Some((_, d)) => *d,
             None => return (kind.to_string(), 1.0),
@@ -122,7 +132,7 @@ pub fn quest_night(g: &Game, kind: &str, sims: u32) -> (String, f64) {
             .filter(|r| match kind {
                 "reach" => r.max_depth >= depth,
                 "reach_no_return" => r.max_depth >= depth && r.tier != ExitTier::Return,
-                "bank" => r.max_depth >= depth && r.tier == ExitTier::Bank,
+                "bank" => r.max_depth >= depth && r.tier != ExitTier::Death,
                 _ => r.max_depth > depth,
             })
             .count() as f64

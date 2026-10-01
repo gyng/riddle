@@ -11,7 +11,7 @@ use riddle_core::rng::Rng;
 use riddle_core::Game;
 
 /// Milestones (Cut 30 §6: time-to-milestone = simulated hours to reach each).
-const MILESTONES: [u32; 5] = [8, 13, 18, 23, 28];
+const MILESTONES: [u32; 6] = [8, 13, 18, 23, 28, 33];
 const SYSTEMS: [&str; 6] = ["packages", "pen", "forge", "pets", "bank", "quests"];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -73,6 +73,13 @@ struct SeedOut {
     sends: u32,
     #[serde(default)]
     stalled: u32,
+    /// Deaths, quests kept, and the best depth summed over the days (the climb's area).
+    #[serde(default)]
+    deaths: u32,
+    #[serde(default)]
+    quests: u32,
+    #[serde(default)]
+    depth_area: u32,
     /// PROGRESSION_V2 (reported, gated in Cut 31): systems open at day 1's end, the most systems and
     /// beats one report brought, days with something new, the longest run of days without.
     day1_systems: usize,
@@ -229,6 +236,7 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
             out.checkins += 1;
             out.sends += rep.runs;
             out.stalled += rep.stalled;
+            out.deaths += rep.deaths.iter().map(|d| d.n).sum::<u32>();
             // `DP_STALLS=1`: each stalled send's last turns (the rows that looped)
             if rep.stalled > 0 && std::env::var("DP_STALLS").is_ok() {
                 for rec in g.deaths.values().filter(|r| r.death.verdict == "stall" && !r.death.trace.turns.is_empty()) {
@@ -361,6 +369,8 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
         }
         let best = g.lineage.best_depth;
         out.best_day.push(best);
+        out.depth_area += best;
+        out.quests = g.lineage.town.quests_done;
         out.gold_day.push(g.lineage.gold as i64 + g.lineage.town.bank as i64 - wealth0);
         out.stance_level_day.push(g.lineage.pkg.level(&g.lineage.pkg.stance));
         opened |= riddle_core::town::stage_set(&g.lineage).len() > stages0.len();
@@ -605,8 +615,10 @@ fn main() {
         bars.push((format!("Stalls ≤ 1 % of sends, every {label} seed"), format!("{:.2}%", 100.0 * worst), worst <= 0.01));
     }
     if !tuned.is_empty() && !picked.is_empty() {
-        let rs: Vec<f64> = [2, 3, 4].iter().map(|&i| ratio(&picked, &tuned, i)).collect();
-        bars.push(("TUNED ≥ 1.5× PICKED at D18, D23, D28".into(), rs.iter().map(|r| format!("{r:.2}")).collect::<Vec<_>>().join(" · "), rs.iter().all(|r| *r >= 1.5)));
+        // (the owner, 2026-10-01: the pen is an optional late fine-tuning layer — it beats the packages at
+        // the deepest walls by ≥ 15 %, and nothing needs it; was `TUNED ≥ 1.5× PICKED at D18, D23, D28`)
+        let rs: Vec<f64> = [4, 5].iter().map(|&i| ratio(&picked, &tuned, i)).collect();
+        bars.push(("TUNED beats PICKED by ≥ 15 % at D28, D33 (median hours)".into(), rs.iter().map(|r| format!("{r:.2}")).collect::<Vec<_>>().join(" · "), rs.iter().all(|r| *r >= 1.15)));
     }
     if !random.is_empty() && !idle.is_empty() {
         // (RANDOM plays IDLE's own sends until its first pick — the Warlord met, D8 — and most seeds reach
@@ -640,15 +652,47 @@ fn main() {
                     }
                 }
             }
-            let d23 = median(v.iter().map(|o| hours_or(o, 3, cap)).collect());
-            moves.push((s, d23 - d23_tuned));
+            let n = v.len().min(tuned.len());
+            let t = &tuned[..n];
+            let w = &v[..n];
+            let mean = |xs: &[SeedOut], f: &dyn Fn(&SeedOut) -> f64| xs.iter().map(f).sum::<f64>() / xs.len().max(1) as f64;
+            // each system by its own output (the owner, 2026-10-01: systems are not measured on depth)
+            let (with, without, unit, ok) = match s {
+                "bank" => {
+                    let g = |o: &SeedOut| o.gold_day.iter().sum::<i64>() as f64 / o.gold_day.len().max(1) as f64;
+                    let (a, b) = (mean(t, &g), mean(w, &g));
+                    (a, b, "$/day", a > b * 1.01)
+                }
+                "pets" => {
+                    let d = |o: &SeedOut| 100.0 * o.deaths as f64 / o.sends.max(1) as f64;
+                    let (a, b) = (mean(t, &d), mean(w, &d));
+                    (a, b, "% deaths", a < b)
+                }
+                "quests" => {
+                    let q = |o: &SeedOut| o.quests as f64;
+                    let (a, b) = (mean(t, &q), mean(w, &q));
+                    (a, b, "kept", a >= 1.0 && a > b)
+                }
+                "forge" | "pen" => {
+                    let d = |o: &SeedOut| o.depth_area as f64 / o.best_day.len().max(1) as f64;
+                    let (a, b) = (mean(t, &d), mean(w, &d));
+                    (a, b, "mean best", a > b)
+                }
+                _ => {
+                    let h = |o: &SeedOut| hours_or(o, 3, cap);
+                    let (a, b) = (median(t.iter().map(h).collect()), median(w.iter().map(h).collect()));
+                    (a, b, "h→D23", a + step <= b)
+                }
+            };
+            moves.push((s, with, without, unit, ok));
         }
         if !moves.is_empty() {
             bars.push(("Nothing required: TUNED − S never slower than IDLE (± a check-in)".into(), if req_ok { "ok".into() } else { worst_req }, req_ok));
-            let each = moves.iter().all(|(_, m)| *m > step);
-            let dom = moves.iter().map(|(_, m)| m / gap).fold(0.0f64, f64::max);
-            bars.push(("Each system adds value (D23 moves past a check-in)".into(), moves.iter().map(|(s, m)| format!("{s} {m:+.0}h")).collect::<Vec<_>>().join(" "), each));
-            bars.push(("None > 60 % of TUNED − IDLE (D23)".into(), format!("{:.0}% of {gap:.0}h", dom * 100.0), dom <= 0.6));
+            let each = moves.iter().all(|m| m.4);
+            bars.push(("Each system adds value by its own output (TUNED vs TUNED − S)".into(), moves.iter().map(|(s, a, b, u, _)| format!("{s} {a:.1}/{b:.1} {u}")).collect::<Vec<_>>().join(" · "), each));
+            // (`none > 60 % of TUNED − IDLE` retired: the systems are measured by their own outputs, no
+            // longer on one depth scale; `nothing required` and each system's own value replace it)
+            let _ = (gap, d23_tuned);
         }
     }
     // PROGRESSION_V2 (reported now, gated in Cut 31)

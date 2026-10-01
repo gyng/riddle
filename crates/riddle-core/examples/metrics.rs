@@ -1392,6 +1392,9 @@ fn seal(rows: &mut [(String, String, bool)]) {
     }
 }
 
+/// A stance wins a wall when it passes it this much more often than the next one (shares of sends).
+const STANCE_MARGIN: f64 = 0.02;
+
 fn threads_for_cut30() -> usize {
     std::thread::available_parallelism().map(|n| n.get()).unwrap_or(8).max(2) - 1
 }
@@ -1464,47 +1467,49 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
     let packs: Vec<(u32, u32)> = pool(&lineages, threads, |s| idle::drill_packed(*s, 12));
     let (c, n) = packs.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));
     rows.push((format!("A drill-needed item is in the pack at its wall ≥ 90% (n={n})"), format!("{:.0}%", pct(c as usize, n as usize)), pct(c as usize, n as usize) >= 90.0));
-    // every stance best at ≥ 1 wall on ≥ 1 seed set, none at all: per wall and seed half, the stance
-    // whose sends from the IDLE lineages under that wall pass it most
-    let mut jobs: Vec<(usize, u32, &'static str, &String)> = Vec::new();
-    for (si, v) in snaps.iter().enumerate() {
+    // every stance best at ≥ 1 wall, none at all: per wall, the stance whose sends from the IDLE lineages
+    // under it pass it most — read twice, from the wall's stone (the wall alone) and from D1 (the walk
+    // and the wall: the generalist's ground); a win is a margin over the next stance (`STANCE_MARGIN`,
+    // ~2 ± of a 96-send panel over the seeds), else the contest is a tie and counts for no one
+    let mut jobs: Vec<(u32, bool, &'static str, &String)> = Vec::new();
+    for v in &snaps {
         for (w, g) in v {
-            for s in idle::STANCES {
-                jobs.push((si, *w, s, g));
+            for from_stone in [true, false] {
+                for s in idle::STANCES {
+                    jobs.push((*w, from_stone, s, g));
+                }
             }
         }
     }
-    let past: Vec<f64> = pool(&jobs, threads, |(_, w, s, g)| idle::stance_past(&load(g), s, *w, 48));
-    let half = lineages.len().div_ceil(2);
+    let past: Vec<f64> = pool(&jobs, threads, |(w, st, s, g)| idle::stance_past(&load(g), s, *w, 96, *st));
     let mut wins: BTreeMap<&str, u32> = BTreeMap::new();
     let mut contests = 0;
     for w in idle::WALLS {
-        for set in [0..half, half..lineages.len()] {
+        for from_stone in [true, false] {
             let mut score: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
-            for (k, (si, jw, s, _)) in jobs.iter().enumerate() {
-                if *jw == w && set.contains(si) {
+            for (k, (jw, st, s, _)) in jobs.iter().enumerate() {
+                if *jw == w && *st == from_stone {
                     let e = score.entry(*s).or_insert((0.0, 0));
                     e.0 += past[k];
                     e.1 += 1;
                 }
             }
-            if score.values().all(|(_, n)| *n == 0) || score.is_empty() {
+            if score.is_empty() {
                 continue;
             }
-            // (a wall no stance's sends pass is no contest)
-            let spread = score.values().map(|(t, n)| t / (*n).max(1) as f64).fold(f64::MIN, f64::max) - score.values().map(|(t, n)| t / (*n).max(1) as f64).fold(f64::MAX, f64::min);
-            if spread < 1e-9 {
+            let mut ranked: Vec<(&str, f64)> = score.iter().map(|(s, (t, n))| (*s, t / (*n).max(1) as f64)).collect();
+            ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+            eprintln!("stances D{w} {}: {}", if from_stone { "stone" } else { "D1" }, ranked.iter().map(|(s, v)| format!("{s} {v:.3}")).collect::<Vec<_>>().join(" "));
+            if ranked[0].1 - ranked.get(1).map_or(0.0, |x| x.1) < STANCE_MARGIN {
                 continue;
             }
             contests += 1;
-            eprintln!("stances D{w} set {:?}: {}", set, score.iter().map(|(s, (t, n))| format!("{s} {:.2}", t / (*n).max(1) as f64)).collect::<Vec<_>>().join(" "));
-            let top = score.iter().map(|(s, (t, n))| (*s, t / (*n).max(1) as f64)).fold(("", -1.0), |a, b| if b.1 > a.1 + 1e-9 { b } else { a });
-            *wins.entry(top.0).or_insert(0) += 1;
+            *wins.entry(ranked[0].0).or_insert(0) += 1;
         }
     }
     let each = idle::STANCES.iter().all(|s| wins.get(s).is_some_and(|n| *n > 0));
     let none_all = wins.values().all(|n| *n < contests);
-    rows.push((format!("Every stance best at ≥ 1 wall, none at all ({contests} walls × seed sets)"), wins.iter().map(|(s, n)| format!("{s} {n}")).collect::<Vec<_>>().join(" "), each && none_all && contests > 0));
+    rows.push((format!("Every stance best at ≥ 1 wall by ≥ {STANCE_MARGIN}, none at all ({contests} won)"), wins.iter().map(|(s, n)| format!("{s} {n}")).collect::<Vec<_>>().join(" "), each && none_all && contests > 0));
     // each quest keepable ≥ 20 % a night by some package set, the pen closed (the board opens with the
     // Warlord slain: the lineages at D13, D18 and D23)
     let mut qjobs: Vec<(&String, &'static str)> = Vec::new();
