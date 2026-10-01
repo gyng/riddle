@@ -19,7 +19,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
-import { openPanel, editRows } from "./lib/frame.mjs";
+import { openPanel, editRows, deathDetails } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -32,6 +32,7 @@ const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 1 });
+await deathDetails(page);   // death v2: this suite reads the trace, the ledger and the tablets under `details`
 page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 const shot = async (name) => { if (shots) await page.screenshot({ path: resolve(shots, `${name}.png`) }); };

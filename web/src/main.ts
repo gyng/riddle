@@ -2,6 +2,7 @@
 import "./styles.css";
 import "./wide.css";
 import "./cut29.css";   // Cut 29 client: reveals, meters, orders, sinks   // the wide frame (desktop ≥ 1024 px): rules left, the well centre, the shaft right
+import "./death.css";   // death screen v2: what · why · what now, the rest under details
 import "./juice";   // juice (docs/JUICE.md): UI motion switch + purse count-up (juice.css)
 import { installWashChrome } from "./render/wash";
 import { start, type DevOptions } from "./app";

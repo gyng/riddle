@@ -19,7 +19,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
-import { editRows } from "./lib/frame.mjs";
+import { editRows, deathDetails } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -32,6 +32,7 @@ const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 1 });
+await deathDetails(page);   // death v2: this suite reads the trace, the ledger and the tablets under `details`
 page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 const shot = async (name) => { if (shots) await page.screenshot({ path: resolve(shots, `${name}.png`), fullPage: false }); };
@@ -180,8 +181,9 @@ try {
       route_cause: { fork: 5, taken: "fens", other: "burrows", route: [], survive: 9 / 12 }, patches: [] } }));
     await waitFor((x) => x?.screen === "death", "the route death"); await sleep(300);
     const d = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict")?.textContent,
-      lead: document.querySelector("button.patch.route-fix")?.textContent.replace(/\s+/g, " ").trim(), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent }));
-    check(d.cause === "bloat · D7 · D5 fens" && d.seal === "route" && /take burrows/.test(d.lead ?? "") && /survives 9\/12 · was 3\/12/.test(d.lead ?? "") && d.gem === "9/12",
+      lead: document.querySelector("button.patch.route-fix")?.textContent.replace(/\s+/g, " ").trim(), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent, why: document.querySelector(".death .death-why")?.textContent, margin: document.querySelector(".death .death-margin")?.textContent }));
+    // death v2: the headline is the killer and the floor; the stair taken is the details' margin, the why line `wrong stairs · D5`
+    check(/^bloat · D7\b/.test(d.cause ?? "") && d.margin === "D5 fens" && d.why === "wrong stairs · D5" && d.seal === "route" && /take burrows/.test(d.lead ?? "") && /survives 9\/12 · was 3\/12/.test(d.lead ?? "") && d.gem === "9/12",
       `a route death: "${d.cause}" · ${d.seal}; lead "${d.lead}", gem ${d.gem}`);
     await shot("cut26-route-death");
     await page.locator(".patch-gem").click({ timeout: 5000 }); await sleep(400);
@@ -202,8 +204,9 @@ try {
     else await page.evaluate(async (line) => { const { drivenDeath } = await import("/src/ui/death.ts"); window.__riddle.go({ kind: "death", death: drivenDeath(line, 7) }); }, line);
     await sleep(300);
     const d = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict")?.textContent,
-      tab: document.querySelector("button.patch.driven-line")?.textContent.replace(/\s+/g, " ").trim(), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent, ledger: document.querySelector(".death .ledger-line")?.textContent }));
-    check(has > 0 && d.seal === "repelled" && d.cause === "Warlord · D8 · shield wall" && /try: attack boss/.test(d.tab ?? "") && d.gem === "write",
+      tab: document.querySelector("button.patch.driven-line")?.textContent.replace(/\s+/g, " ").trim(), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent, ledger: document.querySelector(".death .ledger-line")?.textContent, margin: document.querySelector(".death .death-margin")?.textContent, why: document.querySelector(".death .death-why")?.textContent }));
+    // death v2: the boss's defence is the details' margin; the why line `needs a counter`
+    check(has > 0 && d.seal === "repelled" && /^Warlord · D8\b/.test(d.cause ?? "") && d.margin === "shield wall" && d.why === "needs a counter" && /try: attack boss/.test(d.tab ?? "") && d.gem === "write",
       `a drive-off opens its verdict from the report's line (chip ${has}): "${d.cause}" · ${d.seal}, tablet "${d.tab}", gem \`${d.gem}\`, "${(d.ledger ?? "").slice(0, 30)}"`);
     await shot("cut26-driven");
     // (a kept verdict; the gem writes the counter at the top)
