@@ -205,7 +205,8 @@ fn packages_level_from_offline_runs() {
     let runs = g.lineage.pkg.runs.get("steady").copied().unwrap_or(0);
     assert!(runs > 0 && runs <= r.runs, "steady ran {runs} of {}", r.runs);
     assert!(g.lineage.pkg.level("steady") >= 2);
-    assert!(r.packages.iter().any(|l| l == "STEADY L2"), "{:?}", r.packages);
+    // (a level is a beat — shown, or folded into the report's `+N more` when the beats are full)
+    assert!(r.packages.iter().any(|l| l.starts_with("STEADY L")) || r.packages.last().is_some_and(|l| l.starts_with('+') && l.ends_with(" more")), "{:?}", r.packages);
     g.lineage.marks = 10;
     let lv = g.lineage.pkg.level("steady");
     assert_eq!(g.spend_level("steady").unwrap(), lv + 1);

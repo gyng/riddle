@@ -125,7 +125,9 @@ fn write_own_rows(g: &mut Game, pets: impl Fn() -> bool) -> u32 {
     let mut n = 0;
     // (the stray's row only when its fact is held — the loop's own test — and pets are in play: asked then)
     let stray = g.lineage.facts.contains("stray") && pets();
-    let situations = std::iter::once("stray").filter(|_| stray).chain(riddle_core::descent::SITUATION_DEPTHS.iter().map(|(w, _)| *w));
+    // (the situations' rows are gone: answered on every floor at the pen's top they slowed the Deep's walk —
+    // the late pen fine-tunes walls, it does not rewrite the walk)
+    let situations = std::iter::once("stray").filter(|_| stray);
     for what in situations {
         if !g.lineage.facts.contains(what) {
             continue;
@@ -164,7 +166,9 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
     // (a swap must not cost the walk: the sends from where they start keep their floors — the wall's
     // answer is taken, not a stance that reads well at the wall and dies on the way to it)
     // (a swap that passes clearly more may cost a little more death: half its gain in passes)
-    let Some(top) = opts.iter().find(|o| o.action == "equip" && o.d_mean >= -0.25 && o.d_death <= 0.05f64.max(o.d_past / 2.0)) else { return moved };
+    // (and a wall's clear answer is taken whatever the walk reads — Hunter at the Foundry's golems read
+    // +0.3 to +1.1 for two days and lost each time to a tactic that passed the walk's test)
+    let Some(top) = opts.iter().find(|o| o.action == "equip" && (riddle_core::packages::score(o) >= PICK_STRONG || o.d_mean >= -0.25 && o.d_death <= 0.05f64.max(o.d_past / 2.0))) else { return moved };
     // a swap when it clearly helps (the panel's noise is ~±0.1 at these sims)
     if riddle_core::packages::score(top) > PICK_BAR && riddle_core::packages::apply(&mut g.lineage, &top.id, &top.action, top.slot).is_ok() {
         if verbose {
@@ -178,6 +182,7 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
 /// The forecast's panel for a package move, and the move it must clear.
 const PICK_SIMS: u32 = 32;
 const PICK_BAR: f64 = 0.12;
+const PICK_STRONG: f64 = 0.4;
 
 /// Whether `forge` would take a step (it buys the cheapest when the purse pays it with `reserve` to spare).
 fn forge_due(g: &Game, reserve: i32) -> bool {
@@ -387,6 +392,10 @@ impl Play {
             }
             if verbose {
                 eprintln!("  [{}] day {} ci {} runs {} bank {} ret {} stalled {} deaths {:?} best D{} wearing {:?}", cfg.label(), day + 1, ci, rep.runs, rep.banked, rep.returned, rep.stalled, rep.deaths.iter().map(|d| format!("{}×{}", d.cause, d.n)).collect::<Vec<_>>(), g.lineage.best_depth, g.lineage.pkg.equipped());
+                if g.lineage.best_depth >= 26 {
+                    let pen: Vec<String> = g.lineage.pkg.pen.iter().map(|r| r.describe()).collect();
+                    eprintln!("    qm {:?} shelf {:?} pen {:?} queen counter {} silence id {}", riddle_core::packages::quartermaster(&g.lineage), g.lineage.supplies.iter().map(|s| s.kind.clone()).collect::<Vec<_>>(), pen, riddle_core::facts::boss_counter_known(&g.lineage.facts, "lurker_queen"), riddle_core::item::is_identified(&g.lineage.facts, &g.lineage.flavours, "silence"));
+                }
             }
             match ask.q(Q::Arm) {
                 0 => {}
@@ -433,8 +442,15 @@ impl Play {
                         let best = g.lineage.best_depth;
                         let route = g.lineage.rules().route();
                         for b in [best, best + 1].into_iter().filter_map(|d| route.boss(d)) {
-                            // (the Foundry's counter is its golems' fact, as its drill's)
-                            let known = riddle_core::facts::boss_counter_known(&g.lineage.facts, b) || (b == "foundry_master" && riddle_core::facts::tag_known(&g.lineage.facts, "iron_golem", "reflect_melee"));
+                            // (the Foundry only where the route puts it deep — its drill late: above that a
+                            // package answers it, Hunter's reflect read, and a pen row over the stance hid that
+                            // answer from the picker; its counter is its golems' fact, as its drill's)
+                            let deep = route.boss_depth(b).is_some_and(|d| d >= riddle_core::packages::DEEP_FROM);
+                            let known = if b == "foundry_master" {
+                                deep && (riddle_core::facts::boss_counter_known(&g.lineage.facts, b) || riddle_core::facts::tag_known(&g.lineage.facts, "iron_golem", "reflect_melee"))
+                            } else {
+                                riddle_core::facts::boss_counter_known(&g.lineage.facts, b)
+                            };
                             if known && !g.lineage.kills.contains(b) && !g.lineage.pkg.drills.iter().any(|d| d.boss == b) {
                                 let heal = riddle_core::packages::heal_pct(&g.lineage.pkg.stance, g.lineage.pkg.level(&g.lineage.pkg.stance));
                                 for row in riddle_core::packages::drill_rows(b, heal) {

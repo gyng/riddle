@@ -2197,7 +2197,7 @@ function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; wo
 // ---- Cut 30 stand-ins (the core's `packages.rs`, `town.rs`): the packages, the town, the tracks, `grew`. Shapes only — the fake's
 // rows stay its own; a package move changes the chips, the stance's name and level, never the fake's sims.
 const PKGS30: [string, string, string, string][] = [
-  ["steady", "Steady", "stance", ""], ["guarded", "Guarded", "stance", "meet Warlord"], ["bold", "Bold", "stance", "slay Warlord"], ["hunter", "Hunter", "stance", "meet Warlord"],
+  ["steady", "Steady", "stance", ""], ["guarded", "Guarded", "stance", "meet Captain"], ["bold", "Bold", "stance", "slay Warlord"], ["hunter", "Hunter", "stance", "meet Warlord"],
   ["boss_focus", "boss focus", "tactic", "slay Warlord"], ["corridor_fighting", "corridor fighting", "tactic", "slay Warlord"], ["kite_archers", "kite archers", "tactic", "slay Warlord"],
   ["thief_guard", "thief guard", "tactic", "slay Warlord"], ["gas_step", "gas step", "tactic", "slay Warlord"], ["pack_break", "pack break", "tactic", "slay Warlord"],
   ["skittish", "skittish", "temperament", "heir 3"], ["unbowed", "unbowed", "temperament", "heir 3"], ["light_hands", "light hands", "temperament", "heir 3"], ["iron_gut", "iron gut", "temperament", "heir 3"]];
@@ -2232,7 +2232,7 @@ function tracks30(e: Fk30, L: Lineage): Track[] {
     return { id, stage: done[done.length - 1]?.[0] ?? stages[0][0], stages: done.length, ...(next ? { next: next[0], trigger: next[1] } : {}) };
   };
   return [
-    tr("character", [["Steady", "", true], ["second stance", "meet Warlord", L.best_depth >= 8], ["a tactic", "slay Warlord", L.best_depth >= 9], ["pets", "first stray", L.facts.includes("stray")], ["a temperament", "heir 3", L.heir >= 3], ["the pen", "meet Mother", P.pen_open]]),
+    tr("character", [["Steady", "", true], ["second stance", "meet Captain", L.best_depth >= 5], ["a tactic", "slay Warlord", L.best_depth >= 9], ["pets", "first stray", L.facts.includes("stray")], ["a temperament", "heir 3", L.heir >= 3], ["the pen", "meet Mother", P.pen_open]]),
     tr("items", [["pack of 3", "", true], ["storehouse", "first find kept", T.buildings.some((b) => b.id === "storehouse")], ["blacksmith steps", "first gold home", T.buildings.some((b) => b.id === "blacksmith")], ["a counter packed", "a drill's item", L.best_depth >= 14]]),
     tr("scale", [["one hero", "", true], ["party slot 2", "a second slot", L.unlocks.includes("party_slot_2")], ["waystones", "slay Warlord", L.best_depth >= 9], ["party slots 3–4", "a fourth slot", L.unlocks.includes("party_slot_4")]]),
     tr("town", [["camp", "", true], ...BUILD30.map(([id, trig]): [string, string, boolean] => [id, trig, T.buildings.some((b) => b.id === id)])]),

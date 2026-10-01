@@ -127,7 +127,7 @@ pub fn stages(track: &str) -> &'static [(&'static str, &'static str)] {
         // (each band boss's drill is a stage of the hero's: the idle climb's own milestones)
         "character" => &[
             ("Steady", ""),
-            ("second stance", "meet Warlord"),
+            ("second stance", "meet Captain"),
             ("Warlord drilled", "meet Warlord twice"),
             ("a tactic", "slay Warlord"),
             ("pets", "first stray"),
@@ -157,7 +157,7 @@ pub fn reached(l: &LineageState, track: &str, stage: &str) -> bool {
     let met = |k: &str| l.pkg.meets.get(k).copied().unwrap_or(0) > 0 || l.facts.contains(&format!("foe:{k}")) || l.kills.contains(k);
     match (track, stage) {
         (_, "Steady" | "pack of 3" | "one hero" | "camp") => true,
-        ("character", "second stance") => met("goblin_warlord"),
+        ("character", "second stance") => met("goblin_captain") || met("goblin_warlord"),
         ("character", "a tactic") | ("scale", "waystones") => l.kills.contains("goblin_warlord"),
         ("character", "pets") => l.facts.contains("stray") || l.all_companions().next().is_some(),
         ("character", "a class") => l.classes.iter().any(|(k, c)| k != "fighter" && (c.xp > 0 || c.level > 1)) || ["rogue", "ranger", "caster"].iter().any(|c| l.unlocks.contains(*c)),

@@ -76,7 +76,7 @@ const fn temper(id: &'static str, name: &'static str, t: crate::hero::Trait) -> 
 /// The set v1 (docs/CUT30.md §2): 4 stances, 6 tactics (today's cards), 4 temperaments.
 pub const PACKAGES: &[PackageDef] = &[
     stance("steady", "Steady", ""),
-    stance("guarded", "Guarded", "meet Warlord"),
+    stance("guarded", "Guarded", "meet Captain"),
     stance("bold", "Bold", "a day on"),
     stance("hunter", "Hunter", "a day on"),
     tactic("boss_focus", "boss focus"),
@@ -592,7 +592,7 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
         }
         let ok = match (d.kind, d.id) {
             (Kind::Stance, "steady") => true,
-            (Kind::Stance, "guarded") => met("goblin_warlord"),
+            (Kind::Stance, "guarded") => met("goblin_captain") || met("goblin_warlord"),
             (Kind::Stance, "bold") => since("guarded"),
             (Kind::Stance, "hunter") => since("bold"),
             (Kind::Tactic, _) => {
@@ -881,6 +881,27 @@ pub fn quartermaster(l: &LineageState) -> Vec<String> {
         if let Some(k) = drill_item(d) {
             if crate::item::is_identified(&l.facts, &l.flavours, &k) && !out.contains(&k) {
                 out.push(k);
+            }
+        }
+    }
+    // (and what the pen's own rows name — a counter written before its drill is packed as the drill's
+    // would be: a `read silence` row with no scroll on the shelf answers nothing)
+    // (a boss's counter row only, and while the boss is in reach, as a drill's)
+    if l.pkg.pen_open && !l.pkg.literal {
+        for (boss, _) in crate::descent::BOSS_DEPTHS {
+            let counter = crate::facts::counter_row(boss);
+            if !l.pkg.pen.iter().any(|row| row.verb == counter.verb) {
+                continue;
+            }
+            let Some(depth) = l.rules().route().boss_depth(boss) else { continue };
+            if l.best_depth + 2 < depth || l.kills.contains(boss) && l.best_depth > depth + 1 {
+                continue;
+            }
+            let d = Drill { boss: boss.to_string(), rows: vec![counter], revoked: false, announced: false };
+            if let Some(k) = drill_item(&d) {
+                if crate::item::is_identified(&l.facts, &l.flavours, &k) && !out.contains(&k) {
+                    out.push(k);
+                }
             }
         }
     }

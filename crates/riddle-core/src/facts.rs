@@ -180,7 +180,21 @@ pub fn learn_boss_counter(run: &mut Run, cx: &mut Ctx, kind: &str) -> bool {
     if boss_counter_known(cx.facts, kind) {
         return false;
     }
-    learn(run, cx, boss_counter_fact(kind))
+    let learned = learn(run, cx, boss_counter_fact(kind));
+    // Cut 30 (the owner's round 5: the deep walls answered by a written counter): a counter that is an
+    // item — the Queen's silence, the Mother's fire — is learned with what the item is, or the row the
+    // fact names could never be packed (the silence scroll stayed unread into the second week)
+    let row = counter_row(kind);
+    if matches!(row.verb.v.as_str(), "read" | "throw") {
+        if let Some(item) = row.verb.a.as_deref().and_then(|a| a.split(',').next()) {
+            if let Some(f) = crate::item::ident_fact(cx.flavours, item) {
+                if !cx.facts.contains(&f) {
+                    learn(run, cx, f);
+                }
+            }
+        }
+    }
+    learned
 }
 
 /// Cut 6 §5: a save's old-form counter facts (`boss:<kind>:counter`) take the row.
