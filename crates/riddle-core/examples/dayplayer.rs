@@ -720,9 +720,13 @@ fn main() {
         })
         .map(|bot| Cfg { bot, without: None })
         .collect();
-    if loo {
+    // (`--loo-only packages,forge`: a probe's leave-one-outs, the rest left out)
+    let loo_only: Option<Vec<String>> = a.iter().position(|x| x == "--loo-only").and_then(|i| a.get(i + 1)).map(|s| s.split(',').map(String::from).collect());
+    if loo || loo_only.is_some() {
         for s in SYSTEMS {
-            cfgs.push(Cfg { bot: Bot::Tuned, without: Some(s) });
+            if loo_only.as_ref().is_none_or(|o| o.iter().any(|x| x == s)) {
+                cfgs.push(Cfg { bot: Bot::Tuned, without: Some(s) });
+            }
         }
     }
     let t0 = std::time::Instant::now();
@@ -871,6 +875,10 @@ fn main() {
     let tuned = by("TUNED");
     let random = by("RANDOM");
     let mut bars: Vec<(String, String, bool)> = Vec::new();
+    // (rows the owner keeps in view, ungated)
+    let mut infos: Vec<(String, String)> = Vec::new();
+    // (the nothing-required row's worst seed: a day behind IDLE at most — the owner, round 8)
+    const NOTHING_REQ_MAX_LAG: f64 = 24.0;
     if !idle.is_empty() {
         let n = idle.len();
         let d8 = idle.iter().filter(|o| o.hours[0].is_some_and(|h| h <= 24.0)).count();
@@ -933,9 +941,13 @@ fn main() {
     if !tuned.is_empty() && !picked.is_empty() {
         // (the owner, 2026-10-01: the pen is an optional late fine-tuning layer — it beats the packages at
         // the deepest walls by ≥ 15 %, and nothing needs it; was `TUNED ≥ 1.5× PICKED at D18, D23, D28`;
-        // round 6: past D28 — D29 — not the D28 floor, which the walls above it gate)
-        let rs: Vec<f64> = [5, 6].iter().map(|&i| ratio(&picked, &tuned, i)).collect();
-        bars.push(("TUNED beats PICKED by ≥ 15 % at D29, D33 (median hours)".into(), rs.iter().map(|r| format!("{r:.2}")).collect::<Vec<_>>().join(" · "), rs.iter().all(|r| *r >= 1.15)));
+        // round 6: past D28 — D29 — not the D28 floor, which the walls above it gate; round 8: D33 alone, D29
+        // printed — where the route puts the Foundry at D28 a package answers it and the scars let PICKED
+        // through the Queen in a day or four, so D29 reads 0.9–1.2 by seed set)
+        let d29 = ratio(&picked, &tuned, 5);
+        let d33 = ratio(&picked, &tuned, 6);
+        bars.push(("TUNED beats PICKED by ≥ 15 % at D33 (median hours)".into(), format!("{d33:.2}"), d33 >= 1.15));
+        infos.push(("TUNED vs PICKED at D29 (median hours)".into(), format!("{d29:.2}")));
     }
     // (the owner, round 6: a random package is mostly a good one, so RANDOM is weighed against the picker —
     // never ahead of PICKED on any seed at D13 or D23; the RANDOM-vs-IDLE row prints as retired)
@@ -967,13 +979,18 @@ fn main() {
             if v.is_empty() {
                 continue;
             }
-            // never slower than IDLE at any milestone (± one check-in)
+            // never slower than IDLE at any milestone on the median seed (± a check-in), and no seed more
+            // than a day behind (the owner, round 8: before the pen opens TUNED − packages is IDLE with the
+            // forge and the bank — the forge's steps re-roll the runs, a chaotic twin ±16–32 h either way)
             for (i, _) in MILESTONES.iter().enumerate() {
-                for (x, y) in v.iter().zip(&idle) {
-                    if hours_or(x, i, cap) > hours_or(y, i, cap) + step && (x.hours[i].is_some() || y.hours[i].is_some()) {
-                        req_ok = false;
-                        worst_req = format!("{s} s{} D{}", x.seed, MILESTONES[i]);
-                    }
+                let lag: Vec<f64> = v.iter().zip(&idle).filter(|(x, y)| x.hours[i].is_some() || y.hours[i].is_some()).map(|(x, y)| hours_or(x, i, cap) - hours_or(y, i, cap)).collect();
+                if lag.is_empty() {
+                    continue;
+                }
+                let (med, max) = (median(lag.clone()), lag.iter().cloned().fold(f64::MIN, f64::max));
+                if med > step || max > NOTHING_REQ_MAX_LAG {
+                    req_ok = false;
+                    worst_req = format!("{s} D{} median {med:+.0} h · worst {max:+.0} h", MILESTONES[i]);
                 }
             }
             let n = v.len().min(tuned.len());
@@ -1011,7 +1028,7 @@ fn main() {
             moves.push((s, with, without, unit, ok));
         }
         if !moves.is_empty() {
-            bars.push(("Nothing required: TUNED − S never slower than IDLE (± a check-in)".into(), if req_ok { "ok".into() } else { worst_req }, req_ok));
+            bars.push(("Nothing required: TUNED − S ≤ IDLE on the median seed (± a check-in), no seed > 24 h behind".into(), if req_ok { "ok".into() } else { worst_req }, req_ok));
             let each = moves.iter().all(|m| m.4);
             bars.push(("Each system adds value by its own output (TUNED vs TUNED − S)".into(), moves.iter().map(|(s, a, b, u, _)| format!("{s} {a:.1}/{b:.1} {u}")).collect::<Vec<_>>().join(" · "), each));
             // (`none > 60 % of TUNED − IDLE` retired: the systems are measured by their own outputs, no
@@ -1042,6 +1059,9 @@ fn main() {
         if !ok {
             fails += 1;
         }
+    }
+    for (name, value) in &infos {
+        println!("{:<64} {:>18}  info", name, value);
     }
     for (name, value) in &retired {
         println!("{:<64} {:>18}  retired", name, value);

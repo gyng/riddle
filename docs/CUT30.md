@@ -470,6 +470,15 @@ either way on 3 of 8 seeds — a per-seed bar against a chaotic twin.
   (3) **TUNED and the leave-one-outs run on 8 seeds** (`--tuned-seeds 8 --loo-seeds 8`) until the gate speed-up lands,
   then 16; IDLE, PICKED and RANDOM stay at 16 (the PICKED-vs-IDLE and RANDOM rows: affordable, ~16 CPU-min a bot).
   The speed-up landed 2026-10-02 (branch `gate-speed` merged): TUNED and the leave-one-outs are back on 16.
+- **Round 8, owner-approved 2026-10-02.** (1) *TUNED beats PICKED by ≥ 15 %* is judged at **D33 alone**; D29 prints as
+  info. Where the route puts the Foundry at D28 a package (Hunter's reflect read) answers it and the pen adds nothing,
+  and the scars let PICKED through the Queen in 16–104 h: D29 read 0.87–1.65 by seed, median 1.0–1.2 by seed set
+  (checkpoint 9). (2) *Nothing required* reads: for every system S and milestone, TUNED − S is **never slower than
+  IDLE on the median seed (± a check-in), and no seed is more than 24 h behind IDLE** — was every seed × milestone ±
+  a check-in. Before the pen opens TUNED − packages is IDLE with the forge and the bank: the forge's steps re-roll
+  the runs (a 2-day probe without the forge was IDLE seed for seed), a chaotic twin ±16–32 h either way on 3 of 8
+  seeds. A deep-wall scar candidate (no scars, or 2 % a day, at D28+) was measured and dropped: it moved D33 to 1.16
+  and 1.33 but cost PICKED's stage days (9.0); the scars stay as §1 has them.
 - **Round 7 content (2026-10-02; ours to tune — the owner: "tune content, not the bar"):**
   - *Guarded arrives at the Captain* (the Burrows' lieutenant, D5 on the base route), not the Warlord met: the picker's
     first real choice comes before the first wall. It moved PICKED's D13 from 16–40 h to 16–24 h on 16 seeds (2-day
