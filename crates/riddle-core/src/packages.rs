@@ -296,7 +296,7 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
         // record when hurt), L5 steps off a telegraph when hurt. The long rest is `Guarded`'s.
         "steady" => {
             // (the safest default: from L3 it walks home at a quarter of its hp)
-            let mut g = vec![drink, r(vec![n("hp<", if level >= 3 { 25 } else { 20 })], Verb::new("return"))];
+            let mut g = vec![drink, r(vec![n("hp<", if level >= 3 && best >= 8 { 25 } else { 20 })], Verb::new("return"))];
             if level >= 4 {
                 g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0))], Verb::new("bank")));
                 g.push(r(vec![n("depth>=", bank_at(best, 1))], Verb::new("bank")));

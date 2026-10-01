@@ -144,7 +144,7 @@ pub fn stages(track: &str) -> &'static [(&'static str, &'static str)] {
         "items" => &[("pack of 3", ""), ("storehouse", "first find kept"), ("blacksmith steps", "first gold home"), ("a counter packed", "a drill's item")],
         // (a waystone lit deeper is the scale's next stage: the sends can start there)
         // (each band boss slain is a stage too: the descent opens past him for good)
-        "scale" => &[("one hero", ""), ("party slot 2", "a second slot"), ("waystones", "slay Warlord"), ("Mother slain", "slay Mother"), ("Lich slain", "slay Lich"), ("Master slain", "slay Master"), ("Queen slain", "slay Queen"), ("waystone D14", "bank at D14"), ("waystone D19", "bank at D19"), ("waystone D24", "bank at D24"), ("waystone D29", "bank at D29"), ("party slots 3–4", "a fourth slot")],
+        "scale" => &[("one hero", ""), ("party slot 2", "a second slot"), ("waystones", "slay Warlord"), ("Mother slain", "slay Mother"), ("Lich slain", "slay Lich"), ("Master slain", "slay Master"), ("Queen slain", "slay Queen"), ("the bottom", "reach D33"), ("waystone D14", "bank at D14"), ("waystone D19", "bank at D19"), ("waystone D24", "bank at D24"), ("waystone D29", "bank at D29"), ("party slots 3–4", "a fourth slot")],
         "town" => &[("camp", ""), ("blacksmith", "first gold home"), ("storehouse", "first find kept"), ("kennel", "first tame"), ("bank", "a night's purse")],
         _ => &[],
     }
@@ -188,6 +188,8 @@ pub fn reached(l: &LineageState, track: &str, stage: &str) -> bool {
             l.kills.contains(boss)
         }
         ("scale", w) if w.starts_with("waystone D") => w.trim_start_matches("waystone D").parse::<u32>().is_ok_and(|d| l.stones().contains(&d)),
+        // (the King's floor: the descent's last band seen)
+        ("scale", "the bottom") => l.best_depth >= crate::descent::BANDS[crate::descent::BANDS.len() - 1].1,
         ("scale", "party slot 2") => l.party_slots() >= 2,
         ("scale", "party slots 3–4") => l.party_slots() >= 4,
         ("town", b) => built(l, b),

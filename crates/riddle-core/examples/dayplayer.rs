@@ -159,7 +159,8 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
     }
     // (a swap must not cost the walk: the sends from where they start keep their floors — the wall's
     // answer is taken, not a stance that reads well at the wall and dies on the way to it)
-    let Some(top) = opts.iter().find(|o| o.action == "equip" && o.d_mean >= -0.25 && o.d_death <= 0.05) else { return moved };
+    // (a swap that passes clearly more may cost a little more death: half its gain in passes)
+    let Some(top) = opts.iter().find(|o| o.action == "equip" && o.d_mean >= -0.25 && o.d_death <= 0.05f64.max(o.d_past / 2.0)) else { return moved };
     // a swap when it clearly helps (the panel's noise is ~±0.1 at these sims)
     if riddle_core::packages::score(top) > PICK_BAR && riddle_core::packages::apply(&mut g.lineage, &top.id, &top.action, top.slot).is_ok() {
         if verbose {
@@ -330,11 +331,16 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                                 }
                             }
                         }
-                        if let Some(id) = rep.worst_death_id.filter(|_| ci == 0) {
+                        // (a death's patch is taken at a wall — the record held — not on the walk: the pen is
+                        // the late fine-tuning a stuck player reaches for, and a patch for a death on the
+                        // way down slowed the Deep's walk)
+                        if let Some(id) = rep.worst_death_id.filter(|_| ci == 0 && riddle_core::wall::at_wall(&g.lineage)) {
                             if let Some(death) = g.death(id) {
                                 if death.verdict == "gap" {
                                     if let Some(p) = death.patches.first() {
-                                        if p.survive > death.baseline + 0.15 && p.forecast_delta >= 0.0 {
+                                        // (never a walk home: a return row trades the record's floors for the
+                                        // run's life — at the deep walls it held TUNED at the Queen for days)
+                                        if p.survive > death.baseline + 0.15 && p.forecast_delta >= 0.0 && p.row.verb.v != "return" {
                                             insert_row(&mut g, p.row.clone(), 0);
                                         }
                                     }
