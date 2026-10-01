@@ -389,7 +389,39 @@ takes no swap that costs the walk; later bosses are drilled at the third day met
 the Foundry card first and goes for archers; Bold strikes the boss through its heal and dives when hurt; the pack carries
 what a tactic throws; RANDOM picks blind; a package row that loops rests for the floor (IDLE's stalls 1.66 → 0.34 %).
 
+**Checkpoint 7** (`16ebe82`, the owner 2026-10-01: the pen re-scoped as optional late fine-tuning; each system measured
+by its own output) and the third `node tools/gates.mjs --full` (metrics 3069 s; qa all PASS on 30 seeds; TUNED on the
+bots' 8 seeds, the leave-one-outs on 4):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days) | 8/8 · 1.5 · 8/8 med 6.7 · 3 · 14/14 · 0/8 · 1/6 · 336/336 · 9 | PASS |
+| PICKED: stage days ≥ 10 · never out-paced · content reach | 10 · 100 % · 7/8 | PASS |
+| Stalls ≤ 1 % of sends: IDLE · PICKED · TUNED | 0.00 % · 0.00 % · 0.00 % | PASS |
+| Each system by its own output (TUNED / TUNED − S) | packages 124/152 h→D23 · pen 27.6/27.2 mean best · forge 27.6/24.6 · pets 45.1/46.5 % deaths · bank $1559/$1311 a day · quests 12.8/0 kept | PASS |
+| metrics: quests keepable · lanes on IDLE · 20-min · drill item · expeditions | worst 93 % · 0.09/0.05 · 100 % · 100 % · in band | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.50 · 1.75 · 1.28 (runs before: 1.43, 1.63) | FAIL at D23 — swings ±0.2 between runs at 8 seeds |
+| TUNED beats PICKED by ≥ 15 % at D28 · D33 | 1.00 · 1.04 | FAIL — the pen adds no depth at the deepest walls |
+| RANDOM never faster to D13 · slower to D23 | 88 % · 75 % | FAIL (6/8 at D23) |
+| Nothing required (TUNED − S ≥ IDLE ± a check-in) | TUNED − forge, seed 1, D18 | FAIL (one seed × milestone) |
+| Every stance best at a wall by ≥ 0.02 | bold 2 · guarded 1 · hunter 3 — Steady never | FAIL |
+
+Steady's wall: weighed from each wall's stone and from D1, at one level, drills revoked, with a death free (time) or a
+quarter (the walk's carry), Steady is never first: Guarded is the safer of the two careful stances, Bold passes more,
+Hunter answers the Foundry. Rows tried on Steady (a fire throw at a boss in gas, a step out of gas) moved nothing; they
+are out. Steady's identity — the school, the generalist — has no wall of its own in this row's terms.
+
 ## Deviations
+- **The pen re-scoped** (the owner, 2026-10-01: rules are an optional late fine-tuning layer): `TUNED ≥ 1.5× PICKED at
+  D18, D23, D28` → *TUNED beats PICKED by ≥ 15 % at the deepest walls (D28, D33), and is never required* (TUNED on the
+  bots' 8 seeds). **Systems by their own output** (the owner): `each system moves TUNED's D23 time` → per-system rows —
+  bank: gold a day; pets: deaths a send; quests: rewards kept; forge and pen: the climb's mean best depth; packages: hours to
+  D23 — each better with the system than without; `nothing required` kept. **`None > 60 % of TUNED − IDLE` retired**: the
+  systems are no longer measured on one depth scale, so a share of a depth gap does not fit them.
+- **A floor given up**: on the idle floor a floor the stall guard stops twice is given up home (a queued return keeping
+  60 %), not paced to a stall (the old stall kept nothing); a harness's literal set stalls as before.
+- **Quests drawn where a night keeps them**: `reach` the record's band (three under it), `reach · no return` five under,
+  `home from` a cleared floor (the deepest lit stone at or under the record) — a bank or a return that reached it.
 - **Old rows re-derived on the new bots** (the owner's decision): `COUNTERED reaches ≥ D14 ≥ 50 %` (a written counter
   set on a literal lineage, 70 → 40 % with the temperaments gone) → *content reach: PICKED ≥ D14 by day 2 on ≥ 50 %* (7/8);
   `Lanes D5: no set dominates` (EDITED's written lane sets; +12/+20 vs 15) → *the D5 lanes on IDLE: both viable, the
