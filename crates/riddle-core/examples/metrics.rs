@@ -1481,14 +1481,28 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
             }
         }
     }
-    let past: Vec<f64> = pool(&jobs, threads, |(w, st, s, g)| idle::stance_past(&load(g), s, *w, 96, *st));
+    let panels: Vec<(f64, f64)> = pool(&jobs, threads, |(w, st, s, g)| idle::stance_past(&load(g), s, *w, 96, *st));
+    let past: Vec<f64> = panels.iter().map(|p| p.0).collect();
+    // Steady, the idle default, is exempt from a wall (the owner, 2026-10-01): it is the safest default —
+    // the fewest deaths a send from D1 across the walls, against every other stance
+    let mut died: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
+    for (k, (_, st, s, _)) in jobs.iter().enumerate() {
+        if !*st {
+            let e = died.entry(*s).or_insert((0.0, 0));
+            e.0 += panels[k].1;
+            e.1 += 1;
+        }
+    }
+    let rate = |s: &str| died.get(s).map_or(1.0, |(t, n)| t / (*n).max(1) as f64);
+    let others = idle::STANCES.iter().filter(|s| **s != "steady").map(|s| rate(s)).fold(f64::MAX, f64::min);
+    rows.push(("Steady is the safest default: fewest deaths a send from D1".into(), idle::STANCES.iter().map(|s| format!("{s} {:.0}%", 100.0 * rate(s))).collect::<Vec<_>>().join(" "), rate("steady") < others));
     let mut wins: BTreeMap<&str, u32> = BTreeMap::new();
     let mut contests = 0;
     for w in idle::WALLS {
         for from_stone in [true, false] {
             let mut score: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
             for (k, (jw, st, s, _)) in jobs.iter().enumerate() {
-                if *jw == w && *st == from_stone {
+                if *jw == w && *st == from_stone && *s != "steady" {
                     let e = score.entry(*s).or_insert((0.0, 0));
                     e.0 += past[k];
                     e.1 += 1;
@@ -1507,9 +1521,9 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
             *wins.entry(ranked[0].0).or_insert(0) += 1;
         }
     }
-    let each = idle::STANCES.iter().all(|s| wins.get(s).is_some_and(|n| *n > 0));
+    let each = idle::STANCES.iter().filter(|s| **s != "steady").all(|s| wins.get(s).is_some_and(|n| *n > 0));
     let none_all = wins.values().all(|n| *n < contests);
-    rows.push((format!("Every stance best at ≥ 1 wall by ≥ {STANCE_MARGIN}, none at all ({contests} won)"), wins.iter().map(|(s, n)| format!("{s} {n}")).collect::<Vec<_>>().join(" "), each && none_all && contests > 0));
+    rows.push((format!("Guarded, Bold, Hunter each best at ≥ 1 wall by ≥ {STANCE_MARGIN}, none at all ({contests} won)"), wins.iter().map(|(s, n)| format!("{s} {n}")).collect::<Vec<_>>().join(" "), each && none_all && contests > 0));
     // each quest keepable ≥ 20 % a night by some package set, the pen closed (the board opens with the
     // Warlord slain: the lineages at D13, D18 and D23)
     let mut qjobs: Vec<(&String, &'static str)> = Vec::new();

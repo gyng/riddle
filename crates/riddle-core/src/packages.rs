@@ -124,6 +124,10 @@ pub const DRILL_MEETING: u32 = 2;
 /// Every band boss past the Warlord is drilled at this many days met (the idle path is patient; a
 /// package that answers him is the quicker one).
 pub const DRILL_DAYS: u32 = 3;
+/// The deep walls (D28 on: the Queen, the King) are drilled only at this many days met — the pen's counter
+/// row is the quicker way past them (the owner, 2026-10-01).
+pub const DEEP_DRILL_DAYS: u32 = 6;
+pub const DEEP_FROM: u32 = 28;
 /// The Foundry's first floor: its golems are the wall before its master (`on_run_end`).
 pub const FOUNDRY_WALL: u32 = 19;
 
@@ -291,7 +295,8 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
         // well hurt (under 40 %), L3 rests under 50 %, L4 banks a floor further when whole (at the
         // record when hurt), L5 steps off a telegraph when hurt. The long rest is `Guarded`'s.
         "steady" => {
-            let mut g = vec![drink, r(vec![n("hp<", 20)], Verb::new("return"))];
+            // (the safest default: from L3 it walks home at a quarter of its hp)
+            let mut g = vec![drink, r(vec![n("hp<", if level >= 3 { 25 } else { 20 })], Verb::new("return"))];
             if level >= 4 {
                 g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0))], Verb::new("bank")));
                 g.push(r(vec![n("depth>=", bank_at(best, 1))], Verb::new("bank")));
@@ -807,7 +812,13 @@ pub fn on_run_end(l: &mut LineageState, bosses_met: &[String], max_depth: u32, f
         let meets = if b == "goblin_warlord" { met_runs } else { l.pkg.meets.get(b).copied().unwrap_or(0) };
         let known = crate::facts::boss_counter_known(&l.facts, b) || (b == "foundry_master" && crate::facts::tag_known(&l.facts, "iron_golem", "reflect_melee"));
         // (the Foundry is a wall of golems, not one boss: its drill wants a third day)
-        let need = if b == "goblin_warlord" { DRILL_MEETING } else if b == "foundry_master" { DRILL_DAYS + 1 } else { DRILL_DAYS };
+        let need = match b.as_str() {
+            "goblin_warlord" => DRILL_MEETING,
+            "foundry_master" => DRILL_DAYS + 1,
+            // (the deep walls drill late: the counter written in the pen breaks them days sooner)
+            k if crate::descent::boss_depth(k).is_some_and(|d| d >= DEEP_FROM) => DEEP_DRILL_DAYS,
+            _ => DRILL_DAYS,
+        };
         if meets >= need && known && !l.pkg.drills.iter().any(|d| d.boss == *b) {
             let heal = heal_pct(&l.pkg.stance, l.pkg.level(&l.pkg.stance));
             let rows = drill_rows(b, heal);

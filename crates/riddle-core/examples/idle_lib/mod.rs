@@ -43,7 +43,7 @@ pub fn twenty_minutes(g: &Game) -> u32 {
 /// The shares of `stance`'s sends from `g` that pass `wall` (a sim panel of `sims`): every stance at
 /// the worn stance's level, the record at the wall's floor (each stance's bank row then asks for the
 /// floor past it — a stance is weighed on passing the wall, not on banking under it).
-pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32, from_stone: bool) -> f64 {
+pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32, from_stone: bool) -> (f64, f64) {
     let mut c = g.sim_clone();
     // (from the deepest lit waystone at or above the wall: the wall weighed, not the walk to it — or from
     // D1, the walk and the wall)
@@ -61,7 +61,7 @@ pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32, from_stone: boo
         d.revoked = true;
     }
     if packages::equip(&mut c.lineage, stance, 0).is_err() {
-        return 0.0;
+        return (0.0, 1.0);
     }
     let set = packages::compile(&c.lineage);
     let rs = riddle_core::forecast::camp_panel(&c, &set, sims);
@@ -72,7 +72,7 @@ pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32, from_stone: boo
     let died = rs.iter().filter(|r| r.tier == ExitTier::Death).count() as f64 / k;
     // (from D1 the walk is weighed too: a send that dies on the way loses the heir's carry — `WALK_DEATH`)
     let dw = if from_stone { DEATH_WEIGHT } else { WALK_DEATH };
-    past - std::env::var("DW").ok().and_then(|v| v.parse().ok()).unwrap_or(dw) * died
+    (past - std::env::var("DW").ok().and_then(|v| v.parse().ok()).unwrap_or(dw) * died, died)
 }
 
 /// Of `sends` sends from a lineage whose Mother drill wants fire (fire named, the purse full), the share

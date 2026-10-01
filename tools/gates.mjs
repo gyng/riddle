@@ -30,9 +30,11 @@ const runtimeInputs = [
   ...readdirSync("crates/riddle-core/presets").sort().map((f) => [f, readFileSync(`crates/riddle-core/presets/${f}`)]),
   ...readdirSync("eval/cards").filter((f) => f.endsWith(".rules.json")).sort().map((f) => [f, readFileSync(`eval/cards/${f}`)]),
 ];
-// Cut 30 §6: the idle bots over 8 seeds (full; the leave-one-outs over 4 — `--loo-seeds`), 2 seeds and 1 on the quick table
-const seeds = full ? 8 : 2;
-const looSeeds = full ? 4 : 1;
+// Cut 30 §6: the idle bots over 16 seeds on the full table (the owner, round 5: the ratio rows — PICKED vs
+// IDLE, RANDOM, the leave-one-outs and their TUNED base — are noisy at 8), 2 seeds and 1 leave-one-out on
+// the quick table. Each job is cached under target/gates/dp/ by the binary's hash; ~70+ min fresh at 24 threads.
+const seeds = full ? 16 : 2;
+const looSeeds = full ? 16 : 1;
 const legs = {
   metrics: `target/gates/metrics-${keyOf("target/fast/examples/metrics", [...runtimeInputs, ["args", JSON.stringify({ full, extra })]])}.txt`,
   qa: `target/gates/qa-${keyOf("target/fast/examples/qa", [["args", "--seeds 30"]])}.txt`,
@@ -71,7 +73,8 @@ const QA_SHARE = Number(process.env.QA_SHARE ?? 0.75);
 const cores = os.availableParallelism();
 const hit = { metrics: cached("metrics"), qa: cached("qa"), dayplayer: cached("dayplayer") };
 const done = (r) => ({ ready: Promise.resolve(), done: Promise.resolve(r) });
-const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds), "--loo-seeds", String(looSeeds), "--tuned-seeds", String(seeds), "--threads", String(Math.max(4, Math.round(cores * 0.3)))])).done;
+const dpThreads = full ? Math.max(4, Math.min(24, cores - 8)) : Math.max(4, Math.round(cores * 0.3));
+const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds), "--loo-seeds", String(looSeeds), "--tuned-seeds", String(seeds), "--threads", String(dpThreads)])).done;
 const table = hit.metrics ? done(hit.metrics) : run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra], "metrics: quiet ticks measured", { METRICS_QUIET_SIGNAL: "1" });
 // The invariants (a job pool of seeds and their legs) start once the table's single-threaded quiet
 // per-tick measurement is done (a few seconds), then take three quarters of the cores beside the

@@ -175,7 +175,7 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
 }
 
 /// The forecast's panel for a package move, and the move it must clear.
-const PICK_SIMS: u32 = 40;
+const PICK_SIMS: u32 = 32;
 const PICK_BAR: f64 = 0.12;
 
 /// A blacksmith step whenever the purse pays it with `reserve` to spare.
@@ -298,7 +298,9 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                         // (a swap holds a day before the next is weighed, unless a package arrives)
                         let key = (g.lineage.pkg.owned.len(), g.lineage.best_depth, g.lineage.pkg.offer.clone());
                         let arrived = last_key.as_ref().is_some_and(|k| k.0 != key.0 || k.2 != key.2);
-                        let fresh = arrived || (cool == 0 && (ci == 0 || last_key.as_ref() != Some(&key)));
+                        // (once a day, and when a package arrives: a new record alone re-reads nothing — the
+                        // camp's panels are the harness's costliest call)
+                        let fresh = arrived || (cool == 0 && ci == 0);
                         let stance = g.lineage.pkg.equipped();
                         pick_package(&mut g, verbose, day, fresh);
                         cool = if g.lineage.pkg.equipped() != stance { checkins as u32 } else { cool.saturating_sub(1) };
@@ -307,6 +309,29 @@ fn play(seed: u64, days: usize, checkins: u64, cfg: Cfg, verbose: bool) -> SeedO
                     if tuned {
                         let pets = cfg.has("pets");
                         write_own_rows(&mut g, pets);
+                        // a wall's counter, written once its fact is known (the drill is days away; at the deep
+                        // walls a week): the boss on the record's floor or the next, not yet slain nor drilled
+                        let best = g.lineage.best_depth;
+                        for b in [best, best + 1].into_iter().filter_map(boss_of) {
+                            let known = riddle_core::facts::boss_counter_known(&g.lineage.facts, b);
+                            if known && !g.lineage.kills.contains(b) && !g.lineage.pkg.drills.iter().any(|d| d.boss == b) {
+                                let heal = riddle_core::packages::heal_pct(&g.lineage.pkg.stance, g.lineage.pkg.level(&g.lineage.pkg.stance));
+                                for row in riddle_core::packages::drill_rows(b, heal) {
+                                    // (the card or the verb it needs, bought with marks or gold when the purse has it)
+                                    let need = match (row.verb.v.as_str(), row.card()) {
+                                        (_, Some(c)) => Some(c.to_string()),
+                                        ("throw", _) => Some("throw".to_string()),
+                                        _ => None,
+                                    };
+                                    if let Some(u) = need.filter(|u| !g.lineage.unlocks.contains(u)) {
+                                        if g.buy(&u).is_err() {
+                                            let _ = g.buy_unlock_gold(&u);
+                                        }
+                                    }
+                                    insert_row(&mut g, row, 0);
+                                }
+                            }
+                        }
                         if let Some(id) = rep.worst_death_id.filter(|_| ci == 0) {
                             if let Some(death) = g.death(id) {
                                 if death.verdict == "gap" {
