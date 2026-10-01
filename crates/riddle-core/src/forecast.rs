@@ -80,7 +80,7 @@ pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, s
     let passage = if done { None } else { sim_passage(game, rules) };
     if done {
     } else if parallel_sims() && sims > from + 1 {
-        ran.extend(par_map(game, (from..sims).collect(), |base, &i| simulate_one(base, rules, tag, stop_depth, i, passage)));
+        ran.extend(par_sims(game, from, sims, spent0, budget, |base, i| simulate_one(base, rules, tag, stop_depth, i, passage)));
     } else {
         let mut spent: u64 = spent0;
         for i in from..sims {
@@ -181,6 +181,50 @@ fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> S
     SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage }
 }
 
+/// The sims `from..sims` of a panel on the cores, in index order: a worker takes the next index
+/// unless the finished prefix already spends the budget before it (the sequential loop's stop, which
+/// the caller applies to the ordered results) — so the sims past the budget are not run, but for the
+/// few already started. The results are a contiguous run of indices from `from`, each the sim the
+/// sequential loop runs.
+fn par_sims(game: &Game, from: u32, sims: u32, spent0: u64, budget: u64, run: impl Fn(&Game, u32) -> (u32, SimResult) + Sync) -> Vec<(u32, SimResult)> {
+    let n = (sims - from) as usize;
+    let threads = sim_threads().min(n);
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    // (the slots, the finished prefix's length, its ticks, the first index not needed)
+    let st = std::sync::Mutex::new((Vec::<Option<(u32, SimResult)>>::from_iter((0..n).map(|_| None)), 0usize, spent0, n));
+    let bases: Vec<Game> = (0..threads).map(|_| game.sim_clone()).collect();
+    let (next_r, st_r, run) = (&next, &st, &run);
+    std::thread::scope(|sc| {
+        for base in bases {
+            let (next, st) = (next_r, st_r);
+            sc.spawn(move || {
+                IN_WORKER.with(|w| w.set(true));
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if i >= n || i >= st.lock().unwrap().3 {
+                        break;
+                    }
+                    let r = run(&base, from + i as u32);
+                    let mut g = st.lock().unwrap();
+                    g.0[i] = Some(r);
+                    while g.1 < g.3 {
+                        let k = g.1;
+                        let Some(t) = g.0[k].as_ref().map(|r| r.0 as u64) else { break };
+                        if from + k as u32 >= MIN_SIMS && g.2 >= budget {
+                            g.3 = k;
+                            break;
+                        }
+                        g.2 += t;
+                        g.1 += 1;
+                    }
+                }
+            });
+        }
+    });
+    let (slots, ..) = st.into_inner().unwrap();
+    slots.into_iter().map_while(|r| r).collect()
+}
+
 /// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
 /// the jobs are spread over the cores, each worker holding its own `sim_clone` of `game` —
 /// `Game` is not `Sync`, and a sim reads only what a `sim_clone` carries (lineage, run,
@@ -199,7 +243,7 @@ thread_local! {
 }
 
 fn par_map_threads<T: Send + Sync, R: Send>(game: &Game, jobs: Vec<T>, f: impl Fn(&Game, &T) -> R + Sync) -> Vec<R> {
-    let threads = max_threads().min(jobs.len());
+    let threads = sim_threads().min(jobs.len());
     let next = std::sync::atomic::AtomicUsize::new(0);
     let mut slots: Vec<Option<R>> = (0..jobs.len()).map(|_| None).collect();
     let slots_ref = std::sync::Mutex::new(&mut slots);
@@ -233,7 +277,36 @@ pub fn max_threads() -> usize {
 static PARALLEL_SIMS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(!cfg!(target_arch = "wasm32"));
 
 pub fn parallel_sims() -> bool {
-    PARALLEL_SIMS.load(std::sync::atomic::Ordering::Relaxed) && !IN_WORKER.with(|w| w.get())
+    !IN_WORKER.with(|w| w.get())
+        && match width() {
+            Some(n) => n > 1 && !cfg!(target_arch = "wasm32"),
+            None => PARALLEL_SIMS.load(std::sync::atomic::Ordering::Relaxed),
+        }
+}
+
+thread_local! {
+    /// `with_sim_width`: this thread's panel width, read at each panel (`None`: the process-wide
+    /// switch and `max_threads`).
+    static WIDTH: std::cell::Cell<Option<&'static std::sync::atomic::AtomicUsize>> = const { std::cell::Cell::new(None) };
+}
+
+/// `f` with this thread's panels (`par_map`) on `width` threads, read at each panel — a harness that
+/// fills the machine job by job (the gate table) widens a long chain's panels as its other jobs end,
+/// whatever `set_parallel_sims` says (1: one after another). The results are the same at any width.
+pub fn with_sim_width<R>(width: &'static std::sync::atomic::AtomicUsize, f: impl FnOnce() -> R) -> R {
+    let was = WIDTH.with(|w| w.replace(Some(width)));
+    let r = f();
+    WIDTH.with(|w| w.set(was));
+    r
+}
+
+fn width() -> Option<usize> {
+    WIDTH.with(|w| w.get()).map(|a| a.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// The worker count of a panel now: this thread's width, else `max_threads`.
+fn sim_threads() -> usize {
+    width().unwrap_or_else(max_threads).max(1)
 }
 
 pub fn set_parallel_sims(on: bool) {

@@ -160,7 +160,7 @@ pub fn needed(g: &Game, set: &RuleSet) -> Vec<String> {
 // ---------------------------------------------------------------------------------------------
 // Instruments.
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Buy {
     pub id: String,
     pub cost: u32,
@@ -168,7 +168,7 @@ pub struct Buy {
     pub gold: u32,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DayRec {
     pub checkins: u32,
     pub runs: u32,
@@ -560,7 +560,7 @@ pub fn draw_down(g: &mut Game, rec: &mut DayRec) {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Out {
     pub name: String,
     pub mode: String,
@@ -569,9 +569,37 @@ pub struct Out {
     pub rules: String,
 }
 
+thread_local! {
+    static PH: std::cell::RefCell<std::collections::BTreeMap<&'static str, f64>> = Default::default();
+}
+fn tcpu() -> f64 {
+    std::fs::read_to_string("/proc/thread-self/schedstat").ok().and_then(|t| t.split_whitespace().next().and_then(|x| x.parse::<f64>().ok())).map(|ns| ns / 1e9).unwrap_or(0.0)
+}
+/// `PROG_PHASES=1`: each lineage's CPU seconds by phase (this thread's: the panels' sims run on it unless
+/// the caller widens them) on stderr at its end.
+fn ph<R>(name: &'static str, f: impl FnOnce() -> R) -> R {
+    if std::env::var_os("PROG_PHASES").is_none() {
+        return f();
+    }
+    let t = tcpu();
+    let r = f();
+    let dt = tcpu() - t;
+    PH.with(|m| *m.borrow_mut().entry(name).or_default() += dt);
+    r
+}
+
 /// `measure`: the leave-one-out moves and the wall probe (the timeline); off, the lineage alone (the
 /// metrics' progression rows).
 pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], verbose: bool, measure: bool) -> Out {
+    let o = play_(name, mode, seed, days, schedule, verbose, measure);
+    if std::env::var("PROG_PHASES").is_ok() {
+        let phs = PH.with(|m| std::mem::take(&mut *m.borrow_mut()));
+        eprintln!("prog {} s{} {}", o.name, o.seed, phs.iter().map(|(k, v)| format!("{k} {v:.1}")).collect::<Vec<_>>().join(" "));
+    }
+    o
+}
+
+fn play_(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], verbose: bool, measure: bool) -> Out {
     let walls_only = std::env::var("PROG_WALLS_ONLY").is_ok() || !measure;
     let probe_walls = measure;
     let mut goal: Option<RuleSet> = match &mode {
@@ -596,7 +624,10 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
             let t0 = g.lineage.total_turns;
             let gold0 = g.lineage.gold;
             let unl0 = g.lineage.unlocks.clone();
-            let rep = riddle_core::offline::run_offline_quick(&mut g, elapsed);
+            // (a rater set never reads the report's stall verdict — the dayplayer's policy does: its patch sims
+            // were ~half an absence's CPU, and the verdict reads the game, never writes what a later call reads)
+            let rater = matches!(mode, Mode::Rater(_));
+            let rep = ph("offline", || if rater { riddle_core::offline::run_offline_counts(&mut g, elapsed) } else { riddle_core::offline::run_offline_quick(&mut g, elapsed) });
             d.checkins += 1;
             d.runs += rep.runs;
             d.banked += rep.banked;
@@ -760,7 +791,7 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                 Mode::Rater(_) => {
                     // Cut 29 §1 (E1): the wall's edit, taken as the client offers it — the goal set becomes the set with it
                     let fresh = g.lineage.wall_day != Some(g.lineage.day);
-                    if let Some(w) = &g.wall_edit().filter(|_| fresh) {
+                    if let Some(w) = &ph("wall", || g.wall_edit()).filter(|_| fresh) {
                         goal = Some(w.rules.clone());
                         if let Some(s) = w.start {
                             let _ = g.set_start(s);
@@ -812,7 +843,7 @@ pub fn play(name: String, mode: Mode, seed: u64, days: usize, schedule: &[u64], 
                         buy_gold(&mut g, &u.id.clone(), &mut d);
                     }
                     // (the oaths read on the forecast at the day's first check-in: a player swears for the day)
-                    spend_gold_reading(&mut g, &mut d, ci == 0);
+                    ph("spend", || spend_gold_reading(&mut g, &mut d, ci == 0));
                     draw_down(&mut g, &mut d);
                     let p = project(&g, set);
                     if g.set_rules(p.clone()).is_err() {

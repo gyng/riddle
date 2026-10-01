@@ -24,7 +24,7 @@ pub const GAIN: f64 = 0.02;
 const TAG: u64 = 0x0A7B_2028;
 
 /// One oath measured on one set's lineage.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct OathRead {
     pub kind: String,
     pub offered: bool,
