@@ -361,6 +361,17 @@ fn mark_short(l: &LineageState, cat: &mut [UnlockInfo]) {
 /// tokens), or an automation's effect as one row-like entry (`{conds: [], verb: {v: "auto",
 /// a: "keeps best weapon+armour"}}`). `None` for rows, vaults, slots, classes, conditions and
 /// verbs. Rows are the language: no sentences.
+/// Whether `unlock_rows(id)` holds a row `pred` accepts — read on the tick's hot paths (`turn::row_needs`
+/// per item, per pack slot), so the unlocks' and mastery cards' rows are built once, not per call.
+pub fn unlock_rows_any(id: &str, pred: impl FnMut(&Row) -> bool) -> bool {
+    static ROWS: std::sync::OnceLock<std::collections::HashMap<&'static str, Option<Vec<Row>>>> = std::sync::OnceLock::new();
+    let rows = ROWS.get_or_init(|| UNLOCKS.iter().map(|u| u.id).chain(crate::meta::MASTERY_CARDS.iter().copied()).map(|id| (id, unlock_rows(id))).collect());
+    match rows.get(id) {
+        Some(r) => r.as_ref().is_some_and(|r| r.iter().any(pred)),
+        None => unlock_rows(id).is_some_and(|r| r.iter().any(pred)),
+    }
+}
+
 pub fn unlock_rows(id: &str) -> Option<Vec<Row>> {
     let tag = |t: &str| Cond::t("foe_tag", t);
     let n = Cond::n;

@@ -2969,7 +2969,7 @@ pub fn row_needs(run: &Run, cx: &Ctx, it: &Item) -> bool {
         return true;
     }
     let names = |r: &crate::rules::Row| matches!(r.verb.v.as_str(), "drink" | "read" | "throw") && r.verb.a.as_deref().and_then(|a| a.split(',').next()) == Some(kind);
-    cx.rules.active(cx.max_rows).map(|(_, r)| r).chain(run.lent_row.iter()).any(|r| names(r) || r.card().and_then(crate::meta::unlock_rows).is_some_and(|rows| rows.iter().any(names)))
+    cx.rules.active(cx.max_rows).map(|(_, r)| r).chain(run.lent_row.iter()).any(|r| names(r) || r.card().is_some_and(|c| crate::meta::unlock_rows_any(c, names)))
 }
 
 fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {

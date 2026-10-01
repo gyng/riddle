@@ -328,8 +328,9 @@ impl Map {
         if !self.in_bounds(start) {
             return dist;
         }
-        let (w, h) = (self.w, self.h);
+        let w = self.w as usize;
         let tiles = &self.tiles[..];
+        let seen = &self.seen[..];
         let mut queue: Vec<usize> = Vec::with_capacity(n);
         let si = self.idx(start);
         dist[si] = 0;
@@ -346,30 +347,18 @@ impl Map {
             }
             head += 1;
             let d = dist[pi] + 1;
-            let (px, py) = (pi as i32 % w, pi as i32 / w);
-            for (dx, dy) in DIRS8 {
-                let (qx, qy) = (px + dx, py + dy);
-                if qx < 0 || qy < 0 || qx >= w || qy >= h {
-                    continue;
-                }
-                let qi = (qy * w + qx) as usize;
-                // Every test is pure, so their order is free: the visited one first (most
-                // neighbours of a flood are), the closure last.
-                if dist[qi] >= 0 || !tiles[qi].passable() {
-                    continue;
-                }
-                if dx != 0 && dy != 0 && (tiles[(py * w + qx) as usize] == Tile::Wall || tiles[(qy * w + px) as usize] == Tile::Wall) {
-                    continue;
-                }
-                if (seen_only && !self.seen[qi]) || blocked(Pos::new(qx, qy)) {
-                    continue;
+            // Every test is pure, so their order is free: the visited one first (most
+            // neighbours of a flood are), the closure last.
+            each_step(tiles, w, self.h as usize, pi, &mut dist, |dist, qi, qx, qy| {
+                if (seen_only && !seen[qi]) || blocked(Pos::new(qx, qy)) {
+                    return;
                 }
                 dist[qi] = d;
                 if let Some(parent) = parent.as_deref_mut() {
                     parent[qi] = pi as i32;
                 }
                 queue.push(qi);
-            }
+            });
         }
         dist
     }
@@ -391,7 +380,7 @@ impl Map {
         }
     }
     pub fn flood_resume(&self, dist: &mut [i32], queue: &mut Vec<u32>, head: &mut usize, until: Option<usize>, within: Option<i32>) {
-        let (w, h) = (self.w, self.h);
+        let (w, h) = (self.w as usize, self.h as usize);
         let tiles = &self.tiles[..];
         while *head < queue.len() {
             let pi = queue[*head] as usize;
@@ -400,22 +389,10 @@ impl Map {
             }
             *head += 1;
             let d = dist[pi] + 1;
-            let (px, py) = (pi as i32 % w, pi as i32 / w);
-            for (dx, dy) in DIRS8 {
-                let (qx, qy) = (px + dx, py + dy);
-                if qx < 0 || qy < 0 || qx >= w || qy >= h {
-                    continue;
-                }
-                let qi = (qy * w + qx) as usize;
-                if dist[qi] >= 0 || !tiles[qi].passable() {
-                    continue;
-                }
-                if dx != 0 && dy != 0 && (tiles[(py * w + qx) as usize] == Tile::Wall || tiles[(qy * w + px) as usize] == Tile::Wall) {
-                    continue;
-                }
+            each_step(tiles, w, h, pi, dist, |dist, qi, _, _| {
                 dist[qi] = d;
                 queue.push(qi as u32);
-            }
+            });
         }
     }
     /// First step from `start` toward `goal` along BFS parents (None if unreachable or equal).
@@ -453,6 +430,45 @@ impl Map {
             }
         }
         best.filter(|(d, _)| *d < dist[self.idx(p)]).map(|(_, q)| q)
+    }
+}
+
+/// The flood's steps from tile `pi` of a `w` × `h` map, in `DIRS8` order: each neighbour in bounds,
+/// not yet reached (read first: most neighbours of a flood were), passable, and not across a
+/// wall's corner (`Map::can_step`) is passed to `step` with its coordinates (`dist` < 0 is not yet reached). The neighbours by index
+/// offset and the row's edges tested once — the floods' inner loop (`bfs_layers`, `flood_resume`).
+#[inline(always)]
+fn each_step(tiles: &[Tile], w: usize, h: usize, pi: usize, dist: &mut [i32], mut step: impl FnMut(&mut [i32], usize, i32, i32)) {
+    let (py, px) = (pi / w, pi % w);
+    let (l, r, u, d) = (px > 0, px + 1 < w, py > 0, py + 1 < h);
+    let (x, y) = (px as i32, py as i32);
+    let open = |dist: &[i32], q: usize| dist[q] < 0 && tiles[q].passable();
+    // (a diagonal step: neither orthogonal tile it passes between is a wall)
+    let corner = |a: usize, b: usize| tiles[a] != Tile::Wall && tiles[b] != Tile::Wall;
+    // DIRS8: (0,-1) (1,0) (0,1) (-1,0) (1,-1) (1,1) (-1,1) (-1,-1)
+    if u && open(dist, pi - w) {
+        step(dist, pi - w, x, y - 1);
+    }
+    if r && open(dist, pi + 1) {
+        step(dist, pi + 1, x + 1, y);
+    }
+    if d && open(dist, pi + w) {
+        step(dist, pi + w, x, y + 1);
+    }
+    if l && open(dist, pi - 1) {
+        step(dist, pi - 1, x - 1, y);
+    }
+    if r && u && open(dist, pi + 1 - w) && corner(pi + 1, pi - w) {
+        step(dist, pi + 1 - w, x + 1, y - 1);
+    }
+    if r && d && open(dist, pi + 1 + w) && corner(pi + 1, pi + w) {
+        step(dist, pi + 1 + w, x + 1, y + 1);
+    }
+    if l && d && open(dist, pi - 1 + w) && corner(pi - 1, pi + w) {
+        step(dist, pi - 1 + w, x - 1, y + 1);
+    }
+    if l && u && open(dist, pi - 1 - w) && corner(pi - 1, pi - w) {
+        step(dist, pi - 1 - w, x - 1, y - 1);
     }
 }
 
