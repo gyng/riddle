@@ -9,6 +9,7 @@ import { h, replace } from "./dom";
 import { openSheet } from "./sheet";
 import { sysOpen } from "./systems";
 import skin from "./skin.json";
+import { kw } from "./tips";
 
 const PICTURES = new Set((skin as { quest?: string[] }).quest ?? []);
 /** The reward's picture (`title` · `row` · `slot` · `card`), else null (the caller draws the glyph). */
@@ -37,7 +38,7 @@ export function openQuest(app: App, anchor?: HTMLElement | null): void {
       const swap = app.engine.swapQuest && !q.done
         ? h("button", { class: "chip mini quest-swap", disabled: !q.swap, onclick: () => void app.mutate(() => app.engine.swapQuest!(), undefined).then(() => paint()) }, q.swap ? /* copy:button */ "new quest" : /* copy:button */ "swapped today")
         : "";
-      replace(body, h("div", { class: "label row-label" }, /* copy:label */ "quest"),
+      replace(body, h("div", { class: "label row-label" }, kw("quest")),
         h("div", { class: `quest-card${q.done ? " done" : ""}` },
           rewardPicture(q.reward),
           h("div", { class: "quest-main" },

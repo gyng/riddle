@@ -28,6 +28,10 @@ import { mergeFinds, renamer } from "./report";
 import { foeSrc } from "./skin";
 import { penOpen } from "./packages";
 import { openForge } from "./forge";
+import { kwHost } from "./tips";
+import type { Term } from "./concepts";
+/** docs/TOOLTIPS.md: the seal's verdict as a tip (long-press / hover: the seal's tap stays its own) */
+const VERDICT_TERM: Record<string, Term> = /* copy:none */ { gap: "v_gap", dice: "v_luck", row: "v_rule", order: "v_order", stall: "v_stall", route: "v_route", driven: "v_repelled" };
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
@@ -152,6 +156,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // blow's replay when this session still holds the run — else brings up the trace
   const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;
   const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else if (!prePen) { if (!el.classList.contains("full")) more.click(); tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); } };
+  if (!(prePen && stamp === "you died") && VERDICT_TERM[word]) kwHost(seal, VERDICT_TERM[word]!);
   const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: onCause }, causeEl), h("span", { class: "sep" }, " · "), seal,
     // QA 308f045 (qaAD: `GAP` over `dice-leaning` — "two verdicts on one death"): beside the stamp the lean is the count it rests on, a fact
     // and not a second verdict (`10/12 live unpatched`; without the count, `most live unpatched`)
@@ -254,6 +259,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const LEVER_GEM: Record<string, string> = { spend: "forge", package: "wear", wait: "send" };
   const leverBtn = lever ? h("button", { class: "death-lever tablet", "data-kind": lever.kind, onclick: leverAct },
     h("span", { class: "lever-kind" }, LEVER_WORD[lever.kind] ?? lever.kind), h("b", null, lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
+  if (leverBtn) kwHost(leverBtn, "lever");
   function leverGem(): HTMLButtonElement { return gem({ label: lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "camp" : /* copy:button */ "camp", cls: "lever-gem", pulse: true, onclick: leverAct }); }
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
   const makeGem = (): HTMLButtonElement => prePen ? leverGem() : top && measuring && isPatchTop()

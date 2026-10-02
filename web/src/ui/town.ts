@@ -15,6 +15,10 @@ import { openSheet } from "./sheet";
 import { tile } from "./frame";
 import { audio } from "../audio";
 import { questShown } from "./quest";
+import { kwHost } from "./tips";
+import type { Term } from "./concepts";
+/** docs/TOOLTIPS.md: a building's tip (long-press / hover; its tap stays its panel) */
+const HIT_TERM: Record<string, Term> = /* copy:none */ { crate: "pack", blacksmith: "forge", storehouse: "vault", kennel: "kennel", bank: "bank", board: "quest", staked: "track" };
 
 /** what a target opens (the camp wires each to its panel or sheet) */
 export type TownHooks = {
@@ -108,6 +112,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       if (!b) {
         const label = w.id === "staked" ? `${LABEL.staked}` : LABEL[w.id] ?? w.id;
         b = h("button", { class: `town-hit hit-${w.id}`, "data-building": w.id, "aria-label": label, onclick: (e: Event) => tap(w.id, e) }, h("span", { class: "vh" }, label));
+        if (HIT_TERM[w.id]) kwHost(b, HIT_TERM[w.id]!);
         btns.set(w.id, b); hits.appendChild(b);
       }
       // markers ride their building's target (one surface, the same panel)

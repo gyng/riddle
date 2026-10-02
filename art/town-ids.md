@@ -97,3 +97,51 @@ Fallback for walkers: the class's `hero_<class>` frame (always present); for car
 | `pkg_iron_gut` | temperament iron gut | an iron-banded flask |
 
 Tactics reuse the card icons (`v_*`). Fallback: the package's first letter on the chip (no icon).
+
+## Cut 30.5: workers, the haul chest, node icons (`art/c305_briefs.py`; branch `c305-art`)
+
+The works tree's town hook (`docs/AUTOMATION_TREE.md` §C): every bought node puts its worker at its post; a lit node's worker
+stands **greyed** there first. Workers are keyed townsfolk (no BLOOD), `master_h` 96 → **24 units**, the hero's height, anchor
+**bottom-centre at the figure's feet** — the tag object (cart, rack, anvil, dummy, hound) stands to the figure's **right**, inside
+the frame, so a wide frame's anchor sits a little left of the figure for those five (draw them where the object should land; the
+offsets below are the sheet's). Facing right; flip for left. Frame `_1` is the idle-work pose: alternate `town_worker_<w>` and
+`_1` every ~0.9–1.4 s (a slow chore beat, desynchronised per worker), never a walk.
+
+**Not yet hired = a renderer tint, no frames of its own**: the frame's values only, lifted to a cool pale
+grey (luminance × 0.4 + MIST × 0.42, alpha × 0.8 (`art/town_sheet.py grey()`; the town quad's `dim` alone keeps the hue, so
+`town.ts` needs the desaturate). Draw frame 0 only (no idle beat) while greyed, with the price marker above. At night give each
+worker the walkers' small MIST light (r ≈ 18, 0.35, at (0, −20)): the dark-coated ones sink into the night grass without it (blind read).
+
+| id (+ `_1`) | node | post (sheet anchor, units) | tag | fallback |
+|---|---|---|---|---|
+| `town_worker_porter` | 1 porter (auto haul) | the mouth → fire street (222, 196) | a handcart heaped with sacks | figure + brown cart, BONE sacks |
+| `town_worker_armourer` | 2 armourer (auto equip) | outside the storehouse (136, 440) | a weapon rack, a held helmet | figure + rack, MIST blades |
+| `town_worker_apprentice` | 3 apprentice (auto forge) | at the blacksmith (142, 232) | an anvil, a raised hammer, an EMBER bar | figure + INK anvil, EMBER bar |
+| `town_worker_keeper` | 4 keeper (sorter) | the storehouse's side (34, 452) | a broom, a key ring | figure + GILT broom |
+| `town_worker_clerk` | 5 clerk (bank sweep) | the bank door (266, 236) | an open pale ledger, a quill | figure + BONE ledger |
+| `town_worker_drillmaster` | 6 drillmaster (auto level) | by the tent (230, 358) | a training dummy, a practice sword | figure + dummy cross |
+| `town_worker_kennel_hand` | 7 kennel-hand | the kennel (256, 450) | a hound, a feed bucket with a bone | figure + MOON hound |
+| `town_worker_herald` | 8 herald (quest reroll) | the notice board (296, 112) | a hanging scroll, a hand bell | figure + BONE scroll, GILT bell |
+| `town_worker_guide` | 9 guide (start stone) | the mouth (236, 120) | a lit lantern (an EMBER light: add a small pool at night), a hood | figure + EMBER lantern |
+| `town_worker_scout` | scout (the send-worker) | the mouth's left (150, 128) | a raised spyglass, a pointing arm, a brimmed hat | figure + hat, GILT spyglass |
+| `town_worker_quartermaster` | 0 quartermaster (owned at start) | beside the supply crate (322, 342) | a held-up backpack with a bedroll, a flask | figure + brown pack, BONE bedroll |
+
+Ids match the core's worker ids (`quartermaster, porter, scout, armourer, apprentice, keeper, clerk, drillmaster, kennel_hand,
+herald, guide`): `town_worker_<id>`, `node_<id>`.
+
+**The haul chest** (`master_h` 48 → **12 units**, half a hero; anchor bottom-centre; by the mouth, ≈ (170, 112) on the sheet):
+
+| id | state | fallback |
+|---|---|---|
+| `town_haul_chest` | closed (no haul waiting) | a brown box, INK bands, GILT lock |
+| `town_haul_chest_full` | full: the lid propped by coins, coins over the front, a glint (+ the renderer's `fx_glint` twinkle) | + GILT heap, a BONE star |
+| `town_haul_chest_open` | open and empty (just collected) | the lid up behind, INK inside |
+
+**Node icons** (UI, `art/ui/icons/node_<w>.png` 256 px → `tools/ui-skin.py` → `web/public/ui/icons/`, listed in `skin.json icons`
+like the `pkg_*`): `node_porter`, `node_armourer`, `node_apprentice`, `node_keeper`, `node_clerk`, `node_drillmaster`,
+`node_kennel_hand`, `node_herald`, `node_guide`, `node_scout`, `node_quartermaster` — the worker's head and their tag object large. Fallback: the
+node name's first letter on the chip. A not-yet-reached node draws its icon as a silhouette (`filter: brightness(0)` at 0.5
+opacity); a done node dimmed (0.55).
+
+Contact sheet (the town day | night with every worker posted, the scout greyed; then each worker's two frames and grey at phone
+size and 3×, the chest's three states, the icons): `python3 art/town_sheet.py workers [out.png]`.
