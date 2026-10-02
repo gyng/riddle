@@ -122,26 +122,8 @@ pub const ROWS: &[RowDef] = &[
     RowDef { id: "stalls-picked", key: "Stalls ≤ 1 % of sends, every PICKED seed", bots: &["PICKED"], present: &[], days: None, until: Until::Never, settle: |c| c.every(&["PICKED"], stalls) },
     RowDef { id: "stalls-tuned", key: "Stalls ≤ 1 % of sends, every TUNED seed", bots: &["TUNED"], present: &[], days: None, until: Until::Never, settle: |c| c.every(&["TUNED"], stalls) },
     RowDef { id: "tuned-picked", key: "TUNED beats PICKED by ≥ 15 % at D33", bots: &["PICKED", "TUNED"], present: &[], days: None, until: Until::Depth(33), settle: |c| c.median(&["PICKED", "TUNED"], "D33", true, |o, _| seed_ratio(o[0], o[1], 6), |r| r >= 1.15) },
-    RowDef {
-        id: "random-picked",
-        key: "RANDOM never beats PICKED at D13, D23",
-        bots: &["RANDOM", "PICKED"],
-        present: &[],
-        days: None,
-        until: Until::Depth(23),
-        settle: |c| {
-            let cap = c.cap;
-            c.every(&["RANDOM", "PICKED"], move |o| {
-                for i in [1, 3] {
-                    let (r, p) = (hours_or(o[0], i, cap), hours_or(o[1], i, cap));
-                    if r < p {
-                        return Err(format!("D{}: RANDOM {r:.0} h < PICKED {p:.0} h", MILESTONES[i]));
-                    }
-                }
-                Ok(())
-            })
-        },
-    },
+    // (Cut 30.5, the owner: the median seed and ≥ 14/16 — settled at the end, by the bar)
+    RowDef { id: "random-picked", key: "RANDOM slower than PICKED at D13, D23", bots: &["RANDOM", "PICKED"], present: &[], days: None, until: Until::Depth(23), settle: |_| Verdict::Open },
     RowDef {
         id: "nothing-required",
         key: "Nothing required: TUNED − S",

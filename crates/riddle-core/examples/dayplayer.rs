@@ -191,7 +191,9 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
     if !swap || riddle_core::packages::candidates(&g.lineage).iter().all(|c| c.1 == "level") {
         return moved;
     }
-    let opts = g.package_options(PICK_SIMS);
+    let mut opts = g.package_options(PICK_SIMS);
+    // (Cut 30.5: weighed by the picker's own read — `pick_score`, best first)
+    opts.sort_by(|a, b| pick_score(b).total_cmp(&pick_score(a)));
     if verbose {
         eprintln!("  day {} options: {}", day + 1, opts.iter().map(|o| format!("{} {} {:+.2} (p{:.2} r{:.2} b{:.2} d{:.2})", o.action, o.id, riddle_core::packages::score(o), o.past, o.reach, o.bank, o.death)).collect::<Vec<_>>().join(" | "));
     }
@@ -200,9 +202,9 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
     // (a swap that passes clearly more may cost a little more death: half its gain in passes)
     // (and a wall's clear answer is taken whatever the walk reads — Hunter at the Foundry's golems read
     // +0.3 to +1.1 for two days and lost each time to a tactic that passed the walk's test)
-    let Some(top) = opts.iter().find(|o| o.action == "equip" && (riddle_core::packages::score(o) >= PICK_STRONG || o.d_mean >= -0.25 && o.d_death <= 0.05f64.max(o.d_past / 2.0))) else { return moved };
+    let Some(top) = opts.iter().find(|o| o.action == "equip" && (pick_score(o) >= PICK_STRONG || o.d_mean >= -0.25 && o.d_death <= 0.05f64.max(o.d_past / 2.0))) else { return moved };
     // a swap when it clearly helps (the panel's noise is ~±0.1 at these sims)
-    if riddle_core::packages::score(top) > PICK_BAR && riddle_core::packages::apply(&mut g.lineage, &top.id, &top.action, top.slot).is_ok() {
+    if pick_score(top) > PICK_BAR && riddle_core::packages::apply(&mut g.lineage, &top.id, &top.action, top.slot).is_ok() {
         if verbose {
             eprintln!("  day {} {} {} (Δpast {:+.2} Δbank {:+.2} Δdeath {:+.2})", day + 1, top.action, top.id, top.d_past, top.d_bank, top.d_death);
         }
@@ -210,6 +212,14 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
     }
     moved
 }
+
+/// The picker's read of a move (Cut 30.5, a bot change: with a new record no longer ending a run, how deep the sends
+/// go is the climb's pace — the camp's score weighs a floor of mean depth at a tenth of a send past the record; the
+/// picker weighs it at three tenths).
+fn pick_score(o: &riddle_core::packages::PkgOption) -> f64 {
+    riddle_core::packages::score(o) + PICK_MEAN * o.d_mean
+}
+const PICK_MEAN: f64 = 0.4;
 
 /// The forecast's panel for a package move, and the move it must clear.
 const PICK_SIMS: u32 = 32;
@@ -1284,7 +1294,13 @@ fn main() {
         let n = random.len().min(picked.len());
         let at = |i: usize| random.iter().zip(&picked).filter(|(r, p)| hours_or(r, i, cap) >= hours_or(p, i, cap)).count();
         let (a, b) = (at(1), at(3));
-        bars.push(("RANDOM never beats PICKED at D13, D23 (every seed)".into(), format!("{a}/{n} · {b}/{n}"), a == n && b == n));
+        // (Cut 30.5, the owner 2026-10-02: under the record rule a lucky lineage dives a band in one absence — RANDOM
+        // is slower than PICKED on the median seed and on ≥ 14/16 of the seeds, at D13 and D23; was every seed)
+        let med = |i: usize| median(random[..n].iter().map(|r| hours_or(r, i, cap)).collect()) - median(picked[..n].iter().map(|p| hours_or(p, i, cap)).collect());
+        let (m13, m23) = (med(1), med(3));
+        let enough = |k: usize| k * 16 >= 14 * n;
+        bars.push(("RANDOM slower than PICKED at D13, D23 (median seed, ≥ 14/16 seeds)".into(), format!("{a}/{n} · {b}/{n} · median {m13:+.0} · {m23:+.0} h"), enough(a) && enough(b) && m13 > 0.0 && m23 > 0.0));
+        retired.push(("RANDOM never beats PICKED at D13, D23 (every seed)".into(), format!("{a}/{n} · {b}/{n}")));
     }
     if !random.is_empty() && !idle.is_empty() {
         let n = random.len();
