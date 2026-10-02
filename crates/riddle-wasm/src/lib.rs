@@ -544,6 +544,17 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// RUNS_UI: the open app's clock (`elapsed_ms`): rest, then runs, unwatched; a run in flight stays
+    /// in flight. Returns the Advance (the runs it finished, the run under way).
+    pub fn advance(&mut self, elapsed_ms: f64) -> String {
+        js(&self.inner.advance(elapsed_ms.max(0.0) as u64))
+    }
+
+    /// RUNS_UI: a held run re-simulated from its send (the Replay), or `null`.
+    pub fn replay(&self, run_id: u32) -> String {
+        js(&self.inner.replay(run_id))
+    }
+
     /// Cut 23 §1: buy the next forge step of `weapon | armour | pack`; returns the Lineage.
     #[wasm_bindgen(js_name = buyKit)]
     pub fn buy_kit(&mut self, slot: &str) -> Result<String, JsError> {

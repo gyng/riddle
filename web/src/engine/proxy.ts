@@ -36,6 +36,7 @@ const METHODS: (keyof Engine)[] = [
   "equipPackage", "unequipPackage", "pickTemperament", "spendLevel", "revokeDrill", "packageOptions",   // Cut 30 §1–2: optional likewise (no packages panel without them)
   "bankDeposit", "bankWithdraw", "swapQuest",   // Cut 30 §3/§5: optional likewise (no bank / quest board without them)
   "hire", "openChest", "setWorker", "promote",             // Cut 30.5: optional likewise (no works tree without them)
+  "advance", "replay",                                     // RUNS_UI: optional likewise (no runs while open / no replays without them)
 ];
 
 /** Wraps a synchronous Engine (the fake) so every call resolves on a microtask. */

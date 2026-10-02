@@ -82,7 +82,7 @@ try {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch");
   check(s.mode === "fights" && s.on.join() === "fights only", `fights is the default mode (on: ${s.on.join(", ")})`);
-  check(s.buttons.join(" ") === "fights only fast normal ▶▶| bail", `the buttons read fights only · fast · normal · ▶▶| · bail (Cut 25 §3: the plain 1×, docs/COPY.md: its word \`normal\`) (${s.buttons.join(" · ")})`);
+  check(s.buttons.join(" ") === "fights only fast normal ▶▶| bail town", `the buttons read fights only · fast · normal · ▶▶| · bail · town (Cut 25 §3: the plain 1×, docs/COPY.md: its word \`normal\`; RUNS_UI: back to the town, the run goes on) (${s.buttons.join(" · ")})`);
   // the card: the ambient line over the map, the clock held; then the first fight at 1×
   // Cut 15 §4: the card is short (≤ 1.2 s; 0.5 s before a beat — seed 5 opens on a situation), so the tap is made in the page the
   // frame the card is seen

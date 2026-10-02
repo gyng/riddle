@@ -46,6 +46,13 @@ async function waitFor(pred, label, timeout = 20_000) {
   }
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} booted=${s?.booted})`);
 }
+/** A forecast injected by a test must land after the camp's own (in flight at a mount, or the refine 1 s after it) — else the real one,
+ *  landing later, paints over it (a race under load). */
+async function quietForecast(max = 8_000) {
+  const t = Date.now();
+  while (Date.now() - t < max) { const q = await page.evaluate(() => { const r = window.__riddle; return !r.fcInFlight && !r.fcRunning && !!r.lastForecast?.refined; }).catch(() => true); if (q) break; await sleep(100); }
+  await sleep(100);
+}
 async function settle(max = 15_000) {
   const t = Date.now(); let clear = 0;
   while (Date.now() - t < max) { const s = await state(); clear = s && s.booted && !s.busy ? clear + 1 : 0; if (clear >= 2) break; await sleep(120); }
@@ -247,7 +254,7 @@ async function qaL() {
   await waitFor((x) => x?.screen === "camp", "camp"); await settle();
   await page.evaluate(() => { const r = window.__riddle; while (r.ownRows() < 3) r.insertRow({ conds: [{ k: "hp<", n: 40 + r.rules.rows.length }], verb: { v: "retreat" } }, r.rules.rows.length); r.go({ kind: "camp" }); });
   await settle();
-  const fake = (f) => page.evaluate((f) => { const r = window.__riddle; const b = r.lastForecast; const x = { ...b, ...f }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); }, f);
+  const fake = async (f) => { await quietForecast(); return page.evaluate((f) => { const r = window.__riddle; const b = r.lastForecast; const x = { ...b, ...f }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); }, f); };
   const depthsF = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i === 0 ? 0.5 : i === 1 ? 0.05 : 0, pm: 0.02 }));
   await fake({ depths: depthsF, known_to: 9, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0, return: 0.04, death: 0.66, stall: 0.3, gold: 3, pm: 0.03 }, refined: true });
   await sleep(150);
@@ -538,6 +545,7 @@ async function cut18() {
   // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · sealed by warlord`
   await page.evaluate(() => { const r = window.__riddle; r.engine.unlocks = async () => []; r.engine.unlockDeltas = async () => []; r.lineage = { ...r.lineage, best_depth: 8 }; r.go({ kind: "camp" }); });
   await settle();
+  await quietForecast();
   await page.evaluate(() => { const r = window.__riddle; const depths = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i < 8 ? 0.9 - i * 0.05 : 0, pm: 0.02, ...(i === 8 ? { wall: "goblin_warlord", cause: "goblin_warlord" } : {}) }));
     const x = { ...r.lastForecast, depths, known_to: 9, causes: [{ cause: "goblin_warlord", share: 1 }], refined: true }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); });
   await sleep(200);
@@ -647,8 +655,10 @@ try {
   check(await patchSave((e) => { e.lineage.heir = 5; }), "the lineage took its 5th heir");
   await waitFor((s) => s?.screen === "camp", "camp"); await settle();
   const ids = await tileIds();
-  check(ids.includes("ledger") && ids.includes("chronicle") && (await page.locator(".tabs:not([hidden]) .tab").count()) >= 3, `the 5th heir carves ledger and chronicle and the set tabs (${ids.join(" · ")})`);
-  check(ids.length === 8, `the command card is full at the ladder's top (${ids.length} tiles)`);
+  // RUNS_UI: the chronicle is the runs log's `heirs` (the lane's log stud, shown from the 5th heir as from the first run)
+  const logStud = await page.evaluate(() => { const b = document.querySelector(".lanes .lanes-log"); return !!b && !b.hidden; });
+  check(ids.includes("ledger") && logStud && (await page.locator(".tabs:not([hidden]) .tab").count()) >= 3, `the 5th heir carves the ledger, the log (the chronicle's heirs) and the set tabs (${ids.join(" · ")}; log ${logStud})`);
+  check(ids.length === 7, `the command card at the ladder's top: 7 tiles, the chronicle's slot gone to the log (${ids.length} tiles)`);
   await shot("ui-ladder-camp");
 
   // ---- the unlock panel: the next three, `more` for the catalogue
@@ -679,7 +689,7 @@ try {
   check(!(await page.locator(".panel-host .panel").count()), "Escape closes the open panel");
   const sheets = [
     ["settings", "button.gear"], ["gold", ".strip button.gold"], ["forge", ".cmd .tile[data-tile=forge]"], ["ledger", ".cmd .tile[data-tile=ledger]"],
-    ["chronicle", ".cmd .tile[data-tile=chronicle]"], ["class", "button.cls"], ["cond picker", ".editor .row .chip.cond"], ["verb picker", ".editor .row .chip.verb"], ["rename", ".tabs .tab.edit"],
+    ["log", ".lanes .lanes-log"], ["class", "button.cls"], ["cond picker", ".editor .row .chip.cond"], ["verb picker", ".editor .row .chip.verb"], ["rename", ".tabs .tab.edit"],
   ];
   for (const [name, sel] of sheets) {
     await page.locator(sel).first().click({ timeout: 5000 }); await sleep(200);
@@ -729,7 +739,7 @@ try {
   f = await frame();
   check(f.bar && f.console && f.gem?.visible && ["⏸", "▶"].includes(f.gem.text), `watch: bar + console, ⏸ in the gem (${JSON.stringify(f.gem)})`);
   const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((b) => b.textContent.trim()));
-  check(cmd.join(" · ") === "fights only · fast · normal · ▶▶| · bail · meters", `watch: the command card is fights only · fast · normal · ▶▶| · bail · meters (Cut 25 §3, Cut 29 §3) (${cmd.join(" · ")})`);
+  check(cmd.join(" · ") === "fights only · fast · normal · ▶▶| · bail · meters · town", `watch: the command card is fights only · fast · normal · ▶▶| · bail · meters · town (Cut 25 §3, Cut 29 §3, RUNS_UI: back to the town, the run goes on) (${cmd.join(" · ")})`);
   await shot("ui-watch");
   let s = await state(); const tw = Date.now();
   while (s?.screen === "watch" && Date.now() - tw < 90_000) { await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); await sleep(250); s = await state(); }

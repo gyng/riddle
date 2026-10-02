@@ -1761,8 +1761,90 @@ pub struct Grave {
     pub death_id: Option<u32>,
 }
 
+/// RUNS_UI: one run in the runs log (`LineageState::run_log`, oldest first, cap `RUN_LOG_CAP`). `via`
+/// `away` (an absence's batch) · `town` (unwatched while the app was open: `Game::advance`) ·
+/// `watched`. A record with `sampled` is no run: the absence's runs extrapolated past its stall.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RunRec {
+    pub id: u32,
+    pub heir: u32,
+    pub via: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absence: Option<u32>,
+    pub clock_s: u64,
+    pub start: u32,
+    pub depth: u32,
+    pub tier: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    pub gold: i32,
+    pub found: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kept: Vec<String>,
+    pub turns: u32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub best: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_id: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled: Option<u32>,
+    /// RUNS_UI × run-clear: the run's finds (its exit line's, rarest first, ≤ 6) — the log's rarity marks and the entry's card.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finds: Vec<InvItem>,
+    /// RUNS_UI × Cut 30.5: of `gold`, what the run's checkpoints secured (kept whole at any exit; a death keeps it alone).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub secured: i32,
+}
+
+/// RUNS_UI: the run under way (`Lineage.live`; absent at home).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LiveRun {
+    pub run_id: u32,
+    pub heir: u32,
+    pub depth: u32,
+    pub start: u32,
+    pub hp: i32,
+    pub max_hp: i32,
+    pub turn: u32,
+}
+
+/// RUNS_UI: `Game::advance` — the runs it finished and the run under way after it.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Advance {
+    pub ended: Vec<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live: Option<LiveRun>,
+}
+
+/// RUNS_UI: a past run re-simulated from its send (`Game::replay`): each floor's first snapshot
+/// (later entities, items and seen tiles folded in) and its events; `hash` = `events_hash`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ReplayFloor {
+    pub snapshot: Snapshot,
+    pub events: Vec<Ev>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Replay {
+    pub run_id: u32,
+    pub floors: Vec<ReplayFloor>,
+    pub hash: String,
+    pub ticks: u32,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
+    /// RUNS_UI: the runs log, the run under way, the run ids a replay is held for, the lineage
+    /// clock and the absences counted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<RunRec>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live: Option<LiveRun>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub replays: Vec<u32>,
+    #[serde(default)]
+    pub clock_s: u64,
+    #[serde(default)]
+    pub absences: u32,
     /// Cut 29 §1 (E1): the wall's edit on offer (`Game::wall_edit`, cached a day) while the best depth holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wall: Option<WallEdit>,

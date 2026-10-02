@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption } from "./types";
+  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption, Advance, Replay } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
 type GameCtor = (new (seed: number) => GameObj) & { fromSave?: (save: string) => GameObj };
@@ -129,6 +129,9 @@ export class WasmEngine implements Engine {
   openChest(): Lineage { return this.call("openChest"); }
   setWorker(id: string, on: boolean): Lineage { return this.call("setWorker", id, on); }
   promote(id: string): Lineage { return this.call("promote", id); }
+  // RUNS_UI: throw `wasm: <name>` on a build without them
+  advance(elapsedMs: number): Advance { return this.call("advance", elapsedMs); }
+  replay(runId: number): Replay | null { return this.call("replay", runId); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

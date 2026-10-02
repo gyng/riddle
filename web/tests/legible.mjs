@@ -2,7 +2,7 @@
 // c30-legible gates (the owner, a new player: "I didn't understand why there were new buildings or why the run ended early at like D3"),
 // headless at 400 × 800:
 //   ends    real engine, a fresh lineage, three watched runs (▶▶| as a player would): every run's end shows a reason beat under its sum
-//           (the core's `ExitLine.reason`, ≤ 3 words — the first run's `banks every record`), and the report's end tile carries it
+//           (the core's `ExitLine.reason`, ≤ 3 words — the first run's `hurt · banked`), and the report's end tile carries it
 //   build   fake engine, each trigger in turn: every building's arrival names its cause (`first gold home → blacksmith`, ≤ 4 words + the
 //           arrow) and draws the eye (its target glows); the staked plot's tag is always visible — the next building and its trigger
 //           (`storehouse · first find kept`), from day 0 until the v1 set stands
@@ -68,7 +68,8 @@ try {
       const wl = await page.evaluate(() => window.__whyLog ?? []);
       const why = whyShown ?? wl[wl.length - 1] ?? "";
       check(!!why && words(why) <= 3, `run ${k}: its end shows a reason beat ≤ 3 words ("${log[log.length - 1]?.text ?? "death"}" · "${why}"${whyShown ? "" : ", logged, not seen"})`);
-      if (k === 1) check(why === "banks every record", `run 1: a fresh lineage's first end reads as the hero being sensible ("${why}")`);
+      // (Cut 30.5, c305-core 2ec1cb0: a new record is a beat, never an end — runs end hurt, out of heals, at a wall or dead)
+      if (k === 1) check(/^(hurt · banked|hurt · went home|no heals · banked|slain\b.*|starved)$/.test(why), `run 1: a fresh lineage's first end reads as the hero being sensible ("${why}")`);
       const s = await until(() => ["report", "death"].includes(window.__riddle.screen) && window.__riddle.screen, "the screen after", 30_000);
       if (s === "report") {
         const tw = await until(() => document.querySelector(".report .tile-why")?.textContent ?? null, "the report's reason", 8000).catch(() => null);

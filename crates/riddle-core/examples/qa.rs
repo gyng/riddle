@@ -1780,6 +1780,8 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
 }
 
 fn main() {
+    // RUNS_UI: real games at scale keep no replay capsules (a lineage clone per send never read)
+    riddle_core::engine::set_capsules(false);
     let args: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     let seeds = get("--seeds", 30);

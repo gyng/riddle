@@ -17,6 +17,8 @@ use prog::*;
 use serde_json::json;
 
 fn main() {
+    // RUNS_UI: real games at scale keep no replay capsules (a lineage clone per send never read)
+    riddle_core::engine::set_capsules(false);
     let a: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     let gets = |k: &str| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).cloned();

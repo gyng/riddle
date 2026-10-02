@@ -139,6 +139,8 @@ import { lastRun, markEnd, recordRun } from "./runlog";
 import { FoldTally, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
+import { kwHost } from "./tips";   // RUNS_UI: the live badge's tip
+import { goesOnCap } from "./runlane";   // RUNS_UI: the town tile's first-watches caption
 
 type Tier = "bank" | "return" | "death";
 /** QA 92eb880 (N: the `fights` chip read `1.332247798006322×` over the portrait): a rate as the chip shows it — whole from 2×, one
@@ -341,7 +343,7 @@ export function renderWatch(app: App): Mounted {
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
   const ticker = h("div", { class: "ticker" });
-  // c30-legible: the run's end, why — its own line under the ticker (`banks every record`, `hurt · went home`, `slain · jackal`)
+  // c30-legible: the run's end, why — its own line under the ticker (`hurt · banked`, `hurt · went home`, `slain · jackal`)
   const whyLine = h("div", { class: "beat-why num", "aria-live": "polite" });
   let whyTimer2 = 0;
   function showWhy(text: string, ms: number): void {
@@ -366,6 +368,12 @@ export function renderWatch(app: App): Mounted {
   };
   const skip = tile({ id: "skip", cls: "hud-btn", icon: "skip", label: "▶▶|", onclick: () => skipToEvent() });
   const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
+  // RUNS_UI (docs/RUNS_UI.md): back to the town while he goes on — leaving the watch never stops the run (the town's lane shows it live;
+  // the open app's clock plays it on, unwatched). The ↻ on the tile is the mark; its tip says the rest
+  const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "⌂", label: /* copy:button */ "town", onclick: () => { if (!done) app.leaveWatch(); } });
+  // (its ↻ — he keeps going — is drawn on the tile's corner: runs.css `.town-btn::after`; the first watches also carry the one-time caption
+  // `he keeps going` over it — the owner's concept rule: an icon and a one-time ≤ 3-word caption; its words are CSS's, not the tile's text)
+  { const cap = goesOnCap(); if (cap) toTown.appendChild(cap); }
   // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
   const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
   // Cut 27 §1: the fold line — the interstitial over a folded stretch (`D1–6 · 100% · +$84` and its chips), docked under the HUD once the
@@ -385,7 +393,7 @@ export function renderWatch(app: App): Mounted {
   const meterTile = tile({ id: "meters", cls: "meter-btn", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
     metersOn = !metersOn; writeMetersOn(metersOn); meterTile.classList.toggle("on", metersOn); meterBox.hidden = !metersOn; paintMeters(true);
   } });
-  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile], gem: pause, top: scrub });
+  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile, toTown], gem: pause, top: scrub });
   const wideMeters = h("div", { class: "meters-live" });
   const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
   function paintMeters(now = false): void {
@@ -394,9 +402,13 @@ export function renderWatch(app: App): Mounted {
     if (metersOn) replace(meterBox, compactLine(lastMeters));
     if (wide.slot) replace(wideMeters, meterPanel(lastMeters.run, app.rules.rows, { title: /* copy:label */ "this run" }));
   }
+  // RUNS_UI (the blind read: "is WATCH the live run or a replay? does it go on if I leave?"): the HUD says it is the run going on now,
+  // and that it goes on by itself (`↻ auto`, the lane's mark) — the `town` tile's ↻ is the same mark
+  const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), /* copy:label */ "live",
+    app.lineage.tree?.auto_send !== false ? h("span", { class: "lb-auto" }, " · ↻ ", /* copy:label */ "auto") : ""), "live");
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
-      h("div", { class: "hud top" }, depth, alert, bossBar, stake),
+      h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
       meterBox, banner, ticker, whyLine, whyTip),
     cons.el, ...wide.els);
 
@@ -778,7 +790,7 @@ export function renderWatch(app: App): Mounted {
     // Cut 19 §1: the cage's line is a plate the finger finds (a tap within the hold opens the override)
     if (b.cage) { replace(ticker, h("span", { class: "cage-line" }, b.text)); if (cage) cage.shown = true; }
     // c30-legible (the owner: "I didn't understand … why the run ended early"): the end's reason under its sum, the core's ≤ 3 words
-    // (`banks every record`, `hurt · went home`); a death's beat is its reason alone (`slain · jackal`)
+    // (`hurt · banked`, `hurt · went home`); a death's beat is its reason alone (`slain · jackal`)
     // (its own line under the ticker: the ticker's text stays the beat's own)
     if (b.why) showWhy(b.why, dur);
     el.dataset.held = "1";
@@ -871,6 +883,8 @@ export function renderWatch(app: App): Mounted {
           // without it): the fork is a beat, cut in as the situations are (the fight frame, its line), in every mode — not a callout the mode drops
           if (/^two stairs$/i.test(ev.text)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); beatAt(ev.t, /* copy:callout */ "TWO STAIRS"); } break; }
           if (ev.text === /* copy:none */ "choose one") break;   // Cut 19 §1: the cage beat names the pick instead
+          // c305-core: a new record is the core's callout (`new best · D5`) — one beat, drawn as run-clear's gilt stamp (`NEW BEST D5`), once a run
+          { const m = /^new best · D(\d+)$/i.exec(ev.text); if (m) { if (!recordBeat) { recordBeat = true; const d = Number(m[1]); at(ev.t, () => { if (folding) return; showBanner(/* copy:callout */ `NEW BEST D${d}`, RECORD_MS, "record-beat"); cue("level"); }); } break; } }
           if (breakBeat(ev.t, ev.text)) break;   // Cut 16 §4: `warlord breaks` is the beat's, not a plain callout
           // Cut 12 §6: a sanity refusal (`drink ✗ no use`) shows once per floor, not once per streak
           if (ev.text.includes("✗")) { const key = `${ev.text}@${s.depth}`; if (refused.has(key)) break; refused.add(key); }
@@ -960,7 +974,7 @@ export function renderWatch(app: App): Mounted {
           // run-clear (the owner, 2026-10-02: a record no longer ends a run — it is a beat and a checkpoint, and he carries on): the
           // first floor past the lineage's record this run stamps a gilt `NEW BEST D5` over the floor's arrival — the boss stamps' look,
           // but it never holds the frame or takes a fight's beat (he walks on; the card's `new best` badge says it again)
-          if (before.best > 0 && ev.depth > before.best && !recordBeat) { recordBeat = true; const d = ev.depth; at(ev.t, () => { if (folding) return; showBanner(/* copy:callout */ `NEW BEST D${d}`, RECORD_MS, "record-beat"); cue("level"); }); }
+          // (c305-core 2ec1cb0: the core says it — the `new best · D5` callout, a beat and a checkpoint; the stamp is drawn from it below)
           break;
         }
         case "fact": {
@@ -2029,7 +2043,8 @@ export function renderWatch(app: App): Mounted {
     // QA 92eb880 (N: "VERDICT appears while the hero is still up (8/36), three more hits follow"): during the walk-out the gem slot holds
     // the stilled pause; the verdict / report gem comes once the last frame has played (`nextGem`)
     pause.disabled = true;
-    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail]) b.disabled = true;
+    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, toTown]) b.disabled = true;
+    liveBadge.hidden = true;   // RUNS_UI: the run is over — nothing live left here
   }
   function nextGem(): void {
     if (el.dataset.next === "1" || !pause.isConnected) return;

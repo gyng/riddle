@@ -995,6 +995,8 @@ fn ratio(slow: &[SeedOut], fast: &[SeedOut], i: usize) -> f64 {
 static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 
 fn main() {
+    // RUNS_UI: real games at scale keep no replay capsules (a lineage clone per send never read)
+    riddle_core::engine::set_capsules(false);
     // The groups fill `--threads` (10 unless set) seed by seed; a group's panels take the threads the
     // others leave (`WIDTH`) — never threads of threads (a TUNED bot's wall search and verdicts on every
     // core, 32 jobs at once, ran the load past 150).
