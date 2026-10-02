@@ -214,6 +214,38 @@ pub fn is_haul(why: &str) -> bool {
     crate::engine::is_exit_why(why) || why.starts_with("salvage") || why.starts_with("passage")
 }
 
+/// Week 2 (the owner, 2026-10-02: ranks give small real bonuses): a worker at work's rank above I (0 off or at I).
+pub fn bonus_rank(l: &LineageState, id: &str) -> u32 {
+    if l.pkg.literal || !on(l, id) {
+        return 0;
+    }
+    rank(l, id).saturating_sub(1)
+}
+
+/// The porter's haul bonus per rank above I, in percent (II +2 %, III +4 %, IV +6 %).
+pub const PORTER_BONUS_PCT: i32 = 2;
+/// The apprentice's discount on the steps it buys, per rank above I, in percent.
+pub const APPRENTICE_OFF_PCT: u32 = 5;
+/// The clerk's extra interest per rank above I, in tenths of a percent a night (2 % → 2.25 · 2.5 · 2.75 %).
+pub const CLERK_BONUS_PERMILLE: i32 = 25;
+/// The scout's shorter rest per rank above I, in percent.
+pub const SCOUT_REST_OFF_PCT: u32 = 5;
+
+/// The rest after a run, the scout's rank taken off (the dayplayer's harnesses: rank I or none, as before).
+pub fn rest_scaled(l: &LineageState, ticks: u32) -> u32 {
+    let r = bonus_rank(l, "scout");
+    ticks - ticks * SCOUT_REST_OFF_PCT * r / 100
+}
+
+/// A waystone's toll, the guide's rank taken off (II half, III on free).
+pub fn toll_scaled(l: &LineageState, toll: i32) -> i32 {
+    match bonus_rank(l, "guide") {
+        0 => toll,
+        1 => toll / 2,
+        _ => 0,
+    }
+}
+
 /// Called by `gold_move` after `gold` moved: the chest takes the haul (before the porter) and gives
 /// way to spending after the purse; the ledger sums the movement.
 pub fn on_gold(l: &mut LineageState, delta: i32, why: &str) {
@@ -230,6 +262,14 @@ pub fn on_gold(l: &mut LineageState, delta: i32, why: &str) {
         }
     }
     l.tree.chest = l.tree.chest.min(l.gold.max(0)).max(0);
+    // (week 2: the porter's rank adds to every haul he carries)
+    let r = bonus_rank(l, "porter") as i32;
+    if delta > 0 && r > 0 && is_haul(why) {
+        let bonus = delta * PORTER_BONUS_PCT * r / 100;
+        if bonus > 0 {
+            l.gold_move(bonus, "porter bonus");
+        }
+    }
 }
 
 /// Whether `n`'s chore exists for this lineage (its system open).
@@ -316,6 +356,27 @@ pub fn promote(l: &mut LineageState, id: &str) -> Result<u32, String> {
     l.tree.ranks.insert(id.to_string(), r);
     Ok(r)
 }
+
+/// A rank's edge (≤ 3 words) at rank `r` (week 2: small real bonuses; none at I, none for the keeper, the
+/// kennel-hand or the herald — their ranks are looks).
+pub fn rank_bonus(id: &str, r: u32) -> Option<String> {
+    let k = r.saturating_sub(1);
+    if k == 0 {
+        return None;
+    }
+    Some(match id {
+        "porter" => format!("+{}% hauls", PORTER_BONUS_PCT as u32 * k),
+        "scout" => format!("−{}% rest", SCOUT_REST_OFF_PCT * k),
+        "apprentice" => format!("−{}% steps", APPRENTICE_OFF_PCT * k),
+        "clerk" => format!("{}‰ interest", BANK_PCT_PERMILLE + CLERK_BONUS_PERMILLE as u32 * k),
+        "guide" => if k == 1 { "half toll".into() } else { "no toll".into() },
+        "drillmaster" => "levels −◆1".into(),
+        "armourer" => "insures its finds".into(),
+        _ => return None,
+    })
+}
+
+const BANK_PCT_PERMILLE: u32 = crate::town::BANK_PCT as u32 * 10;
 
 /// A rank's numeral (`II`, `III`).
 pub fn numeral(r: u32) -> &'static str {
@@ -406,9 +467,19 @@ fn blow_worth(w: &crate::item::Item) -> i64 {
     (lo + hi) as i64 * hit * (10 + w.def().speed) as i64
 }
 
+/// The workers act continuously (the owner, 2026-10-02): at each hour of an absence, between the sends, as at
+/// a send — the armourer's pack is a send's alone.
+pub fn at_hour(game: &mut Game) {
+    workers_act(game, false);
+}
+
 /// The workers' standing orders, at a real send (before the run begins; never in a sim, never on a
 /// harness's literal lineage).
 pub fn at_send(game: &mut Game) {
+    workers_act(game, true);
+}
+
+fn workers_act(game: &mut Game, send: bool) {
     if game.sim || game.lineage.pkg.literal {
         return;
     }
@@ -426,8 +497,13 @@ pub fn at_send(game: &mut Game) {
         let ids: Vec<String> = std::iter::once(game.lineage.pkg.stance.clone()).chain(game.lineage.pkg.tactics.iter().cloned()).collect();
         for id in ids {
             while crate::packages::level_price(&game.lineage, &id).is_some_and(|m| m <= game.lineage.marks) {
+                let price = crate::packages::level_price(&game.lineage, &id).unwrap_or(0);
                 if crate::packages::spend_level(&mut game.lineage, &id).is_err() {
                     break;
+                }
+                // (week 2: from rank II the drillmaster's level costs a mark less, never under one)
+                if bonus_rank(&game.lineage, "drillmaster") > 0 && price > 1 {
+                    game.lineage.marks += 1;
                 }
                 n += 1;
             }
@@ -441,7 +517,8 @@ pub fn at_send(game: &mut Game) {
             let l = &game.lineage;
             let reserve = RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32;
             let Some((slot, p)) = crate::kit::ladders(l).iter().filter_map(|x| x.next.as_ref().map(|s| (x.slot.clone(), s.price as i32))).min_by_key(|x| x.1) else { break };
-            if purse(l) < p + reserve || crate::kit::buy_step(&mut game.lineage, &slot).is_err() {
+            let off = APPRENTICE_OFF_PCT * bonus_rank(l, "apprentice");
+            if purse(l) < p - p * off as i32 / 100 + reserve || crate::kit::buy_step_off(&mut game.lineage, &slot, off).is_err() {
                 break;
             }
             n += 1;
@@ -487,8 +564,9 @@ pub fn at_send(game: &mut Game) {
     // the hero would wear (a weaker one rides in the pack and takes a find's slot)
     // (and only while the sends come home: at a wall, where half of them die, the find stays safe in the storehouse —
     // a death's insurance is paid again at every send, and an uninsured find is lost to the bones)
+    // (week 2: from rank II the armourer insures what it brings itself — it brings it at a wall too)
     let (n, died) = game.lineage.tree.sends;
-    if on(&game.lineage, "armourer") && !game.lineage.vault.is_empty() && 4 * died < n.max(1) {
+    if send && on(&game.lineage, "armourer") && !game.lineage.vault.is_empty() && (4 * died < n.max(1) || bonus_rank(&game.lineage, "armourer") > 0) {
         let mut add = Vec::new();
         let mut kit = crate::hero::Hero::new(game.lineage.class, crate::geom::Pos::new(0, 0));
         crate::kit::equip(&game.lineage, &mut kit);
@@ -506,6 +584,13 @@ pub fn at_send(game: &mut Game) {
             }
         }
         if !add.is_empty() && !game.lineage.variant_is("bones_only") {
+            if bonus_rank(&game.lineage, "armourer") > 0 {
+                for id in &add {
+                    if !game.lineage.insured.contains(id) {
+                        game.lineage.insured.push(*id);
+                    }
+                }
+            }
             act(game, "armourer", add.len() as u32);
             game.loadout.extend(add);
         }
@@ -550,6 +635,11 @@ pub struct WorkNodeWire {
     pub rank_price: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rank_wait_d: Option<u32>,
+    /// Week 2: the rank's edge now and the next rank's (≤ 3 words: `+4% hauls`, `half toll`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bonus: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank_adds: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
@@ -655,6 +745,8 @@ pub fn wire(l: &LineageState, waits: bool) -> WorksWire {
                 rank: done.then(|| rank(l, n.id)).filter(|_| has_chore),
                 rank_price: rank_wait(l, n).map(|_| rank_price(l, n)),
                 rank_wait_d: rank_wait(l, n),
+                bonus: done.then(|| rank_bonus(n.id, rank(l, n.id))).flatten(),
+                rank_adds: rank_wait(l, n).and_then(|_| rank_bonus(n.id, rank(l, n.id) + 1)),
             }
         })
         .collect();

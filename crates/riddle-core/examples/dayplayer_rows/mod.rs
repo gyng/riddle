@@ -191,7 +191,8 @@ pub const ROWS: &[RowDef] = &[
     RowDef { id: "nodes-bought", key: "Every node whose chore exists bought by 72 h", bots: &["PICKED"], present: &[], days: Some(3), until: Until::Never, settle: |_| Verdict::Open },
     RowDef { id: "conserved", key: "Gold conserved", bots: &["IDLE", "PICKED", "HANDS"], present: &[], days: None, until: Until::Never, settle: |_| Verdict::Open },
     RowDef { id: "hands-idle", key: "HANDS never slower than IDLE", bots: &["HANDS", "IDLE"], present: &[], days: None, until: Until::Depth(23), settle: |_| Verdict::Open },
-    RowDef { id: "automation-pays", key: "Automation pays the away player", bots: &["AWAY", "AWAY-nodes"], present: &[], days: None, until: Until::Never, settle: |_| Verdict::Open },
+    RowDef { id: "automation-pays", key: "Workers pay the away player", bots: &["AWAY", "AWAY-nodes"], present: &[], days: None, until: Until::Never, settle: |_| Verdict::Open },
+    RowDef { id: "workers-daily", key: "Workers never cost the daily player", bots: &["DAILY", "DAILY-nodes"], present: &[], days: None, until: Until::Never, settle: |_| Verdict::Open },
     RowDef { id: "nodes-required", key: "Nothing required, S = nodes", bots: &["PICKED-nodes", "IDLE"], present: &["PICKED"], days: None, until: Until::Depth(33), settle: |_| Verdict::Open },
     RowDef { id: "idle-delta", key: "IDLE within a bounded delta", bots: &["IDLE", "IDLE30"], present: &[], days: None, until: Until::Depth(13), settle: |_| Verdict::Open },
     // (means over the seeds: settled only at the end, by the bar itself)
@@ -410,9 +411,9 @@ impl Plan {
         }
         rows.sort();
         rows.dedup();
-        let all: Vec<Cfg> = [Bot::Idle, Bot::Picked, Bot::Tuned, Bot::Random, Bot::Hands, Bot::Idle30, Bot::Away].into_iter().map(|bot| Cfg { bot, without: None }).chain([Cfg { bot: Bot::Picked, without: Some("nodes") }, Cfg { bot: Bot::Away, without: Some("nodes") }]).chain(SYSTEMS.iter().map(|s| Cfg { bot: Bot::Tuned, without: Some(s) })).collect();
+        let all: Vec<Cfg> = [Bot::Idle, Bot::Picked, Bot::Tuned, Bot::Random, Bot::Hands, Bot::Idle30, Bot::Daily, Bot::Away].into_iter().map(|bot| Cfg { bot, without: None }).chain([Cfg { bot: Bot::Picked, without: Some("nodes") }, Cfg { bot: Bot::Daily, without: Some("nodes") }, Cfg { bot: Bot::Away, without: Some("nodes") }]).chain(SYSTEMS.iter().map(|s| Cfg { bot: Bot::Tuned, without: Some(s) })).collect();
         let seeds_of = |l: &str| -> u64 {
-            if l.starts_with("AWAY") {
+            if l.starts_with("AWAY") || l.starts_with("DAILY") {
                 seeds
             } else if l.starts_with("TUNED-") || l == "PICKED-nodes" {
                 loo_seeds.min(seeds)

@@ -89,7 +89,14 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     // Cut 30.5: the workers' acts over this absence (the report's lines)
     let acts_before = game.lineage.tree.acts.clone();
     let chest_before = game.lineage.tree.chest;
+    // Cut 30.5 (the owner, 2026-10-02: workers act continuously): at each hour of the absence's clock
+    let mut hour = game.lineage.clock_s / 3600;
     while consumed < budget {
+        let now = (game.lineage.clock_s + consumed / TICKS_PER_SECOND) / 3600;
+        if now > hour && game.run.as_ref().is_none_or(|r| r.turn == 0) {
+            hour = now;
+            crate::tree::at_hour(game);
+        }
         // Cut 30.5 (the owner: manual send first): before the scout the hero home waits — an absence
         // yields at most the run in flight (a send by hand under way)
         if !game.may_go() && game.run.as_ref().is_none_or(|r| r.turn == 0) {
@@ -218,6 +225,10 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
         }
     }
     game.stall_runs = stall;
+    // (the hours the absence ran past its last send: the workers' last acts, before the report)
+    if (game.lineage.clock_s + budget / TICKS_PER_SECOND) / 3600 > hour {
+        crate::tree::at_hour(game);
+    }
     game.offline = false;
     // Cut 29 §1: the night's mark — ◆1 for each day this absence covered whose sends came home (a
     // bank or a return), each day once.

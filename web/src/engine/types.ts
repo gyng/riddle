@@ -397,7 +397,8 @@ export type WorkNode = {
   post?: string;                                        // worker: where it stands — crate · mouth · storehouse · blacksmith · bank · tent · kennel · board
   paused?: boolean;                                     // worker: hired and switched off (`setWorker(id, false)`): its chore is by hand again
   rank?: number;                                        // week 2 (the owner: later worker upgrades): a hired worker's rank 1–3 — its look (and its post's)
-  rank_price?: number; rank_wait_d?: number;            // week 2: the next rank's gold and the days of service it still waits (0: on offer, `Works.lit_rank`); absent at III
+  rank_price?: number; rank_wait_d?: number;            // week 2: the next rank's gold and the days of service it still waits (0: on offer, `Works.lit_rank`); absent at IV
+  bonus?: string; rank_adds?: string;                   // week 2: the rank's small real edge now (`bonus`) and what the next rank adds (`rank_adds`), ≤ 4 words (`+4% hauls`, `−10% steps`, `25‰ interest`, `−5% rest`, `half toll`, `levels −◆1`, `insures its finds`); keeper, kennel-hand and herald ranks are looks (none)
 };
 /** Cut 30.5 (core) — the `next` pill: the single next goal. `kind` buy (the lit node, affordable) · chest (a haul waits, before the porter) ·
  *  send (the hero waits for a SEND, before the scout) · gold (the lit node, short: `have`/`need` in gold) · count (a node's chores by hand:
