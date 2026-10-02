@@ -364,8 +364,7 @@ fn camp_taps(g: &mut Game, ask: &Ask, arm: u8, out: &mut SeedOut, h: f64) {
 /// The guide's start: the deepest lit stone a band under the record (by hand or by the worker).
 fn guide_pick(g: &Game) -> Option<u32> {
     let l = &g.lineage;
-    let gap = std::env::var("RIDDLE_GUIDE_GAP").ok().and_then(|v| v.parse().ok()).unwrap_or(riddle_core::tree::GUIDE_GAP);
-    l.stones().into_iter().filter(|s| s + gap <= l.best_depth).max().filter(|s| *s > l.start.max(1))
+    l.stones().into_iter().filter(|s| s + riddle_core::tree::GUIDE_GAP <= l.best_depth).max().filter(|s| *s > l.start.max(1))
 }
 
 /// The chores HANDS, PICKED and TUNED do by hand until a worker does them: the herald's swap (a quest from an
@@ -376,13 +375,13 @@ fn by_hand_rest(g: &mut Game, ask: &Ask) {
     if !tree::on(l, "herald") && riddle_core::town::quests_open(l) && l.town.quest.as_ref().is_some_and(|q| !q.done && q.day < riddle_core::town::today(l)) && l.town.swap_day != Some(l.day) {
         let _ = g.swap_quest();
     }
-    if !tree::on(&g.lineage, "guide") && std::env::var_os("DP_NO_HAND_START").is_none() {
+    if !tree::on(&g.lineage, "guide") {
         if let Some(s) = guide_pick(g) {
             let _ = g.set_start(s);
         }
     }
     let l = &g.lineage;
-    if !tree::on(l, "kennel_hand") && std::env::var_os("DP_NO_HAND_PETS").is_none() && l.party.len() < l.party_slots() as usize && !l.kennel.is_empty() && ask.has("pets") {
+    if !tree::on(l, "kennel_hand") && l.party.len() < l.party_slots() as usize && !l.kennel.is_empty() && ask.has("pets") {
         field_kennel(g);
     }
 }

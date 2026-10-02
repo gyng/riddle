@@ -290,7 +290,7 @@ pub fn at_send(game: &mut Game) {
     // the drillmaster: marks into the worn stance's next level, then the tactics'
     if on(&game.lineage, "drillmaster") {
         let mut n = 0;
-        let ids: Vec<String> = std::iter::once(game.lineage.pkg.stance.clone()).chain(game.lineage.pkg.tactics.iter().cloned().filter(|_| std::env::var_os("PROBE_STANCE_ONLY").is_none())).collect();
+        let ids: Vec<String> = std::iter::once(game.lineage.pkg.stance.clone()).chain(game.lineage.pkg.tactics.iter().cloned()).collect();
         for id in ids {
             while crate::packages::level_price(&game.lineage, &id).is_some_and(|m| m <= game.lineage.marks) {
                 if crate::packages::spend_level(&mut game.lineage, &id).is_err() {
@@ -306,7 +306,7 @@ pub fn at_send(game: &mut Game) {
         let mut n = 0;
         loop {
             let l = &game.lineage;
-            let reserve = if std::env::var_os("PROBE_NIGHT_RESERVE").is_some() { (RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32).max(crate::kit::per_night(l)) } else { RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32 };
+            let reserve = RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32;
             let Some((slot, p)) = crate::kit::ladders(l).iter().filter_map(|x| x.next.as_ref().map(|s| (x.slot.clone(), s.price as i32))).min_by_key(|x| x.1) else { break };
             if purse(l) < p + reserve || crate::kit::buy_step(&mut game.lineage, &slot).is_err() {
                 break;
@@ -345,8 +345,7 @@ pub fn at_send(game: &mut Game) {
     // the guide: the deepest lit stone a band under the record, never shallower than the start set
     if on(&game.lineage, "guide") {
         let l = &game.lineage;
-        let gap = std::env::var("RIDDLE_GUIDE_GAP").ok().and_then(|v| v.parse().ok()).unwrap_or(GUIDE_GAP);
-        let pick = l.stones().into_iter().filter(|s| s + gap <= l.best_depth).max();
+        let pick = l.stones().into_iter().filter(|s| s + GUIDE_GAP <= l.best_depth).max();
         if let Some(s) = pick.filter(|s| *s > l.start.max(1)) {
             if game.lineage.set_start(s).is_ok() {
                 act(game, "guide", 1);
