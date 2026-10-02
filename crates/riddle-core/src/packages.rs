@@ -330,12 +330,16 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             }
             (g, f)
         }
-        // heal 40 %, home hurt under 45 % or out of heals under 60 %, rest between fights (under 80 %). L2 heals at
-        // 45 %, L3 meets a telegraphed blow with a drink, L4 backs into a corridor against a crowd, L5 goes on hurt
-        // to 35 %.
+        // heal 40 %, home hurt under 30 %, bank out of heals under 45 % when recovery is unsafe, and recover fully
+        // between fights. L2 heals at 45 %, L3 meets a telegraphed blow with a drink. L4 backs into a corridor
+        // against a crowd; L5 goes on hurt to 25 %. An empty pack alone never ends a recoverable walk.
         "guarded" => {
             let mut g = vec![drink];
-            g.extend(home_rows(best, if level >= 5 { 25 } else { GUARDED_HOME }, 45));
+            // Rest succeeds only without foes, poison, or a hazardous tile. Recover before the dry exit;
+            // the hurt exits still come first, and a guard unable to rest banks out of supplies.
+            let mut home = home_rows(best, if level >= 5 { 25 } else { GUARDED_HOME }, 45);
+            home.insert(2, r(vec![n("hp<", 100)], Verb::new("rest")));
+            g.extend(home);
             if level >= 3 {
                 // (a telegraphed blow is met with a drink, not a step back: `telegraph → retreat` looped
                 // retreat ↔ explore on ~3 % of sends — the stall row)
@@ -344,7 +348,7 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             if level >= 4 {
                 g.push(r(vec![n("foes>=", 3), n("hp<", 60)], Verb::new("back_corridor")));
             }
-            (g, vec![attack, r(vec![n("hp<", 80)], Verb::new("rest"))])
+            (g, vec![attack, r(vec![n("hp<", 100)], Verb::new("rest"))])
         }
         // heal 25 %, never home before the record — past it, banks under 25 % (L5: 20 %) — the boss first and to the
         // end (no heal stops the blow), attack the weakest; hurt with the stairs in reach he dives. L2 rests under 50 %.

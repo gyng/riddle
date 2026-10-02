@@ -1302,8 +1302,10 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
     // 20 % the set died three times in 16 h once running thieves stopped counting as foes).
     // The client's path (below) runs beside the 16 h night: two games, one thread each.
     // Cut 24 (the floors' arrival events, named foes resting, the kit never stolen): seed 6.
+    // Cut 30.5: the shallow lock drops corridor reserves; seed 1 still stalls with
+    // useful patches, rather than relying on seed 6's former gas exposure.
     let chunked = std::thread::spawn(|| {
-        let mut q = Game::new_literal(6);
+        let mut q = Game::new_literal(1);
         let mut set = q.lineage.rules().clone();
         set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
         q.set_rules(set).unwrap();
@@ -1313,7 +1315,7 @@ fn a_set_that_always_returns_gets_a_stall_verdict_with_patches() {
         }
         last
     });
-    let mut g = Game::new_literal(6);
+    let mut g = Game::new_literal(1);
     let mut set = g.lineage.rules().clone();
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 35)], Verb::new("return")));
     g.set_rules(set).unwrap();
@@ -8599,9 +8601,10 @@ fn the_repeat_badge_is_the_repack_price() {
 /// Cut 19 §3: an absence's repeat never spends more than the absence brought home.
 #[test]
 fn offline_restock_never_spends_more_than_the_night_brought() {
-    let (capped, ok) = par_seeds(1..=6u64, |seed| {
+    let run = |seed, record| {
         let mut g = Game::new_literal(seed);
         no_kennel_leash(&mut g);
+        g.lineage.best_depth = record;
         identify(&mut g, "heal");
         g.lineage.gold = 100_000;
         g.lineage.unlocks.insert("supply_cap_5".into());
@@ -8611,11 +8614,15 @@ fn offline_restock_never_spends_more_than_the_night_brought() {
         let r = crate::offline::run_offline_quick(&mut g, 4 * 3600);
         let gold = r.gold.clone().unwrap();
         (r.restock_capped, gold.spent <= gold.home + gold.salvage + gold.wake)
-    })
-    .into_iter()
-    .fold((0, true), |a, (c, o)| (a.0 + c as u32, a.1 && o));
+    };
+    let ok = par_seeds(1..=6u64, |seed| run(seed, 0)).into_iter().all(|(_, within_income)| within_income);
     assert!(ok, "spent more than the night brought home");
-    assert!(capped >= 1, "a preset that dies early cannot pay five heals a run: the cap bites");
+    // A veteran record makes five repeat heals expensive relative to this unchanged
+    // low-level preset's income. Exercise the cap explicitly instead of relying on an
+    // early death among six default seeds after every content retune.
+    let (expensive_capped, within_income) = run(1, 33);
+    assert!(within_income, "expensive restock spent more than the night brought home");
+    assert!(expensive_capped, "the expensive preset must exhaust the night's restock budget");
 }
 
 /// Cut 19 §1: the cage preferences measured for the set — one per preference, the current one
@@ -11265,6 +11272,9 @@ fn saves_from_307dbed_send_identically() {
     // (Cut 30.5, the owner 2026-10-02: re-recorded `9b68c23a7de8b0cd` → `b710ceddd931b776` (with run-clear's exit fields merged) — a new record is a
     // checkpoint that secures the carry (`Run::secured`), so the exits' kept gold and the purse move; the set is
     // the save's own, its rows unchanged)
+    // Cut 30.5 lane balance: b710ceddd931b776 → c70ffd182d4080f1. An isolated
+    // control build restoring only the shallow lock's two corridor reserves matches
+    // b710ceddd931b776 exactly; the changed send stream is the intended gas exposure.
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }
@@ -11660,4 +11670,55 @@ fn a_patch_reads_the_floor_the_camp_leads_with() {
     // the frontier moving leads, whatever moves more above it
     let front: Vec<SimResult> = (0..50).map(|i| if i < 25 { sim(9, ExitTier::Death) } else { sim(3, ExitTier::Death) }).collect();
     assert_eq!(crate::trace::whole_move_on(&base, &front, 1, 9, false, false).depth, 9);
+}
+
+#[test]
+fn a_waystone_does_not_skip_the_untamed_first_companion() {
+    let seed = (1..=40).find(|s| Game::new_literal(*s).lineage.first_stray().is_some()).unwrap();
+    let mut doorstep = Game::new_literal(seed);
+    let original = doorstep.lineage.first_stray().unwrap();
+    doorstep.start_run(None);
+    assert_eq!(doorstep.run.as_ref().unwrap().first_stray, Some(original.clone()));
+    doorstep.descend_to(original.0);
+    assert_eq!(doorstep.run.as_ref().unwrap().monsters.iter().filter(|m| m.stray).count(), 1);
+
+    let mut captured = false;
+    for seed in 1..=40 {
+        let mut g = Game::new_literal(seed);
+        let Some((_, name)) = g.lineage.first_stray() else { continue };
+        g.lineage.waystones.push(9);
+        g.lineage.best_depth = 13;
+        g.lineage.gold = 1000;
+        g.set_start(9).unwrap();
+        g.start_run(None);
+        let run = g.run.as_ref().unwrap();
+        assert_eq!(run.start, 9);
+        assert_eq!(run.first_stray, Some((9, name.clone())));
+        assert_eq!(run.monsters.iter().filter(|m| m.stray).count(), 1);
+        assert_eq!(run.monsters.iter().find(|m| m.stray).unwrap().name.as_deref(), Some(name.as_str()));
+        {
+            let run = g.run.as_mut().unwrap();
+            crate::engine::place_situations(run, &[]);
+            assert_eq!(run.monsters.iter().filter(|m| m.stray).count(), 1, "the floor never duplicates the named stray");
+            let stray = run.monsters.iter().find(|m| m.stray).unwrap().clone();
+            run.monsters.retain(|m| m.id == stray.id);
+            let pos = run.hero.pos.neighbours8().into_iter().find(|p| run.floor.map.passable(*p)).unwrap();
+            run.monsters[0].pos = pos;
+            run.monsters[0].stun = 500;
+        }
+        g.lineage.facts.insert("stray".into());
+        give(&mut g, "leash");
+        rules(&mut g, vec![crate::probes::situation_answer("stray")]);
+        if ticks(&mut g, 60).iter().any(|e| matches!(e, Ev::Tame { ok: true, .. })) {
+            { let (run, mut cx) = g.ctx(); crate::turn::end_run(run, &mut cx, ExitTier::Bank); }
+            g.finish_run();
+            assert_eq!(g.lineage.first_stray(), None);
+            g.lineage.rest_left = 0;
+            g.start_run(None);
+            assert!(g.run.as_ref().unwrap().first_stray.is_none());
+            captured = true;
+            break;
+        }
+    }
+    assert!(captured, "the written tame row still must capture the companion");
 }

@@ -379,7 +379,8 @@ struct GoldTally {
     ticks: u64,
     way_sends: u32,
     paid_sends: u32,
-    /// The paid sends' own net and ticks (the set cleared the floors above its start then).
+    /// The paid sends' own net and ticks; on the D1 twin, the matched segment after the
+    /// first waystone lights. Both exclude the identical prefix before starts diverge.
     paid_net: i64,
     paid_ticks: u64,
 }
@@ -404,7 +405,8 @@ impl GoldTally {
         self.paid_net += o.paid_net;
         self.paid_ticks += o.paid_ticks;
     }
-    /// Cut 27 §1: net gold per hour over the sends paid a passage.
+    /// Cut 27 §1: net gold per hour over the paid waystone sends, or their D1 reference
+    /// after the twins first diverge. The shared prefix is excluded on both sides.
     fn paid_per_hour(&self) -> f64 {
         self.paid_net as f64 / (self.paid_ticks.max(1) as f64 / (riddle_core::offline::TICKS_PER_SECOND as f64 * 3600.0))
     }
@@ -487,6 +489,9 @@ fn gold_sends(g: &mut Game, t: &mut GoldTally, consumed: &mut u64, budget: u64, 
             g.passage = riddle_core::forecast::sim_passage(g, &rules);
         }
         g.start_run(None);
+        // Compare starts over the same part of the lineage: D1 must exclude the shared
+        // prefix too, since paid waystone sends cannot include its early checkpoint income.
+        let reference = fork.as_deref().is_some_and(|f| f.is_some());
         let paid = g.run.as_ref().is_some_and(|r| r.start > 1 && r.passage > 0);
         if let Some(r) = g.run.as_ref().filter(|r| r.start > 1) {
             t.way_sends += 1;
@@ -539,7 +544,7 @@ fn gold_sends(g: &mut Game, t: &mut GoldTally, consumed: &mut u64, budget: u64, 
             t.ret_sends += 1;
             t.ret_net += t.net() - before;
         }
-        if paid {
+        if paid || reference {
             t.paid_net += t.net() - before;
             t.paid_ticks += turns as u64 + g.rest_after(turns, tier) as u64;
         }
@@ -1274,17 +1279,18 @@ fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64
             pct(ws.home_sends as usize, ws.sends as usize),
         );
         // Cut 27 §1: gold per hour from D1 and from the waystone; the gate reads the sets whose
-        // waystone sends were mostly paid their passage (the set clears the floors above ≥ 95 %)
+        // waystone sends were mostly paid their passage. Compare the D1 twin only after
+        // the first waystone lights, matching the paid sends' exclusion of the shared prefix.
         // (the sends that cleared: the lineage priced the passage and was paid it; a set with at
         // least a fifth of its waystone sends paid, over 10 of them, is read)
         let paid = ws.paid_sends >= 10 && ws.paid_sends * 5 >= ws.way_sends;
-        println!("    $/h: D1 {:+.0} · waystone {:+.0} · its paid sends {:+.0} ({} of {} sends paid a passage){}", d1.per_hour(), ws.per_hour(), ws.paid_per_hour(), ws.paid_sends, ws.way_sends, if paid && ws.paid_per_hour() < d1.per_hour() { " · FAIL" } else { "" });
+        println!("    $/h: D1 {:+.0} · waystone {:+.0} · after unlock D1 {:+.0} · its paid sends {:+.0} ({} of {} sends paid a passage){}", d1.per_hour(), ws.per_hour(), d1.paid_per_hour(), ws.paid_per_hour(), ws.paid_sends, ws.way_sends, if paid && ws.paid_per_hour() < d1.paid_per_hour() { " · FAIL" } else { "" });
         if paid {
             w_n += 1;
-            if ws.paid_per_hour() >= d1.per_hour() {
+            if ws.paid_per_hour() >= d1.paid_per_hour() {
                 w_ok += 1;
             }
-            let r = ws.paid_per_hour() / d1.per_hour().max(1e-9);
+            let r = ws.paid_per_hour() / d1.paid_per_hour().max(1e-9);
             if r < w_worst.0 {
                 w_worst = (r, name.clone());
             }

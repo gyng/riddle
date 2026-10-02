@@ -1036,6 +1036,7 @@ fn take_part(kind: &str, l: &mut crate::engine::LineageState, now: &crate::engin
             l.vault = now.vault.clone();
             l.supplies = now.supplies.clone();
             l.last_supplies = now.last_supplies.clone();
+            l.last_supply_origins = now.last_supply_origins.clone();
             l.forge = now.forge.clone();
             l.kit = now.kit.clone();
             l.insured = now.insured.clone();
@@ -1122,7 +1123,7 @@ fn part_text(kind: &str, was: &crate::engine::LineageState, now: &crate::engine:
             if was.vault != now.vault {
                 w.push("vault");
             }
-            if was.supplies != now.supplies || was.last_supplies != now.last_supplies {
+            if was.supplies != now.supplies || was.last_supplies != now.last_supplies || was.last_supply_origins != now.last_supply_origins {
                 w.push("pack");
             }
             if was.unlocks != now.unlocks {
@@ -1423,6 +1424,7 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&serde_json::to_string(&l.party).unwrap_or_default());
     feed(&serde_json::to_string(&l.supplies).unwrap_or_default());
     feed(&format!("{:?}", l.last_supplies));
+    if !l.last_supply_origins.is_empty() { feed(&format!("{:?}", l.last_supply_origins)); }
     feed(&l.gold.to_string());
     feed(&serde_json::to_string(&l.forge).unwrap_or_default());
     feed(&serde_json::to_string(&l.grudges).unwrap_or_default());

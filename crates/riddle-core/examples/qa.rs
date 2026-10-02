@@ -1391,9 +1391,11 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
                 }
             }
         }
-        // Cut 20 §4: the stake names what a death keeps beside the exit row's keep.
+        // Cut 30.5: the stake names the carry at risk; checkpoints are the difference
+        // from the snapshot's total carried gold and come home whole even on death.
         let st = &r.snapshot.stake;
-        t.check("the stake's death keep == the death tier's share of carried", st.death_keep == st.loot.max(0) * ExitTier::Death.pct() / 100, || format!("seed {seed}: death keep {} of carried {}", st.death_keep, st.loot));
+        let secured = (r.snapshot.loot - st.loot.max(0)).max(0);
+        t.check("the stake's death keep == checkpoints + death share of carry at risk", st.death_keep == secured + st.loot.max(0) * ExitTier::Death.pct() / 100, || format!("seed {seed}: death keep {} of {} secured + {} at risk", st.death_keep, secured, st.loot));
         // QA on 912e135 (qaW: `−$8 swap` on the strip twice, `−$2 swapped` on the death line): the stake's swap counter only rises,
         // and the exit line's `swapped` is the run's own count
         t.check("the stake's swapped never falls within a run", st.swapped >= swapped_seen || r.run_over, || format!("seed {seed}: {} after {swapped_seen}", st.swapped));

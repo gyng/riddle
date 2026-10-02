@@ -39,6 +39,9 @@ pub struct Item {
     /// before the price moved; the refund then pays today's price).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub paid: i32,
+    /// Packed by the quartermaster: surplus automatic supplies may make room for the active package.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_packed: bool,
     /// QA on 524827b (qaAA: KEPT `axe +7 → vault` after the cage's `took axe +1`): how many of
     /// its `enchant` came from enchant scrolls the heirs read on it (`InvItem.enchanted`).
     #[serde(default, skip_serializing_if = "is_zero")]
@@ -51,7 +54,7 @@ fn is_zero(x: &i32) -> bool {
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, enchanted: 0 }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, auto_packed: false, enchanted: 0 }
     }
     /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
     pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {

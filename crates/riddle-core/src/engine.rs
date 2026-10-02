@@ -1250,6 +1250,9 @@ pub struct LineageState {
     /// repeats by default; was the `auto_supply` automation).
     #[serde(default)]
     pub last_supplies: Vec<String>,
+    /// Origins parallel to `last_supplies`; absent old saves keep every repeat protected.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub last_supply_origins: Vec<(String, bool)>,
     /// Eggs ever laid (the incubator gate).
     #[serde(default)]
     pub eggs_laid: u32,
@@ -1684,6 +1687,7 @@ impl LineageState {
             bones: Vec::new(),
             kill_counts: BTreeMap::new(),
             last_supplies: Vec::new(),
+            last_supply_origins: Vec::new(),
             eggs_laid: 0,
             runs_banked: 0,
             runs_returned: 0,
@@ -3560,6 +3564,7 @@ impl Game {
         l.insured.clear();
         l.supplies.clear();
         l.last_supplies.clear();
+        l.last_supply_origins.clear();
         l.rest_left = 0;
         l.runs_banked = 0;
         l.runs_returned = 0;
@@ -3751,23 +3756,19 @@ impl Game {
         // (Cut 29 §4: the kinds a player's `throw` row names are offered on the camp's repeat tile —
         // `Lineage.repeat_added`, one tap buys it and the repeat keeps it — never added unasked: added at
         // the send they moved the oath gate's raterAT sets to 1 row from bank-optimal)
-        let plan: Vec<String> = if self.lineage.restock_off {
+        let plan: Vec<(String, bool)> = if self.lineage.restock_off {
             Vec::new()
         } else {
             let used = self.lineage.row_kinds();
-            self.lineage.last_supplies.iter().filter(|k| !self.lineage.last_wasted.contains(k) && used.contains(*k)).cloned().collect()
+            self.lineage.last_supplies.iter().enumerate().filter(|(_, k)| !self.lineage.last_wasted.contains(k) && used.contains(*k)).map(|(i, k)| (k.clone(), self.lineage.last_supply_origins.get(i).is_some_and(|(kind, auto)| kind == k && *auto))).collect()
         };
         self.restock();
         // (a found supply packs free and is not the repeat's — Cut 21 §2)
-        let mut kinds: Vec<String> = self.lineage.supplies.iter().filter(|i| !i.free && !i.found).map(|i| i.kind.clone()).collect();
-        let mut bought = kinds.clone();
-        for k in plan {
-            match bought.iter().position(|b| *b == k) {
-                Some(i) => {
-                    bought.remove(i);
-                }
-                None => kinds.push(k),
-            }
+        let mut origins: Vec<(String, bool)> = self.lineage.supplies.iter().filter(|i| !i.free && !i.found).map(|i| (i.kind.clone(), i.auto_packed)).collect();
+        let mut kinds: Vec<String> = origins.iter().map(|(k, _)| k.clone()).collect();
+        let supplied = supplied_slots(&plan, &origins);
+        for ((k, auto), present) in plan.into_iter().zip(supplied) {
+            if !present { origins.push((k.clone(), auto)); kinds.push(k); }
         }
         // QA on 778fa1b: the price the camp's badge showed is the price this send's exit re-packs at.
         // QA on 0c6e126 (qaY: `repeat on · ≤$20`, later `≤$24`, then `repeat −$26` overnight as the best floor climbed): a kind's
@@ -3776,6 +3777,7 @@ impl Game {
         let was = std::mem::take(&mut self.lineage.repeat_quote);
         self.lineage.repeat_quote = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| (k.clone(), was.get(k).map_or(e.price, |q| (*q).min(e.price))))).collect();
         self.lineage.last_supplies = kinds;
+        self.lineage.last_supply_origins = if origins.iter().any(|(_, auto)| *auto) { origins } else { Vec::new() };
         for id in loadout {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
                 let it = self.lineage.vault.remove(i);
@@ -3965,7 +3967,8 @@ impl Game {
             prayed: false,
             lent_row: None,
             stray_placed: false,
-            first_stray: self.lineage.first_stray().filter(|(_, n)| !self.lineage.named_resting(n, id)),
+            // The same untamed stray waits at the entrance when a waystone skips its original floor.
+            first_stray: self.lineage.first_stray().map(|(d, n)| (d.max(start), n)).filter(|(_, n)| !self.lineage.named_resting(n, id)),
             strays_tamed: Vec::new(),
             bail: false,
             dens: Vec::new(),
@@ -6044,8 +6047,11 @@ impl Game {
                 let why = format!("refund {}", s.kind.replace('_', " "));
                 self.lineage.gold_move_n(price, &why, 1);
             }
-            if let Some(k) = self.lineage.last_supplies.iter().position(|k| *k == s.kind) {
+            let slot = self.lineage.last_supplies.iter().enumerate().find(|(i, k)| **k == s.kind && self.lineage.last_supply_origins.get(*i).is_some_and(|(kind, auto)| kind == *k && *auto == s.auto_packed)).map(|(i, _)| i)
+                .or_else(|| self.lineage.last_supplies.iter().position(|k| *k == s.kind));
+            if let Some(k) = slot {
                 self.lineage.last_supplies.remove(k);
+                if k < self.lineage.last_supply_origins.len() { self.lineage.last_supply_origins.remove(k); }
             }
         }
         Ok(())
@@ -6068,6 +6074,7 @@ impl Game {
         }
         // Cut 4: clearing the shelf is an order; the automation does not undo it.
         self.lineage.last_supplies.clear();
+        self.lineage.last_supply_origins.clear();
     }
 
     /// The loadout repeats (Cut 19 §3; was the `auto_supply` automation, Cut 2 §3): an empty
@@ -6110,9 +6117,6 @@ impl Game {
             if drill && self.lineage.supplies.iter().any(|s| s.kind == *kind) {
                 continue;
             }
-            if !drill && self.lineage.supplies.len() >= cap {
-                break;
-            }
             if !drill && self.lineage.supplies.iter().filter(|s| s.kind == *kind).count() >= want[qm.len()..].iter().filter(|k| *k == kind).count() {
                 continue;
             }
@@ -6123,6 +6127,20 @@ impl Game {
                     continue;
                 }
             }
+            if !drill && self.lineage.supplies.len() >= cap {
+                // A former package's unused automatic supplies must not crowd out the current
+                // stance's sustain. Player purchases and found supplies retain their places.
+                // Check the replacement can be bought before giving up an existing supply.
+                let Some(price) = self.supply_catalogue().iter().find(|e| e.kind == *kind).map(|e| e.price) else { continue };
+                if self.lineage.gold < price { continue; }
+                let surplus = self.lineage.supplies.iter().rposition(|s| {
+                    s.auto_packed && !s.free && !s.found && !qm.contains(&s.kind)
+                        && self.lineage.supplies.iter().filter(|t| t.kind == s.kind).count()
+                            > want.iter().filter(|k| **k == s.kind).count()
+                });
+                let Some(i) = surplus else { continue };
+                self.lineage.supplies.remove(i);
+            }
             if self.lineage.supplies.len() >= self.lineage.supply_cap() {
                 if let Some(i) = self.lineage.supplies.iter().rposition(|s| !qm.contains(&s.kind)) {
                     self.lineage.supplies.remove(i);
@@ -6131,6 +6149,7 @@ impl Game {
             let gold = self.lineage.gold;
             let why = format!("{} {}", if drill { "drill" } else { "pack" }, kind.replace('_', " "));
             if self.buy_supply_as(kind, &why).is_ok() {
+                if let Some(item) = self.lineage.supplies.last_mut() { item.auto_packed = true; }
                 bought.push(kind.replace('_', " "));
                 let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
                 e.0 += 1;
@@ -6141,7 +6160,9 @@ impl Game {
         if self.lineage.restock_off {
             return bought;
         }
-        let mut on_shelf: Vec<String> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.kind.clone()).collect();
+        let plan: Vec<(String, bool)> = self.lineage.last_supplies.iter().enumerate().map(|(i, kind)| (kind.clone(), self.lineage.last_supply_origins.get(i).is_some_and(|(k, auto)| k == kind && *auto))).collect();
+        let on_shelf: Vec<(String, bool)> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| (s.kind.clone(), s.auto_packed)).collect();
+        let supplied = supplied_slots(&plan, &on_shelf);
         let mut short = Vec::new();
         // Cut 13 §3: a kind the last run used to no effect is not rebought (rater R: "the
         // strength potion the trait drinks at full HP is rebought sixteen times").
@@ -6150,11 +6171,8 @@ impl Game {
         // kinds a row of the active set can use are re-bought (`LineageState::row_kinds`).
         let used = self.lineage.row_kinds();
         let mut skip = self.lineage.theft_skip.clone();
-        for kind in self.lineage.last_supplies.clone() {
-            if let Some(i) = on_shelf.iter().position(|k| *k == kind) {
-                on_shelf.remove(i);
-                continue;
-            }
+        for (slot, kind) in self.lineage.last_supplies.clone().into_iter().enumerate() {
+            if supplied[slot] { continue; }
             if wasted.contains(&kind) || !used.contains(&kind) {
                 continue;
             }
@@ -6175,6 +6193,8 @@ impl Game {
             let gold = self.lineage.gold;
             match self.buy_supply_priced(&kind, &format!("repeat {}", kind.replace('_', " ")), quote) {
                 Ok(()) => {
+                    let automatic = self.lineage.last_supply_origins.get(slot).is_some_and(|(k, auto)| *k == kind && *auto);
+                    if let Some(item) = self.lineage.supplies.last_mut() { item.auto_packed = automatic; }
                     bought.push(kind.replace('_', " "));
                     let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
                     e.0 += 1;
@@ -7235,4 +7255,21 @@ pub fn auto_keep_plan(p: &PendingExit, vault: &[Item], slots: usize, keep_pref: 
 
 fn is_zero_u32(n: &u32) -> bool {
     *n == 0
+}
+
+/// Assign surviving supplies to their repeat slots. Reserve exact origins across the whole
+/// plan before matching kinds alone, so a manual duplicate cannot consume an automatic slot.
+fn supplied_slots(plan: &[(String, bool)], supplies: &[(String, bool)]) -> Vec<bool> {
+    let mut available = supplies.to_vec();
+    let mut supplied = vec![false; plan.len()];
+    for exact in [true, false] {
+        for (slot, (kind, automatic)) in plan.iter().enumerate() {
+            if supplied[slot] { continue; }
+            if let Some(i) = available.iter().position(|(k, a)| k == kind && (!exact || a == automatic)) {
+                available.remove(i);
+                supplied[slot] = true;
+            }
+        }
+    }
+    supplied
 }

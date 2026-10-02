@@ -377,3 +377,149 @@ fn grew_names_each_fact_once_stages_first() {
     // a building is named once, on the town's row
     assert!(!grew.iter().any(|x| x.track == "items" && x.what == "storehouse"), "{grew:?}");
 }
+
+#[test]
+fn every_package_level_produces_valid_rules() {
+    for p in packages::PACKAGES {
+        for level in 1..=packages::MAX_LEVEL {
+            let rows = match p.kind {
+                packages::Kind::Stance => { let (mut guard, fallback) = packages::stance_rows(p.id, level, 34); guard.extend(fallback); guard },
+                packages::Kind::Tactic => packages::tactic_rows(p.id, level),
+                packages::Kind::Temperament => packages::temperament_rows(p.id, level),
+            };
+            let set = RuleSet { rows: rows.into_iter().map(|r| r.from(&format!("{}:{}", p.kind.origin(), p.id))).collect(), name: None, route: Vec::new() };
+            assert!(set.validate().is_ok(), "{} L{}: {:?}", p.id, level, set.validate());
+        }
+    }
+}
+
+#[test]
+fn automatic_surplus_supplies_make_room_for_sustain_without_touching_owned_items() {
+    let setup = || {
+        let mut g = Game::new(13);
+        g.lineage.supplies.clear();
+        g.lineage.gold_move(10_000 - g.lineage.gold, "test");
+        for kind in ["heal", "fire", "silence"] {
+            if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, kind) { g.lineage.facts.insert(f); }
+        }
+        for kind in ["fire", "fire", "silence"] {
+            g.buy_supply(kind).unwrap();
+            g.lineage.supplies.last_mut().unwrap().auto_packed = true;
+        }
+        assert_eq!(g.lineage.supplies.len(), g.lineage.supply_cap());
+        g
+    };
+    let mut g = setup();
+    let gold = g.lineage.gold;
+    let ledger = g.lineage.tree.ledger;
+    g.restock();
+    assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "heal").count(), 2);
+    assert!(g.lineage.supplies.iter().filter(|s| s.kind == "heal").all(|s| s.auto_packed));
+    assert_eq!(g.lineage.tree.ledger - ledger, (g.lineage.gold - gold) as i64);
+    g.start_run(None);
+    assert_eq!(g.run.as_ref().unwrap().hero.inv.iter().filter(|i| i.kind == "heal").count(), 2, "sustain actually reaches the hero");
+
+    // The observed shelf: an obsolete automatic fire, a found fire, and the active
+    // Queen counter. Only the obsolete supply yields its slot to the stance's heal.
+    let mut mixed = setup();
+    mixed.lineage.best_depth = crate::descent::boss_depth("lurker_queen").unwrap();
+    mixed.lineage.pkg.drills.push(packages::Drill { boss: "lurker_queen".into(), rows: packages::drill_rows("lurker_queen", 30), revoked: false, announced: false });
+    packages::recompile(&mut mixed.lineage);
+    mixed.lineage.supplies[1].found = true;
+    let found_id = mixed.lineage.supplies[1].id;
+    let counter_id = mixed.lineage.supplies[2].id;
+    assert_eq!(packages::quartermaster(&mixed.lineage), ["silence"]);
+    mixed.restock();
+    assert!(mixed.lineage.supplies.iter().any(|s| s.id == found_id && s.found));
+    assert!(mixed.lineage.supplies.iter().any(|s| s.id == counter_id && s.kind == "silence"));
+    mixed.start_run(None);
+    let inv = &mixed.run.as_ref().unwrap().hero.inv;
+    assert!(inv.iter().any(|s| s.kind == "heal"), "sustain reaches the hero beside the counter and find");
+    assert!(inv.iter().any(|s| s.kind == "silence"));
+    assert!(inv.iter().any(|s| s.kind == "fire" && s.found));
+
+    let mut protected = setup();
+    protected.lineage.supplies[0].auto_packed = false;
+    protected.lineage.supplies[1].found = true;
+    protected.lineage.supplies[2].free = true;
+    let before = protected.lineage.supplies.clone();
+    protected.restock();
+    assert_eq!(protected.lineage.supplies, before, "manual, found and free supplies keep their slots");
+
+    for offline in [false, true] {
+        let mut poor = setup();
+        if offline { poor.offline = true; } else { poor.lineage.gold_move(-poor.lineage.gold, "test"); }
+        let before = poor.lineage.supplies.clone();
+        let gold = poor.lineage.gold;
+        poor.restock();
+        assert_eq!(poor.lineage.supplies, before, "unaffordable replacement discards nothing");
+        assert_eq!(poor.lineage.gold, gold);
+    }
+    let mut legacy: serde_json::Value = serde_json::from_str(&setup().save()).unwrap();
+    for item in legacy["lineage"]["supplies"].as_array_mut().unwrap() { item.as_object_mut().unwrap().remove("auto_packed"); }
+    let mut old = Game::load(&legacy.to_string()).unwrap();
+    assert!(old.lineage.supplies.iter().all(|s| !s.auto_packed));
+    let before = old.lineage.supplies.clone();
+    old.restock();
+    assert_eq!(old.lineage.supplies, before, "old saves do not invent permission to replace supplies");
+}
+
+#[test]
+fn repeat_preserves_each_supply_origin_through_send_and_save() {
+    let mut g = Game::new_literal(13);
+    g.lineage.supplies.clear();
+    g.lineage.gold_move(10_000 - g.lineage.gold, "test");
+    if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "heal") { g.lineage.facts.insert(f); }
+    g.buy_supply("heal").unwrap();
+    g.lineage.supplies.last_mut().unwrap().auto_packed = true;
+    g.buy_supply("heal").unwrap(); // same kind, explicitly packed by the player
+    g.start_run(None);
+    assert_eq!(g.lineage.last_supply_origins, [("heal".into(), true), ("heal".into(), false)]);
+    g = Game::load(&g.save()).unwrap();
+    {
+        let (run, mut cx) = g.ctx();
+        run.hero.inv.retain(|i| i.kind != "heal");
+        crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+    }
+    g.finish_run();
+    assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "heal").map(|s| s.auto_packed).collect::<Vec<_>>(), [true, false], "repeat preserves individual origins, not just kinds");
+    let manual = g.lineage.supplies.iter().find(|s| s.kind == "heal" && !s.auto_packed).unwrap().id;
+    g.drop_supply(manual).unwrap();
+    assert_eq!(g.lineage.last_supplies, ["heal"]);
+    assert_eq!(g.lineage.last_supply_origins, [("heal".into(), true)], "dropping the manual duplicate leaves the automatic slot");
+    g.clear_supplies();
+    assert!(g.lineage.last_supply_origins.is_empty());
+
+    // Only one duplicate was used: the surviving slot is reserved for its own origin
+    // before the missing opposite origin is repurchased, in either direction.
+    for consumed_automatic in [true, false] {
+        let mut partial = Game::new_literal(13);
+        partial.lineage.supplies.clear();
+        partial.lineage.gold_move(10_000 - partial.lineage.gold, "test");
+        if let Some(f) = crate::item::ident_fact(&partial.lineage.flavours, "heal") { partial.lineage.facts.insert(f); }
+        for automatic in [true, false] {
+            partial.buy_supply("heal").unwrap();
+            partial.lineage.supplies.last_mut().unwrap().auto_packed = automatic;
+        }
+        partial.start_run(None);
+        {
+            let (run, mut cx) = partial.ctx();
+            run.hero.inv.retain(|i| i.kind != "heal" || i.auto_packed != consumed_automatic);
+            crate::turn::end_run(run, &mut cx, ExitTier::Bank);
+        }
+        partial.finish_run();
+        let flags: Vec<bool> = partial.lineage.supplies.iter().filter(|s| s.kind == "heal").map(|s| s.auto_packed).collect();
+        assert_eq!(flags.len(), 2);
+        assert_eq!(flags.iter().filter(|v| **v).count(), 1, "one automatic and one manual slot survive partial consumption: {flags:?}");
+        partial = Game::load(&partial.save()).unwrap();
+        partial.start_run(None);
+        assert_eq!(partial.lineage.last_supply_origins.iter().filter(|(_, auto)| *auto).count(), 1, "the next send keeps the same origins");
+    }
+
+    let mut legacy: serde_json::Value = serde_json::from_str(&g.save()).unwrap();
+    legacy["lineage"]["last_supplies"] = serde_json::json!(["heal"]);
+    legacy["lineage"].as_object_mut().unwrap().remove("last_supply_origins");
+    let mut old = Game::load(&legacy.to_string()).unwrap();
+    old.restock();
+    assert!(old.lineage.supplies.iter().all(|s| !s.auto_packed), "legacy repeat slots remain protected");
+}

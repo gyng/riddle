@@ -73,7 +73,9 @@ fn stock(best: u32, at: u32) -> Vec<Row> {
         Row::new(vec![Cond::t("foe_tag", "gas"), Cond::n("adj>=", 1)], Verb::new("retreat")),
         Row::new(vec![Cond::n("hp<", 90)], Verb::new("rest")),
         Row::new(vec![Cond::n("depth>=", (best + 1) as i32)], Verb::new("bank")),
-        Row::new(vec![Cond::n("hp<", 40)], Verb::new("retreat")),
+        // Leave a held heal to the sustain rows below this defensive edit.
+        // Otherwise retreat can suppress healing and prolong a fatal walk.
+        Row::new(vec![Cond::n("hp<", 40), Cond::t("lacks", "heal")], Verb::new("retreat")),
         // the Lurker Queen's counter on the lurkers she calls (the D28 probe: past her 0 → 6.5–10 %)
         Row::new(vec![Cond::t("foe_tag", "summoned"), Cond::n("depth>=", 28)], Verb::arg("read", "silence")),
         Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("depth>=", at as i32)], Verb::arg("read", "silence")),
@@ -240,4 +242,46 @@ pub fn search(g: &Game) -> Option<crate::wire::WallEdit> {
 /// Whether the lineage stands at a wall: its best depth held `WALL_DAYS` days of its clock.
 pub fn at_wall(l: &crate::engine::LineageState) -> bool {
     l.day >= l.best_day + WALL_DAYS && l.best_depth > 0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::item::{ident_fact, Item};
+    use crate::wire::Ev;
+
+    #[test]
+    fn wall_escape_yields_to_available_heals_and_acts_when_they_are_spent() {
+        let escape = stock(23, 23).into_iter().find(|r| r.verb.v == "retreat" && r.conds.iter().any(|c| c.k == "hp<")).unwrap();
+        for has_heal in [true, false] {
+            let mut g = crate::tests::arena();
+            crate::tests::add_monster(&mut g, "goblin", 5, 5);
+            if let Some(f) = ident_fact(&g.lineage.flavours, "heal") {
+                g.lineage.facts.insert(f);
+            }
+            let run = g.run.as_mut().unwrap();
+            run.hero.hp = run.hero.max_hp * 3 / 10;
+            let hp = run.hero.hp;
+            run.hero.inv.retain(|i| i.kind != "heal");
+            if has_heal {
+                let id = run.new_item_id();
+                run.hero.inv.push(Item::new(id, "heal"));
+            }
+            crate::tests::rules(&mut g, vec![escape.clone(), Row::new(vec![Cond::n("hp<", 45)], Verb::arg("drink", "heal"))]);
+            let mut events = Vec::new();
+            for _ in 0..20 {
+                events.extend(crate::tests::ticks(&mut g, 1));
+                if events.iter().any(|e| matches!(e, Ev::Rule { .. })) {
+                    break;
+                }
+            }
+            let wanted = if has_heal { "drink" } else { "retreat" };
+            assert!(events.iter().any(|e| matches!(e, Ev::Rule { row, verb, .. } if *row == has_heal as i32 && verb.v == wanted)), "held heal {has_heal}: {events:?}");
+            if has_heal {
+                let run = g.run.as_ref().unwrap();
+                assert!(run.hero.hp > hp, "the available heal restored health under threat");
+                assert!(!run.hero.inv.iter().any(|i| i.kind == "heal"));
+            }
+        }
+    }
 }

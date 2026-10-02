@@ -305,3 +305,46 @@ fn a_worker_ranks_up_with_service() {
         assert!(tree::lit_rank(&g.lineage).is_none());
     }
 }
+
+/// A practised Guarded hero with an empty heal pack recovers between fights before abandoning the walk.
+#[test]
+fn practised_guarded_recovers_in_an_empty_room_without_heals() {
+    for (runs, hp) in [(120, 42), (220, 37)] {
+        let mut g = Game::new(7);
+        g.lineage.pkg.owned.insert("guarded".into());
+        g.lineage.pkg.runs.insert("guarded".into(), runs);
+        g.equip_package("guarded", 0).unwrap();
+        g.send();
+        let r = g.run.as_mut().unwrap();
+        r.monsters.clear();
+        r.hero.inv.retain(|i| i.kind != "heal");
+        r.hero.max_hp = 100;
+        r.hero.hp = hp;
+        r.hero.energy = 100;
+        g.tick();
+        let r = g.run.as_ref().unwrap();
+        assert!(r.over.is_none() && r.homeward.is_none(), "the empty pack alone must not end a recoverable walk");
+        assert!(r.hero.hp > hp, "Guarded rests between fights instead of banking");
+    }
+}
+
+#[test]
+fn guarded_recovers_the_last_wounds_before_exploring_again() {
+    let mut g = Game::new(7);
+    g.lineage.pkg.owned.insert("guarded".into());
+    g.lineage.pkg.runs.insert("guarded".into(), 220);
+    g.equip_package("guarded", 0).unwrap();
+    g.send();
+    let r = g.run.as_mut().unwrap();
+    r.monsters.clear();
+    r.hero.inv.retain(|i| i.kind != "heal");
+    r.hero.max_hp = 100;
+    r.hero.hp = 95;
+    r.hero.energy = 100;
+    let pos = r.hero.pos;
+    g.tick();
+    let r = g.run.as_ref().unwrap();
+    assert!(r.hero.hp > 95, "the guard recovers even its final wounds");
+    assert_eq!(r.hero.pos, pos, "rest comes before exploring another room");
+    assert!(r.homeward.is_none() && r.over.is_none());
+}

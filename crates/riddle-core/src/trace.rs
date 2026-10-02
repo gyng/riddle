@@ -2334,9 +2334,11 @@ fn shape_patches(game: &Game, rec: &mut DeathRec) {
     // death still names its alternative (Cut 11 §4), even a hopeless one.
     // … and any 0 % row (the pinned boss counter too — QA on 3d71c33: `attack boss · survives
     // 0%` beside a 100 % candidate); the root's unlock pseudo-patch is measured apart.
+    // The causal theft patch prevents an earlier loss, not the killing blow at this checkpoint.
+    // Keep it beside the immediate fixes even at zero survival, with its honest `no_gain` mark.
     let hopeless = |p: &Patch| p.insert_at >= 0 && p.survive <= 1e-9;
     if rec.death.patches.iter().any(|p| !hopeless(p)) {
-        rec.death.patches.retain(|p| !hopeless(p));
+        rec.death.patches.retain(|p| p.root.is_some() || !hopeless(p));
     }
     // Cut 6 §8: on a boss death a `return` is never the only patch — the best other scored
     // candidate joins it (giving up is not the answer to a wall).
@@ -3198,5 +3200,28 @@ mod tests_faithful {
             assert!(!rec.stall || (r.timed_out && r.stuck_fires >= crate::engine::STALL_FIRES), "stall {id} did not replay as a stall");
             assert_eq!(r.turn, rec.death_tick, "death {id}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_causal_root {
+    use super::*;
+
+    #[test]
+    fn historical_theft_root_stays_beside_the_immediate_fix_without_claiming_a_gain() {
+        let mut g = Game::new_literal(14);
+        g.max_deaths = 1000;
+        crate::systems::open_all(&mut g.lineage);
+        crate::traits::neutral(&mut g.lineage);
+        crate::offline::run_offline_counts(&mut g, 8 * 3600);
+        let death = g.death(10).expect("the seed's death after its monkey theft");
+        assert_eq!(death.baseline, 0.0);
+        let root = death.patches.iter().find(|p| p.root.is_some()).expect("the earlier theft still has its causal patch");
+        assert_eq!(root.root.as_ref().unwrap().text, "monkey took the murky potion?");
+        assert_eq!(root.survive, 0.0, "the root patch cannot undo the loss at the death checkpoint");
+        assert_eq!(root.forecast_delta, 0.0);
+        assert!(root.no_gain, "the screen must not claim a survival gain");
+        assert!(death.patches.first().is_some_and(|p| p.root.is_none() && p.survive > 0.0), "the immediate surviving fix still leads");
+        assert!(death.patches.len() <= SHOWN);
     }
 }

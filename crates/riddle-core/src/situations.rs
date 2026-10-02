@@ -278,11 +278,12 @@ fn lock_tiles(run: &Run) -> Vec<Pos> {
     }
     lock.sort_by_key(|p| (p.cheb(down), p.x, p.y));
     lock.truncate(LOCK_MAX);
-    // Each door's corridor holds two more bloats behind it (a one-door room still locks).
+    // A shallow Burrows lock covers its doors; later locks add two reserve bloats per corridor.
+    // Every door stays covered, while IDLE can reach the first band's end on both lanes.
     let doors = lock.clone();
     for d in doors {
         let mut cur = d;
-        for _ in 0..2 {
+        for _ in 0..if run.biome() == crate::descent::Biome::Burrows && run.depth < 8 { 0 } else { 2 } {
             if lock.len() >= LOCK_MAX {
                 break;
             }
@@ -708,6 +709,35 @@ mod tests {
     use super::*;
     use crate::engine::Game;
     use crate::rng::Rng;
+
+    #[test]
+    fn shallow_lock_keeps_the_door_barrier_and_later_locks_keep_reserves() {
+        let mut g = Game::new_literal(1);
+        g.start_run(Some(1));
+        let run = g.run.as_mut().unwrap();
+        run.depth = 6;
+        run.floor.map = crate::tiles::Map::new(12, 12, Tile::Wall);
+        let room = crate::gen::Rect { x: 5, y: 5, w: 5, h: 5 };
+        for y in 5..10 {
+            for x in 5..10 {
+                run.floor.map.set(Pos::new(x, y), Tile::Floor);
+            }
+        }
+        for x in 1..5 {
+            run.floor.map.set(Pos::new(x, 7), Tile::Floor);
+        }
+        run.floor.stairs_up = Pos::new(1, 7);
+        run.floor.stairs_down = Pos::new(7, 7);
+        run.floor.rooms = vec![room];
+        let shallow = lock_tiles(run);
+        assert_eq!(shallow, vec![Pos::new(4, 7)]);
+        let reachable = run.floor.map.bfs(run.floor.stairs_up, false, &|p| shallow.contains(&p));
+        assert_eq!(reachable[run.floor.map.idx(run.floor.stairs_down)], -1, "the lock still blocks the stairs");
+        run.depth = 8;
+        let later = lock_tiles(run);
+        assert_eq!(later.len(), 3, "later locks retain two corridor reserves");
+        assert!(shallow.iter().all(|p| later.contains(p)));
+    }
 
     /// Cut 12 §4: from D3 every floor holds exactly one situation, never the previous
     /// floor's kind; each band shows its flagship once (the den in D3–5, the lock in D6–7,
