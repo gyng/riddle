@@ -488,6 +488,21 @@ seeds of every bot and leave-one-out; nothing required ok; TUNED vs PICKED at D3
 and PLAN.md invariant edits (§6) are made, re-expressed for the owner's rounds (the pen ≥ 15 % at D33, RANDOM vs
 PICKED, nothing required on the median seed with a 48 h cap from day 5, `none > 60 %` retired).
 
+**Integration — `cut30-client` (core = `cut30` 58e7a96 + art phase 2, fonts, death v2, town sprites, panels, town), 2026-10-02.**
+Workspace tests 461 pass, clippy, tsc, copy-lint clean; client suite 39/39 (four runs: `fights` *names on two rows*, `ui`,
+`screens`, `qa9` each failed once or twice inside a loaded suite and passed alone and in the next suite — load flakes);
+`town-gpu.mjs` headed 60.2 fps of the display's 60.1 with 25 walkers, idle 20 fps, hidden 0; art-qc and `--style` PASS.
+`gates.mjs --fast`: one row FAIL, *Return row* 21/22 at 8 seeds (known: raterAG never dies at 8 × 8 h; 22/22 at 30 seeds, the
+full table). `gates.mjs` (quick): metrics the same row; qa PASS; dayplayer one row FAIL — *Nothing required* on the quick tier's
+single leave-one-out seed (TUNED − packages, D13, +32 h; the median of one seed is that seed; from day 5 +0 h). The core is
+`cut30`'s byte for byte; its full gate (16 seeds) passes that row (round 10). Not tuned (no core change here).
+Fixes: looks.mjs earns the stud by a best depth (camp.ts already revealed it from the first run on packages: no reveal change);
+the report before the pen shows the plateau line alone and no unlock cards/lines until the unlocks open; marks' caption `levels
+packages` before the unlocks; the bar's `more` tile past eight; the second-row `repeat` plate; the report's empty portrait-mini;
+the top bar's stats never under the gear. Town: a dark wooded hillside behind the mouth, a moonlit night against warm lights,
+a calmer path. Owner-check pack: `scratchpad/ownercheck/` (real engine, seed 3101: 8 h report; day 0; 48 h town, packages,
+tracks, quest).
+
 ## Deviations
 - **Round 6, owner-approved 2026-10-01.** (1) *TUNED beats PICKED by ≥ 15 %* is measured at **D29** (past D28) and
   D33, not D28 and D33: the D28 floor is gated by the walls above it, which drill before the pen opens.
