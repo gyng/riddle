@@ -37,10 +37,11 @@ OUT = ROOT / "tiles"
 # class -> (members, ramp band lo/hi, gamma, material colour lean (rgb), lean amount, painterly class)
 GROUND: dict[str, tuple[list[str], float, float, float, tuple[int, int, int], float, str]] = {
     "grass": (["grass_0", "grass_1", "grass_2", "grass_3"], 0.14, 0.42, 1.1, (58, 84, 52), 0.42, "floor"),
-    "dirt": (["dirt_0", "dirt_1", "dirt_2"], 0.42, 0.84, 0.9, (122, 116, 104), 0.32, "floor"),
+    "dirt": (["dirt_0", "dirt_1", "dirt_2"], 0.34, 0.6, 0.9, (122, 112, 96), 0.3, "floor"),   # (the coordinator: the path read as bright stripy ribbons; 0.42-0.84 before, at full contrast)
     "plaza": (["plaza_0", "plaza_1"], 0.2, 0.66, 0.9, (96, 104, 112), 0.15, "floor"),
 }
 EXTREMES = {"grass": (7, 0), "dirt": (2, 0), "plaza": (8, 2)}   # (grass glints read as a regular dash pattern at 1x: none)   # per class: % of texels to INK, % to MIST
+SQUEEZE = {"dirt": 0.5}   # per class: the painting's contrast kept (the path's grain read as stripes at 0.85)
 PROFILE = [4, 4, 5, 5, 4, 4, 3, 4, 5, 5, 5, 4, 3, 3, 4, 4]   # the fringe's depth along a side (texels); 4 at both ends
 
 
@@ -64,7 +65,7 @@ def ground() -> dict[str, np.ndarray]:
         for n, a in tiles.items():
             L = lum(a)
             u = np.clip((L - p2) / max(1e-3, p98 - p2), 0, 1) ** gam
-            u = 0.5 + (u - 0.5) * 0.85
+            u = 0.5 + (u - 0.5) * SQUEEZE.get(cls, 0.85)
             t = lo + (hi - lo) * u
             rgb = ramp_at(ramp, t)
             g = rgb @ np.array([0.2126, 0.7152, 0.0722], np.float32)
@@ -137,6 +138,30 @@ def edges(g: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
     return out
 
 
+def hill(g: dict[str, np.ndarray]) -> np.ndarray:
+    """town_env_cliff: the dark hillside the mouth is cut into (the coordinator, Cut 30 integration: the old ledge tile, its MIST
+    rims repeated every 16 texels, read as a striped blue wall or water). The calm grass laid two steps down toward UMBRA/DUSK, a
+    few boulders (a lit upper-left rim, an INK foot) and scrub; no horizontal run, so rows of it never stripe. Seamless (the
+    grass is; the boulders sit inside the tile)."""
+    ramp = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in style_ramp("town")], np.float32)
+    base = g.get("grass_2", g["grass_0"]).copy()
+    lv = base @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+    u = (lv - lv.min()) / max(1e-3, float(lv.max() - lv.min()))
+    slate = np.array([34, 40, 44], np.float32)
+    rgb = slate[None, None] * (0.62 + 0.5 * u[..., None]) + (base - lv[..., None]) * 0.22   # a trace of the grass's own green
+    # boulders: (cx, cy, rx, ry)
+    y, x = np.mgrid[0:16, 0:16].astype(np.float32)
+    for cx, cy, rx, ry in ((4.5, 5.0, 2.4, 1.6), (11.5, 11.5, 1.6, 1.1)):
+        d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+        body = d < 1.0
+        rgb[body] = np.array([38, 42, 50], np.float32) + (rgb[body] - rgb[body].mean(0)) * 0.4
+        rim = body & (((x - cx + 0.9) / rx) ** 2 + ((y - cy + 0.9) / ry) ** 2 >= 1.0)   # the upper-left edge the moon finds
+        rgb[rim] = rgb[rim] * 0.7 + ramp[2] * 0.3
+        foot = ~body & (((x - cx) / rx) ** 2 + ((y - cy - 1.0) / ry) ** 2 < 1.0)   # its shadow on the slope below
+        rgb[foot] = rgb[foot] * 0.5 + ramp[0] * 0.5
+    return np.clip(rgb, 0, 255)
+
+
 MIST = np.array([164, 188, 214], np.float32)
 
 
@@ -163,6 +188,9 @@ def build(out_dir: Path = OUT) -> list[str]:
             written.append(f"town_env_{n}")
         save("dirt_edge", edges(g)["dirt_edge_n"])   # the phase-2 id, kept as an alias of the north edge
         written.append("town_env_dirt_edge")
+    if "grass_0" in g:
+        save("cliff", hill(g))
+        written.append("town_env_cliff")
     pj = out_dir / "_painted.json"
     have = set(json.loads(pj.read_text())) if pj.exists() else set()
     pj.write_text(json.dumps(sorted(have | set(written))) + "\n")

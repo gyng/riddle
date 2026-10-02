@@ -6,7 +6,7 @@
 //
 //   node web/tests/looks.mjs        (part of `pnpm test` in web/)
 //
-// Walk: boot fresh (seed 31) → the lineage's look is the class's own and the well paints it → the stud opens a sheet with three
+// Walk: boot fresh (seed 31: no stud) → a 1 h absence (a best depth carves the stud) → the lineage's look is the class's own and the well paints it → the stud opens a sheet with three
 // headshots (`hero_fighter_{male,female,cat}`) → one tap on `cat` swaps (the sheet closes, the well and the mini portrait repaint,
 // the engine says `cat`) → reload (no fresh) → still `cat` → send (`?autosend=1`) → the renderer's hero is `hero_fighter_cat` and
 // the watch's well paints it → back to `female` from the camp, the engine and the well follow. Exit 1 on any failed assertion,
@@ -46,12 +46,16 @@ const miniArt = () => page.evaluate(() => document.querySelector(".mini-portrait
 try {
   await page.goto(`${url}?dev=1&fresh=1&seed=31`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
-  // a fresh camp stays ≤ 8 controls: the stud is carved at the first death, like the class picker
+  // a fresh camp stays ≤ 8 controls: on packages the stud is carved from the first run (a best depth; camp.ts — the Cut 30 idle
+  // floor rarely dies on Steady), behind the pen at the first death
   check(!(await page.locator("main .portrait .look-stud").count()), "a fresh camp has no look stud");
+  // a 1 h absence returns runs (a best depth), which is how the real game reveals the stud now — not a death
   await page.goto(`${url}?dev=1&fresh=1&seed=31&absent=1h`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen !== "boot", "after an absence", 60_000);
   await page.evaluate(() => window.__riddle.go?.({ kind: "camp" }));
   await waitFor((s) => s?.screen === "camp", "camp");
+  const L1 = await page.evaluate(async () => { const L = await window.__riddle.engine.lineage(); return { best: L.best_depth ?? 0 }; });
+  check(L1.best > 0, `the absence earned a best depth (D${L1.best}): the stud's condition`);
   const cls = await page.evaluate(() => window.__riddle.lineage?.class ?? "fighter");
   const l0 = await look();
   check(["male", "female", "cat"].includes(l0), `a fresh lineage wears a look (${cls} · ${l0})`);

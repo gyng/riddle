@@ -261,7 +261,7 @@ export function nightOf(hour: number): number {
   return h < 7 ? 1 - (h - 5) / 2 : (h - 17) / 4;
 }
 const mix3 = (a: number[], b: number[], t: number): [number, number, number] => [a[0]! + (b[0]! - a[0]!) * t, a[1]! + (b[1]! - a[1]!) * t, a[2]! + (b[2]! - a[2]!) * t];
-const AMB_DAY = [1.1, 1.08, 1.06], AMB_DUSK = [0.86, 0.68, 0.62], AMB_NIGHT = [0.26, 0.3, 0.48];
+const AMB_DAY = [1.1, 1.08, 1.06], AMB_DUSK = [0.86, 0.68, 0.62], AMB_NIGHT = [0.2, 0.28, 0.52];   // moonlight: cool and low, so the warm windows and the fire carry the night (the coordinator: night read as just darker)
 export function ambientOf(night: number): [number, number, number] {
   return night < 0.5 ? mix3(AMB_DAY, AMB_DUSK, night * 2) : mix3(AMB_DUSK, AMB_NIGHT, (night - 0.5) * 2);
 }
@@ -272,7 +272,7 @@ type Leg = { t0: number; t1: number; a: Pt; b: Pt };
 type Walker = { id: string; sprite: string[]; walk: string[]; h: number; legs: Leg[]; from: number; to: number; carry?: string; carryH?: number; lag: number;
   follow?: Walker; emerge?: boolean; vanish?: boolean; extend?: (w: Walker) => void; pet?: boolean };
 const SPEED = 40;
-const PATH_DIM = 0.6;   // the path graded down a step (the art note: brighter and stripier than the buildings beside the dark grass)   // texels a second (~2 tiles)
+const PATH_DIM = 0.75;   // the path graded down a step (the art note: brighter and stripier than the buildings beside the dark grass; the tile itself is calmer and darker since Cut 30 integration, so less of it here)   // texels a second (~2 tiles)
 function legsAlong(pts: Pt[], t0: number, speed = SPEED, out: Leg[] = []): number {
   let t = t0;
   for (let i = 1; i < pts.length; i++) { const d = dist(pts[i - 1]!, pts[i]!); if (d < 0.01) continue; out.push({ t0: t, t1: t + d / speed, a: pts[i - 1]!, b: pts[i]! }); t += d / speed; }
@@ -450,20 +450,26 @@ export function createTownView(host: HTMLElement): TownView {
       const hh = hashN(x, y, 5) % 1000 / 1000;
       let id: string;
       const fire = dist(c, PLOTS.fire) / TILE;
-      if (y < 5 + OY) id = "town_env_cliff";
+      if (y < hillFoot(x)) id = "town_env_cliff";
       else if (x <= CX - 18 && x >= CX - 19) id = "town_env_water";
       else if (plaza && fire < 2.1) id = `town_env_plaza_${hh < 0.6 ? 0 : 1}`;
       else if (path[y * MAP_W + x]) id = pathTile(x, y, hh);
       else id = `town_env_grass_${hh < 0.62 ? 0 : hh < 0.84 ? 1 : hh < 0.95 ? 2 : 3}`;
       const sl = atlas.get([id, "town_env_dirt_0"], TILE);
-      F.ground.push({ s: sl, x: x * TILE + TILE / 2, y: (y + 1) * TILE, z: 0, w: TILE, h: TILE, flip: false, dim: id.includes("dirt") ? PATH_DIM : id.includes("plaza") ? 0.85 : 1, fade: 0 });
+      // the hillside above the mouth falls away into the dark toward the top (its shoulder against the night), each cell flipped by
+      // its hash so the boulders never line up in rows (the coordinator: the band read as a striped wall or water)
+      const hill = y < hillFoot(x) ? hillDim(y) : 1;
+      F.ground.push({ s: sl, x: x * TILE + TILE / 2, y: (y + 1) * TILE, z: 0, w: TILE, h: TILE, flip: hill < 1 && hh > 0.5, dim: id.includes("dirt") ? PATH_DIM : id.includes("plaza") ? 0.85 : hill, fade: 0 });
     }
   }
+  /** the hill's foot: a ragged line (a column in three runs a tile further down, never by the mouth), not a ruled edge */
+  const hillFoot = (x: number): number => 5 + OY + (Math.abs(x - CX) > 4 && hashN(x, 0, 7) % 3 === 0 ? 1 : 0);
+  const hillDim = (y: number): number => 0.3 + 0.7 * Math.pow(Math.min(1, (y + 1) / (5 + OY)), 1.6);
   const DOOR: Record<string, string> = { blacksmith: "smith", bank: "bank", storehouse: "store", kennel: "kennel" };
   const SPURS = new Set(Object.values(DOOR));
   const onPath = (c: Pt, standing: Set<string>): boolean => EDGES.some(([a, b, r]) => (!SPURS.has(b) || standing.has(b)) && segDist(c, NODES[a]!, NODES[b]!) <= r * TILE);
   /** the forest: trees on a jittered grid, cleared from the paths, the plots and the cliff */
-  let trees: (Pt & { k: boolean })[] = [];
+  let trees: (Pt & { k: boolean; d?: number })[] = [];
   function forest(): void {
     trees = [];
     const keep = (p: Pt): boolean => {
@@ -482,18 +488,25 @@ export function createTownView(host: HTMLElement): TownView {
       if ((j >> 16) % 100 < 18) continue;
       if (keep(p)) trees.push({ ...p, k: (j >> 4) % 3 === 0 });
     }
+    // a thin wood up the hillside (dimmed with the slope), clear of the mouth: the band reads as a hill, not a wall
+    for (let gy = 2.2; gy < 5.4 + OY; gy += 1.5) for (let gx = 0.5; gx < MAP_W; gx += 1.6) {
+      const j = hashN(Math.round(gx * 10), Math.round(gy * 10), 13);
+      const p = { x: (gx + ((j % 100) / 100 - 0.5) * 1.2) * TILE, y: (gy + (((j >> 8) % 100) / 100 - 0.5) * 0.9) * TILE };
+      if ((j >> 16) % 100 < 55 || Math.abs(p.x - PLOTS.mouth.x) < 4.6 * TILE) continue;
+      trees.push({ ...p, k: (j >> 4) % 2 === 0, d: hillDim(p.y / TILE - 0.5) * 0.85 });
+    }
     trees.sort((a, b) => a.y - b.y);
   }
   forest();
 
   let flickNow = 1;
   /** the warm emitters painted into a sprite (art/town_lights.json: [dx, dy, strength] from its foot), at `base` strength by day */
-  function emitters(id: string, p: Pt, night: number, r: number, base: number): void {
+  function emitters(id: string, p: Pt, night: number, r: number, base: number, gain = 1.5): void {
     const L = LIGHTS as Record<string, number[][]>;
     const list = L[id] ?? L[id.replace(/_\d$/, "_1")] ?? [];
     for (const [dx, dy, k] of list) {
-      const a = (base + night * 0.95) * (k ?? 1) * flickNow; if (a < 0.04 || F.lights.length >= MAX_LIGHTS) continue;
-      F.lights.push({ x: p.x + dx!, y: p.y + dy!, r: r * (0.7 + 0.3 * (k ?? 1)) + night * 8, c: [1.0 * a, 0.64 * a, 0.3 * a] });
+      const a = (base + night * gain) * (k ?? 1) * flickNow; if (a < 0.04 || F.lights.length >= MAX_LIGHTS) continue;
+      F.lights.push({ x: p.x + dx!, y: p.y + dy!, r: r * (0.7 + 0.3 * (k ?? 1)) + night * 12, c: [1.0 * a, 0.64 * a, 0.3 * a] });
     }
   }
   function frame(): void {
@@ -505,18 +518,18 @@ export function createTownView(host: HTMLElement): TownView {
     ground();
     // trees (two kinds), the cliff's rim of trees
     const t0s = atlas.get("town_env_tree_0", 32), t1s = atlas.get("town_env_tree_1", 24);
-    for (let i = 0; i < trees.length; i++) { const p = trees[i]!, sl = p.k ? t1s : t0s; if (inView(p.x, p.y, sl.w, sl.h)) push(sl, Math.round(p.x), Math.round(p.y), zOf(p.y)); }
+    for (let i = 0; i < trees.length; i++) { const p = trees[i]!, sl = p.k ? t1s : t0s; if (inView(p.x, p.y, sl.w, sl.h)) push(sl, Math.round(p.x), Math.round(p.y), zOf(p.y), false, p.d ?? 1); }
     // the mouth, its torches, the depth plaque's light
     const m = PLOTS.mouth;
     sprite(["town_mouth_cave"], m.h, m.x, m.y);
     const fl = Math.floor(t * 6) & 1;
     void fl;
-    emitters("town_mouth_cave", m, night, 30, 0.5);
+    emitters("town_mouth_cave", m, night, 30, 0.5, 0.7);   // the torches a step under the windows and the fire (at 1.5 the mouth read ablaze)
     // the camp: the fire, the tent, the crate
     const f = PLOTS.fire;
     sprite([`town_campfire_${Math.floor(t * 5) & 1}`, "town_campfire_0"], f.h, f.x, f.y);
     const flick = 0.9 + 0.1 * Math.sin(t * 11) * Math.sin(t * 3.7);
-    F.lights.push({ x: f.x, y: f.y - 8, r: (46 + night * 34) * flick, c: [1.0, 0.6, 0.26].map((v) => v * (0.45 + night * 1.1) * flick) as [number, number, number] });
+    F.lights.push({ x: f.x, y: f.y - 8, r: (46 + night * 44) * flick, c: [1.0, 0.6, 0.26].map((v) => v * (0.45 + night * 1.5) * flick) as [number, number, number] });
     flickNow = flick;
     sprite("town_tent", PLOTS.tent.h, PLOTS.tent.x, PLOTS.tent.y);
     if (night > 0.3) F.lights.push({ x: PLOTS.tent.x, y: PLOTS.tent.y - 6, r: 14, c: [0.9, 0.55, 0.25] });
@@ -761,7 +774,12 @@ void main() {
   vec2 w = px + uOrigin;
   float m = sin(w.x * 0.021 + uTime * 0.04) * sin(w.y * 0.027 - uTime * 0.03) + 0.5 * sin((w.x + w.y) * 0.013 + 1.7);
   m = floor((0.5 + 0.33 * m) * 5.0 + d4) / 5.0;
-  vec3 col = c * (uAmb * (0.84 + 0.36 * m) + light) + light * light * 0.05 * (0.4 + uNight);
+  // night: what the warm light does not reach is graded toward the moon (cool, desaturated), so a lit window or the fire reads
+  // against a blue world rather than a darker copy of the day
+  float lit = clamp(dot(light, vec3(0.45, 0.35, 0.2)) * 2.0, 0.0, 1.0);
+  float lum = dot(c, vec3(0.299, 0.587, 0.114));
+  c = mix(c, vec3(0.62, 0.8, 1.2) * lum, 0.65 * uNight * (1.0 - lit));
+  vec3 col = c * (uAmb * (0.84 + 0.36 * m) + light) + light * light * (0.05 + 0.12 * uNight) * (0.4 + uNight);
   // a soft vignette: the corners a step down (the night's more)
   vec2 q = px / uSize - 0.5;
   col *= 1.0 - (0.18 + 0.22 * uNight) * smoothstep(0.32, 0.75, length(q * vec2(1.0, 0.8)));
