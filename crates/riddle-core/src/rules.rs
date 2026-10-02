@@ -163,6 +163,8 @@ pub const COND_KEYS: &[&str] = &[
     "in",
     // Cut 30 §4: the heir wears a trait (`trait: wrathful`); a worn gift's context holds now
     "trait", "gift_live",
+    // Cut 30.5 (the owner: a run ends when he is out of supplies): no `t` in the pack (`lacks heal`)
+    "lacks",
 ];
 
 pub const VERB_KEYS: &[&str] = &[
@@ -201,6 +203,7 @@ impl Cond {
             "foe_tag" => self.t.clone().unwrap_or_default(),
             "foe_hp<" => format!("foe<{n}%"),
             "item" => format!("has {}", self.t.clone().unwrap_or_default()),
+            "lacks" => format!("no {}", self.t.clone().unwrap_or_default()),
             "unknown_item" => "unknown".into(),
             "floor_seen>=" => format!("seen {n}%"),
             "depth>=" => format!("D{n}+"),

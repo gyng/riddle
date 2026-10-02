@@ -263,7 +263,11 @@ fn trait_conditions_are_fact_gated() {
 #[test]
 fn every_exit_names_its_reason() {
     let mut deaths = 0;
-    for seed in [3u64, 1001, 1004] {
+    // (Cut 30.5: Steady goes home hurt now — early deaths are rare; the seeds run until one has died)
+    for seed in [3u64, 1001, 1004].into_iter().chain(1005..1060) {
+        if seed > 1004 && deaths > 0 {
+            break;
+        }
         let mut g = crate::Game::new(seed);
         for k in 0..5 {
             g.send();
@@ -283,8 +287,10 @@ fn every_exit_names_its_reason() {
             let l = line.expect("an exit line");
             let why = l.reason.clone().expect("a reason");
             assert!(why.split_whitespace().filter(|w| *w != "·").count() <= 3, "{why}");
+            // (Cut 30.5, the owner: a new record is a beat and a checkpoint, never the end of a run — the first
+            // run ends hurt, out of heals or slain)
             if k == 0 {
-                assert_eq!(why, "banks every record", "seed {seed}: the first run banks its new best");
+                assert!(["hurt · banked", "hurt · went home", "no heals · banked", "no heals · went home"].contains(&why.as_str()) || why.starts_with("slain"), "seed {seed}: the first run's end: {why}");
             }
             if l.text.starts_with("died") {
                 deaths += 1;
@@ -292,5 +298,5 @@ fn every_exit_names_its_reason() {
             }
         }
     }
-    assert!(deaths >= 1, "the seeds hold a death (seed 1004's fifth run)");
+    assert!(deaths >= 1, "the seeds hold a death");
 }

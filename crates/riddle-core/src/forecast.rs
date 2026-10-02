@@ -199,7 +199,7 @@ fn count_fires(fires: &mut [u32], events: &[crate::wire::Ev]) {
 fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> SimResult {
     let tier = run.over.unwrap_or(ExitTier::Return);
     // (Cut 27 §1: a waystone start's passage is the send's gold too — paid at the send)
-    let loot_kept = run.loot.max(0) * run.yield_pct(tier) / 100 + run.passage;
+    let loot_kept = run.kept(tier) + run.passage;
     SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage, arrive: Vec::new() }
 }
 

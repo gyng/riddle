@@ -213,6 +213,10 @@ pub struct Stake {
 /// on coming home (`auto_supply`); salvage is its own ledger movement (`Lineage.gold_ledger`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ExitLine {
+    /// Cut 30.5 (the owner: a new record is a checkpoint): of `carried`, the gold this run's checkpoints secured
+    /// (kept whole at any exit, a death's included); `keep_pct` is the share of the rest.
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub secured: i32,
     pub carried: i32,
     pub keep_pct: i32,
     pub kept: i32,

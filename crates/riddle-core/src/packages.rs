@@ -250,8 +250,25 @@ fn bank_at(best: u32, extra: u32) -> i32 {
     (best + 1 + extra).max(2) as i32
 }
 
-/// Cut 30.5 (the owner, 2026-10-02): Steady banks a floor further when whole while the record is under this.
-pub const EARLY_DEEPER_UNTIL: u32 = 8;
+/// Cut 30.5 (the owner, 2026-10-02: a new record never ends the run): the hp under which a stance goes home —
+/// banking past the record, returning before it.
+/// (tuned on the idle floor's rows: home at 40 % held IDLE under D8 on day 1 on every seed; 25 % is Cut 30's pace)
+pub const STEADY_HOME: i32 = 25;
+/// Out of heals, Steady goes home under this.
+pub const STEADY_DRY: i32 = 40;
+pub const GUARDED_HOME: i32 = 45;
+pub const HUNTER_HOME: i32 = 20;
+
+/// A walking stance's way home: hurt under `hurt` % — a bank once past the record (the checkpoints secured the carry
+/// before it; this banks the rest), a return before it — or out of heals under `dry` %, a bank (out of supplies).
+fn home_rows(best: u32, hurt: i32, dry: i32) -> Vec<Row> {
+    let past = bank_at(best, 0);
+    vec![
+        r(vec![n("hp<", hurt), n("depth>=", past)], Verb::new("bank")),
+        r(vec![n("hp<", hurt)], Verb::new("return")),
+        r(vec![Cond::t("lacks", "heal"), n("hp<", dry)], Verb::new("bank")),
+    ]
+}
 /// Steady rests only when well hurt (`Guarded` rests at 80 %): L2 under this, L3 under the next.
 pub const STEADY_REST: i32 = 40;
 pub const STEADY_REST_L3: i32 = 50;
@@ -293,20 +310,17 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
     let drink = r(vec![n("hp<", heal)], Verb::arg("drink", "heal"));
     let attack = r(vec![n("foes>=", 1)], Verb::arg("attack", "nearest"));
     match id {
-        // heal 30 %, return 20 %, bank at the record, attack nearest. L2 heals at 35 % and rests when
-        // well hurt (under 40 %), L3 rests under 50 %, L4 banks a floor further when whole (at the
-        // record when hurt), L5 steps off a telegraph when hurt. The long rest is `Guarded`'s.
-        // Cut 30.5 (the owner, 2026-10-02: a first run banking at D2–D3 at near-full hp read as broken): while the
-        // record is under D8 the L4 shape from L1 — two floors past the record when whole (hp ≥ 60 %), one when hurt.
+        // Cut 30.5 (the owner, 2026-10-02: a new record never ends the run — it is a checkpoint that secures the
+        // carry): a stance goes home only hurt or out of heals — banking (everything) once past the record, else
+        // returning (60 %). The stances keep their characters: Steady goes home earliest of the walkers (40 %),
+        // Guarded earlier still and rests between fights, Hunter late (30 %) with the boss and the summoned first,
+        // Bold never turns back before the record and goes on hurt.
+        // heal 30 %, home hurt under 25 % or out of heals under 40 %, attack nearest. L2 heals at 35 % and rests
+        // when well hurt (under 40 %), L3 rests under 50 %, L4 goes on without heals to 35 %, L5 steps off a
+        // telegraph when hurt. The long rest is `Guarded`'s.
         "steady" => {
-            // (the safest default: from L3 it walks home at a quarter of its hp)
-            let mut g = vec![drink, r(vec![n("hp<", if level >= 3 && best >= 8 { 25 } else { 20 })], Verb::new("return"))];
-            if level >= 4 || best < EARLY_DEEPER_UNTIL {
-                g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0))], Verb::new("bank")));
-                g.push(r(vec![n("depth>=", bank_at(best, 1))], Verb::new("bank")));
-            } else {
-                g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
-            }
+            let mut g = vec![drink];
+            g.extend(home_rows(best, STEADY_HOME, if level >= 4 { 35 } else { STEADY_DRY }));
             if level >= 5 {
                 g.push(r(vec![tag("telegraph"), n("hp<", 35)], Verb::new("retreat")));
             }
@@ -316,17 +330,12 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             }
             (g, f)
         }
-        // heal 40 %, return 25 %, bank at the record, rest between fights (under 80 %). L2 heals at
-        // 45 %, L3 steps off a telegraphed blow, L4 backs into a corridor against a crowd, L5 banks a
-        // floor further when whole.
+        // heal 40 %, home hurt under 45 % or out of heals under 60 %, rest between fights (under 80 %). L2 heals at
+        // 45 %, L3 meets a telegraphed blow with a drink, L4 backs into a corridor against a crowd, L5 goes on hurt
+        // to 35 %.
         "guarded" => {
-            let mut g = vec![drink, r(vec![n("hp<", GUARDED_RETURN)], Verb::new("return"))];
-            if level >= 5 {
-                g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0))], Verb::new("bank")));
-                g.push(r(vec![n("depth>=", bank_at(best, 1))], Verb::new("bank")));
-            } else {
-                g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
-            }
+            let mut g = vec![drink];
+            g.extend(home_rows(best, if level >= 5 { 35 } else { GUARDED_HOME }, 60));
             if level >= 3 {
                 // (a telegraphed blow is met with a drink, not a step back: `telegraph → retreat` looped
                 // retreat ↔ explore on ~3 % of sends — the stall row)
@@ -337,15 +346,13 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             }
             (g, vec![attack, r(vec![n("hp<", 80)], Verb::new("rest"))])
         }
-        // heal 25 %, no return, bank two floors past the record, the boss first and to the end (no heal
-        // stops the blow), attack the weakest. L2 rests under 50 %, L5 banks one floor further.
+        // heal 25 %, never home before the record — past it, banks under 25 % (L5: 20 %) — the boss first and to the
+        // end (no heal stops the blow), attack the weakest; hurt with the stairs in reach he dives. L2 rests under 50 %.
         "bold" => {
-            let extra = if level >= 5 { 2 } else { 1 };
-            // (the bold go down, not home: hurt with the stairs in reach, he dives past the floor)
             let g = vec![
                 r(vec![tag("boss"), Cond::flag("on_hurt")], Verb::arg("attack", "tag:boss")),
                 drink,
-                r(vec![n("depth>=", bank_at(best, extra))], Verb::new("bank")),
+                r(vec![n("hp<", if level >= 5 { 20 } else { 25 }), n("depth>=", bank_at(best, 0))], Verb::new("bank")),
                 r(vec![tag("boss")], Verb::arg("attack", "tag:boss")),
                 r(vec![n("hp<", 40), Cond::flag("path_stairs")], Verb::new("descend")),
             ];
@@ -355,16 +362,11 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             }
             (g, f)
         }
-        // heal 30 %, return 20 %, bank at the record, the summoned and the boss first. L2 heals at
-        // 35 % and rests under 50 %, L4 the casters first, L5 banks a floor further when whole.
+        // heal 30 %, home hurt under 20 % or out of heals under 35 %, the summoned and the boss first. L2 heals at
+        // 35 % and rests under 50 %, L4 the casters first, L5 home at 15 %.
         "hunter" => {
-            let mut g = vec![drink, r(vec![n("hp<", 20)], Verb::new("return"))];
-            if level >= 5 {
-                g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0))], Verb::new("bank")));
-                g.push(r(vec![n("depth>=", bank_at(best, 1))], Verb::new("bank")));
-            } else {
-                g.push(r(vec![n("depth>=", bank_at(best, 0))], Verb::new("bank")));
-            }
+            let mut g = vec![drink];
+            g.extend(home_rows(best, if level >= 5 { 15 } else { HUNTER_HOME }, 35));
             // the hunter goes for what strikes from afar or raises others: archers, casters, the
             // summoned, the boss — before the nearest
             // (and never meleés a mirror of blows: from afar, fire, or a step away — the Foundry's card)

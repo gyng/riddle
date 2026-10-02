@@ -977,7 +977,8 @@ fn check_exit_line(t: &mut Tally, seed: u64, x: &riddle_core::wire::ExitLine, at
     let lead = LEADS.iter().find(|w| x.text.starts_with(**w)).copied();
     let later = x.text.split(" · ").skip(1).filter(|seg| ["banked", "returned", "died", "stalled", "lost thread", "driven"].contains(seg)).count();
     t.check("an exit line leads with one tier word and names no other", lead.is_some() && later == 0, || format!("seed {seed} {at} run {}: `{}`", x.run_id, x.text));
-    t.check("a died / stalled / lost-thread line kept nothing", !matches!(lead, Some("died " | "stalled " | "lost thread ")) || (x.kept == 0 && x.keep_pct == 0), || format!("seed {seed} {at} run {}: `{}` kept {}", x.run_id, x.text, x.kept));
+    // (Cut 30.5: what the run's checkpoints secured comes home whatever the exit — a death keeps that and nothing else)
+    t.check("a died / stalled / lost-thread line kept nothing but its secured gold", !matches!(lead, Some("died " | "stalled " | "lost thread ")) || (x.kept == x.secured && x.keep_pct == 0), || format!("seed {seed} {at} run {}: `{}` kept {} secured {}", x.run_id, x.text, x.kept, x.secured));
     // QA on 0c6e126 (qaY): a drive-off's line says so (`driven`), never `returned`; a `driven` line is one.
     t.check("a drive-off's line leads `driven`", x.driven.is_some() == (lead == Some("driven ")), || format!("seed {seed} {at} run {}: `{}` driven {:?}", x.run_id, x.text, x.driven.as_ref().map(|d| &d.boss)));
     let n: u32 = x.text.split(" · ").find_map(|seg| seg.strip_prefix("bones: ").and_then(|r| r.split(' ').next()).and_then(|n| n.parse().ok())).unwrap_or(0);
