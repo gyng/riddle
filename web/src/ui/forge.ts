@@ -55,7 +55,7 @@ export function kitMove(n: NonNullable<KitLadder["next"]>): string | null {
 /** A term's colour: good or bad, whichever way its sign points (a death that falls is good). */
 const kitTone = (x: { dir: "up" | "down" | "flat"; worse: boolean }): string => x.dir === "flat" ? "flat" : (x.dir === "up") !== x.worse ? "up" : "down";
 
-export function openForge(app: App): void {
+export function openForge(app: App, anchor?: HTMLElement | null): void {   // Cut 30 §3: `anchor` — the blacksmith it stands over
   openSheet(() => {
     const kit = h("div", { class: "kit" });
     const paint = (measured: KitLadder[] | null, pending: boolean): void => {
@@ -109,7 +109,7 @@ export function openForge(app: App): void {
     if (!memo) measure();
     const hasKit = (app.lineage.kit?.length ?? 0) > 0;
     return h("div", { class: "sheet-body forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), hasKit ? kit : "", salvage(app));
-  });
+  }, { anchor });
 }
 
 /** Cut 9 §10: each kind's salvage ladder — `sword · salvaged 3/5 → craftable` (the engine's `next` rung); at the top, the count alone. */

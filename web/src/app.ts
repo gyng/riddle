@@ -75,6 +75,8 @@ export class App {
   active = 0;
   loadout: number[] = [];
   view: Screen = { kind: "camp" };
+  /** Cut 30 §3: the last absence's report — the town walks its runs out of the mouth once, on the camp after it (ui/town.ts) */
+  lastAbsence: { report: ReturnReport; played: boolean } | null = null;
   /** True once `boot()` has settled (after the offline batch, if any). Dev inspection. */
   booted = false;
   private root: HTMLElement;
@@ -809,6 +811,7 @@ export class App {
     this.mounted?.dispose?.();
     if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
     this.view = screen;
+    if (screen.kind === "report" && screen.absence && this.lastAbsence?.report !== screen.report) this.lastAbsence = { report: screen.report, played: false };
     if (screen.kind === "watch") { this.resetVs(); this.markRan(); }   // Cut 22 §3: the set that runs is the next edit's base
     let m: Mounted;
     switch (screen.kind) {

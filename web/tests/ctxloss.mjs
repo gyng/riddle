@@ -6,6 +6,8 @@
 //       the tick advancing; `restoreContext()` → GL frames again, the overlay hidden; lost again → ▶▶| reaches the run's exit.
 //   (b) no GL context at all (getContext("webgl*") → null, a page Chrome blocked): the watch mounts the renderer's 2D viewer, its
 //       tick advances, ▶▶| reaches the exit, no page error.
+//   (c) Cut 30 §3, the town: its GL context lost on the camp → the town's 2D view draws the same scene (not blank), the frames run
+//       on; restored → GL again, the 2D view hidden. In (b) (no GL at all) the camp's town is the 2D view from the start.
 //   node web/tests/ctxloss.mjs        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
@@ -52,6 +54,15 @@ const overlay = (p) => p.evaluate(() => {
   for (let i = 0; i < d.length; i += 4 * 97) set.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
   return { shown: getComputedStyle(c).display !== "none", colours: set.size };
 });
+/** the town's 2D view: shown, and more than a few colours (the scene drawn, not a cleared canvas) */
+const town2d = (p) => p.evaluate(() => {
+  const c = document.querySelector(".town canvas.town-2d");
+  if (!c) return { shown: false, colours: 0 };
+  const g = c.getContext("2d"), d = g.getImageData(0, 0, c.width, c.height).data, set = new Set();
+  for (let i = 0; i < d.length; i += 4 * 97) set.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+  return { shown: getComputedStyle(c).display !== "none", colours: set.size };
+});
+const townStats = (p) => p.evaluate(() => window.__town?.stats() ?? null).catch(() => null);
 /** a fresh lineage's camp → send (the gem) → the watch */
 async function toWatch(p, label) {
   await waitFor(p, async () => ["camp", "watch"].includes(await screen(p)), `${label}: the camp`, 60000);
@@ -113,6 +124,9 @@ try {
       HTMLCanvasElement.prototype.getContext = function (type, ...a) { return /webgl/i.test(type) ? null : get.call(this, type, ...a); };
     });
     await p.goto(`${url}?dev=1&fresh=1&seed=4243`, { waitUntil: "domcontentloaded" });
+    await waitFor(p, async () => (await townStats(p))?.frames > 3, "the town (no GL)", 60000);
+    const ts = await townStats(p), td = await town2d(p);
+    check(ts?.mode === "2d" && td.shown && td.colours >= 8, `no GL: the camp's town is drawn in 2D (${ts?.mode}, shown ${td.shown}, ${td.colours} colours)`);
     await toWatch(p, "the watch (no GL)");
     const s0 = await stats(p);
     check(s0?.glLost === true, `no GL: the 2D viewer mounted (glLost ${s0?.glLost})`);
@@ -123,6 +137,30 @@ try {
     check(drawn >= 4, `no GL: the map is drawn in 2D (${drawn} colours)`);
     const ms = await skipToExit(p);
     check(ms >= 0, `no GL: ▶▶| reaches the run's exit (${ms} ms, screen ${await screen(p)})`);
+    await p.close();
+  }
+  // (c) the town: lost on the camp, drawn in 2D meanwhile, restored
+  {
+    const p = await open();
+    await p.goto(`${url}?dev=1&engine=fake&fresh=1&seed=158`, { waitUntil: "domcontentloaded" });
+    await waitFor(p, async () => (await townStats(p))?.frames > 3, "the town", 60000);
+    const loseTown = (restore) => p.evaluate((restore) => {
+      const c = document.querySelector(".town canvas.town-gl");
+      const gl = c.getContext("webgl2") ?? c.getContext("webgl");
+      window.__tlc ??= gl.getExtension("WEBGL_lose_context");
+      if (restore) window.__tlc.restoreContext(); else window.__tlc.loseContext();
+    }, restore);
+    await loseTown(false);
+    await sleep(600);
+    const s1 = await townStats(p), o1 = await town2d(p);
+    check(s1?.glLost === true && s1.mode === "2d", `town lost: stats().glLost (${s1?.glLost}, ${s1?.mode})`);
+    check(o1.shown && o1.colours >= 8, `town lost: the 2D view draws the town (shown ${o1.shown}, ${o1.colours} colours)`);
+    const f1 = s1?.frames ?? 0; await sleep(1000); const f2 = (await townStats(p))?.frames ?? 0;
+    check(f2 > f1, `town lost: the scene runs on (frames ${f1} → ${f2})`);
+    await loseTown(true);
+    await sleep(800);
+    const s2 = await townStats(p), o2 = await town2d(p);
+    check(s2?.glLost === false && s2.mode === "gl" && !o2.shown, `town restored: GL again, the 2D view hidden (${s2?.mode}, 2D shown ${o2.shown})`);
     await p.close();
   }
 } catch (e) {
