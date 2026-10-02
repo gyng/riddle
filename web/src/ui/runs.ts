@@ -55,13 +55,13 @@ export function openRuns(app: App, opts: { focus?: number; tab?: "runs" | "heirs
     if (opts.focus !== undefined) { const g = groups.find((x) => x.recs.some((r) => r.id === opts.focus)); if (g) open.add(g.key); }
     const list = h("div", { class: "runs-list" });
     const count = h("span", { class: "num dim runs-count" });
-    const tabRuns = h("button", { class: "log-tab", "data-tab": "runs", onclick: () => { tab = "runs"; paint(); } }, /* copy:button */ "runs");
+    const tabRuns = h("button", { class: "log-tab", "data-tab": "runs", onclick: () => { tab = "runs"; paint(); } }, /* copy:button */ "runs", count);
     const tabHeirs = h("button", { class: "log-tab", "data-tab": "heirs", onclick: () => { tab = "heirs"; paint(); } }, /* copy:button */ "heirs");
     const paint = (): void => {
       tabRuns.classList.toggle("on", tab === "runs"); tabHeirs.classList.toggle("on", tab === "heirs");
       tabRuns.setAttribute("aria-pressed", String(tab === "runs")); tabHeirs.setAttribute("aria-pressed", String(tab === "heirs"));
       body.dataset.tab = tab;
-      if (tab === "heirs") { replace(count, ""); replace(list, ...heirLines(app, close)); return; }
+      if (tab === "heirs") { replace(list, ...heirLines(app, close)); return; }
       replace(count, `${(L.runs ?? []).filter((r) => r.id > 0).length}`);
       if (!groups.length) { replace(list, h("div", { class: "dim num runs-none" }, "—")); return; }
       replace(list, ...groups.flatMap((g) => {
@@ -83,7 +83,7 @@ export function openRuns(app: App, opts: { focus?: number; tab?: "runs" | "heirs
       }));
     };
     const body = h("div", { class: "sheet-body runs-sheet" },
-      h("div", { class: "label row-label log-head" }, kwHost(tabRuns, "log"), tabHeirs, " ", count), list);
+      h("div", { class: "label row-label log-head" }, kwHost(tabRuns, "log"), tabHeirs), list);
     paint();
     return body;
   });
@@ -112,7 +112,7 @@ function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () =
     h("span", { class: `re-tier t-${r.tier}`, "aria-hidden": "true" }, TIER_GLYPH[r.tier] ?? ""),
     h("span", { class: `re-d${r.best ? " best" : ""}` }, `D${r.depth}`, r.best ? h("b", { class: "re-best", title: "new best" }, "★") : ""),
     h("span", { class: "gold re-g" }, `$${r.gold}`),
-    r.found ? h("span", { class: "re-f", "data-rarity": bestRarity(r.finds ?? []) }, h("span", { class: `re-gem r-${bestRarity(r.finds ?? [])}`, "aria-hidden": "true" }, "◆"), `${r.found}`) : "",
+    (r.finds ?? []).length ? h("span", { class: "re-f", "data-rarity": bestRarity(r.finds ?? []), "aria-label": /* copy:label */ "finds" }, ...(r.finds ?? []).slice(0, 4).map((f) => h("span", { class: `re-gem r-${f.rarity ?? "common"}` }, "◆"))) : "",
     h("span", { class: "dim re-len" }, lenOf(r.turns)),
     r.via === "watched" ? h("span", { class: "dim re-w", "aria-hidden": "true" }, "◉") : "");
   const sub = h("small", { class: "re-sub dim" }, why, " · ", h("span", { class: "num" }, agoOf(L, r.clock_s)));

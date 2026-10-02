@@ -27,7 +27,7 @@ button.lane:active { transform: translateY(1px); background: rgba(31, 31, 49, .9
 [data-juice="on"] .lane[data-state="waits"] .lane-beat { animation: lane-beat 1.6s ease-in-out infinite; }
 @keyframes lane-beat { 0%, 100% { transform: scale(.75); opacity: .55; } 40% { transform: scale(1.15); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .lane .lane-beat { animation: none !important; } }
-.lane .lane-gauge { position: relative; flex: 1; min-width: 36px; height: 6px; border-radius: 3px; background: rgba(77, 108, 153, .3); overflow: visible; }
+.lane .lane-gauge { position: relative; flex: 1; min-width: 36px; max-width: 260px; height: 6px; border-radius: 3px; background: rgba(77, 108, 153, .3); overflow: visible; }
 .lane .lane-gauge .fill { display: block; height: 100%; border-radius: 3px; background: var(--moon); }
 .lane .lane-gauge.hp .fill { background: linear-gradient(90deg, var(--clot), var(--blood)); }
 .lane .lane-gauge small { position: absolute; right: 0; top: -13px; font-size: 10px; color: var(--dim); }
@@ -86,7 +86,10 @@ button.re-body { cursor: pointer; }
 /* --- desktop: the lanes under the town in the centre column --- */
 @media (min-width: 1024px) {
   main.camp .well-wrap > .rest-line.lanes-line { padding: 6px 24px 8px; background: none; }
-  .lane { min-height: 44px; font-size: 16px; }
+  .lane { min-height: 46px; font-size: 17px; padding-right: 14px; }
+  .lane .lane-name, .lane .ls-go { font-size: 15px; }
+  .lane .lane-face { width: 36px; height: 36px; }
+  .lane .lane-auto { font-size: 14px; }
   .lanes .lanes-log { min-width: 56px; }
 }
 
@@ -97,9 +100,30 @@ button.re-body { cursor: pointer; }
 .runs-sheet .log-tab.on { color: var(--bone); box-shadow: inset 0 -2px 0 var(--gilt); }
 .runs-sheet .chronicle { max-height: min(64vh, 560px); overflow-y: auto; }
 .tiles .tile.plaque.to-log { cursor: pointer; }
-.tiles .tile.plaque.to-log::after { content: "☰"; position: absolute; top: 4px; right: 6px; font-size: 11px; color: var(--ink-dim); }
+.tiles .tile.plaque.to-log::before { content: "☰"; position: absolute; top: 4px; right: 6px; font-size: 11px; color: var(--ink-dim); }
 .run-entry .re-f { display: inline-flex; align-items: baseline; gap: 2px; }
 .run-entry .re-gem { font-size: 10px; }
 .run-entry .re-gem { color: var(--r-lit, var(--dim)); }   /* run-clear's rarity pigments (items.css) */
 .run-card-sheet .run-clear { margin: 6px 0 10px; }
 .run-card-sheet .re-play-wide { margin-top: 4px; }
+
+/* the log is a parchment sheet: INK on BONE (the folds stay dark plaques) */
+.runs-sheet .run-entry { border-bottom-color: var(--ink-line); color: var(--ink-text); }
+.runs-sheet .run-entry .re-id { color: var(--ink-dim); }
+.runs-sheet .run-entry.fresh .re-id { color: #7a5a14; font-weight: 700; }
+.runs-sheet .run-entry .dim, .runs-sheet .run-entry .re-sub { color: var(--ink-dim); }
+.runs-sheet .run-entry .re-d.best, .runs-sheet .run-entry .re-best { color: #7a5a14; }
+.runs-sheet .run-entry .re-tier { color: var(--ink-dim); }
+.runs-sheet .run-entry .re-tier.t-bank { color: #7a5a14; }
+.runs-sheet .run-entry .re-tier.t-death { color: #8c1022; }
+.runs-sheet .run-entry[data-tier="death"] .re-sub { color: #8c1022; }
+.runs-sheet .run-entry .gold { color: #6b4e12; }
+.runs-sheet .run-entry .re-gem { color: var(--r, var(--ink-dim)); }
+.runs-sheet .run-entry.sampled { color: var(--ink-dim); }
+.runs-sheet .log-tab { color: var(--ink-dim); }
+.runs-sheet .log-tab.on { color: var(--ink-text); font-weight: 700; box-shadow: inset 0 -2px 0 var(--gilt); }
+.runs-sheet .log-tab .num { margin-left: 4px; font-weight: 400; }
+.runs-sheet .chronicle .cline { color: var(--ink-text); }
+/* the watch's `town` tile: the run goes on — a ↻ on its corner */
+.tile.town-btn::after { content: "↻"; position: absolute; top: 3px; right: 6px; font-size: 14px; line-height: 1; color: #f3d192; text-shadow: 0 0 4px rgba(0, 0, 0, .8); }
+.tile.town-btn:disabled::after { opacity: .35; }

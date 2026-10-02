@@ -121,6 +121,13 @@ export class App {
     } catch (e) { console.warn("advance", e); this.runnerAt = now; }
     finally { this.runnerBusy = false; }
   }
+  /** RUNS_UI: out of the watch mid-run (`town ↻`) — the town, and the lineage read again (the watch began with the one before the send: the
+   *  run under way, the send by hand spent), so the lane shows him down there and the open app's clock takes the run on from there */
+  leaveWatch(): void {
+    this.go({ kind: "camp" });
+    this.runnerAt = Date.now();
+    void this.engine.lineage().then((L) => { this.lineage = L; this.emitChange(); this.emitLive(); }).catch(() => undefined);
+  }
   /** RUNS_UI: back from a hidden tab — an absence's report when it was long enough to be one (the boot's rule), else the clock goes on */
   private async backFromHidden(): Promise<void> {
     const away = (Date.now() - this.hiddenAt) / 1000; this.hiddenAt = 0;
@@ -898,11 +905,7 @@ export class App {
     closeAllSheets();
     this.mounted?.dispose?.();
     if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
-    // RUNS_UI: out of the watch mid-run (`town ↻`) the lineage is the one the watch began with — read it again (the run under way, the
-    // send by hand spent): the lane shows him down there and the open app's clock takes the run on from where the watch left it
-    const fromWatch = this.view.kind === "watch" && screen.kind !== "watch";
     this.view = screen;
-    if (fromWatch && this.booted) { this.runnerAt = Date.now(); void this.engine.lineage().then((L) => { this.lineage = L; this.emitChange(); this.emitLive(); }).catch(() => undefined); }
     if (screen.kind === "report" && screen.absence && this.lastAbsence?.report !== screen.report) this.lastAbsence = { report: screen.report, played: false };
     if (screen.kind === "watch") { this.resetVs(); this.markRan(); }   // Cut 22 §3: the set that runs is the next edit's base
     let m: Mounted;

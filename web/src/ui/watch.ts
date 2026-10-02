@@ -368,7 +368,8 @@ export function renderWatch(app: App): Mounted {
   const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
   // RUNS_UI (docs/RUNS_UI.md): back to the town while he goes on — leaving the watch never stops the run (the town's lane shows it live;
   // the open app's clock plays it on, unwatched). The ↻ on the tile is the mark; its tip says the rest
-  const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "↻", label: /* copy:button */ "town", onclick: () => { if (!done) app.go({ kind: "camp" }); } });
+  const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "⌂", label: /* copy:button */ "town", onclick: () => { if (!done) app.leaveWatch(); } });
+  // (its ↻ — he keeps going — is drawn on the tile's corner: runs.css `.town-btn::after`)
   // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
   const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
   // Cut 27 §1: the fold line — the interstitial over a folded stretch (`D1–6 · 100% · +$84` and its chips), docked under the HUD once the
