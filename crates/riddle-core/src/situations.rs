@@ -208,7 +208,7 @@ pub fn place_twist(run: &mut Run, lost: &[Lost]) {
             k => crate::engine::place_room_kind(run, &mut rng, k, false, &mut used),
         };
         if placed {
-            run.floor_twist = Some(kind.into());
+            run.floor_twist = Some(kind.into()).into();
             return;
         }
     }
@@ -723,7 +723,7 @@ mod tests {
             for d in 1..=13u32 {
                 g.descend_to(d);
                 let run = g.run.as_ref().unwrap();
-                let twist = run.floor_twist.clone();
+                let twist = (*run.floor_twist).clone();
                 if d <= 2 {
                     assert!(twist.is_none(), "seed {seed} D{d}: the doorstep has no twist word");
                 } else if crate::descent::boss_for(d).is_some() {
