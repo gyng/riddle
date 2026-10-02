@@ -2398,7 +2398,9 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     const rank = done && chore ? (st.ranks?.[id] ?? 1) : undefined;
     // (week 2 stand-in: a rank on offer once the scout is hired, a forge unit × the rank less one — the core waits 5 / 9 days of service)
     const edge = (r: number): string | undefined => r < 2 ? undefined : ({ porter: `+${2 * (r - 1)}% hauls`, scout: `−${5 * (r - 1)}% rest`, apprentice: `−${5 * (r - 1)}% steps`, clerk: `${20 + 2.5 * (r - 1)}‰ interest`, guide: r === 2 ? "half toll" : "no toll", drillmaster: "levels −◆1", armourer: "insures its finds" } as Record<string, string>)[id];
-    const rankNext = rank && rank < 4 && st.hired.includes("scout") ? { rank_price: unit * rank, rank_wait_d: 0, ...(edge(rank + 1) ? { rank_adds: edge(rank + 1) } : {}) } : {};
+    // (the core waits days of service between a worker's ranks; the stand-in offers the lowest-ranked worker first, in the tree's order)
+    const low = Math.min(...NODES305.filter(([w, , , c]) => c && st.hired.includes(w)).map(([w]) => st.ranks?.[w] ?? 1));
+    const rankNext = rank && rank < 4 && st.hired.includes("scout") ? { rank_price: unit * rank, rank_wait_d: rank === low ? 0 : 1, ...(edge(rank + 1) ? { rank_adds: edge(rank + 1) } : {}) } : {};
     const bonusNow = rank && edge(rank) ? { bonus: edge(rank) } : {};
     nodes.push({ id, kind: "worker", branch, name, state, ...(rank ? { rank, ...rankNext, ...bonusNow } : {}), ...(chore ? { chore, count, need } : {}), price, affordable: purse + st.chest >= price, ...(fb ? { fallback_h: fb } : {}),
       ...(!open && gate ? { trigger: `${gate} built` } : {}), tip, ...(beat ? { beat } : {}), post, ...(st.paused.includes(id) ? { paused: true } : {}) });

@@ -2284,14 +2284,11 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     }
     run.max_depth = run.max_depth.max(next);
     // Cut 30.5 (the owner, 2026-10-02): a new record is a checkpoint, not an exit — the carry so far is secured
-    // (safe whatever the exit) and the hero carries on
+    // (safe whatever the exit) and the hero carries on (the watch stamps its `NEW BEST D5` from `Run.best_at_send`)
     if next > run.record_mark {
         run.record_mark = next;
         run.secured += run.loot.max(0);
         run.loot = 0;
-        if !cx.sim {
-            crate::chronicle::callout(run, cx, &format!("new best · D{next}"));
-        }
     }
     run.floor = floor;
     run.hero.pos = run.floor.stairs_up;
