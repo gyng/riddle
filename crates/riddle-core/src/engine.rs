@@ -409,6 +409,10 @@ pub struct Run {
     pub renderable_events: u32,
     pub ended: bool,
     pub max_depth: u32,
+    /// Run-clear: the lineage's record when this run was sent — the exit line's `new_best` reads against it
+    /// (a record the run itself secured on its way down is still this run's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub best_at_send: Option<u32>,
     pub trophies_run: crate::shared::Shared<Vec<String>>,
     /// Companion records active in this run (party members and new tames).
     pub companions: Vec<Companion>,
@@ -3847,6 +3851,7 @@ impl Game {
             renderable_events: 0,
             ended: false,
             max_depth: start,
+            best_at_send: Some(self.lineage.best_depth),
             trophies_run: Vec::new().into(),
             companions: Vec::new(),
             recalled: Vec::new(),
@@ -5030,6 +5035,8 @@ impl Game {
         for i in &all {
             *pack.entry((i.id, i.kind.clone())).or_insert(0) += i.amount.max(1);
         }
+        // Run-clear: the pack's finds as they came home (before the shelf, the sheet or the bones take them)
+        let found_items: Vec<Item> = if self.sim { Vec::new() } else { all.iter().filter(|i| run.found_units.iter().any(|(id, k)| *id == i.id && *k == i.kind)).cloned().collect() };
         let mut exit_fate: BTreeMap<(u32, String), &'static str> = BTreeMap::new();
         let mut shelved: Vec<String> = Vec::new();
         let mut leash_back = 0usize;
@@ -5399,6 +5406,16 @@ impl Game {
         // ring: nothing more per tick).
         line.found = found_rows(&run, &pack, &exit_fate, |k| self.lineage.wire_name(k).replace('_', " "));
         line.found_n = run.found_units.len() as u32;
+        // Run-clear: the end's kind, its floor, a record, and what the run found and kept (or left), rarest first
+        line.end = match tier {
+            ExitTier::Bank => "bank",
+            ExitTier::Return => "return",
+            ExitTier::Death => "death",
+        }
+        .into();
+        line.reached = run.max_depth.max(run.depth);
+        line.new_best = run.max_depth > run.best_at_send.unwrap_or(best0);
+        line.finds = exit_finds(&found_items, &exit_fate, &self.lineage.facts, &self.lineage.flavours);
         line.trace = Some(exit_trace(&run, &self.prov));
         line.salvaged = cut_rows;
         line.run_id = run.id;
@@ -6153,6 +6170,21 @@ impl Game {
 /// (`Run.found_gone`: used, left, stolen), then its item's place at the exit (`fate`, by id:
 /// kept on the sheet, salvaged, shelved, bones); a stack's units not in it at the exit were
 /// spent (`used`: a leash on a tame, chalk on a floor); any other unit is `lost` (none should be).
+/// Run-clear: the finds an exit line shows — kept, on the keep sheet or shelved on a bank or a return, left
+/// in the bones on a death (never what was salvaged) — rarest first, then dearest, ≤ `wire::FINDS_SHOWN`.
+pub fn exit_finds(found: &[Item], fate: &BTreeMap<(u32, String), &'static str>, facts: &BTreeSet<String>, flavours: &Flavours) -> Vec<InvItem> {
+    let mut out: Vec<(crate::item::Rarity, i32, InvItem)> = found
+        .iter()
+        .filter(|i| matches!(fate.get(&(i.id, i.kind.clone())).copied(), Some("sheet" | "shelved" | "bones")))
+        .map(|i| {
+            let w = to_inv(i, facts, flavours);
+            (w.rarity, i.value(), w)
+        })
+        .collect();
+    out.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)).then(a.2.id.cmp(&b.2.id)));
+    out.into_iter().take(crate::wire::FINDS_SHOWN).map(|x| x.2).collect()
+}
+
 pub fn found_rows(run: &Run, pack: &BTreeMap<(u32, String), i32>, fate: &BTreeMap<(u32, String), &'static str>, wire: impl Fn(&str) -> String) -> Vec<crate::wire::FoundRow> {
     let mut rows: Vec<crate::wire::FoundRow> = Vec::new();
     let mut add = |kind: &str, fate: &str, n: u32| {
@@ -6372,7 +6404,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None, end: String::new(), reached: 0, new_best: false, finds: Vec::new() }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

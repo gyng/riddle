@@ -133,6 +133,8 @@ and a one-line hook per screen.
 
 | Where | After | It presses | Why that long |
 |---|---|---|---|
+| the run's card (run-clear) | 7 s | the gem, `camp` (the town) — a watched run's card over its report | six things at ~1 s: the seal, the reason, the floor, the coins, the finds, one plaque |
+| an absence's last-run card | 6 s | the card itself: it lifts to the absence's report (whose 12 s then starts) | the same card, read before the night's table |
 | the report | 12 s | the gem, `camp` (the town) | the grew lines, ≤ 5 beat plaques and the tiles are ~12 things at ~1 s each; the plaques land in its first 2 s |
 | the death screen | 12 s | the gem when it sends or goes to camp (lever `wait`, none); else `send again` when shown; else the `camp` tile | the what · why · what-now read is three lines; the lever `forge` / `wear` and a fix's `apply` are decisions, so the ring goes elsewhere |
 | a death opened from the report or the chronicle | 20 s | `report` (back), else `camp` | the player opened it to read: a panel's time |
@@ -146,3 +148,14 @@ and a one-line hook per screen.
 - **Settings**: `auto continue` on / off, on by default (`riddle.autoContinue`).
 - **Tests**: off under automation (`navigator.webdriver`) so the old gates keep their meaning; `?autodismiss=1` opts in,
   `?autodismiss=0.1` also runs the clocks 10× fast, `?autodismiss=0` turns it off anywhere. Gates: `web/tests/autodismiss.mjs`.
+
+## 8. Run-clear — every run that ends has its card (2026-10-02)
+
+The owner: "each run should have the clear screen? did that disappear. eg, hurt/went home". A run's end is a short card before the
+town (`web/src/ui/runclear.ts`): the end as a wax seal in the exit vocabulary (`BANKED` gilt · `RETURNED` moonlit · `STALLED` /
+`REPELLED` ember), the core's reason (`hurt · went home`), the floor reached with a `new best` badge, the gold kept and where it went
+(`$58 → chest` until the porter, then the purse), the finds as icons in their rarity rims (the rarest named), and the xp as one plaque.
+≤ 20 words at rest. A watched run's card stands over its report (a tap or the gem goes on; the `report` tile lifts it); an absence opens
+on its last run's card, which lifts to the night's report. A death has no card screen: the death screen is its card, and its header
+carries the strip (the floor, a best, the finds left in the bones). Off under automation unless `?runclear=1` (as §7's clocks).
+Gates: `web/tests/runclear.mjs`.

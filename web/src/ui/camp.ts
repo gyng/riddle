@@ -46,6 +46,8 @@ import { anchorPanel, buildingTile, exposeTown, markOpened, openBank, openHero, 
 import { onPackages, openPackages, packagesShown, packagesStrip, penOpen } from "./packages";   // Cut 30 §2: the packages, the pen gated late
 import { openQuest, questShown } from "./quest";   // Cut 30 §5: the quest board
 import { sendMark } from "./works";
+import { itemIcon, itemName } from "./items";   // run-clear: items in their rarity rims
+import { kwHost } from "./tips";
 import { renderLanes } from "./runlane";   // RUNS_UI: the run lanes
 import { openRuns } from "./runs";         // RUNS_UI: the runs log   // Cut 30.5: the gem's send counter before the scout, `auto` after
 
@@ -426,9 +428,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const chips = h("div", { class: "chips" });
     for (const it of L.vault) {
       const on = app.loadout.includes(it.id);
-      chips.appendChild(h("button", { class: `chip item${on ? " on risk" : ""}`, onclick: () => {
+      chips.appendChild(kwHost(h("button", { class: `chip item${on ? " on risk" : ""}`, "data-rarity": it.rarity ?? "common", onclick: () => {
         app.setLoadout(on ? app.loadout.filter((x) => x !== it.id) : [...app.loadout, it.id]);
-      } }, on ? "⚠ " : "", it.label, keptAs(L.facts, it) ? h("small", { class: "dim flav" }, ` · ${keptAs(L.facts, it)}`) : ""));
+      } }, on ? "⚠ " : "", itemIcon(it, { size: "s" }), itemName(it), keptAs(L.facts, it) ? h("small", { class: "dim flav" }, ` · ${keptAs(L.facts, it)}`) : ""), "rarity"));   // run-clear: its icon in its rarity rim, its name tinted
       if (on) {
         const ins = (L.insured ?? []).includes(it.id);
         const price = Math.ceil(salvageValue(it.kind, "bank") * 10 / 4);
@@ -748,7 +750,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // Cut 21 §2: a line an exit shelved reads `· found` (packed free); with the repeat on, a kind no row names reads `· no row` — the
       // next send will not re-buy it (the core's narrowed `repeat_kinds`)
       const noRow = !free && !p.found && L.repeat !== false && L.repeat_kinds !== undefined && !L.repeat_kinds.includes(p.kind);
-      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l", title: SUPPLY_USE[p.kind] ? `${p.label} · ${SUPPLY_USE[p.kind]}` : p.label }, shelfLabel(p.label), free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
+      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l", title: SUPPLY_USE[p.kind] ? `${p.label} · ${SUPPLY_USE[p.kind]}` : p.label }, itemIcon(p, { size: "s" }), itemName(p, shelfLabel(p.label)), free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
         noRow ? h("small", { class: "dim no-row" }, /* copy:callout */ " · no row") : ""), x));
     }
     for (let i = picks.length; i < cap; i++) chips.appendChild(h("span", { class: "chip slot empty", "aria-hidden": "true" }, ""));

@@ -125,7 +125,10 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          shelved?: { kind: string; n: number }[];
                          driven?: DrivenOff;
                          meters?: MeterWire;                                                                // Cut 29 §3 (core): the run metered (dps dealt/taken by side, hps by source, time split, row shares, supplies, gold/min, hits); absent on an old wire
-                         news?: News[] };                                                                  // Cut 24 §2 (core): what was new this run, most telling first, ≤ 3 (`first: Warlord slain` · `record: D10` · `avenged Ulak` · `new find: mail` · `first: the captive` · `driven off: Warlord` · `learned 3`); a run with nothing new has one `differ` line (`deeper: D9, last D8` · `banked, last returned` · `+$23 on last`) — the report leads with these, before the counts                                                              // Cut 24 §1 (core): a boss whose HP did not move for 60 of the hero's actions drove him off — a return-tier exit (keeps 60%), verdict `no counter`; the text reads `returned $N · … · no counter`                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
+                         news?: News[];
+                         end?: "bank" | "return" | "death";                                                 // run-clear (core): the end's kind (the exit event's tier)
+                         reached?: number; new_best?: boolean;                                              // run-clear (core): the deepest floor the run reached; it went past the lineage's record
+                         finds?: InvItem[] };                                                               // run-clear (core): what the run found and brought home (a death: left in its bones), rarest first, ≤ 6                                                                  // Cut 24 §2 (core): what was new this run, most telling first, ≤ 3 (`first: Warlord slain` · `record: D10` · `avenged Ulak` · `new find: mail` · `first: the captive` · `driven off: Warlord` · `learned 3`); a run with nothing new has one `differ` line (`deeper: D9, last D8` · `banked, last returned` · `+$23 on last`) — the report leads with these, before the counts                                                              // Cut 24 §1 (core): a boss whose HP did not move for 60 of the hero's actions drove him off — a return-tier exit (keeps 60%), verdict `no counter`; the text reads `returned $N · … · no counter`                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
 /** Cut 24 §1 (core) — the `no counter` exit: the boss kind + short title (`goblin_warlord`, `Warlord`), the floor, the verdict word
  *  (`no counter`), the defence that shrugged every blow (`shield wall`, ≤ 3 words), the counter in words (`attack boss`) and as a row
  *  the editor can insert (like a patch's). Render `Warlord · no counter · shield wall · try: attack boss`. */
@@ -142,7 +145,10 @@ export type Counter = { boss: string; row?: Row | string; text: string };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
                         free?: boolean;                                    // Cut 12 §6: a supply the camp gave (the kennel's leash) reads `leash · kennel`; the core always sends it
                         found?: boolean;                                   // Cut 21 §2: a shelf line an exit put there (found in the dungeon, packed free) — `heal · found`
-                        enchanted?: number };                              // QA 524827b (core): the `+N` enchant scrolls read on it added (KEPT `axe +7 → vault · enchanted ×6`)
+                        enchanted?: number;                                // QA 524827b (core): the `+N` enchant scrolls read on it added (KEPT `axe +7 → vault · enchanted ×6`)
+                        rarity?: Rarity };                                 // run-clear (core `item::rarity`): read off its kind's depth band and its +N; absent = common
+/** Run-clear (core `item::Rarity`): an item's rarity, rising — common · uncommon · rare · epic · legendary. */
+export type Rarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
 
 export type Ev =
   | { t: number; k: "move"; id: number; x: number; y: number }
@@ -553,7 +559,7 @@ export type ClassChip = { class: string; signature: string; level: number; opens
  *  core's estimate of nights of income until it is (0 = now; absent when there is no income to go on). With `kitDeltas()`:
  *  `delta` = the paired forecast move of buying it at `depth` (0..1, signed; the same paired panel as edits), `pm` its ±, and
  *  `bank`/`death` the ends' moves — the chip reads `mail +1 · D9 +7 · $340`. */
-export type KitStep = { label: string; price: number; owned: boolean };
+export type KitStep = { label: string; price: number; owned: boolean; kind?: string; rarity?: Rarity };   // run-clear (core): the piece the step forges and its rarity
 export type KitLadder = { slot: "weapon" | "armour" | "pack"; owned: number; steps: KitStep[];
                           next?: { label: string; price: number; affordable: boolean; nights?: number; per_night?: number;   // QA 912e135 (core): the night's net `nights` divides by
                                    depth?: number; delta?: number; pm?: number; bank?: number; death?: number } };

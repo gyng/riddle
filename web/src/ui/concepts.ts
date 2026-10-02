@@ -54,6 +54,7 @@ export type Term = Concept | "heir" | "gold" | "best" | "reach" | "package" | "s
   | "pen" | "lever" | "bank" | "banked" | "returned" | "death" | "plateau" | "ends" | "priority" | "condition" | "action" | "forge" | "kennel" | "pack"
   | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled"
   | "works" | "worker" | "chest" | "scout" | "next" | "rank"   // Cut 30.5: the works tree
+  | "rarity"   // run-clear: an item's rim colour
   | "lane" | "live" | "log" | "replay" | "away";   // RUNS_UI: the run lanes, the runs log
 /** Cut 30.5: the works tree's terms — fragments of ≤ 4 words (eval/copy-budgets.json `node_tip`). */
 const WORKS_TIP = /* copy:node_tip */ { works: "workers take chores over", worker: "hand for one chore", chest: "the haul waits here", scout: "sends him each rest", next: "the one next goal", rank: "worker's grade · from service" };
@@ -73,6 +74,7 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   price: "points of runs past best, dying or banking", forge: "gold buys kit steps", kennel: "pets and tamed allies", pack: "supplies he carries",
   v_gap: "no rule answered it", v_luck: "rules were fine · a bad roll", v_rule: "his own rule backfired", v_order: "right rule, ranked too low",
   v_stall: "stuck in a loop", v_route: "took the wrong stairs", v_repelled: "a boss drove him out",
+  rarity: "how fine a find is · common up to legendary",
   ...WORKS_TIP,
   // RUNS_UI (docs/RUNS_UI.md)
   lane: "a hero's runs · live, resting or waiting", live: "the run going on now · watch or not",
@@ -86,7 +88,7 @@ export const ALIASES: Partial<Record<Term, string[]>> = /* copy:none */ {
   pen: ["the pen"], lever: ["lever"], bank: ["bank"], banked: ["banked"], returned: ["returned"], death: ["deaths"], plateau: ["plateau"], reach: ["reach"],
   ends: ["ends"], priority: ["priority"], condition: ["condition"], action: ["action"], vault: ["vault", "storehouse"], bones: ["bones"], bounty: ["bounty"],
   waystone: ["waystone", "waystones"], grudge: ["grudge"], kennel: ["kennel"], forge: ["forge", "blacksmith"],
-  works: ["works"], worker: ["workers", "worker"], chest: ["chest"], scout: ["scout"], rank: ["rank"],
+  works: ["works"], worker: ["workers", "worker"], chest: ["chest"], scout: ["scout"], rank: ["rank"], rarity: ["rarity"],
 };
 /** The plate's title: the term as the screen says it. */
 export const TITLE: Partial<Record<Term, string>> = /* copy:label */ {
@@ -96,7 +98,7 @@ export const TITLE: Partial<Record<Term, string>> = /* copy:label */ {
 };
 export const termTitle = (t: Term): string => TITLE[t] ?? t;
 /** The term's icon (a concept's, else the packed one named here). */
-const ICO: Partial<Record<Term, [string, string]>> = /* copy:none */ { works: ["node_porter", ""], worker: ["node_porter", ""], chest: ["gold", "$"], scout: ["node_scout", ""], next: ["", "▸"], gold: ["gold", "$"], best: ["depth", ""], reach: ["depth", ""], bank: ["gold", "$"], banked: ["gold", ""], returned: ["bail", ""], death: ["morgue", "☠"], forge: ["forge", "⚒"], kennel: ["party", ""], pack: ["loadout", ""], stance: ["pkg_steady", ""], heir: ["", ""] };
+const ICO: Partial<Record<Term, [string, string]>> = /* copy:none */ { rarity: ["", "◈"], works: ["node_porter", ""], worker: ["node_porter", ""], chest: ["gold", "$"], scout: ["node_scout", ""], next: ["", "▸"], gold: ["gold", "$"], best: ["depth", ""], reach: ["depth", ""], bank: ["gold", "$"], banked: ["gold", ""], returned: ["bail", ""], death: ["morgue", "☠"], forge: ["forge", "⚒"], kennel: ["party", ""], pack: ["loadout", ""], stance: ["pkg_steady", ""], heir: ["", ""] };
 export const termIcon = (t: Term): HTMLElement | null => { const c = (DEF as Record<string, { ico: string; glyph: string }>)[t]; const [ic, gl] = c ? [c.ico, c.glyph] : ICO[t] ?? ["", ""]; return ic || gl ? icon(ic, gl) : null; };
 const pctOf = (x: number): string => `${Math.round(Math.max(0, Math.min(1, x)) * 100)}%`;
 /** The live value at open, from the wire (none when the wire has none). All of it is the core's. */

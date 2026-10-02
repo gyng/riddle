@@ -321,7 +321,24 @@ pub struct ExitLine {
     /// Cut 29 §3: the run metered (`meters::MeterWire`); absent on a sim's line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub meters: Option<Box<crate::meters::MeterWire>>,
+    /// Run-clear (the owner, 2026-10-02: "each run should have the clear screen"): the end's kind — `bank`,
+    /// `return` or `death` (the exit event's `tier`, on the line so a report's last run can be stamped).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub end: String,
+    /// Run-clear: the deepest floor the run reached.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub reached: u32,
+    /// Run-clear: the run went past the lineage's record (a `new best` badge on the card).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub new_best: bool,
+    /// Run-clear: the items this run found that it brought home (or, on a death, left in its bones),
+    /// rarest first, ≤ `FINDS_SHOWN` — each with its rarity (`item::rarity`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finds: Vec<InvItem>,
 }
+
+/// Run-clear: how many finds an exit line carries (the card shows them all, a row of six).
+pub const FINDS_SHOWN: usize = 6;
 
 /// Cut 24 §2: one line of `ExitLine.news` — its kind (`first` · `record` · `named` · `find`
 /// · `situation` · `driven` · `learned` · `differ`) and its text (≤ 6 words, lower case).
@@ -2392,6 +2409,12 @@ pub struct KitStep {
     pub label: String,
     pub price: u32,
     pub owned: bool,
+    /// Run-clear: the item kind the step forges (`sword`, `mail`); absent on the pack's steps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// Run-clear: the forged piece's rarity (`item::rarity`); absent = common.
+    #[serde(default, skip_serializing_if = "crate::item::Rarity::is_common")]
+    pub rarity: crate::item::Rarity,
 }
 
 /// Cut 23 §1: a ladder's next step — its price, whether the purse pays it now, the nights of

@@ -127,9 +127,10 @@ import { verbsAt } from "../engine/classes";
 import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
 import { mergeFinds } from "./report";
+import { itemIcon, itemName } from "./items";   // run-clear
 import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
-import { glossOf, kindGlyph, noteText, ruleName, setRefRows, verbLabel } from "./tokens";
+import { glossOf, noteText, ruleName, setRefRows, verbLabel } from "./tokens";
 import { EXIT_TRACE_ROWS, traceTable } from "./trace";
 import { drivenDeath, exitExtras } from "./death";
 import { laneTitle, seenForks } from "./route";
@@ -515,6 +516,8 @@ export function renderWatch(app: App): Mounted {
   }
   let prepended = false;              // bail fell back to the row prepend (an engine without `bail`)
   const cls = app.lineage.class;
+  let recordBeat = false;   // run-clear: the run's `NEW BEST` stamp, once
+  const RECORD_MS = 2400;
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
   const kinds = new Map<number, string>(), names = new Map<number, string>();
@@ -957,6 +960,10 @@ export function renderWatch(app: App): Mounted {
           const up = floors.get(ev.depth - 1)?.biome ?? (s.depth === ev.depth - 1 ? s.biome : undefined);
           const lane = ev.biome && up && up !== ev.biome && ev.biome !== "warrens" && seenForks(app.lineage).length ? ev.biome : undefined;
           at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap); ambient(lane ? /* copy:callout */ `D${ev.depth} · ${lane}` : rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
+          // run-clear (the owner, 2026-10-02: a record no longer ends a run — it is a beat and a checkpoint, and he carries on): the
+          // first floor past the lineage's record this run stamps a gilt `NEW BEST D5` over the floor's arrival — the boss stamps' look,
+          // but it never holds the frame or takes a fight's beat (he walks on; the card's `new best` badge says it again)
+          if (before.best > 0 && ev.depth > before.best && !recordBeat) { recordBeat = true; const d = ev.depth; at(ev.t, () => { if (folding) return; showBanner(/* copy:callout */ `NEW BEST D${d}`, RECORD_MS, "record-beat"); cue("level"); }); }
           break;
         }
         case "fact": {
@@ -1983,7 +1990,7 @@ export function renderWatch(app: App): Mounted {
         if (sent) return; sent = true; vaultChosen = true;
         releaseBeat();
         app.engine.choose(it.id).catch((e) => console.warn("choose", e)).finally(() => { vaultClose?.(); if (!disposed) { tickerQueue.length = 0; showTicker(tookText(it.label), "", 2400); } });   // the next step's snapshot carries the pickup
-      } }, h("b", { class: "glyph" }, kindGlyph(it.kind)), " ", it.label)));
+      } }, itemIcon(it, { size: "s" }), itemName(it))));   // run-clear: the cage's three in their rarity rims
       // the wait as a shrinking bar (QA on 56f2a1d: "closes by itself ~2–4 s later with no timer"): Cut 15 §5, the wall-clock wait
       // (VAULT_WAIT_MS; the world stands meanwhile), width 100% → 0 over it — `vc.left` is the engine's own grace, after that
       const bar = h("i", { style: `transition-duration:${VAULT_WAIT_MS / 1000}s` });
@@ -2197,7 +2204,7 @@ export function renderWatch(app: App): Mounted {
           if (keep.has(it.id)) keep.delete(it.id);
           else { if (keep.size >= free) { const oldest = keep.values().next().value; if (oldest === undefined) return; keep.delete(oldest); } keep.add(it.id); }
           paint();
-        } }, it.label, " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "vault") : unpaid ? "" : h("b", { class: "num gold" }, `$${worthOf(i)}`))));   // the engine's worth at this exit (its old client table read 4×)
+        } }, itemIcon(it, { size: "s" }), itemName(it), " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "vault") : unpaid ? "" : h("b", { class: "num gold" }, `$${worthOf(i)}`))));   // the engine's worth at this exit (its old client table read 4×)
       };
       paint();
       // the pile once: the exit line carries `bones: 8 items on D4` (the core's), so the client's `bones left` line only stands in
