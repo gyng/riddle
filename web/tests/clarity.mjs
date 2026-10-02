@@ -508,6 +508,14 @@ try {
     await page.goto(`${url}?dev=1&fresh=1&seed=2302&absent=8h`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && ["camp", "report"].includes(s.screen), "the real engine's camp", 120_000);
     const kind = await page.evaluate(() => window.__riddle.kind);
+    // Cut 30: the editor comes with the pen (the Mother met and 72 h) — the save opens it, the core recompiles on load
+    await page.evaluate(async () => {
+      const r = window.__riddle, e = JSON.parse(await r.engine.save());
+      e.lineage.pkg.pen_open = true;
+      for (const id of ["pen", "edit", "dial", "unlocks", "reorder", "vs", "tags", "walls", "divergence", "route"]) if (!e.lineage.systems.includes(id)) e.lineage.systems.push(id);
+      await r.importSave(JSON.stringify({ v: 2, engine: JSON.stringify(e), loadout: [], last_seen: Date.now(), runs: 0 }));
+    });
+    await waitFor((s) => s?.booted && s.screen === "camp", "the pen's camp", 60_000);
     await page.evaluate(() => window.__riddle.go({ kind: "camp" }));
     await sleep(6000);   // the camp's own measures settle
     const t = await page.evaluate(async () => {

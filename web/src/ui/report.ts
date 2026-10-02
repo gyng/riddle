@@ -30,6 +30,8 @@ import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
+import { grewBlock } from "./tracks";
+import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 
 const EXITS_SHOW = 8;
@@ -487,7 +489,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // the ledger (exits, gold, salvage, bones, finds, the reel) folds under one `details` tap
   // Cut 29 §1 (E1): the wall's edit lands here when the core's search answers (after the paint; never waited on)
   const wallHost = h("div", { class: "wall-host" });
-  void wallOffer(app).then((w) => { if (w && wallHost.isConnected) replace(wallHost, h("div", { class: "label" }, /* copy:label */ "wall fix"), wallTablet(app, w, () => app.go({ kind: "camp" }))); });
+  if (penOpen(L)) void wallOffer(app).then((w) => { if (w && wallHost.isConnected) replace(wallHost, h("div", { class: "label" }, /* copy:label */ "wall fix"), wallTablet(app, w, () => app.go({ kind: "camp" }))); });
   const details = h("div", { class: "report-details", hidden: true });
   const detailsBtn: HTMLButtonElement = h("button", { class: "details-fold num", "aria-expanded": "false", onclick: () => {
     details.hidden = !details.hidden; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
@@ -495,7 +497,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
-    newsBlock(r, named, L.counters ?? []), tiles, opened(r), wallHost, oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
+    grewBlock(r), newsBlock(r, named, L.counters ?? []), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
