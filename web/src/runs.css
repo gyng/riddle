@@ -134,3 +134,9 @@ button.re-body { cursor: pointer; }
 .watch .hud .live-badge .lane-beat { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--ember); }
 [data-juice="on"] .watch .hud .live-badge .lane-beat { animation: lane-beat 0.9s ease-in-out infinite; }
 .watch .hud .live-badge .lb-auto { color: #f3d192; font-weight: 400; }
+/* the town tile's one-time caption, over the tile (the concept captions' look) */
+.tile.town-btn .goes-on-cap { position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); z-index: 6; pointer-events: none; width: max-content; max-width: 84px; text-align: left;
+  padding: 1px 8px; border-radius: 8px; font: italic 500 12px/1.5 var(--sans); color: #f3d192; background: rgba(13, 12, 20, .9); box-shadow: inset 0 0 0 1px var(--gilt); }
+.tile.town-btn .goes-on-cap::before { content: "↻ " attr(data-cap); }
+.tile.town-btn:disabled .goes-on-cap { display: none; }
+.cmd .tile.town-btn { overflow: visible; z-index: 4; }

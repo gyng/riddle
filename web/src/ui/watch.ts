@@ -140,6 +140,7 @@ import { FoldTally, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
 import { kwHost } from "./tips";   // RUNS_UI: the live badge's tip
+import { goesOnCap } from "./runlane";   // RUNS_UI: the town tile's first-watches caption
 
 type Tier = "bank" | "return" | "death";
 /** QA 92eb880 (N: the `fights` chip read `1.332247798006322×` over the portrait): a rate as the chip shows it — whole from 2×, one
@@ -370,7 +371,9 @@ export function renderWatch(app: App): Mounted {
   // RUNS_UI (docs/RUNS_UI.md): back to the town while he goes on — leaving the watch never stops the run (the town's lane shows it live;
   // the open app's clock plays it on, unwatched). The ↻ on the tile is the mark; its tip says the rest
   const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "⌂", label: /* copy:button */ "town", onclick: () => { if (!done) app.leaveWatch(); } });
-  // (its ↻ — he keeps going — is drawn on the tile's corner: runs.css `.town-btn::after`)
+  // (its ↻ — he keeps going — is drawn on the tile's corner: runs.css `.town-btn::after`; the first watches also carry the one-time caption
+  // `he keeps going` over it — the owner's concept rule: an icon and a one-time ≤ 3-word caption; its words are CSS's, not the tile's text)
+  { const cap = goesOnCap(); if (cap) toTown.appendChild(cap); }
   // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
   const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
   // Cut 27 §1: the fold line — the interstitial over a folded stretch (`D1–6 · 100% · +$84` and its chips), docked under the HUD once the

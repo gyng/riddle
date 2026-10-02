@@ -104,3 +104,13 @@ function moreRow(rest: HeroLane[]): HTMLElement {
 /** the rest's share left, against the longest rest (30 min): full just back, empty as he goes */
 const REST_FULL_S = 30 * 60;
 const restShare = (s: number): number => Math.max(0, Math.min(1, s / REST_FULL_S));
+
+/** RUNS_UI: the watch's `town ↻` carries `he keeps going` over it for this viewer's first few watches (the owner's rule for a new
+ *  concept: its mark and a short caption, once learned no more) — the words drawn by CSS from `data-cap`, so the tile's text stays `town` */
+const GOES_KEY = "riddle.runs.goes_on", GOES_SHOWN = 3;
+export function goesOnCap(): HTMLElement | null {
+  let n = 0; try { n = Number(localStorage.getItem(GOES_KEY) ?? 0) || 0; } catch { /* private mode */ }
+  if (n >= GOES_SHOWN) return null;
+  try { localStorage.setItem(GOES_KEY, String(n + 1)); } catch { /* private mode */ }
+  return h("small", { class: "goes-on-cap", "data-cap": /* copy:callout */ "he keeps going", role: "note", "aria-label": "he keeps going" });
+}

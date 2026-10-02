@@ -79,6 +79,7 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   // RUNS_UI (docs/RUNS_UI.md)
   lane: "a hero's runs · live, resting or waiting", live: "the run going on now · watch or not",
   log: "every run · by absence · replays", replay: "the run again · same rolls", away: "runs while the game was shut",
+
 };
 /** The words that mark a term in a line (whole words, any case; the longest first). A term without aliases is marked only where a
  *  caller names it (`kw("v_luck", "luck")`, a host). */
