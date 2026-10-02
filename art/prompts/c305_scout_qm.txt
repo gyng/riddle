@@ -1,0 +1,82 @@
+You are painting CHARACTER SPRITE masters for the game "Riddle" (a gothic dark-fantasy roguelike on a phone, seen
+top-down at a high three-quarter angle). FIRST look at these approved STYLE TARGETS (you may open these images and nothing
+else in the repository): /home/g/p/riddle/.claude/worktrees/c305art/art/ui/targets/style/town.png, /home/g/p/riddle/.claude/worktrees/c305art/art/ui/targets/style/hero_sheet.png, /home/g/p/riddle/.claude/worktrees/c305art/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/.claude/worktrees/c305art/art/ui/targets/style/watch_fens.png, /home/g/p/riddle/.claude/worktrees/c305art/art/ui/targets/style/boss.png. They show the target look: moonlit ink and wash on a visible pixel grid, one BLOOD accent.
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix; do NOT
+touch anything outside /home/g/p/riddle/.claude/worktrees/c305art/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. OVERWRITE existing files.
+
+For each asset: generate at the stated size and save the final PNG (sRGB) to the exact path. BACKGROUND: a TRANSPARENT
+background (PNG alpha) is best; if the tool returns an opaque image, the background must be ONE flat uniform pure MAGENTA
+#FF00FF (255,0,255) edge to edge (the pipeline keys it) — never paper, never a floor, never a gradient. Self-check each
+output: the four corners transparent or magenta, no magenta/pink-violet inside the subject, the subject not cropped;
+regenerate that asset once if not.
+
+=== STYLE (docs/ART_DIRECTION.md, approved — the FIRST and loudest rule) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== SPRITE RULES (on top of the style) ===
+- ONE object, seen from the high three-quarter town camera, centred with ~10 % margin, nothing cropped.
+- Proportions: a worker is an ordinary adult townsperson (head ~1/6 of the height; the apprentice a youth), the same family as the existing townsfolk; the chest is a small prop.
+- INK: one closed blue-black INK #0d0c14 contour around the whole silhouette, 12-16 px thick at 1024 px (it must survive a
+  downscale to 40-96 px tall), thicker on the lower/right shadow side; a few interior ink lines on the big forms only.
+- LIGHT: cold MOONLIGHT from ABOVE: MIST #a4bcd6 rims on the top edges (head, shoulders, weapon), the lower half falling
+  into DUSK/UMBRA. The lit side must stay clearly lighter than a dark stone floor; keep one pale element (BONE face,
+  MIST blade edge, bone) high on the figure so it pops at game size.
+- WASH on the GRID at sprite scale: chunky clusters (~12 px at 1024), washes with granulation inside them; no hairline
+  detail, no smooth airbrushed gradients, no noisy speckle. Paper grain only faintly inside the lightest washes.
+- COLOUR: only the palette above (+ the monster's one local hue when the brief names it). BLOOD only where the brief puts it.
+- NOTHING but the figure: NO floor, NO contact shadow, NO cast-shadow pool, NO scenery, NO paper sheet, NO frame, NO glow
+  halo, NO text or letters.
+
+=== READABILITY (the sprites are shown TINY: buildings ~64 px tall, the plot ~32 px) ===
+One bold readable mass, one clear gesture, 3-4 signature details. The defining feature (the "tag" in each brief) must
+be visible in the SILHOUETTE alone. Judge each output shrunk to that size before accepting it.
+
+=== ASSETS ===
+Match the existing TOWNSFOLK family: open /home/g/p/riddle/.claude/worktrees/c305art/art/generated/town_smith.png and /home/g/p/riddle/.claude/worktrees/c305art/art/generated/town_merchant.png (same ink, wash, palette, scale of detail). Each worker comes as FRAME 0 (standing at the post) then FRAME 1 (idle work): make frame 0 first, then OPEN it and make frame 1 as the SAME person (face, clothes, colours, tag object) with only the pose changed; the feet stay where they are and nothing in frame 1 rises above the top of the head in frame 0 (the pipeline scales by the bounding box).
+--- 1. id: town_worker_scout
+Output path: /home/g/p/riddle/.claude/worktrees/c305art/art/generated/town_worker_scout.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Brief: a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the SCOUT (the send-worker: sends the hero down): a lean light-footed figure in a short hooded cape over a leather jerkin, a wide-brimmed hat with a MIST feather, raising a brass SPYGLASS to the eye with one hand, the other arm stretched out pointing forward and down (toward the dungeon), a short horn at the hip — the raised spyglass and the pointing arm are the tag.
+
+--- 2. id: town_worker_scout_1
+Output path: /home/g/p/riddle/.claude/worktrees/c305art/art/generated/town_worker_scout_1.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Brief: the idle-work frame of town_worker_scout: the same scout lowering the spyglass and waving the pointing arm forward, a 'go now' beckon; same scale, the feet and the head top where frame 0 has them, nothing higher than the head.
+
+--- 3. id: town_worker_quartermaster
+Output path: /home/g/p/riddle/.claude/worktrees/c305art/art/generated/town_worker_quartermaster.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Brief: a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the QUARTERMASTER (packs the hero's supplies): a stout figure in a buff padded coat and a leather cap, a big stuffed BACKPACK with a bedroll strapped on held up in front by its straps, a corked POTION flask with a pale BONE label hanging at the belt, a coil of rope over the shoulder — the held-up backpack is the tag.
+
+--- 4. id: town_worker_quartermaster_1
+Output path: /home/g/p/riddle/.claude/worktrees/c305art/art/generated/town_worker_quartermaster_1.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Brief: the idle-work frame of town_worker_quartermaster: the same quartermaster tucking the potion flask into the backpack's top, the pack held against the hip; same scale, the feet and the head top where frame 0 has them, nothing higher than the head.
+
+When all assets are saved, list the final paths and sizes. Do nothing else.
