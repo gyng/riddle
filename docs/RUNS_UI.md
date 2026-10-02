@@ -172,7 +172,10 @@ without the player, which the lane now shows.
   (tick 56 → 83 in the town after `town ↻`) → `waits`, the log from run 1; the lane opens the watch on the same run; a watched run of
   1 339 events hashes the same as its replay (4 floors, played to the end); `rests 20m left` with `↻ auto`, the next run down by
   itself; an absence folds as `away · 4 runs`, the town's as `here`; elements above the fold: day 0 7, mid-game 12, three lanes 11.
-  `cargo test` 481 (+1 ignored), clippy `-D warnings` clean, tsc, copy-lint 0. Client suite: see the hand-off (flakes rerun alone).
+  `cargo test` 481 (+1 ignored), clippy `-D warnings` clean, tsc, copy-lint 0. Client suite (`tests/run.mjs`, 4 wide on a box at load
+  25–60): 43/45, the two (fights, qa9) pass alone; earlier rounds' timing gates (clarity:paint, cut27) read the load. Found on the way: the
+  lanes' per-second DOM write moved what clarity, cut12 and cut23 pressed (now written only on change); ui.mjs's injected forecasts raced
+  the camp's own (the test waits for it now); the concept captions' one-at-a-time queue is not for the watch's tile (its own count).
 - **Blind check** (three fresh readers in turn, ≤ 20 tool calls / ≤ 12 images, the home · the log · the watch). Q2 (what happened while
   away) 3/3 every round (sure 4–5). Q1 (is he doing something) right every round (resting, goes back by itself), sure 3–4 — fixed after
   round 1: `13m` read as spent or left → `13m left`. Q3 (watch live; leaving) round 1: live vs replay unclear and what leaving does →
