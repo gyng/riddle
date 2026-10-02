@@ -877,8 +877,8 @@ fn main() {
     let mut bars: Vec<(String, String, bool)> = Vec::new();
     // (rows the owner keeps in view, ungated)
     let mut infos: Vec<(String, String)> = Vec::new();
-    // (the nothing-required row's worst seed: a day behind IDLE at most — the owner, round 8)
-    const NOTHING_REQ_MAX_LAG: f64 = 24.0;
+    // (the nothing-required row's worst seed: two days behind IDLE at most, from day 5 — the owner, rounds 8–10)
+    const NOTHING_REQ_MAX_LAG: f64 = 48.0;
     // (the pen's opening: the start of day 5)
     const PEN_DAY_H: f64 = 96.0;
     if !idle.is_empty() {
@@ -1034,7 +1034,7 @@ fn main() {
             moves.push((s, with, without, unit, ok));
         }
         if !moves.is_empty() {
-            bars.push(("Nothing required: TUNED − S ≤ IDLE on the median seed (± a check-in), no seed > 24 h behind from day 5".into(), if req_ok { "ok".into() } else { worst_req }, req_ok));
+            bars.push(("Nothing required: TUNED − S ≤ IDLE on the median seed (± a check-in), no seed > 48 h behind from day 5".into(), if req_ok { "ok".into() } else { worst_req }, req_ok));
             let each = moves.iter().all(|m| m.4);
             bars.push(("Each system adds value by its own output (TUNED vs TUNED − S)".into(), moves.iter().map(|(s, a, b, u, _)| format!("{s} {a:.1}/{b:.1} {u}")).collect::<Vec<_>>().join(" · "), each));
             // (`none > 60 % of TUNED − IDLE` retired: the systems are measured by their own outputs, no

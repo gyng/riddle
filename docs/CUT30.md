@@ -482,6 +482,12 @@ bank, and the forge's steps re-roll the runs. Four forge orders measured side by
 no armour, weapon first, no pack): the lags at D13 spread −16 … +24/+40 h around a median of 0 in every one; no
 order gives TUNED − packages a lead over IDLE before D23, where the pen's 28 h shows.
 
+**Checkpoint 11 — CORE READY** (round 10, 2026-10-02): `gates.mjs --full` reprinted from checkpoint 10's kept jobs
+with the round 9–10 nothing-required row: metrics all PASS (30 seeds), qa all PASS (30 seeds), dayplayer all PASS (16
+seeds of every bot and leave-one-out; nothing required ok; TUNED vs PICKED at D33 1.26, D29 info 1.11). The AGENTS.md
+and PLAN.md invariant edits (§6) are made, re-expressed for the owner's rounds (the pen ≥ 15 % at D33, RANDOM vs
+PICKED, nothing required on the median seed with a 48 h cap from day 5, `none > 60 %` retired).
+
 ## Deviations
 - **Round 6, owner-approved 2026-10-01.** (1) *TUNED beats PICKED by ≥ 15 %* is measured at **D29** (past D28) and
   D33, not D28 and D33: the D28 floor is gated by the walls above it, which drill before the pen opens.
@@ -490,6 +496,11 @@ order gives TUNED − packages a lead over IDLE before D23, where the pen's 28 h
   (3) **TUNED and the leave-one-outs run on 8 seeds** (`--tuned-seeds 8 --loo-seeds 8`) until the gate speed-up lands,
   then 16; IDLE, PICKED and RANDOM stay at 16 (the PICKED-vs-IDLE and RANDOM rows: affordable, ~16 CPU-min a bot).
   The speed-up landed 2026-10-02 (branch `gate-speed` merged): TUNED and the leave-one-outs are back on 16.
+- **Round 10, owner-approved 2026-10-02.** The worst-seed cap is **48 h**, counted from day 5 as in round 9; the
+  median clause is unchanged. Seed 15 (TUNED − packages, +40 h after day 5 at D18 and D23) is the case: its lag came
+  from the forge before day 5 — the steps re-rolled the runs, it was still under D18 when the pen opened while IDLE
+  had passed D18 at 64 h — not from the system's absence. Reprinted from the kept jobs: **dayplayer all PASS**
+  (nothing required ok); metrics and qa all PASS; CORE READY (checkpoint 11).
 - **Round 9, owner-approved 2026-10-02 (option b).** *Nothing required*'s worst-seed cap (24 h) counts from the pen's
   opening, the start of day 5 (96 h): the lag accrued after it — each side's hours to the milestone clamped up to 96 h,
   so a milestone both reach before day 5 adds nothing. Before day 5 the median clause alone applies. Reprinted from

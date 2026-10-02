@@ -1,16 +1,17 @@
 # AGENTS.md — operating manual for Riddle
 
-**Resuming? Read `docs/HANDOFF.md` first.** Read `PLAN.md` (canonical design) and `docs/CUT29.md` (the current implementation contract),
+**Resuming? Read `docs/HANDOFF.md` first.** Read `PLAN.md` (canonical design) and `docs/CUT30.md` (the current implementation contract),
 then this file. `CLAUDE.md` is a bare import of this file.
 
 ## What the game is
 
-A real roguelike whose hero you never drive. The player writes an ordered rule list (≤ 8 rows
-of `conds → verb`); the hero learns the dungeon's facts on its own; the engine does chores
-silently. Runs happen offline, uncapped. Every death names a rule. The dungeon has a bottom.
+A real roguelike whose hero you never drive. The hero climbs on his own while you are away;
+you equip packages (stances, tactics, temperaments: pre-written rule bundles that level from
+runs), build a town, and late on open the pen to write your own rows. The engine does chores
+silently. Runs happen offline, uncapped. Every death names its cause. The dungeon has a bottom.
 
 ```
-camp (edit rules, loadout, unlocks, forecast) → send → run (rules fire, facts learned)
+town (packages, buildings, tracks, forecast; the pen late) → send → run (rows fire, facts learned, drills)
    → exit: bank 100% · return 60% · death 30% → death screen (trace, gap/dice, patches)
    → report (learned · bests · found · deaths · pending · reel) → camp
 ```
@@ -67,17 +68,24 @@ third of it the chores' floods).
 1. Write a contract (`docs/CUT<n>.md`) with numeric gates.
 2. Build core / client / renderer / art in parallel; they meet at the wire types.
 3. Gate it. Never weaken a gate to pass it; tune content, or record a deviation with a reason.
-4. Fun-verdict playtest on the `idle-roguelike` preset (`docs/FUN_EVAL_IDLE.md`); the gaps
+4. Fun-verdict playtest on the `idle-hybrid` preset (`docs/FUN_EVAL_IDLE.md`); the gaps
    become the next contract.
 
 ## Hard invariants
 
 - All game truth in Rust. TS renders and edits only.
 - Determinism: same seed + rules + elapsed ⇒ identical events. Replay-hash test exists.
-- Inviolable bots: DEFAULT dies by D6; EDITED beats it by ≥ 15 pts; RANDOM and PASSIVE lose
-  every seed; LEARNED (facts only) gains ≤ 2 floors. These keep policy load-bearing.
-- Every death has a verdict and a trace; `dice` deaths ≤ 5%.
-- Facts are learned; policy is written. Nothing learns policy implicitly.
+- Idle alone progresses (`examples/dayplayer.rs`, 16 seeds × 14 days): IDLE (no picks, no edits)
+  reaches D8 on day 1 and D23 by day 12, gold every day, stall ≤ 4 d, and never slays the King
+  in a fortnight. Engaging multiplies: PICKED (packages) reaches D13/D18/D23 ≥ 1.5× sooner than
+  IDLE and is never out-paced; TUNED (the pen, optional late fine-tuning) beats PICKED by ≥ 15 %
+  at D33. RANDOM never beats PICKED. Nothing is required: removing any one system never leaves a
+  bot slower than IDLE on the median seed (± a check-in), no seed > 48 h behind from day 5; each
+  system adds value by its own output. Steady is the safest default; every other stance is best
+  at some wall. (Cut 30; DEFAULT/EDITED/PASSIVE/LEARNED retired with the pivot.)
+- Every death has a cause, a trace and a cheapest lever; `dice` deaths ≤ 5%.
+- Facts are learned; policy is chosen, drilled or written — never silent: every drilled row is
+  named, announced once, shown and revocable.
 - Art never blocks the game: every sprite id has a primitive fallback.
 - Copy: callout ≤ 3 words, verdict 1 word, no sentences in chrome (`eval/copy-budgets.json`,
   `tools/copy-lint.mjs`). No tutorial text.
