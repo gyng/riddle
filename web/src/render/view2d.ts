@@ -185,7 +185,7 @@ export function drawTown2D(c: HTMLCanvasElement, F: TownFrame, atlas: HTMLCanvas
     if (q.flip) { g.save(); g.translate(dx + dw, dy); g.scale(-1, 1); g.drawImage(atlas, q.s.x, q.s.y, q.s.w, q.s.h, 0, 0, dw, dh); g.restore(); }
     else g.drawImage(atlas, q.s.x, q.s.y, q.s.w, q.s.h, dx, dy, dw, dh);
   };
-  for (const q of F.ground) draw(q);
+  for (const q of F.ground) { draw(q); if (q.dim < 1) { g.globalAlpha = 1 - q.dim; g.fillStyle = "#0d0c14"; g.fillRect(Math.round((q.x - q.w / 2 - F.x0) * k), Math.round((q.y - q.h - F.y0) * k), q.w * k, q.h * k); g.globalAlpha = 1; } }
   townSorted.length = 0;
   for (let i = 0; i < F.n; i++) townSorted.push(F.quads[i]!);
   townSorted.sort(byZ);

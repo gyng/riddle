@@ -305,6 +305,7 @@ try {
     await page.evaluate(() => { window.__riddle.editing = true; window.__riddle.go({ kind: "camp" }); }); await camp();
     const before = await page.evaluate(() => window.__riddle.rules.rows.map((r) => r.verb.v));
     const last = page.locator(".editor .row.tablet").last(), first = page.locator(".editor .row.tablet").first();
+    await page.evaluate(() => document.querySelector(".editor")?.scrollIntoView({ block: "start" })); await sleep(150);   // Cut 30 §3: the rows scroll under the town
     const lb = await last.locator(".chip.verb").boundingBox(), fb = await first.boundingBox();
     await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2); await page.mouse.down();
     const lifted = await until(() => !!document.querySelector(".editor .row.tablet.lifted"), "the lift", 3000).catch(() => false);

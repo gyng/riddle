@@ -200,7 +200,8 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
 /** A camp panel opened from a building stands over it (its foot on the building's top), or under it when the room above is short. */
 export function anchorPanel(panel: HTMLElement, anchor: HTMLElement, host: HTMLElement): void {
   const a = anchor.getBoundingClientRect(), r = host.getBoundingClientRect();
-  if (!a.height || !r.height) return;
+  // (only over a building on screen: the well scrolled to its rows leaves the town above, and a panel hung from it would be off screen)
+  if (!a.height || !r.height || a.bottom <= r.top + 8 || a.top >= r.bottom - 8 || anchor.hidden) return;
   const above = a.top - r.top, below = r.bottom - a.bottom;
   panel.classList.add("town-anchored");
   if (above >= 220 || above >= below) Object.assign(panel.style, { top: "auto", bottom: `${Math.round(r.bottom - a.top + 6)}px`, maxHeight: `${Math.round(above - 12)}px` });

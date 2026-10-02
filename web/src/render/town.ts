@@ -12,6 +12,7 @@ import * as THREE from "three";
 import { QuadLayer, BAYER_GLSL } from "./layers";
 import { drawTown2D } from "./view2d";
 import type { Lineage, ReturnReport } from "../engine/types";
+import LIGHTS from "./town_lights.json";   // a copy of art/town_lights.json (`python3 art/town_lights.py`): each sprite's painted warm emitters
 
 export const TILE = 16;
 export const MAP_W = 56, MAP_H = 40;
@@ -26,24 +27,24 @@ export type BuildingId = (typeof BUILDINGS)[number];
 export type PlotId = "mouth" | "fire" | "tent" | "crate" | BuildingId;
 /** each plot's foot (texels) and its drawn height */
 export const PLOTS: Record<PlotId, Pt & { h: number }> = {
-  mouth: { ...T(CX, 6.6), h: 56 },
-  fire: { ...T(CX, 14.7), h: 15 },
-  tent: { ...T(CX + 3.25, 14.0), h: 28 },
-  crate: { ...T(CX + 4.95, 14.85), h: 12 },
-  blacksmith: { ...T(CX - 4.0, 10.6), h: 50 },
-  bank: { ...T(CX + 4.1, 10.6), h: 50 },
-  storehouse: { ...T(CX - 4.0, 19.2), h: 48 },
-  kennel: { ...T(CX + 4.0, 19.35), h: 46 },
+  mouth: { ...T(CX, 6.6), h: 64 },
+  fire: { ...T(CX, 14.7), h: 16 },
+  tent: { ...T(CX + 3.3, 14.0), h: 32 },
+  crate: { ...T(CX + 5.0, 14.9), h: 16 },
+  blacksmith: { ...T(CX - 4.6, 10.7), h: 64 },
+  bank: { ...T(CX + 4.6, 10.7), h: 64 },
+  storehouse: { ...T(CX - 4.5, 19.6), h: 64 },
+  kennel: { ...T(CX + 4.7, 19.8), h: 64 },
 };
 const NODES: Record<string, Pt> = {
-  in: T(CX, 6.3), mouth: T(CX, 7.5), cross: T(CX, 11.6), smith: T(CX - 2.3, 11.25), bank: T(CX + 2.3, 11.25),
+  in: T(CX, 6.3), mouth: T(CX, 7.5), cross: T(CX, 11.6), smith: T(CX - 4.4, 11.0), bank: T(CX + 4.4, 11.0),
   fireN: T(CX, 13.1), fireW: T(CX - 1.5, 14.95), fireE: T(CX + 1.5, 14.95), tent: T(CX + 2.45, 14.45), crate: T(CX + 4.3, 15.55),
-  fireS: T(CX, 16.7), south: T(CX, 18.6), store: T(CX - 2.2, 19.55), kennel: T(CX + 2.2, 19.7), exit: T(CX, 25),
+  fireS: T(CX, 16.7), south: T(CX, 18.6), store: T(CX - 4.3, 19.9), kennel: T(CX + 4.3, 20.1), exit: T(CX, 25),
 };
 const EDGES: [string, string, number][] = [   // [a, b, half-width of the dirt in tiles]
-  ["in", "mouth", 0.9], ["mouth", "cross", 0.8], ["cross", "smith", 0.55], ["cross", "bank", 0.55], ["cross", "fireN", 0.8],
+  ["in", "mouth", 0.9], ["mouth", "cross", 0.8], ["cross", "smith", 0.5], ["cross", "bank", 0.5], ["cross", "fireN", 0.8],
   ["fireN", "fireW", 0.55], ["fireN", "fireE", 0.55], ["fireE", "tent", 0.5], ["tent", "crate", 0.45], ["fireW", "fireS", 0.55],
-  ["fireE", "fireS", 0.55], ["fireS", "south", 0.7], ["south", "store", 0.55], ["south", "kennel", 0.55], ["south", "exit", 0.7],
+  ["fireE", "fireS", 0.55], ["fireS", "south", 0.7], ["south", "store", 0.5], ["south", "kennel", 0.5], ["south", "exit", 0.7],
 ];
 const ADJ = new Map<string, string[]>();
 for (const [a, b] of EDGES) { ADJ.set(a, [...(ADJ.get(a) ?? []), b]); ADJ.set(b, [...(ADJ.get(b) ?? []), a]); }
@@ -144,6 +145,8 @@ function loadPacked(): Promise<{ img: HTMLImageElement; frames: Record<string, F
   return packed;
 }
 const ATLAS = 1024;
+/** a walker's coat hue by class (rgb 0..255, applied to the mid-tones at a pixel's own value) */
+const WALKER_TINT: Record<string, number[]> = { rogue: [120, 70, 140], ranger: [80, 140, 72], caster: [70, 96, 200], fighter: [150, 160, 176] };
 /** fallback aspect (w / h) per id family */
 const ASPECT: [RegExp, number][] = [[/^town_mouth/, 1.55], [/^town_(blacksmith|bank|storehouse|kennel)_/, 1.25], [/^town_tent/, 1.05], [/^town_campfire/, 1.1],
   [/^town_plot/, 1.1], [/^town_scaffold/, 0.9], [/^(hero_|walk_|town_(smith|merchant|carter|child))/, 0.7], [/^town_(sack|chest)/, 0.95], [/^town_flag/, 0.6],
@@ -156,6 +159,7 @@ export class TownAtlas {
   private sx = 1; private sy = 1; private sh = 0;
   private src: { img: HTMLImageElement; frames: Record<string, Frame> } | null = null;
   ready = false;
+  private lastId = "";
   constructor() {
     this.canvas = document.createElement("canvas"); this.canvas.width = ATLAS; this.canvas.height = ATLAS;
     this.ctx = this.canvas.getContext("2d", { willReadFrequently: true })!;
@@ -176,6 +180,7 @@ export class TownAtlas {
     const x = this.sx, y = this.sy; this.sx += w + 1; this.sh = Math.max(this.sh, h);
     const slot: Slot = { x, y, w, h, u0: x / ATLAS, v0: 1 - (y + h) / ATLAS, u1: (x + w) / ATLAS, v1: 1 - y / ATLAS };
     this.slots.set(key, slot);
+    this.lastId = id;
     if (f && this.src) this.cut(this.src.img, f, slot); else drawPrimitive(this.ctx, id, x, y, w, h);
     this.version++;
     return slot;
@@ -189,6 +194,15 @@ export class TownAtlas {
     g.drawImage(img, f.x, f.y, f.w, f.h, 0, 0, s.w, s.h);
     const d = g.getImageData(0, 0, s.w, s.h), p = d.data;
     for (let i = 3; i < p.length; i += 4) p[i] = p[i]! < 110 ? 0 : 255;
+    // the art note ("the four walkers look alike"): a walker's coat takes its class's hue — mid-tones, never the BLOOD cloak or the ink
+    const tint = WALKER_TINT[/^(?:walk|hero)_(\w+?)(?:_|$)/.exec(f === undefined ? "" : this.lastId)?.[1] ?? ""];
+    if (tint) for (let i = 0; i < p.length; i += 4) {
+      if (!p[i + 3]) continue;
+      const r = p[i]!, gg = p[i + 1]!, b = p[i + 2]!, l = (0.2126 * r + 0.7152 * gg + 0.0722 * b) / 255;
+      if (l < 0.12 || l > 0.8 || (r > gg * 1.5 && r > b * 1.4)) continue;
+      const m = 0.42 * (1 - Math.abs(l - 0.42) * 1.6);
+      p[i] = r + (tint[0]! * l * 2 - r) * m; p[i + 1] = gg + (tint[1]! * l * 2 - gg) * m; p[i + 2] = b + (tint[2]! * l * 2 - b) * m;
+    }
     this.ctx.putImageData(d, s.x, s.y);
   }
 }
@@ -244,7 +258,7 @@ export function nightOf(hour: number): number {
   return h < 7 ? 1 - (h - 5) / 2 : (h - 17) / 4;
 }
 const mix3 = (a: number[], b: number[], t: number): [number, number, number] => [a[0]! + (b[0]! - a[0]!) * t, a[1]! + (b[1]! - a[1]!) * t, a[2]! + (b[2]! - a[2]!) * t];
-const AMB_DAY = [1.02, 1.0, 0.96], AMB_DUSK = [0.86, 0.68, 0.62], AMB_NIGHT = [0.26, 0.3, 0.48];
+const AMB_DAY = [1.1, 1.08, 1.06], AMB_DUSK = [0.86, 0.68, 0.62], AMB_NIGHT = [0.26, 0.3, 0.48];
 export function ambientOf(night: number): [number, number, number] {
   return night < 0.5 ? mix3(AMB_DAY, AMB_DUSK, night * 2) : mix3(AMB_DUSK, AMB_NIGHT, (night - 0.5) * 2);
 }
@@ -254,7 +268,8 @@ export function ambientOf(night: number): [number, number, number] {
 type Leg = { t0: number; t1: number; a: Pt; b: Pt };
 type Walker = { id: string; sprite: string[]; walk: string[]; h: number; legs: Leg[]; from: number; to: number; carry?: string; carryH?: number; lag: number;
   follow?: Walker; emerge?: boolean; vanish?: boolean; extend?: (w: Walker) => void; pet?: boolean };
-const SPEED = 34;   // texels a second (~2 tiles)
+const SPEED = 40;
+const PATH_DIM = 0.6;   // the path graded down a step (the art note: brighter and stripier than the buildings beside the dark grass)   // texels a second (~2 tiles)
 function legsAlong(pts: Pt[], t0: number, speed = SPEED, out: Leg[] = []): number {
   let t = t0;
   for (let i = 1; i < pts.length; i++) { const d = dist(pts[i - 1]!, pts[i]!); if (d < 0.01) continue; out.push({ t0: t, t1: t + d / speed, a: pts[i - 1]!, b: pts[i]! }); t += d / speed; }
@@ -299,7 +314,7 @@ export type TownView = {
   poke(): void;
   dispose(): void;
 };
-const IDLE_MS = 10_000, IDLE_FPS = 20;
+const IDLE_MS = 10_000, IDLE_FPS = 20, SOFT_FPS = 8;
 
 export function createTownView(host: HTMLElement): TownView {
   const el = host;
@@ -345,15 +360,15 @@ export function createTownView(host: HTMLElement): TownView {
     for (const p of s.parties) {
       const legs: Leg[] = [];
       const end = legsAlong(route("in", p.to), p.at, SPEED, legs);
-      const w: Walker = { id: `party${k++}`, sprite: heroIds, walk: walkIds, h: 18, legs, from: p.at, to: end + 0.4, lag: 0, emerge: true, vanish: true,
-        carry: p.chest ? "town_chest_glow" : p.sack ? `town_sack_${p.sack}` : undefined, carryH: p.chest ? 8 : p.sack === "large" ? 9 : 6 };
+      const w: Walker = { id: `party${k++}`, sprite: heroIds, walk: walkIds, h: 24, legs, from: p.at, to: end + 0.4, lag: 0, emerge: true, vanish: true,
+        carry: p.chest ? "town_chest_glow" : p.sack ? `town_sack_${p.sack}` : undefined, carryH: p.chest ? 8 : p.sack === "large" ? 8 : 6 };
       walkers.push(w);
-      if (p.pet) walkers.push({ id: `${w.id}pet`, sprite: [p.pet, "town_dog"], walk: [p.pet, "town_dog"], h: 11, legs, from: p.at + 0.7, to: end + 1.1, lag: 0.7, follow: w, emerge: true, vanish: true, pet: true });
+      if (p.pet) walkers.push({ id: `${w.id}pet`, sprite: [p.pet, "town_dog"], walk: [p.pet, "town_dog"], h: 14, legs, from: p.at + 0.7, to: end + 1.1, lag: 0.7, follow: w, emerge: true, vanish: true, pet: true });
     }
     // the hero at home: tent → forge → fire (→ the crate while no forge stands), a pause of 2–6 s at each
     const stops = ["tent", s.buildings.some((b) => b.id === "blacksmith") ? "smith" : "crate", "fireW"];
     let i = Math.floor(rng(1) * 3), n = 0;
-    hero = { id: "hero", sprite: heroIds, walk: walkIds, h: 18, legs: [], from: partyEnd, to: Infinity, lag: 0,
+    hero = { id: "hero", sprite: heroIds, walk: walkIds, h: 24, legs: [], from: partyEnd, to: Infinity, lag: 0,
       extend: (w) => {
         let tt = w.legs.length ? w.legs[w.legs.length - 1]!.t1 : partyEnd;
         for (let j = 0; j < 6; j++) {
@@ -365,7 +380,7 @@ export function createTownView(host: HTMLElement): TownView {
       } };
     hero.extend!(hero);
     walkers.push(hero);
-    s.pets.forEach((p, j) => walkers.push({ id: `pet${j}`, sprite: [p, "town_dog"], walk: [p, "town_dog"], h: 11, legs: hero!.legs, from: partyEnd, to: Infinity, lag: 0.9 + j * 0.6, follow: hero!, pet: true }));
+    s.pets.forEach((p, j) => walkers.push({ id: `pet${j}`, sprite: [p, "town_dog"], walk: [p, "town_dog"], h: 14, legs: hero!.legs, from: partyEnd, to: Infinity, lag: 0.9 + j * 0.6, follow: hero!, pet: true }));
     addStress();
   }
   function addStress(): void {
@@ -373,7 +388,7 @@ export function createTownView(host: HTMLElement): TownView {
     const names = Object.keys(NODES).filter((x) => x !== "in" && x !== "exit"), classes = ["fighter", "rogue", "ranger", "caster"];
     for (let j = 0; j < stressN; j++) {
       const cls = classes[j % 4]!; let at = names[j % names.length]!; let m = 0;
-      const w: Walker = { id: `stress${j}`, sprite: [`hero_${cls}`], walk: [`walk_${cls}`, `hero_${cls}`], h: 18, legs: [], from: t, to: Infinity, lag: 0,
+      const w: Walker = { id: `stress${j}`, sprite: [`hero_${cls}`], walk: [`walk_${cls}`, `hero_${cls}`], h: 24, legs: [], from: t, to: Infinity, lag: 0,
         extend: (ww) => { let tt = ww.legs.length ? ww.legs[ww.legs.length - 1]!.t1 : t; for (let q = 0; q < 6; q++) { const nx = names[hashN(j, m++, 77) % names.length]!; if (nx === at) continue; ww.legs.push({ t0: tt, t1: tt + 0.6, a: NODES[at]!, b: NODES[at]! }); tt = legsAlong(route(at, nx), tt + 0.6, SPEED, ww.legs); at = nx; } } };
       w.extend!(w); walkers.push(w);
     }
@@ -399,6 +414,27 @@ export function createTownView(host: HTMLElement): TownView {
     if (key === F.groundKey) return;
     F.groundKey = key; F.ground = [];
     const plaza = s.stage >= 4;
+    const standing = new Set(s.buildings.map((b) => DOOR[b.id]));   // a building's spur is trodden once it stands
+    // the path cells (the dirt along the graph's edges and round the fire; the plaza counts as path), then each cell's tile by the
+    // art's picking rule (art/town-ids.md: the sides whose neighbour is grass name the edge, corner, end or inner piece)
+    const path = new Uint8Array(MAP_W * MAP_H);
+    for (let y = 5 + OY; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
+      const c = { x: (x + 0.5) * TILE, y: (y + 0.5) * TILE };
+      if (dist(c, PLOTS.fire) / TILE < (plaza ? 2.1 : 1.6) || onPath(c, standing)) path[y * MAP_W + x] = 1;
+    }
+    const at = (x: number, y: number): boolean => x < 0 || x >= MAP_W || y >= MAP_H ? false : y < 5 + OY || !!path[y * MAP_W + x];
+    const pathTile = (x: number, y: number, hh: number): string => {
+      const n = !at(x, y - 1), e = !at(x + 1, y), so = !at(x, y + 1), w = !at(x - 1, y);
+      const k = (n ? 1 : 0) + (e ? 1 : 0) + (so ? 1 : 0) + (w ? 1 : 0);
+      if (k === 0) {
+        const d = !at(x + 1, y - 1) ? "ne" : !at(x - 1, y - 1) ? "nw" : !at(x + 1, y + 1) ? "se" : !at(x - 1, y + 1) ? "sw" : "";
+        return d ? `town_env_dirt_inner_${d}` : `town_env_dirt_${hh < 0.5 ? 0 : hh < 0.85 ? 1 : 2}`;
+      }
+      if (k === 1) return `town_env_dirt_edge_${n ? "n" : e ? "e" : so ? "s" : "w"}`;
+      if (k === 2) { if (n && so) return "town_env_dirt_edge_ns"; if (e && w) return "town_env_dirt_edge_ew"; return `town_env_dirt_corner_${n ? "n" : "s"}${e ? "e" : "w"}`; }
+      if (k === 3) return `town_env_dirt_end_${!n ? "s" : !e ? "w" : !so ? "n" : "e"}`;
+      return "town_env_dirt_isle";
+    };
     for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
       const c = { x: (x + 0.5) * TILE, y: (y + 0.5) * TILE };
       const hh = hashN(x, y, 5) % 1000 / 1000;
@@ -406,14 +442,16 @@ export function createTownView(host: HTMLElement): TownView {
       const fire = dist(c, PLOTS.fire) / TILE;
       if (y < 5 + OY) id = "town_env_cliff";
       else if (x <= CX - 18 && x >= CX - 19) id = "town_env_water";
-      else if (fire < (plaza ? 2.1 : 1.6)) id = plaza ? `town_env_plaza_${hh < 0.6 ? 0 : 1}` : `town_env_dirt_${hh < 0.5 ? 0 : hh < 0.85 ? 1 : 2}`;
-      else if (onPath(c)) id = `town_env_dirt_${hh < 0.5 ? 0 : hh < 0.85 ? 1 : 2}`;
+      else if (plaza && fire < 2.1) id = `town_env_plaza_${hh < 0.6 ? 0 : 1}`;
+      else if (path[y * MAP_W + x]) id = pathTile(x, y, hh);
       else id = `town_env_grass_${hh < 0.62 ? 0 : hh < 0.84 ? 1 : hh < 0.95 ? 2 : 3}`;
-      const sl = atlas.get(id, TILE);
-      F.ground.push({ s: sl, x: x * TILE + TILE / 2, y: (y + 1) * TILE, z: 0, w: TILE, h: TILE, flip: false, dim: 1, fade: 0 });
+      const sl = atlas.get([id, "town_env_dirt_0"], TILE);
+      F.ground.push({ s: sl, x: x * TILE + TILE / 2, y: (y + 1) * TILE, z: 0, w: TILE, h: TILE, flip: false, dim: id.includes("dirt") ? PATH_DIM : id.includes("plaza") ? 0.85 : 1, fade: 0 });
     }
   }
-  const onPath = (c: Pt): boolean => EDGES.some(([a, b, r]) => segDist(c, NODES[a]!, NODES[b]!) <= r * TILE);
+  const DOOR: Record<string, string> = { blacksmith: "smith", bank: "bank", storehouse: "store", kennel: "kennel" };
+  const SPURS = new Set(Object.values(DOOR));
+  const onPath = (c: Pt, standing: Set<string>): boolean => EDGES.some(([a, b, r]) => (!SPURS.has(b) || standing.has(b)) && segDist(c, NODES[a]!, NODES[b]!) <= r * TILE);
   /** the forest: trees on a jittered grid, cleared from the paths, the plots and the cliff */
   let trees: (Pt & { k: boolean })[] = [];
   function forest(): void {
@@ -438,6 +476,16 @@ export function createTownView(host: HTMLElement): TownView {
   }
   forest();
 
+  let flickNow = 1;
+  /** the warm emitters painted into a sprite (art/town_lights.json: [dx, dy, strength] from its foot), at `base` strength by day */
+  function emitters(id: string, p: Pt, night: number, r: number, base: number): void {
+    const L = LIGHTS as Record<string, number[][]>;
+    const list = L[id] ?? L[id.replace(/_\d$/, "_1")] ?? [];
+    for (const [dx, dy, k] of list) {
+      const a = (base + night * 0.95) * (k ?? 1) * flickNow; if (a < 0.04 || F.lights.length >= MAX_LIGHTS) continue;
+      F.lights.push({ x: p.x + dx!, y: p.y + dy!, r: r * (0.7 + 0.3 * (k ?? 1)) + night * 8, c: [1.0 * a, 0.64 * a, 0.3 * a] });
+    }
+  }
   function frame(): void {
     const s = state!;
     F.n = 0; F.lights.length = 0;
@@ -452,12 +500,14 @@ export function createTownView(host: HTMLElement): TownView {
     const m = PLOTS.mouth;
     sprite(["town_mouth_cave"], m.h, m.x, m.y);
     const fl = Math.floor(t * 6) & 1;
-    for (const sx of [-1, 1]) { sprite([`env_torch_${fl}`], 16, m.x + sx * 34, m.y - 14, { z: zOf(m.y) + 0.001 }); F.lights.push({ x: m.x + sx * 34, y: m.y - 24, r: 30 + night * 14, c: [1.0, 0.62, 0.28].map((v) => v * (0.5 + night * 0.9)) as [number, number, number] }); }
+    void fl;
+    emitters("town_mouth_cave", m, night, 30, 0.5);
     // the camp: the fire, the tent, the crate
     const f = PLOTS.fire;
     sprite([`town_campfire_${Math.floor(t * 5) & 1}`, "town_campfire_0"], f.h, f.x, f.y);
     const flick = 0.9 + 0.1 * Math.sin(t * 11) * Math.sin(t * 3.7);
     F.lights.push({ x: f.x, y: f.y - 8, r: (46 + night * 34) * flick, c: [1.0, 0.6, 0.26].map((v) => v * (0.45 + night * 1.1) * flick) as [number, number, number] });
+    flickNow = flick;
     sprite("town_tent", PLOTS.tent.h, PLOTS.tent.x, PLOTS.tent.y);
     if (night > 0.3) F.lights.push({ x: PLOTS.tent.x, y: PLOTS.tent.y - 6, r: 14, c: [0.9, 0.55, 0.25] });
     sprite("town_crate", PLOTS.crate.h, PLOTS.crate.x, PLOTS.crate.y);
@@ -466,20 +516,18 @@ export function createTownView(host: HTMLElement): TownView {
       const p = PLOTS[b.id];
       const at = builtAt.get(b.id);
       const up = at === undefined || t - at >= 1.3;
-      if (!up) { sprite("town_scaffold", 42, p.x, p.y); continue; }
+      if (!up) { sprite("town_scaffold", 56, p.x, p.y); continue; }
       sprite([`town_${b.id}_${b.look}`, `town_${b.id}_1`], p.h, p.x, p.y);
       if (at !== undefined && t - at < 2.4) {
         const g = (t - at - 1.3) / 1.1;
         sprite("fx_glint", 9, p.x + 18, p.y - p.h + 8 + g * 4, { z: 3, fade: Math.max(0, g * 1.2 - 0.2) });
       }
-      // windows at night, the forge's fire always
-      if (b.id === "blacksmith") F.lights.push({ x: p.x - 14, y: p.y - 10, r: 30 + night * 16, c: [1.0, 0.5, 0.2].map((v) => v * (0.35 + night * 0.9) * flick) as [number, number, number] });
-      if (night > 0.2) F.lights.push({ x: p.x + (b.id === "bank" ? 0 : 10), y: p.y - 18, r: 16 + night * 6, c: [1.0, 0.72, 0.36].map((v) => v * night) as [number, number, number] });
+      // the painted emitters (art/town_lights.json: the forge's mouth, lit windows): the forge always, the windows at night
+      emitters(`town_${b.id}_${b.look}`, p, night, b.id === "blacksmith" ? 26 : 18, b.id === "blacksmith" ? 0.35 : 0);
     }
     if (s.staked) {
       const p = PLOTS[s.staked.id];
-      sprite("town_plot", 12, p.x, p.y);
-      sprite([`town_flag_${Math.floor(t * 2) & 1}`, "town_flag_0"], 14, p.x + 9, p.y - 2);
+      sprite("town_plot", 16, p.x, p.y);
     }
     // the pen: penned pets lie by the kennel
     s.penned.forEach((k, j) => { const p = PLOTS.kennel; sprite([k, "town_dog"], 10, p.x - 20 + j * 12, p.y + 8, { flip: j % 2 === 1 }); });
@@ -499,8 +547,8 @@ export function createTownView(host: HTMLElement): TownView {
       const ids = step ? w.walk : w.sprite;
       sprite(ids, w.h, x, y - (step ? 1 : 0), { flip, fade });
       if (w.carry) {
-        const back = flip ? 5 : -5;
-        sprite(w.carry, w.carryH ?? 6, x + back, y - 5 - (step ? 1 : 0), { z: zOf(y) + 0.0002, flip, fade });
+        const back = (flip ? -1 : 1) * (w.carry === "town_chest_glow" ? 6 : 7);
+        sprite(w.carry, w.carryH ?? 6, x + back, y - 8 + (w.carryH ?? 6) - (step ? 1 : 0), { z: zOf(y) + 0.0002, flip, fade });
         if (w.carry === "town_chest_glow") F.lights.push({ x: x + back, y: y - 8, r: 18, c: [1.0, 0.85, 0.4] });
       }
       live++;
@@ -552,14 +600,15 @@ export function createTownView(host: HTMLElement): TownView {
     // the box: what stands (the mouth, the camp, the buildings, the staked plot) with a margin
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const add = (p: Pt & { h: number }, hw: number): void => { x0 = Math.min(x0, p.x - hw); x1 = Math.max(x1, p.x + hw); y0 = Math.min(y0, p.y - p.h); y1 = Math.max(y1, p.y + 6); };
-    add(PLOTS.mouth, 46); add(PLOTS.fire, 30); add(PLOTS.tent, 18); add(PLOTS.crate, 10);
-    for (const b of s.buildings) add(PLOTS[b.id], 32);
-    if (s.staked) add({ ...PLOTS[s.staked.id], h: 20 }, 22);
+    add(PLOTS.mouth, 52); add(PLOTS.fire, 30); add(PLOTS.tent, 18); add(PLOTS.crate, 10);
+    for (const b of s.buildings) add(PLOTS[b.id], 44);
+    if (s.staked) add({ ...PLOTS[s.staked.id], h: 22 }, 24);
     const M = 10; x0 -= M; x1 += M; y0 -= M; y1 += M + 4;
     // k: whole device px per texel — the largest that fits the box, or one more when that crops ≤ a margin's worth on each side
     const kf = Math.min(W / (x1 - x0), H / (y1 - y0));
     const up = Math.ceil(kf), fitsUp = W / up >= x1 - x0 - 2 * M - 4 && H / up >= y1 - y0 - 2 * M - 8;
-    const k = Math.max(1, up > kf && fitsUp ? up : Math.floor(kf));
+    // (a low-density screen — fewer than 2 device px a texel — scales by a fraction instead: the town at k = 1 was a postage stamp)
+    const k = up > kf && fitsUp ? up : kf < 2 ? Math.max(1, Math.floor(kf * 8) / 8) : Math.floor(kf);
     const w = Math.ceil(W / k), h = Math.ceil(H / k);
     let cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     cx = Math.max(w / 2, Math.min(MAP_W * TILE - w / 2, cx)); cy = Math.max(h / 2, Math.min(MAP_H * TILE - h / 2, cy));
@@ -573,7 +622,10 @@ export function createTownView(host: HTMLElement): TownView {
     if (document.hidden) { last = now; return; }   // hidden: no frames (visibilitychange resumes)
     if (!el.isConnected) { last = now; raf = requestAnimationFrame(loop); return; }   // (not mounted yet)
     const idle = now - lastInput > IDLE_MS;
-    if (idle && now - lastDraw < 1000 / IDLE_FPS - 2) { raf = requestAnimationFrame(loop); return; }
+    // the frame cap: none while input arrives, IDLE_FPS after 10 s without; a software GL under automation (juice off: the headless
+    // suites, seven browsers on the CPU) draws at SOFT_FPS — the scene is cosmetic and its frames were the suite's load
+    const cap = document.documentElement.dataset.juice === "off" ? SOFT_FPS : idle ? IDLE_FPS : 0;
+    if (cap && now - lastDraw < 1000 / cap - 2) { raf = requestAnimationFrame(loop); return; }
     const dt = Math.min(0.1, (now - last) / 1000); last = now; lastDraw = now;
     t += dt;
     if (state) {
@@ -630,7 +682,7 @@ export function createTownView(host: HTMLElement): TownView {
       if (!plot) return null;
       const ids: Record<string, string[]> = { mouth: ["town_mouth_cave"], fire: ["town_campfire_0"], tent: ["town_tent"], crate: ["town_crate"] };
       let s: Slot;
-      if (id === "staked") s = atlas.get("town_plot", 12);
+      if (id === "staked") s = atlas.get("town_plot", 16);
       else if ((BUILDINGS as readonly string[]).includes(id)) { const b = state.buildings.find((x) => x.id === id); if (!b) return null; s = atlas.get([`town_${id}_${b.look}`, `town_${id}_1`], plot.h); }
       else s = atlas.get(ids[id] ?? [id], plot.h);
       const a = css(plot.x - s.w / 2, plot.y - s.h), b = css(plot.x + s.w / 2, plot.y);
@@ -674,6 +726,8 @@ uniform float uNight;
 uniform vec4 uL[${MAX_LIGHTS}];   // x, y (texels from the view's top-left), radius, unused
 uniform vec3 uC[${MAX_LIGHTS}];
 uniform int uN;
+uniform vec2 uOrigin;    // the view's top-left in world texels (the moonlight's patches stay on the ground)
+uniform float uTime;
 ${BAYER_GLSL}
 void main() {
   vec2 px = floor(vec2(gl_FragCoord.x, uDevH - gl_FragCoord.y) / uK);
@@ -688,7 +742,11 @@ void main() {
     f = floor(f * f * 6.0 + d4) / 6.0;   // banded, dithered falloff: a pixel-art pool
     light += uC[i] * f;
   }
-  vec3 col = c * (uAmb + light) + light * light * 0.05 * (0.4 + uNight);
+  // moonlight in drifting patches (the art note: the grass read flat): a slow, broad value swell over the ground, banded
+  vec2 w = px + uOrigin;
+  float m = sin(w.x * 0.021 + uTime * 0.04) * sin(w.y * 0.027 - uTime * 0.03) + 0.5 * sin((w.x + w.y) * 0.013 + 1.7);
+  m = floor((0.5 + 0.33 * m) * 5.0 + d4) / 5.0;
+  vec3 col = c * (uAmb * (0.84 + 0.36 * m) + light) + light * light * 0.05 * (0.4 + uNight);
   // a soft vignette: the corners a step down (the night's more)
   vec2 q = px / uSize - 0.5;
   col *= 1.0 - (0.18 + 0.22 * uNight) * smoothstep(0.32, 0.75, length(q * vec2(1.0, 0.8)));
@@ -720,7 +778,7 @@ class GLTown {
     this.camera.position.set(0, 0, 100);
     this.mat = new THREE.ShaderMaterial({ vertexShader: BLIT_VERT, fragmentShader: BLIT_FRAG, depthTest: false, depthWrite: false,
       uniforms: { tex: { value: this.rt.texture }, uSize: { value: new THREE.Vector2(4, 4) }, uK: { value: 1 }, uDevH: { value: 4 }, uAmb: { value: new THREE.Vector3(1, 1, 1) }, uNight: { value: 0 },
-        uL: { value: this.lv }, uC: { value: this.lc }, uN: { value: 0 } } });
+        uL: { value: this.lv }, uC: { value: this.lc }, uN: { value: 0 }, uOrigin: { value: new THREE.Vector2() }, uTime: { value: 0 } } });
     this.blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mat));
   }
   restored(): void { this.groundKey = ""; this.atlasV = -1; this.tex.needsUpdate = true; }
@@ -743,7 +801,7 @@ class GLTown {
     (u.uSize!.value as THREE.Vector2).set(F.w, F.h); u.uK!.value = F.k; u.uDevH!.value = F.H; (u.uAmb!.value as THREE.Vector3).set(...F.amb); u.uNight!.value = F.night;
     const n = Math.min(MAX_LIGHTS, F.lights.length);
     for (let i = 0; i < n; i++) { const l = F.lights[i]!; this.lv[i]!.set(l.x - F.x0, l.y - F.y0, l.r, 0); this.lc[i]!.set(...l.c); }
-    u.uN!.value = n;
+    u.uN!.value = n; (u.uOrigin!.value as THREE.Vector2).set(F.x0, F.y0); u.uTime!.value = performance.now() / 1000;
     r.setRenderTarget(null); r.render(this.blitScene, this.blitCam);
   }
   dispose(): void { this.groundL.dispose(); this.objL.dispose(); this.mat.dispose(); this.rt.dispose(); this.tex.dispose(); this.renderer.dispose(); }
