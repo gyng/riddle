@@ -5,7 +5,7 @@ import type {
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
   Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders, WallEdit,
   Packages, Package, PkgOption, Town, Track, GrewLine, Quest, RowOrigin,
-  WorkNode, Works, NextPill, WorkerPost, WorkerAct,
+  WorkNode, Works, NextPill, WorkerPost, WorkerAct, Rarity,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -785,6 +785,17 @@ function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
     default: return false;
   }
 }
+/** Run-clear stand-in for the core's `item::rarity`: a gear kind's depth band + its `+N`; consumables by worth and depth; an unknown
+ *  flavour common. (The fake's own kinds; the core's table is the truth.) */
+const RARITY_ORDER: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
+const GEAR_BAND: Record<string, number> = { dagger: 0, sword: 0, leather: 0, axe: 1, bow: 1, mail: 1, plate: 2, spear: 2, mace: 3, scale: 3 };
+const RARE_KINDS = ["strength", "enchant", "recall", "mirror_shard"], UNCOMMON_KINDS = ["poison", "fire", "summon_ally", "regen", "resist_fire", "clarity", "silence", "earthquake", "mirror", "lantern", "bell", "salt", "chalk"];
+export function fakeRarity(it: Pick<InvItem, "kind" | "label" | "known">): Rarity {
+  if (it.kind in GEAR_BAND) { const p = GEAR_BAND[it.kind] + Number(/\+(\d+)/.exec(it.label)?.[1] ?? 0); return p <= 0 ? "common" : p <= 2 ? "uncommon" : p <= 4 ? "rare" : p <= 7 ? "epic" : "legendary"; }
+  if (!it.known) return "common";
+  return RARE_KINDS.includes(it.kind) ? "rare" : UNCOMMON_KINDS.includes(it.kind) ? "uncommon" : "common";
+}
+const withRarity = <T extends InvItem>(it: T): T => { const r = fakeRarity(it); const o = { ...it }; if (r === "common") delete o.rarity; else o.rarity = r; return o; };
 function pickUp(run: Run, it: FloorItem, ev: Ev[]): void {
   run.floor.items = run.floor.items.filter((x) => x !== it);
   ev.push({ t: run.turn, k: "pickup", id: it.id, item: it.label });
@@ -1188,6 +1199,7 @@ export class FakeEngine implements Engine {
   }
   save(): string { return JSON.stringify(this.s); }
   lineage(): Lineage {
+    this.s.lineage.vault = this.s.lineage.vault.map(withRarity); this.s.lineage.supplies = (this.s.lineage.supplies ?? []).map(withRarity);   // run-clear stand-in
     for (const c of Object.values(this.s.lineage.classes ?? {})) c.next = c.level < XP_LEVEL_CAP ? xpToNext(c.level) : 0;   // QA 92eb880: the ladder is the engine's (`ClassProg.next`)
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.look = (this.s as { look?: string }).look ?? (["rogue", "ranger"].includes(this.s.lineage.class) ? "female" : "male");   // hero looks
@@ -1586,6 +1598,9 @@ export class FakeEngine implements Engine {
     const cl = (L.classes[run.cls] ??= { level: 1, xp: 0 }); cl.xp += xp; const levels: number[] = [];
     while (cl.level < XP_LEVEL_CAP && cl.xp >= xpToNext(cl.level)) { cl.xp -= xpToNext(cl.level); cl.level++; levels.push(cl.level); for (const v of verbsAt(run.cls, cl.level)) facts.push(`verb:${v}`); }
     if (run.line) { run.line.xp = xp; run.line.level_ups = levels.length; }   // QA 92eb880: the exit line carries the run's XP (the wire's)
+    // run-clear stand-in: the core's card fields — the end, the floor, a record, the finds (rarest first, with `item::rarity`'s table)
+    if (run.line) { run.line.end = run.exit; run.line.reached = run.depth; run.line.new_best = run.depth > L.best_depth;
+      run.line.finds = run.picked.filter((it) => it.kind !== "gold").map(withRarity).sort((a, b) => RARITY_ORDER.indexOf(b.rarity ?? "common") - RARITY_ORDER.indexOf(a.rarity ?? "common")).slice(0, 6); }
     if (cl.level >= XP_LEVEL_CAP && !L.trophies.includes(`master:${run.cls}`)) { L.trophies.push(`master:${run.cls}`); marks += 2; bests.push(`master ${run.cls}`); }
     for (const f of run.facts) if (!L.facts.includes(f)) { L.facts.push(f); facts.push(f); }
     for (let d = L.best_depth + 1; d <= run.depth; d++) { marks += 1; bests.push(`D${d}`); }
@@ -2383,7 +2398,9 @@ const NODES305: [string, string, string, string, number, number, number, string,
 ];
 type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[]; ranks?: Record<string, number> };
 type Fk305 = Fk30 & { s: Fk30["s"] & { st305?: St305 } };
-const st305 = (e: Fk305): St305 => (e.s.st305 ??= { hired: ["quartermaster"], counts: {}, chest: 0, sent: false, paused: [], acted: [] });
+// (client half: the fake's demo lineage — a 7th heir with a chronicle — is an old save: the quartermaster, porter and scout pre-hired, as the
+// core maps a save without a tree (docs/CUT30_5.md §2); a heir-1 lineage starts the tree from the quartermaster)
+const st305 = (e: Fk305): St305 => (e.s.st305 ??= { hired: (e.s.lineage?.heir ?? 1) > 1 ? ["quartermaster", "porter", "scout"] : ["quartermaster"], counts: {}, chest: 0, sent: false, paused: [], acted: [] });
 const on305 = (st: St305, id: string): boolean => st.hired.includes(id) && !st.paused.includes(id);
 function works305(e: Fk305, L: Lineage, purse: number): Works {
   const st = st305(e); const age = L.age_h ?? 0; const unit = kitUnit(L.best_depth);
@@ -2437,11 +2454,19 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     if (DEV_NO_SYSTEMS) return off.call(this, s) as ReturnReport;
     const st = st305(this); const auto = on305(st, "scout");
     // (before the scout: a send is one run — an absence yields the run in flight, if any)
-    const g0 = this.s.lineage.gold; const r = off.call(this, auto ? s : st.sent ? 1 : 0) as ReturnReport; st.sent = false;
-    const gain = Math.max(0, this.s.lineage.gold - g0); const workers: WorkerAct[] = [];
-    if (!on305(st, "porter")) st.chest += gain;
-    else if (gain > 0) { workers.push({ id: "porter", what: `hauled $${gain}`, n: gain, first: !st.acted.includes("porter") }); st.acted.push("porter"); }
-    return { ...r, ...(gain && !on305(st, "porter") ? { chest: gain } : {}), ...(workers.length ? { workers } : {}) };
+    const g0 = this.s.lineage.gold, c0 = st.chest; const r = off.call(this, auto ? s : st.sent ? 1 : 0) as ReturnReport; st.sent = false;
+    // (the exits' haul went to the chest in `settle`, below, before the porter)
+    const gain = Math.max(0, this.s.lineage.gold - g0), toChest = Math.max(0, st.chest - c0); const workers: WorkerAct[] = [];
+    if (on305(st, "porter") && gain > 0) { workers.push({ id: "porter", what: `hauled $${gain}`, n: gain, first: !st.acted.includes("porter") }); st.acted.push("porter"); }
+    return { ...r, ...(toChest ? { chest: toChest } : {}), ...(workers.length ? { workers } : {}) };
+  };
+  // client half (c305-client): a real run's exit — watched or offline — lands its haul in the chest until the porter, and the hero is home
+  // (before the scout he waits for the next SEND)
+  const settle = P.settle; P.settle = function (this: Fk305, run: unknown, real: unknown, ...a: unknown[]): unknown {
+    if (DEV_NO_SYSTEMS || !real) return settle.call(this, run, real, ...a);
+    const st = st305(this), g0 = this.s.lineage.gold; const r = settle.call(this, run, real, ...a);
+    const gain = this.s.lineage.gold - g0; if (gain > 0 && !on305(st, "porter")) st.chest += gain;
+    st.sent = false; return r;
   };
   const send = P.send; P.send = function (this: Fk305): Snapshot { const st = st305(this); if (!on305(st, "scout") && !st.sent) { count(this, "scout"); st.sent = true; } return send.call(this) as Snapshot; };
   P.openChest = function (this: Fk305): Lineage { const st = st305(this); if (st.chest <= 0) throw new Error("chest empty"); count(this, "porter"); st.chest = 0; return this.lineage(); };

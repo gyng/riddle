@@ -85,6 +85,20 @@ Ghosts and magic glow MIST; fire and forge glow EMBER; nothing glows BLOOD excep
   hammered texture — never glossy metal. Parchment is BONE paper with bloom stains and an inked, deckled edge.
 - The primary gem is **BLOOD** (was amber); secondary gems MOON; danger gauges BLOOD, health MIST.
 - Icons: BONE ink drawings on dark tiles, one weight, no gradients.
+- **Item rarity** (run-clear, 2026-10-02; the owner: "include item rarity colours + icons"): five muted pigments that sit
+  beside the palette — mineral and wax colours, never MMO neon. Each base is ≥ 3:1 on BONE parchment and on UMBRA stone
+  (the item's rim, a name on parchment); the lit variant is for a name or a halo on the dark. An item is its BONE ink icon
+  (`art/ui/icons/it_<kind>.png`, a family glyph when absent) in an UMBRA well whose rim is the pigment, with an INK outline;
+  rare and up get a small BONE glint now and then, epic and legendary a soft halo of their own lit pigment. Tokens:
+  `web/src/items.css` (`--r-<tier>`, `--r-<tier>-lit`); the tiers are the core's (`item::rarity`).
+
+  | tier | name | base | lit | reads as |
+  |---|---|---|---|---|
+  | common | ASH | `#7b776a` | `#b3ad9b` | worn stone |
+  | uncommon | VERDIGRIS | `#4e8763` | `#86bc95` | weathered bronze (the Fens' teal family) |
+  | rare | LAPIS | `#4c76b2` | `#8eafe0` | MOON lifted to a pigment |
+  | epic | AMETHYST | `#8762a6` | `#bf9ad6` | a dusk violet, the only cool-warm between |
+  | legendary | GILT LEAF | `#a3752a` | `#e3b862` | GILT deepened (BLOOD stays the danger accent) |
 - Type: see §7.1. The copy budget (≤ 3 words) is untouched.
 
 ### 7.1 Typography (2026-09-30, the owner: "find better fonts")

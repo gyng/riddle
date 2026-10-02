@@ -52,7 +52,11 @@ export const conceptTag = (c: Concept): HTMLElement => h("span", { class: "conce
 /** Every keyword: a concept (its icon and caption above) or a glossary term. */
 export type Term = Concept | "heir" | "gold" | "best" | "reach" | "package" | "stance" | "tactic" | "temperament" | "drill" | "scar" | "quest" | "track"
   | "pen" | "lever" | "bank" | "banked" | "returned" | "death" | "plateau" | "ends" | "priority" | "condition" | "action" | "forge" | "kennel" | "pack"
-  | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled";
+  | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled"
+  | "works" | "worker" | "chest" | "scout" | "next" | "rank"   // Cut 30.5: the works tree
+  | "rarity";   // run-clear: an item's rim colour
+/** Cut 30.5: the works tree's terms — fragments of ≤ 4 words (eval/copy-budgets.json `node_tip`). */
+const WORKS_TIP = /* copy:node_tip */ { works: "workers take chores over", worker: "hand for one chore", chest: "the haul waits here", scout: "sends him each rest", next: "the one next goal", rank: "worker's grade · from service" };
 /** The tooltip's gloss: a fragment, ≤ 10 words with its live value (`tips.mjs` renders every one). A word that is another keyword is
  *  marked inside the plate (one level). */
 export const TIP: Record<Term, string> = /* copy:tooltip */ {
@@ -69,6 +73,8 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   price: "points of runs past best, dying or banking", forge: "gold buys kit steps", kennel: "pets and tamed allies", pack: "supplies he carries",
   v_gap: "no rule answered it", v_luck: "rules were fine · a bad roll", v_rule: "his own rule backfired", v_order: "right rule, ranked too low",
   v_stall: "stuck in a loop", v_route: "took the wrong stairs", v_repelled: "a boss drove him out",
+  rarity: "how fine a find is · common up to legendary",
+  ...WORKS_TIP,
 };
 /** The words that mark a term in a line (whole words, any case; the longest first). A term without aliases is marked only where a
  *  caller names it (`kw("v_luck", "luck")`, a host). */
@@ -78,21 +84,29 @@ export const ALIASES: Partial<Record<Term, string[]>> = /* copy:none */ {
   pen: ["the pen"], lever: ["lever"], bank: ["bank"], banked: ["banked"], returned: ["returned"], death: ["deaths"], plateau: ["plateau"], reach: ["reach"],
   ends: ["ends"], priority: ["priority"], condition: ["condition"], action: ["action"], vault: ["vault", "storehouse"], bones: ["bones"], bounty: ["bounty"],
   waystone: ["waystone", "waystones"], grudge: ["grudge"], kennel: ["kennel"], forge: ["forge", "blacksmith"],
+  works: ["works"], worker: ["workers", "worker"], chest: ["chest"], scout: ["scout"], rank: ["rank"], rarity: ["rarity"],
 };
 /** The plate's title: the term as the screen says it. */
 export const TITLE: Partial<Record<Term, string>> = /* copy:label */ {
   price: "if worn", gold: "gold", best: "best depth", pen: "the pen", pack: "pack", death: "death", ends: "run ends",
   v_gap: "no rule", v_luck: "luck", v_rule: "rule", v_order: "order", v_stall: "stall", v_route: "route", v_repelled: "repelled",
+  next: "next goal",
 };
 export const termTitle = (t: Term): string => TITLE[t] ?? t;
 /** The term's icon (a concept's, else the packed one named here). */
-const ICO: Partial<Record<Term, [string, string]>> = /* copy:none */ { gold: ["gold", "$"], best: ["depth", ""], reach: ["depth", ""], bank: ["gold", "$"], banked: ["gold", ""], returned: ["bail", ""], death: ["morgue", "☠"], forge: ["forge", "⚒"], kennel: ["party", ""], pack: ["loadout", ""], stance: ["pkg_steady", ""], heir: ["", ""] };
+const ICO: Partial<Record<Term, [string, string]>> = /* copy:none */ { rarity: ["", "◈"], works: ["node_porter", ""], worker: ["node_porter", ""], chest: ["gold", "$"], scout: ["node_scout", ""], next: ["", "▸"], gold: ["gold", "$"], best: ["depth", ""], reach: ["depth", ""], bank: ["gold", "$"], banked: ["gold", ""], returned: ["bail", ""], death: ["morgue", "☠"], forge: ["forge", "⚒"], kennel: ["party", ""], pack: ["loadout", ""], stance: ["pkg_steady", ""], heir: ["", ""] };
 export const termIcon = (t: Term): HTMLElement | null => { const c = (DEF as Record<string, { ico: string; glyph: string }>)[t]; const [ic, gl] = c ? [c.ico, c.glyph] : ICO[t] ?? ["", ""]; return ic || gl ? icon(ic, gl) : null; };
 const pctOf = (x: number): string => `${Math.round(Math.max(0, Math.min(1, x)) * 100)}%`;
 /** The live value at open, from the wire (none when the wire has none). All of it is the core's. */
 export const LIVE: Partial<Record<Term, (app: App) => string | null>> = {
   heir: (a) => { const n = a.lineage.graveyard?.length ?? 0; return n ? /* copy:tooltip */ `${n} fallen` : null; },
   gold: (a) => `$${a.lineage.gold}`,
+  // Cut 30.5: the works tree's — what waits in the chest, the hands hired, the sends toward the scout
+  chest: (a) => { const W = a.lineage.tree; return W ? /* copy:tooltip */ `$${W.chest} waits` : null; },
+  worker: (a) => { const n = (a.lineage.tree?.nodes ?? []).filter((x) => x.kind === "worker" && x.state === "done").length; return n ? /* copy:tooltip */ `${n} hired` : null; },
+  works: (a) => { const W = a.lineage.tree; const l = W?.nodes.find((x) => x.id === W.lit); return l ? /* copy:tooltip */ `lit: ${l.name}` : null; },
+  rank: (a) => { const W = a.lineage.tree, n = W?.nodes.find((x) => x.id === W.lit_rank); return n ? /* copy:tooltip */ `on offer: ${n.name} ${["", "I", "II", "III", "IV"][(n.rank ?? 1) + 1] ?? ""}` : null; },
+  scout: (a) => { const W = a.lineage.tree, s = W?.nodes.find((x) => x.id === "scout"); return !s ? null : W!.auto_send ? /* copy:tooltip */ "hired · auto" : s.need ? /* copy:tooltip */ `${s.count ?? 0}/${s.need} sends` : null; },
   marks: (a) => `◆${a.lineage.marks}`,
   renown: (a) => /* copy:tooltip */ `★ rank ${a.lineage.rank ?? 0}`,
   best: (a) => `D${a.lineage.best_depth}`,

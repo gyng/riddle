@@ -6,6 +6,7 @@ import type { App } from "../app";
 import { h, copyText, replace } from "./dom";
 import { closeEverything, openSheet } from "./sheet";
 import { audio } from "../audio";
+import { workerNodes } from "./works";
 import { autoOn, setAutoOn } from "./autodismiss";
 
 export function openSettings(app: App): void {
@@ -35,12 +36,23 @@ export function openSettings(app: App): void {
       app.setSlowdowns(!app.slowdowns); slow.classList.toggle("on", app.slowdowns); slow.setAttribute("aria-pressed", app.slowdowns ? "true" : "false"); replace(slow, app.slowdowns ? /* copy:button */ "on" : /* copy:button */ "off");
     } }, app.slowdowns ? /* copy:button */ "on" : /* copy:button */ "off");
 
+    // Cut 30.5: each hired worker a switch (on: his standing order; off: the chore by hand again) — `setWorker`
+    const W = app.lineage.tree;
+    const hired = W && app.engine.setWorker ? workerNodes(W).filter((n) => n.state === "done" && n.chore) : [];
+    const workerChip = (id: string, name: string, on: boolean): HTMLButtonElement => {
+      const b: HTMLButtonElement = h("button", { class: `chip worker-switch${on ? " on" : ""}`, role: "switch", "aria-checked": on ? "true" : "false", "data-worker": id, onclick: async () => {
+        const now = b.getAttribute("aria-checked") === "true";
+        if (await app.mutate(() => app.engine.setWorker!(id, !now))) { const n = app.lineage.tree?.nodes.find((x) => x.id === id); b.replaceWith(workerChip(id, name, !n?.paused)); }
+      } }, name, h("small", { class: "dim" }, on ? /* copy:label */ " on" : /* copy:label */ " off"));
+      return b;
+    };
     // docs/UI.md §7: the report, the death screen and open panels continue on their own (on by default)
     const auto = h("button", { class: `btn auto-continue${autoOn() ? " on" : ""}`, "aria-pressed": String(autoOn()), onclick: () => {
       setAutoOn(!autoOn()); auto.classList.toggle("on", autoOn()); auto.setAttribute("aria-pressed", String(autoOn())); replace(auto, autoOn() ? /* copy:button */ "on" : /* copy:button */ "off");
     } }, autoOn() ? /* copy:button */ "on" : /* copy:button */ "off");
 
     body.append(
+      hired.length ? h("div", { class: "srow workers-row" }, h("span", { class: "label" }, /* copy:label */ "workers"), h("span", { class: "chips" }, ...hired.map((n) => workerChip(n.id, n.name, !n.paused)))) : "",
       row(/* copy:label */ "sound", mute),
       row(/* copy:label */ "slowdowns", slow),
       row(/* copy:label */ "auto continue", auto),

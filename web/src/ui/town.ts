@@ -15,10 +15,11 @@ import { openSheet } from "./sheet";
 import { tile } from "./frame";
 import { audio } from "../audio";
 import { questShown } from "./quest";
+import { nextPill, openWorks } from "./works";   // Cut 30.5: the `next` pill, the works sheet
 import { kwHost } from "./tips";
 import type { Term } from "./concepts";
 /** docs/TOOLTIPS.md: a building's tip (long-press / hover; its tap stays its panel) */
-const HIT_TERM: Record<string, Term> = /* copy:none */ { crate: "pack", blacksmith: "forge", storehouse: "vault", kennel: "kennel", bank: "bank", board: "quest", staked: "track" };
+const HIT_TERM: Record<string, Term> = /* copy:none */ { crate: "pack", blacksmith: "forge", storehouse: "vault", kennel: "kennel", bank: "bank", board: "quest", staked: "track", chest: "chest", worker: "worker" };
 
 /** what a target opens (the camp wires each to its panel or sheet) */
 export type TownHooks = {
@@ -29,7 +30,7 @@ export type TownHooks = {
   quest(anchor: HTMLElement): void;
 };
 /* copy:label */
-const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "pack", blacksmith: "blacksmith", storehouse: "storehouse", kennel: "kennel", bank: "bank", staked: "next plot", board: "quest board" };
+const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "pack", blacksmith: "blacksmith", storehouse: "storehouse", kennel: "kennel", bank: "bank", staked: "next plot", board: "quest board", chest: "chest", worker: "next worker" };
 /** a building's tile on the bar: its id (the old console ids, kept: tests and badges key on them), icon and word */
 /* copy:button */
 export const BUILDING_TILE: Record<BuildingId, { id: string; icon: string; label: string; glyph: string }> = {
@@ -51,12 +52,16 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   const el = h("div", { class: "town" });
   const hits = h("div", { class: "town-hits" });
   const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite" });
+  // Cut 30.5: the `next` pill rides the scene's top-left (the home screen's one goal); a tap opens the works on its node
+  const pill = nextPill(app, (node, at) => openWorks(app, node, at));
+  kwHost(pill.el, "next");   // docs/TOOLTIPS.md: its tip on long-press / hover
   // c30-legible (the owner, a new player: "I didn't understand why there were new buildings"): a building's arrival names what raised
   // it (`first gold home → blacksmith`, the core's trigger), once, over the town while it stands up; its target glows the while
   const arrival = h("div", { class: "town-arrival num", "aria-live": "polite" });
-  el.append(hits, tag, arrival);
+  el.append(hits, tag, arrival, pill.el);
   let arrivalTimer = 0;
   const view = createTownView(el);
+  let chestOpenUntil = 0, chestTimer = 0;
   // the store: what this viewer has seen built (a building first seen goes up: scaffold → built) and opened (its rune goes)
   let store = load(app.lineage);
   // (an old save's first camp shows its town standing: no scaffold on everything)
@@ -78,13 +83,14 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   function paint(): void {
     const L = app.lineage;
     const s0 = load(L) ?? store!;
-    state = townState(L, absence, { seen: s0.seen, opened: s0.opened, kit: kitInfo(), absenceNew: !!absence, board: questShown(L) });
+    state = townState(L, absence, { seen: s0.seen, opened: s0.opened, kit: kitInfo(), absenceNew: !!absence, board: questShown(L), chestOpen: performance.now() < chestOpenUntil });
     view.setState(state);
     // seen now (a re-mount does not raise it again)
     const built = state.buildings.map((b) => b.id);
     const fresh = built.filter((b) => !s0.seen.includes(b));
     if (fresh.length) save(L, { ...s0, seen: [...new Set([...s0.seen, ...built])] });
     targets();
+    pill.paint();
     if (fresh.length) arrive(fresh);
   }
   /** c30-legible: the arrival's beat — `first gold home → blacksmith` (≤ 4 words + the arrow) — and the eye drawn to the building */
@@ -102,8 +108,11 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   /** the hit targets: one button per thing one can tap, over its sprite (≥ 44 px), its label hidden */
   function targets(): void {
     const s = state; if (!s) return;
-    const want: { id: string; plot: PlotId | "staked" }[] = [{ id: "mouth", plot: "mouth" }, { id: "tent", plot: "tent" }, { id: "crate", plot: "crate" },
+    const want: { id: string; plot: PlotId | "staked" | "chest" | "worker" }[] = [{ id: "mouth", plot: "mouth" }, { id: "tent", plot: "tent" }, { id: "crate", plot: "crate" },
       ...s.buildings.map((b) => ({ id: b.id, plot: b.id as PlotId })), ...(s.board ? [{ id: "board", plot: "board" as PlotId }] : [])];
+    // Cut 30.5: the chest taps while it holds a haul (drawn, closed and empty, it is no surface); the lit node's greyed worker opens the works
+    if (s.chest?.state === "full") want.push({ id: "chest", plot: "chest" });
+    if (s.workers.some((w) => w.lit)) want.push({ id: "worker", plot: "worker" });
     // the staked plot shows from day 0; it taps (its trigger) once the first building stands — day 0 keeps its four surfaces
     if (s.staked && s.stage >= 1) want.push({ id: "staked", plot: "staked" });
     for (const [id, b] of btns) if (!want.some((w) => w.id === id)) { b.remove(); btns.delete(id); }
@@ -117,10 +126,16 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       }
       // markers ride their building's target (one surface, the same panel)
       const mk = s.markers.filter((m) => m.at === w.id);
+      // the lit worker carries his price (`$40` · `free`), the chest the porter's count (`2/3`)
+      const lit = w.id === "worker" ? s.workers.find((x) => x.lit) : undefined;
+      if (lit) mk.push({ at: "chest", kind: "coin", label: lit.price ? `$${lit.price}` : /* copy:label */ "free" });
+      b.dataset.worker = lit?.id ?? "";
       const holder = b.querySelector(".town-markers") ?? b.appendChild(h("span", { class: "town-markers" }));
       replace(holder, ...mk.map((m) => h("span", { class: `town-marker mk-${m.kind}`, "data-marker": m.kind },
         icon(m.kind === "sword" ? "v_attack" : m.kind === "coin" ? "gold" : "alert", m.kind === "sword" ? "⚔" : m.kind === "coin" ? "$" : "!"), m.label ? h("b", { class: "num" }, m.label) : "")));
       b.dataset.markers = mk.map((m) => m.kind).join(" ");
+      const cnt = w.id === "chest" && s.chest?.need ? `${s.chest.count ?? 0}/${s.chest.need}` : "";
+      const ce = b.querySelector(".town-count"); if (cnt) { if (ce) ce.textContent = cnt; else b.appendChild(h("span", { class: "town-count num" }, cnt)); } else ce?.remove();
     }
     // c30-legible: the staked plot always wears its tag — what it becomes and what raises it (`kennel · first tame`), not only on tap
     if (s.staked) { replace(tag, h("b", null, s.staked.id), s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
@@ -130,11 +145,12 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   function layout(): void {
     const s = state; if (!s) return;
     for (const [id, b] of btns) {
-      const r = view.rectOf(id === "staked" ? "staked" : id as PlotId);
+      const wk = id === "worker" ? state?.workers.find((x) => x.lit) : undefined;
+      const r = view.rectOf(id === "staked" ? "staked" : id === "chest" ? "chest" : id === "worker" ? `worker:${wk?.id ?? ""}` : id as PlotId);
       if (!r) { b.hidden = true; continue; }
       b.hidden = false;
       // ≥ 44 px each way, centred on the sprite (a building's box trimmed to its body: the roof's sky is not the building)
-      const w = Math.max(44, r.w * (id === "mouth" ? 0.6 : 0.86)), hh = Math.max(44, r.h * (id === "mouth" ? 0.7 : 0.8));
+      const w = Math.max(44, r.w * (id === "mouth" ? 0.6 : id === "chest" || id === "worker" ? 1 : 0.86)), hh = Math.max(44, r.h * (id === "mouth" ? 0.7 : id === "chest" || id === "worker" ? 1 : 0.8));
       const cx = r.x + r.w / 2, by = r.y + r.h;
       Object.assign(b.style, { left: `${Math.round(cx - w / 2)}px`, top: `${Math.round(by - hh + (hh > r.h ? (hh - r.h) / 2 : 0))}px`, width: `${Math.round(w)}px`, height: `${Math.round(hh)}px` });
     }
@@ -150,6 +166,8 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     const b = btns.get(id)!;
     const L = app.lineage;
     if (id === "mouth") { hooks.send(); return; }
+    if (id === "chest") { void openChest(b); return; }
+    if (id === "worker") { openWorks(app, b.dataset.worker || undefined, b); return; }
     if (id === "staked") {
       const s = state?.staked; if (!s) return;
       // the next building and what raises it (`kennel · first tame`): always shown (c30-legible); a tap flashes it
@@ -175,6 +193,18 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     const ok = await app.mutate(() => app.engine.buyKit!(lad.slot), /* copy:callout */ "kit");
     if (ok) audio.cue("unlock");
   }
+  /** Cut 30.5: the chest's tap — the lid flips, the coins arc to the purse (quick: ~0.5 s), the purse counts up (juice.ts), the porter's
+   *  count moves (the core's `openChest`; the porter's chore). */
+  async function openChest(b: HTMLElement): Promise<void> {
+    if (!app.engine.openChest || (app.lineage.tree?.chest ?? 0) <= 0) return;
+    const gold = app.lineage.tree!.chest;
+    const flew = coinsFly(b, gold);   // (from the chest's box before the repaint takes its target away)
+    chestOpenUntil = performance.now() + 1500; paint();
+    clearTimeout(chestTimer); chestTimer = window.setTimeout(() => { if (el.isConnected) paint(); }, 1550);
+    audio.cue("exit_bank");
+    if (flew) await new Promise((r) => setTimeout(r, 380));   // the purse ticks as the first coins land
+    await app.mutate(() => app.engine.openChest!());   // (no forecast move to name: the purse is the sims' either way)
+  }
   function send(after: () => void): void {
     if (sending) return;
     sending = true;
@@ -183,7 +213,29 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     setTimeout(() => { sending = false; }, 2500);
   }
   paint();
-  return { el, view, paint, send, anchorOf: (id) => btns.get(id) ?? null, dispose: () => { clearTimeout(tagTimer); clearTimeout(arrivalTimer); view.dispose(); } };
+  return { el, view, paint, send, anchorOf: (id) => btns.get(id) ?? null, dispose: () => { clearTimeout(tagTimer); clearTimeout(chestTimer); clearTimeout(arrivalTimer); view.dispose(); } };
+}
+
+/** Cut 30.5: coins arc from `from` to the top bar's purse (juice on; a handful by the sum, staggered, ~0.5 s each); false when juice is off. */
+export function coinsFly(from: HTMLElement, gold: number): boolean {
+  if (document.documentElement.dataset.juice !== "on" || typeof Element.prototype.animate !== "function") return false;
+  const to = document.querySelector<HTMLElement>(".topbar .stat.gold"); if (!to) return false;
+  const a = from.getBoundingClientRect(), z = to.getBoundingClientRect();
+  const x0 = a.left + a.width / 2, y0 = a.top + a.height * 0.45, x1 = z.left + 12, y1 = z.top + z.height / 2;
+  const n = Math.max(4, Math.min(12, Math.round(Math.log2(Math.max(2, gold)) * 1.6)));
+  for (let i = 0; i < n; i++) {
+    const c = h("span", { class: "coin-fly", "aria-hidden": "true" });
+    c.style.left = `${x0}px`; c.style.top = `${y0}px`;
+    document.body.appendChild(c);
+    const sx = (Math.random() - 0.5) * 70, up = 50 + Math.random() * 40;
+    const anim = c.animate([
+      { transform: "translate(0, 0) scale(.6)", opacity: 0 },
+      { transform: `translate(${sx}px, ${-up}px) scale(1.1)`, opacity: 1, offset: 0.3 },
+      { transform: `translate(${x1 - x0}px, ${y1 - y0}px) scale(.7)`, opacity: 1 },
+    ], { duration: 640 + i * 14, delay: i * 35, easing: "cubic-bezier(.3,.1,.5,1)", fill: "both" });
+    anim.onfinish = () => c.remove(); setTimeout(() => c.remove(), 1600);
+  }
+  return true;
 }
 
 /** The building bar's tile for a standing building (`forge` · `vault` · `kennel` · `bank`): the same panel as the building. */

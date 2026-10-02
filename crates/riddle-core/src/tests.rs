@@ -11224,6 +11224,8 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
                 let j = strip_object(&j, "meters");
                 // (c30-legible: an exit line's `reason` is a new read of the same run)
                 let j = strip_str(&j, "reason");
+                // (run-clear: an exit line's card — its end, floor, record and finds — and every item's rarity are new reads of the same run)
+                let j = strip_tail_key(&strip_key(&strip_array(&strip_str(&strip_str(&j, "rarity"), "end"), "finds"), "reached"), "reached").replace(",\"new_best\":true", "");
                 fnv(&mut h, &j);
             }
             if r.run_over {
@@ -11260,7 +11262,7 @@ fn saves_from_307dbed_send_identically() {
     // (Cut 30: re-recorded `3754cfc8a2604f4b` → `9b68c23a7de8b0cd` — the save migrates as the
     // `custom` stance (its set as written), its heir's temperament no longer overrides a row, and each
     // band boss it meets carries the lineage's scars from the next send on)
-    // (Cut 30.5, the owner 2026-10-02: re-recorded `9b68c23a7de8b0cd` → `882adfa11576b89e` — a new record is a
+    // (Cut 30.5, the owner 2026-10-02: re-recorded `9b68c23a7de8b0cd` → `b710ceddd931b776` (with run-clear's exit fields merged) — a new record is a
     // checkpoint that secures the carry (`Run::secured`), so the exits' kept gold and the purse move; the set is
     // the save's own, its rows unchanged)
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();

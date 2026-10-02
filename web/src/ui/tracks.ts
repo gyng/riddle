@@ -1,13 +1,11 @@
-// Cut 30 §4 — the tracks panel (docs/CUT30.md): one panel, four rows — character · items · scale · town — each its stage (an icon and
-// ≤ 2 words), a progress bar when the next trigger is numeric, and `next · <stage> · <trigger>`. Opened from the portrait-mini in the
-// top bar. The report leads with what grew on each track (`ReturnReport.grew`, `grewBlock`). No tutorial text: the stages are the copy.
+// Cut 30 §4 — the four tracks (docs/CUT30.md): character · items · scale · town, each an icon and its name. Their panel became the works
+// sheet's branches in Cut 30.5 (ui/works.ts; the stages are the tree's `stage` nodes). The report leads with what grew on each track
+// (`ReturnReport.grew`, `grewBlock`). No tutorial text: the stages are the copy.
 import "../cut30.css";
-import type { App } from "../app";
-import type { GrewLine, Lineage, ReturnReport, Track } from "../engine/types";
+import type { GrewLine, Lineage, ReturnReport } from "../engine/types";
 import { h } from "./dom";
-import { openSheet } from "./sheet";
 import { icon, portraitSrc } from "./skin";
-import { kw, kwText } from "./tips";
+import { kwText } from "./tips";
 
 export const TRACK_IDS = ["character", "items", "scale", "town"] as const;
 /** Each track's icon (a packed one, else a CSS glyph). */
@@ -24,45 +22,6 @@ export const heroFace = (L: Pick<Lineage, "class" | "look">): string => `hero_${
 /* copy:label */
 const NAME: Record<string, string> = { character: "hero", items: "items", scale: "scale", town: "town" };
 export const trackName = (id: string): string => NAME[id] ?? id;
-
-/** The lineage has tracks on the wire (a Cut 30 core). */
-export const hasTracks = (L: Pick<Lineage, "tracks"> | undefined): boolean => !!L?.tracks?.length;
-/** Stages reached in all (the portrait-mini glints when it grows). */
-export const stagesReached = (L: Pick<Lineage, "tracks">): number => (L.tracks ?? []).reduce((a, t) => a + t.stages, 0);
-/** The mini opens the panel once any track has grown past its first stage (a fresh camp keeps its few surfaces). */
-export const tracksShown = (L: Pick<Lineage, "tracks"> | undefined): boolean => hasTracks(L) && (L!.tracks ?? []).some((t) => t.stages > 1);
-
-const KEY = "riddle.tracks.seen";
-/** Whether the stages grew since the last look at this lineage (per seed; the glint plays once, then the count is stored). */
-export function tracksGrew(L: Pick<Lineage, "tracks" | "seed">): boolean {
-  const n = stagesReached(L);
-  try {
-    const s = JSON.parse(localStorage.getItem(KEY) ?? "null") as { seed: number; n: number } | null;
-    if (!s || s.seed !== L.seed) { localStorage.setItem(KEY, JSON.stringify({ seed: L.seed, n })); return false; }
-    if (n !== s.n) { localStorage.setItem(KEY, JSON.stringify({ seed: L.seed, n })); return n > s.n; }
-  } catch { /* a per-viewer convenience */ }
-  return false;
-}
-
-/** One track's row: icon, the stage, the bar (a numeric trigger), `next · <stage> · <trigger>` (none once its stages are done). */
-export function trackRow(t: Track, hero?: string): HTMLElement {
-  return h("div", { class: "track-row", "data-track": t.id },
-    h("span", { class: "track-ico" }, trackIcon(t.id, hero)),
-    h("div", { class: "track-main" },
-      h("div", { class: "track-head" }, h("small", { class: "track-name dim" }, trackName(t.id)), h("b", { class: "track-stage" }, t.stage)),
-      t.progress !== undefined && t.progress !== null && t.next ? h("span", { class: "track-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(Math.max(0, Math.min(1, t.progress)) * 100)}%` })) : "",
-      t.next ? h("small", { class: "track-next num" }, /* copy:callout */ `next · ${t.next}${t.trigger ? ` · ${t.trigger}` : ""}`) : h("small", { class: "track-next done dim" }, "✓")));
-}
-
-/** Opens the tracks panel (a sheet anchored to the portrait-mini). */
-export function openTracks(app: App, anchor?: HTMLElement | null): void {
-  openSheet(() => {
-    const ts = app.lineage.tracks ?? [];
-    const order = (t: Track): number => { const i = (TRACK_IDS as readonly string[]).indexOf(t.id); return i < 0 ? 9 : i; };
-    return h("div", { class: "sheet-body tracks-panel" }, h("div", { class: "label row-label" }, kw("track", /* copy:label */ "tracks")),
-      ...[...ts].sort((a, b) => order(a) - order(b)).map((t) => trackRow(t, heroFace(app.lineage))));
-  }, { anchor });
-}
 
 /** The order on a track's line: a new stage, then a package that arrived (or the record, the purse), a level, then xp (`grewRank`). */
 export function grewRank(what: string): number {

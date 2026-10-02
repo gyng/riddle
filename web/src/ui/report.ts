@@ -16,7 +16,7 @@ import { systemIcon, systemLabel } from "./systems";
 import { measureKit, openForge } from "./forge";
 import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
-import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
+import type { Counter, ExitLine, InvItem, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
 import { h, replace, items, spanOf } from "./dom";
 import { openDropSheet, patchRows } from "./patches";
 import { BANDS, laneTitle, lanes, routeForks, seenForks } from "./route";
@@ -32,9 +32,13 @@ import { revealed } from "./reveal";
 import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
 import { grewBlock, heroFace } from "./tracks";
+import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 import { kw, kwText } from "./tips";
+import { mountClear } from "./runclear";   // run-clear: the run's card before the town
+import { itemIcon, itemName } from "./items";
+
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
@@ -493,17 +497,18 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 17 §4: the console — `open` (the worst death's verdict) · `gold` (the ledger of this absence's gold) · `ledger` (the
   // bestiary, from the 5th heir); the gem is `camp`
   const bar = renderBar(app);
-  const cons = renderConsole({
-    portrait: portrait(app, { hp: 1, label: heirOrd(L.heir) }).el,
-    gem: gem({ label: /* copy:button */ "camp", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
-    tiles: [
+  const consTiles = [
       // QA e75ec29 (Q: "`open` opens ♟5's death, not the newest; the label names nothing"): it is the absence's worst death — it says so
       // QA 912e135 (qaW: "`worst` — I read it as the shallowest death"): the tile says what it ranks by — the deepest death (a stall at
       // its floor yields to it)
       r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "deepest", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [], from: { report: r } }) }) : null,
       cmdTile({ id: "gold", label: /* copy:button */ "gold", icon: "gold", onclick: () => openGoldSheet(app) }),
       revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "ledger", icon: "ledger", onclick: () => openLedger(app) }) : null,
-    ],
+  ];
+  const cons = renderConsole({
+    portrait: portrait(app, { hp: 1, label: heirOrd(L.heir) }).el,
+    gem: gem({ label: /* copy:button */ "camp", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
+    tiles: consTiles,
   });
   // QA 524827b (qaAA: KEPT `axe +7 → vault` after the cage's `took axe +1`): an item enchant scrolls raised says by how many
   const keptItems: { label: string; enchanted?: number }[] = r.kept ? r.kept.map((label) => ({ label })) : r.new_finds ? r.found : [];
@@ -517,11 +522,20 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const detailsBtn: HTMLButtonElement = h("button", { class: "details-fold num", "aria-expanded": "false", onclick: () => {
     details.hidden = !details.hidden; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details");
+  // run-clear: a find or a kept item in its rarity rim — the rarity is the core's (the exit lines' finds, the vault), matched by label
+  const rarityOf = new Map<string, InvItem>([...(r.exits ?? []).flatMap((x) => x.finds ?? []), ...L.vault].map((it) => [it.label, it]));
+  const withRim = (label: string, text: string): (HTMLElement | string)[] => { const it = rarityOf.get(label); return it ? [itemIcon(it, { size: "s" }), itemName(it, text)] : [text]; };
+  const foundChips = (): HTMLElement | null => {
+    const names = r.found.map((i) => i.label);
+    if (!names.length) return null;
+    const seen = new Map<string, number>(); for (const n of names) seen.set(n, (seen.get(n) ?? 0) + 1);
+    return h("div", { class: "chips" }, ...[...seen].map(([label, n]) => h("span", { class: "chip" }, ...withRim(label, named(label).replace(/_/g, " ")), n > 1 ? h("b", { class: "num" }, ` ×${n}`) : "")));
+  };
   const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    grewBlock(r, heroFace(L)), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    grewBlock(r, heroFace(L)), workersBlock(L, r), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
@@ -540,7 +554,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // QA 0c6e126 (qaY: the header's `new find: bow, leather` beside FOUND `mail +1` — the item the send brought from the vault): an
     // absence's FOUND is its first finds (`ReturnReport.new_finds`, the core's, every one the header's `new find` names); what went to
     // the vault is KEPT (`→ vault`)
-    section(/* copy:label */ "found", r.new_finds ? chips(r.new_finds.map(named)) : chips(r.found.map((i) => named(i.label)))),
+    section(/* copy:label */ "found", r.new_finds ? chips(r.new_finds.map(named)) : foundChips()),
     // QA e75ec29 (R: six thefts in one run, "the report and gold sheet say nothing"): what thieves took and no run got back
     // QA a946e04 (S: `leash ×4` beside `leash (2)`, `black potion?` after LEARNED said confusion): one chip per name, identified kinds by
     // their name; T (`−$36 stolen` on the strip, only items here): the carry the thefts took leads (`$36`)
@@ -553,7 +567,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     // Cut 24 §5 (AK, AL: the tapped chip read as salvaged — a twin or the return's cut sold, the kept one renamed by the vault): what
     // the keep sheet sent to the vault leads the sell-off
-    section(/* copy:label */ "kept", keptItems.length ? h("div", { class: "chips kept" }, ...keptItems.map((x) => h("span", { class: "chip kept" }, named(x.label), flavourTag(L, x.label), /* copy:callout */ " → vault",
+    section(/* copy:label */ "kept", keptItems.length ? h("div", { class: "chips kept" }, ...keptItems.map((x) => h("span", { class: "chip kept" }, ...withRim(x.label, named(x.label)), flavourTag(L, x.label), /* copy:callout */ " → vault",
       x.enchanted && x.enchanted > 0 ? h("small", { class: "num dim enchanted" }, /* copy:callout */ ` · enchanted ×${x.enchanted}`) : ""))) : null),
     // Cut 21 §2: found supplies the exits put on the shelf (the next send packs them free), before what was sold
     section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → supplies"))) : null),
@@ -568,8 +582,14 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   ].filter((x): x is HTMLElement => !!x));
   detailsBtn.hidden = !details.childElementCount;
   const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null);   // desktop: the rules left, the shaft right (wide.css)
-  const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el, ...wide.els);
-  autoDismiss(cons.el.querySelector<HTMLElement>(".gem")!, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
+  const reportWell = h("div", { class: "well report-well" }, sheet);
+  const el = h("main", { class: "report frame" }, bar.el, reportWell, cons.el, ...wide.els);
+  const gemEl = cons.el.querySelector<HTMLElement>(".gem")!;
+  // run-clear (the owner: "each run should have the clear screen"): the run's card over the report — a watched run's, or an absence's
+  // last; its own clock, then the report's
+  const clear = mountClear(app, r, absence, reportWell, gemEl, () => cons.setTiles(consTiles));
+  if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
+  if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
   return { el, dispose: () => { bar.dispose(); wide.dispose(); } };
 }
 

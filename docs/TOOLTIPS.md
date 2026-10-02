@@ -60,6 +60,7 @@ but none of them mark words in chrome at rest as often as a text-light idle UI w
 | death | — | the seal (its verdict), the lever tablet |
 | forecast / shaft | `reach`, `ends` | the shaft (`reach`) |
 | the pen | `priority`, `condition`, `action` | — |
+| items (run-clear) | — | `rarity` on every row of item icons (the run's card, the death's strip): `how fine a find is · common up to legendary` |
 
 ## 4. Gates (`web/tests/tips.mjs`, phone 400 × 800 and 360 × 740, desktop 1440 × 900)
 

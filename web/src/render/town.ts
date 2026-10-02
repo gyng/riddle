@@ -71,7 +71,22 @@ const nearestNode = (p: Pt): string => { let b = "fireN", bd = Infinity; for (co
 
 // ---- the state: what stands and what walks ----------------------------------------------------------------------------------
 
-export type Marker = { at: PlotId; kind: "coin" | "rune" | "sword"; label?: string };
+export type Marker = { at: PlotId | "chest"; kind: "coin" | "rune" | "sword" | "chest"; label?: string };
+/** Cut 30.5 (docs/AUTOMATION_TREE.md §3C): the haul chest by the mouth (before the porter) and the workers at their posts */
+export type ChestState = { state: "closed" | "full" | "open"; gold: number; count?: number; need?: number };
+export type WorkerSpot = { id: string; post: string; lit: boolean; price?: number; paused: boolean; rank: number };
+/** the chest's foot, beside the path under the mouth */
+export const CHEST_AT: Pt & { h: number } = { ...T(CX + 1.6, 8.3), h: 12 };
+/** a worker's spot (texels, its foot): by id, else by its post's plot — art/town-ids.md's posts (the sheet's units × ~0.6 onto the map's
+ *  tiles), the herald and the scout moved to the map's own board (left of the mouth) */
+const WORKER_AT: Record<string, Pt> = {
+  quartermaster: T(CX + 4.9, 15.7), porter: T(CX + 1.1, 10.2), scout: T(CX - 1.1, 8.4), armourer: T(CX - 2.1, 19.4), apprentice: T(CX - 1.9, 11.6),
+  keeper: T(CX - 5.9, 19.8), clerk: T(CX + 2.8, 11.7), drillmaster: T(CX + 1.4, 16.3), kennel_hand: T(CX + 2.4, 19.7), herald: T(CX - 3.6, 7.9),
+  guide: T(CX + 1.65, 7.35),
+};
+export const workerAt = (w: { id: string; post: string }): Pt | null => WORKER_AT[w.id] ?? (PLOTS as Record<string, Pt | undefined>)[w.post] ?? null;
+/** a worker's frames (art/town-ids.md: `town_worker_<id>`, `_1` the idle beat) */
+export const workerIds = (id: string, frame = 0): string[] => frame ? [`town_worker_${id}_1`, `town_worker_${id}`] : [`town_worker_${id}`];
 export type Party = { at: number; cls: string; sack?: "small" | "large"; chest?: boolean; pet?: string; to: "tent" | "store" };
 export type TownState = {
   seed: number; day: number;
@@ -85,8 +100,10 @@ export type TownState = {
   markers: Marker[];                               // ≤ 3
   board: boolean;                                  // the quest board stands by the mouth
   depth: number;                                   // the best depth (the mouth's plaque)
+  chest?: ChestState;                              // Cut 30.5: the haul chest (none once the porter carries the hauls)
+  workers: WorkerSpot[];                           // Cut 30.5: hired workers at their posts; the lit node's greyed
 };
-export type TownOpts = { board?: boolean; seen?: string[]; opened?: string[]; kit?: { n: number; price?: number }; now?: Date; absenceNew?: boolean };
+export type TownOpts = { board?: boolean; seen?: string[]; opened?: string[]; kit?: { n: number; price?: number }; now?: Date; absenceNew?: boolean; chestOpen?: boolean };
 
 const hashN = (...xs: number[]): number => { let h = 2166136261; for (const x of xs) { h ^= x | 0; h = Math.imul(h, 16777619); h ^= h >>> 13; } return h >>> 0; };
 export const localDay = (now = new Date()): number => Math.floor((now.getTime() - now.getTimezoneOffset() * 60000) / 86400000);
@@ -121,6 +138,12 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   // markers (≤ 3): a sword over the forge when a kit step is affordable, a coin over the bank when a night's interest came in, a `!`
   // over a building not yet opened since it was built
   const markers: Marker[] = [];
+  // Cut 30.5: the chest before the porter — closed and empty from day 0 (drawn, not a surface), full with gold (a `!` and the sum), open
+  // just after a tap; the porter's hire retires it
+  const W = L.tree, porter = W?.nodes.find((n) => n.id === "porter");
+  const chest: ChestState | undefined = W && porter && (porter.state !== "done" || porter.paused) ? { state: o.chestOpen ? "open" : W.chest > 0 ? "full" : "closed", gold: W.chest, count: porter.count, need: porter.need } : undefined;
+  if (chest?.state === "full") markers.push({ at: "chest", kind: "chest", label: `$${chest.gold}` });
+  const workers: WorkerSpot[] = (town?.workers ?? []).map((w) => ({ id: w.id, post: w.post, lit: !!w.lit, price: w.price, paused: !!w.paused, rank: w.rank ?? 1 }));
   if (has("blacksmith") && (o.kit?.n ?? 0) > 0) markers.push({ at: "blacksmith", kind: "sword", label: o.kit?.price ? `$${o.kit.price}` : undefined });
   if (has("bank") && (town?.bank ?? 0) > 0 && o.absenceNew) markers.push({ at: "bank", kind: "coin" });
   const opened = new Set(o.opened ?? []);
@@ -128,7 +151,7 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   return {
     seed, day, stage: buildings.length, buildings, staked: next, hero: { cls: L.class || "fighter", look: L.look },
     pets: (L.party ?? []).slice(0, 2).map((c) => c.kind), penned: has("kennel") ? (L.kennel ?? []).slice(0, 2).map((c) => c.kind) : [],
-    parties, markers: markers.slice(0, 3), depth: L.best_depth ?? 0, board: !!o.board,
+    parties, markers: markers.slice(0, 3), depth: L.best_depth ?? 0, board: !!o.board, chest, workers,
   };
 }
 
@@ -168,6 +191,26 @@ export class TownAtlas {
     void loadPacked().then((p) => { this.src = p; this.ready = true; this.reset(); });
   }
   has(id: string): boolean { return !!this.src?.frames[id]; }
+  /** Cut 30.5: the slot of `ids` greyed — a lit node's worker not yet hired (art/town_sheet.py `grey()`: the values only, lifted toward a
+   *  pale MIST grey, alpha × 0.8), cut once into its own slot */
+  grey(ids: string | string[], h: number): Slot {
+    const base = this.get(ids, h);
+    const key = `grey:${Array.isArray(ids) ? ids.join("|") : ids}@${h}`;   // (a reset — the packed atlas landing — clears it with the rest)
+    const hit = this.slots.get(key); if (hit) return hit;
+    const w = base.w;
+    if (this.sx + w + 1 > ATLAS) { this.sy += this.sh + 1; this.sx = 1; this.sh = 0; }
+    if (this.sy + h + 1 > ATLAS) { this.reset(); return this.get(ids, h); }
+    const x = this.sx, y = this.sy; this.sx += w + 1; this.sh = Math.max(this.sh, h);
+    const d = this.ctx.getImageData(base.x, base.y, base.w, base.h), p = d.data;
+    for (let i = 0; i < p.length; i += 4) {
+      const l = 0.2126 * p[i]! + 0.7152 * p[i + 1]! + 0.0722 * p[i + 2]!;
+      p[i] = l * 0.4 + 164 * 0.42; p[i + 1] = l * 0.4 + 188 * 0.42; p[i + 2] = l * 0.4 + 214 * 0.42; p[i + 3] = p[i + 3]! * 0.8;
+    }
+    this.ctx.putImageData(d, x, y);
+    const slot: Slot = { x, y, w, h, u0: x / ATLAS, v0: 1 - (y + h) / ATLAS, u1: (x + w) / ATLAS, v1: 1 - y / ATLAS };
+    this.slots.set(key, slot); this.version++;
+    return slot;
+  }
   private reset(): void { this.slots.clear(); this.sx = 1; this.sy = 1; this.sh = 0; this.ctx.clearRect(0, 0, ATLAS, ATLAS); this.version++; }
   /** the slot of `id` drawn `h` texels tall (the first id of `ids` the atlas has, else a primitive of the first) */
   get(ids: string | string[], h: number): Slot {
@@ -327,7 +370,7 @@ const SMOKE = ["9a958c", "7d7a74", "b4afa4"], EMBER = ["ffb04a", "ff7a2a", "ffd7
 // ---- the view ---------------------------------------------------------------------------------------------------------------------
 
 export type TownStats = { fps: number; frames: number; cpuMs: number; cpuP95: number; walkers: number; mode: "gl" | "2d"; glLost: boolean; k: number; night: number; idle: boolean; running: boolean;
-  buildings: string[]; staked?: string; markers: string[]; view: [number, number, number, number] };
+  buildings: string[]; staked?: string; markers: string[]; view: [number, number, number, number]; chest?: string; workers: string[]; ranks: Record<string, number> };
 export type TownView = {
   readonly el: HTMLElement;
   setState(s: TownState): void;
@@ -335,7 +378,7 @@ export type TownView = {
   walkIn(ms?: number): Promise<void>;
   resize(): void;
   /** a plot's sprite box in CSS px (relative to the view's box); null when nothing stands there */
-  rectOf(id: PlotId | "staked"): { x: number; y: number; w: number; h: number } | null;
+  rectOf(id: PlotId | "staked" | "chest" | `worker:${string}`): { x: number; y: number; w: number; h: number } | null;
   onLayout(fn: () => void): void;
   stats(): TownStats;
   stress(n: number): void;
@@ -385,6 +428,7 @@ export function createTownView(host: HTMLElement): TownView {
   let hero: Walker | null = null;
   let walkingIn: { t0: number; t1: number; done: () => void } | null = null;
   let stressN = 0;
+  const arrive = new Map<string, Leg[]>();   // Cut 30.5: a worker hired on this mount walks out of the tent to his post
   const F: TownFrame = { x0: 0, y0: 0, w: 1, h: 1, k: 1, W: 1, H: 1, quads: [], n: 0, ground: [], groundKey: "", lights: [], amb: [1, 1, 1], night: 0, live: 0 };
   const rng = (n: number): number => (hashN(state?.seed ?? 1, n) % 100000) / 100000;
 
@@ -580,6 +624,39 @@ export function createTownView(host: HTMLElement): TownView {
       const p = PLOTS[s.staked.id];
       sprite("town_plot", 16, p.x, p.y);
     }
+    // Cut 30.5: the haul chest by the mouth — full, it hops and glints; open, the lid up a moment after the tap
+    if (s.chest) {
+      const c = CHEST_AT, st = s.chest.state, full = st === "full";
+      const hop = full ? -Math.round(Math.max(0, Math.sin(t * 4)) * 2) : 0;
+      sprite([`town_haul_chest${st === "closed" ? "" : `_${st}`}`, "town_haul_chest"], c.h, c.x, c.y + hop);
+      if (full) {
+        const g = (t * 0.7) % 1;
+        sprite("fx_glint", 7, c.x + 5, c.y - c.h + 1 + hop, { z: 3, fade: Math.min(1, Math.abs(g - 0.5) * 2.4) });
+        if (F.lights.length < MAX_LIGHTS) F.lights.push({ x: c.x, y: c.y - 6, r: 14 + night * 8, c: [0.9, 0.72, 0.3] });
+      }
+    }
+    // Cut 30.5: the workers at their posts — an idle beat (two frames, desynchronised); the lit node's worker greyed, still; a new hire
+    // walks out of the tent to his post
+    for (const w of s.workers) {
+      const p = workerAt(w); if (!p) continue;
+      let x = p.x, y = p.y, moving = false, flip = false;
+      const legs = arrive.get(w.id);
+      if (legs?.length) {
+        const at = walkerAt({ legs, from: legs[0]!.t0, to: Infinity } as Walker, t);
+        if (at && t < legs[legs.length - 1]!.t1) { x = at.x; y = at.y; moving = at.moving; flip = at.dx < -0.01; }
+        else arrive.delete(w.id);
+      }
+      const k = hashN(w.id.length, w.id.charCodeAt(0), w.id.charCodeAt(w.id.length - 1));
+      const beat = 0.9 + (k % 50) / 100, phase = (k % 97) / 31;
+      const step = moving && (Math.floor(t * 6.5) & 1) === 1;
+      const frameN = w.lit || moving ? 0 : Math.floor((t + phase) / beat) & 1;
+      if (w.lit) { const g = atlas.grey(workerIds(w.id), 24); if (inView(x, y, g.w, g.h)) push(g, Math.round(x), Math.round(y), zOf(y), flip, 1, 0); }
+      else sprite(workerIds(w.id, frameN), 24, x, y - (step ? 1 : 0), { flip, dim: w.paused ? 0.7 : 1 });
+      // week 2: his rank, quiet — a gilt pip over his head per rank past the first (II ·, III ··)
+      if (!w.lit && w.rank > 1) for (let r = 0; r < w.rank - 1; r++) sprite("fx_dot_d8b45a", 2, x - (w.rank - 2) * 1.5 + r * 3, y - 26 - (step ? 1 : 0), { z: zOf(y) + 0.0003 });
+      // at night the walkers' small MIST light: the dark coats would sink into the night grass
+      if (night > 0.3 && F.lights.length < MAX_LIGHTS) F.lights.push({ x, y: y - 20, r: 18, c: [0.64 * 0.35 * night, 0.74 * 0.35 * night, 0.84 * 0.35 * night] });
+    }
     // the pen: penned pets lie by the kennel
     s.penned.forEach((k, j) => { const p = PLOTS.kennel; sprite([k, "town_dog"], 10, p.x - 20 + j * 12, p.y + 8, { flip: j % 2 === 1 }); });
     // walkers
@@ -653,6 +730,7 @@ export function createTownView(host: HTMLElement): TownView {
     const add = (p: Pt & { h: number }, hw: number): void => { x0 = Math.min(x0, p.x - hw); x1 = Math.max(x1, p.x + hw); y0 = Math.min(y0, p.y - p.h); y1 = Math.max(y1, p.y + 6); };
     add(PLOTS.mouth, 52); add(PLOTS.fire, 30); add(PLOTS.tent, 18); add(PLOTS.crate, 10);
     for (const b of s.buildings) add(PLOTS[b.id], 44);
+    for (const w of s.workers) { const p = workerAt(w); if (p) add({ ...p, h: 24 }, 10); }
     if (s.staked) add({ ...PLOTS[s.staked.id], h: 22 }, 24);
     const M = 10; x0 -= M; x1 += M; y0 -= M; y1 += M + 4;
     // k: whole device px per texel — the largest that fits the box, or one more when that crops ≤ a margin's worth on each side
@@ -710,6 +788,12 @@ export function createTownView(host: HTMLElement): TownView {
       const prev = state; state = s;
       // a building the player has not seen yet goes up on this mount: scaffold → built
       for (const b of s.buildings) if (b.fresh && !builtAt.has(b.id) && !prev?.buildings.some((x) => x.id === b.id)) builtAt.set(b.id, t + 0.4);
+      // a worker hired since the last state (he stood greyed, or nowhere): out of the tent, along the paths, to his post
+      if (prev) for (const w of s.workers) {
+        if (w.lit || prev.workers.some((x) => x.id === w.id && !x.lit)) continue;
+        const p = workerAt(w); if (!p) continue;
+        const legs: Leg[] = []; legsAlong([NODES.tent!, ...route("tent", nearestNode(p)), p], t + 0.2, SPEED * 1.3, legs); arrive.set(w.id, legs);
+      }
       const key = (x: TownState | null): string => x ? JSON.stringify([x.hero, x.pets, x.parties.length, x.buildings.map((b) => b.id), x.seed]) : "";
       if (!prev || key(prev) !== key(s)) build();
       fit(); layoutDirty = true; start();
@@ -729,7 +813,15 @@ export function createTownView(host: HTMLElement): TownView {
     resize() { fit(); layoutDirty = true; },
     rectOf(id) {
       if (!state) return null;
-      const plot = id === "staked" ? (state.staked ? PLOTS[state.staked.id] : null) : PLOTS[id];
+      if (id === "chest" || id.startsWith("worker:")) {   // (the chest and the workers stand off the plots)
+        const wk = id === "chest" ? null : state.workers.find((w) => `worker:${w.id}` === id);
+        const p = id === "chest" ? (state.chest ? CHEST_AT : null) : wk ? workerAt(wk) : null;
+        if (!p) return null;
+        const s = id === "chest" ? atlas.get(["town_haul_chest"], CHEST_AT.h) : atlas.get(workerIds(wk!.id), 24);
+        const a = css(p.x - s.w / 2, p.y - s.h), b = css(p.x + s.w / 2, p.y);
+        return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+      }
+      const plot = id === "staked" ? (state.staked ? PLOTS[state.staked.id] : null) : PLOTS[id as PlotId];
       if (!plot) return null;
       const ids: Record<string, string[]> = { mouth: ["town_mouth_cave"], fire: ["town_campfire_0"], tent: ["town_tent"], crate: ["town_crate"], board: ["town_board"] };
       let s: Slot;
@@ -744,7 +836,9 @@ export function createTownView(host: HTMLElement): TownView {
       const s = state;
       const sorted = [...cpu].sort((a, b) => a - b);
       return { fps: fpsWin.length, frames, cpuMs: cpu[cpu.length - 1] ?? 0, cpuP95: sorted[Math.floor(sorted.length * 0.95)] ?? 0, walkers: F.live, mode: gl && !glLost ? "gl" : "2d", glLost, k: F.k, night: F.night, idle: performance.now() - lastInput > IDLE_MS, running: !!raf,
-        buildings: s?.buildings.map((b) => b.id) ?? [], staked: s?.staked?.id, markers: s?.markers.map((m) => `${m.kind}@${m.at}`) ?? [], view: [F.x0, F.y0, F.w, F.h] };
+        buildings: s?.buildings.map((b) => b.id) ?? [], staked: s?.staked?.id, markers: s?.markers.map((m) => `${m.kind}@${m.at}`) ?? [], view: [F.x0, F.y0, F.w, F.h],
+        chest: s?.chest?.state, workers: s?.workers.map((w) => `${w.id}${w.lit ? "(lit)" : w.paused ? "(off)" : ""}`) ?? [],
+        ranks: Object.fromEntries((s?.workers ?? []).filter((w) => !w.lit && w.rank > 1).map((w) => [w.id, w.rank])) };
     },
     stress(n) { stressN = n; if (state) addStress(); },
     setHour(h) { hourOverride = h; },

@@ -50,9 +50,8 @@ try {
   // floor rarely dies on Steady), behind the pen at the first death
   check(!(await page.locator("main .portrait .look-stud").count()), "a fresh camp has no look stud");
   // a 1 h absence returns runs (a best depth), which is how the real game reveals the stud now — not a death
-  await page.goto(`${url}?dev=1&fresh=1&seed=31&absent=1h`, { waitUntil: "domcontentloaded" });
-  await waitFor((s) => s?.booted && s.screen !== "boot", "after an absence", 60_000);
-  await page.evaluate(() => window.__riddle.go?.({ kind: "camp" }));
+  // (Cut 30.5: before the scout a send is one run by hand — the hero is sent, then the absence plays that run out)
+  await page.evaluate(async () => { const r = window.__riddle; await r.engine.send(); await r.runOfflineChunked(3600); await r.refresh(); r.go({ kind: "camp" }); });
   await waitFor((s) => s?.screen === "camp", "camp");
   const L1 = await page.evaluate(async () => { const L = await window.__riddle.engine.lineage(); return { best: L.best_depth ?? 0 }; });
   check(L1.best > 0, `the absence earned a best depth (D${L1.best}): the stud's condition`);

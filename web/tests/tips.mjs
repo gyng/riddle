@@ -197,11 +197,11 @@ for (const V of VIEWS) {
       await page.evaluate(() => window.__tips.reset());
     }
 
-    // ---- tracks and quest panels
-    if (await page.locator(".topbar button.tracks-btn").count()) {
-      await page.locator(".topbar button.tracks-btn").click();
-      await until(() => !!document.querySelector(".tracks-panel"), "the tracks panel");
-      await density("tracks");
+    // ---- the works sheet (Cut 30.5: the tracks panel's successor, opened from the `next` pill) and the quest panel
+    if (await page.locator(".next-pill:not([hidden])").count()) {
+      await page.locator(".next-pill").click();
+      await until(() => !!document.querySelector(".works-sheet"), "the works sheet");
+      await density("works");
       await page.evaluate(() => { for (const s of document.querySelectorAll(".sheet .close-stud, .sheet .sheet-x")) s.click(); }); await sleep(300);
     }
     if (await page.locator('.cmd .tile[data-tile="quest"]').count()) {
