@@ -123,9 +123,15 @@ def main() -> None:
         edge.alpha_composite(pix, (1, 1))
         edge.save(OUT / "fx" / f"{p.stem}_px.png")
         fx.append(f"{p.stem}_px")
+    # Cut 30 §5: the quest board's reward pictures (art/ui/oath/: card, heir, route, row, slot, title, verb, waystone), 256 px opaque
+    (OUT / "quest").mkdir(parents=True, exist_ok=True)
+    quest = []
+    for p in sorted((ROOT / "art/ui/oath").glob("*.png")) if (ROOT / "art/ui/oath").exists() else []:
+        Image.open(p).convert("RGB").resize((256, 256), Image.LANCZOS).save(OUT / "quest" / f"{p.stem}.webp", quality=86, method=6)
+        quest.append(p.stem)
     # keys other tools own (tools/foe-portraits.py `foes`) are kept
     old = json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
-    old.update({"frames": frames, "icons": icons, "portraits": portraits, "backdrops": backdrops, "deco": deco, "fx": fx})
+    old.update({"frames": frames, "icons": icons, "portraits": portraits, "backdrops": backdrops, "deco": deco, "fx": fx, "quest": quest})
     MANIFEST.write_text(json.dumps(old, indent=1) + "\n")
     print(f"ui-skin: {len(frames)} frames, {len(icons)} icons, {len(portraits)} portraits, {len(backdrops)} backdrops, {len(deco)} deco, {len(fx)} fx -> web/public/ui/" + (f"; unusable: {', '.join(bad)}" if bad else ""))
 

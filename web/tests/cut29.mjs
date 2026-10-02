@@ -3,9 +3,9 @@
 //   merge   `mergeReports` carries the Cut 29 fields — night marks summed, systems opened unioned in order, kept oaths and the fallen
 //           concatenated, the meters merged (totals add; rates recomputed from the summed seconds)
 //   §4      the keep sheet only when it is a decision (`ExitPending.decide`); a settled exit says its one line (`kept leather +1`)
-//   §2      the systems open one at a time: a fresh lineage's camp shows no tile, compact tablets, no vs line; each trigger opens its
-//           system (the edit tile at the first death, glinting; the order's ▲▼ at the first plateau; the forge at the Warlord slain); the
-//           report plaques the systems an absence opened; the camp clears the core's `new` once shown (`seenSystems`)
+//   §2      the systems open one at a time: a fresh lineage's camp shows no tile, no editor, no vs line; each trigger opens its
+//           system (Cut 30's reveal: the verdicts at the first death, the forge and the packages at the Warlord slain, the edit tile and the
+//           order's ▲▼ with the pen); the report plaques the systems an absence opened; the camp clears the core's `new` once shown
 //
 //   node web/tests/cut29.mjs [--shots dir] [--part=a,b]      (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -107,44 +107,40 @@ try {
         supplies: [{ id: 100000, kind: "leash", known: true, label: "leash", free: true }] });
     });
     await camp();
+    // Cut 30 (the Reveal): day 0 is the send and the headline; the editor (and the dial, the order, the vs line) wait for the pen
     const d0 = await page.evaluate(() => ({ sys: (window.__riddle.lineage.systems ?? []).filter((s) => s.open).map((s) => s.id), tiles: [...document.querySelectorAll(".cmd .tile:not(.empty)")].length,
-      compact: !!document.querySelector(".editor.compact"), vs: !!document.querySelector(".shaft-vs"), route: !!document.querySelector(".route-line:not([hidden])") }));
-    check(d0.sys.join() === "send,dial,headline" && d0.tiles === 0 && d0.compact && !d0.vs && !d0.route, `day 0: only ${d0.sys.join(" · ")} open — ${d0.tiles} tiles, compact tablets ${d0.compact}, no vs line (${d0.vs})`);
+      editor: [...document.querySelectorAll(".camp .editor")].some((x) => x.offsetParent !== null), vs: !!document.querySelector(".shaft-vs"), route: !!document.querySelector(".route-line:not([hidden])") }));
+    check(d0.sys.join() === "send,headline" && d0.tiles === 0 && !d0.editor && !d0.vs && !d0.route, `day 0: only ${d0.sys.join(" · ")} open — ${d0.tiles} tiles, no editor (${d0.editor}), no vs line (${d0.vs})`);
     await shot("cut29-day0");
-    // the first death opens the edit (and the verdicts): the tile glints on its arrival
+    // the first death opens the verdicts — not the edit (Cut 30: the pen is late); the core marks it new until the camp has shown it
     await withState((e) => { e.lineage.heir = 2; e.lineage.graveyard = [{ heir: 1, depth: 2, cause: "rat", deeds: [] }]; });
     await camp();
     const t1 = await tiles();
-    check(t1.includes("edit*"), `the first death opens the edit tile, glinting (${t1.join(" · ")})`);
+    check(!t1.some((t) => t.startsWith("edit")), `the first death opens no edit tile before the pen (${t1.join(" · ") || "none"})`);
     const n1 = await page.evaluate(() => (window.__riddle.lineage.systems ?? []).filter((s) => s.new).map((s) => s.id));
-    check(n1.includes("edit"), `the core marks it new until the camp has shown it (${n1.join(" · ")})`);
+    check(n1.includes("death") && !n1.includes("edit"), `the core marks the verdicts new until the camp has shown them (${n1.join(" · ")})`);
     await sleep(2000);
     await page.evaluate(async () => { const r = window.__riddle; r.go({ kind: "watch" }); });   // the camp left for a send after the glint
     await until(() => window.__riddle.screen === "watch", "the watch");
     const n2 = await until(() => { const n = (window.__riddle.lineage.systems ?? []).filter((s) => s.new).map((s) => s.id); return n.length ? null : n; }, "the new marks cleared", 5000).catch(() => ["still new"]);
     check(n2.length === 0, `once shown, the next send clears it (seenSystems): new ${JSON.stringify(n2)}`);
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await camp();
-    // editing before the first plateau: no order yet (no ▲▼, the grip does not drag); the exits' verbs and the foe tags not offered
-    await page.locator(".cmd .tile[data-tile=edit]").click();
-    await until(() => !document.querySelector(".editor.compact") && document.querySelector(".editor .row.tablet"), "the editor");
-    const e1 = await page.evaluate(() => ({ updown: document.querySelectorAll(".editor .updown").length, still: document.querySelectorAll(".editor .grip.still").length }));
-    check(e1.updown === 0 && e1.still > 0, `before the first plateau the tablets carry no ▲▼ (${e1.updown}) and a still grip (${e1.still})`);
-    await page.locator(".editor .row.tablet .chip.verb").first().click();
-    const verbs = await until(() => { const s = [...document.querySelectorAll(".sheet-wrap .chip.verb")].map((c) => c.textContent.trim()); return s.length ? s : null; }, "the action sheet");
-    check(!verbs.some((v) => /^(bank|rest)\b/.test(v)), `the action sheet offers no exit verb before the first gold home (${verbs.join(" · ")})`);
-    await page.keyboard.press("Escape"); await sleep(200);
-    // the first plateau opens the order and the vs line
-    await withState((e) => { e.sys29.plateau = true; });
-    await camp();
-    await page.evaluate(() => { window.__riddle.editing = true; window.__riddle.go({ kind: "camp" }); }); await camp();
-    const e2 = await page.evaluate(() => document.querySelectorAll(".editor .updown").length);
-    check(e2 > 0, `the first plateau opens the order: ▲▼ on the tablets (${e2})`);
-    // the Warlord slain opens the forge
+    // the Warlord slain opens the forge (the first gold home the loadout), the packages and the quest board — still no editor
     await withState((e) => { e.lineage.best_depth = 9; e.lineage.gold = 400; e.lineage.gold_ledger = [{ t: 1, delta: 400, why: "bank D9" }]; });
     await camp();
     const t3 = await tiles();
-    check(t3.some((t) => t.startsWith("forge")) && t3.some((t) => t.startsWith("loadout")), `the Warlord slain opens the forge, the first gold home the loadout (${t3.join(" · ")})`);
+    check(t3.some((t) => t.startsWith("forge")) && t3.some((t) => t.startsWith("loadout")) && t3.some((t) => t.startsWith("packages")) && !t3.some((t) => t.startsWith("edit")),
+      `the Warlord slain opens the forge, the loadout and the packages, no edit yet (${t3.join(" · ")})`);
     await shot("cut29-forge-open");
+    // the pen (the Mother met): the edit tile, the editor, the order (▲▼) with it
+    await withState((e) => { e.lineage.best_depth = 14; });
+    await camp();
+    const t4 = await tiles();
+    check(t4.some((t) => t.startsWith("edit")), `the pen opens the edit tile (${t4.join(" · ")})`);
+    await page.locator(".cmd .tile[data-tile=edit]").click();
+    await until(() => !document.querySelector(".editor.compact") && document.querySelector(".editor .row.tablet"), "the editor");
+    const e2 = await page.evaluate(() => document.querySelectorAll(".editor .updown").length);
+    check(e2 > 0, `the pen brings the order: ▲▼ on the tablets (${e2})`);
     // the report plaques what an absence opened
     await page.evaluate(() => { const r = window.__riddle; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 1, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 10, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, live: false, banked: 2, returned: 1, stalled: 0, driven: 0, systems_opened: ["send", "forge", "oaths"] } }); });
     await until(() => window.__riddle.screen === "report", "the report");

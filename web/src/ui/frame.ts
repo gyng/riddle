@@ -14,6 +14,8 @@ import { icon, portraitSrc, verbIcon } from "./skin";
 import { openSettings } from "./settings";
 import { openGoldSheet } from "./gold";
 import { revealed } from "./reveal";
+import { hasTracks, openTracks, tracksGrew, tracksShown } from "./tracks";
+import { onPackages, penOpen } from "./packages";
 
 // --- the top bar ---
 
@@ -31,7 +33,9 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
     replace(el,
       h("span", { class: "num heir" }, mini.el, heirOrd(opts.heir ?? L.heir)),   // a death's bar names the hero who died (QA 92eb880)
       // the wake's trait chips stand in for the plain trait while the offer stands (the camp fills `offers`)
-      opts.live && (L.trait_offer?.length ?? 0) >= 2 ? "" : h("span", { class: "trait" }, opts.heir !== undefined ? opts.trait ?? "" : L.trait),
+      // Cut 30 §2: on packages the bar names the worn temperament (the old trait word maps to it), none before heir 3
+      onPackages(L) ? h("span", { class: "trait" }, L.packages!.temperament ? L.packages!.all.find((p) => p.id === L.packages!.temperament)?.name ?? "" : "")
+        : opts.live && (L.trait_offer?.length ?? 0) >= 2 ? "" : h("span", { class: "trait" }, opts.heir !== undefined ? opts.trait ?? "" : L.trait),
       (L.ascension?.level ?? 0) > 0 ? h("span", { class: "num asc" }, `↑${L.ascension!.level} ${L.ascension!.variant.replace(/_/g, " ")}`) : "",
       h("div", { class: "stats" },
         // QA 0c6e126 (qaY: `♟14 cowardly` beside `$40 · ◆23 · D8` — "I took $40 as ♟14's purse"): a past heir's bar marks the totals as
@@ -94,11 +98,21 @@ export function paintSprite(face: HTMLElement, id: string, px: number, ...alts: 
     face.style.backgroundPosition = `${-(f.x + f.w * 0.1) * s}px ${-(f.y + f.h * 0.02) * s}px`;
   });
 }
-function portraitMini(app: App): { el: HTMLElement; paint(): void } {
+// Cut 30 §4: the portrait-mini opens the tracks panel once a track has grown past its first stage (a button then; a plaque before), and
+// glints once when a stage opens (no text)
+function portraitMini(app: App): { readonly el: HTMLElement; paint(): void } {
   const face = h("span", { class: "face" });
-  const el = h("span", { class: "mini-portrait", "aria-hidden": "true" }, face);
-  let cls = "";
-  return { el, paint: () => { const k = `${app.lineage.class}_${app.lineage.look ?? ""}`; if (k !== cls) { cls = k; paintFace(face, app.lineage.class, 26, app.lineage.look); } } };
+  const plain = h("span", { class: "mini-portrait", "aria-hidden": "true" });
+  const btn: HTMLButtonElement = h("button", { class: "mini-portrait tracks-btn", "aria-label": "tracks", onclick: (e: Event) => { e.stopPropagation(); openTracks(app, btn); } });
+  let el: HTMLElement = plain, cls = "";
+  return { get el() { return el; }, paint: () => {
+    const k = `${app.lineage.class}_${app.lineage.look ?? ""}`; if (k !== cls) { cls = k; paintFace(face, app.lineage.class, 26, app.lineage.look); }
+    const want = tracksShown(app.lineage) ? btn : plain;
+    if (want !== el) { if (el.isConnected) el.replaceWith(want); el = want; }
+    if (face.parentElement !== el) el.appendChild(face);
+    const grew = hasTracks(app.lineage) && tracksGrew(app.lineage);   // (read on every paint: the count stays the lineage's own)
+    if (el === btn && grew) { btn.classList.remove("reveal"); void btn.offsetWidth; btn.classList.add("reveal"); }
+  } };
 }
 
 export type Portrait = { el: HTMLElement; set(hp: number, label?: Node | string): void };
@@ -179,5 +193,6 @@ export function wideCols(app: App, meters?: HTMLElement | null): { els: HTMLElem
   const known = (): void => { shaft.el.classList.toggle("unknown", !((app.lastForecast?.depths?.length ?? 0) > 1)); };
   known();
   const off = app.onForecast(() => known());
-  return { els: [left, right], dispose: () => { off(); shaft.dispose(); }, slot };
+  // Cut 30 §2: no rule tablets before the pen (the left column comes with it)
+  return { els: penOpen(app.lineage) ? [left, right] : [right], dispose: () => { off(); shaft.dispose(); }, slot };
 }

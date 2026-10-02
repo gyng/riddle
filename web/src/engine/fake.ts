@@ -4,7 +4,7 @@ import type {
   BonesPile, CageOption, Divergence, DivergenceBranch, DivergenceEnd, FoldBeat, FoldFloor, FoldLine, RowFires, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
   Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders, WallEdit,
-  Packages, Package, PkgOption, Town, Track, GrewLine,
+  Packages, Package, PkgOption, Town, Track, GrewLine, Quest,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -2087,7 +2087,12 @@ const SYSTEMS29: [string, string][] = [["send", ""], ["dial", ""], ["headline", 
   ["exits", "first gold home"], ["loadout", "first gold home"], ["unlocks", "first mark"], ["reorder", "first plateau"], ["vs", "first plateau"],
   ["tags", "first foe fact"], ["party", "first stray"], ["cage", "first cage"], ["walls", "meet Warlord"], ["divergence", "meet Warlord"],
   ["forge", "slay Warlord"], ["start", "slay Warlord"], ["route", "D5 fork twice"], ["oaths", "plateau or Warlord"], ["automations", "meet Lich"],
-  ["route2", "an oath kept"], ["heir_pick", "an oath kept"], ["class", "second class"]];
+  ["route2", "an oath kept"], ["heir_pick", "an oath kept"], ["class", "second class"],
+  // Cut 30 (core `systems.rs`): the packages' arrivals, the buildings, the quest board, the pen (the editor's group waits for it)
+  ["storehouse", "first find kept"], ["kennel", "first tame"], ["stances", "meet Captain"], ["tactics", "slay Warlord"], ["bank", "a night's purse"],
+  ["quests", "slay Warlord"], ["temperament", "heir 3"], ["tactic2", "meet Lich"], ["pen", "meet Mother"]];
+/** Cut 30: the systems the pen brings (the core's `systems::PEN`) — they open with it, not before. */
+const PEN30 = ["pen", "edit", "dial", "unlocks", "reorder", "vs", "tags", "walls", "divergence", "route"];
 type Fk29 = { s: { lineage: Lineage; rules: RuleSet; sys29?: { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean } };
               lineage(): Lineage; gold(delta: number, why: string): void };
 const emptyMeter = (): MeterWire => ({ seconds: 0, dealt: { hero: 0, pets: 0, foes: 0 }, taken: { hero: 0, pets: 0, foes: 0 }, dps_dealt: { hero: 0, pets: 0, foes: 0 }, dps_taken: { hero: 0, pets: 0, foes: 0 },
@@ -2127,7 +2132,11 @@ function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; wo
     unlocks: L.marks > 0, reorder: st.plateau, vs: st.plateau, tags: L.facts.some((f) => f.split(":").length === 3 && f.startsWith("foe:")), party: L.facts.includes("stray") || L.party.length + L.kennel.length > 0,
     cage: L.facts.includes("vault"), walls: met(8), divergence: met(8), forge: met(9), start: met(9), route: (L.forks ?? []).length > 0, oaths: st.plateau || met(8),
     automations: met(18), route2: L.unlocks.includes("route2"), heir_pick: L.unlocks.includes("heir_pick"), class: L.unlocks.includes("ranger") || L.unlocks.includes("caster"),
+    storehouse: L.vault.length > 0, kennel: L.party.length + L.kennel.length > 0, stances: met(5), tactics: met(9), bank: L.gold >= 500, quests: met(9),
+    temperament: L.heir >= 3, tactic2: met(18), pen: met(13),
   };
+  // Cut 30: the pen's group opens with the pen (the Mother met), whatever its Cut 29 trigger said
+  for (const id of PEN30) hit[id] = hit.pen;
   for (const [id] of SYSTEMS29) if (!st.open.includes(id) && hit[id]) { st.open.push(id); st.fresh.push(id); }
   return st;
 }
@@ -2202,13 +2211,13 @@ const PKGS30: [string, string, string, string][] = [
   ["thief_guard", "thief guard", "tactic", "slay Warlord"], ["gas_step", "gas step", "tactic", "slay Warlord"], ["pack_break", "pack break", "tactic", "slay Warlord"],
   ["skittish", "skittish", "temperament", "heir 3"], ["unbowed", "unbowed", "temperament", "heir 3"], ["light_hands", "light hands", "temperament", "heir 3"], ["iron_gut", "iron gut", "temperament", "heir 3"]];
 const LEVEL_RUNS30 = [10, 40, 120, 300];
-type St30 = { stance: string; tactics: string[]; temperament?: string; runs: Record<string, number>; revoked: string[]; bank: number; interest: number; swapped: number; quest: number };
+type St30 = { stance: string; tactics: string[]; temperament?: string; runs: Record<string, number>; revoked: string[]; bank: number; interest: number; swapped: number; quest: number; qd?: number; qdone?: boolean; qbest?: number };
 type Fk30 = Fk29 & { s: Fk29["s"] & { st30?: St30 } };
 const st30 = (e: Fk30): St30 => (e.s.st30 ??= { stance: "steady", tactics: [], runs: {}, revoked: [], bank: 0, interest: 0, swapped: -1, quest: 0 });
 const lv30 = (runs: number): number => 1 + LEVEL_RUNS30.filter((n) => runs >= n).length;
 function packages30(e: Fk30, L: Lineage): Packages {
   const st = st30(e); const met = (d: number): boolean => L.best_depth >= d;
-  const owned = (kind: string, trig: string): boolean => trig === "" || (kind === "temperament" ? L.heir >= 3 : trig.startsWith("meet") ? met(8) : met(9));
+  const owned = (kind: string, trig: string): boolean => trig === "" || (kind === "temperament" ? L.heir >= 3 : trig === "meet Captain" ? met(5) : trig.startsWith("meet") ? met(8) : met(9));
   const all: Package[] = PKGS30.filter(([, , kind]) => kind !== "temperament" || L.heir >= 3).map(([id, name, kind, trig]) => {
     const runs = st.runs[id] ?? 0; const lv = lv30(runs); const own = owned(kind, trig);
     const slot = st.stance === id || st.temperament === id ? 0 : st.tactics.indexOf(id) >= 0 ? st.tactics.indexOf(id) : undefined;
@@ -2216,20 +2225,30 @@ function packages30(e: Fk30, L: Lineage): Packages {
   });
   const drills = [["goblin_warlord", 9], ["bloat_mother", 14], ["lich", 19]].filter(([, d]) => met(d as number)).map(([boss]) => ({ boss: boss as string, rows: [{ conds: [{ k: "foe_tag", t: "boss" }, { k: "hp>", n: 30 }], verb: { v: "attack", a: "tag:boss" } }], revoked: st.revoked.includes(boss as string), scar: 0 }));
   return { all, stance: st.stance, tactics: st.tactics, tactic_slots: met(9) ? (met(18) ? 2 : 1) : 0, ...(st.temperament ? { temperament: st.temperament } : {}), temperament_open: L.heir >= 3,
-    ...(L.heir >= 3 ? { offer: ["skittish", "unbowed", "iron_gut"] } : {}), drills, scars: met(8) && !met(9) ? [["goblin_warlord", 15]] : [], pen_open: met(13),
-    rows: e.s.rules.rows.map((r) => ({ label: r.origin === "preset" ? "Steady" : "" })) };
+    ...(L.heir >= 3 ? { offer: ["skittish", "unbowed", "iron_gut"] } : {}), drills, scars: met(8) && !met(9) ? [["goblin_warlord", 15]] : [], pen_open: DEV_ALL_SYSTEMS || met(13),
+    // (a row an earlier one of the same conditions and role always pre-empts is shadowed by it — the core's `shadowed_by`, in miniature)
+    rows: e.s.rules.rows.map((r, j, all) => { const i = all.findIndex((x, k) => k < j && x.verb.v === r.verb.v && JSON.stringify(x.conds) === JSON.stringify(r.conds));
+      return { label: r.origin === "preset" ? PKGS30.find(([id]) => id === st.stance)?.[1] ?? "Steady" : "", ...(i >= 0 ? { shadowed_by: i } : {}) }; }) };
 }
 function town30(e: Fk30, L: Lineage): Town {
   const st = st30(e); const order: [string, string, boolean][] = [["blacksmith", "first gold home", L.gold > 0 || L.best_depth > 2], ["storehouse", "first find kept", L.vault.length > 0], ["kennel", "first tame", L.party.length + L.kennel.length > 0], ["bank", "a night's purse", L.gold >= 500]];
   const built = order.filter(([, , b]) => b); const next = order.find(([, , b]) => !b);
   return { buildings: built.map(([id]) => ({ id, level: 1, day: 0 })), ...(next ? { next: next[0], next_trigger: next[1] } : {}), bank: st.bank, bank_cap: 3000, interest: st.interest,
-    ...(L.best_depth >= 9 ? { quest: { goal: `reach D${L.best_depth + 1}`, reward: ["title", "row", "slot", "card"][st.quest % 4], progress: 0.4, done: false, swap: st.swapped < 0 } } : {}), quests_done: st.quest };
+    ...(L.best_depth >= 9 ? { quest: quest30(st, L) } : {}), quests_done: st.quest };
+}
+/** The fake's quest: `reach D<n>` drawn one past the record, its progress the deepest floor a run reached since (the record's floor
+ *  under it until a run goes), kept once a run reaches it. */
+function quest30(st: St30, L: Lineage): Quest {
+  st.qd ??= L.best_depth + 1;
+  const done = (st.qbest ?? 0) >= st.qd;
+  return { goal: `reach D${st.qd}`, reward: ["title", "row", "slot", "card"][st.quest % 4], progress: Math.min(1, (st.qbest ?? Math.max(0, L.best_depth - 1)) / st.qd), done, swap: st.swapped < 0 };
 }
 function tracks30(e: Fk30, L: Lineage): Track[] {
   const P = packages30(e, L); const T = town30(e, L);
   const tr = (id: string, stages: [string, string, boolean][]): Track => {
     const done = stages.filter(([, , d]) => d); const next = stages.find(([, , d]) => !d);
-    return { id, stage: done[done.length - 1]?.[0] ?? stages[0][0], stages: done.length, ...(next ? { next: next[0], trigger: next[1] } : {}) };
+    // (a numeric trigger carries its progress: the bank's purse against a night's — the core reads the last night's net, the fake $500)
+    return { id, stage: done[done.length - 1]?.[0] ?? stages[0][0], stages: done.length, ...(next ? { next: next[0], trigger: next[1] } : {}), ...(next?.[0] === "bank" ? { progress: Math.min(1, L.gold / 500) } : {}) };
   };
   return [
     tr("character", [["Steady", "", true], ["second stance", "meet Captain", L.best_depth >= 5], ["a tactic", "slay Warlord", L.best_depth >= 9], ["pets", "first stray", L.facts.includes("stray")], ["a temperament", "heir 3", L.heir >= 3], ["the pen", "meet Mother", P.pen_open]]),
@@ -2243,18 +2262,31 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
   const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
   const lin = P.lineage; P.lineage = function (this: Fk30): Lineage {
     const L = lin.call(this) as Lineage;
+    if (DEV_NO_SYSTEMS) return L;   // an older core's wire: no packages, no town, no tracks (the pen open, as before Cut 30)
     L.packages = packages30(this, L); L.town = town30(this, L); L.tracks = tracks30(this, L);
     return L;
   };
   const off = P.runOffline; P.runOffline = function (this: Fk30, s: unknown): ReturnReport {
+    if (DEV_NO_SYSTEMS) return off.call(this, s) as ReturnReport;
     const b = this.s.lineage.best_depth; const g0 = this.s.lineage.gold; const st = st30(this);
+    const before = this.lineage(); const owned0 = before.packages!.all.filter((p) => p.owned).map((p) => p.id); const lv0 = lv30(st.runs[st.stance] ?? 0);
+    const stages0 = (before.tracks ?? []).map((t) => `${t.id}:${t.stage}`); const q0 = before.town?.quest;
+    if (st.qdone) { st.qd = undefined; st.qdone = false; st.qbest = undefined; st.quest++; }   // a new quest the day after one was kept
     const r = off.call(this, s) as ReturnReport;
     st.runs[st.stance] = (st.runs[st.stance] ?? 0) + r.runs; st.interest += Math.floor(st.bank * 0.02); st.bank += Math.floor(st.bank * 0.02); st.swapped = -1;
+    if (q0 && r.deepest !== undefined) st.qbest = Math.max(st.qbest ?? 0, r.deepest);
+    const after = this.lineage();
     const grew: GrewLine[] = [];
     if (this.s.lineage.gold > g0) grew.push({ track: "items", what: `+$${this.s.lineage.gold - g0}` });
     if (this.s.lineage.best_depth > b) grew.push({ track: "scale", what: `best D${this.s.lineage.best_depth}` });
     grew.push({ track: "character", what: "xp" });
-    return { ...r, grew, packages: [`${st.stance.toUpperCase()} L${lv30(st.runs[st.stance])}`] };
+    for (const t of after.tracks ?? []) if (!stages0.includes(`${t.id}:${t.stage}`)) grew.push({ track: t.id, what: `opened ${t.stage}` });
+    const beats: string[] = [];
+    const lv1 = lv30(st.runs[st.stance]); if (lv1 > lv0) { beats.push(`${st.stance.toUpperCase()} L${lv1}`); grew.push({ track: "character", what: "package level" }); }
+    for (const p of after.packages!.all) if (p.owned && !owned0.includes(p.id)) beats.push(`+${p.name}`);
+    const q = after.town?.quest;
+    if (q?.done && (!q0 || !q0.done)) { beats.push(`QUEST DONE · ${q.goal}`); st.qdone = true; }
+    return { ...r, grew, packages: beats };
   };
   const has = (L: Lineage, id: string): Package => { const p = L.packages!.all.find((x) => x.id === id); if (!p) throw new Error("unknown package"); if (!p.owned) throw new Error("not yet"); return p; };
   P.equipPackage = function (this: Fk30, id: unknown, slot: unknown): Lineage {
@@ -2287,5 +2319,16 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
   P.bankWithdraw = function (this: Fk30, amount: unknown): Lineage {
     const st = st30(this); const n = Math.min(amount as number, st.bank); if (n <= 0) throw new Error("bank empty"); st.bank -= n; this.gold(n, "bank withdraw"); return this.lineage();
   };
-  P.swapQuest = function (this: Fk30): Lineage { const st = st30(this); if (st.swapped >= 0) throw new Error("swapped today"); st.swapped = 1; st.quest++; return this.lineage(); };
+  P.swapQuest = function (this: Fk30): Lineage { const st = st30(this); if (st.swapped >= 0) throw new Error("swapped today"); st.swapped = 1; st.quest++; st.qd = undefined; st.qbest = undefined; return this.lineage(); };
+  const death = P.death; P.death = function (this: Fk30, id: unknown): Death {
+    const d = death.call(this, id) as Death; if (DEV_NO_SYSTEMS) return d;
+    const L = this.lineage(), Pk = L.packages!; if (Pk.pen_open) return d;
+    const step = (L.kit ?? []).map((k) => k.next).filter((n): n is NonNullable<typeof n> => !!n && !!n.affordable).sort((a, b) => a.price - b.price)[0];
+    const st = Pk.all.find((p) => p.id === Pk.stance)!;
+    const boss = /warlord|mother|lich|master|queen|king/.test(d.cause);
+    const hunter = Pk.all.find((p) => p.id === "hunter" && p.owned);
+    const lever = step ? { kind: "spend", text: step.label } : boss && hunter && Pk.stance !== "hunter" ? { kind: "package", text: "Hunter" }
+      : boss ? { kind: "wait", text: "drill next" } : { kind: "wait", text: `${st.name} L${Math.min(5, st.level + 1)}` };
+    return { ...d, lever, package: `${st.name} · ${d.cause === "stall" ? "explore" : "attack nearest"}` };
+  };
 }
