@@ -462,8 +462,8 @@ export function createTownView(host: HTMLElement): TownView {
       F.ground.push({ s: sl, x: x * TILE + TILE / 2, y: (y + 1) * TILE, z: 0, w: TILE, h: TILE, flip: hill < 1 && hh > 0.5, dim: id.includes("dirt") ? PATH_DIM : id.includes("plaza") ? 0.85 : hill, fade: 0 });
     }
   }
-  /** the hill's foot: a ragged line (a column in three runs a tile further down, never by the mouth), not a ruled edge */
-  const hillFoot = (x: number): number => 5 + OY + (Math.abs(x - CX) > 4 && hashN(x, 0, 7) % 3 === 0 ? 1 : 0);
+  /** the hill's foot: a ragged line (runs of two columns, one in three, a tile further down, never by the mouth), not a ruled edge */
+  const hillFoot = (x: number): number => 5 + OY + (Math.abs(x - CX) > 4 && hashN(x >> 1, 0, 7) % 3 === 0 ? 1 : 0);
   const hillDim = (y: number): number => 0.3 + 0.7 * Math.pow(Math.min(1, (y + 1) / (5 + OY)), 1.6);
   const DOOR: Record<string, string> = { blacksmith: "smith", bank: "bank", storehouse: "store", kennel: "kennel" };
   const SPURS = new Set(Object.values(DOOR));

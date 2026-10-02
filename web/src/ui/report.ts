@@ -188,7 +188,7 @@ function newsLead(x: ExitLine, runs: number): (string | HTMLElement)[] {
   const n = runs > 1 ? mergeFinds((x.news ?? []).filter((y) => y.k !== "differ" && y.k !== "learned" && !(y.k === "driven" && / · by /.test(x.text))))[0] : undefined;
   return n ? [h("b", { class: "news-lead" }, n.text.replace(/^driven off: (.+)$/, /* copy:callout */ "repelled by $1")), " · "] : [];
 }
-function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: { boss: string; text: string }[] = []): HTMLElement | null {
+function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: { boss: string; text: string }[] = [], shop = true): HTMLElement | null {
   // Cut 28 §2 (core `ReturnReport.lead`): the first screen leads with the decisions (`oath kept: D10 · no drink`, `plateau: none past
   // D13`, `mother: fire learned`, `D9 death · order`), then what was new that they do not already say
   const lead = r.lead ?? [];
@@ -200,7 +200,9 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
   // (a drive-off's line carries the counter fact, `· warlord: aim`: the counter's own line says it) — then each line once
   const said3 = (t: string): string => said2(t).replace(/ · (\w+): [a-z ?]+$/, (m, boss: string) => (counters.some((x) => x.boss.endsWith(boss)) ? "" : m));
   const shown = new Set<string>(); const once = (t: string): boolean => !shown.has(t) && !!shown.add(t);
-  const leadT = lead.map((l) => ({ l, t: said3(l.text) })).filter((x) => once(x.t)), nsT = ns.map((n) => ({ n, t: said3(n.text) })).filter((x) => once(x.t));
+  // Cut 30 integration: before the unlocks open (the pen's catalogue) no line names one (`unlock throw (3)` read as a shop nowhere on screen)
+  const shown2 = (t: string): boolean => shop || !/^unlock\b/.test(t);
+  const leadT = lead.map((l) => ({ l, t: said3(l.text) })).filter((x) => shown2(x.t) && once(x.t)), nsT = ns.map((n) => ({ n, t: said3(n.text) })).filter((x) => shown2(x.t) && once(x.t));
   return h("div", { class: `news${lead.length ? " with-lead" : ""}` },
     ...leadT.map(({ l, t }, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k }, t)),
     ...nsT.slice(0, lead.length ? 2 : 4).map(({ n, t }, i) => h("div", { class: `news-line k-${n.k}${i === 0 && !lead.length ? " lead" : ""}` }, t)));
@@ -398,10 +400,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     })) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
+  // Cut 30 integration: before the pen the plateau is its line alone, as the death screen before the pen (no trace, no row patches)
+  const prePen = !penOpen(L), shopOpen = !prePen || revealed(app).has("unlocks");
   const stall = r.stall ? h("section", { class: "rsec stall" },
     h("div", { class: "label" }, /* copy:label */ "plateau"),   // every run came home, none deeper — not a stalled run (QA on 56f2a1d: `STALL` over `14 RETURNED`)
-    h("div", { class: "stall-line num" }, r.stall.text, " ", traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
-    r.stall.patches.length ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
+    h("div", { class: "stall-line num" }, r.stall.text, " ", prePen ? "" : traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
+    r.stall.patches.length && !prePen ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
   // Cut 2 §2: one line per pile recovered this send (the core sends `heir 3 · D7 · 4 items`, `bones:7:4` too; the watch
   // `D5 · 7 items`). Every line says it was found — `found ♟3's bones · D7 · 4 items` — since `bones D8 · 11 items · ♟3` read
   // as a pile still lying there (QA on e0f87e7: "survived 16 offline runs", "persisted through run 3")
@@ -459,6 +463,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // (the larger reach gain, then the cheaper); the camp's `more` has the rest
     if (!coreShort) affordable = affordable.map((u, i) => ({ u, i })).sort((a, b) => (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
     // QA 524827b (qaAA: `card: kite archers · free` — "no card anywhere on screen"): the cards are the camp's unlocks — they say so
+    if (!shopOpen) affordable = [];   // Cut 30 integration: the unlock cards with the catalogue (the camp shows no unlocks before it opens)
     if (affordable.length) pendingBody.appendChild(h("div", { class: "cards-head num dim" }, /* copy:label */ "unlocks"));
     if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, priceLabel(u))))));   // Cut 18 §5: both prices
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
@@ -500,7 +505,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    grewBlock(r, heroFace(L)), newsBlock(r, named, L.counters ?? []), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    grewBlock(r, heroFace(L)), newsBlock(r, named, L.counters ?? [], shopOpen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop

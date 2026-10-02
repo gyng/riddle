@@ -3,10 +3,11 @@
 // console (carved stone: the portrait well with its hp ring, a 4 × 2 command card of tiles, the primary gem). Each screen builds
 // its frame from these parts (so `main.<screen>` holds its console: the tiles are the screen's buttons).
 import { conceptCap, type Concept } from "./concepts";
-const withCap = (el: HTMLElement | "", c: Concept): HTMLElement | "" => { if (el) { const cap = conceptCap(c); if (cap) el.appendChild(cap); } return el; };
+const withCap = (el: HTMLElement | "", c: Concept, words?: string): HTMLElement | "" => { if (el) { const cap = conceptCap(c, words); if (cap) el.appendChild(cap); } return el; };
 import type { App } from "../app";
 import type { Row } from "../engine/types";
 import { h, replace } from "./dom";
+import { closeAllSheets, openSheet } from "./sheet";
 import { heirOrd, rowLabel } from "./tokens";
 import { renderShaft } from "./forecast";
 import { setHeroLook } from "../render/look";
@@ -46,7 +47,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
         !opts.watch ? h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`) : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),
-        withCap(stat("marks", "mark", "◆", L.marks, R.has("unlocks") || (packagesShown(L) && L.marks > 0)), "marks"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
+        withCap(stat("marks", "mark", "◆", L.marks, R.has("unlocks") || (packagesShown(L) && L.marks > 0)), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "levels packages"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
         withCap(stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past), "renown"),
         stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, R.has("depth") && !past),   // docs/COPY.md pass 2 (`D8` read as "current depth")
       ),
@@ -108,7 +109,9 @@ function portraitMini(app: App): { readonly el: HTMLElement; paint(): void } {
   return { get el() { return el; }, paint: () => {
     const k = `${app.lineage.class}_${app.lineage.look ?? ""}`; if (k !== cls) { cls = k; paintFace(face, app.lineage.class, 26, app.lineage.look); }
     const want = tracksShown(app.lineage) ? btn : plain;
-    if (want !== el) { if (el.isConnected) el.replaceWith(want); el = want; }
+    // (`parentNode`, not `isConnected`: the bar is built before it is mounted, and a swap skipped there left the empty plaque on screen —
+    // the report's top bar had no face)
+    if (want !== el) { if (el.parentNode) el.replaceWith(want); el = want; }
     if (face.parentElement !== el) el.appendChild(face);
     const grew = hasTracks(app.lineage) && tracksGrew(app.lineage);   // (read on every paint: the count stays the lineage's own)
     if (el === btn && grew) { btn.classList.remove("reveal"); void btn.offsetWidth; btn.classList.add("reveal"); }
@@ -153,7 +156,14 @@ const SLOTS = 8;
 export function renderConsole(o: { portrait: HTMLElement; tiles: (HTMLElement | null | undefined | false)[]; gem: HTMLElement; top?: HTMLElement; cls?: string }): Console {
   const cmd = h("div", { class: "cmd" });
   const setTiles = (tiles: (HTMLElement | null | undefined | false)[]): void => {
-    const live = tiles.filter((t): t is HTMLElement => !!t).slice(0, SLOTS);
+    const all = tiles.filter((t): t is HTMLElement => !!t);
+    // Cut 30 integration: the town's buildings, packages and quest grew the bar past its eight slots, and the last tiles (ledger,
+    // chronicle) fell off it unseen; the eighth slot is `more` then, a sheet with the rest
+    const rest = all.length > SLOTS ? all.slice(SLOTS - 1) : [];
+    const live = rest.length ? [...all.slice(0, SLOTS - 1), tile({ id: "more", label: /* copy:button */ "more", icon: "more", glyph: "⋯", onclick: (e: Event) => {
+      const at = e.currentTarget as HTMLElement;
+      closeAllSheets(); openSheet(() => h("div", { class: "cmd cmd-more" }, ...rest), { anchor: at });
+    } })] : all;
     replace(cmd, ...live, ...Array.from({ length: SLOTS - live.length }, () => h("span", { class: "tile empty", "aria-hidden": "true" })));
   };
   setTiles(o.tiles);

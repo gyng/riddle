@@ -1678,3 +1678,13 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 }
 .skin-tablet .patch.tablet:first-child { box-shadow: inset 0 1px 0 rgba(184, 148, 72, .55), inset 0 -2px 0 rgba(13, 12, 20, .55),
     inset 0 -10px 14px -8px rgba(13, 12, 20, .7), 0 0 10px rgba(184, 148, 72, .25), 0 3px 5px rgba(13, 12, 20, .6); }
+/* Cut 30 integration: the bar's overflow (`more`) — the rest of the tiles in a sheet, four to a row */
+.cmd.cmd-more { padding: 6px 2px 2px; min-width: 240px; }
+/* Cut 30 integration (the owner-check sheet: `$27806 · 105 · 16 · best D21` ran under the gear at 400 px): the numbers never shrink
+   under their neighbours; the temperament gives way first (ellipsis), the heir's ordinal stays whole */
+.topbar .stats { flex-shrink: 0; }
+.topbar > .heir { flex: 0 0 auto; }
+/* Cut 30 integration (the owner-check sheet: the town's buildings lead the bar, so the loadout often stands in its second row, and its
+   `repeat on` plate rode over the tile above it): in the second row the plate hangs under its tile, on the bar's rim */
+.cmd > .tile.badged:nth-child(n+5) .repeat-badge { bottom: auto; top: calc(100% - 6px); }
+.cmd > .tile.badged:nth-child(n+5) .repeat-badge::before { inset: 0 -4px -8px; }

@@ -32,10 +32,10 @@ const io = typeof IntersectionObserver !== "undefined" ? new IntersectionObserve
 /** The concept's icon. */
 export const conceptIcon = (c: Concept): HTMLElement => { const d = DEF[c]; const i = icon(d.ico, d.glyph); i.classList.add("concept-ico"); i.dataset.concept = c; return i; };
 /** The first-time caption (`buys unlocks`) — empty once this viewer has seen it on screen. */
-export function conceptCap(c: Concept): HTMLElement | "" {
+export function conceptCap(c: Concept, cap = DEF[c].cap): HTMLElement | "" {
   if (conceptSeen(c)) return "";
   // (the words are drawn from `data-cap` by CSS: the element's text stays the data's — tools and tests read the line it sits in)
-  const el = h("small", { class: "concept-cap", "data-concept": c, "data-cap": DEF[c].cap, role: "note", "aria-label": DEF[c].cap });
+  const el = h("small", { class: "concept-cap", "data-concept": c, "data-cap": cap, role: "note", "aria-label": cap });
   io?.observe(el);
   return el;
 }
