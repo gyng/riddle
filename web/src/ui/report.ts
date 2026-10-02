@@ -248,7 +248,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const ofRuns = (k: number): string => (exits && r.runs > 0 ? `${k}/${r.runs}` : `${k}`);
   const banked = tile(ofRuns(bankedN), /* copy:label */ "banked"), returned = tile(ofRuns(returnedN), /* copy:label */ "returned");
   // c30-legible (the owner, a new player: "I didn't understand … why the run ended early"): an end's tile says why, the core's ≤ 3
-  // words — the most common reason among this report's exits of that end (`new best · home`, `hurt · went home`)
+  // words — the most common reason among this report's exits of that end (`banks every record`, `hurt · went home`)
   const why = (lead: RegExp): string | undefined => {
     const n = new Map<string, number>();
     for (const x of r.exits ?? []) if (x.reason && lead.test(x.text)) n.set(x.reason, (n.get(x.reason) ?? 0) + 1);

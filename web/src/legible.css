@@ -1,7 +1,9 @@
 /* c30-legible (the owner, a new player: "I didn't understand why there were new buildings or why the run ended early"): a run's end
    says why under its sum; a building's arrival says what raised it; the staked plot wears its tag. Palette only, quiet. */
-.ticker .beat-main { display: block; }
-.ticker .beat-why { display: block; margin-top: 2px; font: 600 16px/1.2 var(--sans); color: var(--mist); letter-spacing: .03em; text-transform: none; }
+.watch .beat-why { position: absolute; left: 0; right: 0; bottom: 12px; padding: 0 12px; text-align: center; font: 600 17px/1.2 var(--sans); color: var(--mist);
+  letter-spacing: .03em; text-shadow: 0 2px 8px var(--ink); opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 2; }
+.watch .beat-why.show { opacity: 1; }
+.watch.has-why .ticker { bottom: 36px; }
 .town-arrival { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); pointer-events: none; white-space: nowrap; padding: 3px 10px;
   border-radius: 5px; font: 700 17px/1.25 var(--sans); color: var(--bone); background: rgba(13, 12, 20, .72); border: 1px solid var(--gilt);
   opacity: 0; transition: opacity .35s; z-index: 3; }

@@ -5963,7 +5963,7 @@ pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: V
 
 /// c30-legible: why a run ended, ≤ 3 words (`ExitLine.reason`) — the committing row's reason, not its
 /// words: a bank at the record (Steady's `depth ≥ best → bank`, which ends a fresh lineage's first runs
-/// at D2, D3, D4 …) reads `new best · home`; a hurt row `hurt · went home`; a death `slain · jackal`.
+/// at D2, D3, D4 …) reads `banks every record`; a hurt row `hurt · went home`; a death `slain · jackal`.
 pub fn exit_reason(run: &Run, tier: ExitTier, best0: u32, rules: &RuleSet) -> String {
     let bare = |s: String| -> String { s.trim_start_matches("the ").trim_start_matches("a ").trim_start_matches("an ").to_string() };
     if tier == ExitTier::Death {
@@ -5997,7 +5997,9 @@ pub fn exit_reason(run: &Run, tier: ExitTier, best0: u32, rules: &RuleSet) -> St
         return if bank { "hurt · banked".into() } else { "hurt · went home".into() };
     }
     if has("depth>=") {
-        return if run.max_depth > best0 { "new best · home".into() } else { format!("reached D{}", run.max_depth) };
+        // (a stance's row banks at the record: `depth ≥ best + 1`, a floor further when whole)
+        let at = row.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n).unwrap_or(0);
+        return if run.max_depth > best0 && at as u32 <= best0 + 2 { "banks every record".into() } else if run.max_depth > best0 { "new best · banked".into() } else { format!("reached D{}", run.max_depth) };
     }
     if has("foes>=") || has("adj>=") {
         return "outnumbered".into();

@@ -284,7 +284,7 @@ fn every_exit_names_its_reason() {
             let why = l.reason.clone().expect("a reason");
             assert!(why.split_whitespace().filter(|w| *w != "·").count() <= 3, "{why}");
             if k == 0 {
-                assert_eq!(why, "new best · home", "seed {seed}: the first run banks its new best");
+                assert_eq!(why, "banks every record", "seed {seed}: the first run banks its new best");
             }
             if l.text.starts_with("died") {
                 deaths += 1;

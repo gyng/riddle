@@ -823,7 +823,7 @@ function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   const trace: Trace = { turns: scaleTrace(run.trace), provenance: Object.values(run.prov).sort((a, b) => a.t - b.t).map((p) => ({ text: p.text, t: p.t * 10, depth: p.depth })) };
   run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · "), trace,
     // c30-legible stand-in: the core's `reason` (`engine::exit_reason`), in miniature
-    reason: run.stalled ? "stuck · gave up" : tier === "death" ? "slain" : tier === "bank" ? "new best · home" : "hurt · went home",
+    reason: run.stalled ? "stuck · gave up" : tier === "death" ? "slain" : tier === "bank" ? "banks every record" : "hurt · went home",
     news: [{ k: "differ", text: `reached D${run.depth}` }] };   // Cut 24 §2 stand-in: the core's `news` (what was new; else the one thing that differed)
   ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line, trace });
   // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake

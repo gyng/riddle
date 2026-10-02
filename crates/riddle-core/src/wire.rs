@@ -271,7 +271,7 @@ pub struct ExitLine {
     pub cause: Option<String>,
     /// c30-legible (the owner, a new player: "I didn't understand … why the run ended early at like D3"):
     /// why the run ended, ≤ 3 words, for the watch's end beat, the report and the town's returning party
-    /// (`new best · home`, `hurt · went home`, `slain · jackal`, `stuck · went home`, `repelled · Warlord`;
+    /// (`banks every record`, `hurt · went home`, `slain · jackal`, `stuck · went home`, `repelled · Warlord`;
     /// `engine::exit_reason`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,

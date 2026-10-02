@@ -2,7 +2,7 @@
 // c30-legible gates (the owner, a new player: "I didn't understand why there were new buildings or why the run ended early at like D3"),
 // headless at 400 × 800:
 //   ends    real engine, a fresh lineage, three watched runs (▶▶| as a player would): every run's end shows a reason beat under its sum
-//           (the core's `ExitLine.reason`, ≤ 3 words — the first run's `new best · home`), and the report's end tile carries it
+//           (the core's `ExitLine.reason`, ≤ 3 words — the first run's `banks every record`), and the report's end tile carries it
 //   build   fake engine, each trigger in turn: every building's arrival names its cause (`first gold home → blacksmith`, ≤ 4 words + the
 //           arrow) and draws the eye (its target glows); the staked plot's tag is always visible — the next building and its trigger
 //           (`storehouse · first find kept`), from day 0 until the v1 set stands
@@ -49,7 +49,7 @@ try {
     await page.goto(`${url}?dev=1&fresh=1&seed=5101&speed=8`, { waitUntil: "domcontentloaded" });
     await camp();
     for (let k = 1; k <= 3; k++) {
-      await page.evaluate(() => { window.__beatLog = []; });
+      await page.evaluate(() => { window.__beatLog = []; window.__whyLog = []; });
       await page.locator("button.send").first().click();
       await until(() => window.__riddle.screen === "watch", "the watch");
       let whyShown = null;
@@ -58,16 +58,17 @@ try {
         const s = await screen();
         if (s === "exit") { await page.locator(".sheet-wrap .vault-choice .chip").first().click().catch(() => {}); await page.locator(".sheet-wrap .btn.primary").first().click().catch(() => {}); await sleep(200); continue; }
         if (s !== "watch") break;
-        whyShown ??= await page.evaluate(() => document.querySelector(".ticker.show .beat-why")?.textContent ?? null);
+        whyShown ??= await page.evaluate(() => document.querySelector(".watch .beat-why.show")?.textContent ?? null);
         if (!whyShown) await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent?.includes("▶▶|")) { b.click(); break; } });
         else if (k === 1) await shot("end-beat");
         if (Date.now() - t0 > 180_000) throw new Error(`run ${k} still going`);
         await sleep(60);
       }
       const log = await page.evaluate(() => (window.__beatLog ?? []).filter((b) => b.why));
-      const why = whyShown ?? log[log.length - 1]?.why ?? "";
-      check(!!why && words(why) <= 3, `run ${k}: its end shows a reason beat ≤ 3 words ("${log[log.length - 1]?.text ?? "?"}" · "${why}"${whyShown ? "" : ", logged, not seen"})`);
-      if (k === 1) check(why === "new best · home", `run 1: a fresh lineage's first end reads as the hero being sensible ("${why}")`);
+      const wl = await page.evaluate(() => window.__whyLog ?? []);
+      const why = whyShown ?? wl[wl.length - 1] ?? "";
+      check(!!why && words(why) <= 3, `run ${k}: its end shows a reason beat ≤ 3 words ("${log[log.length - 1]?.text ?? "death"}" · "${why}"${whyShown ? "" : ", logged, not seen"})`);
+      if (k === 1) check(why === "banks every record", `run 1: a fresh lineage's first end reads as the hero being sensible ("${why}")`);
       const s = await until(() => ["report", "death"].includes(window.__riddle.screen) && window.__riddle.screen, "the screen after", 30_000);
       if (s === "report") {
         const tw = await until(() => document.querySelector(".report .tile-why")?.textContent ?? null, "the report's reason", 8000).catch(() => null);

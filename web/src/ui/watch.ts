@@ -340,6 +340,14 @@ export function renderWatch(app: App): Mounted {
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
   const ticker = h("div", { class: "ticker" });
+  // c30-legible: the run's end, why — its own line under the ticker (`banks every record`, `hurt · went home`, `slain · jackal`)
+  const whyLine = h("div", { class: "beat-why num", "aria-live": "polite" });
+  let whyTimer2 = 0;
+  function showWhy(text: string, ms: number): void {
+    replace(whyLine, text); whyLine.classList.add("show"); el.classList.add("has-why");
+    clearTimeout(whyTimer2); whyTimer2 = window.setTimeout(() => { whyLine.classList.remove("show"); el.classList.remove("has-why"); }, ms);
+    if ("__riddle" in window) ((window as unknown as { __whyLog?: string[] }).__whyLog ??= []).push(text);   // dev
+  }
   // Cut 23 §3: a reasoned line's reason, on tap (the line's text → the reason), over the ticker
   const whyTip = h("div", { class: "why-tip num", "aria-live": "polite" });
   const whyOf = new Map<string, string>();
@@ -388,7 +396,7 @@ export function renderWatch(app: App): Mounted {
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, alert, bossBar, stake),
-      meterBox, banner, ticker, whyTip),
+      meterBox, banner, ticker, whyLine, whyTip),
     cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
@@ -767,8 +775,9 @@ export function renderWatch(app: App): Mounted {
     // Cut 19 §1: the cage's line is a plate the finger finds (a tap within the hold opens the override)
     if (b.cage) { replace(ticker, h("span", { class: "cage-line" }, b.text)); if (cage) cage.shown = true; }
     // c30-legible (the owner: "I didn't understand … why the run ended early"): the end's reason under its sum, the core's ≤ 3 words
-    // (`new best · home`, `hurt · went home`); a death's beat is its reason alone (`slain · jackal`)
-    if (b.why && b.why !== b.text) replace(ticker, h("span", { class: "beat-main" }, b.text), h("span", { class: "beat-why" }, b.why));
+    // (`banks every record`, `hurt · went home`); a death's beat is its reason alone (`slain · jackal`)
+    // (its own line under the ticker: the ticker's text stays the beat's own)
+    if (b.why) showWhy(b.why, dur);
     el.dataset.held = "1";
     if ("__riddle" in window) ((window as unknown as { __beatLog?: unknown[] }).__beatLog ??= []).push({ text: b.text, why: b.why, from: b.from, until: b.until, v: viewerTick(), frame, ms: Math.round(now) });   // dev
   }
@@ -996,7 +1005,8 @@ export function renderWatch(app: App): Mounted {
           const lostC = ev.line ? Math.max(0, ev.line.carried - ev.line.kept) : 0;
           const oathW = exitOath ? ` · ${exitOath}` : ""; exitOath = "";
           const why = ev.line?.reason;
-          if (tier === "death") { if (why) beatAt(ev.t, why, true, false, false, why); }
+          // (a death's reason rides its last frame, no beat: the death screen comes as it did)
+          if (tier === "death") { if (why) at(ev.t, () => showWhy(why, SCENE_MS)); }
           else beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true, false, false, why);
           break;
         }
