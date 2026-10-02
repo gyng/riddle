@@ -338,3 +338,90 @@ shadow, no glow halo (a flame may glow inside its own shape), no text, no magent
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "items":
     print(write("p2_items", items_prompt()))
+
+
+# ---- Cut 30 town v1 (the Split art row): the notice board and the package icons; art/town-ids.md is the binding list ----
+C30_TOWN = {
+    "town_board": (64, 32, "1024x1024", "a village NOTICE BOARD: two weathered wooden posts with a small peaked plank roof, a square board between them with "
+                   "three or four pinned BONE paper notes (blank, no writing, no marks) and one BLOOD wax seal on a note, a lantern hook; the board faces the "
+                   "viewer; it must read at 32 px as 'a notice board' — the pale notes on the dark board are the tag"),
+}
+PKG_ICONS = [
+    ("pkg_steady", "a LARGE round iron-rimmed shield seen from the front, filling most of the canvas, a straight sword crossed behind it with its hilt showing top left and its point bottom right (the steady stance: balanced, ready) — the shield is the big mass"),
+    ("pkg_guarded", "a tall TOWER SHIELD raised high, seen from the front, its face crossed by two iron bands (the guarded stance: cover first)"),
+    ("pkg_bold", "a SPEAR angled forward and up to the right as in a charge, a swallow-tailed BLOOD pennant streaming back from just under its head (the bold stance: charge first) — NOT a sword (the attack icon is a sword)"),
+    ("pkg_hunter", "a drawn recurve bow with a nocked arrow aimed right, a small crosshair ring of MIST before the arrowhead (the hunter stance: pick the target)"),
+    ("pkg_skittish", "a HARE's head in profile facing left, its long ears laid back, one wide eye (the skittish temperament: flees when hurt)"),
+    ("pkg_unbowed", "a knight's HELM seen from the front with a tall straight crest, a crack across it but unbent (the unbowed temperament: stands against bosses)"),
+    ("pkg_light_hands", "an OPEN HAND, palm up, a single GILT coin rising off its fingertips (the light-hands temperament: quick fingers)"),
+    ("pkg_iron_gut", "a round potion FLASK bound by a thick iron band and rivets, a small CLOT-dark liquid inside (the iron-gut temperament: drinks anything)"),
+]
+
+
+def c30_prompts(root: str = "/home/g/p/riddle/.claude/worktrees/c30art") -> list[str]:
+    """the board (a keyed town sprite) and the eight package icons, written for a worktree at `root`"""
+    import json
+    import make_prompts as mp
+    p = ROOT / "manifest.json"
+    m = json.loads(p.read_text())
+    have = {a["id"] for a in m["assets"]}
+    for aid, (mh, th, gen, what) in C30_TOWN.items():
+        if aid not in have:
+            m["assets"].append({"id": aid, "kind": "town", "bg": "keyed", "gen": gen, "master_h": mh, "texel_h": th,
+                                "description": what + ". (Cut 30 town v1, art/town-ids.md.)", "brief3": what + "."})
+    p.write_text(json.dumps(m, indent=2, ensure_ascii=False) + "\n")
+    prop = "the object's own shape as briefed, filling ~80 % of the canvas height with ~8 % margin"
+    body = mp.header3(proportion=prop, tiny="the board ~32 px tall").replace(
+        "ONE full-body figure, a three-quarter view from slightly above, facing RIGHT", "ONE object, seen from the high three-quarter town camera")
+    body = body.replace("/home/g/p/riddle/art/ui/targets/style/hero_sheet.png,", "/home/g/p/riddle/art/ui/targets/style/town.png, /home/g/p/riddle/art/ui/targets/style/hero_sheet.png,")
+    for k, aid in enumerate(C30_TOWN, 1):
+        mh, th, gen, what = C30_TOWN[aid]
+        body += mp.sprite_block3(k, aid, gen, th, what + ".")
+    names = [write("c30_board", body.replace("/home/g/p/riddle/art/", root + "/art/"))]
+    names.append(write("c30_icons", icons_prompt(PKG_ICONS).replace("/home/g/p/riddle/art/", root + "/art/")))
+    redo = [i for i in PKG_ICONS if i[0] in ("pkg_steady", "pkg_bold")]   # round 2: Bold read as the attack card's sword; Steady small
+    names.append(write("c30_icons_r1", icons_prompt(redo).replace("/home/g/p/riddle/art/", root + "/art/")))
+    return names
+
+
+# round 2 after the blind read (one screenshot-only reader on the town sheet): the bank read as a shop or a temple (its coin sign as a
+# lamp), the kennel as a stable, the staked plot as nothing. The tag of each goes into the silhouette, big.
+_BANK_TAG = ("a LARGE round GILT gold COIN hangs on an iron bracket over the door, the size of a cartwheel against the wall (a plain coin "
+             "with a raised rim and a square hole, no letters), and a small open iron strongbox spilling GILT coins beside the steps — the "
+             "coin is the tag: at 64 px it must read 'bank'")
+C30_R2 = {
+    "town_bank_1": (256, 128, "1536x1024", "a small squat stone VAULT HOUSE (the town's bank), thick walls, one heavy iron-banded door, a barred window; " + _BANK_TAG + "; " + _B + ". Look 1 of 3 (built): the three looks of one building must read as the same place growing"),
+    "town_bank_2": (256, 128, "1536x1024", "a stone BANK with two short columns either side of an iron-banded door, iron-barred windows; " + _BANK_TAG + "; " + _B + ". Look 2 of 3 (improved): the same bank grown"),
+    "town_bank_3": (256, 128, "1536x1024", "a grand stone BANK with four columns and a pediment, a heavy round iron vault door, GILT trim; " + _BANK_TAG + " (the coin also carved in the pediment); " + _B + ". Look 3 of 3 (grand): the same bank grown"),
+    "town_kennel_1": (256, 128, "1536x1024", "a KENNEL: a small wooden DOG HOUSE shed with a low arched doorway, a carved BONE-shaped sign over the door, a fenced pen beside it with a big shaggy grey DOG lying in it and a water trough, a food bowl by the door — the dog and the bone sign are the tag: at 64 px it must read 'kennel / pets', not 'stable'; " + _B + ". Look 1 of 3 (built)"),
+    "town_plot": (64, 32, "1024x1024", "a STAKED BUILDING PLOT seen from the high three-quarter camera: a wide rectangle of bare dark earth marked out by four tall wooden stakes with pale BONE string between them, a small white MIST rag flag on the front-left stake, a little pile of cut stones and two planks at one corner — wider than tall, it is the footprint of a future building"),
+}
+
+
+def c30_r2(root: str = "/home/g/p/riddle/.claude/worktrees/c30art") -> str:
+    import json
+    import make_prompts as mp
+    p = ROOT / "manifest.json"
+    m = json.loads(p.read_text())
+    for a in m["assets"]:
+        if a["id"] in C30_R2:
+            mh, th, gen, what = C30_R2[a["id"]]
+            a.update({"master_h": mh, "texel_h": th, "gen": gen, "description": what + ". (Cut 30 town v1 round 2, art/town-ids.md.)", "brief3": what + "."})
+    p.write_text(json.dumps(m, indent=2, ensure_ascii=False) + "\n")
+    prop = "the object's own shape as briefed; buildings and landmarks fill the canvas width with ~8 % margin"
+    body = mp.header3(proportion=prop, tiny="buildings ~64 px tall, the plot ~32 px").replace(
+        "ONE full-body figure, a three-quarter view from slightly above, facing RIGHT", "ONE object, seen from the high three-quarter town camera")
+    body = body.replace("/home/g/p/riddle/art/ui/targets/style/hero_sheet.png,", "/home/g/p/riddle/art/ui/targets/style/town.png, /home/g/p/riddle/art/ui/targets/style/hero_sheet.png,")
+    body += "Keep each building's materials, roof and palette like the existing town buildings (open /home/g/p/riddle/art/generated/town_blacksmith_1.png and town_storehouse_1.png as the family to match).\n"
+    for k, aid in enumerate(C30_R2, 1):
+        mh, th, gen, what = C30_R2[aid]
+        body += mp.sprite_block3(k, aid, gen, th, what + ".")
+    return write("c30_town_r2", body.replace("/home/g/p/riddle/art/", root + "/art/"))
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "c30r2":
+    print(c30_r2())
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "c30":
+    print(" ".join(c30_prompts()))

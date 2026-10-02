@@ -3553,8 +3553,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "the DUNGEON MOUTH, stage one: a black cave opening cut into a rocky hillside, rough rock framing it with MIST-lit ledges, two iron torches on poles either side with small EMBER flames, a few bones at the threshold; the opening INK-black and deep. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the DUNGEON MOUTH, stage one: a black cave opening cut into a rocky hillside, rough rock framing it with MIST-lit ledges, two iron torches on poles either side with small EMBER flames, a few bones at the threshold; the opening INK-black and deep."
     },
@@ -3563,8 +3563,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "the DUNGEON MOUTH, stage two: the same cave opening now braced with heavy timber beams and a lintel, a hanging BLOOD cloth strip, two iron torches with EMBER flames, a small wooden sign post (no letters). (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the DUNGEON MOUTH, stage two: the same cave opening now braced with heavy timber beams and a lintel, a hanging BLOOD cloth strip, two iron torches with EMBER flames, a small wooden sign post (no letters)."
     },
@@ -3573,8 +3573,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "the DUNGEON MOUTH, stage three: a carved stone GATEHOUSE arch over the cave, gothic pointed arch, a raised iron portcullis, two BLOOD banners, two braziers with EMBER flames. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the DUNGEON MOUTH, stage three: a carved stone GATEHOUSE arch over the cave, gothic pointed arch, a raised iron portcullis, two BLOOD banners, two braziers with EMBER flames."
     },
@@ -3583,8 +3583,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 48,
-      "texel_h": 24,
+      "master_h": 64,
+      "texel_h": 32,
       "description": "a CAMPFIRE: a ring of stones around crossed logs with a lively EMBER flame (two tongues), frame 1 of 2. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a CAMPFIRE: a ring of stones around crossed logs with a lively EMBER flame (two tongues), frame 1 of 2."
     },
@@ -3593,8 +3593,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 48,
-      "texel_h": 24,
+      "master_h": 64,
+      "texel_h": 32,
       "description": "the same CAMPFIRE, frame 2 of 2: the flame tongues shifted and one taller, a spark above. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the same CAMPFIRE, frame 2 of 2: the flame tongues shifted and one taller, a spark above."
     },
@@ -3603,8 +3603,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 80,
-      "texel_h": 40,
+      "master_h": 128,
+      "texel_h": 64,
       "description": "the hero's TENT: a single A-frame canvas tent of DUSK-grey canvas with a BLOOD pennant on its pole, the flap tied open showing an INK interior, guy ropes and pegs. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the hero's TENT: a single A-frame canvas tent of DUSK-grey canvas with a BLOOD pennant on its pole, the flap tied open showing an INK interior, guy ropes and pegs."
     },
@@ -3613,8 +3613,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 40,
-      "texel_h": 20,
+      "master_h": 64,
+      "texel_h": 32,
       "description": "the SUPPLY CRATE: a wooden crate with iron corners, a coil of rope and a small sack on top. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the SUPPLY CRATE: a wooden crate with iron corners, a coil of rope and a small sack on top."
     },
@@ -3623,18 +3623,18 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 40,
-      "texel_h": 20,
-      "description": "a STAKED PLOT: four wooden stakes with a string between them marking a square of bare earth, a small MIST-white rag tied to one stake. (Art direction phase 2, docs/TOWN.md §7.)",
-      "brief3": "a STAKED PLOT: four wooden stakes with a string between them marking a square of bare earth, a small MIST-white rag tied to one stake."
+      "master_h": 64,
+      "texel_h": 32,
+      "description": "a STAKED BUILDING PLOT seen from the high three-quarter camera: a wide rectangle of bare dark earth marked out by four tall wooden stakes with pale BONE string between them, a small white MIST rag flag on the front-left stake, a little pile of cut stones and two planks at one corner — wider than tall, it is the footprint of a future building. (Cut 30 town v1 round 2, art/town-ids.md.)",
+      "brief3": "a STAKED BUILDING PLOT seen from the high three-quarter camera: a wide rectangle of bare dark earth marked out by four tall wooden stakes with pale BONE string between them, a small white MIST rag flag on the front-left stake, a little pile of cut stones and two planks at one corner — wider than tall, it is the footprint of a future building."
     },
     {
       "id": "town_scaffold",
       "kind": "town",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 96,
-      "texel_h": 48,
+      "master_h": 224,
+      "texel_h": 112,
       "description": "a SCAFFOLD: a timber frame of a house under construction, poles and cross-braces, a ladder, a few stacked planks; no walls yet. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a SCAFFOLD: a timber frame of a house under construction, poles and cross-braces, a ladder, a few stacked planks; no walls yet."
     },
@@ -3643,8 +3643,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "an open-fronted timber SMITHY with a stone chimney, an anvil at the front, a glowing EMBER forge inside; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "an open-fronted timber SMITHY with a stone chimney, an anvil at the front, a glowing EMBER forge inside; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
     },
@@ -3653,8 +3653,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "a larger stone-and-timber SMITHY with a tiled roof, two anvils, a quench barrel, a weapon rack, the forge glowing EMBER; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a larger stone-and-timber SMITHY with a tiled roof, two anvils, a quench barrel, a weapon rack, the forge glowing EMBER; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing."
     },
@@ -3663,8 +3663,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "a grand stone FORGE-HALL with a tall chimney, iron gates, a great bellows, the forge roaring EMBER, a BLOOD banner; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a grand stone FORGE-HALL with a tall chimney, iron gates, a great bellows, the forge roaring EMBER, a BLOOD banner; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing."
     },
@@ -3673,8 +3673,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "a small wooden STORE SHED with a plank door, crates and a barrel stacked by it; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a small wooden STORE SHED with a plank door, crates and a barrel stacked by it; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
     },
@@ -3683,8 +3683,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "a timber STOREHOUSE with a loft door and a hoist beam, sacks and crates; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a timber STOREHOUSE with a loft door and a hoist beam, sacks and crates; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing."
     },
@@ -3693,8 +3693,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "a stone WAREHOUSE with iron-bound double doors, a hoist, a GILT lock plate; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a stone WAREHOUSE with iron-bound double doors, a hoist, a GILT lock plate; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing."
     },
@@ -3703,18 +3703,18 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
-      "description": "a small wooden KENNEL shed with a fenced pen and a water trough; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
-      "brief3": "a small wooden KENNEL shed with a fenced pen and a water trough; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
+      "master_h": 256,
+      "texel_h": 128,
+      "description": "a KENNEL: a small wooden DOG HOUSE shed with a low arched doorway, a carved BONE-shaped sign over the door, a fenced pen beside it with a big shaggy grey DOG lying in it and a water trough, a food bowl by the door — the dog and the bone sign are the tag: at 64 px it must read 'kennel / pets', not 'stable'; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built). (Cut 30 town v1 round 2, art/town-ids.md.)",
+      "brief3": "a KENNEL: a small wooden DOG HOUSE shed with a low arched doorway, a carved BONE-shaped sign over the door, a fenced pen beside it with a big shaggy grey DOG lying in it and a water trough, a food bowl by the door — the dog and the bone sign are the tag: at 64 px it must read 'kennel / pets', not 'stable'; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built)."
     },
     {
       "id": "town_kennel_2",
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "a longer KENNEL with three stalls, a fenced run, a hay pile; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a longer KENNEL with three stalls, a fenced run, a hay pile; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing."
     },
@@ -3723,8 +3723,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
+      "master_h": 256,
+      "texel_h": 128,
       "description": "a stone-and-timber BEAST HALL with a large fenced yard, carved beast-head gables; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a stone-and-timber BEAST HALL with a large fenced yard, carved beast-head gables; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing."
     },
@@ -3733,30 +3733,30 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
-      "description": "a small squat stone VAULT HOUSE with an iron door and a hanging coin sign (a GILT disc, no letters); seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
-      "brief3": "a small squat stone VAULT HOUSE with an iron door and a hanging coin sign (a GILT disc, no letters); seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
+      "master_h": 256,
+      "texel_h": 128,
+      "description": "a small squat stone VAULT HOUSE (the town's bank), thick walls, one heavy iron-banded door, a barred window; a LARGE round GILT gold COIN hangs on an iron bracket over the door, the size of a cartwheel against the wall (a plain coin with a raised rim and a square hole, no letters), and a small open iron strongbox spilling GILT coins beside the steps — the coin is the tag: at 64 px it must read 'bank'; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing. (Cut 30 town v1 round 2, art/town-ids.md.)",
+      "brief3": "a small squat stone VAULT HOUSE (the town's bank), thick walls, one heavy iron-banded door, a barred window; a LARGE round GILT gold COIN hangs on an iron bracket over the door, the size of a cartwheel against the wall (a plain coin with a raised rim and a square hole, no letters), and a small open iron strongbox spilling GILT coins beside the steps — the coin is the tag: at 64 px it must read 'bank'; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 1 of 3 (built): the three looks of one building must read as the same place growing."
     },
     {
       "id": "town_bank_2",
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
-      "description": "a stone BANK with two short columns, iron-barred windows, a coin sign; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
-      "brief3": "a stone BANK with two short columns, iron-barred windows, a coin sign; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the three looks of one building must read as the same place growing."
+      "master_h": 256,
+      "texel_h": 128,
+      "description": "a stone BANK with two short columns either side of an iron-banded door, iron-barred windows; a LARGE round GILT gold COIN hangs on an iron bracket over the door, the size of a cartwheel against the wall (a plain coin with a raised rim and a square hole, no letters), and a small open iron strongbox spilling GILT coins beside the steps — the coin is the tag: at 64 px it must read 'bank'; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the same bank grown. (Cut 30 town v1 round 2, art/town-ids.md.)",
+      "brief3": "a stone BANK with two short columns either side of an iron-banded door, iron-barred windows; a LARGE round GILT gold COIN hangs on an iron bracket over the door, the size of a cartwheel against the wall (a plain coin with a raised rim and a square hole, no letters), and a small open iron strongbox spilling GILT coins beside the steps — the coin is the tag: at 64 px it must read 'bank'; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 2 of 3 (improved): the same bank grown."
     },
     {
       "id": "town_bank_3",
       "kind": "town",
       "bg": "keyed",
       "gen": "1536x1024",
-      "master_h": 128,
-      "texel_h": 64,
-      "description": "a grand stone BANK with four columns, a pediment, a heavy iron vault door, GILT trim; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing. (Art direction phase 2, docs/TOWN.md §7.)",
-      "brief3": "a grand stone BANK with four columns, a pediment, a heavy iron vault door, GILT trim; seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the three looks of one building must read as the same place growing."
+      "master_h": 256,
+      "texel_h": 128,
+      "description": "a grand stone BANK with four columns and a pediment, a heavy round iron vault door, GILT trim; a LARGE round GILT gold COIN hangs on an iron bracket over the door, the size of a cartwheel against the wall (a plain coin with a raised rim and a square hole, no letters), and a small open iron strongbox spilling GILT coins beside the steps — the coin is the tag: at 64 px it must read 'bank' (the coin also carved in the pediment); seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the same bank grown. (Cut 30 town v1 round 2, art/town-ids.md.)",
+      "brief3": "a grand stone BANK with four columns and a pediment, a heavy round iron vault door, GILT trim; a LARGE round GILT gold COIN hangs on an iron bracket over the door, the size of a cartwheel against the wall (a plain coin with a raised rim and a square hole, no letters), and a small open iron strongbox spilling GILT coins beside the steps — the coin is the tag: at 64 px it must read 'bank' (the coin also carved in the pediment); seen from the town's high three-quarter camera (the roof and the front wall both visible), a small building on the pixel grid with INK line and washes, steep dark roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Look 3 of 3 (grand): the same bank grown."
     },
     {
       "id": "town_smith",
@@ -3853,8 +3853,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 48,
-      "texel_h": 24,
+      "master_h": 144,
+      "texel_h": 72,
       "description": "a tall wooden pole with a swallow-tailed BLOOD flag streaming right, frame 1 of 2. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "a tall wooden pole with a swallow-tailed BLOOD flag streaming right, frame 1 of 2."
     },
@@ -3863,8 +3863,8 @@
       "kind": "town",
       "bg": "keyed",
       "gen": "1024x1024",
-      "master_h": 48,
-      "texel_h": 24,
+      "master_h": 144,
+      "texel_h": 72,
       "description": "the same flag pole, frame 2 of 2: the BLOOD flag's ripple shifted. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the same flag pole, frame 2 of 2: the BLOOD flag's ripple shifted."
     },
@@ -3907,6 +3907,16 @@
       "texel_h": 48,
       "description": "the SAME hero as /home/g/p/riddle/art/generated/hero_caster_male.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the SAME hero as /home/g/p/riddle/art/generated/hero_caster_male.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town."
+    },
+    {
+      "id": "town_board",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 112,
+      "texel_h": 56,
+      "description": "a village NOTICE BOARD: two weathered wooden posts with a small peaked plank roof, a square board between them with three or four pinned BONE paper notes (blank, no writing, no marks) and one BLOOD wax seal on a note, a lantern hook; the board faces the viewer; it must read at 32 px as 'a notice board' — the pale notes on the dark board are the tag. (Cut 30 town v1, art/town-ids.md.)",
+      "brief3": "a village NOTICE BOARD: two weathered wooden posts with a small peaked plank roof, a square board between them with three or four pinned BONE paper notes (blank, no writing, no marks) and one BLOOD wax seal on a note, a lantern hook; the board faces the viewer; it must read at 32 px as 'a notice board' — the pale notes on the dark board are the tag."
     }
   ]
 }
