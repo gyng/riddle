@@ -62,8 +62,8 @@ async function sendAndEnd(timeout = 150_000) {
 
 try {
   if (part("run") || part("lift") || part("auto")) {
-    // real wasm: the core's rarity and reason. Seed 7's first send banks a new best with a sword +1 (uncommon) among its finds
-    await page.goto(`${url}?seed=7&fresh=1&speed=8&runclear=1`, { waitUntil: "domcontentloaded" });
+    // real wasm: the core's rarity and reason. Seed 1's first send banks a new best with an uncommon axe among its finds
+    await page.goto(`${url}?seed=1&fresh=1&speed=8&runclear=1`, { waitUntil: "domcontentloaded" });
     await until(() => window.__riddle?.booted, "boot", 60_000);
     if (part("run")) {
       const s = await sendAndEnd();
@@ -85,6 +85,9 @@ try {
       check((await screen()) === "camp", "a tap on the card goes on to the town");
     }
     if (part("lift")) {
+      // Keep this card fixture independent: a later run may legitimately die.
+      await page.goto(`${url}?seed=1&fresh=1&speed=8&runclear=1`, { waitUntil: "domcontentloaded" });
+      await until(() => window.__riddle?.booted, "boot", 60_000);
       await sendAndEnd();
       await until(() => document.querySelector(".run-clear"), "the card");
       await page.locator(".report .console [data-tile=\"report\"]").click();
@@ -92,7 +95,7 @@ try {
       check(lifted === "report", "the `report` tile lifts the card to the run's report");
     }
     if (part("auto")) {
-      await page.goto(`${url}?seed=7&fresh=1&speed=8&runclear=1&autodismiss=0.1`, { waitUntil: "domcontentloaded" });
+      await page.goto(`${url}?seed=1&fresh=1&speed=8&runclear=1&autodismiss=0.1`, { waitUntil: "domcontentloaded" });
       await until(() => window.__riddle?.booted, "boot", 60_000);
       await sendAndEnd();
       const L = await until(() => document.querySelector(".run-clear") && window.__autodismiss.live(), "the card's clock");

@@ -164,6 +164,35 @@ async function attempt() {
     } else if (s.screen === "ending") await dump("ending");
     else await dump(s.screen, { note: "unexpected" });
 
+    // Cut 30.5: the first shot stays manual. Earn and hire the scout before exercising a repeating absence.
+    const trunk = await page.evaluate(async () => {
+      const r = window.__riddle;
+      if (!r.lineage.tree || r.lineage.tree.auto_send) return { sends: 0, auto: true };
+      let sends = 0;
+      for (let i = 0; i < 10 && !r.lineage.tree.auto_send; i++) {
+        try { r.lineage = await r.engine.openChest(); } catch { /* no haul yet */ }
+        r.lineage = await r.engine.lineage();
+        for (let j = 0; j < 2; j++) {
+          const id = r.lineage.tree?.lit;
+          if (!id || !["porter", "scout"].includes(id)) break;
+          try { r.lineage = await r.engine.hire(id); } catch { break; }
+        }
+        if (r.lineage.tree.auto_send) break;
+        await r.engine.send(); sends++;
+        let ended = false;
+        for (let k = 0; k < 600; k++) {
+          const a = await r.engine.advance(20_000);
+          if (a.ended.length) { ended = true; break; }
+        }
+        if (!ended) throw new Error("Manual scout-phase run did not end");
+        r.lineage = await r.engine.lineage();
+      }
+      if (!r.lineage.tree.auto_send) throw new Error("Scout was not hired after the manual trunk");
+      await r.flush(); r.go({ kind: "camp" });
+      return { sends, auto: r.lineage.tree.auto_send };
+    });
+    if (trunk.sends) { await settle(); await dump("camp", { note: `scout hired · ${trunk.sends} extra manual sends` }); }
+
     // 4. come back after the absence: offline report (timed), then the worst death
     const ta = Date.now();
     await goto(`absent=${encodeURIComponent(opt.absent)}`);

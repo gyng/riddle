@@ -88,6 +88,14 @@ try {
   await toRunEnd(page);
   const after = (await state(page))?.screen;
   if (after === "death") await gemClear(page, "phone death (the first run)");
+  // The absence's layout belongs to the scout phase; manual sends wait at home before he is hired (Cut 30.5).
+  await page.evaluate(async () => {
+    const r = window.__riddle, blob = JSON.parse(r.exportSave()), save = JSON.parse(blob.engine);
+    for (const id of ["porter", "scout"]) if (!save.lineage.tree.hired.some(([worker]) => worker === id)) save.lineage.tree.hired.push([id, save.lineage.day ?? 0]);
+    blob.engine = JSON.stringify(save);
+    if (!await r.importSave(JSON.stringify(blob))) throw new Error("Could not load the scout-phase layout fixture");
+    if (!r.lineage.tree.auto_send) throw new Error("The absence layout fixture requires the scout");
+  });
   // the absence: the report, its worst death
   await page.goto(`${url}?dev=1&absent=8h`);
   await waitFor(page, (s) => s?.booted && (s.screen === "report" || s.screen === "ending"), "report", 240_000); await settle(page);
