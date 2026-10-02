@@ -30,6 +30,10 @@ const BLURB: Record<string, string> = {
   kennel_hand: "fields best pets", herald: "swaps stale quests", guide: "starts deeper",
 };
 export const blurb = (id: string): string => BLURB[id] ?? "";
+/** week 2: a worker's rank as a numeral (`II`); none at rank 1 */
+export const rankNum = (r?: number): string => (r && r > 1 ? ["", "I", "II", "III", "IV", "V"][r] ?? String(r) : "");
+/** What the next rank adds (≤ 4 words), once the core sends it (`rank_adds`, reserved); until then the price says it all. */
+const rankAdds = (n: WorkNode): string => { const a = (n as WorkNode & { rank_adds?: string }).rank_adds; return a && a.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 4 ? a : ""; };
 /** the chore's count word (`2/3 chests`) */
 /* copy:label */
 const CHORE: Record<string, string> = { chest: "chests", send: "sends", wear: "worn", forge: "steps", keep: "sorted", deposit: "deposits", level: "levels", field: "fielded", swap: "swaps", start: "starts" };
@@ -113,7 +117,18 @@ export function openWorks(app: App, focus?: string, anchor?: HTMLElement | null)
       const sil = (n: WorkNode): HTMLElement => h("div", { class: "wnode sil", "data-node": n.id, "data-state": n.state },
         h("span", { class: "wn-ico" }, nodeIcon(n.id, n.name)), h("div", { class: "wn-main" }, h("span", { class: "wn-name" }, n.name), h("small", { class: "wn-state num" }, silLine(n))));
       const done = v.done.length ? h("div", { class: "works-done" }, h("span", { class: "wd-mark", "aria-hidden": "true" }, "✓"),
-        ...v.done.map((n) => h("span", { class: `wd${n.paused ? " off" : ""}`, "data-node": n.id, title: blurb(n.id) || n.name }, nodeIcon(n.id, n.name), h("small", null, n.name)))) : "";
+        ...v.done.map((n) => h("span", { class: `wd${n.paused ? " off" : ""}`, "data-node": n.id, "data-rank": n.rank ?? 1, title: blurb(n.id) || n.name }, nodeIcon(n.id, n.name), h("small", null, n.name),
+          rankNum(n.rank) ? h("b", { class: "wd-rank num" }, ` ${rankNum(n.rank)}`) : ""))) : "";
+      // week 2: the one rank on offer (`Works.lit_rank`, only while no hire is lit) — its card and its promote, above the done row
+      const rk = W.lit_rank ? W.nodes.find((n) => n.id === W.lit_rank) : undefined;
+      const rankCard = rk ? (() => {
+        const to = rankNum((rk.rank ?? 1) + 1), price = rk.rank_price ?? 0, have = app.lineage.gold + W.chest, can = have >= price && !!app.engine.promote;
+        return h("div", { class: "wnode cur lit rank", "data-node": rk.id, "data-state": "rank" },
+          h("span", { class: "wn-ico" }, nodeIcon(rk.id, rk.name)),
+          h("div", { class: "wn-main" }, h("div", { class: "wn-head" }, h("b", { class: "wn-name" }, `${rk.name} ${to}`), rankAdds(rk) ? h("span", { class: "wn-state num" }, rankAdds(rk)) : ""),
+            h("small", { class: "wn-tip" }, kw("rank", /* copy:label */ "rank"), ` ${rankNum(rk.rank) || "I"} → ${to}`)),
+          h("button", { class: `btn primary promote-btn${can ? "" : " short"}`, "data-node": rk.id, disabled: !can, onclick: () => void promoteNode(app, rk, close) }, can ? /* copy:button */ `promote · $${price}` : `$${have}/$${price}`));
+      })() : "";
       // the four branches (the tracks: their stage, the next and its trigger) once the trunk is done
       const branches = trunkDone(W) ? h("div", { class: "works-branches" }, ...TRACK_IDS.map((t) => {
         const st = W.nodes.filter((n) => n.kind === "stage" && n.branch === t);
@@ -124,7 +139,8 @@ export function openWorks(app: App, focus?: string, anchor?: HTMLElement | null)
           nx ? h("small", { class: "wb-next num" }, /* copy:callout */ `next · ${nx.name}${nx.trigger ? ` · ${nx.trigger}` : ""}`) : h("small", { class: "wb-next dim" }, "✓"));
       })) : "";
       replace(body, h("div", { class: "label row-label" }, kw("works", /* copy:label */ "works")),
-        h("div", { class: "works-trunk" }, ...[...v.next].reverse().map(sil), v.focus ? card(v.focus) : "", done), branches);
+        // (a rank on offer takes the second silhouette's place: the sheet stays ≤ 7 nodes on a phone)
+        h("div", { class: "works-trunk" }, ...v.next.slice(0, rankCard ? 1 : 2).reverse().map(sil), v.focus ? card(v.focus) : "", rankCard, done), branches);
       const f = focus && body.querySelector<HTMLElement>(`.wnode[data-node="${focus}"]`);
       if (f) { f.classList.add("focus"); setTimeout(() => f.scrollIntoView?.({ block: "nearest" }), 0); }
     };
@@ -144,11 +160,23 @@ export async function hireNode(app: App, n: WorkNode, close?: () => void): Promi
   hireBeat(n.name);
   return true;
 }
+/** week 2: the promotion — the core's (`promote(id)`), then the beat `PORTER II`. */
+export async function promoteNode(app: App, n: WorkNode, close?: () => void): Promise<boolean> {
+  if (!app.engine.promote) return false;
+  const ok = await app.mutate(() => app.engine.promote!(n.id));
+  if (!ok) return false;
+  audio.cue("level");
+  close?.();
+  const r = app.lineage.tree?.nodes.find((x) => x.id === n.id)?.rank ?? (n.rank ?? 1) + 1;
+  beat(`${n.name.toUpperCase()} ${rankNum(r)}`);
+  return true;
+}
 /** The hire's beat over the well: the worker's name and `HIRED` (2 words), ~1.8 s. */
-export function hireBeat(name: string): void {
+export const hireBeat = (name: string): void => beat(`${name.toUpperCase()} `, /* copy:callout */ "HIRED");
+function beat(...text: string[]): void {
   const host = document.querySelector<HTMLElement>(".camp .well-wrap") ?? document.body;
   for (const old of host.querySelectorAll(".works-beat")) old.remove();
-  const b = h("div", { class: "works-beat", role: "status" }, h("b", null, `${name.toUpperCase()} `, /* copy:callout */ "HIRED"));
+  const b = h("div", { class: "works-beat", role: "status" }, h("b", null, ...text));
   host.appendChild(b);
   setTimeout(() => b.remove(), 1900);
 }

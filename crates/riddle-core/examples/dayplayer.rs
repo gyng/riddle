@@ -27,6 +27,8 @@ enum Bot {
     /// Cut 30.5: Cut 30's IDLE, the reference for IDLE's bounded delta — the workers up to the scout given at
     /// the start (an old save's mapping), no first session: the cut30-client fortnight
     Idle30,
+    /// Cut 30.5 (the owner, 2026-10-02): the away player — PICKED at one check-in a day (automation pays here)
+    Away,
 }
 
 impl Bot {
@@ -38,6 +40,7 @@ impl Bot {
             Bot::Random => "RANDOM",
             Bot::Hands => "HANDS",
             Bot::Idle30 => "IDLE30",
+            Bot::Away => "AWAY",
         }
     }
 }
@@ -348,6 +351,18 @@ fn camp_taps(g: &mut Game, ask: &Ask, arm: u8, out: &mut SeedOut, h: f64) {
         if off.is_some_and(|sys| !ask.has(sys)) {
             let _ = g.set_worker(n.id, false);
         }
+        // (`DP_OFF=a,b`: a probe's workers hired and switched off — never in a gate run)
+        if std::env::var("DP_OFF").is_ok_and(|v| v.split(',').any(|x| x == n.id)) {
+            let _ = g.set_worker(n.id, false);
+        }
+    }
+    // (week 2: PICKED and TUNED — with nodes or by hand — take each hired worker's rank on offer as the purse and
+    // chest pay it, after any hire)
+    for _ in 0..tree::NODES.len() {
+        let Some(n) = tree::lit_rank(&g.lineage) else { break };
+        if arm != 2 || g.lineage.gold < tree::rank_price(&g.lineage, n) || g.promote(n.id).is_err() {
+            break;
+        }
     }
     let l = &g.lineage;
     if l.gold as i64 + l.town.bank as i64 != l.tree.ledger || l.tree.chest < 0 || l.tree.chest > l.gold {
@@ -357,10 +372,10 @@ fn camp_taps(g: &mut Game, ask: &Ask, arm: u8, out: &mut SeedOut, h: f64) {
     note_nodes(g, out, h);
 }
 
-/// The guide's start: the deepest lit stone a band under the record (by hand or by the worker).
+/// The guide's start by hand: the worker's own rule (`tree::guide_pick`), when it moves the start.
 fn guide_pick(g: &Game) -> Option<u32> {
-    let l = &g.lineage;
-    l.stones().into_iter().filter(|s| s + riddle_core::tree::GUIDE_GAP <= l.best_depth).max().filter(|s| *s > l.start.max(1))
+    let s = riddle_core::tree::guide_pick(&g.lineage, true);
+    (s != g.lineage.start.max(1)).then_some(s)
 }
 
 /// The chores HANDS, PICKED and TUNED do by hand until a worker does them: the herald's swap (a quest from an
@@ -474,6 +489,8 @@ enum Q {
     /// TUNED with its pen (the pen's rows written once it opens)
     Tuned,
     Has(&'static str),
+    /// Cut 30.5: one check-in a day (the away player)
+    Cadence,
 }
 
 fn answer(cfg: &Cfg, q: Q) -> u8 {
@@ -481,11 +498,12 @@ fn answer(cfg: &Cfg, q: Q) -> u8 {
         Q::Arm => match cfg.bot {
             Bot::Idle => 0,
             Bot::Random => 1,
-            Bot::Picked | Bot::Tuned => 2,
+            Bot::Picked | Bot::Tuned | Bot::Away => 2,
             Bot::Hands => 3,
             Bot::Idle30 => 4,
         },
         Q::Tuned => (cfg.bot == Bot::Tuned && cfg.has("pen")) as u8,
+        Q::Cadence => (cfg.bot == Bot::Away) as u8,
         Q::Has(s) => cfg.has(s) as u8,
     }
 }
@@ -548,6 +566,7 @@ struct Play {
 
 impl Play {
     fn new(seed: u64, days: usize, checkins: u64, verbose: bool, ask: &Ask) -> Play {
+        let checkins = if ask.q(Q::Cadence) == 1 { 1 } else { checkins };
         let interval = 24 * 3600 / checkins;
         let mut g = Game::new(seed);
         if !ask.has("quests") {
@@ -804,6 +823,12 @@ impl Play {
         out.gold_day.push(g.lineage.gold as i64 + g.lineage.town.bank as i64 - self.wealth0);
         out.stance_level_day.push(g.lineage.pkg.level(&g.lineage.pkg.stance));
         self.opened |= riddle_core::town::stage_set(&g.lineage).len() > self.stages0.len();
+        // `DP_STAGES=1`: each day's new stages
+        if std::env::var_os("DP_STAGES").is_some() {
+            let now = riddle_core::town::stage_set(&g.lineage);
+            let new: Vec<String> = now.iter().filter(|x| !self.stages0.contains(x)).map(|(t, s)| format!("{t}:{s}")).collect();
+            eprintln!("  [{}] s{} day {} D{} stages {} {}", cfg.label(), self.seed, day + 1, g.lineage.best_depth, if self.opened { "Y" } else { "-" }, new.join(", "));
+        }
         out.stage_days += self.opened as usize;
         self.new_today |= g.lineage.class_level() > self.level0;
         if day == 0 {
@@ -953,7 +978,7 @@ fn main() {
     let verbose = a.iter().any(|x| x == "--verbose");
     let loo = a.iter().any(|x| x == "--loo") || gate;
     let only = a.iter().position(|x| x == "--only").and_then(|i| a.get(i + 1)).and_then(|s| s.parse::<u64>().ok());
-    let bots_arg = a.iter().position(|x| x == "--bots").and_then(|i| a.get(i + 1)).cloned().unwrap_or_else(|| "idle,picked,tuned,random,hands".into());
+    let bots_arg = a.iter().position(|x| x == "--bots").and_then(|i| a.get(i + 1)).cloned().unwrap_or_else(|| "idle,picked,tuned,random,hands,away".into());
     let mut cfgs: Vec<Cfg> = bots_arg
         .split(',')
         .filter_map(|b| match b {
@@ -963,6 +988,7 @@ fn main() {
             "random" => Some(Bot::Random),
             "hands" => Some(Bot::Hands),
             "idle30" => Some(Bot::Idle30),
+            "away" => Some(Bot::Away),
             _ => None,
         })
         .map(|bot| Cfg { bot, without: None })
@@ -974,8 +1000,12 @@ fn main() {
     // (`--loo-only packages,forge`: a probe's leave-one-outs, the rest left out)
     let loo_only: Option<Vec<String>> = a.iter().position(|x| x == "--loo-only").and_then(|i| a.get(i + 1)).map(|s| s.split(',').map(String::from).collect());
     if (loo || loo_only.as_ref().is_some_and(|o| o.iter().any(|x| x == "nodes"))) && cfgs.iter().any(|c| c.bot == Bot::Picked) {
-        // (Cut 30.5: PICKED by hand — the scout alone hired; automation pays, nothing required)
+        // (Cut 30.5: PICKED by hand — the trunk to the scout alone hired; nothing required)
         cfgs.push(Cfg { bot: Bot::Picked, without: Some("nodes") });
+    }
+    if cfgs.iter().any(|c| c.bot == Bot::Away) {
+        // (Cut 30.5, the owner: the away player by hand — automation pays)
+        cfgs.push(Cfg { bot: Bot::Away, without: Some("nodes") });
     }
     if loo || loo_only.is_some() {
         for s in SYSTEMS {
@@ -993,7 +1023,7 @@ fn main() {
     let loo_seeds = get("--loo-seeds", 4);
     // (TUNED is a leave-one-out's base: the same seeds, `--tuned-seeds`, the bots' own by default)
     let tuned_seeds = get("--tuned-seeds", seeds);
-    let seeds_of = |c: usize| if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else if cfgs[c].bot == Bot::Tuned { tuned_seeds.min(seeds) } else { seeds };
+    let seeds_of = |c: usize| if cfgs[c].bot == Bot::Away { seeds } else if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else if cfgs[c].bot == Bot::Tuned { tuned_seeds.min(seeds) } else { seeds };
     // Per-job results are kept under `target/gates/dp/` (a job is a pure function of the code, the bot, the
     // seed and the days): a rerun reprints at once, and an interrupted run resumes where it stopped. The key
     // is the binary's own hash, or — under `tools/gates.mjs`, which sets `RIDDLE_SRC_KEY` to the hash of the
@@ -1016,7 +1046,7 @@ fn main() {
         Err(_) => format!("{:016x}", fnv(&std::fs::read(std::env::current_exe().expect("exe")).unwrap_or_default(), 0xcbf2_9ce4_8422_2325)),
     };
     // (`DP_STALLS` prunes the stall records it prints: a different game, never kept)
-    let keep = !verbose && std::env::var("DP_STALLS").is_err();
+    let keep = !verbose && std::env::var("DP_STALLS").is_err() && std::env::var("DP_OFF").is_err();
     let cache_dir = std::path::PathBuf::from("target/gates/dp");
     let _ = std::fs::create_dir_all(&cache_dir);
     let cache_of = |c: &Cfg, s: u64| cache_dir.join(format!("{bin_key}-{}-s{s}-d{days}-c{checkins}.json", c.label()));
@@ -1135,6 +1165,11 @@ fn main() {
             );
             if verbose {
                 println!("      rules: {}", o.rules);
+            }
+            // `DP_NODES=1`: each node's hours — its chore open · its trigger met · hired
+            if std::env::var_os("DP_NODES").is_some() {
+                let at = |v: &[(String, f64)], id: &str| v.iter().find(|(x, _)| x == id).map_or("-".to_string(), |x| format!("{:.1}", x.1));
+                println!("      nodes: {}", riddle_core::tree::NODES.iter().skip(1).map(|n| format!("{} {}/{}/{}", n.id, at(&o.node_open_h, n.id), at(&o.node_ready_h, n.id), at(&o.node_hired_h, n.id))).collect::<Vec<_>>().join(" · "));
             }
         }
     }
@@ -1365,8 +1400,7 @@ fn main() {
         let (p, b) = (&picked[..n], &by_hand[..n]);
         let (mp, mb) = (median(p.iter().map(|o| hours_or(o, 2, cap)).collect()), median(b.iter().map(|o| hours_or(o, 2, cap)).collect()));
         let mean = |v: &[SeedOut]| v.iter().map(|o| hours_or(o, 2, cap)).sum::<f64>() / v.len().max(1) as f64;
-        let pays = mp < mb || (mp == mb && mean(p) < mean(b));
-        bars.push(("Automation pays: PICKED reaches D18 sooner than PICKED − nodes (median h)".into(), format!("{mp:.0} vs {mb:.0} (mean {:.0} vs {:.0})", mean(p), mean(b)), pays));
+        infos.push(("PICKED vs PICKED − nodes at D18 (median h, 3 check-ins a day)".into(), format!("{mp:.0} vs {mb:.0} (mean {:.0} vs {:.0})", mean(p), mean(b))));
         if !idle.is_empty() {
             let mut ok = true;
             let mut worst = String::from("ok");
@@ -1384,6 +1418,18 @@ fn main() {
             }
             bars.push(("Nothing required, S = nodes: PICKED − nodes ≤ IDLE (median ± a check-in, 48 h)".into(), worst, ok));
         }
+    }
+    // (the owner, 2026-10-02: automation pays the player who is away — one check-in a day, workers vs every chore by
+    // hand at that check-in: D18 sooner on the median seed, or a better mean best depth over the fortnight)
+    let away = by("AWAY");
+    let away_hand = by("AWAY-nodes");
+    if !away.is_empty() && !away_hand.is_empty() {
+        let n = away.len().min(away_hand.len());
+        let (a, b) = (&away[..n], &away_hand[..n]);
+        let (ma, mb) = (median(a.iter().map(|o| hours_or(o, 2, cap)).collect()), median(b.iter().map(|o| hours_or(o, 2, cap)).collect()));
+        let depth = |v: &[SeedOut]| v.iter().map(|o| o.depth_area as f64 / o.best_day.len().max(1) as f64).sum::<f64>() / v.len().max(1) as f64;
+        let (da, db) = (depth(a), depth(b));
+        bars.push(("Automation pays the away player (1 check-in a day): D18 sooner or a deeper mean best".into(), format!("D18 {ma:.0} vs {mb:.0} h · mean best {da:.2} vs {db:.2}"), ma < mb || da > db));
     }
     if !idle30.is_empty() && !idle.is_empty() {
         let n = idle.len().min(idle30.len());

@@ -14,6 +14,7 @@
 //             stage, the next and its trigger, the hero's face on the character branch) and ≤ 7 nodes on a phone
 //   toggles   settings: each hired worker a switch (`setWorker`): the porter off brings the chest back, on again retires it
 //   report    an absence's report lists the workers' acts compactly (`porter · hauled $N`) within the lead; slices merge
+//   rank      week 2: a rank on offer (no hire lit) — promote on the works, `PORTER II`, the numeral on the done row, a pip in the town
 //   walk      the scripted first 10 minutes (§4 table, step by step; the pill as the contract orders it)
 //
 //   node web/tests/cut305.mjs [--shots dir] [--part=a,b]      (part of `pnpm test` in web/)
@@ -296,6 +297,40 @@ try {
     check(w.done.length === 5 && w.sil.length <= 2 && w.nodesOnScreen <= 7 + 5, `mid: the trunk's five done in one dim row, the next ≤ 2 silhouettes; ${w.nodesOnScreen} items on screen (≤ 7 nodes + the done row)`);
     await shot("works-mid");
     await closeSheets();
+  }
+
+  // ---- ranks (week 2): one rank on offer when no hire is lit — its card and promote on the works; the numeral on the done row; a quiet
+  // pip on the worker in the town; the `PORTER II` beat; the rank's tooltip term
+  if (part("rank")) {
+    await fresh(); await camp();
+    await withState((e) => { e.st305.hired = ["quartermaster", "porter", "scout"]; e.lineage.best_depth = 3; e.lineage.gold += 2000; });
+    let s = await S();
+    const offer = await page.evaluate(() => { const W = window.__riddle.lineage.tree; const n = W.nodes.find((x) => x.id === W.lit_rank); return { lit: W.lit ?? null, rank: W.lit_rank ?? null, price: n?.rank_price, at: n?.rank }; });
+    check(offer.rank === "porter" && !offer.lit && offer.at === 1 && offer.price > 0, `a rank on offer while no hire is lit (${offer.rank} I → II · $${offer.price})`);
+    await page.evaluate(async () => { const { openWorks } = await import("/src/ui/works.ts"); openWorks(window.__riddle, window.__riddle.lineage.tree.lit_rank); });
+    await until(() => !!document.querySelector(".works-sheet .wnode.rank"), "the rank card", 5000);
+    const card = await page.evaluate(() => { const c = document.querySelector(".works-sheet .wnode.rank"); return { node: c?.dataset.node, name: c?.querySelector(".wn-name")?.textContent, btn: c?.querySelector(".promote-btn")?.textContent, buys: document.querySelectorAll(".works-sheet :is(.hire-btn, .promote-btn):not([disabled])").length, kw: !!c?.querySelector('[data-kw="rank"]'), focus: document.querySelector(".works-sheet .wnode.focus")?.dataset.node, numerals: [...document.querySelectorAll(".works-sheet .wd .wd-rank")].map((x) => x.textContent.trim()) }; });
+    check(card.node === "porter" && card.name === "porter II" && card.btn === `promote · $${offer.price}` && card.buys === 1 && card.focus === "porter", `the works: the rank card \`${card.name}\` with \`${card.btn}\`, ≤ 1 buy (${card.buys}), focused`);
+    check(card.kw && card.numerals.length === 0, `the card marks the \`rank\` term; no numeral on a rank-1 done node (${card.numerals.join(",") || "none"})`);
+    const tip = await page.evaluate(async () => { const { TIP } = await import("/src/ui/concepts.ts"); return TIP.rank; });
+    check(!!tip && words(tip) <= 4, `the rank's tooltip entry ("${tip}")`);
+    await shot("works-rank");
+    await page.locator(".works-sheet .promote-btn").click();
+    const beat = await until(() => document.querySelector(".works-beat")?.textContent, "the beat", 3000).catch(() => "");
+    await sleep(300);
+    const after = await page.evaluate(() => ({ rank: window.__riddle.lineage.tree.nodes.find((n) => n.id === "porter").rank, ranks: window.__town.stats().ranks }));
+    check(beat === "PORTER II" && after.rank === 2 && after.ranks.porter === 2, `promote → \`${beat}\`; porter rank ${after.rank}; his pip in the town (${JSON.stringify(after.ranks)})`);
+    await page.evaluate(async () => { const r = window.__riddle; await r.mutate(() => r.engine.promote(r.lineage.tree.lit_rank)); await r.mutate(() => r.engine.promote(r.lineage.tree.lit_rank)); });
+    await page.evaluate(async () => { const { openWorks } = await import("/src/ui/works.ts"); openWorks(window.__riddle); });
+    await until(() => !!document.querySelector(".works-sheet"), "the works", 5000);
+    const nums = await page.evaluate(() => [...document.querySelectorAll(".works-sheet .wd")].map((x) => `${x.dataset.node}${x.querySelector(".wd-rank")?.textContent ?? ""}`));
+    check(nums.some((x) => / (II|III)$/.test(x)), `the done row shows the ranks as numerals (${nums.join(", ")})`);
+    await closeSheets(); await sleep(300);
+    s = await S();
+    const r2 = await page.evaluate(() => window.__town.stats().ranks);
+    check(Object.keys(r2).length >= 2 && s.workers.includes("porter"), `the town: ranked workers carry their pips (${JSON.stringify(r2)})`);
+    await page.evaluate(() => window.__town.setHour(12));
+    await shot("town-ranks", 800);
   }
 
   // ---- toggles: each hired worker a switch in settings

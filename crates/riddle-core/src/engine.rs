@@ -3433,6 +3433,7 @@ impl Game {
     /// Cut 21 §1: the floor the next sends start on — 1, or a lit waystone (refused otherwise).
     pub fn set_start(&mut self, depth: u32) -> Result<(), String> {
         self.lineage.set_start(depth)?;
+        self.lineage.tree.start_by_hand = Some((depth.max(1), self.lineage.best_depth));
         crate::tree::did(&mut self.lineage, "start");
         Ok(())
     }
@@ -4304,11 +4305,15 @@ impl Game {
     /// class XP and renown; a dead heir's kit stays on the floor as bones.
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
-        // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout)
+        // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout); the guide's record of
+        // the stone it started from
         if !self.sim {
             self.lineage.tree.sent = false;
+            crate::tree::note_start(&mut self.lineage, run.start, run.over != Some(ExitTier::Death) && run.loot > 0, run.over == Some(ExitTier::Death));
         }
         let tier = run.over.unwrap_or(ExitTier::Return);
+        // (c30-legible: the record before this run, for the end's reason)
+        let best0 = self.lineage.best_depth;
         // Yield follows the exit (Cut 2 §2); a timed-out run yields nothing.
         let pct: i32 = run.yield_pct(tier);
         // Cut 13 §1: a stall (the guard fired `STALL_FIRES` times on one floor) is a run the
@@ -5135,6 +5140,7 @@ impl Game {
         if tier == ExitTier::Death {
             line.cause = run.death_cause.as_deref().map(crate::sifter::cause_phrase);
         }
+        line.reason = Some(exit_reason(&run, tier, best0, self.lineage.rules()));
         for l in &run.swap_left {
             match line.swap_left.iter_mut().find(|c| c.kind == *l) {
                 Some(c) => c.n += 1,
@@ -6027,6 +6033,59 @@ pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: V
     exit_line_of(carried, keep_pct, kept, spent, spent_on, tier, timed_out, false, 0, bones, depth)
 }
 
+/// c30-legible: why a run ended, ≤ 3 words (`ExitLine.reason`) — the committing row's reason, not its
+/// words: a bank at the record (Steady's `depth ≥ best → bank`, which ends a fresh lineage's first runs
+/// at D2, D3, D4 …) reads `banks every record`; a hurt row `hurt · went home`; a death `slain · jackal`.
+pub fn exit_reason(run: &Run, tier: ExitTier, best0: u32, rules: &RuleSet) -> String {
+    let bare = |s: String| -> String { s.trim_start_matches("the ").trim_start_matches("a ").trim_start_matches("an ").to_string() };
+    if tier == ExitTier::Death {
+        let c = run.death_cause.as_deref().unwrap_or("");
+        if c == "hunger" {
+            return "starved".into();
+        }
+        let who = bare(crate::sifter::cause_phrase(c));
+        return if who.is_empty() { "slain".into() } else { format!("slain · {who}") };
+    }
+    if run.timed_out && run.stuck_fires >= STALL_FIRES {
+        return "stuck · gave up".into();
+    }
+    if run.timed_out {
+        return "lost thread".into();
+    }
+    if let Some(k) = &run.driven_off {
+        return format!("repelled · {}", crate::sifter::boss_short(k));
+    }
+    let row = run.exit_row.and_then(|i| usize::try_from(i).ok()).and_then(|i| rules.rows.get(i));
+    let Some(row) = row else {
+        return match tier {
+            ExitTier::Bank => "recalled".into(),
+            _ if run.stuck_fires > 0 => "stuck · went home".into(),
+            _ => "bailed".into(),
+        };
+    };
+    let has = |k: &str| row.conds.iter().any(|c| c.k == k);
+    let bank = tier == ExitTier::Bank;
+    if has("hp<") || has("party_hp<") {
+        return if bank { "hurt · banked".into() } else { "hurt · went home".into() };
+    }
+    if has("depth>=") {
+        // (a stance's row banks at the record: `depth ≥ best + 1`, a floor further when whole)
+        let at = row.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n).unwrap_or(0);
+        // (Cut 30.5: a row a floor further than the record's next — the whole hero's — reads `new best · banked`)
+        return if run.max_depth > best0 && at as u32 <= (best0 + 1).max(2) { "banks every record".into() } else if run.max_depth > best0 { "new best · banked".into() } else { format!("reached D{}", run.max_depth) };
+    }
+    if has("foes>=") || has("adj>=") {
+        return "outnumbered".into();
+    }
+    if has("loot>=") {
+        return "loot full".into();
+    }
+    if has("turns>") {
+        return "long run".into();
+    }
+    format!("{} rule", if bank { "bank" } else { "return" })
+}
+
 /// A ledger line an exit wrote (`returned D5`, `banked D8`, `died D3`, `lost thread D3`,
 /// `stalled D2`, `driven D8`): the word it leads with.
 pub fn is_exit_why(why: &str) -> bool {
@@ -6061,7 +6120,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None }
+    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None }
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

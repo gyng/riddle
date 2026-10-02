@@ -114,6 +114,7 @@
 // ticks after the last of those stops holding. Entry and exit are released at the viewer's clock (the engine runs ahead),
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
+import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Row, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
@@ -339,6 +340,14 @@ export function renderWatch(app: App): Mounted {
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
   const ticker = h("div", { class: "ticker" });
+  // c30-legible: the run's end, why — its own line under the ticker (`banks every record`, `hurt · went home`, `slain · jackal`)
+  const whyLine = h("div", { class: "beat-why num", "aria-live": "polite" });
+  let whyTimer2 = 0;
+  function showWhy(text: string, ms: number): void {
+    replace(whyLine, text); whyLine.classList.add("show"); el.classList.add("has-why");
+    clearTimeout(whyTimer2); whyTimer2 = window.setTimeout(() => { whyLine.classList.remove("show"); el.classList.remove("has-why"); }, ms);
+    if ("__riddle" in window) ((window as unknown as { __whyLog?: string[] }).__whyLog ??= []).push(text);   // dev
+  }
   // Cut 23 §3: a reasoned line's reason, on tap (the line's text → the reason), over the ticker
   const whyTip = h("div", { class: "why-tip num", "aria-live": "polite" });
   const whyOf = new Map<string, string>();
@@ -387,7 +396,7 @@ export function renderWatch(app: App): Mounted {
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, alert, bossBar, stake),
-      meterBox, banner, ticker, whyTip),
+      meterBox, banner, ticker, whyLine, whyTip),
     cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
@@ -421,7 +430,7 @@ export function renderWatch(app: App): Mounted {
   // Cut 8A: the fight frame — whether the engine's latest snapshot holds it, the viewer ticks it spans, the frame shown
   let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map", lastBlow = -Infinity;
   // Cut 13 §4: the situation beat the frame is holding for (engine ticks), its text shown once at the cut; beats shown so far
-  type Beat = { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean; cage?: boolean };
+  type Beat = { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean; cage?: boolean; why?: string };
   let beat: Beat | null = null, beats = 0;   // hold: Cut 15 §4, the clock at 1× through it (a boss's kill)
   let exitBeatUntil = 0;              // Cut 14 §3: the exit flow waits while the bank / return beat is on screen
   let holdLineUntil = 0;              // Cut 15 §4: a boss kill's `WARLORD DOWN` keeps the ticker this long
@@ -722,7 +731,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** Cut 13 §4: a situation's note opens the fight frame for SCENE_TICKS from its tick (or rides a fight already framed there);
    *  its text is the callout, shown once the frame is up. */
-  function beatAt(t: number, text: string, exit = false, hold = false, isCage = false): void {
+  function beatAt(t: number, text: string, exit = false, hold = false, isCage = false, why?: string): void {
     const v = viewerTick();
     // a frame that is up (or opening) before t carries the beat; a fight the probe dropped (`fightFrom` cleared) does not
     const framed = fightFrom <= t && (fightOn || v < fightUntil);
@@ -731,7 +740,7 @@ export function renderWatch(app: App): Mounted {
     if (exit) fightUntil = Infinity;   // Cut 14 §3: the run is over — the frame holds; the exit flow's own clock (SCENE_MS, real time) lets go
     // an earlier beat the playhead has yet to reach keeps its place; this one takes over at its own tick (QA on 3d71c33: a den's
     // release showed the later `BANKED $13`, which had overwritten it, on D2 ~15 s before the bank)
-    const b: Beat = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold, cage: isCage };
+    const b: Beat = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold, cage: isCage, why };
     if (!(beat && !beat.shown && beat.from < t)) beat = b;
     el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
     // Cut 18 §1: a beat the playhead jumped over (a skip, a seek to live) is not held after the fact
@@ -765,8 +774,12 @@ export function renderWatch(app: App): Mounted {
     tickerQueue.length = 0; showTicker(b.text, b.cage ? "beat cage" : "beat", dur);
     // Cut 19 §1: the cage's line is a plate the finger finds (a tap within the hold opens the override)
     if (b.cage) { replace(ticker, h("span", { class: "cage-line" }, b.text)); if (cage) cage.shown = true; }
+    // c30-legible (the owner: "I didn't understand … why the run ended early"): the end's reason under its sum, the core's ≤ 3 words
+    // (`banks every record`, `hurt · went home`); a death's beat is its reason alone (`slain · jackal`)
+    // (its own line under the ticker: the ticker's text stays the beat's own)
+    if (b.why) showWhy(b.why, dur);
     el.dataset.held = "1";
-    if ("__riddle" in window) ((window as unknown as { __beatLog?: unknown[] }).__beatLog ??= []).push({ text: b.text, from: b.from, until: b.until, v: viewerTick(), frame, ms: Math.round(now) });   // dev
+    if ("__riddle" in window) ((window as unknown as { __beatLog?: unknown[] }).__beatLog ??= []).push({ text: b.text, why: b.why, from: b.from, until: b.until, v: viewerTick(), frame, ms: Math.round(now) });   // dev
   }
   const beatHeld = (): boolean => performance.now() < beatHoldUntil;
   /** Cut 18 §1: the tick a held beat's picture stops at — its span's end, or two ticks before the next stairs (a descend fades the
@@ -991,7 +1004,10 @@ export function renderWatch(app: App): Mounted {
           // less than it carried says what it lost (`DRIVEN $0 · −$186`)
           const lostC = ev.line ? Math.max(0, ev.line.carried - ev.line.kept) : 0;
           const oathW = exitOath ? ` · ${exitOath}` : ""; exitOath = "";
-          if (tier !== "death") beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true);
+          const why = ev.line?.reason;
+          // (a death's reason rides its last frame, no beat: the death screen comes as it did)
+          if (tier === "death") { if (why) at(ev.t, () => showWhy(why, SCENE_MS)); }
+          else beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true, false, false, why);
           break;
         }
         // Cut 28b (owner: "it's not clear what oaths do"): the sworn oath's fate is a beat as it happens — `OATH KEPT`, or `OATH BROKEN · R2 return`

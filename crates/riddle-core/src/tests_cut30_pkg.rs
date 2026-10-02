@@ -16,7 +16,9 @@ fn a_new_lineage_climbs_on_steady() {
     let set = g.lineage.rules();
     assert!(set.rows.iter().all(|r| r.origin.as_deref() == Some("stance:steady")), "{:?}", origins(&g));
     let verbs: Vec<&str> = set.rows.iter().map(|r| r.verb.v.as_str()).collect();
-    assert_eq!(verbs, ["drink", "return", "bank", "attack"], "{:?}", set.rows);
+    // (Cut 30.5, the owner: under D8 the L4 shape from L1 — banks at the record's next floor when hurt, a floor further whole)
+    assert_eq!(verbs, ["drink", "return", "bank", "bank", "attack"], "{:?}", set.rows);
+    assert_eq!(set.rows[2].conds.iter().map(|c| c.k.as_str()).collect::<Vec<_>>(), ["hp<", "depth>="], "the hurt bank first");
     assert_eq!(set.own_rows(), 0, "package rows sit outside the cap");
     assert!(set.validate().is_ok());
     let w = g.lineage();

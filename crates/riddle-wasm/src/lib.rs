@@ -524,6 +524,12 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 30.5, week 2: promote the worker whose rank is on offer; returns the Lineage.
+    pub fn promote(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.promote(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 30.5: the haul chest into the purse; returns the Lineage.
     #[wasm_bindgen(js_name = openChest)]
     pub fn open_chest(&mut self) -> Result<String, JsError> {
