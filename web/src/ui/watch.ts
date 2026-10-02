@@ -341,7 +341,7 @@ export function renderWatch(app: App): Mounted {
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
   const ticker = h("div", { class: "ticker" });
-  // c30-legible: the run's end, why — its own line under the ticker (`banks every record`, `hurt · went home`, `slain · jackal`)
+  // c30-legible: the run's end, why — its own line under the ticker (`hurt · banked`, `hurt · went home`, `slain · jackal`)
   const whyLine = h("div", { class: "beat-why num", "aria-live": "polite" });
   let whyTimer2 = 0;
   function showWhy(text: string, ms: number): void {
@@ -782,7 +782,7 @@ export function renderWatch(app: App): Mounted {
     // Cut 19 §1: the cage's line is a plate the finger finds (a tap within the hold opens the override)
     if (b.cage) { replace(ticker, h("span", { class: "cage-line" }, b.text)); if (cage) cage.shown = true; }
     // c30-legible (the owner: "I didn't understand … why the run ended early"): the end's reason under its sum, the core's ≤ 3 words
-    // (`banks every record`, `hurt · went home`); a death's beat is its reason alone (`slain · jackal`)
+    // (`hurt · banked`, `hurt · went home`); a death's beat is its reason alone (`slain · jackal`)
     // (its own line under the ticker: the ticker's text stays the beat's own)
     if (b.why) showWhy(b.why, dur);
     el.dataset.held = "1";
@@ -875,6 +875,8 @@ export function renderWatch(app: App): Mounted {
           // without it): the fork is a beat, cut in as the situations are (the fight frame, its line), in every mode — not a callout the mode drops
           if (/^two stairs$/i.test(ev.text)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); beatAt(ev.t, /* copy:callout */ "TWO STAIRS"); } break; }
           if (ev.text === /* copy:none */ "choose one") break;   // Cut 19 §1: the cage beat names the pick instead
+          // c305-core: a new record is the core's callout (`new best · D5`) — one beat, drawn as run-clear's gilt stamp (`NEW BEST D5`), once a run
+          { const m = /^new best · D(\d+)$/i.exec(ev.text); if (m) { if (!recordBeat) { recordBeat = true; const d = Number(m[1]); at(ev.t, () => { if (folding) return; showBanner(/* copy:callout */ `NEW BEST D${d}`, RECORD_MS, "record-beat"); cue("level"); }); } break; } }
           if (breakBeat(ev.t, ev.text)) break;   // Cut 16 §4: `warlord breaks` is the beat's, not a plain callout
           // Cut 12 §6: a sanity refusal (`drink ✗ no use`) shows once per floor, not once per streak
           if (ev.text.includes("✗")) { const key = `${ev.text}@${s.depth}`; if (refused.has(key)) break; refused.add(key); }
@@ -964,7 +966,7 @@ export function renderWatch(app: App): Mounted {
           // run-clear (the owner, 2026-10-02: a record no longer ends a run — it is a beat and a checkpoint, and he carries on): the
           // first floor past the lineage's record this run stamps a gilt `NEW BEST D5` over the floor's arrival — the boss stamps' look,
           // but it never holds the frame or takes a fight's beat (he walks on; the card's `new best` badge says it again)
-          if (before.best > 0 && ev.depth > before.best && !recordBeat) { recordBeat = true; const d = ev.depth; at(ev.t, () => { if (folding) return; showBanner(/* copy:callout */ `NEW BEST D${d}`, RECORD_MS, "record-beat"); cue("level"); }); }
+          // (c305-core 2ec1cb0: the core says it — the `new best · D5` callout, a beat and a checkpoint; the stamp is drawn from it below)
           break;
         }
         case "fact": {

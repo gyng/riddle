@@ -835,7 +835,7 @@ function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   const trace: Trace = { turns: scaleTrace(run.trace), provenance: Object.values(run.prov).sort((a, b) => a.t - b.t).map((p) => ({ text: p.text, t: p.t * 10, depth: p.depth })) };
   run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · "), trace,
     // c30-legible stand-in: the core's `reason` (`engine::exit_reason`), in miniature
-    reason: run.stalled ? "stuck · gave up" : tier === "death" ? "slain" : tier === "bank" ? "banks every record" : "hurt · went home",
+    reason: run.stalled ? "stuck · gave up" : tier === "death" ? "slain" : tier === "bank" ? "hurt · banked" : "hurt · went home",   // (Cut 30.5: a record is a beat, never an end)
     news: [{ k: "differ", text: `reached D${run.depth}` }] };   // Cut 24 §2 stand-in: the core's `news` (what was new; else the one thing that differed)
   ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line, trace });
   // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake
@@ -2450,7 +2450,8 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     : litN ? { kind: "gold", node: lit, text: `${litN.name} · $${purse + st.chest}/$${litN.price}`, have: purse + st.chest, need: litN.price }
     : counting ? { kind: "count", node: counting.id, text: `${counting.name} · ${counting.count}/${counting.need}`, have: counting.count, need: counting.need }
     : { kind: "none", text: "" };
-  const litRank = lit ? undefined : nodes.find((n) => n.rank_wait_d === 0)?.id;
+  // (the core gates each next rank by days of service, so a worker just promoted waits; the stand-in offers the lowest rank first)
+  const litRank = lit ? undefined : nodes.filter((n) => n.rank_wait_d === 0).sort((a, b) => (a.rank ?? 1) - (b.rank ?? 1))[0]?.id;
   return { nodes, ...(lit ? { lit } : {}), ...(litRank ? { lit_rank: litRank } : {}), next, chest: st.chest, waits, sent: st.sent, auto_send: auto, ledger: purse + st.chest + (L.town?.bank ?? 0) };
 }
 {

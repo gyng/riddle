@@ -58,7 +58,7 @@ phone 400 × 800 (the town above, the console below)
 ```
  ▾ away · 17 runs · D9★ · $1 240                      3h
      #41  ⌂ D9★  $212  ✦2  4m                          ▶
-          banks every record · 3h
+          hurt · banked · 3h
      #40  ☠ D7   $0         3m                          ▶      ← a tap opens its verdict
           slain · goblin · 3h
      +12 runs · like these                                     ← the absence's sampled runs

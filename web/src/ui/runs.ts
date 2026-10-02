@@ -103,7 +103,7 @@ function heirLines(app: App, close: () => void): HTMLElement[] {
   }))];
 }
 
-/** one run's entry: `#41 · D9★ · $212 · ✦2 · 4m` over `banks every record · 12m`, `▶` at its end; a death opens its verdict */
+/** one run's entry: `#41 · D9★ · $212 · ✦2 · 4m` over `hurt · banked · 12m`, `▶` at its end; a death opens its verdict */
 function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () => void): HTMLElement {
   const L = app.lineage;
   const why = r.reason ?? (r.tier === "death" ? /* copy:label */ "died" : r.tier === "bank" ? /* copy:label */ "banked" : /* copy:label */ "returned");
@@ -115,7 +115,8 @@ function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () =
     (r.finds ?? []).length ? h("span", { class: "re-f", "data-rarity": bestRarity(r.finds ?? []), "aria-label": /* copy:label */ "finds" }, ...(r.finds ?? []).slice(0, 4).map((f) => h("span", { class: `re-gem r-${f.rarity ?? "common"}` }, "◆"))) : "",
     h("span", { class: "dim re-len" }, lenOf(r.turns)),
     r.via === "watched" ? h("span", { class: "dim re-w", "aria-hidden": "true" }, "◉") : "");
-  const sub = h("small", { class: "re-sub dim" }, why, " · ", h("span", { class: "num" }, agoOf(L, r.clock_s)));
+  // (Cut 30.5: the checkpoints' gold, kept whole whatever the end — `$80 secured`)
+  const sub = h("small", { class: "re-sub dim" }, why, (r.secured ?? 0) > 0 ? h("span", { class: "num re-sec" }, /* copy:label */ ` · $${r.secured} secured`) : "", " · ", h("span", { class: "num" }, agoOf(L, r.clock_s)));
   const verdict = r.tier === "death" && r.death_id !== undefined && (L.graveyard ?? []).some((g) => g.death_id === r.death_id);
   const body = verdict
     ? h("button", { class: "re-body", "data-verdict": r.death_id, onclick: () => {
@@ -130,7 +131,7 @@ function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () =
  *  watched run's clear screen, as the log keeps it; its ▶ under it when the core holds the run. */
 function openRunCard(app: App, r: RunRec): void {
   const x: ExitLine = { carried: r.gold, keep_pct: 100, kept: r.gold, spent: 0, spent_on: [], text: `${r.tier === "bank" ? "banked" : r.tier === "death" ? "died" : "returned"} D${r.depth}`,
-    end: r.tier, reached: r.depth, new_best: !!r.best, finds: r.finds ?? [], ...(r.reason ? { reason: r.reason } : {}), run_id: r.id };
+    end: r.tier, reached: r.depth, new_best: !!r.best, finds: r.finds ?? [], ...(r.reason ? { reason: r.reason } : {}), ...(r.secured ? { secured: r.secured } : {}), run_id: r.id };
   const held = (app.lineage.replays ?? []).includes(r.id);
   openSheet(() => h("div", { class: "sheet-body run-card-sheet", "data-run": r.id },
     h("div", { class: "label row-label" }, h("b", { class: "num" }, `#${r.id}`), " ", h("span", { class: "num dim" }, agoOf(app.lineage, r.clock_s))),

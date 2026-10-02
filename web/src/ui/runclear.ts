@@ -85,8 +85,10 @@ export function clearCard(app: App, x: ExitLine, o: { onTap?: () => void } = {})
     x.new_best ? h("span", { class: "rc-best", "data-best": "1" }, /* copy:label */ "new best") : null) : null;
   const to = goldTo(L);
   const coins = h("b", { class: "num rc-coins", "data-gold": String(Math.max(0, x.kept)) }, `$${Math.max(0, x.kept)}`);
-  const gold = kind === "died" ? null : h("div", { class: `rc-gold to-${to}`, "data-to": to }, icon("gold", "$"), coins,
-    h("span", { class: "rc-arrow", "aria-hidden": "true" }, "→"), h("span", { class: "rc-to" }, to === "chest" ? /* copy:label */ "chest" : /* copy:label */ "purse"));
+  // Cut 30.5 (c305-core): the checkpoints' gold, kept whole at any exit — `$80 secured` beside the coins (a death keeps it alone)
+  const secured = (x.secured ?? 0) > 0 ? h("small", { class: "rc-secured num", "data-secured": String(x.secured) }, /* copy:label */ `$${x.secured} secured`) : null;
+  const gold = kind === "died" ? (secured ? h("div", { class: "rc-gold died" }, secured) : null) : h("div", { class: `rc-gold to-${to}`, "data-to": to }, icon("gold", "$"), coins,
+    h("span", { class: "rc-arrow", "aria-hidden": "true" }, "→"), h("span", { class: "rc-to" }, to === "chest" ? /* copy:label */ "chest" : /* copy:label */ "purse"), secured);
   // finds: icons in their rims, the rarest named (one name: the eye goes to the best)
   const row = itemRow(finds, { size: "l", pop: true, max: 6 });
   const findsEl = row ? h("div", { class: "rc-finds", "data-best-rarity": bestRarity(finds) }, row, best && rarityRank(best.rarity) >= 1 ? h("div", { class: "rc-find-name" }, itemName(best)) : null) : null;

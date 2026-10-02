@@ -113,7 +113,7 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          stolen?: string[];                                                                 // QA e75ec29 (qaR): what thieves took this run and it never got back (`· stolen heal`; flavour-named while unidentified)
                          purse_full?: boolean;
                          cause?: string;                                                                    // QA 0c6e126 (qaY; core): a death's killer as it reads after `died to` (`a goblin archer`) — the report's line leads with it
-                         reason?: string;                                                                   // c30-legible (core): why the run ended, ≤ 3 words (`banks every record`, `hurt · went home`, `slain · jackal`)
+                         reason?: string;                                                                   // c30-legible (core): why the run ended, ≤ 3 words (`hurt · banked`, `hurt · went home`, `slain · jackal`)
                          swap_left?: { kind: string; n: number }[];                                        // QA 0c6e126 (qaY; core): what the costly swaps left on the floor, per label — `−$5 swapped` names it (`−$5 left axe`)
                          swapped?: number;                                                                  // QA 778fa1b (core): the carried gold this run's pack swaps took off (a find taken in the place of a dearer carried item — the strip's `−$37 swapped`, summed); `carried` is after it
                          wake?: number;                                                                     // QA 778fa1b (core): the heir purse's top-up this death paid (the text's `+$N wake`); `purse_full` now only when the purse was under $80 (just over the $40 line) — a richer death has no purse word
@@ -431,7 +431,8 @@ export type WorkerAct = { id: string; what: string; n: number; first: boolean };
 export type RunRec = { id: number; heir: number; via: "away" | "town" | "watched"; absence?: number; clock_s: number;
   start: number; depth: number; tier: "bank" | "return" | "death"; reason?: string; gold: number; found: number; kept?: string[];
   turns: number; best?: boolean; death_id?: number; sampled?: number;
-  finds?: InvItem[] };   // RUNS_UI × run-clear (core): the run's finds, rarest first, ≤ 6 — the entry's rarity mark and its card
+  finds?: InvItem[];     // RUNS_UI × run-clear (core): the run's finds, rarest first, ≤ 6 — the entry's rarity mark and its card
+  secured?: number };    // RUNS_UI × Cut 30.5 (core): of `gold`, the checkpoints' (kept whole at any exit) — `$212 · $80 safe`
 /** RUNS_UI (core) — the run under way right now (`Lineage.live`; absent at home): the hero's floor, hp, and the run's tick. */
 export type LiveRun = { run_id: number; heir: number; depth: number; start: number; hp: number; max_hp: number; turn: number };
 /** RUNS_UI (core) — `advance(ms)`: the open app's clock run on the lineage (rest, then the next run, unwatched; a run in flight stays in

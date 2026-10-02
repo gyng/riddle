@@ -1791,6 +1791,9 @@ pub struct RunRec {
     /// RUNS_UI × run-clear: the run's finds (its exit line's, rarest first, ≤ 6) — the log's rarity marks and the entry's card.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub finds: Vec<InvItem>,
+    /// RUNS_UI × Cut 30.5: of `gold`, what the run's checkpoints secured (kept whole at any exit; a death keeps it alone).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub secured: i32,
 }
 
 /// RUNS_UI: the run under way (`Lineage.live`; absent at home).

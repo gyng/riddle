@@ -70,3 +70,6 @@ main.report.clearing .report-well { display: flex; flex-direction: column; justi
   html[data-juice="on"] .watch .banner.record-beat.show { animation: rc-record .5s cubic-bezier(.3, 1.7, .45, 1) both; }
   @keyframes rc-record { from { transform: translateX(-50%) scale(2) rotate(-5deg); opacity: 0; filter: brightness(1.8); } 60% { transform: translateX(-50%) scale(.95) rotate(-3deg); opacity: 1; } to { transform: translateX(-50%) rotate(-3deg); filter: none; } }
 }
+/* Cut 30.5 (c305-core): the checkpoints' gold, kept whole at any exit — small, under the coins' line */
+.rc-gold .rc-secured { font: 600 14px/1 var(--num); color: var(--ink-dim); align-self: flex-end; margin-bottom: 4px; }
+.rc-gold.died { font-size: 16px; }
