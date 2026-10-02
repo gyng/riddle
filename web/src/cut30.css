@@ -16,6 +16,11 @@
 .pkg-price.flat, .pkg-price.pending { color: var(--dim); }
 .chip.pkg.locked { opacity: .5; border-style: dashed; cursor: default; }
 .chip.pkg.empty { opacity: .55; border-style: dotted; }
+/* an open slot: an outlined socket the chips below fill (owner check: two stacked `empty` chips read as two dead buttons) */
+.pkg-slots { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
+.pkg-slots .pkg-slot { margin: 0; }
+.chip.pkg.empty.socket { opacity: 1; background: rgba(122, 92, 30, .06); border: 1.5px dashed #8a6a2a; color: #7a5c1e; min-width: 112px; justify-content: center; box-shadow: none; font-style: italic; }
+.pkg-price:empty { display: none; }
 .chip.pkg.temper { min-width: 92px; }
 .pkg-alts { display: flex; flex-wrap: wrap; gap: 6px; }
 .lvl-bar { display: block; width: 100%; min-width: 64px; height: 4px; border-radius: 2px; background: rgba(77, 108, 153, .35); overflow: hidden; }
@@ -91,3 +96,6 @@
 .death .death-lever .lever-go { color: var(--mist); font-size: 20px; }
 .cmd .tile[data-tile="packages"] .tl { font-size: 10.5px; letter-spacing: -.03em; }
 .death.prepen .death-why { color: var(--mist); }
+
+/* the repeat plate belongs to the home screen: over a panel it is a stray caption (owner check, 2026-10-02) */
+body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hidden; }

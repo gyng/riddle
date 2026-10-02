@@ -84,12 +84,13 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
       const owned = (kind: string): Package[] => P.all.filter((p) => p.kind === kind && p.owned);
       const byId = new Map(P.all.map((p) => [p.id, p]));
       const optOf = new Map((opts ?? []).filter((o) => o.action === "equip").map((o) => [`${o.id}:${o.slot ?? 0}`, o]));
-      /** An alternative: its chip and its one-line price (`death −8`, `…` while measuring). */
+      /** An alternative: its chip and its one-line price (`death −8`); nothing while measuring or inside the noise (owner check: a row of
+       *  `…` read as broken). */
       const alt = (p: Package, slot: number): HTMLElement => {
         const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip");
         const pr = o ? priceOf(o) : null;
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          h("span", { class: "pkg-name" }, chipText(p)), h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr ? pr.text : opts ? "—" : "…"));
+          h("span", { class: "pkg-name" }, chipText(p)), h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""));
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {
@@ -104,7 +105,8 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
       };
       /** The worn package of a slot: its chip `Steady L3`, the level bar, a level bought with marks when the purse holds them. */
       const worn = (p: Package | undefined, kind: string, slot: number): HTMLElement => {
-        if (!p) return h("div", { class: "pkg-slot empty", "data-kind": kind, "data-slot": slot }, h("span", { class: "chip pkg empty" }, /* copy:label */ "empty"));
+        // (an open slot reads as a place to put one: an outlined socket, the chips under it fill it)
+        if (!p) return h("div", { class: "pkg-slot empty", "data-kind": kind, "data-slot": slot }, h("span", { class: /* copy:none */ "chip pkg empty socket" }, /* copy:label */ "empty"));
         const lv = p.level_price && L.marks >= p.level_price && app.engine.spendLevel
           ? twoTap(/* copy:button */ `◆${p.level_price} L${p.level + 1}`, /* copy:button */ `ok ◆${p.level_price}`, () => void app.mutate(() => app.engine.spendLevel!(p.id), /* copy:callout */ `L${p.level + 1}`, true).then(() => paint()), { class: "chip mini pkg-level", key: `lvl:${p.id}` })
           : "";
@@ -123,7 +125,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         const worn2 = Array.from({ length: Math.max(1, slots) }, (_, i) => worn(byId.get((P.tactics ?? [])[i] ?? ""), "tactic", i));
         const free = Math.min(Math.max(0, (P.tactics ?? []).length), Math.max(0, slots - 1));
         const tAlts = owned("tactic").filter((p) => !(P.tactics ?? []).includes(p.id));
-        secs.push(section(/* copy:label */ "tactic", "tactic", ...worn2, h("div", { class: "chips pkg-alts" }, ...ranked(tAlts, free).map((p) => alt(p, free)), slots < 2 ? h("span", { class: /* copy:none */ "chip pkg locked slot2", "aria-disabled": "true" }, h("span", { class: "pkg-name" }, /* copy:label */ "slot 2"), h("small", { class: "pkg-price dim" }, /* copy:callout */ "⊘ meet Lich")) : "")));
+        secs.push(section(/* copy:label */ "tactic", "tactic", h("div", { class: "pkg-slots" }, ...worn2), h("div", { class: "chips pkg-alts" }, ...ranked(tAlts, free).map((p) => alt(p, free)), slots < 2 ? h("span", { class: /* copy:none */ "chip pkg locked slot2", "aria-disabled": "true" }, h("span", { class: "pkg-name" }, /* copy:label */ "slot 2"), h("small", { class: "pkg-price dim" }, /* copy:callout */ "⊘ meet Lich")) : "")));
       } else secs.push(section(/* copy:label */ "tactic", "tactic", h("div", { class: "chips pkg-alts" }, locked("tactic"))));
       // the temperament: from heir 3 — the wake's three cards while the offer stands (card 1 worn until one is picked)
       if (P.temperament_open || P.offer?.length) {

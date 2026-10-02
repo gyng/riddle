@@ -64,18 +64,48 @@ export function openTracks(app: App, anchor?: HTMLElement | null): void {
   }, { anchor });
 }
 
-/** The report's lead (§4): what grew on each track over the absence — one line per track that grew, its icon and its things
- *  (`hero · L7 · package level`, `items · +$2400`). Null when nothing grew (an old core: no `grew`). */
+/** The order on a track's line: a new stage, then a package that arrived (or the record, the purse), a level, then xp (`grewRank`). */
+export function grewRank(what: string): number {
+  if (/^(xp|interest)$/.test(what)) return 3;
+  if (/(^| )L\d+$|^a companion$|^blacksmith step$|^a find$/.test(what)) return 2;
+  if (/^\+|^best D\d+$|^drilled$/.test(what)) return 1;
+  return 0;
+}
+/** A fact's words, case and order aside (`built blacksmith` ~ `blacksmith`, `DRILLED · Warlord` ~ `Warlord drilled`, `STEADY L2` ~ `Steady L2`). */
+const factKey = (s: string): string => s.toLowerCase().replace(/^built /, "").split(/[\s·]+/).filter(Boolean).sort().join(" ");
+/** A track's line: at most `max` short items (~`chars` characters, one line at 400 px), the overflow folded into `+N more`. */
+export function grewItems(items: string[], max = 4, chars = 34): string[] {
+  if (items.length <= max && items.join(" · ").length <= chars) return items;
+  const out: string[] = [];
+  for (const w of items) {
+    const more = items.length - out.length - 1;
+    if (out.length && (out.length >= max - 1 || [...out, w].join(" · ").length + (more ? 9 : 0) > chars)) break;
+    out.push(w);
+  }
+  return out.length < items.length ? [...out, /* copy:callout */ `+${items.length - out.length} more`] : out;
+}
+
+/** The report's lead (§4): what grew on each track over the absence — one short line per track (`hero · a class · pets · +2 more`), the
+ *  stage first and xp last, and the packages' beats as plaques; a fact a plaque carries is not on a line too. Null when nothing grew (an
+ *  old core: no `grew`). */
 export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: string): HTMLElement | null {
   const g: GrewLine[] = r.grew ?? [];
   const beats = r.packages ?? [];
   if (!g.length && !beats.length) return null;
+  const shown = beats.slice(0, 5);
+  const onPlaque = new Set(shown.map(factKey));
   const by = new Map<string, string[]>();
-  for (const x of g) by.set(x.track, [...(by.get(x.track) ?? []), x.what]);
+  for (const x of g) {
+    if (onPlaque.has(factKey(x.what))) continue;
+    const l = by.get(x.track) ?? [];
+    if (!l.includes(x.what)) l.push(x.what);
+    by.set(x.track, l);
+  }
+  for (const [t, l] of by) by.set(t, grewItems(l.map((w, i) => [w, i] as const).sort((a, b) => grewRank(a[0]) - grewRank(b[0]) || a[1] - b[1]).map(([w]) => w)));
   const ids = [...TRACK_IDS.filter((t) => by.has(t)), ...[...by.keys()].filter((t) => !(TRACK_IDS as readonly string[]).includes(t))];
   return h("div", { class: "grew" },
     ...ids.map((id, i) => h("div", { class: "grew-line reveal", "data-track": id, style: `animation-delay:${0.12 * i}s` }, h("span", { class: "track-ico" }, trackIcon(id, hero)),
       h("small", { class: "track-name dim" }, trackName(id)), h("span", { class: "grew-what num" }, ...kwText((by.get(id) ?? []).join(" · "))))),
-    beats.length ? h("div", { class: "beats" }, ...beats.slice(0, 5).map((b, i) => h("span", { class: `beat-plaque reveal${/^QUEST DONE/.test(b) ? " quest" : /^DRILLED/.test(b) ? " drill" : ""}`, style: `animation-delay:${0.15 * (i + ids.length)}s` }, b)),
+    shown.length ? h("div", { class: "beats" }, ...shown.map((b, i) => h("span", { class: `beat-plaque reveal${/^QUEST DONE/.test(b) ? " quest" : /^DRILLED/.test(b) ? " drill" : ""}`, style: `animation-delay:${0.15 * (i + ids.length)}s` }, b)),
       beats.length > 5 ? h("small", { class: "beat-more dim" }, /* copy:callout */ `+${beats.length - 5} more`) : "") : "");
 }

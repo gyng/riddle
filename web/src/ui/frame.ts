@@ -36,6 +36,10 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
   function paint(): void {
     const L = app.lineage, R = revealed(app), past = opts.heir !== undefined && opts.heir !== L.heir;
     // the glyph (`◆` `★`) stays in the text (the tooling reads `◆7`) but the icon stands for it on screen
+    // (owner check, 2026-10-02: `rank from deeds` over `levels packages` — one first-time caption on the bar at a time; the next waits
+    // until this one is seen)
+    let capped = false;
+    const cap1 = (el: HTMLElement | "", c: Concept, words?: string): HTMLElement | "" => { if (!el || capped) return el; withCap(el, c, words); capped = !!el.querySelector(".concept-cap"); return el; };
     const stat = (cls: string, ico: string, glyph: string, n: string | number, on = true, term?: Term): HTMLElement | "" => on ? withTip(h("span", { class: `num stat ${cls}` }, icon(ico), glyph ? h("span", { class: "g" }, glyph) : "", String(n)), term) : "";   // docs/TOOLTIPS.md: a stat's tip on tap
     replace(el,
       h("span", { class: "num heir" }, mini.el, ...kwText(heirOrd(opts.heir ?? L.heir), ["heir"])),   // a death's bar names the hero who died (QA 92eb880)
@@ -53,8 +57,8 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
         !opts.watch ? kwHost(h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`), "gold") : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),
-        withCap(stat("marks", "mark", "◆", L.marks, R.has("unlocks") || (packagesShown(L) && L.marks > 0), "marks"), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "levels packages"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
-        withCap(stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past, "renown"), "renown"),
+        cap1(stat("marks", "mark", "◆", L.marks, R.has("unlocks") || (packagesShown(L) && L.marks > 0), "marks"), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "levels packages"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
+        cap1(stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past, "renown"), "renown"),
         stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, R.has("depth") && !past, "best"),   // docs/COPY.md pass 2 (`D8` read as "current depth")
       ),
       h("button", { class: "gear stud", "aria-label": "settings", onclick: () => openSettings(app) }, icon("settings", "⚙")),
