@@ -511,6 +511,22 @@ export class App {
   }
 
   get rules(): RuleSet { return this.sets[this.active]; }
+  /** Cut 30 §2: on a lineage on packages the core keeps the pen's rows above every package and recompiles (`packages::absorb`) — the
+   *  editing copy takes the core's order once the set is in, so the rows, their indices and the forecast's shadow marks are the core's.
+   *  Nothing when the order already matches (the common edit) or another edit came since. */
+  private adoptCompiled(seq: number): void {
+    if (!this.lineage?.packages || this.lineage.packages.literal) return;
+    void this.engine.lineage().then((L) => {
+      if (seq !== this.rulesSeq) return;
+      const key = (rows: Row[]): string => JSON.stringify(rows.map((r) => [r.conds, r.verb, r.origin ?? ""]));
+      const core = L.sets?.[L.active_set ?? this.active]?.rows ?? [];
+      const same = key(core.map((r) => ({ ...r, origin: r.origin ?? "player" }))) === key(this.rules.rows.map((r) => ({ ...r, origin: r.origin ?? "player" })));
+      this.lineage = L;
+      if (same) return;
+      this.adoptSets(); this.emitChange();
+      for (const fn of this.rulesListeners) fn();
+    }).catch(() => undefined);
+  }
   /** Cut 29 §2: the camp showed the newly opened systems; the next send tells the core (`seenSystems`) — never mid-edit. */
   seenPending = false;
 
@@ -530,7 +546,7 @@ export class App {
     for (const fn of this.rulesListeners) fn();
     if (this.overBudget) return;
     const seq = ++this.rulesSeq;
-    void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) this.shelfCheck(); }).catch((e) => console.warn("rules rejected", e));
+    void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) { this.shelfCheck(); this.adoptCompiled(seq); } }).catch((e) => console.warn("rules rejected", e));
     this.fcTimer = window.setTimeout(() => void this.emitForecast(), FC_DEBOUNCE_MS);
     // Cut 24 §4: the edit's refine starts beside its first pass (its own lane, the rules alone synced), not after it
     if (this.engine.refineLane) this.scheduleRefine(REFINE_PAR_MS, true);

@@ -4,7 +4,7 @@ import type {
   BonesPile, CageOption, Divergence, DivergenceBranch, DivergenceEnd, FoldBeat, FoldFloor, FoldLine, RowFires, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
   Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders, WallEdit,
-  Packages, Package, PkgOption, Town, Track, GrewLine, Quest,
+  Packages, Package, PkgOption, Town, Track, GrewLine, Quest, RowOrigin,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -2086,7 +2086,7 @@ function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: stri
 const SYSTEMS29: [string, string][] = [["send", ""], ["dial", ""], ["headline", ""], ["edit", "first death"], ["death", "first death"],
   ["exits", "first gold home"], ["loadout", "first gold home"], ["unlocks", "first mark"], ["reorder", "first plateau"], ["vs", "first plateau"],
   ["tags", "first foe fact"], ["party", "first stray"], ["cage", "first cage"], ["walls", "meet Warlord"], ["divergence", "meet Warlord"],
-  ["forge", "slay Warlord"], ["start", "slay Warlord"], ["route", "D5 fork twice"], ["oaths", "plateau or Warlord"], ["automations", "meet Lich"],
+  ["forge", "slay Warlord"], ["start", "slay Warlord"], ["route", "D5 fork twice"], ["automations", "meet Lich"],   // (Cut 30: the oath board left the curriculum — the quest board is its successor)
   ["route2", "an oath kept"], ["heir_pick", "an oath kept"], ["class", "second class"],
   // Cut 30 (core `systems.rs`): the packages' arrivals, the buildings, the quest board, the pen (the editor's group waits for it)
   ["storehouse", "first find kept"], ["kennel", "first tame"], ["stances", "meet Captain"], ["tactics", "slay Warlord"], ["bank", "a night's purse"],
@@ -2227,8 +2227,11 @@ function packages30(e: Fk30, L: Lineage): Packages {
   return { all, stance: st.stance, tactics: st.tactics, tactic_slots: met(9) ? (met(18) ? 2 : 1) : 0, ...(st.temperament ? { temperament: st.temperament } : {}), temperament_open: L.heir >= 3,
     ...(L.heir >= 3 ? { offer: ["skittish", "unbowed", "iron_gut"] } : {}), drills, scars: met(8) && !met(9) ? [["goblin_warlord", 15]] : [], pen_open: DEV_ALL_SYSTEMS || met(13),
     // (a row an earlier one of the same conditions and role always pre-empts is shadowed by it — the core's `shadowed_by`, in miniature)
+    // (the core's `row_label`: a package row is named by its package — `stance:steady` → `Steady`; a pen row has none)
     rows: e.s.rules.rows.map((r, j, all) => { const i = all.findIndex((x, k) => k < j && x.verb.v === r.verb.v && JSON.stringify(x.conds) === JSON.stringify(r.conds));
-      return { label: r.origin === "preset" ? PKGS30.find(([id]) => id === st.stance)?.[1] ?? "Steady" : "", ...(i >= 0 ? { shadowed_by: i } : {}) }; }) };
+      const o = /^(stance|tactic|temper):(\w+)$/.exec((r.origin as string | undefined) ?? "");
+      const pid = o?.[1] === "stance" ? st.stance : o?.[2];   // (the fake's rows stay Steady's whatever the stance: they are named by the one worn)
+      return { label: o ? PKGS30.find(([id]) => id === pid)?.[1] ?? pid ?? "" : "", ...(i >= 0 ? { shadowed_by: i } : {}) }; }) };
 }
 function town30(e: Fk30, L: Lineage): Town {
   const st = st30(e); const order: [string, string, boolean][] = [["blacksmith", "first gold home", L.gold > 0 || L.best_depth > 2], ["storehouse", "first find kept", L.vault.length > 0], ["kennel", "first tame", L.party.length + L.kennel.length > 0], ["bank", "a night's purse", L.gold >= 500]];
@@ -2309,7 +2312,13 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
   };
   P.packageOptions = function (this: Fk30): PkgOption[] {
     const L = this.lineage();
-    return L.packages!.all.filter((p) => p.owned && p.slot === undefined).map((p, i): PkgOption => ({ id: p.id, action: "equip", slot: 0, past: 0.3 - i * 0.03, bank: 0.5, death: 0.2 + i * 0.02, d_past: 0.05 - i * 0.03, d_bank: 0.02, d_death: -0.04 + i * 0.02 }));
+    // (plausible moves on 24 paired sims: most inside the noise, one or two clear — a stance that passes more, a tactic that dies less)
+    const h = (id: string): number => [...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 1000 / 1000;
+    return L.packages!.all.filter((p) => p.owned && p.slot === undefined).map((p): PkgOption => {
+      const x = h(p.id), big = p.id === "guarded" || p.id === "boss_focus", bold = p.id === "bold";
+      const d_past = big ? 0.26 + x * 0.1 : bold ? 0.06 : (x - 0.5) * 0.06, d_death = bold ? 0.3 : big ? -0.08 : (x - 0.4) * 0.05;
+      return { id: p.id, action: "equip", slot: 0, past: 0.3 + d_past, bank: 0.5 + d_past / 2, death: 0.15 + d_death, d_past, d_bank: d_past / 2, d_death };
+    });
   };
   P.bankDeposit = function (this: Fk30, amount: unknown): Lineage {
     const L = this.lineage(); if (!L.town!.buildings.some((b) => b.id === "bank")) throw new Error("no bank yet");
@@ -2318,6 +2327,25 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
   };
   P.bankWithdraw = function (this: Fk30, amount: unknown): Lineage {
     const st = st30(this); const n = Math.min(amount as number, st.bank); if (n <= 0) throw new Error("bank empty"); st.bank -= n; this.gold(n, "bank withdraw"); return this.lineage();
+  };
+  const isPkg = (r: Row): boolean => /^(stance|tactic|temper|drill):/.test((r.origin as string | undefined) ?? "");
+  const STEADY_ROWS = (): Row[] => [
+    { conds: [{ k: "hp<", n: 30 }], verb: { v: "drink", a: "heal" } }, { conds: [{ k: "hp<", n: 20 }], verb: { v: "return" } },
+    { conds: [{ k: "depth>=", n: 2 }], verb: { v: "bank" } }, { conds: [{ k: "foes>=", n: 1 }], verb: { v: "attack", a: "nearest" } }].map((r) => ({ ...r, origin: "stance:steady" as RowOrigin }));
+  const newL = P.newLineage; P.newLineage = function (this: Fk30, seed: unknown): Lineage {
+    // (`?systems=all`: the pen open from the start, the set the player's own — an old save's `custom` stance, edited in place)
+    newL.call(this, seed); if (DEV_NO_SYSTEMS || DEV_ALL_SYSTEMS) return this.lineage();
+    // a new lineage climbs on Steady's compiled rows (the core's `packages::init`); the other sets start as it
+    this.s.rules = { rows: STEADY_ROWS(), name: "fighter" }; this.s.lineage.sets = [0, 1, 2].map(() => ({ rows: STEADY_ROWS(), name: "fighter" }));
+    return this.lineage();
+  };
+  const setR = P.setRules; P.setRules = function (this: Fk30, set: unknown): void {
+    const S = set as RuleSet; if (DEV_NO_SYSTEMS) { setR.call(this, S); return; }
+    // the pen's rows are checked against the cap alone and sit above every package row, which keep their place among themselves
+    const pen = S.rows.filter((r) => !isPkg(r)), pkg = this.s.rules.rows.filter(isPkg);
+    setR.call(this, { ...S, rows: pen });
+    const rows = [...this.s.rules.rows.map((r) => ({ ...r, origin: "player" as RowOrigin })), ...pkg.map((r) => ({ ...r, conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } }))];
+    this.s.rules = { ...this.s.rules, rows }; this.s.lineage.sets[this.s.lineage.active_set] = JSON.parse(JSON.stringify(this.s.rules)) as RuleSet;
   };
   P.swapQuest = function (this: Fk30): Lineage { const st = st30(this); if (st.swapped >= 0) throw new Error("swapped today"); st.swapped = 1; st.quest++; st.qd = undefined; st.qbest = undefined; return this.lineage(); };
   const death = P.death; P.death = function (this: Fk30, id: unknown): Death {

@@ -47,6 +47,8 @@
 .tracks-panel .track-row { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 8px 4px; border-bottom: 1px solid rgba(43, 51, 80, .6); }
 .track-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--umbra); box-shadow: 0 0 0 2px #39496d; }
 .track-ico .ico { width: 24px; height: 24px; }
+.track-ico { overflow: hidden; }
+.track-ico img.track-hero { width: 100%; height: 100%; object-fit: cover; object-position: 50% 25%; }
 .track-head { display: flex; align-items: baseline; gap: 8px; }
 .track-name { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
 .track-stage { color: #7a5c1e; font-size: 15px; }

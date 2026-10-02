@@ -35,14 +35,21 @@ export const beatText = (b: string): string => b;
 
 /** The one-line price of a move on the paired panel: the term that moves most — `death −8`, `past +5`, `bank +3` — else `same`.
  *  `good`: whether the move helps (a death share that falls helps). */
-export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank">): { text: string; good: boolean | null } {
+/** `sims`: the paired panel's sends — a move inside its 95 % band (`1.96·√(p(1−p)/n)` on the share it moves) reads `—`, never a number
+ *  (a wall of `past −4 … −19` said "never wear a tactic" when most were noise). `score`: the move's worth, for ordering (best first). */
+export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
   /* copy:label */
-  const terms: [string, number, boolean][] = [["death", o.d_death, true], ["past", o.d_past, false], ["bank", o.d_bank, false]];
-  const [label, d, worse] = terms.reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
+  const terms: [string, number, boolean, number][] = [["death", o.d_death, true, o.death], ["past", o.d_past, false, o.past], ["bank", o.d_bank, false, o.bank]];
+  const band = (p: number): number => 1.96 * Math.sqrt(Math.max(0.01, p * (1 - p)) / Math.max(1, sims));
+  const clear = terms.filter((t) => Math.abs(t[1]) > band(t[3]));
+  if (!clear.length) return { text: "—", good: null, score: 0 };
+  const [label, d, worse] = clear.reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
   const pts = Math.round(d * 100);
-  if (pts === 0) return { text: /* copy:label */ "same", good: null };
-  return { text: `${label} ${pts > 0 ? "+" : "−"}${Math.abs(pts)}`, good: (pts > 0) !== worse };
+  const good = (pts > 0) !== worse;
+  return { text: `${label} ${pts > 0 ? "+" : "−"}${Math.abs(pts)}`, good, score: good ? Math.abs(pts) : -Math.abs(pts) };
 }
+/** The panel's sims for a price (the paired panel `packageOptions(PRICE_SIMS)`). */
+export const PRICE_SIMS = 24;
 /** The forecast's one headline: the reach of the next floor (`reach D9 72%`); null before a forecast. */
 export function headline(app: App): string | null {
   const f = app.lastForecast; if (!f) return null;
@@ -58,7 +65,7 @@ function measure(app: App): Promise<PkgOption[]> | null {
   if (!app.engine.packageOptions) return null;
   const k = optKey(app.lineage);
   if (optMemo?.key === k) return Promise.resolve(optMemo.opts);
-  return app.engine.packageOptions(24).then((o) => { optMemo = { key: k, opts: o }; return o; });
+  return app.engine.packageOptions(PRICE_SIMS).then((o) => { optMemo = { key: k, opts: o }; return o; });
 }
 
 /** A level bar under a chip (no words: the chip says the level). */
@@ -80,7 +87,13 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip");
         const pr = o ? priceOf(o) : null;
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          h("span", { class: "pkg-name" }, chipText(p)), h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr ? pr.text : opts ? /* copy:label */ "same" : "…"));
+          h("span", { class: "pkg-name" }, chipText(p)), h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr ? pr.text : opts ? "—" : "…"));
+      };
+      /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
+      const ranked = (ps: Package[], slot: number): Package[] => {
+        if (!opts) return ps;
+        const sc = (p: Package): number => { const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip"); return o ? priceOf(o).score : 0; };
+        return [...ps].sort((a, b) => sc(b) - sc(a));
       };
       /** The next one still to come of a kind: dim, its trigger (`⊘ slay Warlord`). */
       const locked = (kind: string): HTMLElement | "" => {
@@ -101,14 +114,14 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
       // the stance: worn, the others priced
       const stance = byId.get(P.stance);
       const stanceAlts = owned("stance").filter((p) => p.id !== P.stance);
-      const secs: HTMLElement[] = [section(/* copy:label */ "stance", "stance", worn(stance, "stance", 0), h("div", { class: "chips pkg-alts" }, ...stanceAlts.map((p) => alt(p, 0)), locked("stance")))];
+      const secs: HTMLElement[] = [section(/* copy:label */ "stance", "stance", worn(stance, "stance", 0), h("div", { class: "chips pkg-alts" }, ...ranked(stanceAlts, 0).map((p) => alt(p, 0)), locked("stance")))];
       // the tactics: one slot (two at its stage), each worn or empty; the owned others priced for the first empty slot (else slot 1)
       const slots = P.tactic_slots ?? 0;
       if (slots > 0 || owned("tactic").length) {
         const worn2 = Array.from({ length: Math.max(1, slots) }, (_, i) => worn(byId.get((P.tactics ?? [])[i] ?? ""), "tactic", i));
         const free = Math.min(Math.max(0, (P.tactics ?? []).length), Math.max(0, slots - 1));
         const tAlts = owned("tactic").filter((p) => !(P.tactics ?? []).includes(p.id));
-        secs.push(section(/* copy:label */ "tactic", "tactic", ...worn2, h("div", { class: "chips pkg-alts" }, ...tAlts.map((p) => alt(p, free)), slots < 2 ? h("span", { class: /* copy:none */ "chip pkg locked slot2", "aria-disabled": "true" }, h("span", { class: "pkg-name" }, /* copy:label */ "slot 2"), h("small", { class: "pkg-price dim" }, /* copy:callout */ "⊘ meet Lich")) : "")));
+        secs.push(section(/* copy:label */ "tactic", "tactic", ...worn2, h("div", { class: "chips pkg-alts" }, ...ranked(tAlts, free).map((p) => alt(p, free)), slots < 2 ? h("span", { class: /* copy:none */ "chip pkg locked slot2", "aria-disabled": "true" }, h("span", { class: "pkg-name" }, /* copy:label */ "slot 2"), h("small", { class: "pkg-price dim" }, /* copy:callout */ "⊘ meet Lich")) : "")));
       } else secs.push(section(/* copy:label */ "tactic", "tactic", h("div", { class: "chips pkg-alts" }, locked("tactic"))));
       // the temperament: from heir 3 — the wake's three cards while the offer stands (card 1 worn until one is picked)
       if (P.temperament_open || P.offer?.length) {
@@ -148,7 +161,8 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
 function rowsFold(app: App, P: Packages): HTMLElement {
   const rows = app.lineage.sets?.[app.lineage.active_set ?? 0]?.rows ?? app.rules.rows;
   const src = P.rows ?? [];
-  const label = (i: number): string => src[i]?.label || /* copy:label */ "the pen";
+  const stance = P.all.find((p) => p.id === P.stance)?.name ?? P.stance;
+  const label = (i: number): string => src[i]?.label || (P.pen_open ? /* copy:label */ "the pen" : stance);   // (before the pen no row is the pen's)
   const list = h("div", { class: "pkg-rows", hidden: true }, ...rows.map((r, i) => {
     const s = src[i]?.shadowed_by;
     return h("div", { class: `pkg-row${s !== undefined && s !== null ? " shadowed" : ""}`, "data-i": i },

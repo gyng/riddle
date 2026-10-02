@@ -6,7 +6,8 @@ export type Cond = { k: string; n?: number; t?: string };          // {k:"hp<",n
 export type Verb = { v: string; a?: string };                      // {v:"drink",a:"heal"} {v:"attack",a:"tag:caster"}
 /** Cut 7 §2 — where a row came from (optional; the core may tag, else the client infers: the shipped rows at boot are
  *  `preset`, `applyPatch` rows `patch`, bought card rows `card`, anything the player adds or edits a token of `player`). */
-export type RowOrigin = "preset" | "patch" | "card" | "player";
+export type RowOrigin = "preset" | "patch" | "card" | "player"
+  | `${"stance" | "tactic" | "temper" | "drill"}:${string}`;   // Cut 30 §2 (core): a package's compiled row (`stance:steady`, `drill:lich`), outside the row cap
 export type Row  = { conds: Cond[]; verb: Verb; origin?: RowOrigin };
 export type RuleSet = { rows: Row[]; name?: string;
                         /** Cut 26 §2 (core): the set's route — the fork depths (5 · 9 · 14 · 19 · 24) whose FAR stair the hero takes; absent/[] = the

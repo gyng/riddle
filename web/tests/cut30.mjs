@@ -86,6 +86,8 @@ try {
     const rows = await page.evaluate(() => [...document.querySelectorAll(".tracks-panel .track-row")].map((r) => ({ id: r.dataset.track, stage: r.querySelector(".track-stage")?.textContent ?? "", next: r.querySelector(".track-next:not(.done)")?.textContent ?? "", bar: !!r.querySelector(".track-bar"), ico: !!r.querySelector(".track-ico .ico") })));
     const wire = await page.evaluate(() => window.__riddle.lineage.tracks);
     check(JSON.stringify(rows.map((r) => r.id)) === JSON.stringify(["character", "items", "scale", "town"]), `four tracks in order: ${rows.map((r) => r.id).join(" · ")}`);
+    const heroIco = await page.evaluate(() => document.querySelector('.tracks-panel .track-row[data-track="character"] .track-ico img.track-hero')?.getAttribute("src"));
+    check(/\/ui\/portraits\/hero_/.test(heroIco ?? ""), `the hero track wears the hero's face (${heroIco})`);
     check(rows.every((r) => r.ico && r.stage && words(r.stage) <= 3), `each row an icon and its stage (${rows.map((r) => r.stage).join(" · ")})`);
     check(rows.every((r) => { const w = wire.find((t) => t.id === r.id); return w.next ? r.next === `next · ${w.next}${w.trigger ? ` · ${w.trigger}` : ""}` : !r.next; }), `every track not done shows \`next · <stage> · <trigger>\` (${rows.map((r) => r.next || "✓").join(" | ")})`);
     const town = rows.find((r) => r.id === "town"), townW = wire.find((t) => t.id === "town");
@@ -121,7 +123,9 @@ try {
         head: document.querySelector(".pkg-headline")?.textContent ?? "",
         stance: document.querySelector('.pkg-sec[data-kind="stance"] .pkg-slot .chip.pkg.on .pkg-name')?.textContent,
         bar: document.querySelector('.pkg-sec[data-kind="stance"] .pkg-slot .lvl-bar .fill')?.style.width,
-        alts: q('.pkg-sec[data-kind="stance"] .chip.pkg.alt').map((c) => ({ name: c.querySelector(".pkg-name").textContent, price: [...c.querySelectorAll(".pkg-price")].map((x) => x.textContent) })),
+        alts: q('.pkg-sec[data-kind="stance"] .chip.pkg.alt').map((c) => ({ name: c.querySelector(".pkg-name").textContent, price: [...c.querySelectorAll(".pkg-price")].map((x) => x.textContent), cls: c.querySelector(".pkg-price").className })),
+        tPrices: q('.pkg-sec[data-kind="tactic"] .chip.pkg.alt .pkg-price').map((x) => ({ t: x.textContent, cls: x.className })),
+        rowSrc: q(".pkg-row .pkg-row-src").map((x) => x.textContent),
         tactic: q('.pkg-sec[data-kind="tactic"] .pkg-slot').length, tAlts: q('.pkg-sec[data-kind="tactic"] .chip.pkg.alt').length,
         temper: !!document.querySelector('.pkg-sec[data-kind="temperament"]'),
         shadow: q(".pkg-row.shadowed .pkg-row-src").map((x) => x.textContent),
@@ -130,7 +134,12 @@ try {
     });
     check(/^reach D\d+ (\d+%|<\d+%|>\d+%)$/.test(P.head), `the panel's head is the forecast's one headline (\`${P.head}\`)`);
     check(P.stance === "Steady L3" && P.bar && P.bar !== "0%", `the worn stance's chip \`Steady L3\` and its level bar (${P.stance}, ${P.bar})`);
-    check(P.alts.length >= 2 && P.alts.every((a) => a.price.length === 1 && /^(death|past|bank) [+−]\d+$|^same$/.test(a.price[0])), `each other stance priced in one line (${P.alts.map((a) => `${a.name} · ${a.price.join("|")}`).join(", ")})`);
+    check(P.alts.length >= 2 && P.alts.every((a) => a.price.length === 1 && /^(death|past|bank) [+−]\d+$|^—$/.test(a.price[0])), `each other stance priced in one line, \`—\` inside the noise (${P.alts.map((a) => `${a.name} · ${a.price.join("|")}`).join(", ")})`);
+    const rank = (c) => (/ up/.test(c) ? 2 : / down/.test(c) ? 0 : 1);
+    const ordered = (xs) => xs.every((x, i) => i === 0 || rank(xs[i - 1]) >= rank(x));
+    check(ordered(P.alts.map((a) => a.cls)) && ordered(P.tPrices.map((x) => x.cls)) && / up/.test(P.alts[0].cls), `the best move leads each kind, a loss last (stances ${P.alts.map((a) => a.price[0]).join(" · ")}; tactics ${P.tPrices.map((x) => x.t).join(" · ")})`);
+    check(P.tPrices.filter((x) => / down/.test(x.cls)).length <= 1, `the tactics are not a wall of losses (${P.tPrices.map((x) => x.t).join(" · ")})`);
+    check(P.rowSrc.length > 0 && !P.rowSrc.some((x) => /the pen/.test(x)), `before the pen every row names its package, never the pen (${P.rowSrc.join(" · ")})`);
     check(P.tactic === 1 && P.tAlts >= 1, `one tactic slot at the Warlord slain, the tactics to wear (${P.tactic} slot, ${P.tAlts} tactics)`);
     check(!P.temper, `no temperament before heir 3 (${P.temper})`);
     check(P.shadow.length >= 1 && P.shadow.every((s) => /^\S.* wins$/.test(s)), `a shadowed row greyed with its winner (${P.shadow.join(", ")})`);
@@ -228,6 +237,13 @@ try {
     await page.click('.cmd .tile[data-tile="edit"]');
     await sleep(300);
     await shot("pen-open");
+    // a row written below the packages is taken into the core's order: the pen's rows above every package, the client's copy the same
+    await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "rest" } }, r.rules.rows.length); });
+    const ord = await until(async () => { const r = window.__riddle; const L = await r.engine.lineage(); const core = L.sets[L.active_set].rows.map((x) => x.verb.v + (x.origin ?? "")); const mine = r.rules.rows.map((x) => x.verb.v + (x.origin ?? ""));
+      return core[0]?.startsWith("rest") && JSON.stringify(core) === JSON.stringify(mine) ? { core, mine, tab: document.querySelector('.camp .editor .row.tablet[data-i="0"]')?.textContent ?? "" } : null; }, "the core's order re-adopted", 8000);
+    check(ord && /rest/.test(ord.tab), `the pen's row sits above the packages, the editor in the core's order (${ord?.mine.join(" · ")})`);
+    const sh = await page.evaluate(() => { const r = window.__riddle; return { rows: r.rules.rows.length, src: r.lineage.packages.rows?.length }; });
+    check(sh.rows === sh.src, `the rows and the core's row sources line up (${sh.rows} · ${sh.src})`);
   }
 
   // ---- death: before the pen, the cause and exactly one lever
@@ -261,6 +277,10 @@ try {
   if (part("report")) {
     await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=3006&absent=8h`, { waitUntil: "domcontentloaded" });
     await until(() => window.__riddle?.screen === "report" && document.querySelector(".report-sheet"), "the report", 60_000);
+    const pend = await page.evaluate(() => [...document.querySelectorAll(".report-sheet .section, .report-sheet section")].filter((x) => /pending/i.test(x.querySelector(".label")?.textContent ?? "") && x.offsetParent !== null).map((x) => x.textContent).join(" | "));
+    check(!/patch|fired|\bR\d/.test(pend), `before the pen the report's pending speaks no pen word (${pend || "none"})`);
+    const dt = await page.evaluate(() => { const r = window.__riddle; const rep = r.lastReport ?? null; return document.querySelector('.report-sheet .tile.plaque[data-k="deaths"]')?.textContent ?? ""; });
+    out.push(`note the deaths tile on Steady: ${dt.replace(/\s+/g, " ").trim()}`);
     const R = await page.evaluate(() => { const s = document.querySelector(".report-sheet"); const first = [...s.children].find((c) => c.offsetParent !== null); return { first: first?.className, lines: [...s.querySelectorAll(".grew-line")].map((l) => l.textContent), beats: [...s.querySelectorAll(".beat-plaque")].map((b) => b.textContent) }; });
     check(R.first === "grew" && R.lines.length >= 1, `the report leads with what grew (${R.first}: ${R.lines.join(" | ")})`);
     await shot("report");

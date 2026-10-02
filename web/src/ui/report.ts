@@ -30,7 +30,7 @@ import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
-import { grewBlock } from "./tracks";
+import { grewBlock, heroFace } from "./tracks";
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 
@@ -443,7 +443,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const paintPending = (affordable: ReturnType<typeof visible>): void => {
     // `R1 fired n of m runs` lines come for every row (summed across slices); only the quiet ones are decisions
     const quiet = (p: string): boolean => { const m = /^R\d+ fired (\d+) of (\d+) runs/.exec(p); return !m || Number(m[1]) * 3 < Number(m[2]); };
-    const pendingLines = (affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending).filter(quiet);
+    // Cut 30: before the pen no line speaks the pen's words (a patch, a rule's fires, the marks' catalogue)
+    const penWords = (p: string): boolean => !penOpen(L) && /^(patch|unlock|R\d+)\b|\bfired\b/.test(p);
+    const pendingLines = (affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending).filter(quiet).filter((p) => !penWords(p));
     pendingBody.replaceChildren();
     // Cut 23 §1: the core's `forge sword +1 · $300` (a kit step the purse buys now) opens the forge
     const forgeLines = pendingLines.filter((p) => /^forge /.test(p));
@@ -498,7 +500,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    grewBlock(r), newsBlock(r, named, L.counters ?? []), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    grewBlock(r, heroFace(L)), newsBlock(r, named, L.counters ?? []), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
