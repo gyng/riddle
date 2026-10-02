@@ -145,6 +145,7 @@ function nested(n: HTMLElement): void {
 }
 
 // ---- input ----
+let tabbed = false;
 let installed = false, pressTimer = 0, pressAt: { x: number; y: number } | null = null, swallowUntil = 0;
 function install(): void {
   if (installed || typeof document === "undefined") return;
@@ -191,11 +192,14 @@ function install(): void {
     e.stopPropagation(); e.preventDefault();
     if (owner === t) closeTip(); else openTip(t);
   }, true);
+  d.addEventListener("keydown", (e) => { tabbed = e.key === "Tab"; }, true);
+  d.addEventListener("pointerdown", () => { tabbed = false; }, true);
   d.addEventListener("focusin", (e) => {
     const el = e.target as HTMLElement;
     const t = trigger(el) ?? el.querySelector?.<HTMLElement>(".kw, [data-kwh]") ?? null;
-    if (!t || plate?.contains(t) || !el.matches?.(":focus-visible")) return;
-    clearTimeout(openTimer); openTimer = window.setTimeout(() => { if (t.isConnected && el.contains(document.activeElement)) openTip(t, true); }, inControl(t) ? HOVER_MS : 0);
+    // (only a focus the keyboard moved: Tab — a script's focus after a key, a tap's focus, never open a plate)
+    if (!t || plate?.contains(t) || !tabbed || !el.matches?.(":focus-visible")) return;
+    clearTimeout(openTimer); openTimer = window.setTimeout(() => { if (t.isConnected && el.contains(document.activeElement)) openTip(t, true, "hover"); }, inControl(t) ? HOVER_MS : 0);
   });
   d.addEventListener("focusout", (e) => { const el = e.target as HTMLElement; if (byFocus && owner && (el === owner || el.contains(owner) || owner.contains(el))) scheduleClose(); });   // (a plate a tap opened stays when a repaint takes the focus)
   window.addEventListener("keydown", (e) => { if (e.key === "Escape" && plate && !plate.hidden) { closeTip(); e.stopImmediatePropagation(); e.preventDefault(); } }, true);
@@ -262,8 +266,8 @@ export function pass(): HTMLElement[] {
   });
   const words = visibleWords();
   const max = words < FEW_WORDS ? Math.min(1, cands.length) : Math.min(MAX_ON, Math.floor(words * MAX_SHARE));
-  // the least seen first, then the screen's reading order
-  cands.sort((a, b) => (rec(a.t).s - rec(b.t).s) || a.i - b.i);
+  // the screen's reading order (blind check: a set chosen by sightings changed between two looks at one screen and read as random)
+  cands.sort((a, b) => a.i - b.i);
   const on: typeof cands = [];
   const ts = new Set<string>();
   for (const c of cands) {

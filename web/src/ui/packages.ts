@@ -15,7 +15,7 @@ import { openSheet } from "./sheet";
 import { lowOf, share } from "./forecast";
 import { rowLabel } from "./tokens";
 import { sysOpen } from "./systems";
-import { kw, kwText } from "./tips";
+import { kw, kwHost, kwText } from "./tips";
 import type { Term } from "./concepts";
 
 /** The lineage climbs on packages (a Cut 30 core, not a harness's literal set). */
@@ -90,7 +90,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip");
         const pr = o ? priceOf(o) : null;
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          h("span", { class: "pkg-name" }, chipText(p)), h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""));
+          h("span", { class: "pkg-name" }, chipText(p)), kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price"));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {

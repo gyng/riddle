@@ -52,7 +52,7 @@ export const conceptTag = (c: Concept): HTMLElement => h("span", { class: "conce
 /** Every keyword: a concept (its icon and caption above) or a glossary term. */
 export type Term = Concept | "heir" | "gold" | "best" | "reach" | "package" | "stance" | "tactic" | "temperament" | "drill" | "scar" | "quest" | "track"
   | "pen" | "lever" | "bank" | "banked" | "returned" | "death" | "plateau" | "ends" | "priority" | "condition" | "action" | "forge" | "kennel" | "pack"
-  | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled";
+  | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled";
 /** The tooltip's gloss: a fragment, ≤ 10 words with its live value (`tips.mjs` renders every one). A word that is another keyword is
  *  marked inside the plate (one level). */
 export const TIP: Record<Term, string> = /* copy:tooltip */ {
@@ -61,12 +61,12 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   fork: "the other stairs, another place", grudge: "the foe that killed him",
   heir: "the family's hero now · the next takes over", gold: "earned on runs · spent in town", best: "deepest floor any heir reached",
   reach: "chance a run gets that deep", package: "ready-made rules · level up from runs", stance: "how he fights · one worn",
-  tactic: "answers one kind of fight", temperament: "the heir's nature · a small package", drill: "a boss counter written in · revocable",
+  tactic: "answers one kind of fight", temperament: "the heir's nature · a small package", drill: "a boss counter added to his rules · can be undone",
   scar: "boss weaker each meeting", quest: "one goal · a reward when done", track: "one way the family grows", pen: "write own rules · opens late",
   lever: "the cheapest move against this death", bank: "deposits earn interest each night", banked: "home with all the loot",
   returned: "turned back early · keeps most loot", death: "gear left on the floor as bones", plateau: "every run home · none deeper",
   ends: "banked, returned or death", priority: "the top rule that fits acts", condition: "when a rule may act", action: "what he does then",
-  forge: "gold buys kit steps", kennel: "pets and tamed allies", pack: "supplies he carries",
+  price: "points of runs past best, dying or banking", forge: "gold buys kit steps", kennel: "pets and tamed allies", pack: "supplies he carries",
   v_gap: "no rule answered it", v_luck: "rules were fine · a bad roll", v_rule: "his own rule backfired", v_order: "right rule, ranked too low",
   v_stall: "stuck in a loop", v_route: "took the wrong stairs", v_repelled: "a boss drove him out",
 };
@@ -81,7 +81,7 @@ export const ALIASES: Partial<Record<Term, string[]>> = /* copy:none */ {
 };
 /** The plate's title: the term as the screen says it. */
 export const TITLE: Partial<Record<Term, string>> = /* copy:label */ {
-  gold: "gold", best: "best depth", pen: "the pen", pack: "pack", death: "death", ends: "run ends",
+  price: "if worn", gold: "gold", best: "best depth", pen: "the pen", pack: "pack", death: "death", ends: "run ends",
   v_gap: "no rule", v_luck: "luck", v_rule: "rule", v_order: "order", v_stall: "stall", v_route: "route", v_repelled: "repelled",
 };
 export const termTitle = (t: Term): string => TITLE[t] ?? t;
@@ -102,14 +102,14 @@ export const LIVE: Partial<Record<Term, (app: App) => string | null>> = {
     const d = f.depths.find((x) => x.depth === next) ?? f.depths[f.depths.length - 1];
     return d ? `D${d.depth} ${pctOf(d.reach)}` : null;
   },
-  package: (a) => { const P = a.lineage.packages; const p = P?.all.find((x) => x.id === P.stance); return p ? `${p.name} L${p.level}` : null; },
+  package: (a) => { const P = a.lineage.packages; const p = P?.all.find((x) => x.id === P.stance); return p ? /* copy:tooltip */ `worn: ${p.name} L${p.level}` : null; },
   stance: (a) => { const P = a.lineage.packages; const p = P?.all.find((x) => x.id === P.stance); return p ? `${p.name} L${p.level}${p.next_at ? /* copy:tooltip */ ` · ${p.runs}/${p.next_at} runs` : ""}` : null; },
   tactic: (a) => { const P = a.lineage.packages; return P && (P.tactic_slots ?? 0) > 0 ? /* copy:tooltip */ `${(P.tactics ?? []).length}/${P.tactic_slots} worn` : null; },
   temperament: (a) => { const P = a.lineage.packages; return P?.temperament ? P.all.find((x) => x.id === P.temperament)?.name ?? null : null; },
   scar: (a) => { const s = (a.lineage.packages?.scars ?? []).reduce((m, [, v]) => Math.max(m, v), 0); return s ? `−${s}% hp` : null; },
   quest: (a) => { const q = a.lineage.town?.quest; return q ? (q.done ? /* copy:tooltip */ "done" : pctOf(q.progress)) : null; },
   track: (a) => { const ts = a.lineage.tracks ?? []; return ts.length ? /* copy:tooltip */ `${ts.reduce((n, t) => n + t.stages, 0)} stages` : null; },
-  bank: (a) => { const T = a.lineage.town; return T ? /* copy:tooltip */ `$${T.bank} of $${T.bank_cap}` : null; },
+  bank: (a) => { const T = a.lineage.town; return T ? /* copy:tooltip */ `$${T.bank} in · cap $${T.bank_cap}` : null; },
   vault: (a) => { const n = a.lineage.vault?.length ?? 0; return n ? /* copy:tooltip */ `${n} kept` : null; },
 };
 /** The term a word marks (`packages` → package), or null. */
