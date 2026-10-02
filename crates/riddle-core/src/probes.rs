@@ -273,7 +273,7 @@ pub fn twist_sequence(seed: u64) -> Vec<Option<String>> {
     let mut out = Vec::new();
     for d in 3..=10u32 {
         g.descend_to(d);
-        out.push(g.run.as_ref().and_then(|r| r.floor_twist.clone()));
+        out.push(g.run.as_ref().and_then(|r| (*r.floor_twist).clone()));
     }
     out
 }

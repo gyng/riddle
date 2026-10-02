@@ -428,17 +428,19 @@ mod tests {
 mod kind_index_tests {
     use super::*;
     /// The index finds what a scan of the table finds, for every kind and for names not in it.
+    /// By value: a `const` table's promoted copy may differ between codegen units, so two
+    /// references to the same entry need not be the same pointer (the `ring` branch's layout).
     #[test]
     fn lookups_match_a_scan() {
         for m in MONSTERS {
-            assert!(std::ptr::eq(monster_def(m.kind), MONSTERS.iter().find(|x| x.kind == m.kind).unwrap()));
+            assert_eq!(monster_def(m.kind), MONSTERS.iter().find(|x| x.kind == m.kind).unwrap());
         }
         for i in ITEMS {
-            assert!(std::ptr::eq(item_def(i.kind), ITEMS.iter().find(|x| x.kind == i.kind).unwrap()));
+            assert_eq!(item_def(i.kind), ITEMS.iter().find(|x| x.kind == i.kind).unwrap());
         }
         for k in ["", "nope", "gold ", "Gold", "rat\\0"] {
-            assert!(std::ptr::eq(monster_def(k), MONSTERS.iter().find(|x| x.kind == k).unwrap_or(&MONSTERS[0])));
-            assert!(std::ptr::eq(item_def(k), ITEMS.iter().find(|x| x.kind == k).unwrap_or(&ITEMS[0])));
+            assert_eq!(monster_def(k), MONSTERS.iter().find(|x| x.kind == k).unwrap_or(&MONSTERS[0]));
+            assert_eq!(item_def(k), ITEMS.iter().find(|x| x.kind == k).unwrap_or(&ITEMS[0]));
         }
     }
 }
