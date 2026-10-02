@@ -9,12 +9,14 @@ main.report.clearing .report-well { display: flex; flex-direction: column; justi
 
 .rc-stamp { position: relative; width: 112px; height: 112px; border-radius: 50%; transform: rotate(-9deg); display: flex; align-items: center; justify-content: center;
   font: 900 23px/1 var(--display); text-transform: uppercase; letter-spacing: .02em; color: #efe5cc; text-shadow: 0 2px 0 rgba(13, 12, 20, .65);
-  background: radial-gradient(circle, #a7001f 52%, var(--clot) 66%, #440005 70%, transparent 72%); flex: none; margin-bottom: 2px; }
-.skin-seal .rc-stamp { background: url(/ui/frames/seal.png) center / 100% 100% no-repeat; }
+  flex: none; margin-bottom: 2px; }
+.rc-stamp .rc-wax { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle, #a7001f 52%, var(--clot) 66%, #440005 70%, transparent 72%); }
+.skin-seal .rc-stamp .rc-wax { background: url(/ui/frames/seal.png) center / 100% 100% no-repeat; }
+.rc-stamp .rc-word { position: relative; }
 /* the end's colour: the same wax, re-pigmented (filters keep the seal's painted relief) */
-.rc-stamp.end-banked { filter: grayscale(1) sepia(1) saturate(2.8) brightness(1.2) hue-rotate(-6deg); }
-.rc-stamp.end-returned { filter: hue-rotate(205deg) saturate(.55) brightness(1.05); }
-.rc-stamp.end-stalled, .rc-stamp.end-repelled { filter: hue-rotate(28deg) saturate(1.2); }
+.rc-stamp.end-banked .rc-wax { filter: grayscale(1) sepia(1) saturate(2.8) brightness(1.2) hue-rotate(-6deg); }
+.rc-stamp.end-returned .rc-wax { filter: hue-rotate(205deg) saturate(.55) brightness(1.05); }
+.rc-stamp.end-stalled .rc-wax, .rc-stamp.end-repelled .rc-wax { filter: hue-rotate(28deg) saturate(1.2); }
 .rc-stamp.end-returned, .rc-stamp.end-stalled, .rc-stamp.end-repelled { font-size: 19px; }
 .rc-stamp.end-repelled { font-size: 17px; }
 
@@ -58,4 +60,13 @@ main.report.clearing .report-well { display: flex; flex-direction: column; justi
   @keyframes rc-rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes rc-drop { from { transform: translateY(-12px) scale(1.06); opacity: 0; filter: brightness(1.6); } to { transform: none; opacity: 1; filter: none; } }
   @keyframes rc-badge { from { transform: scale(2) rotate(-6deg); opacity: 0; } 60% { transform: scale(.94) rotate(-6deg); opacity: 1; } to { transform: rotate(-3deg); } }
+}
+
+/* the watch's mid-run record: a gilt stamp over the floor's arrival (the boss stamps' look), never a held frame */
+.watch .banner.record-beat { font: 800 24px/1 var(--display); text-transform: uppercase; letter-spacing: .06em; color: #fff3d6; padding: 9px 18px;
+  background: linear-gradient(#c49a4f, #8a6526); border: 0; box-shadow: 0 0 0 2px var(--ink), inset 0 1px 0 rgba(255, 240, 200, .5), 0 6px 18px rgba(13, 12, 20, .7);
+  text-shadow: 0 2px 0 rgba(13, 12, 20, .55); }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .watch .banner.record-beat.show { animation: rc-record .5s cubic-bezier(.3, 1.7, .45, 1) both; }
+  @keyframes rc-record { from { transform: translateX(-50%) scale(2) rotate(-5deg); opacity: 0; filter: brightness(1.8); } 60% { transform: translateX(-50%) scale(.95) rotate(-3deg); opacity: 1; } to { transform: translateX(-50%) rotate(-3deg); filter: none; } }
 }

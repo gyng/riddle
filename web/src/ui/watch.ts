@@ -513,7 +513,8 @@ export function renderWatch(app: App): Mounted {
   }
   let prepended = false;              // bail fell back to the row prepend (an engine without `bail`)
   const cls = app.lineage.class;
-  let recordBeat = false;   // run-clear: the run's `NEW BEST` beat, once
+  let recordBeat = false;   // run-clear: the run's `NEW BEST` stamp, once
+  const RECORD_MS = 2400;
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
   const kinds = new Map<number, string>(), names = new Map<number, string>();
@@ -957,8 +958,9 @@ export function renderWatch(app: App): Mounted {
           const lane = ev.biome && up && up !== ev.biome && ev.biome !== "warrens" && seenForks(app.lineage).length ? ev.biome : undefined;
           at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap); ambient(lane ? /* copy:callout */ `D${ev.depth} · ${lane}` : rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
           // run-clear (the owner, 2026-10-02: a record no longer ends a run — it is a beat and a checkpoint, and he carries on): the
-          // first floor past the lineage's record this run cuts in like a boss's break, held (the card's `new best` badge says it again)
-          if (before.best > 0 && ev.depth > before.best && !recordBeat) { recordBeat = true; beatAt(ev.t, /* copy:callout */ `NEW BEST D${ev.depth}`, false, true); at(ev.t, () => cue("level")); }
+          // first floor past the lineage's record this run stamps a gilt `NEW BEST D5` over the floor's arrival — the boss stamps' look,
+          // but it never holds the frame or takes a fight's beat (he walks on; the card's `new best` badge says it again)
+          if (before.best > 0 && ev.depth > before.best && !recordBeat) { recordBeat = true; const d = ev.depth; at(ev.t, () => { if (folding) return; showBanner(/* copy:callout */ `NEW BEST D${d}`, RECORD_MS, "record-beat"); cue("level"); }); }
           break;
         }
         case "fact": {

@@ -47,7 +47,8 @@ import { anchorPanel, buildingTile, exposeTown, markOpened, openBank, openHero, 
 import { onPackages, openPackages, packagesShown, packagesStrip, penOpen } from "./packages";   // Cut 30 §2: the packages, the pen gated late
 import { openQuest, questShown } from "./quest";   // Cut 30 §5: the quest board
 import { sendMark } from "./works";
-import { itemIcon, itemName } from "./items";   // run-clear: items in their rarity rims   // Cut 30.5: the gem's send counter before the scout, `auto` after
+import { itemIcon, itemName } from "./items";   // run-clear: items in their rarity rims
+import { kwHost } from "./tips";   // Cut 30.5: the gem's send counter before the scout, `auto` after
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -420,9 +421,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const chips = h("div", { class: "chips" });
     for (const it of L.vault) {
       const on = app.loadout.includes(it.id);
-      chips.appendChild(h("button", { class: `chip item${on ? " on risk" : ""}`, onclick: () => {
+      chips.appendChild(kwHost(h("button", { class: `chip item${on ? " on risk" : ""}`, "data-rarity": it.rarity ?? "common", onclick: () => {
         app.setLoadout(on ? app.loadout.filter((x) => x !== it.id) : [...app.loadout, it.id]);
-      } }, on ? "⚠ " : "", itemIcon(it, { size: "s" }), itemName(it), keptAs(L.facts, it) ? h("small", { class: "dim flav" }, ` · ${keptAs(L.facts, it)}`) : ""));   // run-clear: its icon in its rarity rim, its name tinted
+      } }, on ? "⚠ " : "", itemIcon(it, { size: "s" }), itemName(it), keptAs(L.facts, it) ? h("small", { class: "dim flav" }, ` · ${keptAs(L.facts, it)}`) : ""), "rarity"));   // run-clear: its icon in its rarity rim, its name tinted
       if (on) {
         const ins = (L.insured ?? []).includes(it.id);
         const price = Math.ceil(salvageValue(it.kind, "bank") * 10 / 4);

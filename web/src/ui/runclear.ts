@@ -78,7 +78,8 @@ export function clearCard(app: App, x: ExitLine, o: { onTap?: () => void } = {})
   const depth = exitDepth(x);
   const finds = x.finds ?? [];
   const best = finds[0];
-  const stamp = h("div", { class: `rc-stamp end-${kind}`, "data-end": kind }, STAMP[kind]);
+  // (the wax is its own layer: the slam's keyframes animate the stamp's filter, the wax keeps its pigment)
+  const stamp = h("div", { class: `rc-stamp end-${kind}`, "data-end": kind }, h("span", { class: "rc-wax", "aria-hidden": "true" }), h("span", { class: "rc-word" }, STAMP[kind]));
   const reason = x.reason ? h("div", { class: "rc-reason", "data-why": x.reason }, x.reason) : null;
   const deep = depth ? h("div", { class: "rc-depth" }, h("span", { class: "rc-plaque num" }, icon("depth", ""), `D${depth}`),
     x.new_best ? h("span", { class: "rc-best", "data-best": "1" }, /* copy:label */ "new best") : null) : null;
@@ -146,5 +147,5 @@ export function clearStrip(x: ExitLine | undefined): HTMLElement | null {
   return h("div", { class: "rc-strip", "data-end": "died" },
     depth ? h("span", { class: "rc-plaque num" }, icon("depth", ""), `D${depth}`) : null,
     x.new_best ? h("span", { class: "rc-best", "data-best": "1" }, /* copy:label */ "new best") : null,
-    itemRow(finds, { size: "s", max: 5 }));
+    itemRow(finds, { size: "m", max: 6 }));
 }
