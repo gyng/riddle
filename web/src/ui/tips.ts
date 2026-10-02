@@ -83,14 +83,17 @@ function body(t: Term): Node[] {
   const ic = termIcon(t);
   return [h("div", { class: "kw-tip-head" }, ic ?? "", h("b", null, termTitle(t))), h("div", { class: "kw-tip-gloss" }, ...gloss, live ? h("span", { class: "kw-tip-live num" }, ` · ${live}`) : "")];
 }
-export function openTip(el: HTMLElement, focus = false): void {
+/** `how`: a hover's plate lets the pointer through (it never sits over a control a click is aimed at); a tap's, a click's, a
+ *  long-press's or a focus's plate takes the pointer (its keywords can be opened). */
+export function openTip(el: HTMLElement, focus = false, how: "hover" | "pin" = "pin"): void {
   clearTimeout(openTimer); clearTimeout(closeTimer);
   const t = termAt(el); if (!t || !(t in TIP)) return;
-  if (owner === el && plate && !plate.hidden) return;
+  if (owner === el && plate && !plate.hidden) { if (how === "pin") plate.classList.add("kw-pin"); return; }
   closeTip();
   const p = plateEl();
   p.replaceChildren(...body(t));
   p.dataset.kw = t;
+  p.classList.toggle("kw-pin", how === "pin");
   p.hidden = false;
   owner = el; byFocus = focus;
   el.setAttribute("aria-describedby", "kw-tip");
@@ -109,7 +112,10 @@ const scheduleClose = (): void => { clearTimeout(closeTimer); closeTimer = windo
 /** Above the trigger when it fits, else under it; inside the viewport by 8 px. */
 function place(p: HTMLElement, el: HTMLElement): void {
   p.style.left = "0px"; p.style.top = "0px";
-  const a = el.getBoundingClientRect(), w = p.offsetWidth, ht = p.offsetHeight, M = 8, vw = document.documentElement.clientWidth, vh = innerHeight;
+  // (the trigger with whatever pokes out of it — a tile's badge — so the plate never covers a part of the control it describes)
+  let a = el.getBoundingClientRect();
+  for (const c of el.querySelectorAll("*")) { const r = c.getBoundingClientRect(); if (r.width && r.height) a = new DOMRect(Math.min(a.left, r.left), Math.min(a.top, r.top), Math.max(a.right, r.right) - Math.min(a.left, r.left), Math.max(a.bottom, r.bottom) - Math.min(a.top, r.top)); }
+  const w = p.offsetWidth, ht = p.offsetHeight, M = 8, vw = document.documentElement.clientWidth, vh = innerHeight;
   const top = a.top - ht - 6 >= M ? a.top - ht - 6 : Math.min(vh - ht - M, a.bottom + 6);
   const left = Math.max(M, Math.min(vw - w - M, a.left + a.width / 2 - w / 2));
   p.style.left = `${Math.round(left)}px`; p.style.top = `${Math.round(Math.max(M, top))}px`;
@@ -153,7 +159,7 @@ function install(): void {
     if (!t) return;
     clearTimeout(closeTimer);
     if (t === owner) return;
-    clearTimeout(openTimer); openTimer = window.setTimeout(() => { if (t.isConnected) openTip(t); }, HOVER_MS);
+    clearTimeout(openTimer); openTimer = window.setTimeout(() => { if (t.isConnected) openTip(t, false, "hover"); }, HOVER_MS);
   });
   d.addEventListener("pointerout", (e) => {
     if (e.pointerType !== "mouse") return;
@@ -204,7 +210,14 @@ function install(): void {
 // ---- the density pass ----
 let passTimer = 0;
 const onAt = new Map<string, number>();
-function schedule(): void { if (passTimer) return; passTimer = window.setTimeout(() => { passTimer = 0; pass(); }, 120); }
+/** The watch is not marked (docs/TOOLTIPS.md: its live text is too busy) and its HUD repaints many times a second: no pass runs there. */
+const onWatch = (): boolean => document.getElementById("app")?.dataset.screen === "watch";
+let lastPass = 0;
+function schedule(): void {
+  if (passTimer || onWatch()) return;
+  // at most ~3 passes a second (a pass reads layout): a burst of repaints is one pass after it
+  passTimer = window.setTimeout(() => { passTimer = 0; lastPass = performance.now(); pass(); }, Math.max(120, 350 - (performance.now() - lastPass)));
+}
 const visibleIn = (r: DOMRect): boolean => r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < document.documentElement.clientWidth;
 /** Nothing (a sheet, its backdrop) lies over the element's centre: a keyword under an open panel is not on screen. */
 const onTop = (el: Element, r: DOMRect): boolean => {
@@ -231,6 +244,7 @@ export function visibleWords(): number {
 }
 /** Marks, by the budget: which keywords show their underline now. Returns the marked ones (tests read it through `__tips`). */
 export function pass(): HTMLElement[] {
+  if (onWatch()) { for (const k of document.querySelectorAll(".kw.kw-on")) k.classList.remove("kw-on"); onAt.clear(); return []; }
   const all = [...document.querySelectorAll<HTMLElement>(".kw")].filter((k) => !k.closest(".kw-tip"));
   if (!all.length) { onAt.clear(); return []; }
   follow();

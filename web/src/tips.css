@@ -10,12 +10,13 @@
 .kw.kw-open { text-decoration-color: var(--bone); }
 :is(.sheet, .panel, .parchment, .report-sheet) .kw.kw-open { text-decoration-color: var(--ink); }
 
-.kw-tip { position: fixed; left: 0; top: 0; z-index: 3000; max-width: min(240px, calc(100vw - 16px)); padding: 6px 10px 7px; pointer-events: auto;
+.kw-tip { position: fixed; left: 0; top: 0; z-index: 3000; max-width: min(240px, calc(100vw - 16px)); padding: 6px 10px 7px; pointer-events: none;
   background: var(--umbra); color: var(--bone); border: 1px solid var(--dusk); border-radius: 4px;
   box-shadow: inset 0 0 0 1px rgba(164, 188, 214, .18), 0 6px 18px rgba(13, 12, 20, .8);
   font: 400 14px/1.25 var(--sans); letter-spacing: .01em; text-transform: none; text-align: left; white-space: normal;
   animation: kwtip .12s ease-out; }
 .kw-tip[hidden] { display: none; }
+.kw-tip.kw-pin { pointer-events: auto; }   /* a hover's plate lets clicks through; a tap's takes them (its nested keywords) */
 .skin-tablet .kw-tip { border: 7px solid transparent; border-image: url(/ui/frames/tablet.png) 24 fill / 7px stretch; background: none; padding: 1px 4px 2px; border-radius: 0; }
 .kw-tip-head { display: flex; align-items: center; gap: 5px; font: 600 15px/1.15 var(--display); color: var(--bone); letter-spacing: .02em; }
 .kw-tip-head .ico { width: 16px; height: 16px; flex: none; }
