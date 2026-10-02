@@ -9,6 +9,7 @@ import { renderCamp } from "./ui/camp";
 import { renderWatch } from "./ui/watch";
 import { renderDeath } from "./ui/death";
 import { renderReport } from "./ui/report";
+import { mergeWorkers } from "./ui/works";   // Cut 30.5
 import { renderEnding } from "./ui/ending";
 import { closeAllSheets, onEscapeIdle } from "./ui/sheet";
 import { lastRun, type RunLog } from "./ui/runlog";
@@ -378,7 +379,9 @@ export class App {
       const report = await this.runOfflineChunked(Math.floor(elapsed));
       await this.refresh();
       this.adoptSets();
-      this.go({ kind: "report", report, absence: true });
+      // Cut 30.5: before the scout an absence with no send in flight ran nothing — the hero waited at home; no empty report
+      if (report.runs === 0 && this.lineage.tree && !this.lineage.tree.auto_send) this.go({ kind: "camp" });
+      else this.go({ kind: "report", report, absence: true });
     } else this.go({ kind: dev?.autosend ? "watch" : "camp" });
     await this.flush();
     this.booted = true;
@@ -965,6 +968,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     fallen: cat(a.fallen, b.fallen),
     meters: mergeMeters(a.meters, b.meters),
     ...mergeGrew(a, b),
+    workers: mergeWorkers(a.workers, b.workers), chest: sum(a.chest, b.chest) || undefined,   // Cut 30.5: the workers' acts and the haul left in the chest add up
   };
 }
 /** Cut 30 §4: what grew over an absence adds up across its slices — per track, the gold summed (`+$2400`), a best or a level the

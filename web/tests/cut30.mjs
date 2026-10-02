@@ -2,8 +2,6 @@
 // Cut 30 client gates (docs/CUT30.md), on the fake engine (its Cut 30 stand-ins), headless at 400 × 800 (RIDDLE_BROWSER=headed for the GPU).
 //
 // Panels section (§2, §4, §5, the Reveal):
-//   tracks    four tracks on the panel (opened from the portrait-mini), a next stage on every track until its v1 stages are done, a bar
-//             when the trigger is numeric; the mini is no control on day 0 and glints when a stage opens
 //   packages  the stance / tactic / temperament slots, chips `<name> L<n>` with a level bar, each alternative priced in one line
 //             (`death −8`), a shadowed row greyed `<winner> wins`, equipping free and instant, drills and scars
 //   quest     one goal (≤ 5 words, eval/copy-budgets.json `quest_goal`), the reward a picture, a progress bar, the day's one free swap,
@@ -62,7 +60,7 @@ const withState = (fn) => page.evaluate(async (src) => {
 const boot = async (seed, q = "") => {
   await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}${q}`, { waitUntil: "domcontentloaded" });
   await camp();
-  await page.evaluate(() => { localStorage.removeItem("riddle.reveal"); localStorage.removeItem("riddle.tracks.seen"); });
+  await page.evaluate(() => { localStorage.removeItem("riddle.reveal"); });
 };
 const tiles = () => page.evaluate(() => [...document.querySelectorAll(".cmd .tile:not(.empty)")].map((t) => t.dataset.tile + (t.classList.contains("reveal") ? "*" : "")));
 const closeSheets = () => page.evaluate(() => { for (const s of document.querySelectorAll(".sheet .close-stud, .sheet .sheet-x")) s.click(); });
@@ -70,39 +68,7 @@ const closeSheets = () => page.evaluate(() => { for (const s of document.querySe
 const pastWarlord = (extra = "") => withState(new Function("e", `e.lineage.best_depth = 9; e.lineage.gold = 120; e.lineage.heir = 2; e.lineage.graveyard = [{ heir: 1, depth: 6, cause: "goblin" }]; ${extra}`));
 
 try {
-  // ---- tracks: four rows, a next stage on every track until its stages are done; the mini opens the panel
-  if (part("tracks")) {
-    await boot(3001);
-    // (the fake's fresh lineage carries a chronicle, a purse and a kennel: day 0 is set by hand)
-    await withState((e) => { e.lineage.heir = 1; e.lineage.gold = 0; e.lineage._k = e.lineage.kennel; e.lineage.kennel = []; e.lineage.eggs = []; e.lineage.party = []; e.lineage.vault = []; e.lineage.graveyard = []; e.lineage.best_depth = 0; e.lineage.facts = []; });
-    const day0 = await page.evaluate(() => ({ btn: !!document.querySelector(".topbar button.mini-portrait"), n: window.__riddle.lineage.tracks?.length }));
-    check(day0.n === 4 && !day0.btn, `day 0: four tracks on the wire, the portrait-mini is no control yet (${day0.n} tracks, button ${day0.btn})`);
-    await withState((e) => { e.lineage.best_depth = 5; e.lineage.gold = 260; });
-    const mini = await until(() => !!document.querySelector(".topbar button.mini-portrait.tracks-btn"), "the mini as a button");
-    const glint = await page.evaluate(() => document.querySelector(".topbar button.mini-portrait")?.classList.contains("reveal"));
-    check(mini && glint, `a stage opened: the portrait-mini opens the tracks and glints once (${glint})`);
-    await page.click(".topbar button.mini-portrait");
-    await until(() => document.querySelectorAll(".tracks-panel .track-row").length === 4, "the tracks panel");
-    const rows = await page.evaluate(() => [...document.querySelectorAll(".tracks-panel .track-row")].map((r) => ({ id: r.dataset.track, stage: r.querySelector(".track-stage")?.textContent ?? "", next: r.querySelector(".track-next:not(.done)")?.textContent ?? "", bar: !!r.querySelector(".track-bar"), ico: !!r.querySelector(".track-ico .ico") })));
-    const wire = await page.evaluate(() => window.__riddle.lineage.tracks);
-    check(JSON.stringify(rows.map((r) => r.id)) === JSON.stringify(["character", "items", "scale", "town"]), `four tracks in order: ${rows.map((r) => r.id).join(" · ")}`);
-    const heroIco = await page.evaluate(() => document.querySelector('.tracks-panel .track-row[data-track="character"] .track-ico img.track-hero')?.getAttribute("src"));
-    check(/\/ui\/portraits\/hero_/.test(heroIco ?? ""), `the hero track wears the hero's face (${heroIco})`);
-    check(rows.every((r) => r.ico && r.stage && words(r.stage) <= 3), `each row an icon and its stage (${rows.map((r) => r.stage).join(" · ")})`);
-    check(rows.every((r) => { const w = wire.find((t) => t.id === r.id); return w.next ? r.next === `next · ${w.next}${w.trigger ? ` · ${w.trigger}` : ""}` : !r.next; }), `every track not done shows \`next · <stage> · <trigger>\` (${rows.map((r) => r.next || "✓").join(" | ")})`);
-    const town = rows.find((r) => r.id === "town"), townW = wire.find((t) => t.id === "town");
-    check(townW.next === "bank" ? town.bar : true, `a numeric trigger draws its bar (town → bank: ${town.bar})`);
-    await shot("tracks");
-    await closeSheets();
-    // every v1 stage done on a track: no next there; the others keep theirs
-    await withState((e) => { e.lineage.gold = 900; e.lineage.vault = [{ id: 1, kind: "sword", label: "sword", known: true }]; e.lineage.kennel = e.lineage._k; });
-    await page.click(".topbar button.mini-portrait");
-    await until(() => document.querySelectorAll(".tracks-panel .track-row").length === 4, "the tracks panel again");
-    const r2 = await page.evaluate(() => [...document.querySelectorAll(".tracks-panel .track-row")].map((r) => ({ id: r.dataset.track, next: !!r.querySelector(".track-next:not(.done)"), done: !!r.querySelector(".track-next.done") })));
-    const w2 = await page.evaluate(() => window.__riddle.lineage.tracks);
-    check(r2.every((r) => r.next === !!w2.find((t) => t.id === r.id).next) && r2.find((r) => r.id === "town").done, `a track whose v1 stages are done shows none; the rest keep a next stage (${r2.map((r) => `${r.id}:${r.next ? "next" : "done"}`).join(" ")})`);
-    await closeSheets();
-  }
+  // (tracks: the panel became the works sheet's branches in Cut 30.5 — its gates are tests/cut305.mjs `sheet`)
 
   // ---- packages: slots, levels, shadowing, the one-line price, equipping free and instant
   if (part("packages")) {

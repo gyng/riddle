@@ -71,7 +71,23 @@ const nearestNode = (p: Pt): string => { let b = "fireN", bd = Infinity; for (co
 
 // ---- the state: what stands and what walks ----------------------------------------------------------------------------------
 
-export type Marker = { at: PlotId; kind: "coin" | "rune" | "sword"; label?: string };
+export type Marker = { at: PlotId | "chest"; kind: "coin" | "rune" | "sword" | "chest"; label?: string };
+/** Cut 30.5 (docs/AUTOMATION_TREE.md §3C): the haul chest by the mouth (before the porter) and the workers at their posts */
+export type ChestState = { state: "closed" | "full" | "open"; gold: number; count?: number; need?: number };
+export type WorkerSpot = { id: string; post: string; lit: boolean; price?: number; paused: boolean };
+/** the chest's foot, beside the path under the mouth */
+export const CHEST_AT: Pt & { h: number } = { ...T(CX + 1.6, 8.3), h: 12 };
+/** a worker's spot (texels, its foot): by id, else by its post's plot */
+const WORKER_AT: Record<string, Pt> = {
+  porter: T(CX - 1.3, 9.4), scout: T(CX - 1.7, 13.3), armourer: T(CX - 1.9, 20.0), apprentice: T(CX - 2.1, 11.1), keeper: T(CX - 7.3, 20.0),
+  clerk: T(CX + 2.1, 11.1), drillmaster: T(CX + 5.5, 13.4), kennel_hand: T(CX + 2.1, 20.3), herald: T(CX - 3.6, 8.0), guide: T(CX + 1.9, 7.3),
+};
+export const workerAt = (w: { id: string; post: string }): Pt | null => WORKER_AT[w.id] ?? (PLOTS as Record<string, Pt | undefined>)[w.post] ?? null;
+/** a worker's frames (art/town-ids.md: `town_worker_<id>` + `_1`; the send worker's art is `captain` until the art branch renames it) */
+export const workerIds = (id: string, frame = 0): string[] => {
+  const ids = [`town_worker_${id}`, ...(id === "scout" ? ["town_worker_captain"] : [])];
+  return frame ? [...ids.map((x) => `${x}_1`), ...ids] : ids;
+};
 export type Party = { at: number; cls: string; sack?: "small" | "large"; chest?: boolean; pet?: string; to: "tent" | "store" };
 export type TownState = {
   seed: number; day: number;
@@ -85,8 +101,10 @@ export type TownState = {
   markers: Marker[];                               // ≤ 3
   board: boolean;                                  // the quest board stands by the mouth
   depth: number;                                   // the best depth (the mouth's plaque)
+  chest?: ChestState;                              // Cut 30.5: the haul chest (none once the porter carries the hauls)
+  workers: WorkerSpot[];                           // Cut 30.5: hired workers at their posts; the lit node's greyed
 };
-export type TownOpts = { board?: boolean; seen?: string[]; opened?: string[]; kit?: { n: number; price?: number }; now?: Date; absenceNew?: boolean };
+export type TownOpts = { board?: boolean; seen?: string[]; opened?: string[]; kit?: { n: number; price?: number }; now?: Date; absenceNew?: boolean; chestOpen?: boolean };
 
 const hashN = (...xs: number[]): number => { let h = 2166136261; for (const x of xs) { h ^= x | 0; h = Math.imul(h, 16777619); h ^= h >>> 13; } return h >>> 0; };
 export const localDay = (now = new Date()): number => Math.floor((now.getTime() - now.getTimezoneOffset() * 60000) / 86400000);
@@ -121,6 +139,12 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   // markers (≤ 3): a sword over the forge when a kit step is affordable, a coin over the bank when a night's interest came in, a `!`
   // over a building not yet opened since it was built
   const markers: Marker[] = [];
+  // Cut 30.5: the chest before the porter — closed and empty from day 0 (drawn, not a surface), full with gold (a `!` and the sum), open
+  // just after a tap; the porter's hire retires it
+  const W = L.tree, porter = W?.nodes.find((n) => n.id === "porter");
+  const chest: ChestState | undefined = W && porter && (porter.state !== "done" || porter.paused) ? { state: o.chestOpen ? "open" : W.chest > 0 ? "full" : "closed", gold: W.chest, count: porter.count, need: porter.need } : undefined;
+  if (chest?.state === "full") markers.push({ at: "chest", kind: "chest", label: `$${chest.gold}` });
+  const workers: WorkerSpot[] = (town?.workers ?? []).filter((w) => w.id !== "quartermaster").map((w) => ({ id: w.id, post: w.post, lit: !!w.lit, price: w.price, paused: !!w.paused }));
   if (has("blacksmith") && (o.kit?.n ?? 0) > 0) markers.push({ at: "blacksmith", kind: "sword", label: o.kit?.price ? `$${o.kit.price}` : undefined });
   if (has("bank") && (town?.bank ?? 0) > 0 && o.absenceNew) markers.push({ at: "bank", kind: "coin" });
   const opened = new Set(o.opened ?? []);
@@ -128,7 +152,7 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   return {
     seed, day, stage: buildings.length, buildings, staked: next, hero: { cls: L.class || "fighter", look: L.look },
     pets: (L.party ?? []).slice(0, 2).map((c) => c.kind), penned: has("kennel") ? (L.kennel ?? []).slice(0, 2).map((c) => c.kind) : [],
-    parties, markers: markers.slice(0, 3), depth: L.best_depth ?? 0, board: !!o.board,
+    parties, markers: markers.slice(0, 3), depth: L.best_depth ?? 0, board: !!o.board, chest, workers,
   };
 }
 
@@ -151,7 +175,7 @@ const ATLAS = 1024;
 const WALKER_TINT: Record<string, number[]> = { rogue: [120, 70, 140], ranger: [80, 140, 72], caster: [70, 96, 200], fighter: [150, 160, 176] };
 /** fallback aspect (w / h) per id family */
 const ASPECT: [RegExp, number][] = [[/^town_mouth/, 1.55], [/^town_(blacksmith|bank|storehouse|kennel)_/, 1.25], [/^town_tent/, 1.05], [/^town_board/, 0.85], [/^town_campfire/, 1.1],
-  [/^town_plot/, 1.1], [/^town_scaffold/, 0.9], [/^(hero_|walk_|town_(smith|merchant|carter|child))/, 0.7], [/^town_(sack|chest)/, 0.95], [/^town_flag/, 0.6],
+  [/^town_plot/, 1.1], [/^town_scaffold/, 0.9], [/^(hero_|walk_|town_(smith|merchant|carter|child))/, 0.7], [/^town_(sack|chest)/, 0.95], [/^town_worker_(porter|armourer|apprentice|drillmaster|kennel_hand)/, 1.2], [/^town_worker_/, 0.75], [/^town_haul_chest/, 1.5], [/^town_flag/, 0.6],
   [/^env_torch/, 0.66], [/^town_env_tree/, 0.5], [/^town_env_/, 1], [/^fx_/, 1]];
 export class TownAtlas {
   readonly canvas: HTMLCanvasElement;
@@ -234,6 +258,32 @@ function drawPrimitive(g: CanvasRenderingContext2D, id: string, x: number, y: nu
   else if (/^town_plot/.test(id)) { for (const a of [0.1, 0.9]) R("#6a4a2a", w * a - 1, h * 0.2, 2, h * 0.8); R("#d8c8a0", w * 0.1, h * 0.35, w * 0.8, 1); }
   else if (/^town_scaffold/.test(id)) { for (let i = 0; i <= 3; i++) { R("#7a5534", (w - 2) * i / 3, 0, 2, h); R("#7a5534", 0, (h - 2) * i / 3, w, 2); } }
   else if (/^town_sack/.test(id)) { g.fillStyle = "#b89a62"; g.beginPath(); g.ellipse(x + w / 2, y + h * 0.6, w * 0.45, h * 0.4, 0, 0, Math.PI * 2); g.fill(); R("#e3c24a", w * 0.4, h * 0.1, w * 0.2, h * 0.25); }
+  else if (/^town_haul_chest/.test(id)) {   // the haul chest: closed · full (a coin heap and a glint) · open (the lid up behind, dark inside)
+    const open = /_open$/.test(id), full = /_full$/.test(id);
+    if (open) { R("#4a3220", w * 0.08, 0, w * 0.84, h * 0.4); R("#0d0c14", w * 0.12, h * 0.4, w * 0.76, h * 0.14); }
+    R("#5a3c22", w * 0.06, h * 0.45, w * 0.88, h * 0.47); R("#2b3350", w * 0.06, h * 0.6, w * 0.88, 1); R("#2b3350", w * 0.3, h * 0.45, 1, h * 0.47); R("#2b3350", w * 0.7, h * 0.45, 1, h * 0.47);
+    if (!open) R("#6a4a2c", w * 0.04, h * 0.32, w * 0.92, h * 0.15);
+    R("#b89448", w * 0.45, h * 0.52, w * 0.1, h * 0.14);
+    if (full) { R("#b89448", w * 0.12, h * 0.22, w * 0.76, h * 0.1); R("#eadfc5", w * 0.62, h * 0.08, 1, h * 0.16); R("#eadfc5", w * 0.56, h * 0.15, w * 0.14, 1); }
+  }
+  else if (/^town_worker_/.test(id)) {   // a worker: a townsperson (no BLOOD) and the role's tag in its own colour (art/town-ids.md, workers)
+    const role = id.replace(/^town_worker_|_1$/g, "");
+    const coat: Record<string, string> = { porter: "#3a3448", armourer: "#5a6070", apprentice: "#5a3c22", keeper: "#2b3350", clerk: "#1c1b2b", drillmaster: "#6a5a40", kennel_hand: "#4a3a2a", herald: "#2b3350", guide: "#7d8ea4", captain: "#1c1b2b" };
+    const fw = /porter|armourer|apprentice|drillmaster|kennel_hand/.test(role) ? w * 0.55 : w;   // the figure's share (the tag object right of it)
+    R(coat[role] ?? "#3a3448", fw * 0.22, h * 0.28, fw * 0.56, h * 0.5); R("#eadfc5", fw * 0.32, h * 0.06, fw * 0.36, h * 0.2);
+    R("#1c1b2b", fw * 0.26, h * 0.78, fw * 0.18, h * 0.22); R("#1c1b2b", fw * 0.56, h * 0.78, fw * 0.18, h * 0.22);
+    const T = (c: string, a: number, b: number, cw: number, ch: number): void => R(c, fw + (w - fw) * a, h * b, (w - fw) * cw, h * ch);
+    if (role === "porter") { T("#6a4a2c", 0.05, 0.45, 0.9, 0.3); T("#eadfc5", 0.15, 0.25, 0.7, 0.22); T("#1c1b2b", 0.3, 0.72, 0.35, 0.28); }
+    else if (role === "armourer") { T("#6a4a2c", 0.15, 0.2, 0.12, 0.8); T("#6a4a2c", 0.75, 0.2, 0.12, 0.8); T("#a4bcd6", 0.35, 0.1, 0.08, 0.7); T("#a4bcd6", 0.55, 0.1, 0.08, 0.7); }
+    else if (role === "apprentice") { T("#0d0c14", 0.1, 0.55, 0.8, 0.2); T("#0d0c14", 0.35, 0.75, 0.3, 0.25); T("#e8923a", 0.25, 0.48, 0.5, 0.07); }
+    else if (role === "drillmaster") { T("#b89448", 0.4, 0.15, 0.2, 0.3); T("#6a4a2c", 0.47, 0.45, 0.06, 0.55); T("#6a4a2c", 0.1, 0.32, 0.8, 0.06); }
+    else if (role === "kennel_hand") { T("#4d6c99", 0.1, 0.55, 0.7, 0.25); T("#4d6c99", 0.55, 0.4, 0.3, 0.2); T("#1c1b2b", 0.15, 0.8, 0.1, 0.2); }
+    else if (role === "keeper") { R("#b89448", fw * 0.7, h * 0.12, 1, h * 0.88); R("#b89448", fw * 0.62, h * 0.85, fw * 0.3, h * 0.15); }
+    else if (role === "clerk") R("#eadfc5", fw * 0.5, h * 0.4, fw * 0.45, h * 0.16);
+    else if (role === "herald") { R("#eadfc5", fw * 0.6, h * 0.42, fw * 0.25, h * 0.4); R("#b89448", fw * 0.78, h * 0.25, fw * 0.16, h * 0.1); }
+    else if (role === "guide") { R("#e8923a", fw * 0.76, h * 0.4, fw * 0.18, h * 0.12); R("#6a4a2c", fw * 0.12, h * 0.05, 1, h * 0.95); }
+    else if (role === "captain") { R("#1c1b2b", fw * 0.15, h * 0.02, fw * 0.7, h * 0.08); R("#a4bcd6", fw * 0.6, 0, fw * 0.2, h * 0.05); R("#eadfc5", fw * 0.78, h * 0.35, fw * 0.2, h * 0.06); }
+  }
   else if (/^town_chest/.test(id)) { R("#7a4a1e", 0, h * 0.3, w, h * 0.7); R("#ffd76a", 0, h * 0.3, w, 2); R("#ffd76a", w * 0.42, h * 0.45, w * 0.16, h * 0.2); }
   else if (/^town_flag/.test(id)) { R("#4a321f", 0, 0, 1, h); R(/_1$/.test(id) ? "#a01a28" : "#c01530", 1, 1, w - 1, h * 0.4); }
   else if (/^env_torch/.test(id)) { R("#4a321f", w * 0.4, h * 0.4, w * 0.2, h * 0.6); R(/_1$/.test(id) ? "#ffcf5a" : "#f08a2a", w * 0.25, 0, w * 0.5, h * 0.45); }
@@ -300,7 +350,7 @@ const SMOKE = ["9a958c", "7d7a74", "b4afa4"], EMBER = ["ffb04a", "ff7a2a", "ffd7
 // ---- the view ---------------------------------------------------------------------------------------------------------------------
 
 export type TownStats = { fps: number; frames: number; cpuMs: number; cpuP95: number; walkers: number; mode: "gl" | "2d"; glLost: boolean; k: number; night: number; idle: boolean; running: boolean;
-  buildings: string[]; staked?: string; markers: string[]; view: [number, number, number, number] };
+  buildings: string[]; staked?: string; markers: string[]; view: [number, number, number, number]; chest?: string; workers: string[] };
 export type TownView = {
   readonly el: HTMLElement;
   setState(s: TownState): void;
@@ -308,7 +358,7 @@ export type TownView = {
   walkIn(ms?: number): Promise<void>;
   resize(): void;
   /** a plot's sprite box in CSS px (relative to the view's box); null when nothing stands there */
-  rectOf(id: PlotId | "staked"): { x: number; y: number; w: number; h: number } | null;
+  rectOf(id: PlotId | "staked" | "chest" | `worker:${string}`): { x: number; y: number; w: number; h: number } | null;
   onLayout(fn: () => void): void;
   stats(): TownStats;
   stress(n: number): void;
@@ -358,6 +408,7 @@ export function createTownView(host: HTMLElement): TownView {
   let hero: Walker | null = null;
   let walkingIn: { t0: number; t1: number; done: () => void } | null = null;
   let stressN = 0;
+  const arrive = new Map<string, Leg[]>();   // Cut 30.5: a worker hired on this mount walks out of the tent to his post
   const F: TownFrame = { x0: 0, y0: 0, w: 1, h: 1, k: 1, W: 1, H: 1, quads: [], n: 0, ground: [], groundKey: "", lights: [], amb: [1, 1, 1], night: 0, live: 0 };
   const rng = (n: number): number => (hashN(state?.seed ?? 1, n) % 100000) / 100000;
 
@@ -553,6 +604,34 @@ export function createTownView(host: HTMLElement): TownView {
       const p = PLOTS[s.staked.id];
       sprite("town_plot", 16, p.x, p.y);
     }
+    // Cut 30.5: the haul chest by the mouth — full, it hops and glints; open, the lid up a moment after the tap
+    if (s.chest) {
+      const c = CHEST_AT, st = s.chest.state, full = st === "full";
+      const hop = full ? -Math.round(Math.max(0, Math.sin(t * 4)) * 2) : 0;
+      sprite([`town_haul_chest${st === "closed" ? "" : `_${st}`}`, "town_haul_chest"], c.h, c.x, c.y + hop);
+      if (full) {
+        const g = (t * 0.7) % 1;
+        sprite("fx_glint", 7, c.x + 5, c.y - c.h + 1 + hop, { z: 3, fade: Math.min(1, Math.abs(g - 0.5) * 2.4) });
+        if (F.lights.length < MAX_LIGHTS) F.lights.push({ x: c.x, y: c.y - 6, r: 14 + night * 8, c: [0.9, 0.72, 0.3] });
+      }
+    }
+    // Cut 30.5: the workers at their posts — an idle beat (two frames, desynchronised); the lit node's worker greyed, still; a new hire
+    // walks out of the tent to his post
+    for (const w of s.workers) {
+      const p = workerAt(w); if (!p) continue;
+      let x = p.x, y = p.y, moving = false, flip = false;
+      const legs = arrive.get(w.id);
+      if (legs?.length) {
+        const at = walkerAt({ legs, from: legs[0]!.t0, to: Infinity } as Walker, t);
+        if (at && t < legs[legs.length - 1]!.t1) { x = at.x; y = at.y; moving = at.moving; flip = at.dx < -0.01; }
+        else arrive.delete(w.id);
+      }
+      const k = hashN(w.id.length, w.id.charCodeAt(0), w.id.charCodeAt(w.id.length - 1));
+      const beat = 0.9 + (k % 50) / 100, phase = (k % 97) / 31;
+      const step = moving && (Math.floor(t * 6.5) & 1) === 1;
+      const frameN = w.lit || moving ? 0 : Math.floor((t + phase) / beat) & 1;
+      sprite(workerIds(w.id, frameN), 24, x, y - (step ? 1 : 0), { flip, dim: w.lit ? 0.42 : w.paused ? 0.7 : 1, fade: w.lit ? 0.38 : 0 });
+    }
     // the pen: penned pets lie by the kennel
     s.penned.forEach((k, j) => { const p = PLOTS.kennel; sprite([k, "town_dog"], 10, p.x - 20 + j * 12, p.y + 8, { flip: j % 2 === 1 }); });
     // walkers
@@ -626,6 +705,7 @@ export function createTownView(host: HTMLElement): TownView {
     const add = (p: Pt & { h: number }, hw: number): void => { x0 = Math.min(x0, p.x - hw); x1 = Math.max(x1, p.x + hw); y0 = Math.min(y0, p.y - p.h); y1 = Math.max(y1, p.y + 6); };
     add(PLOTS.mouth, 52); add(PLOTS.fire, 30); add(PLOTS.tent, 18); add(PLOTS.crate, 10);
     for (const b of s.buildings) add(PLOTS[b.id], 44);
+    for (const w of s.workers) { const p = workerAt(w); if (p) add({ ...p, h: 24 }, 10); }
     if (s.staked) add({ ...PLOTS[s.staked.id], h: 22 }, 24);
     const M = 10; x0 -= M; x1 += M; y0 -= M; y1 += M + 4;
     // k: whole device px per texel — the largest that fits the box, or one more when that crops ≤ a margin's worth on each side
@@ -683,6 +763,12 @@ export function createTownView(host: HTMLElement): TownView {
       const prev = state; state = s;
       // a building the player has not seen yet goes up on this mount: scaffold → built
       for (const b of s.buildings) if (b.fresh && !builtAt.has(b.id) && !prev?.buildings.some((x) => x.id === b.id)) builtAt.set(b.id, t + 0.4);
+      // a worker hired since the last state (he stood greyed, or nowhere): out of the tent, along the paths, to his post
+      if (prev) for (const w of s.workers) {
+        if (w.lit || prev.workers.some((x) => x.id === w.id && !x.lit)) continue;
+        const p = workerAt(w); if (!p) continue;
+        const legs: Leg[] = []; legsAlong([NODES.tent!, ...route("tent", nearestNode(p)), p], t + 0.2, SPEED * 1.3, legs); arrive.set(w.id, legs);
+      }
       const key = (x: TownState | null): string => x ? JSON.stringify([x.hero, x.pets, x.parties.length, x.buildings.map((b) => b.id), x.seed]) : "";
       if (!prev || key(prev) !== key(s)) build();
       fit(); layoutDirty = true; start();
@@ -702,7 +788,15 @@ export function createTownView(host: HTMLElement): TownView {
     resize() { fit(); layoutDirty = true; },
     rectOf(id) {
       if (!state) return null;
-      const plot = id === "staked" ? (state.staked ? PLOTS[state.staked.id] : null) : PLOTS[id];
+      if (id === "chest" || id.startsWith("worker:")) {   // (the chest and the workers stand off the plots)
+        const wk = id === "chest" ? null : state.workers.find((w) => `worker:${w.id}` === id);
+        const p = id === "chest" ? (state.chest ? CHEST_AT : null) : wk ? workerAt(wk) : null;
+        if (!p) return null;
+        const s = id === "chest" ? atlas.get(["town_haul_chest"], CHEST_AT.h) : atlas.get(workerIds(wk!.id), 24);
+        const a = css(p.x - s.w / 2, p.y - s.h), b = css(p.x + s.w / 2, p.y);
+        return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+      }
+      const plot = id === "staked" ? (state.staked ? PLOTS[state.staked.id] : null) : PLOTS[id as PlotId];
       if (!plot) return null;
       const ids: Record<string, string[]> = { mouth: ["town_mouth_cave"], fire: ["town_campfire_0"], tent: ["town_tent"], crate: ["town_crate"], board: ["town_board"] };
       let s: Slot;
@@ -717,7 +811,8 @@ export function createTownView(host: HTMLElement): TownView {
       const s = state;
       const sorted = [...cpu].sort((a, b) => a - b);
       return { fps: fpsWin.length, frames, cpuMs: cpu[cpu.length - 1] ?? 0, cpuP95: sorted[Math.floor(sorted.length * 0.95)] ?? 0, walkers: F.live, mode: gl && !glLost ? "gl" : "2d", glLost, k: F.k, night: F.night, idle: performance.now() - lastInput > IDLE_MS, running: !!raf,
-        buildings: s?.buildings.map((b) => b.id) ?? [], staked: s?.staked?.id, markers: s?.markers.map((m) => `${m.kind}@${m.at}`) ?? [], view: [F.x0, F.y0, F.w, F.h] };
+        buildings: s?.buildings.map((b) => b.id) ?? [], staked: s?.staked?.id, markers: s?.markers.map((m) => `${m.kind}@${m.at}`) ?? [], view: [F.x0, F.y0, F.w, F.h],
+        chest: s?.chest?.state, workers: s?.workers.map((w) => `${w.id}${w.lit ? "(lit)" : w.paused ? "(off)" : ""}`) ?? [] };
     },
     stress(n) { stressN = n; if (state) addStress(); },
     setHour(h) { hourOverride = h; },

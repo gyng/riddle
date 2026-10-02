@@ -1,0 +1,91 @@
+/* Cut 30.5 — the works tree (docs/AUTOMATION_TREE.md §3): the `next` pill over the town, the works sheet, the hire's beat, the chest's
+   coins, the report's worker lines. Palette only (UI density: quiet styling, one gold accent for the one thing to buy). */
+.next-pill { position: absolute; z-index: 3; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 7px;
+  max-width: calc(100% - 16px); min-height: 36px; padding: 4px 14px 4px 5px; border-radius: 17px; border: 0; cursor: pointer;
+  background: rgba(13, 12, 20, .82); box-shadow: 0 0 0 1px #4d6c99, 0 2px 6px rgba(0, 0, 0, .5); color: var(--bone); font-size: 14px; text-align: left; }
+.next-pill[hidden] { display: none; }
+.next-pill .pill-main { display: flex; flex-direction: column; min-width: 0; }
+.next-pill .pill-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--umbra); box-shadow: 0 0 0 1px #39496d; overflow: hidden; }
+.next-pill .pill-ico .ico { width: 22px; height: 22px; }
+.next-pill .pill-ico .ico.glyph::before { font-size: 14px; line-height: 22px; font-weight: 700; color: var(--acc); }
+.next-pill .pill-t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.next-pill .pill-bar { display: block; min-width: 72px; height: 3px; margin-top: 2px; border-radius: 2px; background: rgba(77, 108, 153, .4); overflow: hidden; }
+.next-pill .pill-bar .fill { display: block; height: 100%; background: linear-gradient(90deg, var(--gilt), var(--acc)); }
+.next-pill.gold { box-shadow: 0 0 0 1px var(--gilt), 0 0 12px rgba(219, 186, 124, .55); color: #f3d192; }
+.next-pill:active { transform: translateY(1px); }
+[data-juice="on"] .next-pill.bump { animation: pill-bump .45s ease-out; }
+[data-juice="on"] .next-pill.gold { animation: pill-glow 1.8s ease-in-out infinite; }
+@keyframes pill-bump { 0% { transform: scale(1); } 35% { transform: scale(1.08); } 100% { transform: scale(1); } }
+@keyframes pill-glow { 0%, 100% { box-shadow: 0 0 0 1px var(--gilt), 0 0 6px rgba(219, 186, 124, .35); } 50% { box-shadow: 0 0 0 1px var(--gilt), 0 0 16px rgba(219, 186, 124, .75); } }
+
+/* the works sheet: silhouettes over the current node over what is done (the tree grows up) */
+.works-sheet .works-trunk { display: flex; flex-direction: column; gap: 6px; }
+.wnode { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; }
+.wnode .wn-ico { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; background: var(--umbra); box-shadow: 0 0 0 2px #39496d; overflow: hidden; }
+.wnode .wn-ico .ico { width: 30px; height: 30px; }
+.wnode .wn-ico .ico.glyph::before { font-size: 18px; line-height: 30px; font-weight: 700; color: var(--acc); }
+.wnode .wn-head { display: flex; align-items: baseline; gap: 8px; }
+.wnode .wn-name { font-size: 15px; text-transform: capitalize; }
+.wnode .wn-state { font-size: 12px; color: var(--dim); }
+.wnode .wn-tip { display: block; font-size: 12px; color: var(--dim); font-style: italic; }
+.wnode .wn-bar { display: block; height: 5px; margin: 4px 0 2px; border-radius: 3px; background: rgba(77, 108, 153, .35); overflow: hidden; }
+.wnode .wn-bar .fill { display: block; height: 100%; background: linear-gradient(90deg, var(--gilt), var(--acc)); }
+.wnode.cur { background: rgba(184, 148, 72, .1); box-shadow: inset 0 0 0 1px rgba(122, 92, 30, .45); }
+.wnode.lit { background: rgba(184, 148, 72, .2); box-shadow: inset 0 0 0 1px var(--gilt), 0 0 10px rgba(184, 148, 72, .35); }
+.wnode.lit .wn-name { font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.wnode .hire-btn { min-height: 40px; padding: 0 12px; white-space: nowrap; }
+.wnode .hire-btn.short { background: transparent; color: var(--dim); border-style: dashed; }
+.wnode.sil { grid-template-columns: 40px 1fr; opacity: .72; padding: 3px 8px; border: 1px dashed rgba(67, 90, 130, .55); }
+.wnode.sil .wn-ico { background: transparent; box-shadow: 0 0 0 1px dashed #39496d; }
+.wnode.sil .wn-ico img.ico { filter: brightness(0); opacity: .5; }
+.wnode.sil .wn-ico .ico.glyph::before { color: #435a82; }
+.wnode.sil .wn-name { font-size: 13px; }
+.wnode.sil .wn-state { display: block; }
+.wnode.focus { outline: 2px solid var(--gilt); outline-offset: 1px; }
+.works-done { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 4px 8px; opacity: .6; font-size: 12px; }
+.works-done .wd-mark { color: #435a82; font-weight: 700; }
+.works-done .wd { display: inline-flex; align-items: center; gap: 3px; }
+.works-done .wd .ico { width: 18px; height: 18px; }
+.works-done .wd .ico.glyph::before { font-size: 11px; line-height: 18px; font-weight: 700; }
+.works-done .wd.off { text-decoration: line-through; }
+.works-branches { margin-top: 8px; border-top: 1px solid rgba(43, 51, 80, .6); }
+.wbranch { display: grid; grid-template-columns: 30px auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 4px 4px; border-bottom: 1px solid rgba(43, 51, 80, .35); }
+.wbranch .wb-ico { grid-row: 1 / span 2; display: inline-flex; width: 28px; height: 28px; border-radius: 50%; background: var(--umbra); overflow: hidden; align-items: center; justify-content: center; }
+.wbranch .wb-ico .ico { width: 20px; height: 20px; }
+.wbranch .wb-ico img.track-hero { width: 100%; height: 100%; object-fit: cover; object-position: 50% 25%; }
+.wbranch .wb-name { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.wbranch .wb-now { color: #7a5c1e; font-size: 14px; }
+.wbranch .wb-next { grid-column: 2 / span 2; color: #435a82; font-size: 12px; }
+@media (min-width: 1024px) {
+  .works-sheet .works-trunk { max-width: 420px; }
+  .works-sheet { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; column-gap: 24px; align-items: start; }
+  .works-sheet > .row-label { grid-column: 1 / -1; }
+  .works-branches { margin-top: 0; border-top: 0; }
+}
+
+/* the hire's beat: two words over the well */
+.works-beat { position: absolute; z-index: 6; left: 50%; top: 34%; transform: translate(-50%, -50%); pointer-events: none; padding: 8px 18px; border-radius: 4px;
+  background: rgba(13, 12, 20, .88); box-shadow: 0 0 0 1px var(--gilt), 0 0 18px rgba(184, 148, 72, .5); color: #f3d192; font: 900 20px/1.1 var(--display); letter-spacing: .08em; white-space: nowrap; }
+[data-juice="on"] .works-beat { animation: beat-in 1.9s ease-out both; }
+@keyframes beat-in { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.9); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1.04); } 20% { transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%); } }
+
+/* the gem: the send counter before the scout, `auto` after */
+.gem .send-count, .gem .send-auto { display: block; margin-top: 2px; font: 600 10px/1 var(--num, inherit); letter-spacing: .06em; text-transform: none; color: var(--bone); opacity: .85; }
+.gem .send-auto { color: #f3d192; }
+
+/* the chest: its count under it, the coins that fly to the purse */
+.town-count { position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); padding: 0 5px; border-radius: 7px; background: rgba(13, 12, 20, .8); color: var(--bone); font-size: 11px; line-height: 14px; pointer-events: none; white-space: nowrap; }
+.town-marker.mk-chest { box-shadow: 0 0 0 1px var(--gilt), 0 0 12px rgba(255, 210, 110, .65); }
+.town-hit.hit-worker .town-marker { animation: none; }
+.coin-fly { position: fixed; z-index: 50; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 38% 32%, #fff3c0, #f0c24a 45%, #a8781e 80%); box-shadow: 0 0 6px rgba(255, 210, 110, .8); }
+
+/* the report: the workers' acts, one compact line */
+.works-acts { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 2px 0 6px; }
+.work-act { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.work-act .wa-ico .ico { width: 18px; height: 18px; }
+.work-act .wa-ico .ico.glyph::before { font-size: 11px; line-height: 18px; font-weight: 700; }
+.work-act.first { box-shadow: 0 0 0 1px var(--gilt); }
+
+/* settings: the workers' switches */
+.settings .workers-row .chip { margin: 2px 3px 2px 0; }

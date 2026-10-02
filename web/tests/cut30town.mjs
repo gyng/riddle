@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Cut 30 §3 client gates — the town hub (docs/CUT30.md Gates; docs/TOWN.md), on the fake engine (its Cut 30 stand-ins: blacksmith at the
 // first gold home, storehouse at the first find kept, kennel at the first tame, bank at a night's purse), headless at 400 × 800:
-//   day0     a fresh lineage's camp: ≤ 4 interactive surfaces in the well and the console (the mouth, the tent, the crate, the gem); the
+//   day0     a fresh lineage's camp: ≤ 4 interactive surfaces in the well and the console (the mouth, the tent, the crate, the gem; Cut 30.5:
+//            + the `next` pill, 5); the
 //            next plot staked (shown, not a surface on day 0); every target ≥ 44 px with a hidden label
 //   build    each trigger builds its building (a target over it, its tile on the building bar, in build order), the next plot staked until
 //            the v1 set stands, then none; ≤ 3 markers; ≤ 12 elements above the fold at every stage; the staked plot's trigger on tap;
@@ -93,8 +94,10 @@ try {
     await shot("town-day0");
     const t = await town();
     const surf = await fold(":is(.well-wrap, .console)");
-    check(surf.length <= 4 && ["mouth", "tent", "crate"].every((x) => surf.includes(x)) && surf.some((x) => /send/.test(x)),
-      `day 0: ≤ 4 interactive surfaces — the mouth, the tent, the crate, the gem (${surf.length}: ${surf.join(" | ")})`);
+    // Cut 30.5 (docs/AUTOMATION_TREE.md §3A): the `next` pill is day 0's fifth surface
+    const pill = await page.evaluate(() => !!document.querySelector(".next-pill:not([hidden])"));
+    check(surf.length <= (pill ? 5 : 4) && ["mouth", "tent", "crate"].every((x) => surf.includes(x)) && surf.some((x) => /send/.test(x)),
+      `day 0: ≤ ${pill ? 5 : 4} interactive surfaces — the mouth, the tent, the crate, the gem${pill ? ", the pill" : ""} (${surf.length}: ${surf.join(" | ")})`);
     check(t.staked === "blacksmith" && !t.targets.some((x) => x.id === "staked") && t.buildings.length === 0, `day 0: the next plot staked (${t.staked}), not a surface; nothing built (${t.buildings.join(",") || "–"})`);
     check(t.targets.every((x) => x.w >= 44 && x.h >= 44), `day 0: every target ≥ 44 px (${t.targets.map((x) => `${x.id} ${Math.round(x.w)}×${Math.round(x.h)}`).join(", ")})`);
     const labels = await page.evaluate(() => [...document.querySelectorAll(".town-hit")].map((b) => ({ id: b.dataset.building, label: b.getAttribute("aria-label"), hidden: getComputedStyle(b.querySelector(".vh")).clip !== "auto" || b.querySelector(".vh").getBoundingClientRect().width <= 1 })));

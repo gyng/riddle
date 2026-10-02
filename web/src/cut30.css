@@ -49,7 +49,6 @@
 .camp.prepen .shaft .notch:not(.next), .camp.prepen .shaft .shaft-more, .camp.prepen .shaft .shaft-ends { display: none; }
 
 /* --- the tracks panel and the report's lead --- */
-.tracks-panel .track-row { display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; padding: 8px 4px; border-bottom: 1px solid rgba(43, 51, 80, .6); }
 .track-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--umbra); box-shadow: 0 0 0 2px #39496d; }
 .track-ico .ico { width: 24px; height: 24px; }
 .track-ico { overflow: hidden; }
@@ -60,9 +59,6 @@
 .track-bar, .quest-bar { display: block; height: 5px; margin: 4px 0 2px; border-radius: 3px; background: rgba(77, 108, 153, .35); overflow: hidden; }
 .track-bar .fill, .quest-bar .fill { display: block; height: 100%; background: linear-gradient(90deg, var(--gilt), var(--acc)); }
 .track-next { display: block; color: #435a82; font-size: 12px; }
-.mini-portrait.tracks-btn { cursor: pointer; padding: 0; border: 0; position: relative; }
-.mini-portrait.tracks-btn.reveal { animation: carve .7s ease-out both; }
-.mini-portrait.tracks-btn.reveal::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; box-shadow: 0 0 0 2px var(--acc); animation: glint-ring 1.4s ease-out both; pointer-events: none; }
 @keyframes glint-ring { 0% { opacity: 0; transform: scale(.8); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.35); } }
 .grew { display: grid; gap: 4px; margin: 0 0 10px; }
 .grew-line { display: grid; grid-template-columns: 30px auto 1fr; gap: 8px; align-items: center; position: relative; overflow: hidden; }

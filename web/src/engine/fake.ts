@@ -2381,7 +2381,9 @@ const NODES305: [string, string, string, string, number, number, number, string,
 ];
 type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[] };
 type Fk305 = Fk30 & { s: Fk30["s"] & { st305?: St305 } };
-const st305 = (e: Fk305): St305 => (e.s.st305 ??= { hired: ["quartermaster"], counts: {}, chest: 0, sent: false, paused: [], acted: [] });
+// (client half: the fake's demo lineage — a 7th heir with a chronicle — is an old save: the quartermaster, porter and scout pre-hired, as the
+// core maps a save without a tree (docs/CUT30_5.md §2); a heir-1 lineage starts the tree from the quartermaster)
+const st305 = (e: Fk305): St305 => (e.s.st305 ??= { hired: (e.s.lineage?.heir ?? 1) > 1 ? ["quartermaster", "porter", "scout"] : ["quartermaster"], counts: {}, chest: 0, sent: false, paused: [], acted: [] });
 const on305 = (st: St305, id: string): boolean => st.hired.includes(id) && !st.paused.includes(id);
 function works305(e: Fk305, L: Lineage, purse: number): Works {
   const st = st305(e); const age = L.age_h ?? 0; const unit = kitUnit(L.best_depth);
@@ -2427,11 +2429,19 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     if (DEV_NO_SYSTEMS) return off.call(this, s) as ReturnReport;
     const st = st305(this); const auto = on305(st, "scout");
     // (before the scout: a send is one run — an absence yields the run in flight, if any)
-    const g0 = this.s.lineage.gold; const r = off.call(this, auto ? s : st.sent ? 1 : 0) as ReturnReport; st.sent = false;
-    const gain = Math.max(0, this.s.lineage.gold - g0); const workers: WorkerAct[] = [];
-    if (!on305(st, "porter")) st.chest += gain;
-    else if (gain > 0) { workers.push({ id: "porter", what: `hauled $${gain}`, n: gain, first: !st.acted.includes("porter") }); st.acted.push("porter"); }
-    return { ...r, ...(gain && !on305(st, "porter") ? { chest: gain } : {}), ...(workers.length ? { workers } : {}) };
+    const g0 = this.s.lineage.gold, c0 = st.chest; const r = off.call(this, auto ? s : st.sent ? 1 : 0) as ReturnReport; st.sent = false;
+    // (the exits' haul went to the chest in `settle`, below, before the porter)
+    const gain = Math.max(0, this.s.lineage.gold - g0), toChest = Math.max(0, st.chest - c0); const workers: WorkerAct[] = [];
+    if (on305(st, "porter") && gain > 0) { workers.push({ id: "porter", what: `hauled $${gain}`, n: gain, first: !st.acted.includes("porter") }); st.acted.push("porter"); }
+    return { ...r, ...(toChest ? { chest: toChest } : {}), ...(workers.length ? { workers } : {}) };
+  };
+  // client half (c305-client): a real run's exit — watched or offline — lands its haul in the chest until the porter, and the hero is home
+  // (before the scout he waits for the next SEND)
+  const settle = P.settle; P.settle = function (this: Fk305, run: unknown, real: unknown, ...a: unknown[]): unknown {
+    if (DEV_NO_SYSTEMS || !real) return settle.call(this, run, real, ...a);
+    const st = st305(this), g0 = this.s.lineage.gold; const r = settle.call(this, run, real, ...a);
+    const gain = this.s.lineage.gold - g0; if (gain > 0 && !on305(st, "porter")) st.chest += gain;
+    st.sent = false; return r;
   };
   const send = P.send; P.send = function (this: Fk305): Snapshot { const st = st305(this); if (!on305(st, "scout") && !st.sent) { count(this, "scout"); st.sent = true; } return send.call(this) as Snapshot; };
   P.openChest = function (this: Fk305): Lineage { const st = st305(this); if (st.chest <= 0) throw new Error("chest empty"); count(this, "porter"); st.chest = 0; return this.lineage(); };

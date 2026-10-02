@@ -45,6 +45,7 @@ import { openOathBoard, paintOathTab } from "./oaths";
 import { anchorPanel, buildingTile, exposeTown, markOpened, openBank, openHero, renderTown, townBuilt } from "./town";
 import { onPackages, openPackages, packagesShown, packagesStrip, penOpen } from "./packages";   // Cut 30 §2: the packages, the pen gated late
 import { openQuest, questShown } from "./quest";   // Cut 30 §5: the quest board
+import { sendMark } from "./works";   // Cut 30.5: the gem's send counter before the scout, `auto` after
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -354,9 +355,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 2 §1: camp rest remaining; `send` skips it, so the number just disappears
   function paintRest(): void {
     const restS = app.lineage.rest_left_s ?? 0;
+    // Cut 30.5: before the scout the hero is home and waits for a SEND (no rest runs out into a send)
+    const waits = !!app.lineage.tree?.waits;
     // QA 912e135 (qaW: "`rest 20m · send skips` — no screen says what rests or what `send skips` means"): who rests, and what the send skips
-    replace(rest, /* copy:callout */ `heir rests ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
-    rest.hidden = restS <= 0; restLine.hidden = rest.hidden;
+    replace(rest, waits ? /* copy:callout */ "heir waits" : /* copy:callout */ `heir rests ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
+    rest.hidden = !waits && restS <= 0; restLine.hidden = rest.hidden; rest.classList.toggle("waits", waits);
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
   // Cut 5 §6: each row carries the class's verb ladder as chips (`L1 shield bash · L3 cleave · …`), reached rungs lit.
@@ -898,7 +901,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       onclick: (e: Event) => { e.stopPropagation(); e.preventDefault(); app.watchMode = MODES[(MODES.indexOf(app.watchMode) + 1) % MODES.length]; app.persist(); paintSend(); } },
       /* copy:none */ "▸ ", MODE_LABEL[app.watchMode] ?? app.watchMode);
     replace(send, empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
-      : h("span", { class: "send-l" }, /* copy:button */ "send", pill));   // Cut 12 §1: own rows
+      : h("span", { class: "send-l" }, /* copy:button */ "send", pill, sendMark(app.lineage)));   // Cut 12 §1: own rows
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }

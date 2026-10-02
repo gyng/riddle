@@ -31,6 +31,7 @@ import { revealed } from "./reveal";
 import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
 import { grewBlock, heroFace } from "./tracks";
+import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 
@@ -505,7 +506,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    grewBlock(r, heroFace(L)), newsBlock(r, named, L.counters ?? [], shopOpen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    grewBlock(r, heroFace(L)), workersBlock(L, r), newsBlock(r, named, L.counters ?? [], shopOpen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop

@@ -15,7 +15,6 @@ import { icon, portraitSrc, verbIcon } from "./skin";
 import { openSettings } from "./settings";
 import { openGoldSheet } from "./gold";
 import { revealed } from "./reveal";
-import { hasTracks, openTracks, tracksGrew, tracksShown } from "./tracks";
 import { onPackages, packagesShown, packagesStrip, penOpen } from "./packages";
 
 // --- the top bar ---
@@ -103,23 +102,13 @@ export function paintSprite(face: HTMLElement, id: string, px: number, ...alts: 
     face.style.backgroundPosition = `${-(f.x + f.w * 0.1) * s}px ${-(f.y + f.h * 0.02) * s}px`;
   });
 }
-// Cut 30 §4: the portrait-mini opens the tracks panel once a track has grown past its first stage (a button then; a plaque before), and
-// glints once when a stage opens (no text)
+// The portrait-mini: the heir's face on the bar. (Cut 30 §4's tracks panel it opened is the works sheet since Cut 30.5, opened from the
+// `next` pill.)
 function portraitMini(app: App): { readonly el: HTMLElement; paint(): void } {
   const face = h("span", { class: "face" });
-  const plain = h("span", { class: "mini-portrait", "aria-hidden": "true" });
-  const btn: HTMLButtonElement = h("button", { class: "mini-portrait tracks-btn", "aria-label": "tracks", onclick: (e: Event) => { e.stopPropagation(); openTracks(app, btn); } });
-  let el: HTMLElement = plain, cls = "";
-  return { get el() { return el; }, paint: () => {
-    const k = `${app.lineage.class}_${app.lineage.look ?? ""}`; if (k !== cls) { cls = k; paintFace(face, app.lineage.class, 26, app.lineage.look); }
-    const want = tracksShown(app.lineage) ? btn : plain;
-    // (`parentNode`, not `isConnected`: the bar is built before it is mounted, and a swap skipped there left the empty plaque on screen —
-    // the report's top bar had no face)
-    if (want !== el) { if (el.parentNode) el.replaceWith(want); el = want; }
-    if (face.parentElement !== el) el.appendChild(face);
-    const grew = hasTracks(app.lineage) && tracksGrew(app.lineage);   // (read on every paint: the count stays the lineage's own)
-    if (el === btn && grew) { btn.classList.remove("reveal"); void btn.offsetWidth; btn.classList.add("reveal"); }
-  } };
+  const el = h("span", { class: "mini-portrait", "aria-hidden": "true" }, face);
+  let cls = "";
+  return { el, paint: () => { const k = `${app.lineage.class}_${app.lineage.look ?? ""}`; if (k !== cls) { cls = k; paintFace(face, app.lineage.class, 26, app.lineage.look); } } };
 }
 
 export type Portrait = { el: HTMLElement; set(hp: number, label?: Node | string): void };
