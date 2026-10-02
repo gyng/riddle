@@ -67,8 +67,7 @@ try {
   // ---- §1 the forge
   await patchSave({ heir: 2, best_depth: 4, gold: 0, forge: {}, graveyard: [{ heir: 1, depth: 3, cause: "rat", deeds: [] }] });
   await camp();
-  // Cut 30 §3: the forge tile is the blacksmith's (it stands from the first gold home) — no badge while no kit step is affordable
-  check(!(await page.locator(".cmd .tile[data-tile=forge] .kit-n").count()), "no forge badge while no kit step is affordable (and nothing salvaged)");
+  check(!(await page.locator(".cmd .tile[data-tile=forge]").count()), "no forge tile while no kit step is affordable (and nothing salvaged)");
   await patchSave({ gold: 500 });
   await camp();
   const tile = await page.evaluate(() => { const t = document.querySelector(".cmd .tile[data-tile=forge]"); return t ? { badge: t.querySelector(".kit-n")?.textContent ?? null } : null; });

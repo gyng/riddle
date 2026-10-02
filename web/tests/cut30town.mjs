@@ -88,7 +88,7 @@ try {
   await open();
   // ---- day 0: the camp
   if (part("day0") || part("build")) {
-    await boot(3011, "&systems=none");
+    await boot(3011);   // (`systems=none` is an older core: no town on the wire)
     await toStage(0); await camp();
     await shot("town-day0");
     const t = await town();

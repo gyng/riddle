@@ -176,16 +176,15 @@ await page.evaluate(() => document.querySelector('.death .death-more[aria-expand
   // ---- 4. the camp: a `+1 vault` carves the vault tile (its prefs: `keep`, `cage`); trait copy; no `◆0`; busy label over the vista;
   //      the panel closes on a tap beside it; the unlock prices in the mark's blue; the empty slots recede; the verb picker lists the row's verb
   await page.evaluate(() => { localStorage.removeItem("riddle.reveal"); localStorage.removeItem("riddle.unlocks.all"); });
-  await patchSave((e) => { Object.assign(e.lineage, { heir: 2, best_depth: 4, unlocks: ["tame", "vault2"], marks: 3, gold: 0, gold_ledger: [], vault: [{ id: 901, kind: "sword", known: true, label: "sword +1" }], forge: {}, party: [], kennel: [], eggs: [], graveyard: [{ heir: 1, depth: 2, cause: "rat", deeds: [] }], trait_offer: ["brave", "cowardly"], }); });
+  await patchSave((e) => { Object.assign(e.lineage, { heir: 2, best_depth: 4, unlocks: ["tame", "vault2"], marks: 3, gold: 0, gold_ledger: [], vault: [], forge: {}, party: [], kennel: [], eggs: [], graveyard: [{ heir: 1, depth: 2, cause: "rat", deeds: [] }], trait_offer: ["brave", "cowardly"], }); });
   await waitFor((x) => x?.screen === "camp", "camp"); await settle();
   const ids = await tileIds();
-  // Cut 30 §3: the vault tile is the storehouse's — it stands at the first find kept (a bought `+1 vault` alone raises nothing)
-  check(ids.includes("vault"), `the first find kept raises the storehouse: its vault tile (${ids.join(" · ")})`);
+  check(ids.includes("vault"), `a bought \`+1 vault\` carves the vault tile before any item is kept (${ids.join(" · ")})`);
   if (ids.includes("vault")) {
     await page.locator(".cmd .tile[data-tile=vault]").click({ timeout: 5000 }); await sleep(200);
     const v = await page.evaluate(() => ({ prefs: [...document.querySelectorAll(".panel[data-panel=vault] .prefs > span.dim")].map((x) => x.textContent), slots: document.querySelectorAll(".panel[data-panel=vault] .chip.empty").length, auto: document.querySelector(".panel[data-panel=vault] .keep-auto")?.textContent }));
     // Cut 19 §1: the cage pref left the vault panel for its tablet beside the rules
-    check(v.prefs.join(",") === "keep for heirs" && v.slots === 1 && /^keeps \w+/.test(v.auto ?? ""), `the vault panel: 1 empty slot of 2, the \`home\` pref with what it keeps (\`${v.auto}\`), no \`cage\` row (${v.prefs.join(",")})`);
+    check(v.prefs.join(",") === "keep for heirs" && v.slots === 2 && /^keeps \w+/.test(v.auto ?? ""), `the vault panel: 2 empty slots, the \`home\` pref with what it keeps (\`${v.auto}\`), no \`cage\` row (${v.prefs.join(",")})`);
     const r = await page.evaluate(() => { const p = document.querySelector(".panel-host").getBoundingClientRect(), q = document.querySelector(".panel").getBoundingClientRect(); return { x: p.left + p.width / 2, y: p.top + 8, above: q.top > p.top + 16 }; });
     if (r.above) { await page.mouse.click(r.x, r.y); await sleep(200); }
     check(r.above && !(await page.locator(".panel-host .panel").count()), "a tap on the well beside an open panel closes it");
@@ -546,9 +545,7 @@ async function cut18() {
   check(notch.text === "D9 · behind warlord" && notch.inside, `the shaft's notch names the wall ("${notch.text}", inside the shaft ${notch.inside})`);
   await shot("ui-cut18-shaft");
   await openPanel(page, "forecast"); await sleep(200);
-  const rows9 = await page.evaluate(() => ({ panel: document.querySelector(".panel")?.dataset.panel ?? null, rows: [...document.querySelectorAll(".panel .fc-bars .bar")].map((b) => b.textContent.replace(/\s+/g, " ").trim()) }));
-  const row = rows9.rows.find((t) => /^D9/.test(t));
-  if (!row) console.log(`note forecast panel ${rows9.panel}: ${rows9.rows.join(" | ")}`);
+  const row = await page.evaluate(() => [...document.querySelectorAll(".panel .fc-bars .bar")].map((b) => b.textContent.replace(/\s+/g, " ").trim()).find((t) => /^D9/.test(t)));
   check(/^D9 ?(0%|<\d+%)( ±\d+)? · behind warlord( · counter: [a-z ]+| · warlord: \?)?$/.test(row ?? ""), `the panel's row reads \`D9 0% · sealed by warlord\` and its counter (Cut 28 §1) ("${row}")`);
   await shot("ui-cut18-wall");
   await page.keyboard.press("Escape"); await sleep(100);
@@ -612,18 +609,16 @@ try {
   }
 
   // ---- the ladder: each tile on its trigger, not before; the first appearance glints
-  // Cut 30 §3: the vault, the forge and the party tiles are the storehouse's, the blacksmith's and the kennel's — each carved when its
-  // building stands (the fake's stand-ins: the blacksmith at the first gold home, the storehouse at the first find kept, the kennel
-  // at the first tame); the loadout, edit and unlocks tiles keep their own triggers
   const steps = [
     ["edit", "first death", (e) => { e.lineage.graveyard.push({ heir: 1, depth: 1, cause: "rat", deeds: [] }); }],
-    ["loadout", "first gold home", (e) => { e.lineage.gold = 40; e.lineage.gold_ledger = [{ t: 10, delta: 40, why: "returned D1" }]; }, "forge"],
+    ["loadout", "first gold home", (e) => { e.lineage.gold = 40; e.lineage.gold_ledger = [{ t: 10, delta: 40, why: "returned D1" }]; }],
     ["unlocks", "first mark", (e) => { e.lineage.marks = 1; }],
     ["vault", "an item worth keeping", (e) => { e.lineage.vault = [{ id: 901, kind: "sword", label: "sword +1" }]; }],
-    ["party", "a companion", (e) => { e.lineage.kennel = [{ id: 902, kind: "jackal", name: "Ash", level: 1, tags: [], gen: 1, rules: { rows: [] }, max_rows: 2, hp: 5, max_hp: 5 }]; }],
+    ["forge", "first salvage", (e) => { e.lineage.forge = { sword: { salvaged: 1, craftable: false, tier: 0 } }; }],
+    ["party", "a companion", (e) => { e.lineage.eggs = [{ id: 902, kind: "jackal", tags: [], gen: 1, hatch_in: 3, from_loss: false }]; }],
   ];
   const seen = [];
-  for (const [id, why, fn, also] of steps) {
+  for (const [id, why, fn] of steps) {
     const before = await tileIds();
     check(!before.includes(id), `before ${why}: no \`${id}\` tile (${before.join(" · ") || "none"})`);
     check(await patchSave(fn), `the lineage took ${why}`);
@@ -632,7 +627,6 @@ try {
     const t = after.find((x) => x.id === id);
     check(!!t && t.reveal && seen.every((s) => after.some((x) => x.id === s)), `${why} carves the \`${id}\` tile, glinting (${after.map((x) => `${x.id}${x.reveal ? "*" : ""}`).join(" · ")})`);
     seen.push(id);
-    if (also) { check(after.some((x) => x.id === also), `${why} raises the building whose tile is \`${also}\` (${after.map((x) => x.id).join(" · ")})`); seen.push(also); }
     if (id === "edit") check(await page.locator("button.cls").count() === 1, "the first death puts the class picker on the portrait");
     if (id === "unlocks") {
       const u = await page.evaluate(() => document.querySelector(".strip .marks")?.textContent);

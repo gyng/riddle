@@ -124,7 +124,7 @@ try {
   await shot("qa778-death");
 
   // ---- one surface: the vault tile under an open sheet
-  await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, vault: [{ id: 91, kind: "sword", known: true, label: "sword +1" }], town: r.lineage.town && { ...r.lineage.town, buildings: [...r.lineage.town.buildings.filter((x) => x.id !== "storehouse"), { id: "storehouse", level: 1, day: 0 }] } }; r.go({ kind: "camp" }); }); await sleep(250);   // Cut 30 §3: the vault tile is the storehouse's
+  await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, vault: [{ id: 91, kind: "sword", known: true, label: "sword +1" }] }; r.go({ kind: "camp" }); }); await sleep(250);
   const hasVault = await page.locator(".cmd .tile[data-tile=vault]").count();
   if (hasVault) {
     await page.locator(".camp .strip button.gold, .camp .bar button.gold").first().click({ timeout: 5000 }).catch(() => {}); await sleep(200);
