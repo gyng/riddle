@@ -1,0 +1,8 @@
+/* Auto-continue (docs/UI.md §7): a thin gilt ring draining around the control the timeout will press. */
+:where(.ad-host) { position: relative; }
+.ad-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
+.ad-ring rect { fill: none; stroke-width: 2.5; }
+.ad-ring .ad-track { stroke: rgba(13, 12, 20, .55); }
+.ad-ring .ad-arc { stroke: var(--gilt); stroke-dasharray: 100 100; stroke-linecap: round; filter: drop-shadow(0 0 2px rgba(255, 227, 163, .55)); }
+.ad-host.ad-paused .ad-ring .ad-arc { stroke: var(--mist); filter: none; }
+.ad-ring .ad-num { fill: var(--bone); font: 700 10px/1 var(--sans); text-anchor: middle; dominant-baseline: middle; paint-order: stroke; stroke: var(--ink); stroke-width: 3px; }

@@ -4,6 +4,7 @@
 // falls through to `onEscapeIdle` (the app: a kept death back to the camp).
 import { h } from "./dom";
 import { stud } from "./frame";
+import { AUTO, autoDismiss } from "./autodismiss";
 import { sheetGhost } from "../juice";   // juice pass 2: the close eases out (a ghost of the panel; the sheet itself goes at once)
 
 const stack: HTMLElement[] = [];
@@ -75,6 +76,8 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   }
   document.body.appendChild(wrap);
   stack.push(wrap);
+  const x = panel.querySelector<HTMLElement>(".sheet-x, .close-stud");   // docs/UI.md §7: the close stud drains, then closes it
+  if (x && !opts.modeless && document.getElementById("app")?.dataset.screen !== "watch") autoDismiss(x, { ms: AUTO.panel, scope: panel, onExpire: close });
   const anchor = opts.anchor;
   // the wide frame (desktop): the panel stands beside what opened it — the anchor, else the control last tapped
   const beside = wideNow() && !opts.modeless ? (anchor?.isConnected ? anchor : lastTap?.isConnected && !wrap.contains(lastTap) ? lastTap : null) : null;

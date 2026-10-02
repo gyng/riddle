@@ -33,6 +33,7 @@ import { oathProgress } from "./oaths";
 import { grewBlock, heroFace } from "./tracks";
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
+import { AUTO, autoDismiss } from "./autodismiss";
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
@@ -553,6 +554,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   detailsBtn.hidden = !details.childElementCount;
   const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null);   // desktop: the rules left, the shaft right (wide.css)
   const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el, ...wide.els);
+  autoDismiss(cons.el.querySelector<HTMLElement>(".gem")!, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
   return { el, dispose: () => { bar.dispose(); wide.dispose(); } };
 }
 

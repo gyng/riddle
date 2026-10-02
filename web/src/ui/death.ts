@@ -27,6 +27,7 @@ import { mergeFinds, renamer } from "./report";
 import { foeSrc } from "./skin";
 import { penOpen } from "./packages";
 import { openForge } from "./forge";
+import { AUTO, autoDismiss } from "./autodismiss";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
@@ -302,6 +303,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const wide = wideCols(app, null);   // desktop: the rules left, the shaft right (wide.css); the fight is under details
   const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}${prePen ? " prepen" : ""}` }, bar.el, well, cons.el, ...wide.els);
   setWhy(); rest();
+  // docs/UI.md §7: after 12 s the default — the gem when it sends or goes to camp, else `send again` when shown, else the camp tile (a
+  // fix, `forge` and `wear` are decisions); a death opened from the report or the chronicle goes back after a panel's 20 s
+  const campTile = cons.el.querySelector<HTMLElement>('[data-tile="camp"]')!, opened = kept || !!from;
+  const autoAt = opened ? cons.el.querySelector<HTMLElement>('[data-tile="report"]') ?? campTile : prePen && (!lever || lever.kind === "wait") ? gemBtn : sendAgain && !sendAgain.hidden ? sendAgain : campTile;
+  autoDismiss(autoAt, { ms: opened ? AUTO.panel : AUTO.death, yieldToSheets: true, onExpire: () => (autoAt.isConnected && autoAt.getClientRects().length ? autoAt : campTile).click() });
   // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
   if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }
   // QA 23ed91f: the patches' reach is the camp's own measure, landing after the paint (`deathDeltas`: seconds in wasm) — the
