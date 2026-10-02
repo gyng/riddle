@@ -37,7 +37,7 @@ export function itemIcon(it: ItemLike, o: { size?: "s" | "m" | "l"; delay?: numb
   const r = it.rarity ?? "common";
   const id = iconId(it.kind);
   const [fam, glyph] = familyOf(it.kind.replace(/ /g, "_"));
-  const pic = id ? h("img", { class: "item-pic", src: `/ui/icons/${id}.png`, alt: "", draggable: "false", "aria-hidden": "true" })
+  const pic = id ? h("img", { class: "item-pic", src: `${import.meta.env.BASE_URL}ui/icons/${id}.png`, alt: "", draggable: "false", "aria-hidden": "true" })
     : h("span", { class: `item-pic glyph fam-${fam}`, "data-glyph": glyph, "aria-hidden": "true" });
   const el = h("span", { class: `item-ico r-${r} sz-${o.size ?? "m"}${rarityRank(r) >= 2 ? " glint" : ""}`, "data-rarity": r, "data-kind": it.kind, title: it.label }, pic);
   if (o.delay !== undefined) el.style.setProperty("--pop-delay", `${o.delay}ms`);

@@ -161,11 +161,11 @@ type Frame = { x: number; y: number; w: number; h: number };
 export type Slot = Frame & { u0: number; v0: number; u1: number; v1: number };
 let packed: Promise<{ img: HTMLImageElement; frames: Record<string, Frame> } | null> | null = null;
 function loadPacked(): Promise<{ img: HTMLImageElement; frames: Record<string, Frame> } | null> {
-  packed ??= fetch("/art/atlas.json").then((r) => r.json()).then((j: { frames?: Record<string, Frame>; image?: string }) => new Promise((res) => {
+  packed ??= fetch(`${import.meta.env.BASE_URL}art/atlas.json`).then((r) => r.json()).then((j: { frames?: Record<string, Frame>; image?: string }) => new Promise((res) => {
     const img = new Image();
     img.onload = () => res({ img, frames: j.frames ?? {} });
     img.onerror = () => res(null);
-    img.src = `/art/${j.image ?? "atlas.png"}`;
+    img.src = `${import.meta.env.BASE_URL}art/${j.image ?? "atlas.png"}`;
   })).catch(() => null) as Promise<{ img: HTMLImageElement; frames: Record<string, Frame> } | null>;
   return packed;
 }

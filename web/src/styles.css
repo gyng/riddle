@@ -1688,3 +1688,9 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
    `repeat on` plate rode over the tile above it): in the second row the plate hangs under its tile, on the bar's rim */
 .cmd > .tile.badged:nth-child(n+5) .repeat-badge { bottom: auto; top: calc(100% - 6px); }
 .cmd > .tile.badged:nth-child(n+5) .repeat-badge::before { inset: 0 -4px -8px; }
+
+/* A slim brass inscription inside the frame keeps the watch at viewport height. */
+.topbar, .skin-bar .topbar { padding-top: calc(env(safe-area-inset-top) + 18px); }
+.build-banner { position: absolute; inset: env(safe-area-inset-top) 2px auto; height: 16px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border-bottom: 1px solid #65523966; color: var(--dim); font: 10px var(--sans); letter-spacing: .08em; line-height: 16px; }
+.build-banner > span { color: #d2b47b; text-transform: uppercase; }
+.build-banner time { font-variant-numeric: tabular-nums; }

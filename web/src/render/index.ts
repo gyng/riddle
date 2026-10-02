@@ -152,7 +152,7 @@ const BOSS_TITLE_MS = 2200;        // gfx round 1: the boss's title plate on his
 const HERO_TEXELS = 24 * SPRITE_SCALE;   // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels; gfx round 7: × SPRITE_SCALE); the fight k keeps it ≤ 1/5 of the screen
 
 export type ViewerOpts = {
-  atlasUrl?: string;   // default "/art/atlas.json" (+ atlas.png beside it)
+  atlasUrl?: string;   // default `${import.meta.env.BASE_URL}art/atlas.json` (+ atlas.png beside it)
   baseTexels?: number; // env texels along the short screen axis used to pick k (default 270)
 };
 
@@ -282,7 +282,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // gfx round 6 (raters: "a white 'F' placeholder silhouette" — the edit's scene drew its first frames before the atlas landed): the
   // viewer waits for the atlas up to ATLAS_WAIT_MS (a dark frame, as between floors); past that, or on a failed load, the primitives draw
   let atlasReady = false; const born = performance.now();
-  void atlas.load(opts.atlasUrl ?? "/art/atlas.json").finally(() => { atlasReady = true; });
+  void atlas.load(opts.atlasUrl ?? `${import.meta.env.BASE_URL}art/atlas.json`).finally(() => { atlasReady = true; });
 
   function measure(): boolean {
     const cw = canvas.clientWidth || canvas.width, ch = canvas.clientHeight || canvas.height;

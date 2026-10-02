@@ -9,7 +9,7 @@ import { heroBase } from "./look";
 type Frame = { x: number; y: number; w: number; h: number };
 type Sheet = { img: HTMLImageElement; frames: Record<string, Frame>; texelH: Record<string, number> };
 let sheet: Sheet | null = null, loading: Promise<void> | null = null;
-function loadSheet(url = "/art/atlas.json"): void {
+function loadSheet(url = `${import.meta.env.BASE_URL}art/atlas.json`): void {
   if (loading || typeof fetch === "undefined") return;
   loading = fetch(url).then((r) => r.json()).then((j: { frames?: Record<string, Frame>; meta?: { sprites?: Record<string, { texel_h?: number }> } }) => new Promise<void>((res) => {
     const img = new Image();

@@ -41,6 +41,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
     const cap1 = (el: HTMLElement | "", c: Concept, words?: string): HTMLElement | "" => { if (!el || capped) return el; withCap(el, c, words); capped = !!el.querySelector(".concept-cap"); return el; };
     const stat = (cls: string, ico: string, glyph: string, n: string | number, on = true, term?: Term): HTMLElement | "" => on ? withTip(h("span", { class: `num stat ${cls}` }, icon(ico), glyph ? h("span", { class: "g" }, glyph) : "", String(n)), term) : "";   // docs/TOOLTIPS.md: a stat's tip on tap
     replace(el,
+      h("div", { class: "build-banner" }, h("span", null, "alpha"), h("time", { datetime: import.meta.env.VITE_BUILD_DATE }, /* copy:label */ `build ${import.meta.env.VITE_BUILD_DATE}`)),
       h("span", { class: "num heir" }, mini.el, ...kwText(heirOrd(opts.heir ?? L.heir), ["heir"])),   // a death's bar names the hero who died (QA 92eb880)
       // the wake's trait chips stand in for the plain trait while the offer stands (the camp fills `offers`)
       // Cut 30 §2: on packages the bar names the worn temperament (the old trait word maps to it), none before heir 3
@@ -76,7 +77,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
 type Frame = { x: number; y: number; w: number; h: number };
 let atlas: Promise<{ frames: Record<string, Frame>; w: number; h: number } | null> | null = null;
 function loadAtlas(): Promise<{ frames: Record<string, Frame>; w: number; h: number } | null> {
-  atlas ??= fetch("/art/atlas.json").then((r) => r.json()).then((a) => ({ frames: a.frames, w: a.meta.atlas.w, h: a.meta.atlas.h })).catch(() => null);
+  atlas ??= fetch(`${import.meta.env.BASE_URL}art/atlas.json`).then((r) => r.json()).then((a) => ({ frames: a.frames, w: a.meta.atlas.w, h: a.meta.atlas.h })).catch(() => null);
   return atlas;
 }
 /** Paints the class portrait into `face`: the painted headshot when packed (skin.json `portraits`), else a head-and-shoulders
@@ -103,7 +104,7 @@ export function paintSprite(face: HTMLElement, id: string, px: number, ...alts: 
     const k = [id, ...alts].find((x) => a?.frames[x]); const f = k ? a?.frames[k] : undefined; if (!a || !f) return;
     face.dataset.art = k!;
     const s = px / (f.w * 0.78);   // the sprite's width minus its weapon reach fills the well
-    face.style.backgroundImage = "url(/art/atlas.png)";
+    face.style.backgroundImage = `url(${import.meta.env.BASE_URL}art/atlas.png)`;
     face.style.backgroundSize = `${a.w * s}px ${a.h * s}px`;
     face.style.backgroundPosition = `${-(f.x + f.w * 0.1) * s}px ${-(f.y + f.h * 0.02) * s}px`;
   });

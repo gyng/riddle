@@ -13,7 +13,7 @@ import { kw } from "./tips";
 
 const PICTURES = new Set((skin as { quest?: string[] }).quest ?? []);
 /** The reward's picture (`title` · `row` · `slot` · `card`), else null (the caller draws the glyph). */
-export const rewardSrc = (reward: string): string | null => (PICTURES.has(reward) ? `/ui/quest/${reward}.webp` : null);
+export const rewardSrc = (reward: string): string | null => (PICTURES.has(reward) ? `${import.meta.env.BASE_URL}ui/quest/${reward}.webp` : null);
 /** The fallback glyph per reward (art never blocks the game). */
 const GLYPH: Record<string, string> = { title: "✠", row: "▤", slot: "☗", card: "✦" };
 

@@ -112,8 +112,8 @@ import skin from "../ui/skin.json";
 const FX = new Set<string>((skin as { fx?: string[] }).fx ?? []);
 // gfx round 21 (raters: "the painted shield clashes with the pixel sprites"): the pixel-register cut (tools/ui-skin.py `_px`), drawn pixelated
 const PX = FX.has("shield_px");
-const SHIELD = PX ? "/ui/fx/shield_px.png" : FX.has("shield") ? "/ui/fx/shield.webp" : "/ui/icons/v_shield.png";
-const SHARDS = [0, 1, 2, 3].filter((i) => FX.has(`shard_${i}${PX ? "_px" : ""}`)).map((i) => `/ui/fx/shard_${i}${PX ? "_px.png" : ".webp"}`);
+const SHIELD = PX ? `${import.meta.env.BASE_URL}ui/fx/shield_px.png` : FX.has("shield") ? `${import.meta.env.BASE_URL}ui/fx/shield.webp` : `${import.meta.env.BASE_URL}ui/icons/v_shield.png`;
+const SHARDS = [0, 1, 2, 3].filter((i) => FX.has(`shard_${i}${PX ? "_px" : ""}`)).map((i) => `${import.meta.env.BASE_URL}ui/fx/shard_${i}${PX ? "_px.png" : ".webp"}`);
 let shieldOk = false;
 /** gfx round 22: how far (CSS px) the pixel shield's centre sits above the point the viewer passes (his head) */
 export const SHIELD_LIFT = 84;

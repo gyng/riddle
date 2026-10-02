@@ -1128,6 +1128,6 @@ export function start(dev: DevOptions | null = null): void {
   Object.defineProperty(window, "__audio", { value: audio, writable: false, configurable: true });
   void app.boot().catch((e) => console.error("boot failed", e));
   if (import.meta.env.PROD && "serviceWorker" in navigator) {
-    window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline-first is best effort */ }); });
+    window.addEventListener("load", () => { navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => { /* offline-first is best effort */ }); });
   }
 }
