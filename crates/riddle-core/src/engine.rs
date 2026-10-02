@@ -6843,7 +6843,10 @@ pub fn spawn_party(run: &mut Run, party: &[Companion]) {
         let free = hp.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q));
         let Some(q) = free else { continue };
         let id = run.new_id();
-        let m = companion_monster(id, c, q);
+        let mut m = companion_monster(id, c, q);
+        // A waystone enters this floor directly; match the health normal descent gives here.
+        m.max_hp = pet_max_hp(c, run.depth);
+        m.hp = m.max_hp;
         run.monsters.push(m);
         let mut rec = c.clone();
         rec.hp = rec.max_hp;

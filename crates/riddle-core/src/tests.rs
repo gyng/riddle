@@ -11722,3 +11722,39 @@ fn a_waystone_does_not_skip_the_untamed_first_companion() {
     }
     assert!(captured, "the written tame row still must capture the companion");
 }
+
+#[test]
+fn waystone_companions_start_with_the_same_health_as_normal_descent() {
+    // An egg's D1 record stays small; live health must use the floor being entered.
+    // Cover a fresh pet and saved raised pets without changing their stored levels.
+    for level in [1, 2, 4] {
+        let mut pet = crate::engine::new_companion(900_001, &Monster::spawn(1, "jackal", Pos::new(1, 1), 1), "Pip".into());
+        pet.level = level;
+        let mut doorstep = Game::new_literal(10);
+        doorstep.lineage.party = vec![pet.clone()];
+        doorstep.start_run(None);
+        let run = doorstep.run.as_ref().unwrap();
+        let live = run.monsters.iter().find(|m| m.cid == Some(pet.id)).unwrap();
+        let original = crate::engine::companion_monster(1, &pet, Pos::new(1, 1));
+        assert_eq!((run.depth, live.hp, live.max_hp, live.level), (1, original.hp, original.max_hp, level), "D1 behavior is unchanged");
+        doorstep.descend_to(29);
+        let descended = doorstep.run.as_ref().unwrap().monsters.iter().find(|m| m.cid == Some(pet.id)).unwrap();
+        let depth_health = (descended.hp, descended.max_hp);
+        assert_eq!(depth_health, (crate::engine::pet_max_hp(&pet, 29), crate::engine::pet_max_hp(&pet, 29)));
+
+        let mut camp = Game::new_literal(10);
+        camp.lineage.party = vec![pet.clone()];
+        camp.lineage.waystones.push(29);
+        camp.lineage.best_depth = 33;
+        camp.lineage.gold = 10_000;
+        camp.set_start(29).unwrap();
+        let mut loaded = Game::load(&camp.save()).unwrap();
+        assert_eq!(loaded.lineage.party[0].level, level);
+        loaded.start_run(None);
+        let run = loaded.run.as_ref().unwrap();
+        assert_eq!(run.depth, 29, "this must exercise an actual waystone start");
+        let live = run.monsters.iter().find(|m| m.cid == Some(pet.id)).unwrap();
+        assert_eq!((live.hp, live.max_hp), depth_health, "waystone entry must match walking down to that floor");
+        assert_eq!((live.level, run.companions[0].level, run.companions[0].max_hp), (level, level, pet.max_hp), "save/load retains the companion's level and base record");
+    }
+}
