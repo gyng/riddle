@@ -45,6 +45,25 @@ PROPS = [
     ("walk_ranger", 196, 400), ("town_chest_glow", 204, 392),
     ("walk_rogue", 128, 250), ("walk_caster", 252, 252), ("town_sack_small", 259, 245),
 ]
+# Cut 30.5 (docs/AUTOMATION_TREE.md §C): each worker at their post, the haul chest by the mouth; GREY = a lit node's worker not yet
+# hired (the renderer's tint, `grey()`: no frames of its own)
+WORKERS = [
+    ("town_worker_porter", 222, 196), ("town_worker_armourer", 136, 440), ("town_worker_apprentice", 142, 232),
+    ("town_worker_keeper", 34, 452), ("town_worker_clerk", 266, 236), ("town_worker_drillmaster", 230, 358),
+    ("town_worker_kennel_hand", 256, 450), ("town_worker_herald", 296, 112), ("town_worker_guide", 236, 120),
+    ("town_worker_scout", 150, 128), ("town_worker_quartermaster", 322, 342), ("town_haul_chest_full", 170, 112),
+]
+PROPS += WORKERS
+GREY = {"town_worker_scout"}
+
+
+def grey(f: Image.Image) -> Image.Image:
+    """not yet hired: the figure's values only, lifted toward a pale MIST grey, a little see-through (render/town.ts does the same)"""
+    a = np.asarray(f, np.float32)
+    lum = a[..., :3] @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+    g = lum[..., None] * 0.4 + np.array([164, 188, 214], np.float32) * 0.42   # (blind read: × 0.45 + MIST × 0.22 vanished at night)
+    out = np.dstack([g, a[..., 3:] * 0.8])
+    return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGBA")
 TREES = [(8, 40), (28, 30), (44, 60), (366, 36), (388, 64), (350, 74), (12, 130), (392, 140), (10, 330), (392, 330),
          (16, 490), (384, 490), (40, 556), (360, 556), (230, 560), (156, 556)]
 FENCE = [(32, x) for x in range(15, 22)]
@@ -117,10 +136,12 @@ def scene(a: Image.Image, fr: dict, night: bool | None, labels: bool) -> Image.I
         else:   # a keyed sprite: texel_h x SPRITE_SCALE (0.5) world units, its master 2 px a texel -> master px / 4 units
             f = f.resize((max(1, round(f.width * S / 4)), max(1, round(f.height * S / 4))), Image.Resampling.BOX)
             ox, oy = ax * S - f.width // 2, ay * S - f.height
+            if k in GREY:
+                f = grey(f)
         im.alpha_composite(f, (ox, oy))
         for dx, dy, st in lights.get(k, []):
             pools.append((ax + dx, ay + dy, st, (232, 146, 58)))
-        if k.startswith("walk_") and night:
+        if k.startswith(("walk_", "town_worker_")) and night:   # (blind read: dark-coated workers sank into the night grass)
             pools.append((ax, ay - 20, 0.35, (164, 188, 214)))
     rgb = np.asarray(im, np.float32)[..., :3]
     if night is None:
@@ -219,7 +240,62 @@ def qc(outdir: str) -> int:
     return subprocess.call([sys.executable, str(ROOT / "art-qc.py"), "--style", *paths])
 
 
+def workers_sheet(out: str) -> int:
+    """the Cut 30.5 contact sheet: the town day | night with the workers at their posts, then a strip at phone size (2x device px)
+    and at 3x: each worker's two frames and its not-hired grey, the haul chest's three states, the node icons"""
+    a, fr = atlas()
+    day, night = phone(a, fr, False, False), phone(a, fr, True, False)
+    gap = 16 * S
+    ids = [k for k, *_ in WORKERS if k.startswith("town_worker_")]
+    def small(k: str) -> Image.Image | None:
+        f = frame(a, fr, k)
+        return f.resize((max(1, round(f.width * S / 4)), max(1, round(f.height * S / 4))), Image.Resampling.BOX) if f else None
+    tiles = []
+    for k in ids:
+        fs = [small(k), small(k + "_1")]
+        fs = [f for f in fs if f] + ([grey(fs[0])] if fs[0] else [])
+        tiles.append(fs)
+    chest = [f for f in (small(c) for c in ("town_haul_chest", "town_haul_chest_full", "town_haul_chest_open")) if f]
+    icons = [Image.open(PUB / f"ui/icons/node_{k[12:]}.png").convert("RGBA") for k in ids if (PUB / f"ui/icons/node_{k[12:]}.png").exists()]
+    ground = frame(a, fr, "town_env_grass_0").resize((16 * S, 16 * S), Image.Resampling.NEAREST)
+    sheet = Image.new("RGBA", (day.width * 2 + gap, day.height * 3), (13, 12, 20, 255))
+    sheet.paste(day, (0, 0)); sheet.paste(night, (day.width + gap, 0))
+    yy = day.height + gap
+    for sc in (1, 3):   # phone size, then 3x (the reader's zoom)
+        x, row = 8 * S, 0
+        for i, fs in enumerate(tiles + [chest]):
+            w = sum(f.width * sc for f in fs) + 4 * S * len(fs)
+            bg = Image.new("RGBA", (w, max(f.height for f in fs) * sc + 4 * S), (52, 65, 67, 255))
+            for gx in range(0, bg.width, 16 * S):
+                for gy in range(0, bg.height, 16 * S):
+                    bg.alpha_composite(ground, (gx, gy))
+            fx = 2 * S
+            for f in fs:
+                g = f.resize((f.width * sc, f.height * sc), Image.Resampling.NEAREST)
+                bg.alpha_composite(g, (fx, bg.height - g.height - 2 * S)); fx += g.width + 4 * S
+            if x + bg.width > sheet.width:
+                x = 8 * S; yy += row + 6 * S; row = 0
+            row = max(row, bg.height)
+            sheet.alpha_composite(bg, (x, yy))
+            ImageDraw.Draw(sheet).text((x + 2, yy + 2), str(i + 1), fill=(255, 255, 0))
+            x += bg.width + 8 * S
+        yy += row + 10 * S
+    x = 8 * S
+    for i, ic in enumerate(icons):
+        t = ic.resize((24 * S, 24 * S), Image.Resampling.LANCZOS)   # a node chip's icon, 24 CSS px
+        plate = Image.new("RGBA", (t.width + 8, t.height + 8), (28, 27, 43, 255)); plate.alpha_composite(t, (4, 4))
+        sheet.alpha_composite(plate, (x, yy)); ImageDraw.Draw(sheet).text((x + 2, yy + 2), str(i + 1), fill=(255, 255, 0))
+        x += plate.width + 6 * S
+    sheet = sheet.crop((0, 0, sheet.width, yy + 40 * S))
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    sheet.convert("RGB").save(out)
+    print(out, sheet.size)
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if argv[:1] == ["workers"]:
+        return workers_sheet(argv[1] if len(argv) > 1 else str(ROOT.parent / "scratchpad/c305art/sheet.png"))
     if argv[:1] == ["qc"]:
         return qc(argv[1] if len(argv) > 1 else str(ROOT.parent / "scratchpad/c30art/qc"))
     out = argv[0] if argv else str(ROOT.parent / "scratchpad/c30art/town_sheet.png")
