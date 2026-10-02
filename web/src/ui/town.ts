@@ -55,7 +55,6 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   // Cut 30.5: the `next` pill rides the scene's top-left (the home screen's one goal); a tap opens the works on its node
   const pill = nextPill(app, (node, at) => openWorks(app, node, at));
   kwHost(pill.el, "next");   // docs/TOOLTIPS.md: its tip on long-press / hover
-  
   // c30-legible (the owner, a new player: "I didn't understand why there were new buildings"): a building's arrival names what raised
   // it (`first gold home → blacksmith`, the core's trigger), once, over the town while it stands up; its target glows the while
   const arrival = h("div", { class: "town-arrival num", "aria-live": "polite" });

@@ -74,7 +74,7 @@ const nearestNode = (p: Pt): string => { let b = "fireN", bd = Infinity; for (co
 export type Marker = { at: PlotId | "chest"; kind: "coin" | "rune" | "sword" | "chest"; label?: string };
 /** Cut 30.5 (docs/AUTOMATION_TREE.md §3C): the haul chest by the mouth (before the porter) and the workers at their posts */
 export type ChestState = { state: "closed" | "full" | "open"; gold: number; count?: number; need?: number };
-export type WorkerSpot = { id: string; post: string; lit: boolean; price?: number; paused: boolean };
+export type WorkerSpot = { id: string; post: string; lit: boolean; price?: number; paused: boolean; rank: number };
 /** the chest's foot, beside the path under the mouth */
 export const CHEST_AT: Pt & { h: number } = { ...T(CX + 1.6, 8.3), h: 12 };
 /** a worker's spot (texels, its foot): by id, else by its post's plot — art/town-ids.md's posts (the sheet's units × ~0.6 onto the map's
@@ -143,7 +143,7 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   const W = L.tree, porter = W?.nodes.find((n) => n.id === "porter");
   const chest: ChestState | undefined = W && porter && (porter.state !== "done" || porter.paused) ? { state: o.chestOpen ? "open" : W.chest > 0 ? "full" : "closed", gold: W.chest, count: porter.count, need: porter.need } : undefined;
   if (chest?.state === "full") markers.push({ at: "chest", kind: "chest", label: `$${chest.gold}` });
-  const workers: WorkerSpot[] = (town?.workers ?? []).map((w) => ({ id: w.id, post: w.post, lit: !!w.lit, price: w.price, paused: !!w.paused }));
+  const workers: WorkerSpot[] = (town?.workers ?? []).map((w) => ({ id: w.id, post: w.post, lit: !!w.lit, price: w.price, paused: !!w.paused, rank: w.rank ?? 1 }));
   if (has("blacksmith") && (o.kit?.n ?? 0) > 0) markers.push({ at: "blacksmith", kind: "sword", label: o.kit?.price ? `$${o.kit.price}` : undefined });
   if (has("bank") && (town?.bank ?? 0) > 0 && o.absenceNew) markers.push({ at: "bank", kind: "coin" });
   const opened = new Set(o.opened ?? []);
@@ -370,7 +370,7 @@ const SMOKE = ["9a958c", "7d7a74", "b4afa4"], EMBER = ["ffb04a", "ff7a2a", "ffd7
 // ---- the view ---------------------------------------------------------------------------------------------------------------------
 
 export type TownStats = { fps: number; frames: number; cpuMs: number; cpuP95: number; walkers: number; mode: "gl" | "2d"; glLost: boolean; k: number; night: number; idle: boolean; running: boolean;
-  buildings: string[]; staked?: string; markers: string[]; view: [number, number, number, number]; chest?: string; workers: string[] };
+  buildings: string[]; staked?: string; markers: string[]; view: [number, number, number, number]; chest?: string; workers: string[]; ranks: Record<string, number> };
 export type TownView = {
   readonly el: HTMLElement;
   setState(s: TownState): void;
@@ -652,6 +652,8 @@ export function createTownView(host: HTMLElement): TownView {
       const frameN = w.lit || moving ? 0 : Math.floor((t + phase) / beat) & 1;
       if (w.lit) { const g = atlas.grey(workerIds(w.id), 24); if (inView(x, y, g.w, g.h)) push(g, Math.round(x), Math.round(y), zOf(y), flip, 1, 0); }
       else sprite(workerIds(w.id, frameN), 24, x, y - (step ? 1 : 0), { flip, dim: w.paused ? 0.7 : 1 });
+      // week 2: his rank, quiet — a gilt pip over his head per rank past the first (II ·, III ··)
+      if (!w.lit && w.rank > 1) for (let r = 0; r < w.rank - 1; r++) sprite("fx_dot_d8b45a", 2, x - (w.rank - 2) * 1.5 + r * 3, y - 26 - (step ? 1 : 0), { z: zOf(y) + 0.0003 });
       // at night the walkers' small MIST light: the dark coats would sink into the night grass
       if (night > 0.3 && F.lights.length < MAX_LIGHTS) F.lights.push({ x, y: y - 20, r: 18, c: [0.64 * 0.35 * night, 0.74 * 0.35 * night, 0.84 * 0.35 * night] });
     }
@@ -835,7 +837,8 @@ export function createTownView(host: HTMLElement): TownView {
       const sorted = [...cpu].sort((a, b) => a - b);
       return { fps: fpsWin.length, frames, cpuMs: cpu[cpu.length - 1] ?? 0, cpuP95: sorted[Math.floor(sorted.length * 0.95)] ?? 0, walkers: F.live, mode: gl && !glLost ? "gl" : "2d", glLost, k: F.k, night: F.night, idle: performance.now() - lastInput > IDLE_MS, running: !!raf,
         buildings: s?.buildings.map((b) => b.id) ?? [], staked: s?.staked?.id, markers: s?.markers.map((m) => `${m.kind}@${m.at}`) ?? [], view: [F.x0, F.y0, F.w, F.h],
-        chest: s?.chest?.state, workers: s?.workers.map((w) => `${w.id}${w.lit ? "(lit)" : w.paused ? "(off)" : ""}`) ?? [] };
+        chest: s?.chest?.state, workers: s?.workers.map((w) => `${w.id}${w.lit ? "(lit)" : w.paused ? "(off)" : ""}`) ?? [],
+        ranks: Object.fromEntries((s?.workers ?? []).filter((w) => !w.lit && w.rank > 1).map((w) => [w.id, w.rank])) };
     },
     stress(n) { stressN = n; if (state) addStress(); },
     setHour(h) { hourOverride = h; },

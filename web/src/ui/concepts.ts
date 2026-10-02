@@ -53,10 +53,10 @@ export const conceptTag = (c: Concept): HTMLElement => h("span", { class: "conce
 export type Term = Concept | "heir" | "gold" | "best" | "reach" | "package" | "stance" | "tactic" | "temperament" | "drill" | "scar" | "quest" | "track"
   | "pen" | "lever" | "bank" | "banked" | "returned" | "death" | "plateau" | "ends" | "priority" | "condition" | "action" | "forge" | "kennel" | "pack"
   | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled"
-  | "works" | "worker" | "chest" | "scout" | "next"   // Cut 30.5: the works tree
+  | "works" | "worker" | "chest" | "scout" | "next" | "rank"   // Cut 30.5: the works tree
   | "rarity";   // run-clear: an item's rim colour
 /** Cut 30.5: the works tree's terms — fragments of ≤ 4 words (eval/copy-budgets.json `node_tip`). */
-const WORKS_TIP = /* copy:node_tip */ { works: "workers take chores over", worker: "hand for one chore", chest: "the haul waits here", scout: "sends him each rest", next: "the one next goal" };
+const WORKS_TIP = /* copy:node_tip */ { works: "workers take chores over", worker: "hand for one chore", chest: "the haul waits here", scout: "sends him each rest", next: "the one next goal", rank: "worker's grade · from service" };
 /** The tooltip's gloss: a fragment, ≤ 10 words with its live value (`tips.mjs` renders every one). A word that is another keyword is
  *  marked inside the plate (one level). */
 export const TIP: Record<Term, string> = /* copy:tooltip */ {
@@ -84,7 +84,7 @@ export const ALIASES: Partial<Record<Term, string[]>> = /* copy:none */ {
   pen: ["the pen"], lever: ["lever"], bank: ["bank"], banked: ["banked"], returned: ["returned"], death: ["deaths"], plateau: ["plateau"], reach: ["reach"],
   ends: ["ends"], priority: ["priority"], condition: ["condition"], action: ["action"], vault: ["vault", "storehouse"], bones: ["bones"], bounty: ["bounty"],
   waystone: ["waystone", "waystones"], grudge: ["grudge"], kennel: ["kennel"], forge: ["forge", "blacksmith"],
-  works: ["works"], worker: ["workers", "worker"], chest: ["chest"], scout: ["scout"], rarity: ["rarity"],
+  works: ["works"], worker: ["workers", "worker"], chest: ["chest"], scout: ["scout"], rank: ["rank"], rarity: ["rarity"],
 };
 /** The plate's title: the term as the screen says it. */
 export const TITLE: Partial<Record<Term, string>> = /* copy:label */ {
@@ -105,6 +105,7 @@ export const LIVE: Partial<Record<Term, (app: App) => string | null>> = {
   chest: (a) => { const W = a.lineage.tree; return W ? /* copy:tooltip */ `$${W.chest} waits` : null; },
   worker: (a) => { const n = (a.lineage.tree?.nodes ?? []).filter((x) => x.kind === "worker" && x.state === "done").length; return n ? /* copy:tooltip */ `${n} hired` : null; },
   works: (a) => { const W = a.lineage.tree; const l = W?.nodes.find((x) => x.id === W.lit); return l ? /* copy:tooltip */ `lit: ${l.name}` : null; },
+  rank: (a) => { const W = a.lineage.tree, n = W?.nodes.find((x) => x.id === W.lit_rank); return n ? /* copy:tooltip */ `on offer: ${n.name} ${["", "I", "II", "III", "IV"][(n.rank ?? 1) + 1] ?? ""}` : null; },
   scout: (a) => { const W = a.lineage.tree, s = W?.nodes.find((x) => x.id === "scout"); return !s ? null : W!.auto_send ? /* copy:tooltip */ "hired · auto" : s.need ? /* copy:tooltip */ `${s.count ?? 0}/${s.need} sends` : null; },
   marks: (a) => `◆${a.lineage.marks}`,
   renown: (a) => /* copy:tooltip */ `★ rank ${a.lineage.rank ?? 0}`,
