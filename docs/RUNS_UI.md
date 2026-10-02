@@ -31,12 +31,13 @@ phone 400 × 800 (the town above, the console below)
  │ (◉) 1st heir  ● live D3  ▕█████▁▁▏28/36  ↻ auto  ▸│ ┌────┐
  └──────────────────────────────────────────────────┘ │ ☰ 3│  ← the log, its new runs
                                                       │log │
-   rests:  (◉) 1st heir  ● rests 18m ▕████▁▁▁▁▏ ↻ auto ☰   └────┘
+   rests:  (◉) 1st heir  ● rests 18m ▕████▁▁▁▁▏ ↻ auto     └────┘
    waits:  (◉) 1st heir  ● waits ▸ send          ⊘ auto 1/3     (the gem lit: SEND 1/3)
 ```
 
 - **live**: the floor, his hp as a bar, a quick ember beat. A tap watches it. The gem reads `watch` while he is down there.
-- **rests**: the countdown and the rest draining, a slow moon beat. A tap opens the log. The gem stays `send` (go now).
+- **rests**: the countdown and the rest draining, a slow moon beat; `goes down` as it runs out. The gem stays `send` (go now).
+- A lane taps only while live (it watches, as the gem and the mouth then do); at home it is a reading, its tip on long-press.
 - **waits** (before the scout — the manual phase): `waits ▸ send` in gilt, the lane's edge gilt, the gem pulsing with the scout's count
   (`SEND 1/3`). The lane is the affordance; it points at the gem and the mouth, it does not send itself (day 0 keeps its four surfaces).
 - **`auto`** is the quiet preview that runs go on by themselves: `⊘ auto 1/3` greyed until the scout (his count), `↻ auto` in gilt once
@@ -66,22 +67,24 @@ phone 400 × 800 (the town above, the console below)
 
   the run's number · how it ended (`⌂` bank · `↩` return · `☠` death) and the exit's reason (≤ 3 words, the core's) with when · its
   floor, `★` a new best · the gold home · finds `✦` · its length · `◉` watched · `▶` replay. A death's entry opens its death screen.
-  The run-clear card (c305-runclear) is the entry's detail when it lands; rarity colours the `✦`.
+  A tap on an entry opens **the run's card** (c305-runclear's clear screen: the end's seal, the reason, the floor and `new best`, the
+  gold, the finds in their rarity rims) with its `▶` under it — the run-clear card is one entry of the history. The finds' mark `◆N`
+  takes the rarest find's pigment.
 - **Replay**: `▶` asks the core for the run re-simulated from its send (`replay(id)`, §5): the floors one after another in the map frame
   at 16×, floor chips to jump. It is the same run: the same events, byte for byte (the gate compares hashes).
-- **The chronicle stays** the heirs' book (one line an heir, its kept deaths); the log is the runs'. Nothing else overlapped (the
-  `ledger` tile is the bestiary).
+- **The chronicle folds in**: the log's second tab, `heirs` (one line an heir, a kept death opens its verdict); its console tile goes. The
+  `ledger` tile is the bestiary (no overlap) and stays. The report's `runs` tile opens the log on the absence's fold.
 
 ## 4. IA and density
 
 | Place | What it gets |
 |---|---|
 | top bar | nothing new |
-| town (well) | nothing new; the mouth still sends (and watches a live run) |
+| town (well) | the mouth still sends (and watches a live run); the hero's **tent** keeps his log once he has runs (the hero sheet before; his class and look stay on the portrait) |
 | under the town | **the lanes** (the rest line's row) + the log's stud |
 | console | the gem: `send` · `watch` (live) · `SEND 1/3` (waits); no new tile |
 | watch console | `town ↻` (the 7th of 8 tiles) |
-| sheets | **runs** (the log), **replay** (a sheet over it) |
+| sheets | **log** (`runs` · `heirs`), a run's **card**, **replay** (sheets over it) |
 | desktop 1440 × 900 | the same lanes in the centre column under the town (the frame's `rest` row), the log a sheet |
 
 ```
@@ -92,15 +95,19 @@ desktop 1440 × 900
 │                  │                                             │  meters       │
 │                  ├─────────────────────────────────────────────┤               │
 │                  │ (◉) 1st heir ● live D3 ▕████▁▏ ↻ auto ▸ │☰log│               │
-│                  │ (◉) 2nd hero ● rests 9m ▕██▁▁▏ ↻ auto ☰ │    │  ← Cut 31     │
+│                  │ (◉) 2nd hero ● rests 9m ▕██▁▁▏ ↻ auto   │    │  ← Cut 31     │
 ├──────────────────┴─────────────────────────────────────────────┴───────────────┤
 │ (portrait)   [ forge · vault · kennel · bank · packages · … ]          (SEND)  │
 └────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Budgets (docs/UI.md §6, the density memory): ≤ 12 elements above the fold at 400 × 800 — the lane is one control and the log one more
-(the rest line it replaces was one element); day 0 keeps ≤ 4 surfaces (the lane is inert there, the log hidden until a run); labels ≤ 2
-words (`live`, `rests`, `waits`, `auto`, `log`, `here`, `away`, `town`); no sentences; four new tooltip terms.
+Budgets (docs/UI.md §6, the density memory): ≤ 12 elements above the fold at 400 × 800. The mid-game town already stood at 12 (purse,
+settings, mouth, tent, crate, blacksmith, storehouse, staked plot, pill, look, packages, gem), so the log had to take a place, not add one:
+the **tent** (the hero's own, which opened a sheet repeating the portrait's class and level) keeps his log, and the lane's `log` stud is a
+second door to it; the **chronicle** tile (from the 5th heir) folds into the log's `heirs` tab. A lane taps only while live, where it
+does what the gem and the mouth do (watch). Measured: day 0 7, mid-game 12, three lanes (fake) 11. Day 0 keeps ≤ 5 surfaces (the lane
+is inert, the log hidden until a run); labels ≤ 2 words (`live`, `rests`, `waits`, `auto`, `log`, `here`, `away`, `town`, `runs`,
+`heirs`); no sentences; five new tooltip terms (lane, live, log, replay, away).
 
 ## 5. Core support (all truth in Rust)
 

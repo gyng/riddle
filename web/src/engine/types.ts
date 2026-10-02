@@ -429,7 +429,8 @@ export type WorkerAct = { id: string; what: string; n: number; first: boolean };
  *  verdict the core still holds (`death(id)`). A record with `sampled` is no run: the absence's runs extrapolated past its stall (`+N`). */
 export type RunRec = { id: number; heir: number; via: "away" | "town" | "watched"; absence?: number; clock_s: number;
   start: number; depth: number; tier: "bank" | "return" | "death"; reason?: string; gold: number; found: number; kept?: string[];
-  turns: number; best?: boolean; death_id?: number; sampled?: number };
+  turns: number; best?: boolean; death_id?: number; sampled?: number;
+  finds?: InvItem[] };   // RUNS_UI × run-clear (core): the run's finds, rarest first, ≤ 6 — the entry's rarity mark and its card
 /** RUNS_UI (core) — the run under way right now (`Lineage.live`; absent at home): the hero's floor, hp, and the run's tick. */
 export type LiveRun = { run_id: number; heir: number; depth: number; start: number; hp: number; max_hp: number; turn: number };
 /** RUNS_UI (core) — `advance(ms)`: the open app's clock run on the lineage (rest, then the next run, unwatched; a run in flight stays in

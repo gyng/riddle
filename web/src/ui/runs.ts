@@ -4,13 +4,15 @@
 // — a replay re-simulated by the core from the run's send (`replay(id)`, same rolls), when the core still holds it. A death opens its
 // verdict. The chronicle stays the heirs' book (one line an heir); this is the runs'.
 import type { App } from "../app";
-import type { Lineage, Replay, RunRec } from "../engine/types";
+import type { ExitLine, Lineage, Replay, RunRec } from "../engine/types";
 import { h, replace } from "./dom";
 import { closeAllSheets, openSheet } from "./sheet";
 import { makeViewer, type Viewer } from "./viewer";
 import { markRunsSeen, runsSeen } from "./runlane";
 import { kwHost } from "./tips";
 import { keptDeath } from "./chronicle";
+import { clearCard } from "./runclear";   // run-clear: an entry's card
+import { bestRarity } from "./items";
 
 /** one fold: an absence's runs, or the runs played while the app was open between two absences */
 export type RunGroup = { key: string; via: "away" | "here"; absence?: number; recs: RunRec[]; sampled: number };
@@ -110,7 +112,7 @@ function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () =
     h("span", { class: `re-tier t-${r.tier}`, "aria-hidden": "true" }, TIER_GLYPH[r.tier] ?? ""),
     h("span", { class: `re-d${r.best ? " best" : ""}` }, `D${r.depth}`, r.best ? h("b", { class: "re-best", title: "new best" }, "★") : ""),
     h("span", { class: "gold re-g" }, `$${r.gold}`),
-    r.found ? h("span", { class: "re-f" }, `✦${r.found}`) : "",
+    r.found ? h("span", { class: "re-f", "data-rarity": bestRarity(r.finds ?? []) }, h("span", { class: `re-gem r-${bestRarity(r.finds ?? [])}`, "aria-hidden": "true" }, "◆"), `${r.found}`) : "",
     h("span", { class: "dim re-len" }, lenOf(r.turns)),
     r.via === "watched" ? h("span", { class: "dim re-w", "aria-hidden": "true" }, "◉") : "");
   const sub = h("small", { class: "re-sub dim" }, why, " · ", h("span", { class: "num" }, agoOf(L, r.clock_s)));
@@ -119,9 +121,21 @@ function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () =
     ? h("button", { class: "re-body", "data-verdict": r.death_id, onclick: () => {
         void app.busy(/* copy:label */ "verdict", () => app.engine.death(r.death_id!)).then((death) => { close(); closeAllSheets(); app.go({ kind: "death", death, kept: true }); }).catch((e) => console.warn("run verdict", e));
       } }, top, sub)
-    : h("div", { class: "re-body" }, top, sub);
+    : h("button", { class: "re-body", "data-card": r.id, onclick: () => openRunCard(app, r) }, top, sub);   // run-clear: the run's card
   const play = replay ? kwHost(h("button", { class: "re-play", "data-run": r.id, "aria-label": /* copy:label */ "replay", onclick: () => void openRunReplay(app, r) }, "▶"), "replay") : "";
   return h("div", { class: `run-entry${fresh ? " fresh" : ""}`, "data-run": r.id, "data-tier": r.tier, "data-via": r.via }, body, play);
+}
+
+/** run-clear × RUNS_UI: a past run's card (the end's seal, its reason, the floor and a new best, the gold home, the finds by rarity) — the
+ *  watched run's clear screen, as the log keeps it; its ▶ under it when the core holds the run. */
+function openRunCard(app: App, r: RunRec): void {
+  const x: ExitLine = { carried: r.gold, keep_pct: 100, kept: r.gold, spent: 0, spent_on: [], text: `${r.tier === "bank" ? "banked" : r.tier === "death" ? "died" : "returned"} D${r.depth}`,
+    end: r.tier, reached: r.depth, new_best: !!r.best, finds: r.finds ?? [], ...(r.reason ? { reason: r.reason } : {}), run_id: r.id };
+  const held = (app.lineage.replays ?? []).includes(r.id);
+  openSheet(() => h("div", { class: "sheet-body run-card-sheet", "data-run": r.id },
+    h("div", { class: "label row-label" }, h("b", { class: "num" }, `#${r.id}`), " ", h("span", { class: "num dim" }, agoOf(app.lineage, r.clock_s))),
+    clearCard(app, x),
+    held ? h("button", { class: "btn wide re-play-wide", "data-run": r.id, onclick: () => void openRunReplay(app, r) }, "▶ ", /* copy:button */ "replay") : ""));
 }
 
 /** RUNS_UI §3: a past run played again — the core re-simulates it from its send (`replay(id)`); the floors one after another in the map

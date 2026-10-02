@@ -1784,6 +1784,9 @@ pub struct RunRec {
     pub death_id: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sampled: Option<u32>,
+    /// RUNS_UI × run-clear: the run's finds (its exit line's, rarest first, ≤ 6) — the log's rarity marks and the entry's card.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finds: Vec<InvItem>,
 }
 
 /// RUNS_UI: the run under way (`Lineage.live`; absent at home).

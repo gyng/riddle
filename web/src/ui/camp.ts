@@ -223,7 +223,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // every building opens the panel its tile opens, standing over it
   const town = renderTown(app, {
     send: () => doSend(),
-    hero: (a) => { const R = revealed(app); if (R.has("edit") || R.has("unlocks")) pickClass(); else openHero(app, a); },
+    // RUNS_UI: the hero's tent keeps his log once he has runs (the lane's `log` stud opens the same); his class and look are the
+    // portrait's (the console's well), the hero sheet before the first run
+    hero: (a) => { if ((app.lineage.runs ?? []).some((r) => r.id > 0)) { openRuns(app); return; } const R = revealed(app); if (R.has("edit") || R.has("unlocks")) pickClass(); else openHero(app, a); },
     open: (what, a) => { closeAllSheets(); if (open === what) closePanel(); togglePanel(what, a); },
     forge: (a) => { closePanel(); openForge(app, a); },
     quest: (a) => { closePanel(); openQuest(app, a); },

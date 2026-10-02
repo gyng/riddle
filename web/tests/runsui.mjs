@@ -72,6 +72,7 @@ const fold = (scope = "") => page.evaluate(([SAME, scope]) => {
   // (a run under way: the gem, the mouth and the main hero's live lane all watch it — one function)
   const live = document.querySelector(".console .gem[data-live='1']");
   const key = (b) => live && (b === live || b.dataset.building === "mouth" || (b.matches(".lane[data-state=live]") && b === document.querySelector(".lanes .lane"))) ? "watch"
+    : b.classList.contains("lanes-log") || (b.dataset.building === "tent" && (window.__riddle.lineage.runs ?? []).some((r) => r.id > 0)) ? "log"   // (the tent keeps the hero's log: one function)
     : b.classList.contains("next-pill") || b.dataset.building === "worker" ? "works" : b.dataset.building ?? (b.dataset.tile ? SAME[b.dataset.tile] ?? `tile:${b.dataset.tile}` : (b.getAttribute("aria-label") || b.textContent || b.className).replace(/\s+/g, " ").trim().slice(0, 24));
   return [...new Set(els.map(key))];
 }, [SAME, scope]);
@@ -196,9 +197,9 @@ try {
     // the manual phase done by the save: the scout hired (as `hire` would), two hours away
     await page.evaluate(async () => { const r = window.__riddle; for (let i = 0; i < 3 && !r.lineage.tree.auto_send; i++) { try { r.lineage = await r.engine.hire("scout"); } catch { /* not lit: send by hand */ break; } } });
     let l = await L();
-    for (let i = 0; i < 4 && !l.auto; i++) {
-      // three sends by hand (the trunk's), each played out unwatched by the open app's clock
-      await page.evaluate(async () => { const r = window.__riddle; await r.engine.send(); r.lineage = await r.engine.lineage(); for (let k = 0; k < 400 && r.lineage.live; k++) { await r.engine.advance(20_000); r.lineage = await r.engine.lineage(); } try { r.lineage = await r.engine.openChest(); } catch { /* none */ } try { r.lineage = await r.engine.hire(r.lineage.tree.lit ?? ""); } catch { /* not yet */ } r.go({ kind: "camp" }); });
+    for (let i = 0; i < 8 && !l.auto; i++) {
+      // the sends by hand (the trunk's), each played out unwatched by the open app's clock; the chest opened, the lit worker hired
+      await page.evaluate(async () => { const r = window.__riddle; await r.engine.send(); for (let k = 0; k < 600; k++) { const a = await r.engine.advance(20_000); if (a.ended.length) break; } try { await r.engine.openChest(); } catch { /* none */ } r.lineage = await r.engine.lineage(); for (let j = 0; j < 2; j++) { try { r.lineage = await r.engine.hire(r.lineage.tree.lit ?? ""); } catch { /* not yet */ } } r.go({ kind: "camp" }); });
       l = await L();
     }
     check(l.auto, `the scout hired by the trunk's sends (auto ${l.auto})`);
@@ -251,6 +252,20 @@ try {
         await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await camp();
       } else out.push(`note no death in the log on this seed (the verdict link is the chronicle's code path)`);
       await page.keyboard.press("Escape"); await sleep(150);
+      // the hero's tent keeps his log too
+      await page.evaluate(() => { for (const s of document.querySelectorAll(".sheet .close-stud, .sheet .sheet-x")) s.click(); });
+      await page.locator('.town-hit[data-building="tent"]').click();
+      const viaTent = await until(() => !!document.querySelector(".runs-sheet"), "the log from the tent", 5000).catch(() => false);
+      check(viaTent, "the hero's tent opens his log");
+      // an entry opens the run's card (run-clear), its ▶ under it
+      const anyRun = g.entries.find((e) => !e.verdict);
+      if (viaTent && anyRun) {
+        await page.locator(`.run-entry[data-run="${anyRun.run}"] .re-body`).click();
+        const card = await until(() => document.querySelector(".run-card-sheet .run-clear")?.dataset.end ?? null, "the run's card", 5000).catch(() => null);
+        await shot("run-card");
+        check(!!card, `an entry opens the run's card (run ${anyRun.run}: ${card})`);
+      }
+      await page.evaluate(() => { for (const s of document.querySelectorAll(".sheet .close-stud, .sheet .sheet-x")) s.click(); });
     }
     if (part("density")) {
       await camp();

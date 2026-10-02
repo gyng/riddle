@@ -98,3 +98,8 @@ button.re-body { cursor: pointer; }
 .runs-sheet .chronicle { max-height: min(64vh, 560px); overflow-y: auto; }
 .tiles .tile.plaque.to-log { cursor: pointer; }
 .tiles .tile.plaque.to-log::after { content: "☰"; position: absolute; top: 4px; right: 6px; font-size: 11px; color: var(--ink-dim); }
+.run-entry .re-f { display: inline-flex; align-items: baseline; gap: 2px; }
+.run-entry .re-gem { font-size: 10px; }
+.run-entry .re-gem { color: var(--r-lit, var(--dim)); }   /* run-clear's rarity pigments (items.css) */
+.run-card-sheet .run-clear { margin: 6px 0 10px; }
+.run-card-sheet .re-play-wide { margin-top: 4px; }

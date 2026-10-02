@@ -5461,6 +5461,7 @@ impl Game {
                 best: outcome.new_best,
                 death_id: (matches!(tier, ExitTier::Death) || stalled).then_some(run.id).filter(|id| self.deaths.contains_key(id)),
                 sampled: None,
+                finds: line.finds.clone(),
             };
             self.lineage.push_run(rec);
         }
