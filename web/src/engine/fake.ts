@@ -2369,17 +2369,17 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
 // run: an absence then yields only the run in flight).
 // (id, name, branch, chore, need, price in tenths of a forge unit, fallback age h, post, beat, tip, the chore's system)
 const NODES305: [string, string, string, string, number, number, number, string, string, string, string][] = [
-  ["quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "crate", "", "Packs the heal and the drill's item.", ""],
-  ["porter", "porter", "trunk", "chest", 3, 0, 0, "mouth", "AUTO HAUL", "Carries hauls home while you're away.", ""],
-  ["scout", "scout", "trunk", "send", 3, 5, 0, "fire", "AUTO SEND", "Sends the hero down after each rest.", ""],
-  ["armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "AUTO EQUIP", "Wears the better find each send.", "storehouse"],
-  ["apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "blacksmith", "AUTO FORGE", "Buys the next forge step, keeping a reserve.", "forge"],
-  ["keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "AUTO KEEP", "Sorts every exit's finds; never asks.", "storehouse"],
-  ["clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "AUTO BANK", "Banks the purse above a reserve.", "bank"],
-  ["drillmaster", "drillmaster", "character", "level", 2, 30, 36, "tent", "AUTO LEVEL", "Spends marks on the worn stance's levels.", ""],
-  ["kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "AUTO PETS", "Fields the best pets each send.", "kennel"],
-  ["herald", "herald", "town", "swap", 2, 20, 40, "board", "AUTO QUEST", "Swaps a quest the day left unkept.", "quests"],
-  ["guide", "guide", "scale", "start", 3, 40, 44, "mouth", "AUTO START", "Starts sends a band under the record.", "start"],
+  ["quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "crate", "", "packs heal · drill item", ""],
+  ["porter", "porter", "trunk", "chest", 3, 0, 0, "mouth", "AUTO HAUL", "hauls home · while away", ""],
+  ["scout", "scout", "trunk", "send", 3, 5, 0, "fire", "AUTO SEND", "sends him · each rest", ""],
+  ["armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "AUTO EQUIP", "wears better finds", "storehouse"],
+  ["apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "blacksmith", "AUTO FORGE", "buys forge steps", "forge"],
+  ["keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "AUTO KEEP", "sorts finds · never asks", "storehouse"],
+  ["clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "AUTO BANK", "banks spare gold", "bank"],
+  ["drillmaster", "drillmaster", "character", "level", 2, 30, 36, "tent", "AUTO LEVEL", "levels the stance", ""],
+  ["kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "AUTO PETS", "fields best pets", "kennel"],
+  ["herald", "herald", "town", "swap", 2, 20, 40, "board", "AUTO QUEST", "swaps stale quests", "quests"],
+  ["guide", "guide", "scale", "start", 3, 40, 44, "mouth", "AUTO START", "starts deeper", "start"],
 ];
 type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[] };
 type Fk305 = Fk30 & { s: Fk30["s"] & { st305?: St305 } };

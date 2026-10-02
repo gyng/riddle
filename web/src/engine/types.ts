@@ -392,7 +392,7 @@ export type WorkNode = {
   price?: number; affordable?: boolean;                 // worker: the hire's gold (0 = free; forge units, fixed with the forge's), paid from the purse then the chest
   fallback_h?: number;                                  // worker: the lineage age (h) that lights it without the count, once its chore exists
   trigger?: string;                                     // ≤ 3 words: a stage's trigger, a shut worker's gate (`bank built`)
-  tip?: string;                                         // worker: ≤ 10 words (`Carries hauls home while you're away.`)
+  tip?: string;                                         // worker: ≤ 4 words, the works sheet's fragment (`hauls home · while away`)
   beat?: string;                                        // worker: the hire's beat, ≤ 2 words, caps (`AUTO HAUL`)
   post?: string;                                        // worker: where it stands — crate · mouth · storehouse · blacksmith · bank · tent · kennel · board
   paused?: boolean;                                     // worker: hired and switched off (`setWorker(id, false)`): its chore is by hand again

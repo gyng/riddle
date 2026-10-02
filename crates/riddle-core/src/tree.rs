@@ -39,17 +39,17 @@ const fn node(id: &'static str, name: &'static str, branch: &'static str, chore:
 
 /// The tree in its order (the trunk, then the branches): one node lit at a time, the first ready one.
 pub const NODES: &[NodeDef] = &[
-    node("quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "", "crate", "", "Packs the heal and the drill's item."),
-    node("porter", "porter", "trunk", "chest", 3, 0, 0, "", "mouth", "AUTO HAUL", "Carries hauls home while you're away."),
-    node("scout", "scout", "trunk", "send", 3, 5, 0, "", "fire", "AUTO SEND", "Sends the hero down after each rest."),
-    node("armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "storehouse", "AUTO EQUIP", "Wears the better find each send."),
-    node("apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "forge", "blacksmith", "AUTO FORGE", "Buys the next forge step, keeping a reserve."),
-    node("keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "storehouse", "AUTO KEEP", "Sorts every exit's finds; never asks."),
-    node("clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "bank", "AUTO BANK", "Banks the purse above a reserve."),
-    node("drillmaster", "drillmaster", "character", "level", 2, 30, 36, "", "tent", "AUTO LEVEL", "Spends marks on the worn stance's levels."),
-    node("kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "kennel", "AUTO PETS", "Fields the best pets each send."),
-    node("herald", "herald", "town", "swap", 2, 20, 40, "quests", "board", "AUTO QUEST", "Swaps a quest the day left unkept."),
-    node("guide", "guide", "scale", "start", 3, 40, 44, "start", "mouth", "AUTO START", "Starts sends a band under the record."),
+    node("quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "", "crate", "", "packs heal · drill item"),
+    node("porter", "porter", "trunk", "chest", 3, 0, 0, "", "mouth", "AUTO HAUL", "hauls home · while away"),
+    node("scout", "scout", "trunk", "send", 3, 5, 0, "", "fire", "AUTO SEND", "sends him · each rest"),
+    node("armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "storehouse", "AUTO EQUIP", "wears better finds"),
+    node("apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "forge", "blacksmith", "AUTO FORGE", "buys forge steps"),
+    node("keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "storehouse", "AUTO KEEP", "sorts finds · never asks"),
+    node("clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "bank", "AUTO BANK", "banks spare gold"),
+    node("drillmaster", "drillmaster", "character", "level", 2, 30, 36, "", "tent", "AUTO LEVEL", "levels the stance"),
+    node("kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "kennel", "AUTO PETS", "fields best pets"),
+    node("herald", "herald", "town", "swap", 2, 20, 40, "quests", "board", "AUTO QUEST", "swaps stale quests"),
+    node("guide", "guide", "scale", "start", 3, 40, 44, "start", "mouth", "AUTO START", "starts deeper"),
 ];
 
 /// The apprentice and the clerk keep this many forge units in the purse (the shelf's money).

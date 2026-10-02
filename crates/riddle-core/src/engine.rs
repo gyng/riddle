@@ -6068,7 +6068,8 @@ pub fn exit_reason(run: &Run, tier: ExitTier, best0: u32, rules: &RuleSet) -> St
     if has("depth>=") {
         // (a stance's row banks at the record: `depth ≥ best + 1`, a floor further when whole)
         let at = row.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n).unwrap_or(0);
-        return if run.max_depth > best0 && at as u32 <= best0 + 2 { "banks every record".into() } else if run.max_depth > best0 { "new best · banked".into() } else { format!("reached D{}", run.max_depth) };
+        // (Cut 30.5: a row a floor further than the record's next — the whole hero's — reads `new best · banked`)
+        return if run.max_depth > best0 && at as u32 <= (best0 + 1).max(2) { "banks every record".into() } else if run.max_depth > best0 { "new best · banked".into() } else { format!("reached D{}", run.max_depth) };
     }
     if has("foes>=") || has("adj>=") {
         return "outnumbered".into();
