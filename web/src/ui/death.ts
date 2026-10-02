@@ -10,6 +10,7 @@
 // §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
 // when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
 import { meterPanel } from "./meters";
+import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
 import type { Death, DrivenOff, ExitLine, Patch, ReturnReport, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
@@ -27,7 +28,6 @@ import { mergeFinds, renamer } from "./report";
 import { foeSrc } from "./skin";
 import { penOpen } from "./packages";
 import { openForge } from "./forge";
-import { AUTO, autoDismiss } from "./autodismiss";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");

@@ -14,6 +14,7 @@ import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { systemIcon, systemLabel } from "./systems";
 import { measureKit, openForge } from "./forge";
+import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
 import { h, replace, items, spanOf } from "./dom";
@@ -33,7 +34,6 @@ import { oathProgress } from "./oaths";
 import { grewBlock, heroFace } from "./tracks";
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
-import { AUTO, autoDismiss } from "./autodismiss";
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
