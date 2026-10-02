@@ -33,6 +33,7 @@ pub mod meters;
 pub mod tiles;
 pub mod tokens;
 pub mod town;
+pub mod tree;
 pub mod trace;
 pub mod traits;
 pub mod turn;
@@ -181,7 +182,9 @@ impl Game {
     }
     /// Cut 30 §2: spend marks on a package's next level; the level reached.
     pub fn spend_level(&mut self, id: &str) -> Result<u32, String> {
-        packages::spend_level(&mut self.lineage, id)
+        let lv = packages::spend_level(&mut self.lineage, id)?;
+        tree::did(&mut self.lineage, "level");
+        Ok(lv)
     }
     /// Cut 30 §1: revoke a drill (or restore it) — one tap, it stays.
     pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<(), String> {
@@ -193,7 +196,9 @@ impl Game {
     }
     /// Cut 30 §3: bank a deposit (capped); the gold moved.
     pub fn bank_deposit(&mut self, amount: i32) -> Result<i32, String> {
-        town::deposit(&mut self.lineage, amount)
+        let n = town::deposit(&mut self.lineage, amount)?;
+        tree::did(&mut self.lineage, "deposit");
+        Ok(n)
     }
     /// Cut 30 §3: take gold out of the bank.
     pub fn bank_withdraw(&mut self, amount: i32) -> Result<i32, String> {
@@ -201,7 +206,21 @@ impl Game {
     }
     /// Cut 30 §5: the day's free swap of the quest on the board.
     pub fn swap_quest(&mut self) -> Result<(), String> {
-        town::swap(&mut self.lineage)
+        town::swap(&mut self.lineage)?;
+        tree::did(&mut self.lineage, "swap");
+        Ok(())
+    }
+    /// Cut 30.5: hire the lit node's worker (its price from the purse, then the chest).
+    pub fn hire(&mut self, id: &str) -> Result<(), String> {
+        tree::hire(&mut self.lineage, id)
+    }
+    /// Cut 30.5: the haul chest into the purse (the porter's chore); the gold it held.
+    pub fn open_chest(&mut self) -> Result<i32, String> {
+        tree::open_chest(&mut self.lineage)
+    }
+    /// Cut 30.5: switch a hired worker off (its chore by hand again) or back on.
+    pub fn set_worker(&mut self, id: &str, on: bool) -> Result<(), String> {
+        tree::set_worker(&mut self.lineage, id, on)
     }
     pub fn export_rules(&self) -> String {
         self.lineage.rules().to_text()
@@ -225,3 +244,5 @@ mod tests_cut29;
 mod tests_cut30;
 #[cfg(test)]
 mod tests_cut30_pkg;
+#[cfg(test)]
+mod tests_cut305;

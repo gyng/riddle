@@ -95,7 +95,7 @@ pub fn deposit(l: &mut LineageState, amount: i32) -> Result<i32, String> {
         return Err("no bank yet".into());
     }
     let room = (bank_cap(l) - l.town.bank).max(0);
-    let n = amount.min(l.gold).min(room).max(0);
+    let n = amount.min(crate::tree::purse(l)).min(room).max(0);
     if n == 0 {
         return Err(if room == 0 { "bank full".into() } else { "no gold".into() });
     }
@@ -120,6 +120,7 @@ pub fn night(l: &mut LineageState) -> i32 {
     let i = (l.town.bank.max(0) * BANK_PCT / 100).max(0);
     l.town.bank += i;
     l.town.interest += i;
+    l.tree.ledger += i as i64;
     i
 }
 
@@ -364,6 +365,7 @@ pub fn wire(l: &LineageState) -> TownWire {
         interest: l.town.interest,
         quest: l.town.quest.as_ref().map(|q| quest_wire(l, q)),
         quests_done: l.town.quests_done,
+        workers: if l.pkg.literal { Vec::new() } else { crate::tree::posts(l) },
     }
 }
 

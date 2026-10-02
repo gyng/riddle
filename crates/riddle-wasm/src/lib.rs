@@ -518,6 +518,26 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 30.5: hire the lit node's worker; returns the Lineage.
+    pub fn hire(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.hire(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30.5: the haul chest into the purse; returns the Lineage.
+    #[wasm_bindgen(js_name = openChest)]
+    pub fn open_chest(&mut self) -> Result<String, JsError> {
+        self.inner.open_chest().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 30.5: switch a hired worker off or on; returns the Lineage.
+    #[wasm_bindgen(js_name = setWorker)]
+    pub fn set_worker(&mut self, id: &str, on: bool) -> Result<String, JsError> {
+        self.inner.set_worker(id, on).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 23 §1: buy the next forge step of `weapon | armour | pack`; returns the Lineage.
     #[wasm_bindgen(js_name = buyKit)]
     pub fn buy_kit(&mut self, slot: &str) -> Result<String, JsError> {

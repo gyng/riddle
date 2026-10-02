@@ -1430,6 +1430,10 @@ pub struct LineageState {
     pub expeditions: u32,
     #[serde(default)]
     pub era_gate: u32,
+    /// Cut 30.5: the works tree (workers, chores by hand, the haul chest, the gold ledger); `v` 0 a
+    /// save from before it (`tree::upgrade` at the load).
+    #[serde(default)]
+    pub tree: crate::tree::Tree,
 }
 
 /// Cut 29 §1: a day of the lineage's clock.
@@ -1650,6 +1654,7 @@ impl LineageState {
             glory: 0,
             expeditions: 0,
             era_gate: 0,
+            tree: crate::tree::Tree::fresh(),
             best_day: 0,
             wall_day: None,
             wall_offer: None,
@@ -1709,11 +1714,13 @@ impl LineageState {
     /// (`GoldLine.n`; QA on 778fa1b: `repeat heal ×1 · −$104` for four heals).
     pub fn gold_move_n(&mut self, delta: i32, why: &str, n: u32) {
         self.gold += delta;
+        // Cut 30.5: the haul chest and the gold ledger
+        crate::tree::on_gold(self, delta, why);
         // Cut 23 §1: the night's net is income less upkeep — the player's own purchases are not in it.
         // QA on 912e135 (qaW: `sword +1 · $300 · 7 nights` after a night of deaths — the purse held at $40 by the heir purse): the
         // heir purse's top-up refills to a floor and is no income; a night of deaths nets nothing toward a step.
         // (Cut 28 §1: an oath's price and a forswearing's refund are the player's purchase too)
-        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay", "oath ", "forswear ", "bank "].iter().any(|p| why.starts_with(p)) {
+        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay", "oath ", "forswear ", "bank ", "hire "].iter().any(|p| why.starts_with(p)) {
             self.night_net += delta;
             self.day_net += delta;
         }
@@ -1867,7 +1874,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -1889,7 +1896,7 @@ impl LineageState {
             eggs: self.eggs.clone(),
             party_slots: self.party_slots(),
             ledger: self.ledger(),
-            gold: self.gold,
+            gold: crate::tree::purse(self),
             supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
             classes: self.classes.iter().map(|(k, c)| (k.clone(), ClassProg { next: if c.level >= MAX_LEVEL { 0 } else { xp_to_next(c.level) }, ..c.clone() })).collect(),
             // Cut 9 §10: every row carries its next rung (an older save's rows too).
@@ -2987,6 +2994,10 @@ impl Game {
         l.repeat_due = due;
         l.repeat_unpaid = unpaid;
         l.repeat_added = self.repeat_adds();
+        // Cut 30.5: the works tree (the hero's wait is the game's: no run under way, before the scout)
+        if !self.lineage.pkg.literal {
+            l.tree = Some(crate::tree::wire(&self.lineage, self.waits()));
+        }
         l
     }
 
@@ -3271,6 +3282,13 @@ impl Game {
             return;
         }
         self.loadout = ids.into_iter().filter(|id| self.lineage.vault.iter().any(|v| v.id == *id)).collect();
+        // Cut 30.5: a find worn by hand (each vault item once) counts toward the armourer
+        for id in self.loadout.clone() {
+            if !self.lineage.tree.worn.contains(&id) && !crate::tree::hired(&self.lineage, "armourer") {
+                self.lineage.tree.worn.push(id);
+                crate::tree::did(&mut self.lineage, "wear");
+            }
+        }
     }
 
     /// Cut 3: a new lineage after the ending that keeps classes (levels), kennel, vault, ledger,
@@ -3384,6 +3402,12 @@ impl Game {
     /// Start (or resume) an expedition. The player chose to go: any camp rest left is skipped.
     pub fn send(&mut self) -> Snapshot {
         self.bounty_seen = self.lineage.bounty;
+        // Cut 30.5 (the owner: manual send first): before the scout a send by hand is one run — counted
+        // toward him when it sends a hero who was home
+        if !crate::tree::auto_send(&self.lineage) && !self.lineage.tree.sent && self.run.as_ref().is_none_or(|r| r.turn == 0) {
+            crate::tree::did(&mut self.lineage, "send");
+            self.lineage.tree.sent = true;
+        }
         // Cut 30: a watched send is a check-in of its own — one system may open by its report
         self.lineage.reveal_left = 1;
         self.lineage.rest_left = 0;
@@ -3408,7 +3432,19 @@ impl Game {
 
     /// Cut 21 §1: the floor the next sends start on — 1, or a lit waystone (refused otherwise).
     pub fn set_start(&mut self, depth: u32) -> Result<(), String> {
-        self.lineage.set_start(depth)
+        self.lineage.set_start(depth)?;
+        crate::tree::did(&mut self.lineage, "start");
+        Ok(())
+    }
+
+    /// Cut 30.5: a run may begin — the scout sends him, or a send by hand is under way.
+    pub fn may_go(&self) -> bool {
+        crate::tree::auto_send(&self.lineage) || self.lineage.tree.sent
+    }
+
+    /// Cut 30.5: the hero is home and waits for a send (before the scout, no run under way).
+    pub fn waits(&self) -> bool {
+        !self.may_go() && self.run.as_ref().is_none_or(|r| r.turn == 0 || r.over.is_some())
     }
 
     /// A live run for the snapshot without touching the rest clock (reports, replays).
@@ -3432,6 +3468,8 @@ impl Game {
 
     pub fn start_run(&mut self, seed_override: Option<u64>) {
         self.auto_keep();
+        // Cut 30.5: the workers' standing orders, between real runs
+        crate::tree::at_send(self);
         // Cut 28 §2: the camp this send left (a sim's send is no send).
         if !self.sim {
             self.sent_state = Some(Box::new(SentState::of(self)));
@@ -3876,6 +3914,15 @@ impl Game {
         let mut events = Vec::new();
         let mut run_over = false;
         self.watched = true;
+        // Cut 30.5: before the scout the hero home waits for a send (no run begins by itself)
+        if !self.may_go() && self.run.as_ref().is_none_or(|r| r.turn == 0) {
+            let snapshot = match self.last_snapshot.clone() {
+                Some(s) => s,
+                None => self.ensure_run(),
+            };
+            let exit_pending = self.exit_pending_wire();
+            return StepResult { calm: Vec::new(), events, snapshot, run_over: true, exit_pending };
+        }
         // Camp rest runs on the same clock online (Cut 2 §1); `send` skips it.
         if self.lineage.rest_left > 0 && self.run.as_ref().is_none_or(|r| r.turn == 0) {
             let used = self.rest_tick(turns);
@@ -3943,7 +3990,7 @@ impl Game {
             tier: p.tier.name().into(),
             worth: salvage_coins(&p.items, p.pct, self.lineage.gold_carry),
             auto_keep: auto_keep_plan(p, &self.lineage.vault, self.lineage.vault_slots(), &self.lineage.keep_pref, true).0,
-            decide: keep_is_a_decision(p, &self.lineage.vault, self.lineage.vault_slots()),
+            decide: keep_is_a_decision(p, &self.lineage.vault, self.lineage.vault_slots()) && !crate::tree::on(&self.lineage, "keeper"),
             note: keep_note(p, &self.lineage, &auto_keep_plan(p, &self.lineage.vault, self.lineage.vault_slots(), &self.lineage.keep_pref, true).0),
         })
     }
@@ -4257,6 +4304,10 @@ impl Game {
     /// class XP and renown; a dead heir's kit stays on the floor as bones.
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
+        // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout)
+        if !self.sim {
+            self.lineage.tree.sent = false;
+        }
         let tier = run.over.unwrap_or(ExitTier::Return);
         // Yield follows the exit (Cut 2 §2); a timed-out run yields nothing.
         let pct: i32 = run.yield_pct(tier);
@@ -5283,6 +5334,14 @@ impl Game {
 
     /// Finalise the exit's vault choice: chosen ids go to the vault, the rest are salvaged.
     pub fn keep(&mut self, ids: Vec<u32>) -> Result<(), String> {
+        // Cut 30.5: a keep sheet answered by hand counts toward the keeper
+        if self.pending_exit.as_ref().is_some_and(|p| keep_is_a_decision(p, &self.lineage.vault, self.lineage.vault_slots())) {
+            crate::tree::did(&mut self.lineage, "keep");
+        }
+        self.keep_settle(ids)
+    }
+
+    fn keep_settle(&mut self, ids: Vec<u32>) -> Result<(), String> {
         let Some(p) = self.pending_exit.take() else { return Err("nothing to keep".into()) };
         let slots = self.lineage.vault_slots();
         // QA on 92eb880 (qaM: the sheet's `aggravate $2`, the report's `aggravate ×1 · $1`): an
@@ -5391,7 +5450,7 @@ impl Game {
                 p.items.extend(out);
             }
         }
-        let _ = self.keep(ids);
+        let _ = self.keep_settle(ids);
     }
 
     pub fn vocabulary(&self) -> Vocabulary {
@@ -5429,6 +5488,14 @@ impl Game {
 
     /// Choose which owned companions go on the next expedition.
     pub fn set_party(&mut self, ids: Vec<u32>) -> Result<(), String> {
+        self.set_party_by(ids, true)
+    }
+
+    /// `set_party`; `by_hand` counts toward the kennel-hand (a worker's fielding does not).
+    pub fn set_party_by(&mut self, ids: Vec<u32>, by_hand: bool) -> Result<(), String> {
+        if by_hand && !ids.is_empty() {
+            crate::tree::did(&mut self.lineage, "field");
+        }
         let slots = self.lineage.party_slots() as usize;
         let mut all: Vec<Companion> = std::mem::take(&mut self.lineage.party);
         all.append(&mut self.lineage.kennel);
@@ -5510,6 +5577,7 @@ impl Game {
             return Err("50 gold needed".into());
         }
         self.lineage.gold_move(-50, "hatch");
+        crate::tree::did(&mut self.lineage, "field");
         let e = self.lineage.eggs.remove(i);
         self.hatch_egg(e);
         Ok(())
@@ -5651,6 +5719,7 @@ impl Game {
         self.lineage.insured.retain(|x| *x != id);
         self.loadout.retain(|x| *x != id);
         let coins = self.salvage(std::slice::from_ref(&it), 100);
+        crate::tree::did(&mut self.lineage, "keep");
         Ok(coins.iter().sum())
     }
 
