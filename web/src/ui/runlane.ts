@@ -78,7 +78,7 @@ function laneRow(app: App, x: HeroLane, i: number, hooks: LaneHooks, hasRuns: bo
       : h("span", { class: "lane-state" }, beat, h("b", { class: "ls-w" }, /* copy:label */ "waits"), " ", h("span", { class: "ls-go" }, /* copy:label */ "▸ send"));
   // the gauge: hp while down there, the rest draining at home (full = just back), nothing while he waits
   const pct = x.state === "live" && x.max_hp ? Math.max(0, Math.min(1, (x.hp ?? 0) / x.max_hp)) : x.state === "rests" ? restShare(x.rest_s ?? 0) : 0;
-  const gauge = x.state === "waits" ? "" : h("span", { class: `lane-gauge ${x.state === "live" ? "hp" : "rest"}`, "data-pct": Math.round(pct * 100) },
+  const gauge = x.state === "waits" ? "" : h("span", { class: `lane-gauge ${x.state === "live" ? "g-hp" : "g-rest"}`, "data-pct": Math.round(pct * 100) },
     h("span", { class: "fill", style: `width:${Math.round(pct * 100)}%` }), x.state === "live" && x.max_hp ? h("small", { class: "num" }, `${x.hp}/${x.max_hp}`) : "");
   // the climb goes on by itself: `auto` lit (the scout's), else greyed with his count — a preview, never a sentence
   const auto = kwHost(h("span", { class: `lane-auto${x.auto ? " on" : ""}`, "data-auto": x.auto ? "1" : "0" }, h("span", { class: "la-g", "aria-hidden": "true" }, x.auto ? "↻" : "⊘"), /* copy:label */ "auto",

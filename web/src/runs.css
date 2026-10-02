@@ -29,7 +29,7 @@ button.lane:active { transform: translateY(1px); background: rgba(31, 31, 49, .9
 @media (prefers-reduced-motion: reduce) { .lane .lane-beat { animation: none !important; } }
 .lane .lane-gauge { position: relative; flex: 1; min-width: 36px; max-width: 260px; height: 6px; border-radius: 3px; background: rgba(77, 108, 153, .3); overflow: visible; }
 .lane .lane-gauge .fill { display: block; height: 100%; border-radius: 3px; background: var(--moon); }
-.lane .lane-gauge.hp .fill { background: linear-gradient(90deg, var(--clot), var(--blood)); }
+.lane .lane-gauge.g-hp .fill { background: linear-gradient(90deg, var(--clot), var(--blood)); }
 .lane .lane-gauge small { position: absolute; right: 0; top: -13px; font-size: 10px; color: var(--dim); }
 .lane[data-state="waits"] .lane-state { flex: 1; }
 .lane .lane-auto { flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 9px; font-size: 12px;

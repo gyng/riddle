@@ -132,7 +132,11 @@ try {
     await until(() => !!document.querySelector(".console .tile[data-tile=town]:not([disabled])"), "the town tile again", 15_000);
     await page.locator(".console .tile[data-tile=town]").click();
     await camp();
-    const rec = await until((id) => (window.__riddle.lineage.runs ?? []).find((r) => r.id === id) ?? null, "the run's end in the log", 240_000, run);
+    // (the town plays it on at the clock's pace; a run that no longer ends at its record can take many minutes — the clock jumps ahead:
+    // the same unwatched `advance` the town's runner makes, in long steps)
+    await sleep(3000);
+    await page.evaluate(async (id) => { const r = window.__riddle; for (let k = 0; k < 900; k++) { const a = await r.engine.advance(20_000); if (a.ended.includes(id) || !a.live) break; } await r.refresh(); }, run);
+    const rec = await until((id) => (window.__riddle.lineage.runs ?? []).find((r) => r.id === id) ?? null, "the run's end in the log", 60_000, run);
     await sleep(1200);
     const s2 = await lanes(), l2 = await L();
     await shot("live-ended");
