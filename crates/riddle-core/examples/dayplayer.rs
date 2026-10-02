@@ -27,7 +27,9 @@ enum Bot {
     /// Cut 30.5: Cut 30's IDLE, the reference for IDLE's bounded delta — the workers up to the scout given at
     /// the start (an old save's mapping), no first session: the cut30-client fortnight
     Idle30,
-    /// Cut 30.5 (the owner, 2026-10-02): the away player — PICKED at one check-in a day (automation pays here)
+    /// Cut 30.5 (the owner, 2026-10-02): the daily player — PICKED at one check-in a day (workers never cost a floor)
+    Daily,
+    /// Cut 30.5 (the owner): the away player — PICKED looking in every 2–3 days (workers pay here)
     Away,
 }
 
@@ -40,6 +42,7 @@ impl Bot {
             Bot::Random => "RANDOM",
             Bot::Hands => "HANDS",
             Bot::Idle30 => "IDLE30",
+            Bot::Daily => "DAILY",
             Bot::Away => "AWAY",
         }
     }
@@ -256,6 +259,11 @@ const HIRE_S: f64 = 5.0;
 /// The engaged bots (PICKED, TUNED) stay this long in the first session, tapping SEND whenever the hero is
 /// home; the others leave once the scout is hired.
 const STAY_S: f64 = 45.0 * 60.0;
+
+/// The away player's check-in days: every 2–3 days (days 0, 3, 5, 8, 10, 13).
+fn away_checkin(day: usize) -> bool {
+    (day * 2) % 5 < 2
+}
 
 /// One send by hand, played out as the client's unwatched slice: the run in flight, home. Its game seconds.
 fn send_once(g: &mut Game, out: &mut SeedOut) -> f64 {
@@ -498,12 +506,16 @@ fn answer(cfg: &Cfg, q: Q) -> u8 {
         Q::Arm => match cfg.bot {
             Bot::Idle => 0,
             Bot::Random => 1,
-            Bot::Picked | Bot::Tuned | Bot::Away => 2,
+            Bot::Picked | Bot::Tuned | Bot::Daily | Bot::Away => 2,
             Bot::Hands => 3,
             Bot::Idle30 => 4,
         },
         Q::Tuned => (cfg.bot == Bot::Tuned && cfg.has("pen")) as u8,
-        Q::Cadence => (cfg.bot == Bot::Away) as u8,
+        Q::Cadence => match cfg.bot {
+            Bot::Daily => 1,
+            Bot::Away => 2,
+            _ => 0,
+        },
         Q::Has(s) => cfg.has(s) as u8,
     }
 }
@@ -566,7 +578,7 @@ struct Play {
 
 impl Play {
     fn new(seed: u64, days: usize, checkins: u64, verbose: bool, ask: &Ask) -> Play {
-        let checkins = if ask.q(Q::Cadence) == 1 { 1 } else { checkins };
+        let checkins = if ask.q(Q::Cadence) > 0 { 1 } else { checkins };
         let interval = 24 * 3600 / checkins;
         let mut g = Game::new(seed);
         if !ask.has("quests") {
@@ -654,11 +666,15 @@ impl Play {
                 }
             }
             let hours_now = hours;
-            let arm = ask.q(Q::Arm);
+            // (Cut 30.5, the owner: the away player looks in every 2–3 days — between, the absence runs on alone)
+            let present = ask.q(Q::Cadence) != 2 || away_checkin(day);
+            let arm = if present { ask.q(Q::Arm) } else { 99 };
             // Cut 30.5: the camp's taps of the works tree (the chest, the hires) before the bot's own
-            camp_taps(g, ask, arm, out, hours_now);
+            if present {
+                camp_taps(g, ask, arm, out, hours_now);
+            }
             match arm {
-                0 | 4 => {}
+                0 | 4 | 99 => {}
                 3 => hands_chores(g),
                 1 => {
                     // a random package each check-in, blind: any arrived one (the worn one included)
@@ -795,8 +811,10 @@ impl Play {
                 }
             }
             // a vault brought along (a human sends the heir out with what it has; every bot)
-            let ids: Vec<u32> = g.lineage.vault.iter().map(|i| i.id).collect();
-            g.loadout(ids);
+            if present {
+                let ids: Vec<u32> = g.lineage.vault.iter().map(|i| i.id).collect();
+                g.loadout(ids);
+            }
             note_nodes(g, out, hours_now);
         }
         self.ci += 1;
@@ -978,7 +996,7 @@ fn main() {
     let verbose = a.iter().any(|x| x == "--verbose");
     let loo = a.iter().any(|x| x == "--loo") || gate;
     let only = a.iter().position(|x| x == "--only").and_then(|i| a.get(i + 1)).and_then(|s| s.parse::<u64>().ok());
-    let bots_arg = a.iter().position(|x| x == "--bots").and_then(|i| a.get(i + 1)).cloned().unwrap_or_else(|| "idle,picked,tuned,random,hands,away".into());
+    let bots_arg = a.iter().position(|x| x == "--bots").and_then(|i| a.get(i + 1)).cloned().unwrap_or_else(|| "idle,picked,tuned,random,hands,daily,away".into());
     let mut cfgs: Vec<Cfg> = bots_arg
         .split(',')
         .filter_map(|b| match b {
@@ -988,6 +1006,7 @@ fn main() {
             "random" => Some(Bot::Random),
             "hands" => Some(Bot::Hands),
             "idle30" => Some(Bot::Idle30),
+            "daily" => Some(Bot::Daily),
             "away" => Some(Bot::Away),
             _ => None,
         })
@@ -1003,9 +1022,11 @@ fn main() {
         // (Cut 30.5: PICKED by hand — the trunk to the scout alone hired; nothing required)
         cfgs.push(Cfg { bot: Bot::Picked, without: Some("nodes") });
     }
-    if cfgs.iter().any(|c| c.bot == Bot::Away) {
-        // (Cut 30.5, the owner: the away player by hand — automation pays)
-        cfgs.push(Cfg { bot: Bot::Away, without: Some("nodes") });
+    for b in [Bot::Daily, Bot::Away] {
+        if cfgs.iter().any(|c| c.bot == b) {
+            // (Cut 30.5, the owner: the same player doing every chore by hand at its check-ins)
+            cfgs.push(Cfg { bot: b, without: Some("nodes") });
+        }
     }
     if loo || loo_only.is_some() {
         for s in SYSTEMS {
@@ -1023,7 +1044,7 @@ fn main() {
     let loo_seeds = get("--loo-seeds", 4);
     // (TUNED is a leave-one-out's base: the same seeds, `--tuned-seeds`, the bots' own by default)
     let tuned_seeds = get("--tuned-seeds", seeds);
-    let seeds_of = |c: usize| if cfgs[c].bot == Bot::Away { seeds } else if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else if cfgs[c].bot == Bot::Tuned { tuned_seeds.min(seeds) } else { seeds };
+    let seeds_of = |c: usize| if matches!(cfgs[c].bot, Bot::Away | Bot::Daily) { seeds } else if cfgs[c].without.is_some() { loo_seeds.min(seeds) } else if cfgs[c].bot == Bot::Tuned { tuned_seeds.min(seeds) } else { seeds };
     // Per-job results are kept under `target/gates/dp/` (a job is a pure function of the code, the bot, the
     // seed and the days): a rerun reprints at once, and an interrupted run resumes where it stopped. The key
     // is the binary's own hash, or — under `tools/gates.mjs`, which sets `RIDDLE_SRC_KEY` to the hash of the
@@ -1423,13 +1444,20 @@ fn main() {
     // hand at that check-in: D18 sooner on the median seed, or a better mean best depth over the fortnight)
     let away = by("AWAY");
     let away_hand = by("AWAY-nodes");
+    let mean_best = |v: &[SeedOut]| v.iter().map(|o| o.depth_area as f64 / o.best_day.len().max(1) as f64).sum::<f64>() / v.len().max(1) as f64;
     if !away.is_empty() && !away_hand.is_empty() {
         let n = away.len().min(away_hand.len());
         let (a, b) = (&away[..n], &away_hand[..n]);
         let (ma, mb) = (median(a.iter().map(|o| hours_or(o, 2, cap)).collect()), median(b.iter().map(|o| hours_or(o, 2, cap)).collect()));
-        let depth = |v: &[SeedOut]| v.iter().map(|o| o.depth_area as f64 / o.best_day.len().max(1) as f64).sum::<f64>() / v.len().max(1) as f64;
-        let (da, db) = (depth(a), depth(b));
-        bars.push(("Automation pays the away player (1 check-in a day): D18 sooner or a deeper mean best".into(), format!("D18 {ma:.0} vs {mb:.0} h · mean best {da:.2} vs {db:.2}"), ma < mb || da > db));
+        let (da, db) = (mean_best(a), mean_best(b));
+        bars.push(("Workers pay the away player (in every 2–3 days): D18 sooner or a deeper mean best".into(), format!("D18 {ma:.0} vs {mb:.0} h · mean best {da:.2} vs {db:.2}"), ma < mb || da > db));
+    }
+    let daily = by("DAILY");
+    let daily_hand = by("DAILY-nodes");
+    if !daily.is_empty() && !daily_hand.is_empty() {
+        let n = daily.len().min(daily_hand.len());
+        let (da, db) = (mean_best(&daily[..n]), mean_best(&daily_hand[..n]));
+        bars.push(("Workers never cost the daily player a floor: mean best ≥ by hand − 1".into(), format!("{da:.2} vs {db:.2}"), da >= db - 1.0));
     }
     if !idle30.is_empty() && !idle.is_empty() {
         let n = idle.len().min(idle30.len());

@@ -193,6 +193,11 @@ pub fn buy(game: &mut Game, slot: &str) -> Result<(), String> {
 
 /// Buy the next step of `slot` from the purse (the apprentice's, and `buy`'s).
 pub fn buy_step(l: &mut LineageState, slot: &str) -> Result<(), String> {
+    buy_step_off(l, slot, 0)
+}
+
+/// `buy_step` at `off` percent off the price (Cut 30.5: the apprentice's rank).
+pub fn buy_step_off(l: &mut LineageState, slot: &str, off: u32) -> Result<(), String> {
     if !KIT_SLOTS.contains(&slot) {
         return Err("unknown slot".into());
     }
@@ -202,6 +207,7 @@ pub fn buy_step(l: &mut LineageState, slot: &str) -> Result<(), String> {
         return Err("top of the ladder".into());
     }
     let p = price(l, slot, n) as i32;
+    let p = p - p * off.min(100) as i32 / 100;
     if crate::tree::purse(l) < p {
         return Err("not enough gold".into());
     }
