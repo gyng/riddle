@@ -56,8 +56,8 @@ diagonal neighbour is grass, else `dirt_<0..2>`; one → `edge_<s>`; two adjacen
 | `town_mouth_timber`, `_gate` | ~390 × 256 | ~97 × 64 | later mouths | |
 | `town_campfire_0`, `_1` | 69 × 64 | 17 × 16 | campfire, 2 frames (~180 ms) | EMBER dot + `v_rest` |
 | `town_tent` | 133 × 128 | 33 × 32 | the hero's tent (= portrait) | DUSK block + `camp` |
-| `town_crate` | 44 × 48 | 11 × 12 | supply crate (= the pack) | UMBRA block + `loadout` |
-| `town_plot` | 71 × 64 | 18 × 16 | staked plot (the next building) | outline + `alert` |
+| `town_crate` | 51 × 64 | 13 × 16 | supply pile: crate, backpack, bedroll (= the pack) | UMBRA block + `loadout` |
+| `town_plot` | 69 × 64 | 17 × 16 | staked plot: stakes, string, a BLOOD rag (the next building) | outline + `alert` |
 | `town_scaffold` | 197 × 224 | 49 × 56 | scaffold (the build beat) | outline block |
 | `town_board` | 95 × 112 | 24 × 28 | notice board by the mouth (the quest) | UMBRA block + `chronicle` |
 | `town_flag_0`, `_1` | 82 × 144 | 20 × 36 | BLOOD flag on a pole, 2 frames | |
@@ -68,8 +68,8 @@ diagonal neighbour is grass, else `dirt_<0..2>`; one → `edge_<s>`; two adjacen
 |---|---|---|---|---|
 | `town_blacksmith_1` / `_2` / `_3` | 328 / 339 / 323 × 256 | ~82 × 64 | look 1; looks 2–3 by forge steps | DUSK block + `forge` |
 | `town_storehouse_1` (`_2`, `_3` exist) | 285 × 256 | 71 × 64 | look 1 | DUSK block + `vault` |
-| `town_kennel_1` (`_2`, `_3` exist) | 285 × 256 | 71 × 64 | look 1 | DUSK block + `party` |
-| `town_bank_1` / `_2` / `_3` | 258 / 315 / 385 × 256 | 64 / 79 / 96 × 64 | look 1; looks 2–3 by the bank cap | DUSK block + `gold` |
+| `town_kennel_1` (`_2`, `_3` exist) | 371 × 256 | 93 × 64 | (a dog house, a dog in the pen, a bone sign) look 1 | DUSK block + `party` |
+| `town_bank_1` / `_2` / `_3` | 308 / 291 / 386 × 256 | 77 / 73 / 97 × 64 | (a big GILT coin sign, a strongbox of coins) look 1; looks 2–3 by the bank cap | DUSK block + `gold` |
 
 ## Walkers and carry (keyed)
 
