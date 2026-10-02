@@ -1,0 +1,30 @@
+/* docs/TOOLTIPS.md — keyword marks and the tip plate. A mark is a fine dotted GILT underline: the word keeps its colour, weight and
+   metrics (no layout shift); a learned or over-budget keyword is plain text. The plate is BONE on UMBRA in the rule tablets' iron frame. */
+.kw, [data-kwh] { -webkit-touch-callout: none; }
+.kw { text-decoration: underline dotted transparent; text-decoration-thickness: 1px; text-underline-offset: .22em; text-decoration-skip-ink: none;
+  transition: text-decoration-color .6s ease-out; -webkit-user-select: none; user-select: none; }
+.kw.kw-on { text-decoration-color: var(--gilt); cursor: help; }
+:is(.sheet, .panel, .parchment, .report-sheet) .kw.kw-on { text-decoration-thickness: 1.5px; }
+.kw.kw-on:focus-visible, [data-kwh]:not(button):focus-visible { outline: 1px dotted var(--gilt); outline-offset: 2px; }
+@media (hover: hover) { .kw:hover, [data-kwh]:not(button):hover { cursor: help; } }
+.kw.kw-open { text-decoration-color: var(--bone); }
+:is(.sheet, .panel, .parchment, .report-sheet) .kw.kw-open { text-decoration-color: var(--ink); }
+
+.kw-tip { position: fixed; left: 0; top: 0; z-index: 3000; max-width: min(240px, calc(100vw - 16px)); padding: 6px 10px 7px; pointer-events: auto;
+  background: var(--umbra); color: var(--bone); border: 1px solid var(--dusk); border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(164, 188, 214, .18), 0 6px 18px rgba(13, 12, 20, .8);
+  font: 400 14px/1.25 var(--sans); letter-spacing: .01em; text-transform: none; text-align: left; white-space: normal;
+  animation: kwtip .12s ease-out; }
+.kw-tip[hidden] { display: none; }
+.skin-tablet .kw-tip { border: 7px solid transparent; border-image: url(/ui/frames/tablet.png) 24 fill / 7px stretch; background: none; padding: 1px 4px 2px; border-radius: 0; }
+.kw-tip-head { display: flex; align-items: center; gap: 5px; font: 600 15px/1.15 var(--display); color: var(--bone); letter-spacing: .02em; }
+.kw-tip-head .ico { width: 16px; height: 16px; flex: none; }
+.kw-tip-head .ico.glyph::before { font-size: 12px; line-height: 16px; }
+.kw-tip-gloss { color: var(--mist); }
+.kw-tip-live { color: var(--gilt); white-space: nowrap; }
+.kw-tip .kw-n { text-decoration: underline dotted var(--gilt); text-underline-offset: .22em; cursor: help; }
+.kw-tip-sub { margin-top: 4px; padding-top: 4px; border-top: 1px solid rgba(164, 188, 214, .2); color: var(--mist); font-size: 13px; }
+.kw-tip-sub b { color: var(--bone); font-weight: 600; }
+@keyframes kwtip { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .kw-tip { animation: none; } .kw { transition: none; } }
+html[data-juice="off"] .kw-tip { animation: none; }

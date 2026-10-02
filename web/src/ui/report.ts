@@ -33,6 +33,7 @@ import { oathProgress } from "./oaths";
 import { grewBlock, heroFace } from "./tracks";
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
+import { kw, kwText } from "./tips";
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
@@ -230,7 +231,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // what it counts, `runs banked` (the key stays the one word, `data-k`)
   const SAYS: Record<string, string> = /* copy:label */ { banked: "runs banked", returned: "runs returned", stalled: "runs stalled" };
   const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile plaque", "data-k": label }, icon(PLAQUE[label] ?? "depth"),
-    h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, SAYS[label] ?? label));
+    h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, ...kwText(SAYS[label] ?? label, ["banked", "returned", "marks", "death"])));   // docs/TOOLTIPS.md
   // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
   const exits = r.banked !== undefined || r.returned !== undefined;
   // a stall is inside the core's `returned` (a return that kept nothing); the tiles count it apart — `returned` is the returns
@@ -399,7 +400,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
   const stall = r.stall ? h("section", { class: "rsec stall" },
-    h("div", { class: "label" }, /* copy:label */ "plateau"),   // every run came home, none deeper — not a stalled run (QA on 56f2a1d: `STALL` over `14 RETURNED`)
+    h("div", { class: "label" }, kw("plateau")),   // every run came home, none deeper — not a stalled run (QA on 56f2a1d: `STALL` over `14 RETURNED`)
     h("div", { class: "stall-line num" }, r.stall.text, " ", traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
     r.stall.patches.length ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
   // Cut 2 §2: one line per pile recovered this send (the core sends `heir 3 · D7 · 4 items`, `bones:7:4` too; the watch

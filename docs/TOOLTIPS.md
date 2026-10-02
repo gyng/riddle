@@ -51,12 +51,12 @@ but none of them mark words in chrome at rest as often as a text-light idle UI w
 
 | Screen | Marked (at most, before the budget) | Quiet tip (hover / long-press) |
 |---|---|---|
-| top bar | `heir` | `$` gold, `◆` marks, `★` renown, `best D` |
-| town | — | the buildings (bank, forge, vault, kennel, quest board, the mouth, the next plot), the building bar's tiles |
-| packages | `packages`, `stance`, `tactic`, `temperament`, `drills`, `scarred`, `reach` | the package chips |
+| top bar | `heir` | `$` gold (a button: long-press), `◆` marks, `★` renown, `best D` (stats: a tap opens) |
+| town | — | the buildings (bank, forge, vault, kennel, quest board, the crate, the next plot), every console tile (packages, quest, loadout, forge, vault, kennel, bank, edit) |
+| packages | `packages`, `stance`, `tactic`, `temperament`, `drills`, `scarred`, `reach`; the camp strip's slot word (in its button) | — |
 | tracks | `tracks` | — |
 | quest | `quest` | — |
-| report | the grew lines (`package`, `bank` …), `banked`, `returned`, `marks`, `plateau` | the beat plaques |
+| report | the grew lines (`package`, `bank` …), `banked`, `returned`, `marks`, `deaths`, `plateau` | — |
 | death | — | the seal (its verdict), the lever tablet |
 | forecast / shaft | `reach`, `ends` | the shaft (`reach`) |
 | the pen | `priority`, `condition`, `action` | — |
