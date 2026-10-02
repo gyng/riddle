@@ -319,15 +319,20 @@ export type TownView = {
 };
 const IDLE_MS = 10_000, IDLE_FPS = 20, SOFT_FPS = 8;
 
+let sharedAtlas: TownAtlas | null = null;
+let sharedGl: { canvas: HTMLCanvasElement; gl: GLTown; lost: boolean } | null = null;
 export function createTownView(host: HTMLElement): TownView {
   const el = host;
-  const glCanvas = document.createElement("canvas");
+  // one GL canvas and context for every mount (a camp re-mounts on every return): taken here, given back on dispose
+  const kept = sharedGl && !sharedGl.gl.isLost() ? sharedGl : null; if (sharedGl && !kept) sharedGl.gl.dispose(); sharedGl = null;
+  const glCanvas = kept?.canvas ?? document.createElement("canvas");
   glCanvas.className = "town-gl";
   glCanvas.setAttribute("aria-hidden", "true");
   el.appendChild(glCanvas);
-  const atlas = new TownAtlas();
+  const atlas = (sharedAtlas ??= new TownAtlas());   // one sheet for every mount (the camp re-mounts on every return; the cuts are not free)
   let gl: GLTown | null = null;
-  try { gl = new GLTown(glCanvas, atlas); } catch (e) { console.warn("town: no WebGL, the 2D view stands in", e); gl = null; }
+  if (kept) { gl = kept.gl; gl.restored(); }
+  else try { gl = new GLTown(glCanvas, atlas); } catch (e) { console.warn("town: no WebGL, the 2D view stands in", e); gl = null; }
   let c2d: HTMLCanvasElement | null = null;
   const view2d = (): HTMLCanvasElement => {
     if (c2d) return c2d;
@@ -335,8 +340,10 @@ export function createTownView(host: HTMLElement): TownView {
     el.appendChild(c2d); return c2d;
   };
   let glLost = false;
-  glCanvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); glLost = true; layoutDirty = true; });
-  glCanvas.addEventListener("webglcontextrestored", () => { glLost = false; gl?.restored(); layoutDirty = true; });
+  const onLost = (e: Event): void => { e.preventDefault(); glLost = true; layoutDirty = true; };
+  const onRestored = (): void => { glLost = false; gl?.restored(); layoutDirty = true; };
+  glCanvas.addEventListener("webglcontextlost", onLost);
+  glCanvas.addEventListener("webglcontextrestored", onRestored);
 
   let state: TownState | null = null;
   let walkers: Walker[] = [];
@@ -706,7 +713,11 @@ export function createTownView(host: HTMLElement): TownView {
       disposed = true; if (raf) cancelAnimationFrame(raf); raf = 0;
       document.removeEventListener("visibilitychange", onVis);
       for (const ev of inputs) window.removeEventListener(ev, poke);
-      ro?.disconnect(); gl?.dispose(); glCanvas.remove(); c2d?.remove();
+      ro?.disconnect(); glCanvas.removeEventListener("webglcontextlost", onLost); glCanvas.removeEventListener("webglcontextrestored", onRestored);
+      glCanvas.remove(); c2d?.remove();
+      // the context is kept for the next mount (never left for the browser to reap: a dozen camps held a dozen contexts, and Chrome's
+      // cap then forced the oldest live one — the watch's — lost); a lost one is let go
+      if (gl && !glLost) { sharedGl?.gl.dispose(); sharedGl = { canvas: glCanvas, gl, lost: false }; } else gl?.dispose();
     },
   };
 }
@@ -786,6 +797,8 @@ class GLTown {
     this.blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mat));
   }
   restored(): void { this.groundKey = ""; this.atlasV = -1; this.tex.needsUpdate = true; }
+  /** the GL context is gone (forced lost on dispose, or by the browser) */
+  isLost(): boolean { return this.renderer.getContext().isContextLost(); }
   render(F: TownFrame): void {
     const r = this.renderer;
     if (this.canvas.width !== F.W || this.canvas.height !== F.H) r.setSize(F.W, F.H, false);
@@ -808,5 +821,7 @@ class GLTown {
     u.uN!.value = n; (u.uOrigin!.value as THREE.Vector2).set(F.x0, F.y0); u.uTime!.value = performance.now() / 1000;
     r.setRenderTarget(null); r.render(this.blitScene, this.blitCam);
   }
-  dispose(): void { this.groundL.dispose(); this.objL.dispose(); this.mat.dispose(); this.rt.dispose(); this.tex.dispose(); this.renderer.dispose(); }
+  // (the context is let go, not left for the browser to reap: a camp mounted a dozen times held a dozen contexts, and Chrome's cap
+  // then forced the oldest live one — the watch's — lost)
+  dispose(): void { this.groundL.dispose(); this.objL.dispose(); this.mat.dispose(); this.rt.dispose(); this.tex.dispose(); this.renderer.dispose(); this.renderer.forceContextLoss(); }
 }
