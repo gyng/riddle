@@ -256,7 +256,7 @@ fn bank_at(best: u32, extra: u32) -> i32 {
 pub const STEADY_HOME: i32 = 25;
 /// Out of heals, Steady goes home under this.
 pub const STEADY_DRY: i32 = 40;
-pub const GUARDED_HOME: i32 = 45;
+pub const GUARDED_HOME: i32 = 30;
 pub const HUNTER_HOME: i32 = 20;
 
 /// A walking stance's way home: hurt under `hurt` % — a bank once past the record (the checkpoints secured the carry
@@ -335,7 +335,7 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
         // to 35 %.
         "guarded" => {
             let mut g = vec![drink];
-            g.extend(home_rows(best, if level >= 5 { 35 } else { GUARDED_HOME }, 60));
+            g.extend(home_rows(best, if level >= 5 { 25 } else { GUARDED_HOME }, 45));
             if level >= 3 {
                 // (a telegraphed blow is met with a drink, not a step back: `telegraph → retreat` looped
                 // retreat ↔ explore on ~3 % of sends — the stall row)

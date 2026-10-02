@@ -394,7 +394,8 @@ fn by_hand_rest(g: &mut Game, ask: &Ask) {
     if !tree::on(l, "herald") && riddle_core::town::quests_open(l) && l.town.quest.as_ref().is_some_and(|q| !q.done && q.day < riddle_core::town::today(l)) && l.town.swap_day != Some(l.day) {
         let _ = g.swap_quest();
     }
-    if !tree::on(&g.lineage, "guide") {
+    // (`DP_OFF=guide`: a probe without the guide's starts at all, by hand or by the worker)
+    if !tree::on(&g.lineage, "guide") && !std::env::var("DP_OFF").is_ok_and(|v| v.split(',').any(|x| x == "guide")) {
         if let Some(s) = guide_pick(g) {
             let _ = g.set_start(s);
         }
