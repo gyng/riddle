@@ -317,7 +317,7 @@ export type TownView = {
   poke(): void;
   dispose(): void;
 };
-const IDLE_MS = 10_000, IDLE_FPS = 20, SOFT_FPS = 8;
+const IDLE_MS = 10_000, IDLE_FPS = 20, SOFT_FPS = 2;
 
 let sharedAtlas: TownAtlas | null = null;
 let sharedGl: { canvas: HTMLCanvasElement; gl: GLTown; lost: boolean } | null = null;
