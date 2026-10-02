@@ -158,6 +158,25 @@ without the player, which the lane now shows.
 - the lanes render N rows from an array (1 and 3 heroes, fake), a 4th folds into `+1`;
 - the manual phase: day 0 `waits` with the gem lit and the scout's count, the lane inert, the log hidden; after run 1 the log has one entry.
 
-## 9. Results
+## 9. Results (2026-10-02)
 
-*(filled at the end of the build)*
+- **Built.** Core: `advance`, `Lineage.{runs, live, replays, clock_s, absences}`, replay capsules and `replay(id)` (§5). Client:
+  `ui/runlane.ts` (the lanes, `lanesOf`, the log's stud, the town tile's first-watches caption), `ui/runs.ts` (the log: folds, entries,
+  the `heirs` tab, a run's card, the replay sheet), `runs.css`; the open app's clock in `app.ts` (`runTick` every second; `absence` on
+  boot and on a tab back after ≥ 60 s; `leaveWatch`); the watch's `town ↻` tile and `● live · ↻ auto` badge; the gem's `watch`; the
+  tent's log; the report's `runs` tile opens the log; the chronicle tile folded into the log; wire in `types.ts` / `fake.ts` / `wasm.ts`.
+- **Merged**: c305-core (to fcfe738: a record is a beat and a checkpoint — the core's `new best · D5` callout is drawn as run-clear's
+  gilt stamp, once; `secured` on the card and the entries; the new exit reasons) and c305-runclear (to 27ea347: the card is an entry's
+  detail; finds as rarity gems).
+- **Gates.** `web/tests/runsui.mjs` 41/41 (manual · live · replay · rests · log · density · heroes): the lane `waits ▸ send` → `live D1`
+  (tick 56 → 83 in the town after `town ↻`) → `waits`, the log from run 1; the lane opens the watch on the same run; a watched run of
+  1 339 events hashes the same as its replay (4 floors, played to the end); `rests 20m left` with `↻ auto`, the next run down by
+  itself; an absence folds as `away · 4 runs`, the town's as `here`; elements above the fold: day 0 7, mid-game 12, three lanes 11.
+  `cargo test` 481 (+1 ignored), clippy `-D warnings` clean, tsc, copy-lint 0. Client suite: see the hand-off (flakes rerun alone).
+- **Blind check** (three fresh readers in turn, ≤ 20 tool calls / ≤ 12 images, the home · the log · the watch). Q2 (what happened while
+  away) 3/3 every round (sure 4–5). Q1 (is he doing something) right every round (resting, goes back by itself), sure 3–4 — fixed after
+  round 1: `13m` read as spent or left → `13m left`. Q3 (watch live; leaving) round 1: live vs replay unclear and what leaving does →
+  the HUD's `● live · ↻ auto`; round 2: live clear, leaving unclear → `↻ he keeps going` beside `town` for the first watches; round 3:
+  "the caption suggests the run carries on if I leave" (sure 3). Readers rate the home's clutter 3–4 (the town's price bubbles, `2/3`,
+  `fights only`; not the lane).
+- **Shots**: `scratchpad/runsui/shots/` (headed GPU, phone 400 × 800 at 2×, desktop 1440 × 900), `scratchpad/runsui/sheet.png`.
