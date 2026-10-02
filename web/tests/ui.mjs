@@ -59,10 +59,13 @@ const patchSave = (fn) => page.evaluate(async (src) => {
   return r.importSave(JSON.stringify(b));
 }, `(${fn})(e)`);
 /** The interactive elements a player sees above the fold (buttons, inputs, links), open sheets included. */
+// (Cut 30 §3: inside every scrolling box around it too — the town fills the well's first screen, the tablets scroll under it)
 const interactive = () => page.evaluate(() => [...document.querySelectorAll("button, input, select, textarea, a[href], [role=button]")].filter((b) => {
   if (b.closest("[inert]") || !b.getClientRects().length || getComputedStyle(b).visibility === "hidden") return false;
   const r = b.getBoundingClientRect();
-  return r.bottom > 0 && r.top < innerHeight && r.width > 0 && r.height > 0;
+  let top = Math.max(0, r.top), bottom = Math.min(innerHeight, r.bottom);
+  for (let p = b.parentElement; p && bottom > top; p = p.parentElement) { if (getComputedStyle(p).overflowY === "visible") continue; const q = p.getBoundingClientRect(); top = Math.max(top, q.top); bottom = Math.min(bottom, q.bottom); }
+  return bottom - top > 1 && r.width > 0 && r.height > 0;
 }).map((b) => (b.getAttribute("aria-label") || b.textContent || b.className).replace(/\s+/g, " ").trim().slice(0, 24)));
 const tiles = () => page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((t) => ({ id: t.dataset.tile, reveal: t.classList.contains("reveal") })));
 const tileIds = async () => (await tiles()).map((t) => t.id);

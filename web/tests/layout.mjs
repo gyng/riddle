@@ -140,7 +140,7 @@ try {
     check(!!c.con && c.con.w >= 0.9 * c.W && c.con.b >= c.H - 2, `${what}: the console spans the bottom (${Math.round(c.con?.w ?? 0)} of ${c.W})`);
     check(c.over === 0 && c.scroll <= 1, `${what}: nothing wider than the viewport`);
   };
-  await three("desktop camp", { left: "main.camp .tablets", well: "main.camp .vista", right: "main.camp .shaft" });
+  await three("desktop camp", { left: "main.camp .tablets", well: "main.camp .town", right: "main.camp .shaft" });   // Cut 30 §3: the town stands where the vista stood
   await gemClear(d, "desktop camp");
   // a sheet from a tablet stands beside it
   const tab = d.locator("main.camp .row.tablet:not(.oath-tab)").first();
