@@ -46,6 +46,13 @@ async function waitFor(pred, label, timeout = 20_000) {
   }
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} booted=${s?.booted})`);
 }
+/** A forecast injected by a test must land after the camp's own (in flight at a mount, or the refine 1 s after it) — else the real one,
+ *  landing later, paints over it (a race under load). */
+async function quietForecast(max = 8_000) {
+  const t = Date.now();
+  while (Date.now() - t < max) { const q = await page.evaluate(() => { const r = window.__riddle; return !r.fcInFlight && !r.fcRunning && !!r.lastForecast?.refined; }).catch(() => true); if (q) break; await sleep(100); }
+  await sleep(100);
+}
 async function settle(max = 15_000) {
   const t = Date.now(); let clear = 0;
   while (Date.now() - t < max) { const s = await state(); clear = s && s.booted && !s.busy ? clear + 1 : 0; if (clear >= 2) break; await sleep(120); }
@@ -247,7 +254,7 @@ async function qaL() {
   await waitFor((x) => x?.screen === "camp", "camp"); await settle();
   await page.evaluate(() => { const r = window.__riddle; while (r.ownRows() < 3) r.insertRow({ conds: [{ k: "hp<", n: 40 + r.rules.rows.length }], verb: { v: "retreat" } }, r.rules.rows.length); r.go({ kind: "camp" }); });
   await settle();
-  const fake = (f) => page.evaluate((f) => { const r = window.__riddle; const b = r.lastForecast; const x = { ...b, ...f }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); }, f);
+  const fake = async (f) => { await quietForecast(); return page.evaluate((f) => { const r = window.__riddle; const b = r.lastForecast; const x = { ...b, ...f }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); }, f); };
   const depthsF = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i === 0 ? 0.5 : i === 1 ? 0.05 : 0, pm: 0.02 }));
   await fake({ depths: depthsF, known_to: 9, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0, return: 0.04, death: 0.66, stall: 0.3, gold: 3, pm: 0.03 }, refined: true });
   await sleep(150);
@@ -538,6 +545,7 @@ async function cut18() {
   // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · sealed by warlord`
   await page.evaluate(() => { const r = window.__riddle; r.engine.unlocks = async () => []; r.engine.unlockDeltas = async () => []; r.lineage = { ...r.lineage, best_depth: 8 }; r.go({ kind: "camp" }); });
   await settle();
+  await quietForecast();
   await page.evaluate(() => { const r = window.__riddle; const depths = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i < 8 ? 0.9 - i * 0.05 : 0, pm: 0.02, ...(i === 8 ? { wall: "goblin_warlord", cause: "goblin_warlord" } : {}) }));
     const x = { ...r.lastForecast, depths, known_to: 9, causes: [{ cause: "goblin_warlord", share: 1 }], refined: true }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); });
   await sleep(200);
