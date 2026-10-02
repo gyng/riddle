@@ -437,14 +437,32 @@ pub fn drill_rows(boss: &str, heal: i32) -> Vec<Row> {
         }
         row
     };
-    let mut rows = vec![guard(crate::facts::counter_row(boss))];
+    let mut rows = vec![guard(scope_drill_row(boss, crate::facts::counter_row(boss)))];
     if boss == "lich" {
-        rows.push(guard(r(vec![tag("boss")], Verb::arg("attack", "tag:boss"))));
+        rows.push(guard(scope_drill_row(boss, r(vec![tag("boss")], Verb::arg("attack", "tag:boss")))));
     }
     if boss == "foundry_master" {
         rows.push(guard(r(vec![tag("buffer"), n("depth>=", 19)], Verb::arg("attack", "tag:buffer"))));
     }
     rows
+}
+
+/// A boss's counter targets its known distinguishing tag, leaving unrelated bosses to their drill.
+/// Stored counter facts keep their original fingerprint; only generated/copy templates are scoped.
+fn scope_drill_row(boss: &str, mut row: Row) -> Row {
+    let tag = match boss {
+        "bloat_mother" => "gas",
+        "lich" => "undead",
+        "lurker_queen" => "blind",
+        "mirror_king" => "mirror",
+        _ => return row,
+    };
+    for cond in &mut row.conds {
+        if cond.k == "foe_tag" && cond.t.as_deref() == Some("boss") {
+            cond.t = Some(tag.into());
+        }
+    }
+    row
 }
 
 /// The item a drill's rows need packed (`fire` at the Mother, `silence` at the Queen).
@@ -459,6 +477,17 @@ fn tagged(rows: Vec<Row>, origin: &str) -> Vec<Row> {
     rows.into_iter().map(|row| row.from(origin)).collect()
 }
 
+/// A learned drill yields to the stance currently worn; stored rows and player rows stay intact.
+fn effective_drill_rows(d: &Drill, heal: i32) -> Vec<Row> {
+    d.rows.iter().cloned().map(|row| {
+        let mut row = scope_drill_row(&d.boss, row);
+        for cond in &mut row.conds {
+            if cond.k == "hp>" { cond.n = Some(heal); }
+        }
+        row
+    }).collect()
+}
+
 /// The compiled set of a lineage (see the module docs for the order).
 pub fn compile(l: &LineageState) -> RuleSet {
     let p = &l.pkg;
@@ -470,9 +499,10 @@ pub fn compile(l: &LineageState) -> RuleSet {
     }
     let level = p.level(&p.stance);
     let heal = heal_pct(&p.stance, level);
-    for d in p.drills.iter().filter(|d| !d.revoked) {
+    // Later counter drills precede older generic boss attacks. Player rows remain above them.
+    for d in p.drills.iter().rev().filter(|d| !d.revoked) {
         let origin = format!("drill:{}", d.boss);
-        rows.extend(d.rows.iter().cloned().map(|row| row.from(&origin)));
+        rows.extend(effective_drill_rows(d, heal).into_iter().map(|row| row.from(&origin)));
     }
     let origin = format!("stance:{}", p.stance);
     let (guard, fallback) = if p.stance == CUSTOM { (p.custom.clone(), Vec::new()) } else { stance_rows(&p.stance, level, best) };
@@ -484,7 +514,6 @@ pub fn compile(l: &LineageState) -> RuleSet {
         rows.extend(tagged(temperament_rows(t, p.level(t)), &format!("temper:{t}")));
     }
     rows.extend(tagged(fallback, &origin));
-    let _ = heal;
     // one row per card (the pen's own card row wins), and never the same row twice
     let mut out: Vec<Row> = Vec::new();
     let mut cards: Vec<String> = Vec::new();
@@ -1074,7 +1103,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
         temperament: p.temperament.clone(),
         temperament_open: temperament_open(l),
         offer: p.offer.clone(),
-        drills: p.drills.iter().map(|d| crate::wire::DrillWire { boss: d.boss.clone(), rows: d.rows.clone(), revoked: d.revoked, scar: p.scar(&d.boss, &l.kills) }).collect(),
+        drills: p.drills.iter().map(|d| crate::wire::DrillWire { boss: d.boss.clone(), rows: effective_drill_rows(d, heal_pct(&p.stance, p.level(&p.stance))), revoked: d.revoked, scar: p.scar(&d.boss, &l.kills) }).collect(),
         scars: p.meets.iter().filter(|(k, _)| crate::descent::boss_depth(k).is_some()).map(|(k, _)| (k.clone(), p.scar(k, &l.kills))).filter(|(_, s)| *s > 0).collect(),
         pen_open: p.pen_open,
         rows,

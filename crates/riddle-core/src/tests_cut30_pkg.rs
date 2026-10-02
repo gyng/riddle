@@ -523,3 +523,131 @@ fn repeat_preserves_each_supply_origin_through_send_and_save() {
     old.restock();
     assert!(old.lineage.supplies.iter().all(|s| !s.auto_packed), "legacy repeat slots remain protected");
 }
+
+#[test]
+fn learned_drill_yields_to_the_current_stances_heal() {
+    let mut g = crate::tests::arena();
+    g.lineage.pkg.literal = false;
+    g.lineage.pkg.stance = "guarded".into();
+    g.lineage.pkg.runs.insert("guarded".into(), 220);
+    let learned = packages::drill_rows("goblin_warlord", 35);
+    g.lineage.pkg.drills.push(packages::Drill { boss: "goblin_warlord".into(), rows: learned.clone(), revoked: false, announced: false });
+    packages::recompile(&mut g.lineage);
+    let compiled = g.lineage.rules().clone();
+    assert!(compiled.validate().is_ok());
+    assert_eq!(g.lineage.pkg.drills[0].rows, learned, "the stored learned rows are preserved");
+    assert_eq!(compiled.rows[0].conds.iter().find(|c| c.k == "hp>").unwrap().n, Some(45));
+    assert_eq!(g.lineage().packages.drills[0].rows[0].conds.iter().find(|c| c.k == "hp>").unwrap().n, Some(45), "the drill panel shows the effective sustain guard");
+    crate::tests::add_monster(&mut g, "goblin_warlord", 5, 5);
+    crate::tests::give(&mut g, "heal");
+    if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "heal") { g.lineage.facts.insert(f); }
+    let r = g.run.as_mut().unwrap(); r.hero.max_hp = 100; r.hero.hp = 40; r.hero.energy = 100;
+    let events = crate::tests::ticks(&mut g, 1);
+    let row = events.iter().find_map(|e| if let crate::wire::Ev::Rule { row, .. } = e { Some(*row) } else { None }).expect("a rule fires");
+    assert_eq!(compiled.rows[row as usize].verb, Verb::arg("drink", "heal"), "the current stance drinks before the old drill counter: {events:?}");
+}
+
+#[test]
+fn newer_trained_reflection_counter_runs_before_old_generic_boss_attacks() {
+    for with_king in [false, true] {
+        let mut g = crate::tests::arena();
+        g.lineage.pkg.literal = false;
+        // These are legacy learned rows: the King still carries the old generic boss condition.
+        let mut bosses = vec!["goblin_warlord", "foundry_master"];
+        if with_king { bosses.push("mirror_king"); }
+        for boss in bosses {
+            let row = crate::facts::counter_row(boss);
+            g.lineage.pkg.drills.push(packages::Drill { boss: boss.into(), rows: vec![Row::new([row.conds, vec![Cond::n("hp>", 35)]].concat(), row.verb)], revoked: false, announced: false });
+        }
+        let learned = g.lineage.pkg.drills.clone();
+        packages::recompile(&mut g.lineage);
+        assert_eq!(g.lineage.pkg.drills, learned, "legacy stored rows are never rewritten");
+        assert!(g.lineage.rules().validate().is_ok());
+        assert!(g.lineage.rules().rows.iter().all(|r| r.conds.len() <= 2));
+        for fact in ["foe:foundry_master", "foe:foundry_master:boss", "foe:foundry_master:reflect_melee"] { g.lineage.facts.insert(fact.into()); }
+        g.lineage.unlocks.insert("reflect_read".into());
+        crate::tests::add_monster(&mut g, "foundry_master", 5, 5);
+        crate::tests::give(&mut g, "bow");
+        let r = g.run.as_mut().unwrap(); r.hero.max_hp = 100; r.hero.hp = 100; r.hero.energy = 100;
+        let events = crate::tests::ticks(&mut g, 1);
+        let fired = events.iter().find_map(|e| if let crate::wire::Ev::Rule { row, .. } = e { Some(*row) } else { None }).expect("the trained counter fires");
+        assert_eq!(g.lineage.rules().rows[fired as usize].verb, Verb::arg("tactic", "reflect_read"), "neither Warlord's attack nor King's cadence intercepts the Master: {events:?}");
+        assert_eq!(g.run.as_ref().unwrap().hero.weapon_kind(), "bow", "the real counter raises the bow");
+        assert!(!events.iter().any(|e| matches!(e, crate::wire::Ev::Attack { verb: Some(v), .. } if v == "reflect")));
+    }
+}
+
+#[test]
+fn generated_counter_scopes_match_the_wire_and_preserve_explicit_player_priority() {
+    let mut g = Game::new(3);
+    g.lineage.pkg.pen_open = true;
+    let player = Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("tactic", "cadence")).from("player");
+    g.lineage.pkg.pen.push(player.clone());
+    for (boss, tag) in [("bloat_mother", "gas"), ("lich", "undead"), ("lurker_queen", "blind"), ("mirror_king", "mirror")] {
+        let canonical = packages::drill_rows(boss, 35);
+        let scoped = canonical.iter().find(|r| r.conds.iter().any(|c| c.t.as_deref() == Some(tag))).expect("the copy template scopes the generic boss row");
+        assert!(scoped.conds.len() <= 2);
+        let generic = Row::new(vec![Cond::t("foe_tag", "boss"), Cond::n("hp>", 35)], scoped.verb.clone());
+        g.lineage.pkg.drills.push(packages::Drill { boss: boss.into(), rows: vec![generic.clone()], revoked: false, announced: false });
+        packages::recompile(&mut g.lineage);
+        assert_eq!(g.lineage.rules().rows[0], player, "an explicitly authored generic boss row still wins");
+        assert_eq!(g.lineage.pkg.drills.last().unwrap().rows[0], generic, "save bodies retain the original conditions");
+        let wire = g.lineage().packages.drills;
+        assert!(wire.last().unwrap().rows[0].conds.iter().any(|c| c.t.as_deref() == Some(tag)), "the panel shows the effective scope");
+        assert!(g.lineage.rules().validate().is_ok());
+    }
+    assert_eq!(crate::facts::counter_row("mirror_king").conds[0], Cond::t("foe_tag", "boss"), "counter-fact fingerprints stay stable");
+}
+
+#[test]
+fn legacy_camp_drills_refresh_before_editing_without_rewriting_live_replay_rows() {
+    for custom in [false, true] {
+        let mut g = Game::new(12);
+        g.lineage.pkg.pen_open = true;
+        let player = Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")).from("player");
+        let own = Row::new(vec![Cond::n("hp<", 50)], Verb::new("rest"));
+        if custom { g.lineage.pkg.stance = packages::CUSTOM.into(); g.lineage.pkg.custom.push(own.clone()); }
+        g.lineage.pkg.pen.push(player.clone());
+        for boss in ["goblin_warlord", "foundry_master", "mirror_king"] {
+            let row = crate::facts::counter_row(boss);
+            g.lineage.pkg.drills.push(packages::Drill { boss: boss.into(), rows: vec![Row::new([row.conds, vec![Cond::n("hp>", 35)]].concat(), row.verb)], revoked: false, announced: false });
+        }
+        for kind in ["goblin_warlord", "foundry_master", "mirror_king"] {
+            g.lineage.facts.insert(format!("foe:{kind}"));
+            for tag in crate::defs::monster_def(kind).tags { g.lineage.facts.insert(format!("foe:{kind}:{tag}")); }
+        }
+        g.lineage.unlocks.insert("cadence".into());
+        g.lineage.unlocks.insert("reflect_read".into());
+        let stored = g.lineage.pkg.drills.clone();
+        // The serialized set is the old compiler's learned order and generic King scope.
+        let mut legacy = vec![player.clone()];
+        for d in &stored { legacy.extend(d.rows.iter().cloned().map(|r| r.from(&format!("drill:{}", d.boss)))); }
+        if custom { legacy.push(own.clone().from("stance:custom")); }
+        g.lineage.sets[g.lineage.active_set].rows = legacy.clone();
+        let mut loaded = Game::load(&g.save()).unwrap();
+        assert_eq!(loaded.lineage.pkg.drills, stored);
+        assert_eq!(loaded.lineage.pkg.pen.as_slice(), std::slice::from_ref(&player));
+        assert_eq!(loaded.lineage.rules().rows[1].origin.as_deref(), Some("drill:mirror_king"));
+        assert!(loaded.lineage.rules().rows[1].conds.iter().any(|c| c.t.as_deref() == Some("mirror")));
+        let mut edited = loaded.lineage.rules().clone();
+        edited.rows.insert(0, Row::new(vec![Cond::n("hp<", 20)], Verb::new("return")).from("player"));
+        loaded.set_rules(edited).unwrap();
+        if custom {
+            assert_eq!(loaded.lineage.pkg.custom.len(), 3, "only the custom set's three authored rows remain");
+            assert!(loaded.lineage.pkg.custom.contains(&own));
+            assert!(loaded.lineage.pkg.custom.contains(&player));
+        } else {
+            assert_eq!(loaded.lineage.pkg.pen.len(), 2, "legacy generated rows do not leak into the pen");
+            assert!(loaded.lineage.pkg.pen.contains(&player), "the authored generic boss row remains authored");
+        }
+        // A live replay is immutable across load even when its compiled set predates the fix.
+        g.start_run(Some(83));
+        g.lineage.sets[g.lineage.active_set].rows = legacy.clone();
+        let live = Game::load(&g.save()).unwrap();
+        assert_eq!(live.lineage.rules().rows, legacy);
+        assert_eq!(live.run.as_ref().unwrap().row_fired, g.run.as_ref().unwrap().row_fired);
+        assert_eq!(live.history.len(), g.history.len());
+    }
+    let literal = Game::new_literal(12);
+    assert_eq!(Game::load(&literal.save()).unwrap().lineage.rules(), literal.lineage.rules());
+}
