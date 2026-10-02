@@ -5,6 +5,7 @@ import "../cut30.css";
 import type { GrewLine, Lineage, ReturnReport } from "../engine/types";
 import { h } from "./dom";
 import { icon, portraitSrc } from "./skin";
+import { kwText } from "./tips";
 
 export const TRACK_IDS = ["character", "items", "scale", "town"] as const;
 /** Each track's icon (a packed one, else a CSS glyph). */
@@ -63,7 +64,7 @@ export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: str
   const ids = [...TRACK_IDS.filter((t) => by.has(t)), ...[...by.keys()].filter((t) => !(TRACK_IDS as readonly string[]).includes(t))];
   return h("div", { class: "grew" },
     ...ids.map((id, i) => h("div", { class: "grew-line reveal", "data-track": id, style: `animation-delay:${0.12 * i}s` }, h("span", { class: "track-ico" }, trackIcon(id, hero)),
-      h("small", { class: "track-name dim" }, trackName(id)), h("span", { class: "grew-what num" }, (by.get(id) ?? []).join(" · ")))),
+      h("small", { class: "track-name dim" }, trackName(id)), h("span", { class: "grew-what num" }, ...kwText((by.get(id) ?? []).join(" · "))))),
     shown.length ? h("div", { class: "beats" }, ...shown.map((b, i) => h("span", { class: `beat-plaque reveal${/^QUEST DONE/.test(b) ? " quest" : /^DRILLED/.test(b) ? " drill" : ""}`, style: `animation-delay:${0.15 * (i + ids.length)}s` }, b)),
       beats.length > 5 ? h("small", { class: "beat-more dim" }, /* copy:callout */ `+${beats.length - 5} more`) : "") : "");
 }

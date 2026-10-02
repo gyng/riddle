@@ -8,9 +8,10 @@ import type { App } from "../app";
 import type { Lineage, ReturnReport, WorkNode, WorkerAct, Works } from "../engine/types";
 import { h, replace } from "./dom";
 import { closeEverything, openSheet } from "./sheet";
-import { hasIcon, icon } from "./skin";
+import { icon } from "./skin";
 import { audio } from "../audio";
 import { heroFace, trackIcon, trackName, TRACK_IDS } from "./tracks";
+import { kw, kwHost } from "./tips";
 
 export const hasWorks = (L: Pick<Lineage, "tree"> | undefined): boolean => !!L?.tree;
 export const workerNodes = (W: Works): WorkNode[] => W.nodes.filter((n) => n.kind === "worker");
@@ -18,11 +19,8 @@ export const workerNodes = (W: Works): WorkNode[] => W.nodes.filter((n) => n.kin
 export const TRUNK = ["quartermaster", "porter", "scout", "armourer", "apprentice"];
 export const trunkDone = (W: Works): boolean => workerNodes(W).filter((n) => TRUNK.includes(n.id)).every((n) => n.state === "done");
 
-/** A node's icon: the art branch's `node_<id>` (the send worker's is `node_captain` until renamed), else the name's first letter. */
-export function nodeIcon(id: string, name = id): HTMLElement {
-  const ids = [`node_${id}`, ...(id === "scout" ? ["node_captain"] : [])];
-  return icon(ids.find(hasIcon) ?? ids[0]!, (name[0] ?? "?").toUpperCase());
-}
+/** A node's icon: `node_<id>` (art/town-ids.md), else the name's first letter. */
+export const nodeIcon = (id: string, name = id): HTMLElement => icon(`node_${id}`, (name[0] ?? "?").toUpperCase());
 /** the chore's count word (`2/3 chests`) */
 /* copy:label */
 const CHORE: Record<string, string> = { chest: "chests", send: "sends", wear: "worn", forge: "steps", keep: "sorted", deposit: "deposits", level: "levels", field: "fielded", swap: "swaps", start: "starts" };
@@ -116,7 +114,7 @@ export function openWorks(app: App, focus?: string, anchor?: HTMLElement | null)
           h("small", { class: "wb-name" }, trackName(t)), h("b", { class: "wb-now" }, now?.name ?? ""),
           nx ? h("small", { class: "wb-next num" }, /* copy:callout */ `next · ${nx.name}${nx.trigger ? ` · ${nx.trigger}` : ""}`) : h("small", { class: "wb-next dim" }, "✓"));
       })) : "";
-      replace(body, h("div", { class: "label row-label" }, /* copy:label */ "works"),
+      replace(body, h("div", { class: "label row-label" }, kw("works", /* copy:label */ "works")),
         h("div", { class: "works-trunk" }, ...[...v.next].reverse().map(sil), v.focus ? card(v.focus) : "", done), branches);
       const f = focus && body.querySelector<HTMLElement>(`.wnode[data-node="${focus}"]`);
       if (f) { f.classList.add("focus"); setTimeout(() => f.scrollIntoView?.({ block: "nearest" }), 0); }
@@ -151,9 +149,9 @@ export function hireBeat(name: string): void {
 /** The gem's mark (camp): before the scout the send counter toward him (`1/3`); after, `auto` — the hero goes down after each rest. */
 export function sendMark(L: Lineage): HTMLElement | "" {
   const W = L.tree; if (!W) return "";
-  if (W.auto_send) return h("small", { class: "send-auto", "data-auto": "1" }, /* copy:label */ "auto");
+  if (W.auto_send) return kwHost(h("small", { class: "send-auto", "data-auto": "1" }, /* copy:label */ "auto"), "scout");
   const s = W.nodes.find((n) => n.id === "scout");
-  return s?.need && s.state !== "done" ? h("small", { class: "send-count num", "data-n": s.count ?? 0 }, `${Math.min(s.count ?? 0, s.need)}/${s.need}`) : "";
+  return s?.need && s.state !== "done" ? kwHost(h("small", { class: "send-count num", "data-n": s.count ?? 0 }, `${Math.min(s.count ?? 0, s.need)}/${s.need}`), "scout") : "";
 }
 
 // --- the report ---

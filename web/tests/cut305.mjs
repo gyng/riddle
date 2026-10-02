@@ -144,7 +144,7 @@ try {
     const log = [];
     const step = (t, ok, what) => { log.push(`${t} ${ok ? "✓" : "✗"} ${what}`); check(ok, `walk ${t}: ${what}`); };
     let s = await S();
-    step("0:00", s.pill === "send" && s.gold === 0 && s.workers.length === 0, `camp, $${s.gold}, pill \`${s.pill}\`, no worker on the scene`);
+    step("0:00", s.pill === "send" && s.gold === 0 && JSON.stringify(s.workers) === JSON.stringify(["quartermaster"]), `camp, $${s.gold}, pill \`${s.pill}\`; on the scene only the given quartermaster by the crate (${s.workers.join(",")})`);
     let sends = 0, chests = 0, purse = s.gold, guard = 0;
     while ((await S()).porter?.state !== "lit" && guard++ < 10) {
       const via = sends === 0 ? "mouth" : "gem";

@@ -1,11 +1,13 @@
 // Settings sheet: save export/import, rules export/import, engine badge, reset lineage (double tap).
 // Cut 10 §4: `sound` row with a `mute` toggle (persisted in localStorage; no cue and no drone while muted).
+// docs/UI.md §7: `auto continue` row — `on` / `off` (localStorage `riddle.autoContinue`).
 // Cut 14: `slowdowns` row — `on` / `off` (`app.slowdowns`, persisted): the watch's fight / near / scene holds, or the flat rate.
 import type { App } from "../app";
 import { h, copyText, replace } from "./dom";
 import { closeEverything, openSheet } from "./sheet";
 import { audio } from "../audio";
 import { workerNodes } from "./works";
+import { autoOn, setAutoOn } from "./autodismiss";
 
 export function openSettings(app: App): void {
   closeEverything();   // QA 23ed91f (L: the settings sheet opened over the open UNLOCKS panel — two studs): one at a time
@@ -44,10 +46,16 @@ export function openSettings(app: App): void {
       } }, name, h("small", { class: "dim" }, on ? /* copy:label */ " on" : /* copy:label */ " off"));
       return b;
     };
+    // docs/UI.md §7: the report, the death screen and open panels continue on their own (on by default)
+    const auto = h("button", { class: `btn auto-continue${autoOn() ? " on" : ""}`, "aria-pressed": String(autoOn()), onclick: () => {
+      setAutoOn(!autoOn()); auto.classList.toggle("on", autoOn()); auto.setAttribute("aria-pressed", String(autoOn())); replace(auto, autoOn() ? /* copy:button */ "on" : /* copy:button */ "off");
+    } }, autoOn() ? /* copy:button */ "on" : /* copy:button */ "off");
+
     body.append(
       hired.length ? h("div", { class: "srow workers-row" }, h("span", { class: "label" }, /* copy:label */ "workers"), h("span", { class: "chips" }, ...hired.map((n) => workerChip(n.id, n.name, !n.paused)))) : "",
       row(/* copy:label */ "sound", mute),
       row(/* copy:label */ "slowdowns", slow),
+      row(/* copy:label */ "auto continue", auto),
       row(/* copy:label */ "save", saveOut, saveIn),
       row(/* copy:label */ "rules", rulesOut, rulesIn),
       area,

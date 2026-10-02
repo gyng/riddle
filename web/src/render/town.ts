@@ -77,17 +77,16 @@ export type ChestState = { state: "closed" | "full" | "open"; gold: number; coun
 export type WorkerSpot = { id: string; post: string; lit: boolean; price?: number; paused: boolean };
 /** the chest's foot, beside the path under the mouth */
 export const CHEST_AT: Pt & { h: number } = { ...T(CX + 1.6, 8.3), h: 12 };
-/** a worker's spot (texels, its foot): by id, else by its post's plot */
+/** a worker's spot (texels, its foot): by id, else by its post's plot — art/town-ids.md's posts (the sheet's units × ~0.6 onto the map's
+ *  tiles), the herald and the scout moved to the map's own board (left of the mouth) */
 const WORKER_AT: Record<string, Pt> = {
-  porter: T(CX - 1.3, 9.4), scout: T(CX - 1.7, 13.3), armourer: T(CX - 1.9, 20.0), apprentice: T(CX - 2.1, 11.1), keeper: T(CX - 7.3, 20.0),
-  clerk: T(CX + 2.1, 11.1), drillmaster: T(CX + 5.5, 13.4), kennel_hand: T(CX + 2.1, 20.3), herald: T(CX - 3.6, 8.0), guide: T(CX + 1.9, 7.3),
+  quartermaster: T(CX + 4.9, 15.7), porter: T(CX + 1.1, 10.2), scout: T(CX - 1.1, 8.4), armourer: T(CX - 2.1, 19.4), apprentice: T(CX - 1.9, 11.6),
+  keeper: T(CX - 5.9, 19.8), clerk: T(CX + 2.8, 11.7), drillmaster: T(CX + 1.4, 16.3), kennel_hand: T(CX + 2.4, 19.7), herald: T(CX - 3.6, 7.9),
+  guide: T(CX + 1.65, 7.35),
 };
 export const workerAt = (w: { id: string; post: string }): Pt | null => WORKER_AT[w.id] ?? (PLOTS as Record<string, Pt | undefined>)[w.post] ?? null;
-/** a worker's frames (art/town-ids.md: `town_worker_<id>` + `_1`; the send worker's art is `captain` until the art branch renames it) */
-export const workerIds = (id: string, frame = 0): string[] => {
-  const ids = [`town_worker_${id}`, ...(id === "scout" ? ["town_worker_captain"] : [])];
-  return frame ? [...ids.map((x) => `${x}_1`), ...ids] : ids;
-};
+/** a worker's frames (art/town-ids.md: `town_worker_<id>`, `_1` the idle beat) */
+export const workerIds = (id: string, frame = 0): string[] => frame ? [`town_worker_${id}_1`, `town_worker_${id}`] : [`town_worker_${id}`];
 export type Party = { at: number; cls: string; sack?: "small" | "large"; chest?: boolean; pet?: string; to: "tent" | "store" };
 export type TownState = {
   seed: number; day: number;
@@ -144,7 +143,7 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   const W = L.tree, porter = W?.nodes.find((n) => n.id === "porter");
   const chest: ChestState | undefined = W && porter && (porter.state !== "done" || porter.paused) ? { state: o.chestOpen ? "open" : W.chest > 0 ? "full" : "closed", gold: W.chest, count: porter.count, need: porter.need } : undefined;
   if (chest?.state === "full") markers.push({ at: "chest", kind: "chest", label: `$${chest.gold}` });
-  const workers: WorkerSpot[] = (town?.workers ?? []).filter((w) => w.id !== "quartermaster").map((w) => ({ id: w.id, post: w.post, lit: !!w.lit, price: w.price, paused: !!w.paused }));
+  const workers: WorkerSpot[] = (town?.workers ?? []).map((w) => ({ id: w.id, post: w.post, lit: !!w.lit, price: w.price, paused: !!w.paused }));
   if (has("blacksmith") && (o.kit?.n ?? 0) > 0) markers.push({ at: "blacksmith", kind: "sword", label: o.kit?.price ? `$${o.kit.price}` : undefined });
   if (has("bank") && (town?.bank ?? 0) > 0 && o.absenceNew) markers.push({ at: "bank", kind: "coin" });
   const opened = new Set(o.opened ?? []);
@@ -192,6 +191,26 @@ export class TownAtlas {
     void loadPacked().then((p) => { this.src = p; this.ready = true; this.reset(); });
   }
   has(id: string): boolean { return !!this.src?.frames[id]; }
+  /** Cut 30.5: the slot of `ids` greyed — a lit node's worker not yet hired (art/town_sheet.py `grey()`: the values only, lifted toward a
+   *  pale MIST grey, alpha × 0.8), cut once into its own slot */
+  grey(ids: string | string[], h: number): Slot {
+    const base = this.get(ids, h);
+    const key = `grey:${Array.isArray(ids) ? ids.join("|") : ids}@${h}`;   // (a reset — the packed atlas landing — clears it with the rest)
+    const hit = this.slots.get(key); if (hit) return hit;
+    const w = base.w;
+    if (this.sx + w + 1 > ATLAS) { this.sy += this.sh + 1; this.sx = 1; this.sh = 0; }
+    if (this.sy + h + 1 > ATLAS) { this.reset(); return this.get(ids, h); }
+    const x = this.sx, y = this.sy; this.sx += w + 1; this.sh = Math.max(this.sh, h);
+    const d = this.ctx.getImageData(base.x, base.y, base.w, base.h), p = d.data;
+    for (let i = 0; i < p.length; i += 4) {
+      const l = 0.2126 * p[i]! + 0.7152 * p[i + 1]! + 0.0722 * p[i + 2]!;
+      p[i] = l * 0.4 + 164 * 0.42; p[i + 1] = l * 0.4 + 188 * 0.42; p[i + 2] = l * 0.4 + 214 * 0.42; p[i + 3] = p[i + 3]! * 0.8;
+    }
+    this.ctx.putImageData(d, x, y);
+    const slot: Slot = { x, y, w, h, u0: x / ATLAS, v0: 1 - (y + h) / ATLAS, u1: (x + w) / ATLAS, v1: 1 - y / ATLAS };
+    this.slots.set(key, slot); this.version++;
+    return slot;
+  }
   private reset(): void { this.slots.clear(); this.sx = 1; this.sy = 1; this.sh = 0; this.ctx.clearRect(0, 0, ATLAS, ATLAS); this.version++; }
   /** the slot of `id` drawn `h` texels tall (the first id of `ids` the atlas has, else a primitive of the first) */
   get(ids: string | string[], h: number): Slot {
@@ -268,7 +287,7 @@ function drawPrimitive(g: CanvasRenderingContext2D, id: string, x: number, y: nu
   }
   else if (/^town_worker_/.test(id)) {   // a worker: a townsperson (no BLOOD) and the role's tag in its own colour (art/town-ids.md, workers)
     const role = id.replace(/^town_worker_|_1$/g, "");
-    const coat: Record<string, string> = { porter: "#3a3448", armourer: "#5a6070", apprentice: "#5a3c22", keeper: "#2b3350", clerk: "#1c1b2b", drillmaster: "#6a5a40", kennel_hand: "#4a3a2a", herald: "#2b3350", guide: "#7d8ea4", captain: "#1c1b2b" };
+    const coat: Record<string, string> = { porter: "#3a3448", armourer: "#5a6070", apprentice: "#5a3c22", keeper: "#2b3350", clerk: "#1c1b2b", drillmaster: "#6a5a40", kennel_hand: "#4a3a2a", herald: "#2b3350", guide: "#7d8ea4", scout: "#4a3a2a", quartermaster: "#6a5a40" };
     const fw = /porter|armourer|apprentice|drillmaster|kennel_hand/.test(role) ? w * 0.55 : w;   // the figure's share (the tag object right of it)
     R(coat[role] ?? "#3a3448", fw * 0.22, h * 0.28, fw * 0.56, h * 0.5); R("#eadfc5", fw * 0.32, h * 0.06, fw * 0.36, h * 0.2);
     R("#1c1b2b", fw * 0.26, h * 0.78, fw * 0.18, h * 0.22); R("#1c1b2b", fw * 0.56, h * 0.78, fw * 0.18, h * 0.22);
@@ -282,7 +301,8 @@ function drawPrimitive(g: CanvasRenderingContext2D, id: string, x: number, y: nu
     else if (role === "clerk") R("#eadfc5", fw * 0.5, h * 0.4, fw * 0.45, h * 0.16);
     else if (role === "herald") { R("#eadfc5", fw * 0.6, h * 0.42, fw * 0.25, h * 0.4); R("#b89448", fw * 0.78, h * 0.25, fw * 0.16, h * 0.1); }
     else if (role === "guide") { R("#e8923a", fw * 0.76, h * 0.4, fw * 0.18, h * 0.12); R("#6a4a2c", fw * 0.12, h * 0.05, 1, h * 0.95); }
-    else if (role === "captain") { R("#1c1b2b", fw * 0.15, h * 0.02, fw * 0.7, h * 0.08); R("#a4bcd6", fw * 0.6, 0, fw * 0.2, h * 0.05); R("#eadfc5", fw * 0.78, h * 0.35, fw * 0.2, h * 0.06); }
+    else if (role === "scout") { R("#1c1b2b", fw * 0.15, h * 0.02, fw * 0.7, h * 0.08); R("#b89448", fw * 0.62, h * 0.12, fw * 0.32, h * 0.06); R("#eadfc5", fw * 0.78, h * 0.35, fw * 0.2, h * 0.06); }
+    else if (role === "quartermaster") { R("#5a3c22", fw * 0.5, h * 0.3, fw * 0.45, h * 0.35); R("#eadfc5", fw * 0.5, h * 0.26, fw * 0.45, h * 0.06); }
   }
   else if (/^town_chest/.test(id)) { R("#7a4a1e", 0, h * 0.3, w, h * 0.7); R("#ffd76a", 0, h * 0.3, w, 2); R("#ffd76a", w * 0.42, h * 0.45, w * 0.16, h * 0.2); }
   else if (/^town_flag/.test(id)) { R("#4a321f", 0, 0, 1, h); R(/_1$/.test(id) ? "#a01a28" : "#c01530", 1, 1, w - 1, h * 0.4); }
@@ -630,7 +650,10 @@ export function createTownView(host: HTMLElement): TownView {
       const beat = 0.9 + (k % 50) / 100, phase = (k % 97) / 31;
       const step = moving && (Math.floor(t * 6.5) & 1) === 1;
       const frameN = w.lit || moving ? 0 : Math.floor((t + phase) / beat) & 1;
-      sprite(workerIds(w.id, frameN), 24, x, y - (step ? 1 : 0), { flip, dim: w.lit ? 0.42 : w.paused ? 0.7 : 1, fade: w.lit ? 0.38 : 0 });
+      if (w.lit) { const g = atlas.grey(workerIds(w.id), 24); if (inView(x, y, g.w, g.h)) push(g, Math.round(x), Math.round(y), zOf(y), flip, 1, 0); }
+      else sprite(workerIds(w.id, frameN), 24, x, y - (step ? 1 : 0), { flip, dim: w.paused ? 0.7 : 1 });
+      // at night the walkers' small MIST light: the dark coats would sink into the night grass
+      if (night > 0.3 && F.lights.length < MAX_LIGHTS) F.lights.push({ x, y: y - 20, r: 18, c: [0.64 * 0.35 * night, 0.74 * 0.35 * night, 0.84 * 0.35 * night] });
     }
     // the pen: penned pets lie by the kennel
     s.penned.forEach((k, j) => { const p = PLOTS.kennel; sprite([k, "town_dog"], 10, p.x - 20 + j * 12, p.y + 8, { flip: j % 2 === 1 }); });

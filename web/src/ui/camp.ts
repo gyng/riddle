@@ -38,6 +38,7 @@ import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
 import { isFreeSupply, ownRowCount, setRefRows, verbLabel } from "./tokens";
 import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
+import { AUTO, autoDismiss } from "./autodismiss";
 import { setBusyHost } from "./progress";
 import { icon } from "./skin";
 import { biomeAt, routeChips, routeForks, seenForks, withFork } from "./route";
@@ -204,7 +205,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     closeAllSheets();   // QA 778fa1b (qaV: `vault` tapped under the open CAGE sheet stacked VAULT under CAGE): one sheet or panel at a time
     if (open) panelStore.append(...Object.values(PANELS));
     open = name;
-    const panel = h("section", { class: "panel", "data-panel": name }, stud(closePanel), h("div", { class: "panel-body" }, PANELS[name]));
+    const pstud = stud(closePanel);
+    const panel = h("section", { class: "panel", "data-panel": name }, pstud, h("div", { class: "panel-body" }, PANELS[name]));
+    autoDismiss(pstud, { ms: AUTO.panel, scope: panel, yieldToSheets: true, onExpire: closePanel });   // docs/UI.md §7
     panelHost.replaceChildren(panel);
     panelHost.classList.add("open");
     if (anchor) anchorPanel(panel, anchor, panelHost);   // Cut 30 §3: opened from its building, the panel stands over it

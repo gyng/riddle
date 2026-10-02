@@ -16,6 +16,7 @@ import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
 import { audio } from "./audio";
 import { applySkin } from "./ui/skin";
+import { initTips } from "./ui/tips";   // docs/TOOLTIPS.md: keyword tips
 import { mergeMeters } from "./ui/meters";
 import { basesOf, linSum, readSnap, rulesKey, sharesOf, stateLabel, stateTerms, writeSnap, type StateMove, type StateSnap } from "./ui/attrib";
 
@@ -1047,6 +1048,7 @@ export function start(dev: DevOptions | null = null): void {
   root.id = "app";
   applySkin();   // Cut 17: the frames packed in web/public/ui (tools/ui-skin.py); absent ones keep the flat CSS
   const app = new App(root, dev);
+  initTips(app);
   audio.arm();   // Cut 10 §4: the WebAudio context opens on the first gesture
   if (dev) (window as unknown as { __riddle: App }).__riddle = app;
   // Cut 14 §4: the cue log is readable on every build (a rater assesses sound on the cohort build); the App stays dev-only
