@@ -1,0 +1,1037 @@
+{
+ "source": "Cut 30 core checkpoint 2 (cabf89d + its working tree, 2026-09-30): target/fast/examples/dayplayer --seeds 8 --days 14 --bots idle,picked,tuned --verbose; stderr snapshot when IDLE had 14 days (8 seeds), PICKED 11-14, TUNED 7-12 (the TUNED wall search is slow; the run was stopped)",
+ "bots": {
+  "IDLE": {
+   "climb": [
+    {
+     "hours": 8,
+     "best": 6.5,
+     "n": 8
+    },
+    {
+     "hours": 16,
+     "best": 7.5,
+     "n": 8
+    },
+    {
+     "hours": 24,
+     "best": 9.5,
+     "n": 8
+    },
+    {
+     "hours": 32,
+     "best": 11.5,
+     "n": 8
+    },
+    {
+     "hours": 40,
+     "best": 13.0,
+     "n": 8
+    },
+    {
+     "hours": 48,
+     "best": 13.5,
+     "n": 8
+    },
+    {
+     "hours": 56,
+     "best": 15.0,
+     "n": 8
+    },
+    {
+     "hours": 64,
+     "best": 16.0,
+     "n": 8
+    },
+    {
+     "hours": 72,
+     "best": 18.0,
+     "n": 8
+    },
+    {
+     "hours": 80,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 88,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 96,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 104,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 112,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 120,
+     "best": 20.0,
+     "n": 8
+    },
+    {
+     "hours": 128,
+     "best": 20.0,
+     "n": 8
+    },
+    {
+     "hours": 136,
+     "best": 20.0,
+     "n": 8
+    },
+    {
+     "hours": 144,
+     "best": 20.0,
+     "n": 8
+    },
+    {
+     "hours": 152,
+     "best": 20.0,
+     "n": 8
+    },
+    {
+     "hours": 160,
+     "best": 20.5,
+     "n": 8
+    },
+    {
+     "hours": 168,
+     "best": 21.5,
+     "n": 8
+    },
+    {
+     "hours": 176,
+     "best": 22.0,
+     "n": 8
+    },
+    {
+     "hours": 184,
+     "best": 22.0,
+     "n": 8
+    },
+    {
+     "hours": 192,
+     "best": 22.5,
+     "n": 8
+    },
+    {
+     "hours": 200,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 208,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 216,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 224,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 232,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 240,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 248,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 256,
+     "best": 23.5,
+     "n": 8
+    },
+    {
+     "hours": 264,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 272,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 280,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 288,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 296,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 304,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 312,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 320,
+     "best": 24.5,
+     "n": 8
+    },
+    {
+     "hours": 328,
+     "best": 24.5,
+     "n": 8
+    },
+    {
+     "hours": 336,
+     "best": 25.0,
+     "n": 8
+    }
+   ],
+   "runs_per_checkin": 19.0,
+   "best_by_day": {
+    "1": {
+     "median": 9.5,
+     "min": 8,
+     "max": 13
+    },
+    "2": {
+     "median": 13.5,
+     "min": 13,
+     "max": 16
+    },
+    "3": {
+     "median": 18.0,
+     "min": 13,
+     "max": 18
+    },
+    "4": {
+     "median": 19.0,
+     "min": 18,
+     "max": 20
+    },
+    "5": {
+     "median": 20.0,
+     "min": 18,
+     "max": 22
+    },
+    "6": {
+     "median": 20.0,
+     "min": 18,
+     "max": 23
+    },
+    "7": {
+     "median": 21.5,
+     "min": 19,
+     "max": 23
+    },
+    "8": {
+     "median": 22.5,
+     "min": 20,
+     "max": 24
+    },
+    "9": {
+     "median": 23.0,
+     "min": 23,
+     "max": 24
+    },
+    "10": {
+     "median": 23.0,
+     "min": 23,
+     "max": 25
+    },
+    "11": {
+     "median": 24.0,
+     "min": 23,
+     "max": 25
+    },
+    "12": {
+     "median": 24.0,
+     "min": 23,
+     "max": 25
+    },
+    "13": {
+     "median": 24.0,
+     "min": 23,
+     "max": 28
+    },
+    "14": {
+     "median": 25.0,
+     "min": 24,
+     "max": 28
+    }
+   },
+   "announced_by_day": {
+    "1": {
+     "reports": 19,
+     "items_median": 5,
+     "items_max": 14
+    },
+    "2": {
+     "reports": 16,
+     "items_median": 2.5,
+     "items_max": 12
+    },
+    "3": {
+     "reports": 9,
+     "items_median": 2,
+     "items_max": 5
+    },
+    "4": {
+     "reports": 14,
+     "items_median": 3.0,
+     "items_max": 6
+    },
+    "5": {
+     "reports": 12,
+     "items_median": 2.0,
+     "items_max": 5
+    },
+    "6": {
+     "reports": 9,
+     "items_median": 2,
+     "items_max": 4
+    },
+    "7": {
+     "reports": 11,
+     "items_median": 2,
+     "items_max": 3
+    },
+    "8": {
+     "reports": 7,
+     "items_median": 2,
+     "items_max": 4
+    },
+    "9": {
+     "reports": 8,
+     "items_median": 2.0,
+     "items_max": 4
+    },
+    "10": {
+     "reports": 3,
+     "items_median": 1,
+     "items_max": 2
+    },
+    "11": {
+     "reports": 6,
+     "items_median": 2.0,
+     "items_max": 2
+    },
+    "12": {
+     "reports": 4,
+     "items_median": 1.0,
+     "items_max": 2
+    },
+    "13": {
+     "reports": 6,
+     "items_median": 1.0,
+     "items_max": 2
+    },
+    "14": {
+     "reports": 5,
+     "items_median": 2,
+     "items_max": 5
+    }
+   }
+  },
+  "PICKED": {
+   "climb": [
+    {
+     "hours": 8,
+     "best": 6.5,
+     "n": 8
+    },
+    {
+     "hours": 16,
+     "best": 9.5,
+     "n": 8
+    },
+    {
+     "hours": 24,
+     "best": 13.0,
+     "n": 8
+    },
+    {
+     "hours": 32,
+     "best": 13.0,
+     "n": 8
+    },
+    {
+     "hours": 40,
+     "best": 14.0,
+     "n": 8
+    },
+    {
+     "hours": 48,
+     "best": 16.0,
+     "n": 8
+    },
+    {
+     "hours": 56,
+     "best": 17.0,
+     "n": 8
+    },
+    {
+     "hours": 64,
+     "best": 18.5,
+     "n": 8
+    },
+    {
+     "hours": 72,
+     "best": 18.5,
+     "n": 8
+    },
+    {
+     "hours": 80,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 88,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 96,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 104,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 112,
+     "best": 20.0,
+     "n": 8
+    },
+    {
+     "hours": 120,
+     "best": 21.5,
+     "n": 8
+    },
+    {
+     "hours": 128,
+     "best": 22.5,
+     "n": 8
+    },
+    {
+     "hours": 136,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 144,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 152,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 160,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 168,
+     "best": 23.0,
+     "n": 8
+    },
+    {
+     "hours": 176,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 184,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 192,
+     "best": 24.0,
+     "n": 8
+    },
+    {
+     "hours": 200,
+     "best": 24.5,
+     "n": 8
+    },
+    {
+     "hours": 208,
+     "best": 24.5,
+     "n": 8
+    },
+    {
+     "hours": 216,
+     "best": 24.5,
+     "n": 8
+    },
+    {
+     "hours": 224,
+     "best": 25.0,
+     "n": 8
+    },
+    {
+     "hours": 232,
+     "best": 25.5,
+     "n": 8
+    },
+    {
+     "hours": 240,
+     "best": 26.5,
+     "n": 8
+    },
+    {
+     "hours": 248,
+     "best": 27.5,
+     "n": 8
+    },
+    {
+     "hours": 256,
+     "best": 28.0,
+     "n": 8
+    },
+    {
+     "hours": 264,
+     "best": 28.0,
+     "n": 8
+    },
+    {
+     "hours": 272,
+     "best": 28.0,
+     "n": 8
+    },
+    {
+     "hours": 280,
+     "best": 28.0,
+     "n": 8
+    },
+    {
+     "hours": 288,
+     "best": 28.0,
+     "n": 8
+    },
+    {
+     "hours": 296,
+     "best": 28.0,
+     "n": 8
+    },
+    {
+     "hours": 304,
+     "best": 28,
+     "n": 7
+    },
+    {
+     "hours": 312,
+     "best": 28,
+     "n": 7
+    },
+    {
+     "hours": 320,
+     "best": 28,
+     "n": 7
+    },
+    {
+     "hours": 328,
+     "best": 28,
+     "n": 7
+    },
+    {
+     "hours": 336,
+     "best": 27.5,
+     "n": 4
+    }
+   ],
+   "runs_per_checkin": 10.25,
+   "best_by_day": {
+    "1": {
+     "median": 13.0,
+     "min": 8,
+     "max": 18
+    },
+    "2": {
+     "median": 16.0,
+     "min": 13,
+     "max": 20
+    },
+    "3": {
+     "median": 18.5,
+     "min": 15,
+     "max": 21
+    },
+    "4": {
+     "median": 19.0,
+     "min": 19,
+     "max": 23
+    },
+    "5": {
+     "median": 21.5,
+     "min": 19,
+     "max": 24
+    },
+    "6": {
+     "median": 23.0,
+     "min": 19,
+     "max": 25
+    },
+    "7": {
+     "median": 23.0,
+     "min": 20,
+     "max": 26
+    },
+    "8": {
+     "median": 24.0,
+     "min": 21,
+     "max": 28
+    },
+    "9": {
+     "median": 24.5,
+     "min": 22,
+     "max": 28
+    },
+    "10": {
+     "median": 26.5,
+     "min": 24,
+     "max": 28
+    },
+    "11": {
+     "median": 28.0,
+     "min": 24,
+     "max": 28
+    },
+    "12": {
+     "median": 28.0,
+     "min": 25,
+     "max": 28
+    },
+    "13": {
+     "median": 28,
+     "min": 25,
+     "max": 31
+    },
+    "14": {
+     "median": 27.5,
+     "min": 27,
+     "max": 28
+    }
+   },
+   "announced_by_day": {
+    "1": {
+     "reports": 23,
+     "items_median": 5,
+     "items_max": 13
+    },
+    "2": {
+     "reports": 15,
+     "items_median": 2,
+     "items_max": 12
+    },
+    "3": {
+     "reports": 15,
+     "items_median": 2,
+     "items_max": 5
+    },
+    "4": {
+     "reports": 14,
+     "items_median": 2.0,
+     "items_max": 5
+    },
+    "5": {
+     "reports": 12,
+     "items_median": 2.0,
+     "items_max": 4
+    },
+    "6": {
+     "reports": 12,
+     "items_median": 1.5,
+     "items_max": 3
+    },
+    "7": {
+     "reports": 15,
+     "items_median": 1,
+     "items_max": 4
+    },
+    "8": {
+     "reports": 10,
+     "items_median": 1.5,
+     "items_max": 4
+    },
+    "9": {
+     "reports": 12,
+     "items_median": 2.0,
+     "items_max": 4
+    },
+    "10": {
+     "reports": 19,
+     "items_median": 1,
+     "items_max": 4
+    },
+    "11": {
+     "reports": 13,
+     "items_median": 1,
+     "items_max": 5
+    },
+    "12": {
+     "reports": 13,
+     "items_median": 1,
+     "items_max": 2
+    },
+    "13": {
+     "reports": 9,
+     "items_median": 1,
+     "items_max": 2
+    },
+    "14": {
+     "reports": 8,
+     "items_median": 2.0,
+     "items_max": 4
+    }
+   }
+  },
+  "TUNED": {
+   "climb": [
+    {
+     "hours": 8,
+     "best": 6.5,
+     "n": 8
+    },
+    {
+     "hours": 16,
+     "best": 9.5,
+     "n": 8
+    },
+    {
+     "hours": 24,
+     "best": 13.0,
+     "n": 8
+    },
+    {
+     "hours": 32,
+     "best": 13.0,
+     "n": 8
+    },
+    {
+     "hours": 40,
+     "best": 14.0,
+     "n": 8
+    },
+    {
+     "hours": 48,
+     "best": 15.5,
+     "n": 8
+    },
+    {
+     "hours": 56,
+     "best": 16.0,
+     "n": 8
+    },
+    {
+     "hours": 64,
+     "best": 16.5,
+     "n": 8
+    },
+    {
+     "hours": 72,
+     "best": 18.0,
+     "n": 8
+    },
+    {
+     "hours": 80,
+     "best": 18.5,
+     "n": 8
+    },
+    {
+     "hours": 88,
+     "best": 19.0,
+     "n": 8
+    },
+    {
+     "hours": 96,
+     "best": 19.5,
+     "n": 8
+    },
+    {
+     "hours": 104,
+     "best": 21.0,
+     "n": 8
+    },
+    {
+     "hours": 112,
+     "best": 22.5,
+     "n": 8
+    },
+    {
+     "hours": 120,
+     "best": 22.5,
+     "n": 8
+    },
+    {
+     "hours": 128,
+     "best": 22.5,
+     "n": 8
+    },
+    {
+     "hours": 136,
+     "best": 22.5,
+     "n": 8
+    },
+    {
+     "hours": 144,
+     "best": 23.5,
+     "n": 8
+    },
+    {
+     "hours": 152,
+     "best": 23.5,
+     "n": 8
+    },
+    {
+     "hours": 160,
+     "best": 26.5,
+     "n": 8
+    },
+    {
+     "hours": 168,
+     "best": 26.5,
+     "n": 8
+    },
+    {
+     "hours": 176,
+     "best": 26.5,
+     "n": 8
+    },
+    {
+     "hours": 184,
+     "best": 28.0,
+     "n": 8
+    },
+    {
+     "hours": 192,
+     "best": 28.0,
+     "n": 8
+    },
+    {
+     "hours": 200,
+     "best": 28,
+     "n": 7
+    },
+    {
+     "hours": 208,
+     "best": 28,
+     "n": 7
+    },
+    {
+     "hours": 216,
+     "best": 27.5,
+     "n": 6
+    },
+    {
+     "hours": 224,
+     "best": 28.0,
+     "n": 6
+    },
+    {
+     "hours": 232,
+     "best": 28.0,
+     "n": 4
+    },
+    {
+     "hours": 240,
+     "best": 28.0,
+     "n": 4
+    },
+    {
+     "hours": 248,
+     "best": 28,
+     "n": 3
+    },
+    {
+     "hours": 256,
+     "best": 28,
+     "n": 3
+    },
+    {
+     "hours": 264,
+     "best": 28,
+     "n": 3
+    },
+    {
+     "hours": 272,
+     "best": 28,
+     "n": 3
+    },
+    {
+     "hours": 280,
+     "best": 28.0,
+     "n": 2
+    },
+    {
+     "hours": 288,
+     "best": 28.0,
+     "n": 2
+    },
+    {
+     "hours": 296,
+     "best": 28.0,
+     "n": 2
+    }
+   ],
+   "runs_per_checkin": 16.5,
+   "best_by_day": {
+    "1": {
+     "median": 13.0,
+     "min": 8,
+     "max": 18
+    },
+    "2": {
+     "median": 15.5,
+     "min": 13,
+     "max": 19
+    },
+    "3": {
+     "median": 18.0,
+     "min": 16,
+     "max": 23
+    },
+    "4": {
+     "median": 19.5,
+     "min": 17,
+     "max": 26
+    },
+    "5": {
+     "median": 22.5,
+     "min": 19,
+     "max": 26
+    },
+    "6": {
+     "median": 23.5,
+     "min": 19,
+     "max": 29
+    },
+    "7": {
+     "median": 26.5,
+     "min": 20,
+     "max": 29
+    },
+    "8": {
+     "median": 28,
+     "min": 20,
+     "max": 29
+    },
+    "9": {
+     "median": 27.5,
+     "min": 24,
+     "max": 29
+    },
+    "10": {
+     "median": 28,
+     "min": 24,
+     "max": 28
+    },
+    "11": {
+     "median": 28,
+     "min": 28,
+     "max": 28
+    },
+    "12": {
+     "median": 28.0,
+     "min": 28,
+     "max": 28
+    }
+   },
+   "announced_by_day": {
+    "1": {
+     "reports": 23,
+     "items_median": 5,
+     "items_max": 13
+    },
+    "2": {
+     "reports": 15,
+     "items_median": 2,
+     "items_max": 12
+    },
+    "3": {
+     "reports": 16,
+     "items_median": 2.0,
+     "items_max": 6
+    },
+    "4": {
+     "reports": 13,
+     "items_median": 2,
+     "items_max": 5
+    },
+    "5": {
+     "reports": 13,
+     "items_median": 2,
+     "items_max": 8
+    },
+    "6": {
+     "reports": 15,
+     "items_median": 1,
+     "items_max": 6
+    },
+    "7": {
+     "reports": 13,
+     "items_median": 2,
+     "items_max": 6
+    },
+    "8": {
+     "reports": 15,
+     "items_median": 1,
+     "items_max": 4
+    },
+    "9": {
+     "reports": 9,
+     "items_median": 2,
+     "items_max": 4
+    },
+    "10": {
+     "reports": 5,
+     "items_median": 2,
+     "items_max": 3
+    },
+    "11": {
+     "reports": 6,
+     "items_median": 1.5,
+     "items_max": 3
+    },
+    "12": {
+     "reports": 1,
+     "items_median": 1,
+     "items_max": 1
+    }
+   }
+  }
+ }
+}

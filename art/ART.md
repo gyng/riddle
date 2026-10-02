@@ -24,6 +24,17 @@ still has a painted, hand-made surface, and the tint LUT still has clean hues to
 takes everything else — proportions, outline, shading, palette — from the target. Manifest ids,
 sizes (`master_h`/`texel_h`) and the pack pipeline are unchanged.
 
+### Phase 2 (2026-09-30) — the whole library in moonlit ink and wash (`docs/ART_DIRECTION.md` governs look)
+
+Every keyed sprite, tile, prop, icon, frame, portrait and backdrop was redrawn under the approved guide; the v2 rules below stay for
+the pipeline (sizes, the tag in the silhouette, one subject, no floor/shadow/text) but the look is the guide's. Changes to v2:
+the hero is the **long 1/6.5 figure** (a blind read at true game size: 98 % vs 90 % at 1/5 and 81 % at 1/4 — the BONE face patch
+and MIST blade rim carry it), every hero wears the BLOOD cloak; colours are the palette's names (no moss-green goblins: INK-and-DUSK
+skin, BONE eyes); moonlight from above, not an upper-left key; the key is **transparent or magenta #FF00FF** (the moonlit blues sit
+too near #0000FF; `pack.key_source` reads either off the corners). Prompts: `make_prompts.header3()` (the STYLE PREAMBLE verbatim +
+the sprite rules), briefs `brief3` in the manifest. Review: `art/p2sheet.py` (before/after sheets; `qc` = every sprite with the hero
+in each place's dressed room through `art-qc.py --style`). HANDOFF §6 "Art direction phase 2" has the batch log.
+
 ### Register 1 — keyed character sprites, v2 (codex, `art/generated/`)
 
 A **crisp top-down dark-fantasy RPG character sprite**, like the characters in `watch.png`,

@@ -251,13 +251,41 @@ and runs `art-qc.py --style`. Codex batches: `art/prompts/p2_*.txt`, logs `art/l
    bright green gone), ghosts (wraith, spectral blade/hound, echo) in MIST and BONE, the Warlord a gaunt king in a BLOOD-and-INK
    mantle. Known weak: the bell sentinel's bell reads dark (not GILT), the acolyte bows less than briefed, the Foundry Master carries
    a lot of bronze. Style QC: every foe frame (with the hero, in the Warrens room) passes.
-3. (batch 3, the tiles, commits after 4 — see below)
+3. **The painted tile register** (7 places × 20 pieces + the Fens' own 7): `painted.py p2` with the place's tinted DUSK/MOON hexes
+   in every prompt and `BRIEF3` for the places that are not masonry — the **Fens** a boardwalk of long planks over black water with a
+   log palisade (its first pass came back as teal flagstones: the shared "flagstone" briefs had won), the **Burrows** packed ochre
+   earth with timber shoring, the **Deep** unworked cave rock; the Warrens, Crypt, Foundry and Sanctum keep masonry. The D5 fork's
+   two lanes read apart (earth vs planks over water). The 8-colour ramps (`make_tiles.style_ramp`, the fallback register, the decals,
+   `atlas.json meta.palettes`, `palette.ts`) are now the palette with each place's tint; the foundry's orange remap is gone. Style QC:
+   the Fens, the Burrows, the Deep and the Foundry never reached a moonlit highlight in a room frame (p99 L* 48–59), so
+   `painted.convert` lifts their lit edges toward MIST (`MOON_LIFT`; the Burrows' earth floors kept calm, its ledges carry the moon)
+   after one Codex retry each for the Fens and the Burrows. Every room passes, and all **413 sprite frames** (every hero and foe with
+   the hero, in all 7 rooms) pass `art-qc.py --style`.
 4. **UI**: 16 frames (bar, console, panel, tablets, tiles, well, the **BLOOD SEND gem** and a darker cracked CLOT danger gem,
    the death banner, gauge, stud, seal, the carved button, the scroll), 35 BONE ink icons, the death/report backdrops, pillar/brazier/
    candle, the boss shield + shards, the title key art (the camp's vista: the hero on the stair down, a moon shaft). CSS on the palette
    (a fork's pass: tokens `--ink … --gilt` in `:root`; `--acc` GILT for trim/text, the primary action BLOOD, `--hp` BLOOD, ok/info MIST,
    warn EMBER; ~900 literals moved by role; EMBER kept only where a flame is; the old `--ink` text token is `--ink-text`). Style QC
    on the walked screens: death, report and the second camp pass; the first camp sits at p99 L* 60 (bar 62).
+5. **Pets, items, effects**: the pet portraits (rat, jackal, monkey, goblin; the pet sprites are the bestiary's), the item glyphs
+   (potion, scroll, sword, breastplate, coins), the torch (EMBER, retried once: its flame read as a red stick), the BLOOD banner and
+   blood decals, shrine, vault / open vault, nest, bones, moss, crack, rubble — the shared hue assets and ramp decals (`p2_items*`).
+6. **The town** (docs/TOWN.md §7, enough for Cut 30's town v1): the dungeon mouth ×3 (cave · timber · gatehouse), campfire ×2
+   frames, tent, supply crate, staked plot, scaffold; blacksmith, storehouse, kennel and bank × 3 looks (built · improved · grand);
+   townsfolk (smith, merchant, child, carter), the mule cart, a dog, loot sacks ×2, a glowing chest, a BLOOD flag ×2 frames; a walk
+   frame per class (`walk_<class>`, the default look); the town terrain as painted tiles (`envp_town_*` → `town_env_*`: grass ×4,
+   dirt ×3 + edge, plaza ×2, water, cliff, fence, low wall, gate, bridge, two trees); the `!` rune marker (`icons/alert`) and the
+   minimap / roster plaques (`frames/plaque_*`, 9-slice 64). All keyed sprites are `kind: "town"` in the manifest (art-qc treats an
+   undrawn one as optional: the town scene draws a block + its icon). Nothing renders them yet — Cut 30 wires the scene.
+7. **The look is the default** (`web/src/render/wash.ts`, `blit.ts`, `index.ts`, `tags.ts`): the wash pass on for FX > 0 (`?look=off`),
+   reworked for on-palette art; moonlit grades, EMBER torches everywhere, a MIST hero light, moon pools; in-world plates on the palette.
+   **Blind round 27** (JUICE §10.15, raters BG and BI against the style targets): **6.60** vs round 26's 6.84 (−0.24). Camp +0.35,
+   desktop camp +0.30, bosses held; the dungeon watches fell (Warrens 5.80 → 5.30, Fens 6.00 → 5.10, scene 6.35 → 5.30): darker frame,
+   the long hero reads small, the Fens' planks shimmer under the grain. Next, in order: calm the Fens floor (fewer stripes; no grain on
+   world texels under motion), lift the watch's ambient a step and the hero's MIST light, lighten the scene insets, bevel the navy
+   plaques, forecast bars back to a hot fill; then the camera-on-the-exchange blocker (needs the rule's target on the wire).
+   Before/after sheets: `scratchpad/style/phase2/` (`batch1_heroes_sprites`, `batch2_foes`, `batch3_tiles`, `rooms7`,
+   `phase2_before_after_phone`, `phase2_before_after_desktop`, `readtest/`).
 
 ### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
 Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,

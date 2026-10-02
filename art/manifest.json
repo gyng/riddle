@@ -3867,6 +3867,46 @@
       "texel_h": 24,
       "description": "the same flag pole, frame 2 of 2: the BLOOD flag's ripple shifted. (Art direction phase 2, docs/TOWN.md §7.)",
       "brief3": "the same flag pole, frame 2 of 2: the BLOOD flag's ripple shifted."
+    },
+    {
+      "id": "walk_fighter",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1536",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "the SAME hero as /home/g/p/riddle/art/generated/hero_fighter_male.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the SAME hero as /home/g/p/riddle/art/generated/hero_fighter_male.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town."
+    },
+    {
+      "id": "walk_rogue",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1536",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "the SAME hero as /home/g/p/riddle/art/generated/hero_rogue_female.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the SAME hero as /home/g/p/riddle/art/generated/hero_rogue_female.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town."
+    },
+    {
+      "id": "walk_ranger",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1536",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "the SAME hero as /home/g/p/riddle/art/generated/hero_ranger_female.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the SAME hero as /home/g/p/riddle/art/generated/hero_ranger_female.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town."
+    },
+    {
+      "id": "walk_caster",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1536",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "the SAME hero as /home/g/p/riddle/art/generated/hero_caster_male.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town. (Art direction phase 2, docs/TOWN.md §7.)",
+      "brief3": "the SAME hero as /home/g/p/riddle/art/generated/hero_caster_male.png (open it: same kit, colours, BLOOD cloak, proportions), WALKING to the right mid-stride (one leg forward, the cloak swinging behind), weapon carried at rest, not fighting — a walk frame for the town."
     }
   ]
 }

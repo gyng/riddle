@@ -12,7 +12,7 @@ import type { App } from "../app";
 import type { Patch, Row, Trace } from "../engine/types";
 import { h, pct } from "./dom";
 import { closeX, openSheet } from "./sheet";
-import { isCardRow, refName, rowLabel, sameCond, sameVerb } from "./tokens";
+import { isCardRow, refName, rowLabel, ruleName, sameCond, sameVerb } from "./tokens";
 import { icon, verbIcon } from "./skin";
 /** gfx round 2 (raters: "the three fix rows are plain brown slabs — give each an icon, as the target does"): the fix's action plaque. */
 const patchPlaque = (row: Row | undefined): HTMLElement | "" => { const id = row ? verbIcon(row.verb.v) : null; return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
@@ -84,7 +84,10 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   // unpatched reach (the first patch's reach less its move, unrounded), and each patch's move is its rounded reach less it
   const lead = baseline === undefined ? patches.find((p) => !p.below_bar) : undefined;
   const stallBase = lead ? Math.max(0, Math.round((lead.survive - lead.forecast_delta) * 100)) : undefined;
-  const rows = patches.map((p) => {
+  // the death screen's rest view (death.ts): each tablet's short name and effect, read by its CSS (`data-short`, `data-eff`) — the
+  // rule by its words among the offered fixes and the set (`+ retreat vs gas`), the effect one count (`survives 10/12`)
+  const names = [...patches.map((q) => q.row), ...app.rules.rows];
+  const rows = patches.map((p, pi) => {
     const delta = stallBase !== undefined ? Math.round(p.survive * 100) - stallBase : Math.round(p.forecast_delta * 100);
     // QA 23ed91f (K: "`reach 92% · base 8% · reach +83%`: 92 − 8 ≠ 83, and `reach` twice"): a stall patch's base is the rounded reach
     // less the rounded delta, so the three numbers add up; its delta then drops the word (`+84%`)
@@ -166,6 +169,11 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
         h("span", { class: "num surv" }, line),
         reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish, campBaseAt(app)),
         stallish ? "" : wholeSpan(p)));   // Cut 27 §4: a stall's patches carry their whole-run move too (the gem's guard reads it)
+    const nm = ruleName(names, pi);
+    btn.dataset.short = unlock ? /* copy:button */ `buy ${p.root?.text ?? nm}` : move ? /* copy:button */ `move ${nm} up` : p.remove ? /* copy:button */ `cut ${nm}` : p.restores !== undefined ? /* copy:button */ `restore ${nm}` : p.buys ? `+ ${p.buys.label} · ${nm}` : `+ ${nm}`;
+    btn.dataset.eff = unlock ? "" : held >= 0 ? /* copy:callout */ "already written" : noGain || opts.nothingBeatsBase ? /* copy:callout */ "no gain" : p.below_bar ? /* copy:callout */ "below bar"
+      : opts.stall ? /* copy:callout */ `unstuck ${rs(p.survive)}` : baseline === undefined ? /* copy:callout */ `reach ${pct(p.survive)}` : /* copy:callout */ `survives ${rs(p.survive)}`;
+    patchOf.set(btn, p);
     quietMoves(btn);
     applyOf.set(btn, act);
     return btn;
@@ -197,6 +205,8 @@ function renumber(host: HTMLElement): void {
 const EXIT_VERBS = new Set(["return", "bank"]);
 /** Each patch tablet's action (apply, buy, open the drop sheet, open the camp on a held row) — the gem's, when tablets only select. */
 export const applyOf = new WeakMap<HTMLElement, () => void | Promise<void>>();
+/** Each patch tablet's patch (the death screen's `why` reads the lead's). */
+export const patchOf = new WeakMap<HTMLElement, Patch>();
 
 /** A patch's reach line: `reach +8%`; with the camp's own measure (`deathDeltas`) the depth and its ± — `reach D6 +8% ±3`, and
  *  `reach D6 ~0` inside the ± (as an unlock card's); `reach …` while the camp's measure is pending (`camp_pending`: the verdict's

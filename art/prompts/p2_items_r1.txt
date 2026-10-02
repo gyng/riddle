@@ -1,0 +1,44 @@
+You are painting PIXEL ITEM AND DRESSING SPRITES for the game "Riddle" (a gothic dark-fantasy roguelike on a phone held in portrait). FIRST look
+at these approved STYLE TARGETS (you may open these images and nothing else in the repository): /home/g/p/riddle/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/art/ui/targets/style/watch_fens.png. They are the target look.
+
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT modify
+anything outside /home/g/p/riddle/art/generated/. Save each final PNG (sRGB) to the exact path at the exact size; resample with PIL (Lanczos) if needed,
+keeping the aspect (crop the long side, never stretch). Delete any scratch or _inspection_ files you create. OVERWRITE existing
+files. When done, look at each output once and regenerate it once if it breaks a rule below.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== HOW THESE ARE USED (critical) ===
+Each asset is a TINY game sprite: the 1024 px image is box-downscaled to a 16x16 (torch 16x24, banner 16x20) pixel grid and
+drawn on the dungeon floor. Paint it AS that tiny tile enlarged (each cell a ~64 px square, stepped edges, washes inside the
+cells), BOLD simple shapes, an INK contour one cell thick, light from above. The object only, centred, on a TRANSPARENT
+background (or, if the tool gives an opaque image, a flat uniform pure MAGENTA #FF00FF edge to edge); no floor, no cast
+shadow, no glow halo (a flame may glow inside its own shape), no text, no magenta on the object.
+
+=== ASSETS ===
+1) /home/g/p/riddle/art/generated/env_torch.png — 1024x1536 — a WALL TORCH SCONCE front view (a TALL piece, 16x24: paint on a 1024x1536 canvas): an INK iron bracket with a ring holding a short torch upright, burning with a bright EMBER flame (BONE core, EMBER body, CLOT tips, two or three tongues) in the top third. RETRY (QC: the flame read as a red stick): the flame must read as FIRE — a big bright flame, a BONE-white/pale-yellow core, a bright EMBER #e8923a orange body filling most of the flame, only the thinnest CLOT tips; the flame about a third of the height and WIDE (half the width). Open the current file first and keep the sconce.
+2) /home/g/p/riddle/art/generated/env_item_gold.png — 1024x1024 — a small pile of COINS: 5-7 worn GILT coins stacked and scattered, BONE glints on their top edges, INK contour; ~60 % of the tile, bottom-centred. RETRY (QC: the coins read as a tan rock at game size): the coins are unmistakably GOLD — round coin shapes stacked in two short piles, bright GILT #b89448 faces lifted toward pale gold on their tops, BONE glints, a dark INK rim on each coin.
+When all assets are saved, list the final paths and sizes. Do nothing else.

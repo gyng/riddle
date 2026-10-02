@@ -73,7 +73,7 @@
   background: radial-gradient(circle at 42% 36%, rgb(220 230 242 / calc(var(--reach) * .95)), rgb(120 152 196 / calc(.12 + var(--reach) * .85)) 58%, rgb(28 27 43 / .95) 100%), #171621; }
 .forecast .bar.unknown .hex { background: #111019; box-shadow: inset 0 0 0 1px #292f4a; }
 .forecast .bar .track { height: 4px; border-radius: 2px; }
-.forecast .bar .track .fill { background: linear-gradient(90deg, #56739f, #aec0d4); }
+.forecast .bar .track .fill { background: linear-gradient(90deg, var(--blood), var(--ember)); }   /* phase 2 r28: hot, not pale blue */
 /* Cut 29 §4: a tablet lifted by a long press */
 .editor .row.tablet.lifted { box-shadow: 0 8px 18px rgba(13, 12, 20, .7), 0 0 0 2px var(--acc); z-index: 5; position: relative; }
 /* Cut 29 (owner): the forecast's ± as a noise band (a blurred bar as wide as the spread; the `±7` text stays for readers and tools, unseen),

@@ -1,4 +1,4 @@
-# Riddle — art direction: moonlit ink and wash (phase 1, for the owner's approval)
+# Riddle — art direction: moonlit ink and wash (approved; phase 2 shipped 2026-09-30)
 
 *2026-09-30. The owner's call: a **hybrid pixel–painted** look, leaning a little more **painted**, more **stylistic**,
 consistent across sprites, tiles, props, portraits, UI, backdrops and the town. References (for people, never in a
@@ -58,6 +58,14 @@ DUSK-green skin, a slime's teal) inside the tint's family; a second saturated hu
   the face: phase 2 keeps a BONE face patch ≥ 2 texels and a MIST rim on the sword so the long figure still reads.
   This moves the hero away from ART.md's chunky 1/3-head proportion (§12).
 
+**Tiles, painterly pass (2026-09-30, the owner: "more painterly, retain the readability, more similar to the original but with
+more style")**: `art/refine.py painterly()` over the refined register — the round-26 value bands per class kept (the texel moves
+≤ 18/255), the old material colour partly back per place (Burrows earth to b* +9, Foundry heat, Sanctum pale stone, Fens teal),
+each stone a graded wash with pooled pigment at its foot, blotches, strokes along the grain, a band-limited smoothing (a soft wash,
+not mottle), hand-inked mortar lines and prop contours. A filter rather than Codex repaints: the phase-2 Codex paint lost the read
+(4.8) and a 1024 px brush stroke does not survive the 16×16 downscale. Blind check (one reader, 7 rooms × 7 marked classes):
+49/49 identified; readability round 26 5 · refined 7 · painterly 7; "painterly" 3 · 5 · 5 (first painterly cut, mottled: 4).
+
 ## 5. Texture
 
 - **Paper grain**: warm BONE paper shows through the lightest washes; a fine grain over the whole frame (screen-fixed,
@@ -77,8 +85,30 @@ Ghosts and magic glow MIST; fire and forge glow EMBER; nothing glows BLOOD excep
   hammered texture — never glossy metal. Parchment is BONE paper with bloom stains and an inked, deckled edge.
 - The primary gem is **BLOOD** (was amber); secondary gems MOON; danger gauges BLOOD, health MIST.
 - Icons: BONE ink drawings on dark tiles, one weight, no gradients.
-- Type unchanged in role: a tall carved gothic/serif display face (Cinzel / IM Fell) in BONE for titles and verdicts, the
-  condensed sans for numbers, the pixel face for in-world callouts. The copy budget (≤ 3 words) is untouched.
+- Type: see §7.1. The copy budget (≤ 3 words) is untouched.
+
+### 7.1 Typography (2026-09-30, the owner: "find better fonts")
+
+| role | face | where | why |
+|---|---|---|---|
+| display (`--display`) | **Grenze** 400–900 (Omnibus-Type, OFL) | titles, verdicts, seals, the death headline, callout plates, name tags | a roman built on blackletter bones: the gothic pen angle and pointed serifs of Bloodlust's titles, with a real lowercase that stays readable at 12 px (Cinzel is caps-only; its small caps read as capitals blind) |
+| labels (`--sans`) | **Fira Sans Extra Condensed** 400/500/600/700 (Mozilla, OFL) | chrome text, rules, chips, sheets | a humanist condensed with open counters and a distinct `1 l I`; ~Barlow's width, so the 400 px phone layout holds |
+| numbers (`--num`, `.num`) | **Fira Sans Condensed** SemiBold, `tabular-nums lining-nums` | `$1 488`, `11/12`, `D12`, stats, damage numbers | tabular lining figures that do not jitter as they count; one step wider than the labels so digits separate |
+| in-world pixel callouts | the 3×5 bitmap face (`web/src/render/font.ts`) | canvas callouts, damage in the pixel layer | kept: it sits on the pixel grid (§4), which is the structure |
+
+- **Self-hosted**, never a CDN: `web/public/fonts/*.woff2` (licences beside them), subset to Latin-1 + the punctuation,
+  arrows, maths and shapes blocks the game prints (`→ ≤ ≥ ± × · … ◆`); the service worker precaches them (`web/vite.config.ts`).
+  Glyphs no face has (`★ ♟ ⚔ ⚜ ☠`) fall back to the system as before. `font-display: swap`; Grenze and Fira 400 are preloaded.
+- **Lining figures everywhere** (`html { font-variant-numeric: lining-nums }`): Grenze defaults to old-style figures and
+  `D12` read `DI2` in the blind check. Grenze's 1.48 em box is trimmed to 1.32 (`ascent-override: 96%; descent-override: 36%`)
+  so a display line never overhangs its box and caps sit centred in a button.
+- Blackletter (Grenze Gotisch, Texturina, UnifrakturMaguntia) only ever for a one-word title, never a line.
+- The pick (blind, one screenshot-only reader, 5 pairings × 20 small strings at 10–14 px on a 400 px phone at 2×; exact
+  transcriptions · legibility · style): **Grenze / Fira 20/20 · 8 · 6** · Texturina / Sofia Sans Condensed 20/20 · 7 · 6 ·
+  Cinzel / Barlow (was) 18/20 · 7 · 8 · Marcellus SC / IBM Plex Sans Condensed 19/20 · 7 · 7 · IM Fell English SC / Alegreya Sans
+  19/20 · 5 · 7. Legibility first, then style. Every miss was a caps-only or small-caps display face (lowercase read as capitals)
+  or an old-style `1` read as `I`. The reader called Grenze's heavy weights "western poster" rather than gothic: keep display
+  text at 600–700, lean on the pen serifs and BLOOD, not weight 900. Specimens: `scratchpad/fonts/specimens.png`.
 
 ## 8. The Codex preamble (every future asset prompt starts with this block, verbatim)
 
@@ -91,7 +121,19 @@ the tint rule · 60 % shadow, moonlight above, EMBER pools, BLOOD ≤ 8 % · NEV
 airbrushed gradients, lens flare, a warm brown/amber cast, rainbow saturation, noisy detail, flat vector, chibi.
 Prompts describe the look only: no artist, film or game names (ART.md provenance).
 
-## 9. The renderer prototype — `?look=wash`
+## 9. The renderer — the look (phase 1's `?look=wash` prototype, the default since phase 2)
+
+**Phase 2 (2026-09-30):** the art now carries the palette itself, so the pass is **on by default** (FX > 0; `?look=off` turns it
+off, sticky; the `low` tier's shader is still byte-identical) and no longer maps the frame onto the ramp — phase 1's night curve and
+gradient map sank the new art to mush. It keeps a light pull toward the place's ramp (a fifth), a lighter ink line on hard edges,
+pigment pooling, granulation on the grid, screen paper grain, the BONE lift in the lights and the halftone in the shadow band. The DOM
+palette map is gone (the CSS is on the palette); the paper-grain overlay stays (0.4). `?look=grade` brings the DOM map back for a
+comparison. The grades (`blit.ts GRADES`) are a cold moonlit night over the art (rgb a touch toward MOON, ambient ~0.74); torches are
+EMBER in every place (the per-biome torch casts are gone), the hero's own light is MIST, and a few **moon pools** fall on open floor
+(`index.ts moons`, deterministic in the tile) — the "shafts through cracks". In-world plates, name tags, boss plates and stamps
+(`tags.ts`) are ink plates with MIST bevels, the boss's in BLOOD and GILT.
+
+Phase 1's prototype, for the record:
 
 `web/src/render/wash.ts`, off by default, sticky via localStorage `riddle.look` (`?look=off` clears). Canvas: the blit's
 last step (`LOOK` define, compiled only when FX > 0: the `low` tier's shader is byte-identical): the frame onto the §2 ramp

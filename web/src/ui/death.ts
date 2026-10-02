@@ -18,9 +18,9 @@ import { openReplay } from "./replay";
 import { h, copyText, items } from "./dom";
 import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
-import { applyOf, fillReach, leadFirst, openDropSheet, patchRows, sinkHarms } from "./patches";
+import { applyOf, fillReach, leadFirst, openDropSheet, patchOf, patchRows, sinkHarms } from "./patches";
 import { closeX, openSheet } from "./sheet";
-import { gem, portrait, renderBar, renderConsole, tile, wideCols, isWide } from "./frame";
+import { gem, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
 import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
@@ -112,7 +112,13 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // docs/COPY.md pass 3 (`UNANSWERED` under `goblin warlord · D8` read as "boss not beaten yet" 4/4): a gap whose margin does not say
   // what went unmet says it (`no rule for it`)
   const gapWord = d.verdict === "gap" && !/unanswered|unused|unmet/.test(margin) ? /* copy:death_line */ " · no rule for it" : "";
-  const causeText = /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}${gapWord}`;
+  // death screen v2 (owner, 2026-10-01: "too wordy and incomprehensible"): the headline answers what killed him — the killer, the floor and (`hero at`: blind check read a bare `at 1 hp` as the foe's)
+  // the hp he had before the blow (`gas · D7 · at 3 hp`); a stall keeps its loop (its moment is the rules'); the rule, the margin and
+  // `no rule for it` move to the why line and the details
+  const hpAt = drove?.hp ?? momentHp(d);
+  const causeText = d.verdict === "stall" ? /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}${gapWord}`
+    : /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${hpAt !== undefined ? ` · hero at ${hpAt} hp` : ""}`;
+  const marginText_ = d.verdict === "stall" ? "" : [causeRow, seg].filter(Boolean).join(" · ");
   // QA 1a2a4a9 (P: `STALLED · R2 RETREAT ↔ EXPLORE · D6 · KEEPS $0` ran off both edges at 400 px): a stall's headline wraps between its
   // ` · ` segments (each whole: the loop `R2 retreat ↔ explore` never breaks) and steps its face down until the widest segment fits
   // gfx raters (the desktop banner broke `D8 · NO / RULE FOR IT`): every headline wraps between its segments, a segment kept whole
@@ -139,7 +145,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // QA 524827b (qaAB: tapped `gas · D6` expecting the clip; it only scrolled to the trace): the cause opens the moment — the killing
   // blow's replay when this session still holds the run — else brings up the trace
   const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;
-  const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); };
+  const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else { if (!el.classList.contains("full")) more.click(); tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); } };
   const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: onCause }, causeEl), h("span", { class: "sep" }, " · "), seal,
     // QA 308f045 (qaAD: `GAP` over `dice-leaning` — "two verdicts on one death"): beside the stamp the lean is the count it rests on, a fact
     // and not a second verdict (`10/12 live unpatched`; without the count, `most live unpatched`)
@@ -184,7 +190,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Fractions 0..1 from the core: baseline (survival of the unpatched rules) is on every row (Cut 4 §2).
   // QA 1a2a4a9 (O): a tap on a tablet lights it (the gem takes its number); the gem applies the lit one — the only apply on this screen
   let picked = false;   // the player lit a tablet (the landing never moves his pick)
-  const light = (btn: HTMLButtonElement): void => { patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches, btn); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; };
+  const light = (btn: HTMLButtonElement): void => { patches.querySelector(".patch.top")?.classList.remove("top"); top = topPatch(patches, btn); const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g; rest(); };
   const select = (btn: HTMLButtonElement): void => { picked = true; light(btn); };
   // Cut 26 §6 (AP: a drive-off at 25/36 hp, `driven $0 · $297 lost`, and no verdict screen): a drive-off opens its verdict — the boss,
   // the floor, the defence; the seal `driven`; one tablet, the counter (`try: attack boss`), the gem writes it
@@ -232,7 +238,6 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
     top ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
-    d.morgue ? tile({ id: "morgue", label: /* copy:button */ "morgue", icon: "morgue", onclick: openMorgue }) : null,
     // QA 308f045 (qaAD: a verdict opened from the return report had no way back — `edit · morgue · camp`, browser back to the camp): a
     // verdict opened from a report leads back to it
     from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report }) }) : null,
@@ -240,17 +245,39 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   ] });
   const killerSrc = drove ? null : foeSrc(d.cause);
   const tracePanel = h("div", { class: "parchment trace-panel", hidden: !!drove && !d.trace.turns.length }, ...trace);   // a drive-off's line may carry no trace
+  // death screen v2 — the three questions, in order: what killed him (the banner), why (one line, the player's words), what now (the
+  // lit fix and at most two others, each its short name and its effect; `send again` beside them for a luck death or none to offer);
+  // everything else — the margin, the notes, the ledger, the trace, the tablets' numbers, the fight, the morgue — behind `details`
+  const rowsRan = d.rules?.rows ?? app.rules.rows;
+  const whyEl = h("div", { class: "death-why" });
+  const leadPatch = (): Patch | undefined => { const b = top?.btn; return b ? patchOf.get(b) : undefined; };
+  const setWhy = (): void => { whyEl.textContent = whyOf(app, d, leadPatch(), rowsRan, luck, drove, causeRow); };
+  const lever = (d as Death & { lever?: Lever }).lever;   // Cut 30 (core): before the pen opens, the one cheapest lever (spend · package · wait) leads
+  const leverBtn = lever ? h("button", { class: "death-lever tablet", "data-k": lever.k, onclick: () => app.go({ kind: "camp" }) }, h("b", null, lever.text), lever.effect ? h("small", { class: "num" }, ` · ${lever.effect}`) : "") : null;
+  const canSend = !kept && app.rules.rows.length > 0 && !app.overBudget;
+  const sendAgain = canSend ? h("button", { class: "death-send chip", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send again") : null;
+  const now = h("div", { class: "death-now" }, leverBtn, patches, sendAgain);
+  // the rest view: the lit fix and one other; `send again` when the death leaned on luck or nothing helps (both when there is room)
+  function rest(): void { const n = restLayout(patches, leverBtn ? 1 : 2, measuring); if (sendAgain) sendAgain.hidden = !(luck || n === 0 || !!drove && n < 2); }
+  const marginEl = marginText_ ? h("div", { class: "death-margin num dim" }, marginText_, gapWord) : null;
+  const meters = d.fight ? h("div", { class: "parchment fight-meters" }, meterPanel(d.fight, rowsRan, { title: /* copy:label */ "last fight" })) : null;
+  const morgueBtn = d.morgue ? h("button", { class: "chip mini death-morgue", onclick: openMorgue }, /* copy:button */ "morgue") : null;
+  const details = h("div", { class: "death-details", hidden: true }, marginEl, news, drivenHp, notes, forecastLine, ledger, eggs, bones);
+  const tail = h("div", { class: "death-details death-tail", hidden: true }, tracePanel, meters, morgueBtn);
+  // one `details` tap, the report's own control (Cut 28 §2): the old screen, whole — the margin, the ledger, every tablet with its numbers
+  const more: HTMLButtonElement = h("button", { class: "details-fold death-more num", "aria-expanded": "false", onclick: () => {
+    const open = !el.classList.contains("full"); el.classList.toggle("full", open); details.hidden = !open; tail.hidden = !open;
+    more.setAttribute("aria-expanded", String(open)); more.classList.toggle("on", open);
+    if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
   const well = h("div", { class: "well death-well" },
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerSrc ? " has-killer" : ""}` },
       // gfx round 10 (raters, every round: "show the killer behind the banner"): the killer's portrait in an iron medallion on the cloth
-      killerSrc ? h("img", { class: "killer", src: killerSrc, alt: "", draggable: "false", "aria-hidden": "true" }) : null, luckLead, line), news, drivenHp, notes, forecastLine, ledger, eggs, bones),
-    // QA 23ed91f (K: "the patches sit below the fold, under the console"): the patches, the screen's point, before the trace
-    patches,
-    tracePanel,
-    // Cut 29 §3: the fight he died in, metered — on the phone under the trace, on the desktop in the right column under the shaft
-    d.fight && !isWide() ? h("div", { class: "parchment fight-meters" }, meterPanel(d.fight, d.rules?.rows ?? app.rules.rows, { title: /* copy:label */ "last fight" })) : null);
-  const wide = wideCols(app, d.fight ? meterPanel(d.fight, d.rules?.rows ?? app.rules.rows, { title: /* copy:label */ "last fight" }) : null);   // desktop: the rules left, the shaft right (wide.css)
+      killerSrc ? h("img", { class: "killer", src: killerSrc, alt: "", draggable: "false", "aria-hidden": "true" }) : null, luckLead, line)),
+    whyEl, details, now, more, tail);
+  const wide = wideCols(app, null);   // desktop: the rules left, the shaft right (wide.css); the fight is under details
   const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}` }, bar.el, well, cons.el, ...wide.els);
+  setWhy(); rest();
   // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
   if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }
   // QA 23ed91f: the patches' reach is the camp's own measure, landing after the paint (`deathDeltas`: seconds in wasm) — the
@@ -283,7 +310,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
           el.dataset.gemFirst = top ? (top.btn === patches.querySelector("button.patch") ? "1" : "0") : "";
         }
         measuring = false; const g3 = makeGem(); gemBtn.replaceWith(g3); gemBtn = g3;
-        return;
+        if (!picked) setWhy();
+        rest(); return;
       }
       const btns = [...patches.querySelectorAll<HTMLButtonElement>("button.patch")];
       // (an exit's cost is its word, `return early`, and the core keeps a costly exit off the lead: only a row that stays in the fight moves)
@@ -321,6 +349,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
         el.dataset.gemFirst = top?.btn === patches.querySelector("button.patch") ? "1" : "0";
       }
       measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2;
+      if (!picked) setWhy();
+      rest();
     }).catch((e) => { console.warn("deathDeltas", e); measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2; }); }, 0);
   }
   return { el, dispose: () => { gone = true; bar.dispose(); wide.dispose(); } };
@@ -410,7 +440,8 @@ function drivenBlock(app: App, dv: DrivenOff, select: (b: HTMLButtonElement) => 
     app.go({ kind: "camp", highlight: app.insertRow(dv.row, 0, "patch") });
   };
   const moveIt = have >= 0 && over >= 0;
-  const btn: HTMLButtonElement = h("button", { class: `patch tablet driven-line${have >= 0 && !moveIt ? " held" : ""}${moveIt ? " move" : ""}`, onclick: () => select(btn), "data-gem": moveIt ? /* copy:button */ "move" : have >= 0 ? /* copy:button */ "edit" : /* copy:button */ "write" },
+  const btn: HTMLButtonElement = h("button", { class: `patch tablet driven-line${have >= 0 && !moveIt ? " held" : ""}${moveIt ? " move" : ""}`, onclick: () => select(btn), "data-gem": moveIt ? /* copy:button */ "move" : have >= 0 ? /* copy:button */ "edit" : /* copy:button */ "write",
+    "data-short": moveIt ? /* copy:button */ `move ${ruleName(app.rules.rows, have)} up` : have >= 0 ? ruleName(app.rules.rows, have) : `+ ${dv.counter}`, "data-eff": /* copy:callout */ "counter" },
     h("b", { class: "rank num", "aria-hidden": "true" }, "1."),
     h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, moveIt ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move above ${ruleName(app.rules.rows, over)} `) : "", rowLabel(dv.row))),
     h("span", { class: "patch-nums" }, h("span", { class: "num surv" }, moveIt ? /* copy:callout */ `under ${ruleName(app.rules.rows, over)}` : have >= 0 ? /* copy:callout */ "already written" : /* copy:callout */ `try: ${dv.counter}`)));
@@ -434,7 +465,7 @@ function routeBlock(app: App, d: Death, select: (b: HTMLButtonElement) => void):
   const rc = d.route_cause!, n = d.replays ?? 12, cnt = (x: number): string => `${Math.round(x * n)}/${n}`;
   const same = JSON.stringify([...(app.rules.route ?? [])].sort()) === JSON.stringify([...rc.route].sort());
   const write = (): void => { if (!same) { if (rc.route.length) app.rules.route = [...rc.route]; else delete app.rules.route; app.rulesChanged(); } app.go({ kind: "camp" }); };
-  const btn: HTMLButtonElement = h("button", { class: "patch tablet route-fix", onclick: () => select(btn), "data-gem": cnt(rc.survive) },
+  const btn: HTMLButtonElement = h("button", { class: "patch tablet route-fix", onclick: () => select(btn), "data-gem": cnt(rc.survive), "data-short": /* copy:button */ `take ${rc.other}`, "data-eff": /* copy:callout */ `survives ${cnt(rc.survive)}` },
     h("b", { class: "rank num", "aria-hidden": "true" }, "1."),
     h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, h("small", { class: "target move-tag" }, /* copy:death_line */ `fork D${rc.fork} `), /* copy:callout */ `take ${rc.other}`)),
     h("span", { class: "patch-nums" }, h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, rc.survive)) * 100)}%` })),
@@ -464,4 +495,77 @@ export function luckOf(d: Death): { event: string; oneIn: string } {
 export function forecastSaid(app: App, depth: number): number | undefined {
   const f = app.lastForecast; if (!f || depth > f.known_to) return undefined;
   return f.depths.find((x) => x.depth === depth)?.reach;
+}
+
+/** Cut 30 (core, `Death.lever`, before the pen opens): the one cheapest lever — `spend` (buy the counter item), `package` (a swap), `wait`
+ *  (the heir rests, the floor's odds rise) — its words (`+ heal potion`) and its effect (`survives more`). Shape provisional: the core's. */
+export type Lever = { k: "spend" | "package" | "wait"; text: string; effect?: string };
+
+/** The hp the hero had before the blow that killed him (the last blow's hp plus its damage); none without a blow. */
+export function momentHp(d: Death): number | undefined {
+  const blow = d.trace.blows?.length ? d.trace.blows[d.trace.blows.length - 1] : d.trace.blow;
+  return blow ? Math.max(1, blow.hp + blow.dmg) : undefined;
+}
+
+/** Death screen v2 — why, from the player's side, one line: what would have changed it (the lead fix, inverted: a retreat fix reads `never
+ *  stepped back`, a return `returned too late`, a heal bought `no heal left`), luck as luck (`bad luck · 1 in 6`), a boss's `needs a
+ *  counter`; the verdict word (gap · row · order · route · stall) becomes this wording, never a term. `no rule for it` when nothing names it. */
+export function whyOf(app: App, d: Death, lead: Patch | undefined, rows: Row[], luck: { oneIn: string } | null, drove?: DrivenOff, causeRow?: string): string {
+  const pkg = (d as Death & { package?: string }).package;   // Cut 30 (core): the package whose row acted — `Steady · …`
+  const pre = pkg ? `${pkg} · ` : "";
+  if (drove) return pre + /* copy:callout */ "needs a counter";
+  if (luck) return /* copy:callout */ `bad luck · 1 in ${luck.oneIn}`;
+  if (d.verdict === "stall") return /* copy:callout */ "stuck looping";
+  if (d.verdict === "route" && d.route_cause) return /* copy:callout */ `wrong stairs · D${d.route_cause.fork}`;
+  if (d.verdict === "row" && causeRow) return pre + /* copy:callout */ `${causeRow} backfired`;
+  if (d.verdict === "order" && d.cause_row !== undefined) return pre + /* copy:callout */ `${refName(d.cause_row)} never fired`;
+  if (!lead) return /* copy:death_line */ "no rule for it";
+  const v = lead.row.verb.v, a = lead.row.verb.a ?? "";
+  if (lead.insert_at < 0) return /* copy:death_line */ "no rule for it";
+  if (lead.moves_from !== undefined && lead.moves_from >= 0) return pre + /* copy:callout */ `${ruleName(rows, lead.moves_from)} never fired`;
+  if (lead.remove) return pre + /* copy:callout */ `${ruleName(rows, lead.insert_at)} backfired`;
+  if (v === "return" || v === "bank") return rows.some((r) => r.verb.v === "return" || r.verb.v === "bank") ? /* copy:callout */ "returned too late" : /* copy:callout */ "never turned back";
+  if (/^(retreat|kite|back_corridor|blink|vanish|shadowstep|smoke)$/.test(v)) return /* copy:callout */ "never stepped back";
+  if (v === "drink" || v === "read" || v === "throw") {
+    const item = a.split(",")[0].replace(/^tag:/, "").replace(/_/g, " ") || "potion";
+    if (lead.buys) return /* copy:callout */ `no ${item} left`;
+    return rows.some((r) => r.verb.v === v && (r.verb.a ?? "") === a) ? /* copy:callout */ `${verbLabel(lead.row.verb)} too late` : /* copy:callout */ `never used ${item}`;
+  }
+  if (/boss/.test(a) || /boss/.test(JSON.stringify(lead.row.conds))) return /* copy:callout */ `${d.cause.replace(/_/g, " ")} needs a counter`;
+  void app;
+  return /* copy:death_line */ "no rule for it";
+}
+
+/** The rest view: the lit tablet and up to `max − 1` others that help (not dim, not harming, not held, not folded); the rest wait for
+ *  `details` (`rest-off`). Returns the tablets shown. */
+export function restLayout(box: HTMLElement, max: number, measuring = false): number {
+  const tabs = [...box.querySelectorAll<HTMLButtonElement>("button.patch")];
+  const shown = new Set<HTMLButtonElement>();
+  const lit = tabs.find((b) => b.classList.contains("top"));
+  if (lit && !lit.matches(".below, .held")) shown.add(lit);
+  // an alternative earns its place by the whole run: none while the reach is measuring; once landed, only one that moves it up (a fix
+  // the replays like but the whole run does not — `reach D8 same`, an exit's `return early` — waits under details)
+  const landed = !!box.querySelector(".delta:not(.pending)") && ![...box.querySelectorAll(".delta")].some((x) => /…/.test(x.textContent ?? ""));
+  for (const b of tabs) {
+    if (shown.size >= max) break;
+    if (b.closest(".patches-fold") || b.matches(".below, .harms, .held, .neg")) continue;
+    if (shown.size && (measuring || (landed && !b.querySelector(".delta.up")))) continue;
+    shown.add(b);
+  }
+  tabs.forEach((b) => b.classList.toggle("rest-off", !shown.has(b)));
+  // once the whole run is measured a gain reads the reach it moves (`reach D8 42→51%`, `reach D8 same`; an exit's `return early`) — the
+  // camp's measure the gem ranks by, so the lit fix never reads worse than the one beside it
+  for (const b of shown) {
+    const dl = b.querySelector<HTMLElement>(".delta"), t = dl?.classList.contains("exit") ? dl.firstChild?.textContent ?? "" : dl?.textContent ?? "";
+    // (a reach that does not move keeps the replays' count: `reach D8 same` read as "no help")
+    if (t && !/…/.test(t) && (dl?.classList.contains("up") || dl?.classList.contains("exit"))) b.dataset.eff = t.replace(/\s*±\d+%?$/, "").trim();
+  }
+  box.classList.toggle("rest-none", !shown.size);
+  return shown.size;
+}
+
+/** The `details` fold's hint (blind check: "no preview of what is inside"): the fixes it holds, then the trace — `· 3 fixes · trace`. */
+function foldHint(patches: HTMLElement): HTMLElement {
+  const n = patches.querySelectorAll("button.patch").length;
+  return h("small", { class: "fold-hint num" }, n ? /* copy:callout */ ` · ${n} ${n === 1 ? "fix" : "fixes"} · trace` : /* copy:callout */ " · trace");
 }

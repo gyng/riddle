@@ -1,6 +1,16 @@
-/* Riddle — Cut 17: a WC3/SC2 frame (carved umber stone, blackened iron, amber light, parchment); Cinzel for titles and verdicts,
-   Barlow Condensed for text and numbers; phone-first (400px), thumb targets ≥ 44px. Every skinned frame (`.skin-<frame>` on <html>,
+/* Riddle — Cut 17: a WC3/SC2 frame (carved umber stone, blackened iron, amber light, parchment); Grenze for titles and verdicts,
+   Fira Sans Extra Condensed for text, Fira Sans Condensed (tabular, lining) for numbers (docs/ART_DIRECTION.md §Typography); phone-first (400px), thumb targets ≥ 44px. Every skinned frame (`.skin-<frame>` on <html>,
    set only when tools/ui-skin.py packed the PNG) has the flat CSS below it as its fallback: art never blocks the game. */
+/* docs/ART_DIRECTION.md §Typography — self-hosted (web/public/fonts, OFL, subset to Latin + the arrows and signs the game prints;
+   precached by the service worker): Grenze (a roman with blackletter bones) for display, Fira Sans Extra Condensed for labels,
+   Fira Sans Condensed SemiBold for numbers. Symbols the faces lack (◆ ★ ♟ ⚔ …) fall back to the system as before. */
+@font-face { font-family: "Grenze"; src: url("/fonts/grenze.woff2") format("woff2"); font-weight: 400 900; font-display: swap;
+  ascent-override: 96%; descent-override: 36%; line-gap-override: 0%; }   /* Grenze ships a 1.48 em box (ascent 1.10): trimmed to 1.32 so a line never overhangs its box (the death seal gate) and caps sit centred in a button */
+@font-face { font-family: "Fira Sans Extra Condensed"; src: url("/fonts/fira-xc-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Fira Sans Extra Condensed"; src: url("/fonts/fira-xc-500.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Fira Sans Extra Condensed"; src: url("/fonts/fira-xc-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Fira Sans Extra Condensed"; src: url("/fonts/fira-xc-700.woff2") format("woff2"); font-weight: 700 900; font-display: swap; }
+@font-face { font-family: "Riddle Num"; src: url("/fonts/fira-c-600.woff2") format("woff2"); font-weight: 400 900; font-display: swap; }
 :root {
   /* docs/ART_DIRECTION.md §2 — the named palette (moonlit ink and wash; BLOOD the one accent); every colour below derives from it */
   --ink: #0d0c14; --umbra: #1c1b2b; --dusk: #2b3350; --moon: #4d6c99; --mist: #a4bcd6; --bone: #eadfc5;
@@ -8,8 +18,9 @@
   --bg: var(--ink); --panel: #171622; --panel2: #1f1f31; --line: var(--dusk);
   --fg: var(--bone); --dim: #8a9ab4; --acc: #dbba7c; --hp: var(--blood); --ok: var(--mist); --warn: var(--ember); --info: var(--mist);
   --cond: #23263b; --verb: #272c45; --radius: 6px; --tap: 44px;
-  --display: "Cinzel", "Trajan Pro", Georgia, serif;
-  --sans: "Barlow Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --display: "Grenze", Georgia, "Times New Roman", serif;
+  --sans: "Fira Sans Extra Condensed", "Roboto Condensed", "Arial Narrow", sans-serif;
+  --num: "Riddle Num", "Fira Sans Extra Condensed", "Arial Narrow", sans-serif;   /* tabular lining figures: `$1 488`, `11/12`, `D12` */
   --mono: var(--sans);   /* Cut 17: monospace goes from the chrome; the old name reads the condensed face */
   /* parchment text: INK on BONE paper (was --ink; the palette's INK took the name) */
   --ink-text: var(--ink); --ink-dim: #455e87; --ink-line: rgba(43, 51, 80, .35);
@@ -17,13 +28,13 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.3 var(--sans); }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.3 var(--sans); font-variant-numeric: lining-nums; }   /* Grenze defaults to old-style figures: `D12` read `DI2` blind */
 body { min-height: 100dvh; overscroll-behavior: none; }
 #app { max-width: 520px; margin: 0 auto; min-height: 100dvh; padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom); overflow-x: hidden; }
 #app[data-screen="watch"] { max-width: none; padding: 0; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; touch-action: manipulation; }
 button:disabled { cursor: default; }
-.num { font-variant-numeric: tabular-nums; }
+.num, .tile b, .depth, .notch .dl { font-family: var(--num); font-variant-numeric: tabular-nums lining-nums; }
 .dim { color: var(--dim); }
 .label { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 18px 0 8px; }
 main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
@@ -507,6 +518,7 @@ main.frame.watch { max-width: 760px; }
 .topbar .stat.marks { color: #bac6d1; margin-left: 0; }
 .topbar .stat.rank { color: #f0ce8f; }
 .topbar .stat.best { color: var(--fg); }
+.topbar .stat, .topbar .stat .num { font-family: var(--sans); font-variant-numeric: tabular-nums lining-nums; }   /* the bar keeps the narrow face (Fira XC runs ~7 % wider than Barlow: `13th heir brave · $40 · ◆ 24 · best D8` fits 400 px with the trims at .topbar .stats below) */
 .topbar .gear { min-width: 36px; min-height: var(--tap); display: inline-flex; align-items: center; justify-content: center; }
 .topbar .gear .ico { width: 24px; height: 24px; opacity: .85; }
 .topbar .offers { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 6px; padding: 4px 0 2px; }
@@ -1020,6 +1032,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
    way before the gear does — tighter gaps on a phone, the lineage word small */
 @media (max-width: 440px) { .topbar .stats { gap: 6px; min-width: 0; } .topbar .stats .now { font-size: 11px; } .topbar { gap: 2px 6px; } }
 .topbar .stats { flex: 0 1 auto; min-width: 0; gap: 7px; }
+.topbar .stat { font-size: 17px; letter-spacing: -.01em; }  .topbar > .heir, .topbar > .trait { letter-spacing: -.01em; }   /* the Fira trims: the label face runs ~7 % wider than Barlow (docs/ART_DIRECTION.md §7.1) */
 .topbar .gear { min-width: 30px; }
 .vault .chip.insure { margin-left: 0; }
 /* Cut 21 §1: the start tablet (the cage tablet's frame, a deeper tint) and its picker (one option a line: `D9 · bank +12% · $90`) */
@@ -1575,10 +1588,11 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
    bars as sunken brass troughs (cut29.css thinned them to 4 px) with a molten gold fill and a hot tip */
 :is(.sheet, .panel, .parchment) .forecast .bar .track { height: 9px; border-radius: 2px; background: linear-gradient(var(--umbra), #2e3756);
   box-shadow: inset 0 2px 3px rgba(13, 12, 20, .85), 0 0 0 1px var(--mist), 0 1px 0 rgba(255, 244, 217, .5); }
-:is(.sheet, .panel, .parchment) .forecast .bar .track .fill { background: linear-gradient(#f0e8d6, #adc0d4 40%, #6984ac 60%, var(--moon));
-  box-shadow: inset 0 1px 0 rgba(255, 253, 227, .7), 0 0 6px rgba(170, 190, 213, .6); }
+/* (phase 2, round 28 — r27: "plain steel-blue gradients, not molten"): the fill is hot metal again, BLOOD to EMBER with a BONE-hot tip */
+:is(.sheet, .panel, .parchment) .forecast .bar .track .fill { background: linear-gradient(90deg, var(--clot), var(--blood) 45%, var(--ember)), var(--blood);
+  box-shadow: inset 0 1px 0 rgba(234, 223, 197, .55), inset 0 -2px 0 rgba(92, 11, 28, .6), 0 0 6px rgba(232, 146, 58, .5); }
 :is(.sheet, .panel, .parchment) .forecast .bar .track .fill::before { content: ""; position: absolute; right: -2px; top: -2px; bottom: -2px; width: 4px; border-radius: 2px;
-  background: #fef3d8; box-shadow: 0 0 6px 2px rgba(208, 209, 204, .9); }
+  background: var(--bone); box-shadow: 0 0 6px 2px rgba(232, 146, 58, .9); }
 /* (raters: "the EDIT slab is a plain dark bar — a carved gold button with a glow"): the why sheet's EDIT is a gilt-edged iron plate */
 :is(.sheet, .panel, .parchment) button.btn.primary.why-edit { background: linear-gradient(#364668, #1f1f32 55%, #161520); color: var(--bone); border: 2px solid var(--gilt);
   text-shadow: 0 1px 0 var(--ink), 0 0 10px rgba(183, 196, 210, .6); box-shadow: inset 0 1px 0 rgba(240, 232, 212, .45), 0 0 0 2px var(--ink), 0 0 16px rgba(170, 190, 213, .35), 0 4px 8px rgba(13, 12, 20, .6); }
@@ -1620,9 +1634,11 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .div-scene .div-view.a { left: 0; right: auto; }
 .div-scene .div-view.b { left: auto; right: 0; }
 .div-scene:not([data-state="still"])::after { content: ""; position: absolute; top: 0; bottom: 0; left: calc(50% - 2px); width: 4px; background: linear-gradient(#415880, #272c44); box-shadow: 0 0 0 1px var(--ink); }
-.div-scene .div-view { transition: filter .25s; }
-.div-scene[data-phase="sent"] .div-view.b { filter: brightness(.45) saturate(.5); }
-.div-scene[data-phase="new"] .div-view.a { filter: brightness(.75) saturate(.8); }
+/* phase 2, round 28 (r27: "the insets are murky dark grey"): the playing pane lifted out of the moonlit night (the watch's grade is
+   tuned for a full screen, an inset needs more light), the waiting pane dimmed less */
+.div-scene .div-view { transition: filter .25s; filter: brightness(1.45) contrast(1.08); }
+.div-scene[data-phase="sent"] .div-view.b { filter: brightness(.8) saturate(.6); }
+.div-scene[data-phase="new"] .div-view.a { filter: brightness(1.05) saturate(.8); }
 .div-scene .div-tag { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .div-scene .div-ptag { position: absolute; top: 5px; max-width: calc(50% - 14px); padding: 2px 6px; border-radius: 3px; background: rgba(13, 12, 20, .8); font: 700 12px/1.25 var(--sans);
   color: #e2d7bd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; z-index: 1; }
@@ -1650,3 +1666,15 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 /* gfx round 26 (raters: "'rat slain' ghosted, nearly invisible"): the watch's caption sits on a soft dark band across the view */
 .watch .ticker { padding: 5px 12px 6px; background: linear-gradient(90deg, transparent, rgba(13, 12, 20, .72) 22%, rgba(13, 12, 20, .72) 78%, transparent);
   text-shadow: 0 2px 0 var(--ink), 0 0 10px rgba(13, 12, 20, .9); }
+
+/* art direction phase 2, round 28 (r27, every rater: "info plaques are flat navy slabs"): the carved plaques and tablets catch the moon —
+   a MIST bevel on the top edge, a shadowed lower lip, a soft wash of light from above and pigment pooling at the sides, drawn over the
+   9-slice art (inset shadows sit inside the border box, so the frame stays the frame) */
+.skin-tile .report .tile.plaque, .skin-tablet :is(.row.tablet, .patch.tablet, .oath.tablet) {
+  box-shadow: inset 0 1px 0 rgba(164, 188, 214, .38), inset 0 2px 0 rgba(164, 188, 214, .12), inset 0 -2px 0 rgba(13, 12, 20, .55),
+    inset 0 -10px 14px -8px rgba(13, 12, 20, .7), 0 3px 5px rgba(13, 12, 20, .6);
+  background: radial-gradient(120% 90% at 50% -10%, rgba(164, 188, 214, .16), rgba(164, 188, 214, .04) 55%, transparent 75%),
+    linear-gradient(90deg, rgba(13, 12, 20, .28), transparent 12%, transparent 88%, rgba(13, 12, 20, .28));
+}
+.skin-tablet .patch.tablet:first-child { box-shadow: inset 0 1px 0 rgba(184, 148, 72, .55), inset 0 -2px 0 rgba(13, 12, 20, .55),
+    inset 0 -10px 14px -8px rgba(13, 12, 20, .7), 0 0 10px rgba(184, 148, 72, .25), 0 3px 5px rgba(13, 12, 20, .6); }

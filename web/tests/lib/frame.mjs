@@ -26,3 +26,13 @@ export async function editRows(page) {
   }
   await page.evaluate(() => localStorage.setItem("riddle.editing", "1"));
 }
+
+/** Death screen v2: the trace, the ledger, the margin and every tablet with its numbers fold under one `details` tap. Suites that
+ *  read or tap those open it on every death screen this page mounts (an init script: call it before the first `goto`). The rest
+ *  view itself (killer · floor · hp, the why line, the lit fix) is ui.mjs's. */
+export async function deathDetails(page) {
+  await page.addInitScript(() => {
+    const open = () => { for (const b of document.querySelectorAll('.death .death-more[aria-expanded="false"]:not([data-auto])')) { b.dataset.auto = "1"; b.click(); } };
+    new MutationObserver(open).observe(document, { childList: true, subtree: true });
+  });
+}

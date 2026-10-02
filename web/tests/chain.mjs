@@ -19,6 +19,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { deathDetails } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -30,6 +31,7 @@ const shots = process.env.CHAIN_SHOTS ? resolve(process.env.CHAIN_SHOTS) : null;
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 2 });
+await deathDetails(page);   // death v2: this suite reads the trace, the ledger and the tablets under `details`
 page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 

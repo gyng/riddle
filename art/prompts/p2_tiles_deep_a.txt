@@ -1,0 +1,72 @@
+You are painting ENVIRONMENT TILES for the game "Riddle" (a gothic dark-fantasy roguelike on a phone, seen top-down at a
+high three-quarter angle). FIRST look at these approved STYLE TARGETS (you may open these images and nothing else in the
+repository): /home/g/p/riddle/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/art/ui/targets/style/watch_fens.png,
+/home/g/p/riddle/art/ui/targets/style/boss.png, /home/g/p/riddle/art/ui/targets/style/town.png. Their dungeon (and town) floors and walls are the TARGET LOOK.
+
+Use your built-in image_gen tool, one call per tile below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT touch
+anything outside /home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. OVERWRITE
+existing files.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== THIS PLACE ===
+the DEEP caves: unworked wet cave rock (no masonry, every edge irregular), fissures, pale MIST crystals and tiny cold fungus specks, black pools. Tint: navy — the darkest place.
+Its tinted mid-tones: DUSK here is #24304f, MOON here is #436092 (use these instead of the plain DUSK/MOON); INK, UMBRA, MIST,
+BONE, BLOOD, EMBER, GILT are unchanged.
+
+=== HOW THE TILES ARE USED (critical) ===
+Each 1024x1024 image is box-downscaled to a 16x16 tile and drawn tiled edge to edge in a top-down room, beside characters
+about 1.5 tiles tall. So:
+- Paint each tile as a 16x16 PIXEL GRID blown up 64x: every cell a 64 px square, the forms blocked in those square cells with
+  STEPPED edges — but each cell a transparent watercolour WASH (granulation, pigment pooling at the wash edge), not a flat
+  digital fill. INK joints / mortar / gaps about one cell (64 px) thick. BOLD shapes, 2-4 large forms, no hairline detail.
+- Opaque tiles fill the square edge to edge and TILE SEAMLESSLY with themselves (floors and wall tops in every direction,
+  wall faces left-to-right). The four floor variants share one overall value and hue so they mix.
+- VALUES: floors are mid-dark and calm (UMBRA and the tinted DUSK, the tinted MOON on the lit side of each stone, MIST only as
+  a rare moonlit edge) — the characters must read on top of them; wall tops are built masonry a little lighter than the
+  floor (never black void); a wall face's top ledge is the brightest line of the set (a MIST moonlit rim).
+- LIGHT: cold moonlight from above (lit top edges, shadowed bottom edges). NO warm light, NO torch glow, NO amber or brown
+  cast in any tile (the game adds torch pools itself). Paper grain very faint; halftone only in the deepest joints.
+- Keyed props: the object only, centred, filling about 70 % of the square, INK contour, on a TRANSPARENT background (or, if
+  the tool gives an opaque image, flat uniform pure MAGENTA #FF00FF edge to edge); no ground shadow, no magenta on the
+  object. A flame (lantern, brazier) may be EMBER; everything else stays in the palette.
+Save each as a 1024x1024 PNG at the exact path.
+
+=== TILES ===
+
+1) /home/g/p/riddle/art/generated/envp_deep_floor_0.png — the common FLOOR: unworked wet CAVE ROCK, irregular slabs and fissures (NO straight mortar lines, NO square stones), a few tiny pale MIST crystal specks; seamless in every direction.
+2) /home/g/p/riddle/art/generated/envp_deep_floor_1.png — a FLOOR variant: the same cave rock with a wide fissure and loose stones.
+3) /home/g/p/riddle/art/generated/envp_deep_floor_2.png — a FLOOR variant: the same cave rock with a patch of small pale cave mushrooms.
+4) /home/g/p/riddle/art/generated/envp_deep_floor_3.png — a FLOOR variant: the same cave rock, a shallow black puddle catching a MIST glint.
+5) /home/g/p/riddle/art/generated/envp_deep_wall_face_0.png — the FRONT FACE of a cave wall: jagged unworked rock with rounded bulges and dripstone, the top edge a MIST-lit ridge, no courses, no blocks; seamless left-to-right.
+6) /home/g/p/riddle/art/generated/envp_deep_wall_face_1.png — a CAVE WALL variant: the same jagged rock with a vein of pale crystals.
+7) /home/g/p/riddle/art/generated/envp_deep_wall_top.png — the TOP of cave rock seen straight down: lumpy irregular rock masses lit on their upper-left, never black; seamless in every direction.
+8) /home/g/p/riddle/art/generated/envp_deep_door.png — a DOORWAY: a narrow natural rock CLEFT opening onto darkness, jagged edges.
+9) /home/g/p/riddle/art/generated/envp_deep_stairs_down.png — STAIRS GOING DOWN: rough natural rock ledges descending into black.
+10) /home/g/p/riddle/art/generated/envp_deep_stairs_up.png — STAIRS GOING UP: rough natural rock ledges rising toward the viewer.
+11) /home/g/p/riddle/art/generated/envp_deep_water.png — still dark WATER filling the tile: deep, calm, a few soft lighter ripple strokes, no hard edges; seamless in every direction.
+12) /home/g/p/riddle/art/generated/envp_deep_chasm.png — a CHASM: an almost black void falling away, the faintest rock texture deep inside; seamless in every direction.
+When all tiles are saved, list the final paths. Do nothing else.

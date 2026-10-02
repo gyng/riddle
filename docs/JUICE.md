@@ -755,3 +755,72 @@ layout 55, fights 48, cut27 35, cut29 34); copy-lint 0; art pack + QC clean.
    out of scope (Cut 30's town and quest board).
 4. Smaller, repeated asks: a white flash and slow-motion beat on the boss fall, a proper death pose for the Warlord (a Codex sprite),
    the forecast's D8 `try` chip off the bar, the death gem's MEASURING label as a spinner.
+
+### 10.15 Round 27 (2026-09-30) — art direction phase 2 (the whole library in moonlit ink and wash, the look the default)
+
+Changes: every sprite, tile, prop, icon, frame, portrait and backdrop redrawn under `docs/ART_DIRECTION.md` (HANDOFF §6 "Art direction
+phase 2"); the wash pass on by default; moonlit grades, EMBER torches, a MIST hero light, moon pools; the CSS on the palette; the BLOOD gem.
+The raters were shown the **style targets** (`tools/gfx-eval.mjs --targets style`: watch_warrens, watch_fens, boss, death, town, ui_sheet),
+not round 26's four v2 mockups, so "target" is judged against a different picture. Raters BG, BI (BH never returned; both lost many image
+reads to a request limit and rated some moments from partial views — neither saw the town or ui_sheet targets).
+
+| moment | r26 | r27 | Δ |
+|---|---|---|---|
+| watch-warrens | 5.80 | 5.30 | −0.50 |
+| report | 7.15 | 7.00 | −0.15 |
+| death | 7.50 | 7.50 | 0 |
+| camp | 6.45 | 6.80 | +0.35 |
+| scene | 6.35 | 5.30 | −1.05 |
+| edit | 7.45 | 6.90 | −0.55 |
+| forecast | 6.60 | 6.50 | −0.10 |
+| oaths | 6.65 | 6.40 | −0.25 |
+| watch-fens | 6.00 | 5.10 | −0.90 |
+| fight | 6.40 | 6.40 | 0 |
+| boss-in | 7.30 | 7.10 | −0.20 |
+| boss-break | 7.45 | 7.50 | +0.05 |
+| boss-fall | 6.85 | 7.00 | +0.15 |
+| d-watch | 6.20 | 5.80 | −0.40 |
+| d-report | 7.00 | 6.60 | −0.40 |
+| d-death | 7.50 | 7.10 | −0.40 |
+| d-camp | 7.20 | 7.50 | +0.30 |
+| d-edit | 7.20 | 7.00 | −0.20 |
+| **mean** | **6.84** | **6.60** | **−0.24** |
+
+Rater spread 6.80 · 6.40. The camp moments rose (the new key art: "closest to the target"), the bosses held; the dungeon watches fell:
+the moonlit frame is darker and the long hero smaller-reading ("the hero a tiny grey blob", "half the screen near-black rock"), the Fens'
+new plank-and-water floor reads as "noisy blue stripes" and shimmers under the wash grain in the motion image, the scene insets are
+"murky dark grey". Asks the raters repeat: a closer, steadier camera on the exchange (the round-24 blocker — the rule's target on the
+wire); calmer Fens floor texture (fewer plank stripes, less grain under motion); lighter insets; bevelled/lit plaques instead of flat
+navy; molten forecast bars (the CSS pass made them MIST); a fallen hero under the death banner; parchment fix rows.
+
+### 10.16 Rounds 28–29 (2026-09-30) — the coordinator's fixes 1–5 and the refined tiles
+
+Round 28 (the Fens floor calmed, world-anchored grain, ambient 0.74 → 0.84, a brighter MIST hero light and a BONE moon rim on the hero,
+lighter scene panes, bevelled plaques, hot forecast bars) was captured but never scored: its raters were cut off by the owner's usage
+limit. Round 29 adds the refined tiles (the owner: "the previous tileset had more readability" — `art/refine.py` repaints the round-26
+register's value structure in the guide; a blind two-reader tile check: every class identified in every version, readability round 26
+6.5 · phase-2 paint 4.8 · refined 6.7). Two budgeted raters (BL, BM; 60 calls each) lost m01–m06 and every style target to the image
+request limit, so round 29 scores 12–13 of 18 moments, "target" judged from the brief's words only.
+
+| moment | r26 | r29 | Δ | moment | r26 | r29 | Δ |
+|---|---|---|---|---|---|---|---|
+| camp (1 rater) | 6.45 | 6.30 | −0.15 | boss-break | 7.45 | 5.90 | −1.55 |
+| forecast | 6.60 | 6.70 | +0.10 | boss-fall | 6.85 | 6.50 | −0.35 |
+| oaths | 6.65 | 6.35 | −0.30 | d-watch | 6.20 | 5.80 | −0.40 |
+| watch-fens | 6.00 | 5.75 | −0.25 | d-report | 7.00 | 6.40 | −0.60 |
+| fight | 6.40 | 5.90 | −0.50 | d-death | 7.50 | 7.10 | −0.40 |
+| boss-in | 7.30 | 7.10 | −0.20 | d-camp | 7.20 | 6.85 | −0.35 |
+| | | | | d-edit | 7.20 | 6.40 | −0.80 |
+
+Mean over the rated moments **6.39** vs round 26's **6.83** on the same moments: the bar (≥ 6.84, dungeon watches ≥ their r26) is not met.
+The Fens watch recovered from round 27 (5.10 → 5.75) and the forecast rose; the boss break fell hardest ("no BROKEN stamp seen", "shards
+two grey slabs over the name plate" — the stamp lands after the strip's window in this capture, and the pixel shield halves read large),
+the fight ("the goblin just vanishes: no death beat"), the desktop editor ("no sheet drop captured"). Raters of both rounds repeat:
+floors as busy as the actors in the Fens, a stray translucent box over the desktop camp's art, the BROKEN/SLAIN stamps too brief, the
+reward number clipped behind SLAIN, small secondary text. The Warrens watch, report, death, scene and edit went unrated.
+
+**Tiles, painterly pass** (after round 29; the owner: "more painterly, retain the readability, more similar to the original"): `art/refine.py
+painterly()` on the refined register (docs/ART_DIRECTION.md §4). Blind screenshot-only check, one reader, 7 sample rooms × 7 marked
+classes per version: every class identified in every version (49/49); readability round 26 5 · refined 7 · painterly 7; painterly-ness
+3 · 5 · 5. Sheet `scratchpad/style/phase2/tiles_painterly.png` (round 26 | refined | painterly), in-game rooms
+`scratchpad/style/phase2/tiles_painterly_ingame.png`. All 7 sample rooms pass `art-qc --style` (Burrows cast b* +9.1 ≤ 12).

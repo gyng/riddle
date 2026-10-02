@@ -37,3 +37,6 @@ expected · repro (seed, step)` — grouped under `defect` (wrong or inert), `mi
 wrong and the screen let you), `unexplained` (copy or number with no source on screen), and
 `friction` (more taps than the action needs). End with the count per group. Do not edit any
 other file. Do not git commit.
+
+
+**Budget (hard):** at most 200 tool calls and 120 screenshot/image reads for the whole session. Look at each screenshot once; prefer the driver's text op over screenshots. When you reach the budget, stop and file what you have.

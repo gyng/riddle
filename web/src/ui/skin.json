@@ -68,12 +68,23 @@
    "w": 512,
    "h": 128
   },
+  "plaque_minimap": {
+   "w": 256,
+   "h": 256,
+   "slice": 32
+  },
+  "plaque_roster": {
+   "w": 512,
+   "h": 128,
+   "slice": 32
+  },
   "scroll": {
    "w": 384,
    "h": 576
   }
  },
  "icons": [
+  "alert",
   "bail",
   "camp",
   "chronicle",
