@@ -14,7 +14,7 @@ main.report.clearing .report-well { display: flex; flex-direction: column; justi
 .skin-seal .rc-stamp .rc-wax { background: url(/ui/frames/seal.png) center / 100% 100% no-repeat; }
 .rc-stamp .rc-word { position: relative; }
 /* the end's colour: the same wax, re-pigmented (filters keep the seal's painted relief) */
-.rc-stamp.end-banked .rc-wax { filter: grayscale(1) sepia(1) saturate(2.8) brightness(1.2) hue-rotate(-6deg); }
+.rc-stamp.end-banked .rc-wax { filter: grayscale(1) sepia(1) saturate(3) brightness(1.45) hue-rotate(-4deg); }
 .rc-stamp.end-returned .rc-wax { filter: hue-rotate(205deg) saturate(.55) brightness(1.05); }
 .rc-stamp.end-stalled .rc-wax, .rc-stamp.end-repelled .rc-wax { filter: hue-rotate(28deg) saturate(1.2); }
 .rc-stamp.end-returned, .rc-stamp.end-stalled, .rc-stamp.end-repelled { font-size: 19px; }
