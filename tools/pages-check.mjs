@@ -27,7 +27,17 @@ try {
     await page.setViewportSize({ width, height: width === 400 ? 800 : 900 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width, `overflow at ${width}px`);
     assert.deepEqual(await page.evaluate(() => [...document.images].filter((i) => i.complete && !i.naturalWidth).map((i) => i.src)), []);
-    if (out) await page.screenshot({ path: `${out}/${width}.png` });
+    if (out) {
+      await page.evaluate(async (atlasUrl) => {
+        await document.fonts.ready;
+        const atlas = new Image(); atlas.src = atlasUrl; await atlas.decode();
+        await Promise.all([...document.images].map((i) => i.decode().catch(() => undefined)));
+      }, new URL("art/atlas.png", target).href);
+      // The atlas may have loaded between two town frames; wait until the scene redraws it at this viewport.
+      const frames = await page.evaluate(() => window.__town?.stats().frames ?? 0);
+      await page.waitForFunction((n) => (window.__town?.stats().frames ?? 0) >= n + 2, frames);
+      await page.screenshot({ path: `${out}/${width}.png` });
+    }
   }
   await context.setOffline(true);
   await page.reload();
