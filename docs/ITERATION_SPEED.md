@@ -460,6 +460,92 @@ across panels* (a panel's sim i plays the same floors on every move, ~4 % of a p
 RNG and the lineage, so its key is not provably complete. *The wall search's screening panels on `par_map`*: 24 of
 TUNED's 305 CPU-s, and its panels land in the real game's memo, whose order would have to be replayed exactly.
 
+## 0g. Round 6 — the history ring, 2026-10-02 (branch `ring`, on `hotpath` 0e16b30)
+
+*The engine's internals only — no content, bar, bot or example row. Every change exact, proved below against
+0e16b30's own binaries (`scratchpad/ring/base/`). A shared box (another agent's full gate beside it, load 10–50 on
+32 threads), at most 6 threads; times are CPU seconds, A/B pairs side by side.*
+
+**What an absence paid for the ring.** Every `HISTORY_STRIDE` ticks the live `Run` and the lineage's facts were
+cloned into the ring and the entry 31 strides older dropped (§4.1). On a deep IDLE run (seed 1, day 9, D23, tick
+40 000) one snapshot was **115–170 µs**: the trace's 16 rows 32–36 µs (each row's strings), the kills 16–30 (a
+string per kill, the run's whole list), the episodes 23, the facts 13–22, the notes, found units, max steps, bones,
+floor items and event lines 2–6 each — fields that change a few times a floor, copied 3–10 times between changes.
+Two measurement lessons: the pprof scratch crate blocklists libc, so **malloc/free are not in its samples** (its
+profile put the ring at ~42 % of an absence; cutting most of it made absences 2.6–4.3× cheaper); and the shared box
+biases CPUs (one core read 35 % slower than its neighbour), so the A/B alternates the two binaries' CPUs each
+round (`scratchpad/ring/ab.sh`, the min of 4).
+
+**What changed** (2 commits):
+
+1. **`shared::Shared<T>`** — an `Arc` that is a value: it reads as `T` (`Deref`), any `&mut` access copies first
+   when shared (`DerefMut` = `Arc::make_mut`), and its equality, `Debug` and serde are `T`'s own, so a save, a
+   printout or a comparison cannot tell it from a `T`. A clone is a reference count; a write after a snapshot
+   copies the one field once. `Run`, `LineageState`, `Hero`, `sifter::Arc` and `Game` keep `#[derive(Clone)]`
+   — a field added later as a plain type is cloned deep as before (slower, never wrong); a field turned
+   `Shared` that is written every tick costs one copy a stride, as before. Held in `Shared`: the run's kills,
+   notes, episodes, found units/gone, max steps, bones, floor items, event lines, situations; each trace row
+   (`Vec<Shared<TraceTurn>>`); the lineage's facts (so the ring, `floor_start`, `DeathRec.t10_facts` and each
+   verdict replay's reset share one set); then the hero's pack, weapon and armour, fifteen small run fields
+   written a few times a run (trophies, packed kinds, bosses met / slain, passed events, rested names, the thin
+   map, hp lost, the avenged, ids seen, the brought ids, depth times, the caged, the twists) and the arc's acts
+   (one `Shared<Act>` for the window, the low's row and `last`). Two writes made conditional where they were
+   no-ops (`trace_seen` writes the last row only when its count rises). Allocations a snapshot on that run:
+   hundreds → **35**; clone + drop in a loop 115–170 → 3.5 µs.
+2. A test that compared `&'static` defs by pointer (`lookups_match_a_scan`) compares by value: a `const` table's
+   promoted copy may differ between codegen units, and this branch's layout split them.
+
+**Measured** (CPU-s, one thread, side by side):
+
+| | Base (0e16b30) | After | |
+|---|---|---|---|
+| absence µs/tick, seed-1 IDLE saves day 2 / 5 / 9 (quieter box) | 3.74 / 5.29 / 6.31 | 1.46 / 1.63 / 1.91 | **2.6–3.3×** |
+| the same under load 30–50 | 8.93 / 13.21 / 18.59 | 3.17 / 3.56 / 4.34 | 2.8–4.3× |
+| IDLE fortnight, seed 1, `--threads 1` (load ~15) | 133.6 | **31.3** | 4.3× |
+| RANDOM fortnight, seed 1, `--threads 1` (load ~15) | 86.3 | **26.5** | 3.3× |
+| the two under load 30–50 | 216 / 156 | 62 / 52 | |
+| `timing 1 8 seq` (DEFAULT, shallow): `run_offline` 8 h | 1.18 s | 0.91 s (first commit) | |
+| fingerprint, 3 seeds × 8 h, 6 threads | 10.4 s wall | 4.6–6.3 s | |
+| dayplayer 4 bots × 4 seeds × 5 days, 6 threads (sequential runs, different load) | 1553 | 994 (first commit, load ~15) · 1168 (both, load ~40) | |
+| metrics `--quick --seeds 2`, 3 threads each, side by side | 4620 (25.8 min wall) | 4063 (22.6 min) | 1.14× (its jobs are mostly panels, verdicts and `without_history` sends) |
+
+`--fast`'s critical path was IDLE's fourteen-day chain of absences (~150–190 CPU-s, §0e); it is now ~30–60
+CPU-s, under the 3-minute budget with room. The PICKED / TUNED fortnights gain their absences' share (a
+quarter at one thread after round 5) and cheaper `Game` clones in the panels' sims.
+
+**What is left in an absence.** The ring is still ~25–28 % of an absence (the same saves under
+`without_history` run 1.31–1.39× faster — the ring's whole remaining cost): what changes every stride — the monsters (a kind string
+each), the meters' maps, the arc's window, the map's sight bits, the hero's distance field (4 KB), the inline
+`Run` (3.8 KB) — 35 allocations and ~16 KB a snapshot, freed cold 310 ticks later. Next steps if wanted: share
+the map's `tiles`/`corridor` (an extra indirection on the floods' hot reads: measure first), the monster's `kind`
+as a shared string (a wide type change), the meters' `healed`/`supplies` maps. Not dropped from the snapshot: the
+hero's distance field and flood (`#[serde(skip)]` caches) — a partially settled flood whose readers (`approach`,
+`situations`) are written to be indifferent to how far it has run; leaving it out of the ring would need that
+proved for every reader. Tried and dropped (no measurable gain, ±5 %): `TaggedKinds` for
+`provenance::view_because`'s scans of the kills and the log (7–10 % of an absence: a monster-def lookup per kill,
+~33 kills scanned per call, a call every other tick).
+
+**Not done, and why.** *Shared chore floods*: the floods are ~15 % of an absence now (bfs_layers 8.7, flood_resume
+3.1, of which `nearest_tile` for explore/items 4.7); one flood serving the item, stairs and frontier tests would
+need the five consumers' side-effect contracts re-proved — left for a round with the profile on a quiet box.
+*Floor generation memoised*: 1.4 % of an absence, ~4 % of a panel, and its key (the run's RNG stream, the
+lineage's state read by population) still not provably complete.
+
+**Proof (bit-identical)**, against 0e16b30's binaries built from `hotpath` into `scratchpad/ring/base/`:
+- `cargo test --profile fast -p riddle-core`: 461 passed (the replay hash among them) after each commit;
+- `examples/fingerprint --seeds 3`: **db508cf021c21768** before and after each commit (the 8-seed print below);
+- dayplayer `--bots idle,picked,tuned,random --seeds 4 --days 5`: identical but for the `(Ns)` line, each commit;
+- metrics `--quick --seeds 2`: identical but for the wall-clock lines (`death()` mean, per-tick, divergence's
+  slowest scene, verdict time, the `(Ns)` line), each commit;
+- IDLE and RANDOM fortnights, seed 1: identical but for the `(Ns)` line;
+- saves: a seed-1 IDLE save (days 3 and 9) loaded, 8 h absent, a `death()` screen, saved, reloaded and played 3000
+  ticks mid-run, saved again (the ring in it) — the whole text byte-identical to the base's;
+- clippy (all targets) clean; the wasm crate builds (`wasm32-unknown-unknown`, fast profile);
+- **onto `cut30`** (961a01a, then 2c15a91 with all three commits): `git merge-tree` clean; cherry-picked, the
+  rebased tree builds (lib, tests, examples, the wasm crate), 461 tests pass, fingerprint (8 seeds)
+  **f81bfcfe4fc17ffb**, the same as `cut30`'s own build (12.0 → 6.1 s); dayplayer 4 bots × 2 seeds × 4 days
+  identical to `cut30`'s (354 → 257 CPU-s at 3 threads each, side by side).
+
 ## 1. The evaluation loop (the afternoon)
 
 Today: QA round (2 players, parallel, ~55 min) → triage + fixes → reship → QA round 2 →
@@ -631,7 +717,11 @@ check` (1.5 s) answers type errors before the 13 s.
 ## 4. The core sim (bit-identical: nothing below is read by `tick`; the replay-hash gate and
 the 3977696 fingerprint method prove it)
 
-### 4.1 The history ring — do now
+### 4.1 The history ring — done (§0g)
+
+*2026-10-02: the slow-changing fields, the facts and the trace rows are `shared::Shared` (copy on write); a deep
+snapshot 115–170 → 3.5 µs, an IDLE fortnight 4.3× cheaper. What is left is per-stride state (§0g).*
+
 
 Every 10 ticks `Run` + `facts` are cloned: 12 µs shallow, **52 µs on deep floors** (33 % of a
 DEFAULT batch's live time, 49 % of a FULL batch's). The clone by field, FULL: trace 12.8 µs

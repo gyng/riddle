@@ -94,9 +94,11 @@ fn trace_seen(run: &mut Run, sight: Option<i32>) {
     let rose = run.trace.last().is_some_and(|t| n > t.foes);
     // A thief running now is counted apart from one that stepped into view (QA on 1a2a4a9).
     let running = if rose { (n - view(run).foes.len() as i32).max(0) } else { 0 };
-    if let Some(t) = run.trace.last_mut() {
-        t.foes = t.foes.max(n);
-        if rose {
+    // Only a rise writes the row (`foes` is already the max otherwise): the trace's rows are
+    // shared with the history ring's copies (`shared.rs`), and a write copies the row.
+    if rose {
+        if let Some(t) = run.trace.last_mut() {
+            t.foes = t.foes.max(n);
             foe_reasons(t, running);
         }
     }
@@ -462,7 +464,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     let before: Vec<crate::wire::TraceBlow> = run.blows.drain(..blows_before.min(run.blows.len())).collect();
     let mut turn = TraceTurn { max_hp: run.hero.max_hp, t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before, gift: run.gift.mark.take() };
     foe_reasons(&mut turn, (seen_before - v.foes.len() as i32).max(0));
-    run.trace.push(turn);
+    run.trace.push(turn.into());
     if run.trace.len() > 16 {
         run.trace.remove(0);
     }
@@ -1238,8 +1240,8 @@ pub const PICKUP_DRY_MAX: u32 = 40;
 /// explore`, `R5 corridor ↔ R8 attack`), or one moving row alone (`R1 retreat paced`) — ≤ 4
 /// words.
 /// Returns the cause and the row it names (the moving row of two, else the higher one).
-pub fn row_loop(trace: &[TraceTurn]) -> Option<(String, i32)> {
-    let win: Vec<&TraceTurn> = trace.iter().rev().take(LOOP_WINDOW).filter(|t| t.verb.v != "stuck").collect();
+pub fn row_loop<T: std::borrow::Borrow<TraceTurn>>(trace: &[T]) -> Option<(String, i32)> {
+    let win: Vec<&TraceTurn> = trace.iter().rev().take(LOOP_WINDOW).map(|t| t.borrow()).filter(|t| t.verb.v != "stuck").collect();
     if win.len() < LOOP_WINDOW - 2 {
         return None;
     }
