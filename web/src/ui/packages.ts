@@ -162,7 +162,7 @@ function rowsFold(app: App, P: Packages): HTMLElement {
 
 /** The camp's packages strip (the tablets' place before the pen): the worn packages as carved plaques, `Steady L3` with its level bar;
  *  a tap opens the panel once the panel is shown (before that it is a plaque, not a control). */
-export function packagesStrip(app: App): { el: HTMLElement; paint(): void } {
+export function packagesStrip(app: App, opts: { ro?: boolean } = {}): { el: HTMLElement; paint(): void } {
   const el = h("div", { class: "pkg-strip" });
   const paint = (): void => {
     const L = app.lineage, P = L.packages;
@@ -170,7 +170,7 @@ export function packagesStrip(app: App): { el: HTMLElement; paint(): void } {
     if (el.hidden || !P) return;
     const byId = new Map(P.all.map((p) => [p.id, p]));
     const worn = [byId.get(P.stance), ...(P.tactics ?? []).map((t) => byId.get(t)), P.temperament ? byId.get(P.temperament) : undefined].filter((p): p is Package => !!p);
-    const live = packagesShown(L);
+    const live = packagesShown(L) && !opts.ro;
     replace(el, ...worn.map((p) => {
       const kids = [h("span", { class: "pkg-kind dim" }, p.kind), h("span", { class: "pkg-name" }, chipText(p)), levelBar(p)];
       return live ? h("button", { class: "row tablet compact pkg-tab", "data-pkg": p.id, onclick: (e: Event) => openPackages(app, e.currentTarget as HTMLElement) }, ...kids)

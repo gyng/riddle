@@ -15,7 +15,7 @@ import { openSettings } from "./settings";
 import { openGoldSheet } from "./gold";
 import { revealed } from "./reveal";
 import { hasTracks, openTracks, tracksGrew, tracksShown } from "./tracks";
-import { onPackages, penOpen } from "./packages";
+import { onPackages, packagesShown, packagesStrip, penOpen } from "./packages";
 
 // --- the top bar ---
 
@@ -46,7 +46,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
         !opts.watch ? h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`) : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),
-        withCap(stat("marks", "mark", "◆", L.marks, R.has("unlocks")), "marks"),   // Cut 29 (owner): a world concept's first-time caption
+        withCap(stat("marks", "mark", "◆", L.marks, R.has("unlocks") || (packagesShown(L) && L.marks > 0)), "marks"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
         withCap(stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past), "renown"),
         stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, R.has("depth") && !past),   // docs/COPY.md pass 2 (`D8` read as "current depth")
       ),
@@ -193,6 +193,7 @@ export function wideCols(app: App, meters?: HTMLElement | null): { els: HTMLElem
   const known = (): void => { shaft.el.classList.toggle("unknown", !((app.lastForecast?.depths?.length ?? 0) > 1)); };
   known();
   const off = app.onForecast(() => known());
-  // Cut 30 §2: no rule tablets before the pen (the left column comes with it)
-  return { els: penOpen(app.lineage) ? [left, right] : [right], dispose: () => { off(); shaft.dispose(); }, slot };
+  // Cut 30 §2: no rule tablets before the pen — the left column holds the worn packages (read-only plaques) until it opens
+  const cols = penOpen(app.lineage) ? [left, right] : [h("aside", { class: "rules-col pkgs-col" }, h("small", { class: "rows-head dim" }, /* copy:label */ "packages"), packagesStrip(app, { ro: true }).el), right];
+  return { els: cols, dispose: () => { off(); shaft.dispose(); }, slot };
 }

@@ -18,6 +18,14 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, readFileSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { load } from "./lib/load.mjs";
+/** A wall-clock reading retried once on a loaded machine (`undo` between the two), the bar unchanged (tests/lib/load.mjs). */
+async function measured(measure, undo) {
+  const first = await measure(); if (first.ok) return first;
+  const l = load(); if (!l.high) return first;
+  await undo(); const again = await measure();
+  return { ...again, line: `${again.line} [retried once: load ${l.l1.toFixed(1)} on ${l.cores} cores; first ${first.line}]` };
+}
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -131,11 +139,16 @@ try {
     await shot("packages");
     // equip: free and instant
     const g0 = await page.evaluate(() => window.__riddle.lineage.gold);
-    const t0 = Date.now();
-    await page.click('.pkg-sec[data-kind="stance"] .chip.pkg.alt[data-pkg="guarded"]');
-    await until(() => window.__riddle.lineage.packages.stance === "guarded" && document.querySelector('.pkg-sec[data-kind="stance"] .pkg-slot .chip.pkg.on .pkg-name')?.textContent === "Guarded L1", "Guarded worn");
-    const ms = Date.now() - t0, g1 = await page.evaluate(() => window.__riddle.lineage.gold);
-    check(g1 === g0 && ms < 1500, `equipping is free and instant ($${g0} → $${g1}, ${ms} ms)`);
+    // (a wall-clock reading: on a loaded machine it is taken once more, back from Steady — tests/lib/load.mjs)
+    const wear = async (id, name) => {
+      const t0 = Date.now();
+      await page.click(`.pkg-sec[data-kind="stance"] .chip.pkg.alt[data-pkg="${id}"]`);
+      await until((a) => window.__riddle.lineage.packages.stance === a.id && document.querySelector('.pkg-sec[data-kind="stance"] .pkg-slot .chip.pkg.on .pkg-name')?.textContent === a.name, `${name} worn`, 20_000, { id, name });
+      return Date.now() - t0;
+    };
+    const eq = await measured(async () => { const ms = await wear("guarded", "Guarded L1"); return { ok: ms < 1500, ms, line: `${ms} ms` }; }, async () => { await wear("steady", "Steady L3"); });
+    const g1 = await page.evaluate(() => window.__riddle.lineage.gold);
+    check(g1 === g0 && eq.ok, `equipping is free and instant ($${g0} → $${g1}, ${eq.line})`);
     // a tactic worn in its slot
     await page.click('.pkg-sec[data-kind="tactic"] .chip.pkg.alt');
     const tw = await until(() => window.__riddle.lineage.packages.tactics?.length === 1 && document.querySelector('.pkg-sec[data-kind="tactic"] .chip.pkg.on .pkg-name')?.textContent, "a tactic worn");

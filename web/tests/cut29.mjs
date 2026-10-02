@@ -43,8 +43,8 @@ const withState = (fn) => page.evaluate(async (src) => {
   r.lineage = await r.engine.load(JSON.stringify(save)); r.go({ kind: "camp" });
 }, `(${fn})(e)`);
 const tiles = () => page.evaluate(() => [...document.querySelectorAll(".cmd .tile:not(.empty)")].map((t) => t.dataset.tile + (t.classList.contains("reveal") ? "*" : "")));
-const boot = async (seed) => {
-  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}`, { waitUntil: "domcontentloaded" });
+const boot = async (seed, q = "") => {
+  await page.goto(`${url}?dev=1&engine=fake&fresh=1&seed=${seed}${q}`, { waitUntil: "domcontentloaded" });
   await camp();
   await page.evaluate(() => { localStorage.removeItem("riddle.reveal"); });
 };
@@ -150,7 +150,7 @@ try {
   }
   // ---- §3: the meters — the watch's toggle, the death's fight, the report's night, the camp's two runs; units always
   if (part("meters")) {
-    await boot(2903);
+    await boot(2903, "&systems=all");   // Cut 30: the death's fight meter sits under `details`, which comes with the pen
     await page.evaluate(() => { localStorage.removeItem("riddle.meters"); window.__riddle.go({ kind: "watch" }); });
     await until(() => window.__riddle.screen === "watch" && document.querySelector(".cmd .tile[data-tile=meters]"), "the watch's meters tile");
     const off = await page.evaluate(() => document.querySelector(".meter-box")?.hidden);
@@ -209,7 +209,7 @@ try {
   }
   // ---- §1/§5: the oath board's slots, the draw, the works
   if (part("oaths")) {
-    await boot(2906);
+    await boot(2906, "&systems=none");   // Cut 30: the oath board is an older core's (no packages on the wire); Cut 30 plays the quest board
     await withState((e) => {
       e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "exits", "loadout", "unlocks", "oaths", "walls"], fresh: [], plateau: true, works: [], meters: [], insure: true };
       Object.assign(e.lineage, { heir: 3, gold: 5000, best_depth: 9, marks: 5, unlocks: [...e.lineage.unlocks, "oath_slot_2"], gold_ledger: [{ t: 1, delta: 5000, why: "bank D9" }] });
@@ -271,7 +271,7 @@ try {
   }
   // ---- §1 (E1): the wall's edit lands as a patch after the report paints, and applies the whole measured set
   if (part("wall")) {
-    await boot(2909);
+    await boot(2909, "&systems=all");   // Cut 30: the wall's edit is a pen row
     const t = await page.evaluate(async () => {
       const r = window.__riddle; const rows = r.rules.rows;
       const set = { rows: [...rows.slice(0, 1), { conds: [{ k: "hp<", n: 90 }], verb: { v: "rest" }, origin: "patch" }, ...rows.slice(1)] };
@@ -291,7 +291,7 @@ try {
   }
   // ---- §4: a long press lifts a tablet and it moves any distance
   if (part("reorder")) {
-    await boot(2910);
+    await boot(2910, "&systems=all");   // Cut 30: the order comes with the pen
     await withState((e) => {
       e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "reorder", "vs"], fresh: [], plateau: true, works: [], meters: [], insure: true };
       Object.assign(e.lineage, { heir: 2, graveyard: [{ heir: 1, depth: 2, cause: "rat", deeds: [] }], unlocks: [...e.lineage.unlocks, "row5"] });
@@ -312,7 +312,7 @@ try {
   }
   // ---- owner: a world concept's icon and its caption, once
   if (part("concepts")) {
-    await boot(2911);
+    await boot(2911, "&systems=all");   // Cut 30: the marks show with the pen (or the packages panel)
     await page.evaluate(() => localStorage.removeItem("riddle.concepts"));
     await page.reload({ waitUntil: "domcontentloaded" }); await camp();   // (the module keeps what it read at its first caption)
     await withState((e) => { Object.assign(e.lineage, { marks: 3, heir: 2 }); });

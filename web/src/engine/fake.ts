@@ -2125,7 +2125,7 @@ const DEV_ALL_SYSTEMS = typeof location !== "undefined" && new URLSearchParams(l
 /** `?systems=none`: no curriculum on the wire (an older core's lineage) — the client's own reveal ladder alone, as before Cut 29. */
 const DEV_NO_SYSTEMS = typeof location !== "undefined" && new URLSearchParams(location.search).get("systems") === "none";
 function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean } {
-  const st = (e.s.sys29 ??= { open: DEV_ALL_SYSTEMS ? SYSTEMS29.map(([id]) => id) : ["send", "dial", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true });
+  const st = (e.s.sys29 ??= { open: DEV_ALL_SYSTEMS ? SYSTEMS29.map(([id]) => id) : ["send", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true });   // Cut 30: the dial comes with the pen
   const L = e.s.lineage; const met = (d: number): boolean => L.best_depth >= d;
   const hit: Record<string, boolean> = {
     edit: L.graveyard.length > 0 || L.heir > 1, death: L.graveyard.length > 0 || L.heir > 1, exits: L.gold > 0 || (L.gold_ledger ?? []).some((g) => g.delta > 0), loadout: L.gold > 0,

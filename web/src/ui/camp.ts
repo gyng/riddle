@@ -237,7 +237,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const kitBadge = (): HTMLElement | null => { const n = kitAffordable(app.lineage); return n ? h("span", { class: "kit-n num", "data-n": n }, `${n}`) : null; };
   const withBadge = (el: HTMLElement, badge: HTMLElement | null): HTMLElement => { if (badge) { el.appendChild(badge); el.classList.add("badged"); } return el; };
   /** Cut 30 (the Reveal): a system the core opened since the camp last looked glints once (its `new`). */
-  const freshSys = (id: "stances" | "quests"): boolean => !!app.lineage.systems?.find((x) => x.id === id)?.new;
+  const freshSys = (...ids: string[]): boolean => !!app.lineage.systems?.some((x) => ids.includes(x.id) && x.new);
   /** Cut 30 §2: the pen gates the editor (and the forecast's detail: one headline before it). */
   function paintPen(): void {
     const pen = penOpen(app.lineage);
@@ -261,7 +261,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       (R.has("forge") || R.has("kit")) && withBadge(t("forge", /* copy:button */ "forge", "forge", () => openForge(app)), kitBadge()),
       R.has("party") && t("party", /* copy:button */ "party", "party", () => togglePanel("party"), open === "party"),
       // Cut 30 §2/§5: the packages (from the second stance) and the quest board (from the Warlord slain), each glinting once as it comes
-      packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "packages", icon: "unlocks", glyph: "✦", fresh: freshSys("stances"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
+      packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "packages", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
       questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: (e: Event) => { closeAllSheets(); openQuest(app, e.currentTarget as HTMLElement); } }),
       R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
       R.has("heirs") && t("chronicle", /* copy:button */ "chronicle", "chronicle", () => openChronicle(app)),
@@ -299,7 +299,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       label: h("span", { class: "plabel-in" }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
         // QA 92eb880: the bar is the core's own ladder (`classes[c].next`, the XP the next level costs; 0 at the top: full)
         h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round(Math.min(1, lvl.next ? lvl.xp / lvl.next : lvl.next === 0 ? 1 : 0) * 100)}%` }))) });
-    if (R.has("edit") || (onPackages(L) && L.heir > 1)) next.el.appendChild(lookStud(app));   // Cut 30: before the pen, from the first death too   // hero looks: the stud opens the look sheet — from the first death, like the picker (a fresh camp stays ≤ 8 controls)
+    if (R.has("edit") || (onPackages(L) && L.best_depth > 0)) next.el.appendChild(lookStud(app));   // Cut 30: before the pen, from the first run (a hero rarely dies on Steady)   // hero looks: the stud opens the look sheet — from the first death, like the picker (a fresh camp stays ≤ 8 controls)
     face.el.replaceWith(next.el); face.el = next.el;
     paintRest();
   }
