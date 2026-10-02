@@ -14,6 +14,7 @@ import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { systemIcon, systemLabel } from "./systems";
 import { measureKit, openForge } from "./forge";
+import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
 import { h, replace, items, spanOf } from "./dom";
@@ -567,6 +568,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   detailsBtn.hidden = !details.childElementCount;
   const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null);   // desktop: the rules left, the shaft right (wide.css)
   const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el, ...wide.els);
+  autoDismiss(cons.el.querySelector<HTMLElement>(".gem")!, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
   return { el, dispose: () => { bar.dispose(); wide.dispose(); } };
 }
 
