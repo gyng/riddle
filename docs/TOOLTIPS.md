@@ -78,6 +78,22 @@ Two fresh readers (≤ 25 tool calls, ≤ 15 images each), before/after shots of
 Bars: clutter and intimidation within ±0.5 of before; understanding +1 or better. If they find it busy, the density goes down.
 Results: §6.
 
-## 6. Results
+## 6. Results (2026-10-02)
 
-(filled in after the build)
+- Built: the registry is `web/src/ui/concepts.ts` (`TIP`, `ALIASES`, `TITLE`, `LIVE` beside the concepts' icons and captions; 44
+  terms); `web/src/ui/tips.ts` (`kw`, `kwText`, `kwHost`, the density pass, the fade, the plate, the input); `web/src/tips.css`;
+  the `tooltip` surface in `eval/copy-budgets.json` (≤ 10 words, no sentences).
+- Deviations found in the build: a hover's plate lets the pointer through (a plate over a tile's badge stopped a click; a tap's, a
+  click's or a long-press's plate takes the pointer, for its nested keyword); a focus opens a plate only after Tab (a script's focus
+  after a key opened plates over controls); no pass runs on the watch and ≤ 3 passes a second elsewhere (the watch HUD repaints;
+  fights' timings); marks are chosen in reading order, not least-seen first (blind check: the set changed between two looks).
+- Gates: `web/tests/tips.mjs` 70/70 (phone 400, phone 360, desktop; repeated ×5). tsc, copy-lint 0 violations. The client suite
+  on a box at load 40–50 (other agents) flakes on both trees (the baseline cut30-client alone: 23/39); every test that failed in a
+  full run on this branch passes in a targeted rerun.
+- Blind check, two fresh readers (16 tool calls, 13 images each), before → after: clutter 3 → 3 and 3 → 3; intimidation 3 → 2 and
+  3 → 2; understanding 2 → 3 and 2 → 3 (+1 each). Density "about right", "slightly sparse where it matters". Fixed from their notes:
+  a tip on the package prices (`past +27`, read as the most opaque words), drill (`written in · revocable` → `added to his rules ·
+  can be undone`), bank (`$0 of $3000` → `$0 in · cap $3000`), the package tip's live value (`worn: Steady L3`), a stable set of
+  marks per screen.
+- Shots: `scratchpad/tips/` — `before/`, `after/` (at rest and each marked term's tip open, phone and desktop, headed GPU),
+  `sheet.png`.
