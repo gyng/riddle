@@ -170,9 +170,9 @@ EMBER_CORE, EMBER_BODY = np.array([255, 216, 140], np.float32), np.array([232, 1
 
 
 def warm_mask(rgb: np.ndarray) -> np.ndarray:
-    """a flame's texels: bright, red well over blue, green between a third and three quarters of red (EMBER #e8923a is 0.63; GILT #b89448, 0.8, stays gold)"""
+    """a flame's texels: bright, red well over blue, green between a third and 0.68 of red (EMBER #e8923a is 0.63; GILT #b89448 0.8 and the painted gold coins ~0.7 stay gold)"""
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-    return (r > 170) & (r - b > 90) & (g > 0.35 * r) & (g < 0.74 * r)
+    return (r > 170) & (r - b > 90) & (g > 0.35 * r) & (g < 0.68 * r)
 
 
 def keep_emissive(src_rgba: np.ndarray, master: np.ndarray) -> np.ndarray:

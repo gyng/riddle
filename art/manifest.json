@@ -3615,8 +3615,8 @@
       "gen": "1024x1024",
       "master_h": 64,
       "texel_h": 32,
-      "description": "the SUPPLY CRATE: a wooden crate with iron corners, a coil of rope and a small sack on top. (Art direction phase 2, docs/TOWN.md §7.)",
-      "brief3": "the SUPPLY CRATE: a wooden crate with iron corners, a coil of rope and a small sack on top."
+      "description": "the hero's SUPPLY PILE: a sturdy wooden crate with iron corners, a bulging leather BACKPACK with a bedroll strapped on top of it, a coil of rope and a corked potion bottle beside it — the backpack is the tag: at 32 px it must read 'the hero's pack / supplies'. (Cut 30 town v1 round 2, art/town-ids.md.)",
+      "brief3": "the hero's SUPPLY PILE: a sturdy wooden crate with iron corners, a bulging leather BACKPACK with a bedroll strapped on top of it, a coil of rope and a corked potion bottle beside it — the backpack is the tag: at 32 px it must read 'the hero's pack / supplies'."
     },
     {
       "id": "town_plot",
@@ -3625,8 +3625,8 @@
       "gen": "1024x1024",
       "master_h": 64,
       "texel_h": 32,
-      "description": "a STAKED BUILDING PLOT seen from the high three-quarter camera: a wide rectangle of bare dark earth marked out by four tall wooden stakes with pale BONE string between them, a small white MIST rag flag on the front-left stake, a little pile of cut stones and two planks at one corner — wider than tall, it is the footprint of a future building. (Cut 30 town v1 round 2, art/town-ids.md.)",
-      "brief3": "a STAKED BUILDING PLOT seen from the high three-quarter camera: a wide rectangle of bare dark earth marked out by four tall wooden stakes with pale BONE string between them, a small white MIST rag flag on the front-left stake, a little pile of cut stones and two planks at one corner — wider than tall, it is the footprint of a future building."
+      "description": "a STAKED BUILDING PLOT: a square of freshly dug dark earth on the grass, four TALL pale wooden STAKES at its corners standing up clearly (each twice as tall as the earth is deep), bright BONE-white string running stake to stake around it, a small BLOOD-red rag flag tied to the tallest front stake, a pick-axe stuck in the earth — the upright stakes and the flag are the tag: at 32 px it must read 'a marked-out building site', never a bed, a lid or a grave. (Cut 30 town v1 round 2, art/town-ids.md.)",
+      "brief3": "a STAKED BUILDING PLOT: a square of freshly dug dark earth on the grass, four TALL pale wooden STAKES at its corners standing up clearly (each twice as tall as the earth is deep), bright BONE-white string running stake to stake around it, a small BLOOD-red rag flag tied to the tallest front stake, a pick-axe stuck in the earth — the upright stakes and the flag are the tag: at 32 px it must read 'a marked-out building site', never a bed, a lid or a grave."
     },
     {
       "id": "town_scaffold",

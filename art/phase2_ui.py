@@ -398,14 +398,22 @@ C30_R2 = {
 }
 
 
-def c30_r2(root: str = "/home/g/p/riddle/.claude/worktrees/c30art") -> str:
+# round 3 after the second blind read (all six buildings named; the plot read as a cot or a crate lid, the crate as a pot)
+C30_R3 = {
+    "town_plot": (64, 32, "1024x1024", "a STAKED BUILDING PLOT: a square of freshly dug dark earth on the grass, four TALL pale wooden STAKES at its corners standing up clearly (each twice as tall as the earth is deep), bright BONE-white string running stake to stake around it, a small BLOOD-red rag flag tied to the tallest front stake, a pick-axe stuck in the earth — the upright stakes and the flag are the tag: at 32 px it must read 'a marked-out building site', never a bed, a lid or a grave"),
+    "town_crate": (64, 32, "1024x1024", "the hero's SUPPLY PILE: a sturdy wooden crate with iron corners, a bulging leather BACKPACK with a bedroll strapped on top of it, a coil of rope and a corked potion bottle beside it — the backpack is the tag: at 32 px it must read 'the hero's pack / supplies'"),
+}
+
+
+def c30_r2(root: str = "/home/g/p/riddle/.claude/worktrees/c30art", table: dict | None = None, name: str = "c30_town_r2") -> str:
+    table = C30_R2 if table is None else table
     import json
     import make_prompts as mp
     p = ROOT / "manifest.json"
     m = json.loads(p.read_text())
     for a in m["assets"]:
-        if a["id"] in C30_R2:
-            mh, th, gen, what = C30_R2[a["id"]]
+        if a["id"] in table:
+            mh, th, gen, what = table[a["id"]]
             a.update({"master_h": mh, "texel_h": th, "gen": gen, "description": what + ". (Cut 30 town v1 round 2, art/town-ids.md.)", "brief3": what + "."})
     p.write_text(json.dumps(m, indent=2, ensure_ascii=False) + "\n")
     prop = "the object's own shape as briefed; buildings and landmarks fill the canvas width with ~8 % margin"
@@ -413,14 +421,18 @@ def c30_r2(root: str = "/home/g/p/riddle/.claude/worktrees/c30art") -> str:
         "ONE full-body figure, a three-quarter view from slightly above, facing RIGHT", "ONE object, seen from the high three-quarter town camera")
     body = body.replace("/home/g/p/riddle/art/ui/targets/style/hero_sheet.png,", "/home/g/p/riddle/art/ui/targets/style/town.png, /home/g/p/riddle/art/ui/targets/style/hero_sheet.png,")
     body += "Keep each building's materials, roof and palette like the existing town buildings (open /home/g/p/riddle/art/generated/town_blacksmith_1.png and town_storehouse_1.png as the family to match).\n"
-    for k, aid in enumerate(C30_R2, 1):
-        mh, th, gen, what = C30_R2[aid]
+    for k, aid in enumerate(table, 1):
+        mh, th, gen, what = table[aid]
         body += mp.sprite_block3(k, aid, gen, th, what + ".")
-    return write("c30_town_r2", body.replace("/home/g/p/riddle/art/", root + "/art/"))
+    return write(name, body.replace("/home/g/p/riddle/art/", root + "/art/"))
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "c30r2":
     print(c30_r2())
+
+
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "c30r3":
+    print(c30_r2(table=C30_R3, name="c30_town_r3"))
 
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "c30":

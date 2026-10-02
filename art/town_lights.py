@@ -20,7 +20,7 @@ ATLAS = ROOT.parent / "web/public/art"
 def emitters(rgba: np.ndarray, max_n: int = 4) -> list[list[float]]:
     rgb = rgba[..., :3].astype(np.float32)
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-    warm = (rgba[..., 3] > 0) & (r > 140) & (r - b > 80) & (g > 0.35 * r) & (g < 0.78 * r)
+    warm = (rgba[..., 3] > 0) & (r > 140) & (r - b > 80) & (g > 0.35 * r) & (g < 0.68 * r)
     if warm.sum() < 3:
         return []
     from refine import _regions
@@ -31,15 +31,15 @@ def emitters(rgba: np.ndarray, max_n: int = 4) -> list[list[float]]:
         ys, xs = np.nonzero(lab == i)
         if len(ys) < 2:
             continue
-        # master px -> world units (half), relative to the bottom-centre
-        out.append([float((xs.mean() - w / 2) / 2), float((ys.mean() - h) / 2), len(ys)])
+        # relative to the bottom-centre
+        out.append([float((xs.mean() - w / 2) / 4), float((ys.mean() - h) / 4), len(ys)])   # master px -> world units: / 2 (master) / 2 (SPRITE_SCALE)
     if not out:
         return []
     out.sort(key=lambda e: -e[2])
-    merged: list[list[float]] = []   # one light per flame or window group: clusters within 6 units join (weighted)
+    merged: list[list[float]] = []   # one light per flame or window group: clusters within 4 units join (weighted)
     for e in out:
         for m in merged:
-            if abs(m[0] - e[0]) <= 6 and abs(m[1] - e[1]) <= 6:
+            if abs(m[0] - e[0]) <= 4 and abs(m[1] - e[1]) <= 4:
                 n = m[2] + e[2]
                 m[0], m[1], m[2] = (m[0] * m[2] + e[0] * e[2]) / n, (m[1] * m[2] + e[1] * e[2]) / n, n
                 break
