@@ -1,0 +1,15 @@
+/* c30-legible (the owner, a new player: "I didn't understand why there were new buildings or why the run ended early"): a run's end
+   says why under its sum; a building's arrival says what raised it; the staked plot wears its tag. Palette only, quiet. */
+.ticker .beat-main { display: block; }
+.ticker .beat-why { display: block; margin-top: 2px; font: 600 16px/1.2 var(--sans); color: var(--mist); letter-spacing: .03em; text-transform: none; }
+.town-arrival { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); pointer-events: none; white-space: nowrap; padding: 3px 10px;
+  border-radius: 5px; font: 700 17px/1.25 var(--sans); color: var(--bone); background: rgba(13, 12, 20, .72); border: 1px solid var(--gilt);
+  opacity: 0; transition: opacity .35s; z-index: 3; }
+.town-arrival.show { opacity: 1; }
+.town-arrival .arrow { color: var(--gilt); }
+.town-hit.arrived { box-shadow: 0 0 0 2px rgba(219, 186, 124, .85), 0 0 18px 4px rgba(219, 186, 124, .45); border-radius: 8px; animation: town-arrived 1.1s ease-in-out 3; }
+@keyframes town-arrived { 50% { box-shadow: 0 0 0 2px rgba(219, 186, 124, .35), 0 0 6px 1px rgba(219, 186, 124, .2); } }
+@media (prefers-reduced-motion: reduce) { .town-hit.arrived { animation: none; } }
+.report .tile .tile-why { grid-column: 1 / -1; justify-self: end; margin-top: 3px; font: 600 14px/1.1 var(--sans); color: var(--mist); letter-spacing: .02em; }
+.town-tag:not(.flash) { background: rgba(13, 12, 20, .66); box-shadow: 0 0 0 1px rgba(138, 106, 42, .7); }
+.town-tag.flash { box-shadow: 0 0 0 2px var(--gilt); }

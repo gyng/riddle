@@ -4,6 +4,7 @@
 // and the building bar (the console's command card: one tile per building standing, in build order; tile and building open the same
 // panel and share the badge). Day 0 is a camp — the mouth (tap = send), the tent (the hero), the crate (the pack); nothing else taps.
 import "../town.css";
+import "../legible.css";
 import type { App } from "../app";
 import type { Lineage, ReturnReport } from "../engine/types";
 import { createTownView, townState, BUILDINGS, type BuildingId, type PlotId, type TownState, type TownView } from "../render/town";
@@ -46,7 +47,11 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   const el = h("div", { class: "town" });
   const hits = h("div", { class: "town-hits" });
   const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite" });
-  el.append(hits, tag);
+  // c30-legible (the owner, a new player: "I didn't understand why there were new buildings"): a building's arrival names what raised
+  // it (`first gold home → blacksmith`, the core's trigger), once, over the town while it stands up; its target glows the while
+  const arrival = h("div", { class: "town-arrival num", "aria-live": "polite" });
+  el.append(hits, tag, arrival);
+  let arrivalTimer = 0;
   const view = createTownView(el);
   // the store: what this viewer has seen built (a building first seen goes up: scaffold → built) and opened (its rune goes)
   let store = load(app.lineage);
@@ -73,8 +78,22 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     view.setState(state);
     // seen now (a re-mount does not raise it again)
     const built = state.buildings.map((b) => b.id);
-    if (built.some((b) => !s0.seen.includes(b))) save(L, { ...s0, seen: [...new Set([...s0.seen, ...built])] });
+    const fresh = built.filter((b) => !s0.seen.includes(b));
+    if (fresh.length) save(L, { ...s0, seen: [...new Set([...s0.seen, ...built])] });
     targets();
+    if (fresh.length) arrive(fresh);
+  }
+  /** c30-legible: the arrival's beat — `first gold home → blacksmith` (≤ 4 words + the arrow) — and the eye drawn to the building */
+  function arrive(ids: string[]): void {
+    const T = app.lineage.town;
+    const parts = ids.map((id) => ({ id, why: T?.buildings.find((b) => b.id === id)?.trigger ?? "" }));
+    replace(arrival, ...parts.flatMap((p, i) => [i ? h("br") : "", p.why ? `${p.why} ` : "", p.why ? h("span", { class: "arrow" }, "→ ") : "", h("b", null, p.id)]));
+    arrival.dataset.arrived = ids.join(" ");
+    arrival.dataset.why = parts.map((p) => p.why ? `${p.why} → ${p.id}` : p.id).join(" | ");
+    arrival.classList.add("show");
+    for (const id of ids) btns.get(id)?.classList.add("arrived");
+    clearTimeout(arrivalTimer);
+    arrivalTimer = window.setTimeout(() => { arrival.classList.remove("show"); for (const id of ids) btns.get(id)?.classList.remove("arrived"); }, 4600);
   }
   /** the hit targets: one button per thing one can tap, over its sprite (≥ 44 px), its label hidden */
   function targets(): void {
@@ -98,6 +117,9 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
         icon(m.kind === "sword" ? "v_attack" : m.kind === "coin" ? "gold" : "alert", m.kind === "sword" ? "⚔" : m.kind === "coin" ? "$" : "!"), m.label ? h("b", { class: "num" }, m.label) : "")));
       b.dataset.markers = mk.map((m) => m.kind).join(" ");
     }
+    // c30-legible: the staked plot always wears its tag — what it becomes and what raises it (`kennel · first tame`), not only on tap
+    if (s.staked) { replace(tag, h("b", null, s.staked.id), s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
+    else tag.hidden = true;
     layout();
   }
   function layout(): void {
@@ -125,9 +147,9 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     if (id === "mouth") { hooks.send(); return; }
     if (id === "staked") {
       const s = state?.staked; if (!s) return;
-      // the next building and what raises it (`kennel · first tame`), on tap, a few seconds
+      // the next building and what raises it (`kennel · first tame`): always shown (c30-legible); a tap flashes it
       replace(tag, h("b", null, s.id), s.trigger ? h("span", { class: "dim" }, ` · ${s.trigger}`) : "");
-      tag.hidden = false; placeTag(); clearTimeout(tagTimer); tagTimer = window.setTimeout(() => { tag.hidden = true; }, 3200);
+      tag.hidden = false; placeTag(); tag.classList.add("flash"); clearTimeout(tagTimer); tagTimer = window.setTimeout(() => { tag.classList.remove("flash"); }, 1200);
       return;
     }
     const marker = (e.target as HTMLElement | null)?.closest?.(".town-marker") as HTMLElement | null;
@@ -156,7 +178,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     setTimeout(() => { sending = false; }, 2500);
   }
   paint();
-  return { el, view, paint, send, anchorOf: (id) => btns.get(id) ?? null, dispose: () => { clearTimeout(tagTimer); view.dispose(); } };
+  return { el, view, paint, send, anchorOf: (id) => btns.get(id) ?? null, dispose: () => { clearTimeout(tagTimer); clearTimeout(arrivalTimer); view.dispose(); } };
 }
 
 /** The building bar's tile for a standing building (`forge` · `vault` · `kennel` · `bank`): the same panel as the building. */

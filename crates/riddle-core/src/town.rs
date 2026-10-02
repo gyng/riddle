@@ -356,7 +356,7 @@ pub fn grew(a: &Snap, b: &Snap) -> Vec<GrewLine> {
 pub fn wire(l: &LineageState) -> TownWire {
     let next = BUILDINGS.iter().find(|(id, _)| !built(l, id)).map(|(id, tr)| (id.to_string(), tr.to_string()));
     TownWire {
-        buildings: l.town.built.iter().map(|(id, day)| crate::wire::BuildingWire { id: id.clone(), level: level(l, id), day: *day }).collect(),
+        buildings: l.town.built.iter().map(|(id, day)| crate::wire::BuildingWire { id: id.clone(), level: level(l, id), day: *day, trigger: BUILDINGS.iter().find(|b| b.0 == id).map(|b| b.1.to_string()).unwrap_or_default() }).collect(),
         next: next.as_ref().map(|n| n.0.clone()),
         next_trigger: next.map(|n| n.1),
         bank: l.town.bank,

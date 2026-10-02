@@ -258,3 +258,39 @@ fn trait_conditions_are_fact_gated() {
     let evs = ticks(&mut g, 30);
     assert!(evs.iter().any(|e| matches!(e, Ev::Rule { row: 0, .. })), "the `gift live` row acts while hurt");
 }
+
+/// c30-legible: every exit line says why the run ended in ≤ 3 words; a fresh lineage's first run banks its new best.
+#[test]
+fn every_exit_names_its_reason() {
+    let mut deaths = 0;
+    for seed in [3u64, 1001, 1004] {
+        let mut g = crate::Game::new(seed);
+        for k in 0..5 {
+            g.send();
+            let mut line = None;
+            for _ in 0..400 {
+                let r = g.step(200);
+                for e in &r.events {
+                    if let crate::Ev::Exit { line: Some(l), .. } = e {
+                        line = Some(l.clone());
+                    }
+                }
+                if r.run_over {
+                    break;
+                }
+            }
+            g.auto_keep();
+            let l = line.expect("an exit line");
+            let why = l.reason.clone().expect("a reason");
+            assert!(why.split_whitespace().filter(|w| *w != "·").count() <= 3, "{why}");
+            if k == 0 {
+                assert_eq!(why, "new best · home", "seed {seed}: the first run banks its new best");
+            }
+            if l.text.starts_with("died") {
+                deaths += 1;
+                assert!(why.starts_with("slain") || why == "starved", "a death names its killer: {why}");
+            }
+        }
+    }
+    assert!(deaths >= 1, "the seeds hold a death (seed 1004's fifth run)");
+}
