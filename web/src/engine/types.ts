@@ -112,6 +112,7 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          stolen?: string[];                                                                 // QA e75ec29 (qaR): what thieves took this run and it never got back (`· stolen heal`; flavour-named while unidentified)
                          purse_full?: boolean;
                          cause?: string;                                                                    // QA 0c6e126 (qaY; core): a death's killer as it reads after `died to` (`a goblin archer`) — the report's line leads with it
+                         reason?: string;                                                                   // c30-legible (core): why the run ended, ≤ 3 words (`banks every record`, `hurt · went home`, `slain · jackal`)
                          swap_left?: { kind: string; n: number }[];                                        // QA 0c6e126 (qaY; core): what the costly swaps left on the floor, per label — `−$5 swapped` names it (`−$5 left axe`)
                          swapped?: number;                                                                  // QA 778fa1b (core): the carried gold this run's pack swaps took off (a find taken in the place of a dearer carried item — the strip's `−$37 swapped`, summed); `carried` is after it
                          wake?: number;                                                                     // QA 778fa1b (core): the heir purse's top-up this death paid (the text's `+$N wake`); `purse_full` now only when the purse was under $80 (just over the $40 line) — a richer death has no purse word
@@ -347,7 +348,7 @@ export type GrewLine = { track: string; what: string };
  *  the next stage and its trigger (`next · kennel · first tame`), progress toward a numeric trigger (0..1). */
 export type Track = { id: string; stage: string; stages: number; next?: string; trigger?: string; progress?: number };
 /** Cut 30 §3 (core) — a building on the town scene (`blacksmith` · `storehouse` · `kennel` · `bank`), its look 1–3, the day built. */
-export type Building = { id: string; level: number; day: number };
+export type Building = { id: string; level: number; day: number; trigger?: string };   // trigger: c30-legible (core) — what raised it (`first gold home`)
 /** Cut 30 §5 (core) — the quest on the board: one plain goal (≤ 5 words: `reach D10 · no return`), the reward's picture
  *  (`title` · `row` · `slot` · `card` — `art/ui/oath/`), progress 0..1, kept, a free swap left today (`swapQuest()`). No stake. */
 export type Quest = { goal: string; reward: string; progress: number; done: boolean; swap: boolean };

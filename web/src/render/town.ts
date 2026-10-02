@@ -151,7 +151,7 @@ const ATLAS = 1024;
 const WALKER_TINT: Record<string, number[]> = { rogue: [120, 70, 140], ranger: [80, 140, 72], caster: [70, 96, 200], fighter: [150, 160, 176] };
 /** fallback aspect (w / h) per id family */
 const ASPECT: [RegExp, number][] = [[/^town_mouth/, 1.55], [/^town_(blacksmith|bank|storehouse|kennel)_/, 1.25], [/^town_tent/, 1.05], [/^town_board/, 0.85], [/^town_campfire/, 1.1],
-  [/^town_plot/, 1.1], [/^town_scaffold/, 0.9], [/^(hero_|walk_|town_(smith|merchant|carter|child))/, 0.7], [/^town_(sack|chest)/, 0.95], [/^town_flag/, 0.6],
+  [/^town_plot/, 1.1], [/^town_scaffold/, 0.9], [/^(hero_|walk_|town_(smith|merchant|carter|child))/, 0.7], [/^town_(sack|chest)/, 0.95], [/^town_worker_(porter|armourer|apprentice|drillmaster|kennel_hand)/, 1.2], [/^town_worker_/, 0.75], [/^town_haul_chest/, 1.5], [/^town_flag/, 0.6],
   [/^env_torch/, 0.66], [/^town_env_tree/, 0.5], [/^town_env_/, 1], [/^fx_/, 1]];
 export class TownAtlas {
   readonly canvas: HTMLCanvasElement;
@@ -234,6 +234,33 @@ function drawPrimitive(g: CanvasRenderingContext2D, id: string, x: number, y: nu
   else if (/^town_plot/.test(id)) { for (const a of [0.1, 0.9]) R("#6a4a2a", w * a - 1, h * 0.2, 2, h * 0.8); R("#d8c8a0", w * 0.1, h * 0.35, w * 0.8, 1); }
   else if (/^town_scaffold/.test(id)) { for (let i = 0; i <= 3; i++) { R("#7a5534", (w - 2) * i / 3, 0, 2, h); R("#7a5534", 0, (h - 2) * i / 3, w, 2); } }
   else if (/^town_sack/.test(id)) { g.fillStyle = "#b89a62"; g.beginPath(); g.ellipse(x + w / 2, y + h * 0.6, w * 0.45, h * 0.4, 0, 0, Math.PI * 2); g.fill(); R("#e3c24a", w * 0.4, h * 0.1, w * 0.2, h * 0.25); }
+  else if (/^town_haul_chest/.test(id)) {   // the haul chest: closed · full (a coin heap and a glint) · open (the lid up behind, dark inside)
+    const open = /_open$/.test(id), full = /_full$/.test(id);
+    if (open) { R("#4a3220", w * 0.08, 0, w * 0.84, h * 0.4); R("#0d0c14", w * 0.12, h * 0.4, w * 0.76, h * 0.14); }
+    R("#5a3c22", w * 0.06, h * 0.45, w * 0.88, h * 0.47); R("#2b3350", w * 0.06, h * 0.6, w * 0.88, 1); R("#2b3350", w * 0.3, h * 0.45, 1, h * 0.47); R("#2b3350", w * 0.7, h * 0.45, 1, h * 0.47);
+    if (!open) R("#6a4a2c", w * 0.04, h * 0.32, w * 0.92, h * 0.15);
+    R("#b89448", w * 0.45, h * 0.52, w * 0.1, h * 0.14);
+    if (full) { R("#b89448", w * 0.12, h * 0.22, w * 0.76, h * 0.1); R("#eadfc5", w * 0.62, h * 0.08, 1, h * 0.16); R("#eadfc5", w * 0.56, h * 0.15, w * 0.14, 1); }
+  }
+  else if (/^town_worker_/.test(id)) {   // a worker: a townsperson (no BLOOD) and the role's tag in its own colour (art/town-ids.md, workers)
+    const role = id.replace(/^town_worker_|_1$/g, "");
+    const coat: Record<string, string> = { porter: "#3a3448", armourer: "#5a6070", apprentice: "#5a3c22", keeper: "#2b3350", clerk: "#1c1b2b", drillmaster: "#6a5a40", kennel_hand: "#4a3a2a", herald: "#2b3350", guide: "#7d8ea4", scout: "#4a3a2a", quartermaster: "#6a5a40" };
+    const fw = /porter|armourer|apprentice|drillmaster|kennel_hand/.test(role) ? w * 0.55 : w;   // the figure's share (the tag object right of it)
+    R(coat[role] ?? "#3a3448", fw * 0.22, h * 0.28, fw * 0.56, h * 0.5); R("#eadfc5", fw * 0.32, h * 0.06, fw * 0.36, h * 0.2);
+    R("#1c1b2b", fw * 0.26, h * 0.78, fw * 0.18, h * 0.22); R("#1c1b2b", fw * 0.56, h * 0.78, fw * 0.18, h * 0.22);
+    const T = (c: string, a: number, b: number, cw: number, ch: number): void => R(c, fw + (w - fw) * a, h * b, (w - fw) * cw, h * ch);
+    if (role === "porter") { T("#6a4a2c", 0.05, 0.45, 0.9, 0.3); T("#eadfc5", 0.15, 0.25, 0.7, 0.22); T("#1c1b2b", 0.3, 0.72, 0.35, 0.28); }
+    else if (role === "armourer") { T("#6a4a2c", 0.15, 0.2, 0.12, 0.8); T("#6a4a2c", 0.75, 0.2, 0.12, 0.8); T("#a4bcd6", 0.35, 0.1, 0.08, 0.7); T("#a4bcd6", 0.55, 0.1, 0.08, 0.7); }
+    else if (role === "apprentice") { T("#0d0c14", 0.1, 0.55, 0.8, 0.2); T("#0d0c14", 0.35, 0.75, 0.3, 0.25); T("#e8923a", 0.25, 0.48, 0.5, 0.07); }
+    else if (role === "drillmaster") { T("#b89448", 0.4, 0.15, 0.2, 0.3); T("#6a4a2c", 0.47, 0.45, 0.06, 0.55); T("#6a4a2c", 0.1, 0.32, 0.8, 0.06); }
+    else if (role === "kennel_hand") { T("#4d6c99", 0.1, 0.55, 0.7, 0.25); T("#4d6c99", 0.55, 0.4, 0.3, 0.2); T("#1c1b2b", 0.15, 0.8, 0.1, 0.2); }
+    else if (role === "keeper") { R("#b89448", fw * 0.7, h * 0.12, 1, h * 0.88); R("#b89448", fw * 0.62, h * 0.85, fw * 0.3, h * 0.15); }
+    else if (role === "clerk") R("#eadfc5", fw * 0.5, h * 0.4, fw * 0.45, h * 0.16);
+    else if (role === "herald") { R("#eadfc5", fw * 0.6, h * 0.42, fw * 0.25, h * 0.4); R("#b89448", fw * 0.78, h * 0.25, fw * 0.16, h * 0.1); }
+    else if (role === "guide") { R("#e8923a", fw * 0.76, h * 0.4, fw * 0.18, h * 0.12); R("#6a4a2c", fw * 0.12, h * 0.05, 1, h * 0.95); }
+    else if (role === "scout") { R("#1c1b2b", fw * 0.15, h * 0.02, fw * 0.7, h * 0.08); R("#b89448", fw * 0.62, h * 0.12, fw * 0.32, h * 0.06); R("#eadfc5", fw * 0.78, h * 0.35, fw * 0.2, h * 0.06); }
+    else if (role === "quartermaster") { R("#5a3c22", fw * 0.5, h * 0.3, fw * 0.45, h * 0.35); R("#eadfc5", fw * 0.5, h * 0.26, fw * 0.45, h * 0.06); }
+  }
   else if (/^town_chest/.test(id)) { R("#7a4a1e", 0, h * 0.3, w, h * 0.7); R("#ffd76a", 0, h * 0.3, w, 2); R("#ffd76a", w * 0.42, h * 0.45, w * 0.16, h * 0.2); }
   else if (/^town_flag/.test(id)) { R("#4a321f", 0, 0, 1, h); R(/_1$/.test(id) ? "#a01a28" : "#c01530", 1, 1, w - 1, h * 0.4); }
   else if (/^env_torch/.test(id)) { R("#4a321f", w * 0.4, h * 0.4, w * 0.2, h * 0.6); R(/_1$/.test(id) ? "#ffcf5a" : "#f08a2a", w * 0.25, 0, w * 0.5, h * 0.45); }

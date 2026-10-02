@@ -269,6 +269,12 @@ pub struct ExitLine {
     /// lines lead with it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
+    /// c30-legible (the owner, a new player: "I didn't understand … why the run ended early at like D3"):
+    /// why the run ended, ≤ 3 words, for the watch's end beat, the report and the town's returning party
+    /// (`banks every record`, `hurt · went home`, `slain · jackal`, `stuck · went home`, `repelled · Warlord`;
+    /// `engine::exit_reason`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
     /// QA on 0c6e126 (qaY: `−$5 swapped` naming no item): what the costly swaps left on the
     /// floor, per label (`axe`) — the line's `−$5 swapped` names them (`−$5 left axe`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1408,6 +1414,9 @@ pub struct BuildingWire {
     pub id: String,
     pub level: u32,
     pub day: u32,
+    /// c30-legible: what raised it (`first gold home`, `town::BUILDINGS`) — its arrival's beat names it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub trigger: String,
 }
 
 /// Cut 30 §3: the town — its buildings, the next plot and its trigger, the bank.

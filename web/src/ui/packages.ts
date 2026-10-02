@@ -15,6 +15,8 @@ import { openSheet } from "./sheet";
 import { lowOf, share } from "./forecast";
 import { rowLabel } from "./tokens";
 import { sysOpen } from "./systems";
+import { kw, kwHost, kwText } from "./tips";
+import type { Term } from "./concepts";
 
 /** The lineage climbs on packages (a Cut 30 core, not a harness's literal set). */
 export const onPackages = (L: Pick<Lineage, "packages"> | undefined): boolean => !!L?.packages && !L.packages.literal;
@@ -88,7 +90,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip");
         const pr = o ? priceOf(o) : null;
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          h("span", { class: "pkg-name" }, chipText(p)), h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""));
+          h("span", { class: "pkg-name" }, chipText(p)), kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price"));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {
@@ -112,7 +114,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         return h("div", { class: "pkg-slot", "data-kind": kind, "data-slot": slot },
           h("span", { class: "chip pkg on", "data-pkg": p.id }, h("span", { class: "pkg-name" }, chipText(p)), levelBar(p)), lv, off);
       };
-      const section = (label: string, kind: string, ...kids: (HTMLElement | "")[]): HTMLElement => h("section", { class: "pkg-sec", "data-kind": kind }, h("div", { class: "label pkg-head" }, label), ...kids);
+      const section = (label: string, kind: string, ...kids: (HTMLElement | "")[]): HTMLElement => h("section", { class: "pkg-sec", "data-kind": kind }, h("div", { class: "label pkg-head" }, kw(kind as Term, label)), ...kids);   // docs/TOOLTIPS.md: the slot's word is its keyword
       // the stance: worn, the others priced
       const stance = byId.get(P.stance);
       const stanceAlts = owned("stance").filter((p) => p.id !== P.stance);
@@ -142,14 +144,14 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
           const d = drills.find((x) => x.boss === b), sc = Math.round((scars.get(b) ?? d?.scar ?? 0) / 5);
           return h("div", { class: `pkg-drill${d?.revoked ? " revoked" : ""}`, "data-boss": b },
             d ? h("button", { class: `chip mini drill${d.revoked ? "" : " on"}`, "aria-pressed": d.revoked ? "false" : "true", onclick: () => void app.mutate(() => app.engine.revokeDrill!(b, !d.revoked), undefined, true).then(() => paint()) }, /* copy:label */ `drill · ${boss(b)}`) : h("span", { class: "chip mini boss" }, boss(b)),
-            sc > 0 ? h("small", { class: "scar num" }, /* copy:callout */ `scarred ×${sc}`) : "");
+            sc > 0 ? h("small", { class: "scar num" }, ...kwText(/* copy:callout */ `scarred ×${sc}`, ["scar"])) : "");
         });
-        secs.push(h("section", { class: "pkg-sec drills" }, h("div", { class: "label pkg-head" }, /* copy:label */ "drills"), ...lines));
+        secs.push(h("section", { class: "pkg-sec drills" }, h("div", { class: "label pkg-head" }, kw("drill", /* copy:label */ "drills")), ...lines));
       }
       // the compiled rows, folded: each its package, a shadowed one greyed with its winner
       secs.push(rowsFold(app, P));
       const head = headline(app);
-      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, /* copy:label */ "packages"), head ? h("b", { class: "pkg-headline num" }, head) : ""), ...secs);
+      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "packages")), head ? h("b", { class: "pkg-headline num" }, ...kwText(head, ["reach"])) : ""), ...secs);
     };
     paint();
     const m = opts ? null : measure(app);
@@ -188,7 +190,7 @@ export function packagesStrip(app: App, opts: { ro?: boolean } = {}): { el: HTML
     const worn = [byId.get(P.stance), ...(P.tactics ?? []).map((t) => byId.get(t)), P.temperament ? byId.get(P.temperament) : undefined].filter((p): p is Package => !!p);
     const live = packagesShown(L) && !opts.ro;
     replace(el, ...worn.map((p) => {
-      const kids = [h("span", { class: "pkg-kind dim" }, p.kind), h("span", { class: "pkg-name" }, chipText(p)), levelBar(p)];
+      const kids = [h("span", { class: "pkg-kind dim" }, ...kwText(p.kind, ["stance", "tactic", "temperament"])), h("span", { class: "pkg-name" }, chipText(p)), levelBar(p)];
       return live ? h("button", { class: "row tablet compact pkg-tab", "data-pkg": p.id, onclick: (e: Event) => openPackages(app, e.currentTarget as HTMLElement) }, ...kids)
         : h("div", { class: "row tablet compact pkg-tab plaque", "data-pkg": p.id }, ...kids);
     }));

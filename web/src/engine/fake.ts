@@ -823,6 +823,8 @@ function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   // Cut 11 §3: every exit trace carries the run's provenance (the `because` events) beside its turns; ticks ×10 as on the events
   const trace: Trace = { turns: scaleTrace(run.trace), provenance: Object.values(run.prov).sort((a, b) => a.t - b.t).map((p) => ({ text: p.text, t: p.t * 10, depth: p.depth })) };
   run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · "), trace,
+    // c30-legible stand-in: the core's `reason` (`engine::exit_reason`), in miniature
+    reason: run.stalled ? "stuck · gave up" : tier === "death" ? "slain" : tier === "bank" ? "banks every record" : "hurt · went home",
     news: [{ k: "differ", text: `reached D${run.depth}` }] };   // Cut 24 §2 stand-in: the core's `news` (what was new; else the one thing that differed)
   ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line, trace });
   // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake
@@ -2237,7 +2239,7 @@ function packages30(e: Fk30, L: Lineage): Packages {
 function town30(e: Fk30, L: Lineage): Town {
   const st = st30(e); const order: [string, string, boolean][] = [["blacksmith", "first gold home", L.gold > 0 || L.best_depth > 2], ["storehouse", "first find kept", L.vault.length > 0], ["kennel", "first tame", L.party.length + L.kennel.length > 0], ["bank", "a night's purse", L.gold >= 500]];
   const built = order.filter(([, , b]) => b); const next = order.find(([, , b]) => !b);
-  return { buildings: built.map(([id]) => ({ id, level: 1, day: 0 })), ...(next ? { next: next[0], next_trigger: next[1] } : {}), bank: st.bank, bank_cap: 3000, interest: st.interest,
+  return { buildings: built.map(([id, trigger]) => ({ id, level: 1, day: 0, trigger })), ...(next ? { next: next[0], next_trigger: next[1] } : {}), bank: st.bank, bank_cap: 3000, interest: st.interest,
     ...(L.best_depth >= 9 ? { quest: quest30(st, L) } : {}), quests_done: st.quest };
 }
 /** The fake's quest: `reach D<n>` drawn one past the record, its progress the deepest floor a run reached since (the record's floor

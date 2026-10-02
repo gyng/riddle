@@ -2,7 +2,8 @@
 // the top bar (iron plate: the heir, `$`, `◆`, `★`, the best depth, the settings stud), the well (the place itself), and the
 // console (carved stone: the portrait well with its hp ring, a 4 × 2 command card of tiles, the primary gem). Each screen builds
 // its frame from these parts (so `main.<screen>` holds its console: the tiles are the screen's buttons).
-import { conceptCap, type Concept } from "./concepts";
+import { conceptCap, type Concept, type Term } from "./concepts";
+import { kwHost, kwText } from "./tips";
 const withCap = (el: HTMLElement | "", c: Concept, words?: string): HTMLElement | "" => { if (el) { const cap = conceptCap(c, words); if (cap) el.appendChild(cap); } return el; };
 import type { App } from "../app";
 import type { Row } from "../engine/types";
@@ -17,6 +18,11 @@ import { openGoldSheet } from "./gold";
 import { revealed } from "./reveal";
 import { hasTracks, openTracks, tracksGrew, tracksShown } from "./tracks";
 import { onPackages, packagesShown, packagesStrip, penOpen } from "./packages";
+
+/** docs/TOOLTIPS.md: an element's tip (a host: never marked; a control keeps its tap — long-press or hover shows it). */
+const withTip = <E extends HTMLElement>(el: E, t?: Term): E => (t ? kwHost(el, t) : el);
+/** A console tile's term (its tip on long-press / hover). */
+const TILE_TERM: Record<string, Term> = /* copy:none */ { packages: "package", quest: "quest", loadout: "pack", forge: "forge", vault: "vault", party: "kennel", bank: "bank", edit: "pen" };
 
 // --- the top bar ---
 
@@ -34,9 +40,9 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
     // until this one is seen)
     let capped = false;
     const cap1 = (el: HTMLElement | "", c: Concept, words?: string): HTMLElement | "" => { if (!el || capped) return el; withCap(el, c, words); capped = !!el.querySelector(".concept-cap"); return el; };
-    const stat = (cls: string, ico: string, glyph: string, n: string | number, on = true): HTMLElement | "" => on ? h("span", { class: `num stat ${cls}` }, icon(ico), glyph ? h("span", { class: "g" }, glyph) : "", String(n)) : "";
+    const stat = (cls: string, ico: string, glyph: string, n: string | number, on = true, term?: Term): HTMLElement | "" => on ? withTip(h("span", { class: `num stat ${cls}` }, icon(ico), glyph ? h("span", { class: "g" }, glyph) : "", String(n)), term) : "";   // docs/TOOLTIPS.md: a stat's tip on tap
     replace(el,
-      h("span", { class: "num heir" }, mini.el, heirOrd(opts.heir ?? L.heir)),   // a death's bar names the hero who died (QA 92eb880)
+      h("span", { class: "num heir" }, mini.el, ...kwText(heirOrd(opts.heir ?? L.heir), ["heir"])),   // a death's bar names the hero who died (QA 92eb880)
       // the wake's trait chips stand in for the plain trait while the offer stands (the camp fills `offers`)
       // Cut 30 §2: on packages the bar names the worn temperament (the old trait word maps to it), none before heir 3
       onPackages(L) ? h("span", { class: "trait" }, L.packages!.temperament ? L.packages!.all.find((p) => p.id === L.packages!.temperament)?.name ?? "" : "")
@@ -50,10 +56,10 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
         // docs/COPY.md pass 3: the word over it (`lineage`, then `family`) read "no idea" 11 of 14 times — the purse needs none
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
-        !opts.watch ? h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`) : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),
-        cap1(stat("marks", "mark", "◆", L.marks, R.has("unlocks") || (packagesShown(L) && L.marks > 0)), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "levels packages"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
-        cap1(stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past), "renown"),
-        stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, R.has("depth") && !past),   // docs/COPY.md pass 2 (`D8` read as "current depth")
+        !opts.watch ? kwHost(h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`), "gold") : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),
+        cap1(stat("marks", "mark", "◆", L.marks, R.has("unlocks") || (packagesShown(L) && L.marks > 0), "marks"), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "levels packages"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
+        cap1(stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past, "renown"), "renown"),
+        stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, R.has("depth") && !past, "best"),   // docs/COPY.md pass 2 (`D8` read as "current depth")
       ),
       h("button", { class: "gear stud", "aria-label": "settings", onclick: () => openSettings(app) }, icon("settings", "⚙")),
       offers,
@@ -147,8 +153,8 @@ export function portrait(app: App, o: { hp?: number; label?: Node | string; oncl
 export type TileSpec = { id: string; label: string; icon: string; glyph?: string; onclick: (e: Event) => void; cls?: string; on?: boolean; fresh?: boolean; disabled?: boolean };
 /** A command tile: the icon, its one word under it. Pressed on tap (`:active`), `on` while its panel or mode is up. */
 export function tile(t: TileSpec): HTMLButtonElement {
-  return h("button", { class: `tile${t.cls ? ` ${t.cls}` : ""}${t.on ? " on" : ""}${t.fresh ? " reveal" : ""}`, "data-tile": t.id, disabled: !!t.disabled, onclick: t.onclick },
-    icon(t.icon, t.glyph), h("span", { class: `tl${/\s/.test(t.label.trim()) ? " two" : ""}` }, t.label));   // a two-word label steps its face down (blind pass 9: `fights o…`)
+  return withTip(h("button", { class: `tile${t.cls ? ` ${t.cls}` : ""}${t.on ? " on" : ""}${t.fresh ? " reveal" : ""}`, "data-tile": t.id, disabled: !!t.disabled, onclick: t.onclick },
+    icon(t.icon, t.glyph), h("span", { class: `tl${/\s/.test(t.label.trim()) ? " two" : ""}` }, t.label)), TILE_TERM[t.id]);   // a two-word label steps its face down (blind pass 9: `fights o…`)
 }
 /** The primary gem (`red` for bail's danger), its one word laid over the stone. `pulse` while its action waits. */
 export function gem(o: { label: Node | string; onclick: (e: Event) => void; cls?: string; red?: boolean; pulse?: boolean }): HTMLButtonElement {

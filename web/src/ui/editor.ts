@@ -20,6 +20,7 @@ import { h, clear, flash, twoTap } from "./dom";
 import { openSheet } from "./sheet";
 import { hasCurriculum, sysOpen } from "./systems";
 import { icon, verbIcon } from "./skin";
+import { kw } from "./tips";
 /** gfx round 1: the action's icon plaque at a tablet's right end (camp.png); nothing when its icon is not packed. */
 const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
 import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, ruleName, sameCond, sameVerb, verbLabel } from "./tokens";
@@ -107,7 +108,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   const list = h("div", { class: "rows" });
   const foot = h("div", { class: "rows-foot" });
   // docs/COPY.md pass 5 (the tablets' `1`, `2` read as order, never as which acts first — 6/6): the column says what its numbers are
-  const el = h("section", { class: "editor" }, h("small", { class: "rows-head dim" }, /* copy:label */ "priority"), list, foot);
+  const el = h("section", { class: "editor" }, h("small", { class: "rows-head dim" }, kw("priority")), list, foot);
   let hl = highlight;
   let hlUntil = highlight !== undefined ? performance.now() + 2400 : 0; // survives the camp's repaint right after mount
   const vocab = (): Vocabulary => bind.vocab();
@@ -239,7 +240,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   function pickCond(row: Row, ci: number, anchor?: HTMLElement): void {
     const existing = row.conds[ci];
     openSheet((close) => {
-      const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "condition"));   // Cut 13 §6: every sheet is titled
+      const body = h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, kw("condition")));   // Cut 13 §6: every sheet is titled
       // the row's `×` (remove this cond) sits at the top, above the ~90 tokens (QA on 952e306: "× at the very bottom of a ~90-entry list")
       if (existing) body.appendChild(h("button", { class: "btn ghost wide", onclick: () => { row.conds.splice(ci, 1); edited(row); close(); } }, "×"));
       // QA 92eb880 (M, N: "a threshold change is three taps … the chip opens the whole list, not the value"): a chip with a number
@@ -271,7 +272,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   function pickN(body: HTMLElement, c: Cond, done: (n: number) => void, cur?: number): void {
     clear(body);
     const pctish = PCT.has(c.k);
-    body.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "condition"));
+    body.appendChild(h("div", { class: "label row-label" }, kw("condition")));
     body.appendChild(h("div", { class: "sheet-head" }, condName(c.k)));
     const grid = h("div", { class: "grid nums" });
     for (const n of numsOf(c.k) ?? []) grid.appendChild(h("button", { class: `chip num${n === cur ? " on" : ""}`, onclick: () => done(n) }, `${n}${pctish ? "%" : ""}`));
@@ -304,7 +305,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
         const why = (r.verb.v === "drink" || r.verb.v === "read") && r.verb.a && r.verb.a !== "unknown" ? /* copy:rule_token */ "unknown" : "";
         grid.appendChild(h("span", { class: "chip verb locked off", "aria-disabled": "true" }, "⊘ ", key, why ? h("small", { class: "needs dim" }, why) : ""));
       }
-      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, /* copy:label */ "action"), grid);
+      return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, kw("action")), grid);
     }, { anchor });
   }
 

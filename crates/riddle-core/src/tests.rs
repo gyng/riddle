@@ -11090,6 +11090,21 @@ fn strip_key(json: &str, key: &str) -> String {
     out
 }
 
+/// `strip_key` for a key whose value is a string (`,"key":"…"`, no escaped quotes inside).
+fn strip_str(json: &str, key: &str) -> String {
+    let pat = format!(",\"{key}\":\"");
+    let mut out = String::with_capacity(json.len());
+    let mut rest = json;
+    while let Some(i) = rest.find(&pat) {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i + pat.len()..];
+        let n = tail.find('"').map(|n| n + 1).unwrap_or(tail.len());
+        rest = &tail[n..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// `strip_key` for a key whose value is an array (`,"key":[…]`, brackets balanced).
 fn strip_array(json: &str, key: &str) -> String {
     let pat = format!(",\"{key}\":[");
@@ -11202,6 +11217,8 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
                 let j = strip_tail_key(&strip_array(&j, "max_steps"), "max_hp").replace(" got him out.", " saved him.").replace(" pulled him through.", " saved him.");
                 // (Cut 29 §1: the frontier mark is gone — its words on the exit line with it)
                 let j = strip_object(&j, "meters");
+                // (c30-legible: an exit line's `reason` is a new read of the same run)
+                let j = strip_str(&j, "reason");
                 fnv(&mut h, &j);
             }
             if r.run_over {
