@@ -270,20 +270,21 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick: () => { closeAllSheets(); onclick(); }, on, fresh: R.fresh(STEP_OF[id]) || (id === "forge" && R.fresh("forge")) });
     const built = townBuilt(app.lineage);
     if (built) {
-      const anchor = (id: string): HTMLElement | null => town.anchorOf(id);
+      // a sheet opened from a tile stands over its building only while the building is on screen (the well may be scrolled to its rows)
+      const anchor = (id: string): HTMLElement | null => { const x = town.anchorOf(id); if (!x || x.hidden) return null; const r = x.getBoundingClientRect(), w = well.getBoundingClientRect(); return r.bottom > w.top + 8 && r.top < w.bottom - 8 ? x : null; };
       const bt: Record<string, () => HTMLElement> = {
         blacksmith: () => withBadge(buildingTile("blacksmith", { fresh: R.fresh("forge") || R.fresh("kit"), onclick: () => { closeAllSheets(); closePanel(); markOpened(app.lineage, "blacksmith"); openForge(app, anchor("blacksmith")); } }), kitBadge()),
-        storehouse: () => buildingTile("storehouse", { on: open === "vault", fresh: R.fresh("vault"), onclick: () => { closeAllSheets(); markOpened(app.lineage, "storehouse"); togglePanel("vault", anchor("storehouse")); } }),
-        kennel: () => buildingTile("kennel", { on: open === "party", fresh: R.fresh("party"), onclick: () => { closeAllSheets(); markOpened(app.lineage, "kennel"); togglePanel("party", anchor("kennel")); } }),
+        storehouse: () => buildingTile("storehouse", { on: open === "vault", fresh: R.fresh("vault"), onclick: () => { closeAllSheets(); markOpened(app.lineage, "storehouse"); togglePanel("vault"); } }),
+        kennel: () => buildingTile("kennel", { on: open === "party", fresh: R.fresh("party"), onclick: () => { closeAllSheets(); markOpened(app.lineage, "kennel"); togglePanel("party"); } }),
         bank: () => buildingTile("bank", { onclick: () => { closeAllSheets(); closePanel(); markOpened(app.lineage, "bank"); openBank(app, anchor("bank")); } }),
       };
       cons.setTiles([
         ...built.map((b) => bt[b]?.()),
         // Cut 30 §2/§5: the packages and the quest board (the board by the mouth opens it too)
         packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "packages", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
-        questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: () => { closeAllSheets(); openQuest(app, town.anchorOf("board")); } }),
+        questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: () => { closeAllSheets(); openQuest(app, anchor("board")); } }),
         R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
-        R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout", town.anchorOf("crate")), open === "loadout")), repeatBadge()),
+        R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
         R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
         R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
         R.has("heirs") && t("chronicle", /* copy:button */ "chronicle", "chronicle", () => openChronicle(app)),
