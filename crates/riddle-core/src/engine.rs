@@ -537,6 +537,15 @@ pub struct Run {
     /// carry is dropped — the game's exit pays nothing, as a stall's does (DEFAULT yields 0).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub driven_lost: bool,
+    /// Cut 30.5 (the owner, 2026-10-02: a new record never ends the run): the gold secured at this run's
+    /// checkpoints (each new deepest floor past the record secures the carry so far, as a waystone would — safe
+    /// whatever the exit, a death's included), the record the run left with, and its deepest checkpoint.
+    #[serde(default)]
+    pub secured: i32,
+    #[serde(default)]
+    pub record0: u32,
+    #[serde(default)]
+    pub record_mark: u32,
     /// Cut 24 §1: the rows a dance rested (`turn::nohp_guard`) and the action they rest until.
     #[serde(default)]
     pub rows_rested: (Vec<i32>, u32),
@@ -937,6 +946,15 @@ impl Run {
     }
     /// The share of the carry (and of the salvage, XP and renown) an exit at `tier` keeps: a
     /// timed-out run and a drive-off with no way home written keep nothing (Cut 2 §2, Cut 24 §1).
+    /// What the exit brings home: the secured gold whole, and the carry since the last checkpoint at the
+    /// tier's share (bank 100 % · return 60 % · death 30 %; a stall or a drive-off with no way home nothing).
+    pub fn kept(&self, tier: ExitTier) -> i32 {
+        self.secured + self.loot.max(0) * self.yield_pct(tier) / 100
+    }
+    /// All the run carried: the secured gold and the carry since.
+    pub fn carried(&self) -> i32 {
+        self.secured + self.loot.max(0)
+    }
     pub fn yield_pct(&self, tier: ExitTier) -> i32 {
         if self.timed_out || self.driven_lost {
             0
@@ -3653,6 +3671,9 @@ impl Game {
             renderable_events: 0,
             ended: false,
             max_depth: start,
+            secured: 0,
+            record0: self.lineage.best_depth,
+            record_mark: self.lineage.best_depth,
             trophies_run: Vec::new().into(),
             companions: Vec::new(),
             recalled: Vec::new(),
@@ -4164,7 +4185,7 @@ impl Game {
         // Cut 6 §1: what that row would bring home now (the kept number, not the carried one).
         let kept = return_row.map(|i| {
             let tier = if l.rules().rows[i].verb.v == "bank" { ExitTier::Bank } else { ExitTier::Return };
-            run.loot.max(0) * tier.pct() / 100
+            run.secured + run.loot.max(0) * tier.pct() / 100
         });
         Snapshot {
             depth: run.depth,
@@ -4200,7 +4221,7 @@ impl Game {
     /// Cut 24 §2: what was new in `run` (`ExitLine.news`), read against the lineage as it
     /// stood before the run: ≤ 3 lines, most telling first; none new → the one thing that
     /// differed from the last run.
-    pub fn run_news(&self, run: &Run, tier: ExitTier, pct: i32) -> Vec<crate::wire::News> {
+    pub fn run_news(&self, run: &Run, tier: ExitTier, _pct: i32) -> Vec<crate::wire::News> {
         let l = &self.lineage;
         let mut out: Vec<crate::wire::News> = Vec::new();
         let push = |out: &mut Vec<crate::wire::News>, k: &str, text: String| out.push(crate::wire::News { k: k.into(), text });
@@ -4245,7 +4266,7 @@ impl Game {
             return out;
         }
         // Nothing new: the one thing that differed from the last run.
-        let kept = run.loot.max(0) * pct / 100;
+        let kept = run.kept(tier);
         let Some(last) = &l.last_run else { return vec![crate::wire::News { k: "differ".into(), text: format!("D{} · {}", run.max_depth, tier.name()) }] };
         let twists: Vec<String> = run.situations.iter().map(|(_, s)| s.clone()).filter(|s| crate::situations::TWISTS.contains(&s.as_str()) && !last.twists.contains(s)).collect();
         let text = if run.max_depth > last.depth {
@@ -4272,7 +4293,7 @@ impl Game {
 
     /// Cut 24 §2: the lineage takes in what `run` met — the named foes it placed, the floor
     /// events' lines it showed, the item kinds it found, and the run in brief.
-    fn settle_novelty(&mut self, run: &Run, tier: ExitTier, pct: i32) {
+    fn settle_novelty(&mut self, run: &Run, tier: ExitTier, _pct: i32) {
         let l = &mut self.lineage;
         for n in &run.named_placed {
             l.named_met.insert(n.clone(), run.id);
@@ -4296,7 +4317,7 @@ impl Game {
             }
         }
         let twists = run.situations.iter().map(|(_, s)| s.clone()).collect();
-        l.last_run = Some(RunBrief { depth: run.max_depth, tier: tier.name().into(), cause: run.death_cause.clone(), twists, kept: run.loot.max(0) * pct / 100, turns: run.turn, kills: run.kills.len() as u32 });
+        l.last_run = Some(RunBrief { depth: run.max_depth, tier: tier.name().into(), cause: run.death_cause.clone(), twists, kept: run.kept(tier), turns: run.turn, kills: run.kills.len() as u32 });
     }
 
     /// Bank the run's outcome into the lineage: marks, xp, renown, companions, deaths, rest.
@@ -4759,7 +4780,7 @@ impl Game {
         // Loot, gold and the vault (Addendum B/D; Cut 2 §2 death keeps nothing).
         // Cut 4: `run.loot` is already gold (÷ 4 at pickup); the same number the exit note
         // and `Ev::Exit.loot_kept` carried.
-        let loot_kept = run.loot.max(0) * pct / 100;
+        let loot_kept = run.kept(tier);
         let gold_before = self.lineage.gold;
         let exit_why = match tier {
             _ if run.timed_out && run.stuck_fires >= STALL_FIRES => format!("stalled D{}", run.max_depth),
@@ -4774,11 +4795,11 @@ impl Game {
         self.lineage.gold_move(loot_kept, &exit_why);
         // QA on 912e135 (qaW): the exit's ledger line names what it did not keep.
         if let Some(g) = self.lineage.gold_ledger.last_mut().filter(|g| g.why == exit_why) {
-            g.lost = (run.loot.max(0) - loot_kept).max(0);
+            g.lost = (run.carried() - loot_kept).max(0);
         }
-        self.batch.gold_lost += (run.loot.max(0) - loot_kept).max(0);
+        self.batch.gold_lost += (run.carried() - loot_kept).max(0);
         if loot_kept > 0 {
-            self.batch.gold_unkept += (run.loot.max(0) - loot_kept).max(0);
+            self.batch.gold_unkept += (run.carried() - loot_kept).max(0);
         }
         self.batch.heirs = Some(self.batch.heirs.map_or((run.heir, run.heir), |(lo, hi)| (lo.min(run.heir), hi.max(run.heir))));
         self.batch.gold_earned += loot_kept;
@@ -5063,7 +5084,12 @@ impl Game {
         let pile = if tier == ExitTier::Death { self.lineage.bones.last().filter(|b| b.heir == run.heir).map(|b| b.items.clone()).unwrap_or_default() } else { Vec::new() };
         let bones_n = pile.len();
         let unused = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").count() + leash_back;
-        let mut line = exit_line_of(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
+        let mut line = exit_line_of(run.carried(), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
+        // Cut 30.5: what the checkpoints secured leads the arithmetic (`banked $120 · $80 secured + 100% of $40`)
+        if run.secured > 0 {
+            line.secured = run.secured;
+            line.text = secured_text(&line.text, loot_kept, run.secured, run.loot.max(0), pct);
+        }
         // QA on 0c6e126 (qaZ: `1 supply back` never named which — read beside `sold … invisibility $1` as the bought potion sold): the
         // supplies that came back unused, named when they are of one kind (`1 supply back: invisibility`)
         let mut back: BTreeSet<String> = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").map(|i| self.lineage.wire_name(&i.kind).replace('_', " ")).collect();
@@ -6065,6 +6091,10 @@ pub fn exit_reason(run: &Run, tier: ExitTier, best0: u32, rules: &RuleSet) -> St
     };
     let has = |k: &str| row.conds.iter().any(|c| c.k == k);
     let bank = tier == ExitTier::Bank;
+    // (Cut 30.5: out of supplies — the heals spent — is its own reason)
+    if has("lacks") {
+        return if bank { "no heals · banked".into() } else { "no heals · went home".into() };
+    }
     if has("hp<") || has("party_hp<") {
         return if bank { "hurt · banked".into() } else { "hurt · went home".into() };
     }
@@ -6114,13 +6144,23 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
         ExitTier::Death => "died",
     };
     let mut text = if kept <= 0 && keep_pct <= 0 { format!("{verb} $0 · ${carried} lost") } else { format!("{verb} ${kept} · ${carried} carried · keeps {keep_pct}%") };
+    // (Cut 30.5: the checkpoints' secured gold — the caller re-words the line: `secured_text`)
     if bones > 0 {
         text.push_str(&format!(" · bones: {bones} items on D{depth}"));
     }
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None }
+    ExitLine { secured: 0, carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None }
+}
+
+/// Cut 30.5: an exit line's head re-worded with the secured gold — `banked $120 · $80 secured + 100% of $40`, `died
+/// $80 · $41 lost` (a death keeps the secured gold alone) — its tail (bones, supplies back) kept.
+pub fn secured_text(text: &str, kept: i32, secured: i32, rest: i32, pct: i32) -> String {
+    let verb = ["stalled", "lost thread", "banked", "returned", "died"].iter().find(|w| text.starts_with(**w)).copied().unwrap_or("returned");
+    let tail: Vec<&str> = text.split(" · ").filter(|s| s.starts_with("bones: ") || s.ends_with(" back")).collect();
+    let head = if pct <= 0 { format!("{verb} ${kept} · ${rest} lost") } else { format!("{verb} ${kept} · ${secured} secured + {pct}% of ${rest}") };
+    std::iter::once(head).chain(tail.into_iter().map(String::from)).collect::<Vec<_>>().join(" · ")
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:

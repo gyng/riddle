@@ -4584,9 +4584,9 @@ fn ledger_line_reconciles_on_every_exit() {
             g.lineage.rest_left = 0;
             g.start_run(None);
             g.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
-            let (carried, tier, timed_out, depth, heir, pct) = {
+            let (carried, tier, timed_out, depth, heir, pct, kept) = {
                 let r = g.run.as_ref().unwrap();
-                (r.loot.max(0), r.over.unwrap(), r.timed_out, r.depth, r.heir, r.yield_pct(r.over.unwrap()))
+                (r.carried(), r.over.unwrap(), r.timed_out, r.depth, r.heir, r.yield_pct(r.over.unwrap()), r.kept(r.over.unwrap()))
             };
             let before = g.lineage.gold;
             let lines_before = g.lineage.gold_ledger.len();
@@ -4597,7 +4597,8 @@ fn ledger_line_reconciles_on_every_exit() {
             // (Cut 24 §1: a drive-off with no way home written keeps nothing, as a stall)
             assert_eq!(line.carried, carried, "seed {seed}");
             assert_eq!(line.keep_pct, pct, "seed {seed}");
-            assert_eq!(line.kept, carried * pct / 100, "seed {seed}");
+            // (Cut 30.5: the checkpoints' secured gold comes home whole, the carry since at the tier's share)
+            assert_eq!(line.kept, kept, "seed {seed}");
             assert!(word_count(&line.text) <= 14, "{}", line.text);
             // Cut 10 §3: the verb and what came home lead (`returned $50 · $84 carried · keeps 60%`).
             // QA on 912e135: a timed-out run leads with its own word; an exit that kept nothing says what it lost.
@@ -4609,7 +4610,11 @@ fn ledger_line_reconciles_on_every_exit() {
                 ExitTier::Return => "returned",
                 ExitTier::Death => "died",
             };
-            if pct == 0 {
+            if line.secured > 0 && pct > 0 {
+                assert!(line.text.starts_with(&format!("{verb} ${} · ${} secured + {pct}% of ", line.kept, line.secured)), "{}", line.text);
+            } else if line.secured > 0 {
+                assert!(line.text.starts_with(&format!("{verb} ${} · ${} lost", line.kept, carried - line.secured)), "{}", line.text);
+            } else if pct == 0 {
                 assert!(line.text.starts_with(&format!("{verb} $0 · ${carried} lost")), "{}", line.text);
             } else {
                 assert!(line.text.starts_with(&format!("{verb} ${} · ${carried} carried · keeps {pct}%", line.kept)), "{}", line.text);
@@ -4618,7 +4623,7 @@ fn ledger_line_reconciles_on_every_exit() {
             assert_eq!(line.bones.iter().map(|b| b.n as usize).sum::<usize>(), g.lineage.bones.last().filter(|b| b.heir == heir && tier == ExitTier::Death).map(|b| b.items.len()).unwrap_or(0), "{}", line.text);
             if tier == ExitTier::Death {
                 deaths += 1;
-                assert!(line.text.starts_with("died $0 · "), "{}", line.text);
+                assert!(line.text.starts_with(&format!("died ${} · ", line.secured)), "{}", line.text);
                 match g.lineage.bones.last().filter(|b| b.heir == heir) {
                     Some(b) => assert!(line.text.contains(&format!("bones: {} items on D{depth}", b.items.len())), "{}", line.text),
                     None => assert!(!line.text.contains("bones"), "{}", line.text),
@@ -11255,6 +11260,9 @@ fn saves_from_307dbed_send_identically() {
     // (Cut 30: re-recorded `3754cfc8a2604f4b` → `9b68c23a7de8b0cd` — the save migrates as the
     // `custom` stance (its set as written), its heir's temperament no longer overrides a row, and each
     // band boss it meets carries the lineage's scars from the next send on)
+    // (Cut 30.5, the owner 2026-10-02: re-recorded `9b68c23a7de8b0cd` → `882adfa11576b89e` — a new record is a
+    // checkpoint that secures the carry (`Run::secured`), so the exits' kept gold and the purse move; the set is
+    // the save's own, its rows unchanged)
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }

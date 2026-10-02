@@ -935,6 +935,7 @@ fn cond_reason(run: &Run, cx: &Ctx, c: &Cond) -> String {
         "foe_tag" => "not in view".into(),
         "foe_hp<" => "no weak foe".into(),
         "item" => "none held".into(),
+        "lacks" => format!("has {t}"),
         "unknown_item" => "no unknown".into(),
         "floor_seen>=" => format!("seen not ≥{n}%"),
         "depth>=" => format!("depth not ≥{n}"),
@@ -1367,6 +1368,7 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
         }),
         "item" => h.inv.iter().chain(h.weapon.iter()).chain(h.armour.iter()).any(|i| i.kind == t && i.is_known(cx.facts, cx.flavours)),
         "unknown_item" => h.inv.iter().any(|i| i.is_consumable() && !i.is_known(cx.facts, cx.flavours)),
+        "lacks" => !h.inv.iter().any(|i| i.kind == t),
         "floor_seen>=" => run.floor.map.seen_pct() >= n,
         "depth>=" => run.depth as i32 >= n,
         "alert>=" => run.alert >= n,
@@ -2281,6 +2283,16 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         run.depth_t.push((next, run.turn));
     }
     run.max_depth = run.max_depth.max(next);
+    // Cut 30.5 (the owner, 2026-10-02): a new record is a checkpoint, not an exit — the carry so far is secured
+    // (safe whatever the exit) and the hero carries on
+    if next > run.record_mark {
+        run.record_mark = next;
+        run.secured += run.loot.max(0);
+        run.loot = 0;
+        if !cx.sim {
+            crate::chronicle::callout(run, cx, &format!("new best · D{next}"));
+        }
+    }
     run.floor = floor;
     run.hero.pos = run.floor.stairs_up;
     run.hero_dist_pos = None;
@@ -2440,7 +2452,7 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
     // Cut 28b: the oath's fate, if the run has not said it yet — before the exit's own event
     let row = if run.acting_row >= 0 { run.acting_row } else { run.exit_row.or(run.homeward).unwrap_or(-1) };
     crate::oath::beat(run, cx, row);
-    let loot_kept = run.loot * run.yield_pct(tier) / 100;
+    let loot_kept = run.kept(tier);
     // Cut 5 §1: the exit resolves every open episode.
     let res = match tier {
         ExitTier::Bank => Resolution::Banked { gold: loot_kept },
