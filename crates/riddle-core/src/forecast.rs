@@ -699,9 +699,9 @@ pub fn sim_passage(game: &Game, rules: &RuleSet) -> Option<(u32, i32)> {
 
 /// Cut 27 §1 (P2: "a lit waystone start is never dominated on gold/hr by D1 for a set that clears
 /// the band ≥ 95 %"): the gold the floors above `start` would have brought a send on `rules` —
-/// `PASSAGE_SIMS` sends from D1 on the camp's seeds, each stopped on arriving at `start`: when
-/// every floor above it clears ≥ `FOLD_CLEAR`, the mean loot carried on arrival (coins), else 0
-/// (a set that would not have cleared them is paid nothing). Memoised per (lineage, rules).
+/// `PASSAGE_SIMS` sends from D1 on the camp's seeds, each stopped on arriving at `start`: the mean gold
+/// they bring from the floors above (an arrival's carry, an earlier end's kept gold — Cut 30.5). Memoised
+/// per (lineage, rules).
 pub fn passage_for(game: &Game, rules: &RuleSet, start: u32) -> i32 {
     passage_from(game, rules, start, &[])
 }
@@ -724,9 +724,12 @@ pub fn passage_from(game: &Game, rules: &RuleSet, start: u32, have: &[SimResult]
         return v.0 as i32;
     }
     let ended = passage_sims(&g, rules, start, have);
-    let clears = (1..start).all(|d| floor_clear(&ended, d).is_some_and(|c| c >= FOLD_CLEAR - 1e-9));
-    let arrived: Vec<&SimResult> = ended.iter().filter(|r| r.max_depth >= start).collect();
-    let coins = if clears && !arrived.is_empty() { (arrived.iter().map(|r| r.loot as f64).sum::<f64>() / arrived.len() as f64).round() as i32 } else { 0 };
+    // Cut 30.5 (the owner, 2026-10-02: a stone's passage counts as a checkpoint): the gold a send from D1 brings
+    // home from the floors above — the carry of each sim that arrived (secured at the stone), and what each one
+    // that ended above it kept — whatever share clears them (was: the arrivals' mean carry, and nothing unless every
+    // floor above cleared ≥ `FOLD_CLEAR`: under the record rule a run goes home hurt in the D5 band and few sets
+    // cleared, so a stone paid nothing on four sends in five and fell under D1's gold an hour)
+    let coins = if ended.is_empty() { 0 } else { (ended.iter().map(|r| if r.max_depth >= start { r.loot } else { r.loot_kept } as f64).sum::<f64>() / ended.len() as f64).round() as i32 };
     let mut cache = game.forecast_cache.borrow_mut();
     if cache.len() + 1 >= FORECAST_CACHE_MAX {
         cache.clear();
