@@ -127,7 +127,7 @@ pub fn per_night(l: &LineageState) -> i32 {
 }
 
 fn s_short(l: &LineageState, price: u32) -> i64 {
-    price as i64 - l.gold as i64
+    price as i64 - crate::tree::purse(l) as i64
 }
 
 /// The shelf's cap before the pack steps (3, or 5 with `supply_cap_5`).
@@ -157,25 +157,33 @@ pub fn ladders(l: &LineageState) -> Vec<KitLadder> {
             let n = owned(l, slot) as usize;
             let steps: Vec<KitStep> = (0..mults(slot).len()).map(|i| KitStep { label: step_label(l, slot, i), price: price(l, slot, i), owned: i < n }).collect();
             let short = s_short(l, steps.get(n).map(|s| s.price).unwrap_or(0));
-            let next = steps.get(n).map(|s| KitNext { label: s.label.clone(), price: s.price, affordable: l.gold >= s.price as i32, nights: nights(l, s.price as i64 - l.gold as i64), per_night: (short > 0 && per_night(l) > 0).then(|| per_night(l)), ..Default::default() });
+            let purse = crate::tree::purse(l);
+            let next = steps.get(n).map(|s| KitNext { label: s.label.clone(), price: s.price, affordable: purse >= s.price as i32, nights: nights(l, s.price as i64 - purse as i64), per_night: (short > 0 && per_night(l) > 0).then(|| per_night(l)), ..Default::default() });
             KitLadder { slot: (*slot).into(), owned: n as u32, steps, next }
         })
         .collect()
 }
 
-/// Buy the next step of `slot` (the ledger reads `forge <label>`).
+/// Buy the next step of `slot` by hand (the ledger reads `forge <label>`; Cut 30.5: it counts toward the
+/// apprentice).
 pub fn buy(game: &mut Game, slot: &str) -> Result<(), String> {
+    buy_step(&mut game.lineage, slot)?;
+    crate::tree::did(&mut game.lineage, "forge");
+    Ok(())
+}
+
+/// Buy the next step of `slot` from the purse (the apprentice's, and `buy`'s).
+pub fn buy_step(l: &mut LineageState, slot: &str) -> Result<(), String> {
     if !KIT_SLOTS.contains(&slot) {
         return Err("unknown slot".into());
     }
-    let l = &mut game.lineage;
     lock_unit(l);
     let n = owned(l, slot) as usize;
     if n >= mults(slot).len() {
         return Err("top of the ladder".into());
     }
     let p = price(l, slot, n) as i32;
-    if l.gold < p {
+    if crate::tree::purse(l) < p {
         return Err("not enough gold".into());
     }
     let label = step_label(l, slot, n);
@@ -298,7 +306,7 @@ fn work_label(n: usize) -> String {
 
 pub fn commission_wire(l: &LineageState) -> crate::wire::Commission {
     let price = commission_price(l);
-    crate::wire::Commission { price, label: work_label(l.works.len()), available: l.gold >= price }
+    crate::wire::Commission { price, label: work_label(l.works.len()), available: crate::tree::purse(l) >= price }
 }
 
 /// Cut 29 §5: commission the next work (policy-neutral: the gold's sink, the chronicle's line).
@@ -306,7 +314,7 @@ pub fn commission(game: &mut Game) -> Result<String, String> {
     let l = &mut game.lineage;
     lock_unit(l);
     let price = commission_price(l);
-    if l.gold < price {
+    if crate::tree::purse(l) < price {
         return Err("not enough gold".into());
     }
     let label = work_label(l.works.len());

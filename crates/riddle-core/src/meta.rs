@@ -780,7 +780,7 @@ pub fn buy_gold(game: &mut Game, id: &str) -> Result<(), String> {
     }
     crate::kit::lock_unit(l);
     let price = unlock_gold(l, def, l.gold_buys);
-    if l.gold < price as i32 {
+    if crate::tree::purse(l) < price as i32 {
         return Err("not enough gold".into());
     }
     l.gold_move(-(price as i32), &format!("unlock {id}"));

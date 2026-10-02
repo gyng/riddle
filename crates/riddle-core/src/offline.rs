@@ -86,7 +86,15 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     if !game.lineage.pkg.literal {
         game.lineage.rest_left = game.lineage.rest_left.min(REST_CARRY_TICKS);
     }
+    // Cut 30.5: the workers' acts over this absence (the report's lines)
+    let acts_before = game.lineage.tree.acts.clone();
+    let chest_before = game.lineage.tree.chest;
     while consumed < budget {
+        // Cut 30.5 (the owner: manual send first): before the scout the hero home waits — an absence
+        // yields at most the run in flight (a send by hand under way)
+        if !game.may_go() && game.run.as_ref().is_none_or(|r| r.turn == 0) {
+            break;
+        }
         // Camp rest first (the heir at camp: no run, or a run not yet begun).
         if game.lineage.rest_left > 0 && game.run.as_ref().is_none_or(|r| r.turn == 0) {
             // QA on e75ec29 (qaQ: `rested 333m` beside 16 runs × `rest 20m`): the report's
@@ -231,6 +239,8 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     }
     let mut r = report_with(game, elapsed_s, &facts_before, &class, rank_before, sampled, full, with_stall);
     r.grew = crate::town::grew(&grew_before, &crate::town::snap(&game.lineage));
+    r.workers = crate::tree::report_acts(&acts_before, &game.lineage.tree.acts);
+    r.chest = (game.lineage.tree.chest - chest_before).max(0);
     // (a system's reveal is a beat of the five)
     if !r.systems_opened.is_empty() {
         r.packages = crate::packages::beats_n(&game.batch.pkg_lines, crate::packages::BEATS - 1);
@@ -318,7 +328,7 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
     }
     let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price,
         broken: b.oath_breaks.values().sum(), cause: b.oath_breaks.iter().max_by_key(|(c, n)| (**n, std::cmp::Reverse(c.len()))).map(|(c, _)| c.clone()) });
-    let mut r = ReturnReport { lead: Vec::new(), oath, grew: Vec::new(), packages: crate::packages::beats(&b.pkg_lines),
+    let mut r = ReturnReport { lead: Vec::new(), oath, grew: Vec::new(), workers: Vec::new(), chest: 0, packages: crate::packages::beats(&b.pkg_lines),
         elapsed_s,
         runs: b.runs,
         sampled,

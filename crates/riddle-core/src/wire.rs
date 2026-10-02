@@ -1365,6 +1365,12 @@ pub struct ReturnReport {
     /// `+Guarded`, `the pen`, `QUEST DONE · reach D10`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub packages: Vec<String>,
+    /// Cut 30.5: the workers' acts over the absence (`apprentice · +2 steps`; `first` the first ever).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub workers: Vec<crate::tree::WorkerAct>,
+    /// Cut 30.5: the haul gold this absence left in the chest (before the porter).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub chest: i32,
 }
 
 /// Cut 30 §2: a death's cheapest lever (`kind` spend · package · wait; `text` ≤ 3 words).
@@ -1419,6 +1425,9 @@ pub struct TownWire {
     pub quest: Option<QuestWire>,
     #[serde(default)]
     pub quests_done: u32,
+    /// Cut 30.5: the workers at their posts (hired; the lit node's greyed with its price).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub workers: Vec<crate::tree::WorkerPost>,
 }
 
 /// Cut 30 §5: the quest on the board — one plain goal (≤ 5 words), the reward's picture, progress
@@ -1955,6 +1964,10 @@ pub struct Lineage {
     /// Cut 30 §4: the four tracks.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tracks: Vec<TrackWire>,
+    /// Cut 30.5: the works tree (workers, the tracks' stages as its branches, the chest, the pill);
+    /// `gold` is the purse (collected), the chest beside it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tree: Option<crate::tree::WorksWire>,
     /// Cut 30 (PROGRESSION_V2 §4): the lineage's age (hours, offline included); the systems ready and
     /// waiting their turn (one opens a report), in order; the next system to come — its trigger, and the
     /// hours of age it still waits once triggered (`next · tactics · 3 h`).

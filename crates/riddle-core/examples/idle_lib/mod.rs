@@ -18,7 +18,7 @@ pub const WALK_DEATH: f64 = 0.25;
 /// IDLE's lineage of `seed` over `days`, snapshot at each wall (the first check-in it stands at
 /// `wall − 1` or deeper, before passing it), and the first check-in at D13 or deeper.
 pub fn snapshots(seed: u64, days: usize) -> Vec<(u32, Game)> {
-    let mut g = Game::new(seed);
+    let mut g = fresh(seed);
     let mut out: Vec<(u32, Game)> = Vec::new();
     for _ in 0..days * 3 {
         riddle_core::offline::run_offline_counts(&mut g, 8 * 3600);
@@ -32,6 +32,30 @@ pub fn snapshots(seed: u64, days: usize) -> Vec<(u32, Game)> {
         }
     }
     out
+}
+
+/// A fresh lineage with the send worker hired (Cut 30.5: the scout, and the porter before him — an old save's
+/// mapping, so the idle floor's rows read Cut 30's IDLE): a send by hand is one run until he is.
+pub fn fresh(seed: u64) -> Game {
+    let mut g = Game::new(seed);
+    riddle_core::tree::grant(&mut g.lineage, &riddle_core::tree::LEGACY);
+    g
+}
+
+/// A fresh lineage after IDLE's first session (Cut 30.5): sends by hand until the scout lights and the
+/// purse and chest pay him, hired; then the absence begins (the last run's rest carried, as the client's).
+pub fn after_session(seed: u64) -> Game {
+    let mut g = Game::new(seed);
+    for _ in 0..30 {
+        if let Some(n) = riddle_core::tree::lit(&g.lineage).filter(|n| n.id == "scout") {
+            if g.lineage.gold >= riddle_core::tree::price(&g.lineage, n) && g.hire("scout").is_ok() {
+                break;
+            }
+        }
+        g.send();
+        riddle_core::offline::run_offline_counts(&mut g, 1);
+    }
+    g
 }
 
 /// A 20-minute absence's runs.

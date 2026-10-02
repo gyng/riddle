@@ -1437,13 +1437,13 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
     let load = |t: &String| Game::load(t).expect("a snapshot loads");
     // a 20-minute absence: 30 fresh lineages and every IDLE lineage standing at D13
     let fresh: Vec<u64> = (1..=30).collect();
-    let fresh_runs: Vec<u32> = pool(&fresh, threads, |s| idle::twenty_minutes(&Game::new(*s)));
+    let fresh_runs: Vec<u32> = pool(&fresh, threads, |s| idle::twenty_minutes(&idle::fresh(*s)));
     let d13: Vec<&String> = snaps.iter().flat_map(|v| v.iter().filter(|(w, _)| *w == 13).map(|(_, g)| g)).collect();
     let d13_runs: Vec<u32> = pool(&d13, threads, |g| idle::twenty_minutes(&load(g)));
     // expeditions per 8 h on the idle floor (fresh lineages' first 8 h, and at D13): at least 6, at most one
     // send and its rest per 20 minutes (`engine::REST_MIN_TICKS` — the band's own reason: no sortie farm)
     let e8: Vec<u32> = pool(&fresh[..8], threads, |s| {
-        let mut g = Game::new(*s);
+        let mut g = idle::fresh(*s);
         riddle_core::offline::run_offline_counts(&mut g, 8 * 3600).runs
     });
     let e8_d13: Vec<u32> = pool(&d13, threads, |g| riddle_core::offline::run_offline_counts(&mut load(g), 8 * 3600).runs);
@@ -1451,6 +1451,10 @@ fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize
     let mean = |v: &[u32]| v.iter().sum::<u32>() as f64 / v.len().max(1) as f64;
     let (a, b) = (mean(&e8), mean(&e8_d13));
     rows.push((format!("Expeditions per 8 h, IDLE (fresh · D13) in 6–{cap:.0}"), format!("{a:.1} · {b:.1}"), [a, b].iter().all(|x| (6.0..=cap).contains(x)) && !e8_d13.is_empty()));
+    // (Cut 30.5: the fresh lineage's first absence once the scout is hired — by IDLE's own first session)
+    let session_runs: Vec<u32> = pool(&fresh, threads, |s| idle::twenty_minutes(&idle::after_session(*s)));
+    let sp = session_runs.iter().filter(|r| **r >= 1).count();
+    rows.push(("A fresh lineage's first 20-min absence after the scout's hire returns ≥ 1 run ≥ 95%".to_string(), format!("{:.0}% ({sp}/{})", pct(sp, session_runs.len()), session_runs.len()), pct(sp, session_runs.len()) >= 95.0));
     let paid = fresh_runs.iter().chain(&d13_runs).filter(|r| **r >= 1).count();
     let n20 = fresh_runs.len() + d13_runs.len();
     rows.push((format!("A 20-min absence returns ≥ 1 run ≥ 95% (fresh 30 + D13 {})", d13_runs.len()), format!("{:.0}%", pct(paid, n20)), pct(paid, n20) >= 95.0 && !d13_runs.is_empty()));

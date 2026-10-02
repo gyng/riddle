@@ -47,5 +47,7 @@ pub fn load(text: &str) -> Result<Game, String> {
     }
     // Cut 30 §1: a save from before the traits maps its temperament onto a shape.
     crate::traits::upgrade(&mut g.lineage);
+    // Cut 30.5: a save from before the works tree: its workers up to the scout hired (no player regresses)
+    crate::tree::upgrade(&mut g.lineage);
     Ok(g)
 }

@@ -3678,6 +3678,7 @@ fn no_mark_for_the_frontier_and_one_a_night() {
     assert!(exit_text(&g).ends_with(" · ◆+3"), "{}", exit_text(&g));
     // The night's mark: an absence whose sends came home pays ◆1 for its day, once.
     let mut g = Game::new(5);
+    crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
     g.max_deaths = 1000;
     let r = crate::offline::run_offline_counts(&mut g, 8 * 3600);
     assert!(r.banked + r.returned > 0, "sends came home");

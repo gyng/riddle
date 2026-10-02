@@ -200,6 +200,7 @@ fn the_quartermaster_reserves_a_drills_item() {
 #[test]
 fn packages_level_from_offline_runs() {
     let mut g = Game::new(17);
+    crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
     let r = g.run_offline(8 * 3600);
     assert!(r.runs >= 10, "{} runs", r.runs);
     let runs = g.lineage.pkg.runs.get("steady").copied().unwrap_or(0);
@@ -237,6 +238,7 @@ fn an_old_save_keeps_its_rules_as_a_custom_stance() {
 fn a_twenty_minute_absence_returns_a_run() {
     for seed in 1..=4u64 {
         let mut g = Game::new(seed);
+    crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
         let r = g.run_offline(20 * 60);
         assert!(r.runs >= 1, "seed {seed}: {} runs", r.runs);
     }
@@ -337,6 +339,7 @@ fn a_kept_quest_is_redrawn_each_day_of_an_absence() {
 
     // a whole absence in one call: the board at the return holds the return day's quest, from the record then
     let mut g = Game::new(3101);
+    crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
     let _ = crate::offline::run_offline_counts(&mut g, 72 * 3600);
     let l = &g.lineage;
     let q = l.town.quest.clone().expect("the board is open by the third day");
@@ -353,6 +356,7 @@ fn a_kept_quest_is_redrawn_each_day_of_an_absence() {
 #[test]
 fn grew_names_each_fact_once_stages_first() {
     let mut g = Game::new(3101);
+    crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
     let a = crate::town::snap(&g.lineage);
     let _ = crate::offline::run_offline_counts(&mut g, 8 * 3600);
     let grew = crate::town::grew(&a, &crate::town::snap(&g.lineage));

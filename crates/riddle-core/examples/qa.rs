@@ -1326,6 +1326,8 @@ fn check_forecast_move(t: &mut Tally, g: &Game, seed: u64) {
 /// trait's (`row −1`).
 fn check_packages(t: &mut Tally, seed: u64) {
     let mut g = Game::new(seed);
+    // (Cut 30.5: the send worker hired — a night of sends, as Cut 30's)
+    riddle_core::tree::grant(&mut g.lineage, &riddle_core::tree::LEGACY);
     g.max_deaths = 1000;
     riddle_core::offline::run_offline_counts(&mut g, 8 * 3600);
     let ids: Vec<u32> = g.deaths.keys().copied().collect();
