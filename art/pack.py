@@ -43,7 +43,7 @@ OUTLINE_PX = 2
 INK = (22, 18, 20)
 QUANT_COLOURS = 32
 GUTTER = 1
-ATLAS_W = 512
+ATLAS_W = 1024
 
 
 def key_source(src: Path) -> np.ndarray:
@@ -166,16 +166,51 @@ def moon_rim(before: np.ndarray, after: np.ndarray, k: float = 0.6) -> np.ndarra
     return out
 
 
-def build_sprite(src: Path, master_h: int, quant: bool, rim: bool = False) -> Image.Image:
+EMBER_CORE, EMBER_BODY = np.array([255, 216, 140], np.float32), np.array([232, 146, 58], np.float32)
+
+
+def warm_mask(rgb: np.ndarray) -> np.ndarray:
+    """a flame's texels: bright, red well over blue, green between a third and 0.68 of red (EMBER #e8923a is 0.63; GILT #b89448 0.8 and the painted gold coins ~0.7 stay gold)"""
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    return (r > 170) & (r - b > 90) & (g > 0.35 * r) & (g < 0.68 * r)
+
+
+def keep_emissive(src_rgba: np.ndarray, master: np.ndarray) -> np.ndarray:
+    """Cut 30 town: a torch flame, a forge mouth or a lit window is a few hundred px in a 1536 px master and the box downscale
+    averages it into the dark wood around it (the mouth's two torches came out (112, 92, 79): unlit). Where a master texel was
+    at least a fifth flame in the source, it takes EMBER (half flame or more: the pale core), so the warm lights survive at game size."""
+    h, w = master.shape[:2]
+    inner_h = h
+    m = (warm_mask(src_rgba[..., :3]) & (src_rgba[..., 3] > 128)).astype(np.float32) * 255
+    frac = np.asarray(Image.fromarray(m.astype(np.uint8), "L").resize((w, inner_h), Image.Resampling.BOX), np.float32) / 255
+    out = master.copy()
+    op = out[..., 3] >= 128
+    body = op & (frac >= 0.2)
+    core = op & (frac >= 0.5)
+    out[body, :3] = out[body, :3] * 0.25 + EMBER_BODY * 0.75
+    out[core, :3] = out[core, :3] * 0.2 + EMBER_CORE * 0.8
+    return out
+
+
+def build_sprite(src: Path, master_h: int, quant: bool, rim: bool = False, emissive: bool = False) -> Image.Image:
     rgba = key_source(src)
     rgba = crop_to_alpha(rgba)
+    hi = rgba
     rgba = resample_master(rgba, master_h)
+    if emissive:
+        rgba = keep_emissive(hi, rgba)
     out = outline(rgba)
     if rim:
         out = moon_rim(rgba, out)
+    elif emissive:   # Cut 30 town: the moon on the roofs and the tops of props (§6: MIST rims on top edges), a lighter touch than the hero's
+        out = moon_rim(rgba, out, k=0.45)
     rgba = out
     if quant:
-        rgba = quantise(rgba, QUANT_COLOURS)
+        q = quantise(rgba, QUANT_COLOURS)
+        if emissive:   # the flame's two colours survive the median cut (a small cluster is the first thing it merges)
+            keep = np.all(np.abs(rgba[..., :3] - q[..., :3]) > 0, -1) & warm_mask(rgba[..., :3])
+            q[keep, :3] = rgba[keep, :3]
+        rgba = q
     return Image.fromarray(np.clip(rgba, 0, 255).astype(np.uint8), "RGBA")
 
 
@@ -213,7 +248,8 @@ def main(argv: list[str]) -> int:
             missing.append(aid)
             continue
         if asset["bg"] == "keyed":
-            im = build_sprite(src, int(asset["master_h"]), quant, rim=aid.startswith(("hero_", "walk_")))
+            im = build_sprite(src, int(asset["master_h"]), quant, rim=aid.startswith(("hero_", "walk_")),
+                              emissive=asset.get("kind") == "town")
             items.append((aid, im))
             meta_sprites[aid] = {"kind": asset["kind"], "texel_h": asset["texel_h"], "master_h": asset["master_h"]}
             print(f"  {aid:<20} {im.width}x{im.height}  keyed")
