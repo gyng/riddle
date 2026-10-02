@@ -121,7 +121,14 @@ is inert, the log hidden until a run); labels ≤ 2 words (`live`, `rests`, `wai
   left) and the run's inputs (`choose`, `bail`) — for the last 40 runs, in memory (not the save: a reload keeps the log, not the
   capsules; an absence's runs are replayable after it because the absence is played in this session). `replay(id)` plays the capsule to
   the end: per floor its first snapshot (later entities, items and seen tiles folded in) and its events, and the FNV-1a hash of the
-  events. Harnesses that run real games at scale pay nothing (the history switch).
+  events. Harnesses that run real games at scale pay nothing (`engine::set_capsules(false)` in dayplayer, metrics, progression, qa).
+- Built (`crates/riddle-core`: `offline::advance`, `Game::{advance, replay, live_run}`, `engine::events_hash`, `LineageState::push_run`;
+  wasm `advance`, `replay`; `tests_runsui.rs`, 6 tests). Measured natively on `deep.json`: 8 h offline with capsules = without (noise);
+  one replay of a 14 430-tick, 9-floor run 36–54 ms, ~430 KB of JSON; 50 `advance` calls of 2 s with a run live 2.4 ms in all.
+- Deviations: `RunRec.kept` holds the kinds kept (the keep sheet settles after `finish_run`, so not vault labels); `RunRec.finds` (the
+  exit line's, rarest first) and `RunRec.secured` (c305-core's checkpoints) were added for the run-clear card; a worker's hourly act that
+  falls inside a run still in flight at an `advance`'s end waits for the next send; a run `advance` began and the player then watched to
+  its end reads `watched`.
 
 ## 6. Future-proofing — no redesign for Cut 31
 

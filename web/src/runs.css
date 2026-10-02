@@ -127,3 +127,10 @@ button.re-body { cursor: pointer; }
 /* the watch's `town` tile: the run goes on — a ↻ on its corner */
 .tile.town-btn::after { content: "↻"; position: absolute; top: 3px; right: 6px; font-size: 14px; line-height: 1; color: #f3d192; text-shadow: 0 0 4px rgba(0, 0, 0, .8); }
 .tile.town-btn:disabled::after { opacity: .35; }
+/* the watch's HUD: the run going on now, and by itself */
+.watch .hud .live-badge { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; padding: 1px 8px; border-radius: 9px;
+  background: rgba(13, 12, 20, .72); box-shadow: inset 0 0 0 1px rgba(232, 146, 58, .55); color: #f2b067; font: 600 12px/18px var(--sans); letter-spacing: .04em; }
+.watch .hud .live-badge[hidden] { display: none; }
+.watch .hud .live-badge .lane-beat { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--ember); }
+[data-juice="on"] .watch .hud .live-badge .lane-beat { animation: lane-beat 0.9s ease-in-out infinite; }
+.watch .hud .live-badge .lb-auto { color: #f3d192; font-weight: 400; }

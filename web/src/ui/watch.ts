@@ -139,6 +139,7 @@ import { lastRun, markEnd, recordRun } from "./runlog";
 import { FoldTally, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
+import { kwHost } from "./tips";   // RUNS_UI: the live badge's tip
 
 type Tier = "bank" | "return" | "death";
 /** QA 92eb880 (N: the `fights` chip read `1.332247798006322×` over the portrait): a rate as the chip shows it — whole from 2×, one
@@ -398,9 +399,13 @@ export function renderWatch(app: App): Mounted {
     if (metersOn) replace(meterBox, compactLine(lastMeters));
     if (wide.slot) replace(wideMeters, meterPanel(lastMeters.run, app.rules.rows, { title: /* copy:label */ "this run" }));
   }
+  // RUNS_UI (the blind read: "is WATCH the live run or a replay? does it go on if I leave?"): the HUD says it is the run going on now,
+  // and that it goes on by itself (`↻ auto`, the lane's mark) — the `town` tile's ↻ is the same mark
+  const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), /* copy:label */ "live",
+    app.lineage.tree?.auto_send !== false ? h("span", { class: "lb-auto" }, " · ↻ ", /* copy:label */ "auto") : ""), "live");
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
-      h("div", { class: "hud top" }, depth, alert, bossBar, stake),
+      h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
       meterBox, banner, ticker, whyLine, whyTip),
     cons.el, ...wide.els);
 
@@ -2036,6 +2041,7 @@ export function renderWatch(app: App): Mounted {
     // the stilled pause; the verdict / report gem comes once the last frame has played (`nextGem`)
     pause.disabled = true;
     for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, toTown]) b.disabled = true;
+    liveBadge.hidden = true;   // RUNS_UI: the run is over — nothing live left here
   }
   function nextGem(): void {
     if (el.dataset.next === "1" || !pause.isConnected) return;

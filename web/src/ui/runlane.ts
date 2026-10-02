@@ -73,7 +73,8 @@ function laneRow(app: App, x: HeroLane, i: number, hooks: LaneHooks, hasRuns: bo
   const state = x.state === "live"
     ? h("span", { class: "lane-state" }, beat, h("b", { class: "ls-w" }, /* copy:label */ "live"), " ", h("span", { class: "num ls-d" }, `D${x.depth ?? 1}`))
     : x.state === "rests"
-      ? (x.rest_s ?? 0) >= 1 ? h("span", { class: "lane-state" }, beat, h("b", { class: "ls-w" }, /* copy:label */ "rests"), " ", h("span", { class: "num ls-t" }, spanOf(x.rest_s ?? 0)))
+      // (the blind read: "is 13m time left or spent?" — `13m left`)
+      ? (x.rest_s ?? 0) >= 1 ? h("span", { class: "lane-state" }, beat, h("b", { class: "ls-w" }, /* copy:label */ "rests"), " ", h("span", { class: "num ls-t" }, spanOf(x.rest_s ?? 0), /* copy:label */ " left"))
         : h("span", { class: "lane-state" }, beat, h("b", { class: "ls-w" }, /* copy:label */ "goes down"))   // (the rest out: the next run is due)
       : h("span", { class: "lane-state" }, beat, h("b", { class: "ls-w" }, /* copy:label */ "waits"), " ", h("span", { class: "ls-go" }, /* copy:label */ "▸ send"));
   // the gauge: hp while down there, the rest draining at home (full = just back), nothing while he waits
