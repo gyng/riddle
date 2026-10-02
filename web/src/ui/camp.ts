@@ -30,7 +30,6 @@ import { renderScene } from "./divergence";
 import { gem, metersSlot, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
-import { openChronicle } from "./chronicle";
 import { kitAffordable, measureKit, openForge } from "./forge";
 import { afterOf, labelOf, stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
@@ -46,7 +45,9 @@ import { openOathBoard, paintOathTab } from "./oaths";
 import { anchorPanel, buildingTile, exposeTown, markOpened, openBank, openHero, renderTown, townBuilt } from "./town";
 import { onPackages, openPackages, packagesShown, packagesStrip, penOpen } from "./packages";   // Cut 30 §2: the packages, the pen gated late
 import { openQuest, questShown } from "./quest";   // Cut 30 §5: the quest board
-import { sendMark } from "./works";   // Cut 30.5: the gem's send counter before the scout, `auto` after
+import { sendMark } from "./works";
+import { renderLanes } from "./runlane";   // RUNS_UI: the run lanes
+import { openRuns } from "./runs";         // RUNS_UI: the runs log   // Cut 30.5: the gem's send counter before the scout, `auto` after
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -183,7 +184,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // applied never lands on `send`; the player sends
   const armedAt = performance.now() + (highlight !== undefined ? SEND_ARM_MS : 0);
   // Cut 30 §3: the send — the gem or the dungeon's mouth; the hero walks from where he is into the mouth, then the watch opens
-  const doSend = (): void => { if (performance.now() < armedAt) return; if (!app.overBudget && app.rules.rows.length > 0) town.send(() => { if (el.isConnected) app.go({ kind: "watch" }); }); };
+  // RUNS_UI: with a run under way the gem watches it (he is already down there: no walk to the mouth)
+  const doSend = (): void => { if (performance.now() < armedAt) return; if (isLive()) { app.go({ kind: "watch" }); return; } if (!app.overBudget && app.rules.rows.length > 0) town.send(() => { if (el.isConnected) app.go({ kind: "watch" }); }); };
+  const isLive = (): boolean => !!app.lineage.live && app.lineage.live.turn > 0;
   const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => doSend() });
   // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
   const rest = h("span", { class: "rest chip num" });
@@ -227,7 +230,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const well = h("div", { class: "well camp-well" }, busyStrip, town.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
-  const restLine = h("div", { class: "rest-line" }, rest);
+  // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
+  const lanes = renderLanes(app, { watch: () => app.go({ kind: "watch" }), log: () => openRuns(app) });
+  const restLine = h("div", { class: "rest-line lanes-line" }, lanes.el, rest);
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
   // Cut 27 §2: the edit as a scene — over the well's foot after an edit's refine (before · after on the renderer), then its line under `vs sent`
@@ -291,7 +296,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
         R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
         R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
-        R.has("heirs") && t("chronicle", /* copy:button */ "chronicle", "chronicle", () => openChronicle(app)),
+        // RUNS_UI: the chronicle is the log's `heirs` (the lane's log stud) — its tile gave its place to the run lanes' log
       ]);
       shaft.el.classList.toggle("on", open === "forecast");
       return;
@@ -311,7 +316,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "packages", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
       questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: (e: Event) => { closeAllSheets(); openQuest(app, e.currentTarget as HTMLElement); } }),
       R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
-      R.has("heirs") && t("chronicle", /* copy:button */ "chronicle", "chronicle", () => openChronicle(app)),
+      // RUNS_UI: the chronicle is the log's `heirs` (the lane's log stud)
     ]);
     shaft.el.classList.toggle("on", open === "forecast");
   }
@@ -362,7 +367,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const waits = !!app.lineage.tree?.waits;
     // QA 912e135 (qaW: "`rest 20m · send skips` — no screen says what rests or what `send skips` means"): who rests, and what the send skips
     replace(rest, waits ? /* copy:callout */ "heir waits" : /* copy:callout */ `heir rests ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
-    rest.hidden = !waits && restS <= 0; restLine.hidden = rest.hidden; rest.classList.toggle("waits", waits);
+    // RUNS_UI: the lane says it now (`rests 18m` · `waits ▸ send` · `live D3`); the old chip stays for screen readers only
+    rest.hidden = !waits && restS <= 0; rest.classList.add("vh"); rest.classList.toggle("waits", waits);
+    restLine.hidden = false; lanes.paint();
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
   // Cut 5 §6: each row carries the class's verb ladder as chips (`L1 shield bash · L3 cleave · …`), reached rungs lit.
@@ -904,7 +911,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       onclick: (e: Event) => { e.stopPropagation(); e.preventDefault(); app.watchMode = MODES[(MODES.indexOf(app.watchMode) + 1) % MODES.length]; app.persist(); paintSend(); } },
       /* copy:none */ "▸ ", MODE_LABEL[app.watchMode] ?? app.watchMode);
     replace(send, empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
-      : h("span", { class: "send-l" }, /* copy:button */ "send", pill, sendMark(app.lineage)));   // Cut 12 §1: own rows
+      : h("span", { class: "send-l" }, isLive() ? /* copy:button */ "watch" : /* copy:button */ "send", pill, sendMark(app.lineage)));   // Cut 12 §1: own rows; RUNS_UI: a run under way is watched
+    send.dataset.live = isLive() ? "1" : "0";
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
@@ -932,5 +940,6 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // next edit's first pass ~1 s in wasm — clarity:paint)
   const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
   const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
-  return { el, dispose: () => { town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  const offLive = app.onLive(() => { if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
+  return { el, dispose: () => { offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

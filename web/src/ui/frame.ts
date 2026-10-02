@@ -21,7 +21,7 @@ import { onPackages, packagesShown, packagesStrip, penOpen } from "./packages";
 /** docs/TOOLTIPS.md: an element's tip (a host: never marked; a control keeps its tap — long-press or hover shows it). */
 const withTip = <E extends HTMLElement>(el: E, t?: Term): E => (t ? kwHost(el, t) : el);
 /** A console tile's term (its tip on long-press / hover). */
-const TILE_TERM: Record<string, Term> = /* copy:none */ { packages: "package", quest: "quest", loadout: "pack", forge: "forge", vault: "vault", party: "kennel", bank: "bank", edit: "pen" };
+const TILE_TERM: Record<string, Term> = /* copy:none */ { packages: "package", quest: "quest", loadout: "pack", forge: "forge", vault: "vault", party: "kennel", bank: "bank", edit: "pen", town: "live" };   // RUNS_UI: the watch's `town` tile (the run goes on)
 
 // --- the top bar ---
 

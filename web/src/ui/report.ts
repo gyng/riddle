@@ -35,7 +35,8 @@ import { grewBlock, heroFace } from "./tracks";
 import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
-import { kw, kwText } from "./tips";
+import { kw, kwHost, kwText } from "./tips";
+import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
@@ -274,9 +275,17 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     if (stalled && bankedN === 0) return [stalled, returned, drivenTile];
     return [banked, returned, stalled, drivenTile];
   };
+  // RUNS_UI: the runs tile opens the runs log on these runs (the absence's fold) — what happened while away, run by run
+  const toLog = (t: HTMLElement): HTMLElement => {
+    if (!(L.runs ?? []).some((x) => x.id > 0)) return t;
+    t.classList.add("to-log"); t.setAttribute("role", "button"); t.tabIndex = 0; t.dataset.log = "1";
+    t.onclick = () => openRuns(app, { focus: (r.exits ?? []).map((x) => x.run_id ?? 0).filter((x) => x > 0).pop(), tab: "runs" });
+    t.onkeydown = (e: KeyboardEvent) => { if (e.key === "Enter") t.click(); };
+    return kwHost(t, "log");
+  };
   const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
     // QA 912e135 (qaW: `♟18` over a report of ♟2–♟17, read as the heir who ran): the runs tile names whose runs they were
-    withHeirs(tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"), r.heirs),
+    toLog(withHeirs(tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"), r.heirs)),
     exits ? null : tile(`${deathsN}`, /* copy:label */ "deaths"),
     // the send's deepest floor, a delta like the tiles beside it (the lineage best is in the header; both QA players read
     // `1 RUNS · D4 BEST` as this send's); an old wire without it shows the lineage best

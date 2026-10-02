@@ -365,6 +365,9 @@ export function renderWatch(app: App): Mounted {
   };
   const skip = tile({ id: "skip", cls: "hud-btn", icon: "skip", label: "▶▶|", onclick: () => skipToEvent() });
   const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
+  // RUNS_UI (docs/RUNS_UI.md): back to the town while he goes on — leaving the watch never stops the run (the town's lane shows it live;
+  // the open app's clock plays it on, unwatched). The ↻ on the tile is the mark; its tip says the rest
+  const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "↻", label: /* copy:button */ "town", onclick: () => { if (!done) app.go({ kind: "camp" }); } });
   // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
   const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
   // Cut 27 §1: the fold line — the interstitial over a folded stretch (`D1–6 · 100% · +$84` and its chips), docked under the HUD once the
@@ -384,7 +387,7 @@ export function renderWatch(app: App): Mounted {
   const meterTile = tile({ id: "meters", cls: "meter-btn", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
     metersOn = !metersOn; writeMetersOn(metersOn); meterTile.classList.toggle("on", metersOn); meterBox.hidden = !metersOn; paintMeters(true);
   } });
-  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile], gem: pause, top: scrub });
+  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile, toTown], gem: pause, top: scrub });
   const wideMeters = h("div", { class: "meters-live" });
   const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
   function paintMeters(now = false): void {
@@ -2022,7 +2025,7 @@ export function renderWatch(app: App): Mounted {
     // QA 92eb880 (N: "VERDICT appears while the hero is still up (8/36), three more hits follow"): during the walk-out the gem slot holds
     // the stilled pause; the verdict / report gem comes once the last frame has played (`nextGem`)
     pause.disabled = true;
-    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail]) b.disabled = true;
+    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, toTown]) b.disabled = true;
   }
   function nextGem(): void {
     if (el.dataset.next === "1" || !pause.isConnected) return;

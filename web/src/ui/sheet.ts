@@ -32,7 +32,7 @@ export function onEscapeIdle(fn: (() => void) | null): void { idle = fn; }
 /** `anchor` (Cut 23 §4, AI/AJ: "the option sheet covers the chips it edits"): the element the sheet edits (a row's chips) — the panel
  *  unfolds on whichever side of it has more room and never over it (its height capped to that side), re-placed as its body changes.
  *  A tap outside the panel (the backdrop, the anchor's row under it) only closes the sheet: it never reaches what lies beneath. */
-export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean; anchor?: HTMLElement | null } = {}): void {
+export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean; anchor?: HTMLElement | null; stay?: boolean } = {}): void {
   const panel = h("div", { class: "sheet", role: "dialog" });
   // Cut 24 §5 (AK: "the chip tap didn't open the verb sheet a second time"): a tap on another chip of the anchor's own row (the verb
   // while the cond sheet is up) closes this sheet and opens that one — the row being edited stays live; anywhere else a tap only closes
@@ -77,7 +77,7 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   document.body.appendChild(wrap);
   stack.push(wrap);
   const x = panel.querySelector<HTMLElement>(".sheet-x, .close-stud");   // docs/UI.md §7: the close stud drains, then closes it
-  if (x && !opts.modeless && document.getElementById("app")?.dataset.screen !== "watch") autoDismiss(x, { ms: AUTO.panel, scope: panel, onExpire: close });
+  if (x && !opts.modeless && !opts.stay && document.getElementById("app")?.dataset.screen !== "watch") autoDismiss(x, { ms: AUTO.panel, scope: panel, onExpire: close });
   const anchor = opts.anchor;
   // the wide frame (desktop): the panel stands beside what opened it — the anchor, else the control last tapped
   const beside = wideNow() && !opts.modeless ? (anchor?.isConnected ? anchor : lastTap?.isConnected && !wrap.contains(lastTap) ? lastTap : null) : null;

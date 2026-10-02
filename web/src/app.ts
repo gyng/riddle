@@ -42,6 +42,9 @@ export type DevOptions = {
 export type DevScreen = "camp" | "watch" | "death" | "report" | "ending" | "exit";
 
 const OFFLINE_MIN_S = 60;
+/** RUNS_UI: the open app's clock asks the engine every LIVE_TICK_MS while a run is live; at home, once the rest is due (and at least every
+ *  REST_SYNC_MS, so the core's rest and clock keep with the town's countdown) */
+const LIVE_TICK_MS = 2000, REST_SYNC_MS = 60_000;
 const SETS = 3;
 const SAVE_DEBOUNCE_MS = 1000;
 // runOffline is chunked so the progress label can count runs. `runOfflineQuick` skips the worst-death verdict
@@ -67,7 +70,76 @@ export class App {
   engine!: AsyncEngine;
   kind: EngineKind = "fake";
   version = "";
-  lineage!: Lineage;
+  /** RUNS_UI: the rest's countdown is anchored where the core's `rest_left_s` last moved (a re-read of the same value keeps the anchor) */
+  get lineage(): Lineage { return this.lin_; }
+  set lineage(L: Lineage) {
+    const s = L?.rest_left_s ?? 0;
+    if (!this.lin_ || s !== this.restAnchor.s || (this.lin_.live?.turn ?? 0) !== (L.live?.turn ?? 0)) this.restAnchor = { s, at: Date.now() };
+    this.lin_ = L;
+  }
+  private lin_!: Lineage;
+  private restAnchor = { s: 0, at: 0 };
+  /** RUNS_UI: the hero's rest left now (seconds), counted down from the core's last word */
+  restLeftS(): number { return Math.max(0, this.restAnchor.s - (Date.now() - this.restAnchor.at) / 1000); }
+  /** RUNS_UI (docs/RUNS_UI.md §2): the open app's clock on the lineage — `advance(ms)` while the town (or a report, a death) is up: the rest
+   *  runs out, the next run goes down, a run in flight plays on unwatched. The watch drives its own run (the clock pauses there); a hidden
+   *  tab's time is the next tick's, or an absence (`backFromHidden`). Off under automation unless `?runs=1` (the old gates keep their
+   *  meaning, as autodismiss does); `?runs=0` turns it off anywhere. */
+  private runnerAt = 0;
+  private runnerBusy = false;
+  private hiddenAt = 0;
+  private liveListeners = new Set<() => void>();
+  onLive(fn: () => void): () => void { this.liveListeners.add(fn); return () => this.liveListeners.delete(fn); }
+  private emitLive(): void { for (const fn of this.liveListeners) fn(); }
+  get runnerOn(): boolean {
+    const q = new URLSearchParams(location.search).get("runs");
+    if (q === "0") return false;
+    return q === "1" || !(typeof navigator !== "undefined" && navigator.webdriver);
+  }
+  /** one tick of the open app's clock (every second; the engine is asked every 2 s while a run is live, once a rest is due) */
+  async runTick(force = false): Promise<void> {
+    if (!this.booted || this.offlineRunning || this.runnerBusy || !this.engine?.advance || (!force && !this.runnerOn)) return;
+    const now = Date.now();
+    if (this.view.kind === "watch") { this.runnerAt = now; return; }   // the watch plays its own run; its time is not the town's
+    if (document.hidden) return;                                       // (the time hidden is the next tick's, or an absence)
+    const L = this.lineage, live = !!L.live && L.live.turn > 0;
+    if (!live && L.tree?.waits) { this.runnerAt = now; return; }      // before the scout the hero home waits: nothing runs
+    const dt = now - (this.runnerAt || now);
+    if (!force && !(live ? dt >= LIVE_TICK_MS : this.restLeftS() <= 0.25 || dt >= REST_SYNC_MS)) return;
+    if (dt <= 0) { this.runnerAt = now; return; }
+    this.runnerBusy = true;
+    try {
+      const r = await this.engine.advance(dt);
+      this.runnerAt = now;
+      const was = L.live?.run_id;
+      if (r.ended.length || !!r.live !== live || (r.live && r.live.run_id !== was)) {
+        this.lineage = await this.engine.lineage();   // a run ended or began: the town, the purse, the log
+        this.emitChange();
+      } else if (!live) this.lineage = await this.engine.lineage();   // the rest's sync: its countdown re-anchored, nothing repaints
+      else this.lineage = { ...this.lineage, live: r.live ?? null };
+      this.emitLive();
+    } catch (e) { console.warn("advance", e); this.runnerAt = now; }
+    finally { this.runnerBusy = false; }
+  }
+  /** RUNS_UI: back from a hidden tab — an absence's report when it was long enough to be one (the boot's rule), else the clock goes on */
+  private async backFromHidden(): Promise<void> {
+    const away = (Date.now() - this.hiddenAt) / 1000; this.hiddenAt = 0;
+    if (!this.runnerOn || !this.booted || this.offlineRunning || away < OFFLINE_MIN_S || this.view.kind === "watch") return;
+    await this.absence(Math.floor(away));
+  }
+  /** An absence: the camp underneath, inert, while the batch runs; then the report (or the camp, when nothing ran before the scout). */
+  async absence(elapsed: number): Promise<void> {
+    this.markRan();   // Cut 28 §2: the absence sends the rules now
+    this.offlineRunning = true;
+    this.go({ kind: "camp" });
+    const report = await this.runOfflineChunked(Math.floor(elapsed));
+    await this.refresh();
+    this.adoptSets();
+    this.runnerAt = Date.now();
+    // Cut 30.5: before the scout an absence with no send in flight ran nothing — the hero waited at home; no empty report
+    if (report.runs === 0 && this.lineage.tree && !this.lineage.tree.auto_send) this.go({ kind: "camp" });
+    else this.go({ kind: "report", report, absence: true });
+  }
   private vocab_!: Vocabulary;
   get vocab(): Vocabulary { return this.vocab_; }
   /** Cut 23 §3: the vocabulary's `why_gloss` is every reason line's gloss on tap (the trace's chain rows read it through `whyGloss`). */
@@ -368,24 +440,18 @@ export class App {
     }
     await this.engine.loadout(this.loadout);
     this.vocab = await this.engine.vocabulary();
-    document.addEventListener("visibilitychange", () => { if (document.hidden) this.flushSync(); });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) { this.flushSync(); this.hiddenAt = Date.now(); } else if (this.hiddenAt) void this.backFromHidden(); });
     window.addEventListener("pagehide", () => this.flushSync());
     setInterval(() => { if (!document.hidden) void this.flush(); }, 30_000);
     if (dev?.absent) { elapsed = dev.absent; loaded = true; }
-    if (loaded && elapsed >= OFFLINE_MIN_S) {
-      this.markRan();   // Cut 28 §2: the absence sends the rules now
-      // the camp (last state) shows underneath, inert, while the batch runs (no forecast queued ahead of it)
-      this.offlineRunning = true;
-      this.go({ kind: "camp" });
-      const report = await this.runOfflineChunked(Math.floor(elapsed));
-      await this.refresh();
-      this.adoptSets();
-      // Cut 30.5: before the scout an absence with no send in flight ran nothing — the hero waited at home; no empty report
-      if (report.runs === 0 && this.lineage.tree && !this.lineage.tree.auto_send) this.go({ kind: "camp" });
-      else this.go({ kind: "report", report, absence: true });
-    } else this.go({ kind: dev?.autosend ? "watch" : "camp" });
+    // the camp (last state) shows underneath, inert, while the batch runs (no forecast queued ahead of it)
+    if (loaded && elapsed >= OFFLINE_MIN_S) await this.absence(elapsed);
+    else this.go({ kind: dev?.autosend ? "watch" : "camp" });
     await this.flush();
     this.booted = true;
+    // RUNS_UI: the open app's clock starts now (the absence above covered the time before it)
+    this.runnerAt = Date.now();
+    setInterval(() => { void this.runTick(); }, 1000);
   }
 
   // --- dev inspection (window.__riddle in dev builds or with ?dev=1) ---

@@ -647,8 +647,10 @@ try {
   check(await patchSave((e) => { e.lineage.heir = 5; }), "the lineage took its 5th heir");
   await waitFor((s) => s?.screen === "camp", "camp"); await settle();
   const ids = await tileIds();
-  check(ids.includes("ledger") && ids.includes("chronicle") && (await page.locator(".tabs:not([hidden]) .tab").count()) >= 3, `the 5th heir carves ledger and chronicle and the set tabs (${ids.join(" · ")})`);
-  check(ids.length === 8, `the command card is full at the ladder's top (${ids.length} tiles)`);
+  // RUNS_UI: the chronicle is the runs log's `heirs` (the lane's log stud, shown from the 5th heir as from the first run)
+  const logStud = await page.evaluate(() => { const b = document.querySelector(".lanes .lanes-log"); return !!b && !b.hidden; });
+  check(ids.includes("ledger") && logStud && (await page.locator(".tabs:not([hidden]) .tab").count()) >= 3, `the 5th heir carves the ledger, the log (the chronicle's heirs) and the set tabs (${ids.join(" · ")}; log ${logStud})`);
+  check(ids.length === 7, `the command card at the ladder's top: 7 tiles, the chronicle's slot gone to the log (${ids.length} tiles)`);
   await shot("ui-ladder-camp");
 
   // ---- the unlock panel: the next three, `more` for the catalogue
@@ -679,7 +681,7 @@ try {
   check(!(await page.locator(".panel-host .panel").count()), "Escape closes the open panel");
   const sheets = [
     ["settings", "button.gear"], ["gold", ".strip button.gold"], ["forge", ".cmd .tile[data-tile=forge]"], ["ledger", ".cmd .tile[data-tile=ledger]"],
-    ["chronicle", ".cmd .tile[data-tile=chronicle]"], ["class", "button.cls"], ["cond picker", ".editor .row .chip.cond"], ["verb picker", ".editor .row .chip.verb"], ["rename", ".tabs .tab.edit"],
+    ["log", ".lanes .lanes-log"], ["class", "button.cls"], ["cond picker", ".editor .row .chip.cond"], ["verb picker", ".editor .row .chip.verb"], ["rename", ".tabs .tab.edit"],
   ];
   for (const [name, sel] of sheets) {
     await page.locator(sel).first().click({ timeout: 5000 }); await sleep(200);
@@ -729,7 +731,7 @@ try {
   f = await frame();
   check(f.bar && f.console && f.gem?.visible && ["⏸", "▶"].includes(f.gem.text), `watch: bar + console, ⏸ in the gem (${JSON.stringify(f.gem)})`);
   const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((b) => b.textContent.trim()));
-  check(cmd.join(" · ") === "fights only · fast · normal · ▶▶| · bail · meters", `watch: the command card is fights only · fast · normal · ▶▶| · bail · meters (Cut 25 §3, Cut 29 §3) (${cmd.join(" · ")})`);
+  check(cmd.join(" · ") === "fights only · fast · normal · ▶▶| · bail · meters · town", `watch: the command card is fights only · fast · normal · ▶▶| · bail · meters · town (Cut 25 §3, Cut 29 §3, RUNS_UI: back to the town, the run goes on) (${cmd.join(" · ")})`);
   await shot("ui-watch");
   let s = await state(); const tw = Date.now();
   while (s?.screen === "watch" && Date.now() - tw < 90_000) { await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); await sleep(250); s = await state(); }

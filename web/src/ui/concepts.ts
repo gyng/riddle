@@ -53,7 +53,8 @@ export const conceptTag = (c: Concept): HTMLElement => h("span", { class: "conce
 export type Term = Concept | "heir" | "gold" | "best" | "reach" | "package" | "stance" | "tactic" | "temperament" | "drill" | "scar" | "quest" | "track"
   | "pen" | "lever" | "bank" | "banked" | "returned" | "death" | "plateau" | "ends" | "priority" | "condition" | "action" | "forge" | "kennel" | "pack"
   | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled"
-  | "works" | "worker" | "chest" | "scout" | "next" | "rank";   // Cut 30.5: the works tree
+  | "works" | "worker" | "chest" | "scout" | "next" | "rank"   // Cut 30.5: the works tree
+  | "lane" | "live" | "log" | "replay" | "away";   // RUNS_UI: the run lanes, the runs log
 /** Cut 30.5: the works tree's terms — fragments of ≤ 4 words (eval/copy-budgets.json `node_tip`). */
 const WORKS_TIP = /* copy:node_tip */ { works: "workers take chores over", worker: "hand for one chore", chest: "the haul waits here", scout: "sends him each rest", next: "the one next goal", rank: "worker's grade · from service" };
 /** The tooltip's gloss: a fragment, ≤ 10 words with its live value (`tips.mjs` renders every one). A word that is another keyword is
@@ -73,6 +74,9 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   v_gap: "no rule answered it", v_luck: "rules were fine · a bad roll", v_rule: "his own rule backfired", v_order: "right rule, ranked too low",
   v_stall: "stuck in a loop", v_route: "took the wrong stairs", v_repelled: "a boss drove him out",
   ...WORKS_TIP,
+  // RUNS_UI (docs/RUNS_UI.md)
+  lane: "a hero's runs · live, resting or waiting", live: "the run going on now · watch or not",
+  log: "every run · by absence · replays", replay: "the run again · same rolls", away: "runs while the game was shut",
 };
 /** The words that mark a term in a line (whole words, any case; the longest first). A term without aliases is marked only where a
  *  caller names it (`kw("v_luck", "luck")`, a host). */
@@ -88,7 +92,7 @@ export const ALIASES: Partial<Record<Term, string[]>> = /* copy:none */ {
 export const TITLE: Partial<Record<Term, string>> = /* copy:label */ {
   price: "if worn", gold: "gold", best: "best depth", pen: "the pen", pack: "pack", death: "death", ends: "run ends",
   v_gap: "no rule", v_luck: "luck", v_rule: "rule", v_order: "order", v_stall: "stall", v_route: "route", v_repelled: "repelled",
-  next: "next goal",
+  next: "next goal", log: "runs log",
 };
 export const termTitle = (t: Term): string => TITLE[t] ?? t;
 /** The term's icon (a concept's, else the packed one named here). */
@@ -106,6 +110,10 @@ export const LIVE: Partial<Record<Term, (app: App) => string | null>> = {
   rank: (a) => { const W = a.lineage.tree, n = W?.nodes.find((x) => x.id === W.lit_rank); return n ? /* copy:tooltip */ `on offer: ${n.name} ${["", "I", "II", "III", "IV"][(n.rank ?? 1) + 1] ?? ""}` : null; },
   scout: (a) => { const W = a.lineage.tree, s = W?.nodes.find((x) => x.id === "scout"); return !s ? null : W!.auto_send ? /* copy:tooltip */ "hired · auto" : s.need ? /* copy:tooltip */ `${s.count ?? 0}/${s.need} sends` : null; },
   marks: (a) => `◆${a.lineage.marks}`,
+  // RUNS_UI: the run under way, the runs held
+  live: (a) => { const r = a.lineage.live; return r ? /* copy:tooltip */ `D${r.depth} · ${r.hp}/${r.max_hp} hp` : null; },
+  lane: (a) => { const n = (a.lineage.runs ?? []).filter((r) => r.id > 0).length; return n ? /* copy:tooltip */ `${n} runs logged` : null; },
+  log: (a) => { const n = (a.lineage.runs ?? []).filter((r) => r.id > 0).length; return n ? /* copy:tooltip */ `${n} runs` : null; },
   renown: (a) => /* copy:tooltip */ `★ rank ${a.lineage.rank ?? 0}`,
   best: (a) => `D${a.lineage.best_depth}`,
   reach: (a) => {

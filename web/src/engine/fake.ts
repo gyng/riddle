@@ -1435,6 +1435,7 @@ export class FakeEngine implements Engine {
     return run;
   }
   send(): Snapshot {
+    this.inAbsence = false;   // RUNS_UI: a send ends the absence's fold
     // Cut 27 §1 stand-in: the send's fold, from the camp's panel as it stands (the core's `fold_plan`)
     if (!this.live || this.live.over) { const f = this.forecastN(20); this.foldPlan = f.fold_to !== undefined ? { to: f.fold_to, clears: new Map(f.depths.filter((d) => d.clear !== undefined).map((d) => [d.depth, d.clear as number])) } : null; }
     this.s.lineage.rest_left_s = 0; delete this.s.lineage.trait_offer; return this.peek();   // Cut 13 §2: the send settles the heir's trait
@@ -1562,6 +1563,12 @@ export class FakeEngine implements Engine {
       const row = spent.find((x) => x.kind === p.kind) ?? (spent.push({ kind: p.kind, n: 0, gold: 0 }), spent[spent.length - 1]); row.n++; row.gold += p.price;
     }
     L.rest_left_s = run.rest_s;                                             // Cut 2 §1: camp rest after every expedition (send skips it)
+    // RUNS_UI: the runs log, as the fake can tell it (the core's `run_log`: via, the absence's fold, the clock at the end)
+    { const runs = (L.runs ??= []); const away = this.offlineVia;
+      runs.push({ id: run.id, heir: run.heir, via: away ? "away" : "watched", ...(away ? { absence: L.absences ?? 0 } : {}), clock_s: L.clock_s ?? 0, start: 1, depth: run.depth,
+        tier: run.exit ?? "return", ...(run.line?.reason ? { reason: run.line.reason } : {}), gold: run.loot_kept, found: run.picked.length, turns: run.turn,
+        ...(run.depth > L.best_depth ? { best: true } : {}), ...(run.exit === "death" ? { death_id: run.id } : {}) });
+      while (runs.length > 60) runs.shift(); }
     // Cut 2 §2: bones recovered this run leave the lineage; a death leaves a new pile (max 3, oldest expires)
     L.bones = (L.bones ?? []).filter((b) => !run.bonesFound.some((f) => f.heir === b.heir && f.depth === b.depth));
     if (run.exit === "death") {
@@ -1706,7 +1713,17 @@ export class FakeEngine implements Engine {
   }
   runOfflineQuick(elapsedS: number): ReturnReport { const r = this.runOffline(elapsedS); return { ...r, worst_death_id: r.worst_death?.run_id, worst_death: undefined }; }
   runOfflineSlice(elapsedS: number, _last: boolean): ReturnReport { return this.runOfflineQuick(elapsedS); }
+  /** RUNS_UI: an absence's runs are `away` in the log; the first slice after anything else opens a new absence */
+  private offlineVia = false;
+  private inAbsence = false;
   runOffline(elapsedS: number): ReturnReport {
+    const L = this.s.lineage;
+    if (!this.inAbsence) { L.absences = (L.absences ?? 0) + 1; this.inAbsence = true; }
+    L.clock_s = (L.clock_s ?? 0) + Math.floor(elapsedS);
+    this.offlineVia = true;
+    try { return this.runOfflineInner(elapsedS); } finally { this.offlineVia = false; }
+  }
+  private runOfflineInner(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
     const bountyD = L.best_depth >= 1 ? L.best_depth + 2 : 0;   // Cut 20 §5 stand-in: the night's bounty floor as the absence began (none before a best)
     let budget = Math.max(0, Math.floor(elapsedS)); let runs = 0, stall = 0, sampled = false, turnsTotal = 0;
