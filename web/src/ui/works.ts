@@ -21,6 +21,15 @@ export const trunkDone = (W: Works): boolean => workerNodes(W).filter((n) => TRU
 
 /** A node's icon: `node_<id>` (art/town-ids.md), else the name's first letter. */
 export const nodeIcon = (id: string, name = id): HTMLElement => icon(`node_${id}`, (name[0] ?? "?").toUpperCase());
+/** What each worker retires, ≤ 4 words, a fragment (docs/AUTOMATION_TREE.md §5.4's register; eval/copy-budgets.json `node_tip`). The
+ *  client's own words: the wire's `WorkNode.tip` is a sentence, so it is never drawn. */
+/* copy:node_tip */
+const BLURB: Record<string, string> = {
+  quartermaster: "packs heal · drill item", porter: "hauls home · while away", scout: "sends him · each rest", armourer: "wears better finds",
+  apprentice: "buys forge steps", keeper: "sorts finds · never asks", clerk: "banks spare gold", drillmaster: "levels the stance",
+  kennel_hand: "fields best pets", herald: "swaps stale quests", guide: "starts deeper",
+};
+export const blurb = (id: string): string => BLURB[id] ?? "";
 /** the chore's count word (`2/3 chests`) */
 /* copy:label */
 const CHORE: Record<string, string> = { chest: "chests", send: "sends", wear: "worn", forge: "steps", keep: "sorted", deposit: "deposits", level: "levels", field: "fielded", swap: "swaps", start: "starts" };
@@ -98,13 +107,13 @@ export function openWorks(app: App, focus?: string, anchor?: HTMLElement | null)
           h("div", { class: "wn-main" },
             h("div", { class: "wn-head" }, h("b", { class: "wn-name" }, n.name), h("span", { class: "wn-state num" }, nodeState(n))),
             n.need || lit ? h("span", { class: "wn-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(frac * 100)}%` })) : "",
-            n.tip ? h("small", { class: "wn-tip" }, n.tip) : ""),
+            blurb(n.id) ? h("small", { class: "wn-tip" }, blurb(n.id)) : ""),
           hire);
       };
       const sil = (n: WorkNode): HTMLElement => h("div", { class: "wnode sil", "data-node": n.id, "data-state": n.state },
         h("span", { class: "wn-ico" }, nodeIcon(n.id, n.name)), h("div", { class: "wn-main" }, h("span", { class: "wn-name" }, n.name), h("small", { class: "wn-state num" }, silLine(n))));
       const done = v.done.length ? h("div", { class: "works-done" }, h("span", { class: "wd-mark", "aria-hidden": "true" }, "✓"),
-        ...v.done.map((n) => h("span", { class: `wd${n.paused ? " off" : ""}`, "data-node": n.id, title: n.tip ?? n.name }, nodeIcon(n.id, n.name), h("small", null, n.name)))) : "";
+        ...v.done.map((n) => h("span", { class: `wd${n.paused ? " off" : ""}`, "data-node": n.id, title: blurb(n.id) || n.name }, nodeIcon(n.id, n.name), h("small", null, n.name)))) : "";
       // the four branches (the tracks: their stage, the next and its trigger) once the trunk is done
       const branches = trunkDone(W) ? h("div", { class: "works-branches" }, ...TRACK_IDS.map((t) => {
         const st = W.nodes.filter((n) => n.kind === "stage" && n.branch === t);

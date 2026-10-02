@@ -275,7 +275,8 @@ try {
     check(w.lit.length === 1 && w.sil.length === 2 && w.done.length === 1 && w.cur.length === 1 && w.hires.length <= 1, `early: done ${w.done.join(",")} · lit ${w.lit.join(",")} · silhouettes ${w.sil.join(",")} — never the whole tree; ≤ 1 hire (${w.hires.length})`);
     check(w.names.every((n) => words(n) <= 2) && w.states.every((x) => words(x.replace(/\d+\/\d+|\$\d+/g, "")) <= 3), `copy: names ≤ 2 words (${w.names.join(", ")}), state lines ≤ 3 words + a number (${w.states.join(" | ")})`);
     const tip = await page.evaluate(() => document.querySelector(".works-sheet .wnode.lit .wn-tip")?.textContent ?? "");
-    check(!!tip && words(tip) <= 10, `the lit node says what it retires in ≤ 10 words ("${tip}")`);
+    const tips = await page.evaluate(() => [...document.querySelectorAll(".works-sheet .wn-tip, .kw-tip")].map((t) => t.textContent));
+    check(!!tip && tips.every((t) => words(t) <= 4 && !/\byou\b|[.!?]\s*$/i.test(t)), `the lit node says what it retires in a fragment of ≤ 4 words, no \`you\`, no stop ("${tip}"; ${tips.join(" | ")})`);
     await shot("works-early-sheet");
     await closeSheets();
     // a counting node with nothing lit: it is the current node, no hire

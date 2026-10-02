@@ -54,6 +54,8 @@ export type Term = Concept | "heir" | "gold" | "best" | "reach" | "package" | "s
   | "pen" | "lever" | "bank" | "banked" | "returned" | "death" | "plateau" | "ends" | "priority" | "condition" | "action" | "forge" | "kennel" | "pack"
   | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled"
   | "works" | "worker" | "chest" | "scout" | "next";   // Cut 30.5: the works tree
+/** Cut 30.5: the works tree's terms — fragments of ≤ 4 words (eval/copy-budgets.json `node_tip`). */
+const WORKS_TIP = /* copy:node_tip */ { works: "workers take chores over", worker: "hand for one chore", chest: "the haul waits here", scout: "sends him each rest", next: "the one next goal" };
 /** The tooltip's gloss: a fragment, ≤ 10 words with its live value (`tips.mjs` renders every one). A word that is another keyword is
  *  marked inside the plate (one level). */
 export const TIP: Record<Term, string> = /* copy:tooltip */ {
@@ -70,8 +72,7 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   price: "points of runs past best, dying or banking", forge: "gold buys kit steps", kennel: "pets and tamed allies", pack: "supplies he carries",
   v_gap: "no rule answered it", v_luck: "rules were fine · a bad roll", v_rule: "his own rule backfired", v_order: "right rule, ranked too low",
   v_stall: "stuck in a loop", v_route: "took the wrong stairs", v_repelled: "a boss drove him out",
-  works: "workers who take over chores done by hand", worker: "a hired hand · does one chore by himself",
-  chest: "the haul waits here · open it into the purse", scout: "sends the hero down after each rest", next: "the one next goal · opens the works",
+  ...WORKS_TIP,
 };
 /** The words that mark a term in a line (whole words, any case; the longest first). A term without aliases is marked only where a
  *  caller names it (`kw("v_luck", "luck")`, a host). */
