@@ -490,6 +490,12 @@ order gives TUNED − packages a lead over IDLE before D23, where the pen's 28 h
   (3) **TUNED and the leave-one-outs run on 8 seeds** (`--tuned-seeds 8 --loo-seeds 8`) until the gate speed-up lands,
   then 16; IDLE, PICKED and RANDOM stay at 16 (the PICKED-vs-IDLE and RANDOM rows: affordable, ~16 CPU-min a bot).
   The speed-up landed 2026-10-02 (branch `gate-speed` merged): TUNED and the leave-one-outs are back on 16.
+- **Round 9, owner-approved 2026-10-02 (option b).** *Nothing required*'s worst-seed cap (24 h) counts from the pen's
+  opening, the start of day 5 (96 h): the lag accrued after it — each side's hours to the milestone clamped up to 96 h,
+  so a milestone both reach before day 5 adds nothing. Before day 5 the median clause alone applies. Reprinted from
+  the kept jobs (checkpoint 10's): still FAIL on one seed — TUNED − packages seed 15, D18 136 h vs IDLE 64 h and D23
+  200 h vs 160 h, +40 h after day 5 at both (every other seed × system × milestone ≤ 24 h). Not tuned further (the
+  coordinator's instruction).
 - **Round 8, owner-approved 2026-10-02.** (1) *TUNED beats PICKED by ≥ 15 %* is judged at **D33 alone**; D29 prints as
   info. Where the route puts the Foundry at D28 a package (Hunter's reflect read) answers it and the pen adds nothing,
   and the scars let PICKED through the Queen in 16–104 h: D29 read 0.87–1.65 by seed, median 1.0–1.2 by seed set

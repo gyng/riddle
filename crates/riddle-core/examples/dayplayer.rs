@@ -879,6 +879,8 @@ fn main() {
     let mut infos: Vec<(String, String)> = Vec::new();
     // (the nothing-required row's worst seed: a day behind IDLE at most — the owner, round 8)
     const NOTHING_REQ_MAX_LAG: f64 = 24.0;
+    // (the pen's opening: the start of day 5)
+    const PEN_DAY_H: f64 = 96.0;
     if !idle.is_empty() {
         let n = idle.len();
         let d8 = idle.iter().filter(|o| o.hours[0].is_some_and(|h| h <= 24.0)).count();
@@ -987,10 +989,14 @@ fn main() {
                 if lag.is_empty() {
                     continue;
                 }
-                let (med, max) = (median(lag.clone()), lag.iter().cloned().fold(f64::MIN, f64::max));
+                // (the owner, round 9 (b): the worst seed's cap counts from the pen's opening, day 5 — the lag
+                // accrued after it: each side's hours clamped up to the day's start, so a milestone both reach
+                // before it adds nothing; before day 5 the median clause alone applies)
+                let after: Vec<f64> = v.iter().zip(&idle).filter(|(x, y)| x.hours[i].is_some() || y.hours[i].is_some()).map(|(x, y)| hours_or(x, i, cap).max(PEN_DAY_H) - hours_or(y, i, cap).max(PEN_DAY_H)).collect();
+                let (med, max) = (median(lag.clone()), after.iter().cloned().fold(f64::MIN, f64::max));
                 if med > step || max > NOTHING_REQ_MAX_LAG {
                     req_ok = false;
-                    worst_req = format!("{s} D{} median {med:+.0} h · worst {max:+.0} h", MILESTONES[i]);
+                    worst_req = format!("{s} D{} median {med:+.0} h · worst from day 5 {max:+.0} h", MILESTONES[i]);
                 }
             }
             let n = v.len().min(tuned.len());
@@ -1028,7 +1034,7 @@ fn main() {
             moves.push((s, with, without, unit, ok));
         }
         if !moves.is_empty() {
-            bars.push(("Nothing required: TUNED − S ≤ IDLE on the median seed (± a check-in), no seed > 24 h behind".into(), if req_ok { "ok".into() } else { worst_req }, req_ok));
+            bars.push(("Nothing required: TUNED − S ≤ IDLE on the median seed (± a check-in), no seed > 24 h behind from day 5".into(), if req_ok { "ok".into() } else { worst_req }, req_ok));
             let each = moves.iter().all(|m| m.4);
             bars.push(("Each system adds value by its own output (TUNED vs TUNED − S)".into(), moves.iter().map(|(s, a, b, u, _)| format!("{s} {a:.1}/{b:.1} {u}")).collect::<Vec<_>>().join(" · "), each));
             // (`none > 60 % of TUNED − IDLE` retired: the systems are measured by their own outputs, no
