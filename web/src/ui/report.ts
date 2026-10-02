@@ -191,7 +191,7 @@ function newsLead(x: ExitLine, runs: number): (string | HTMLElement)[] {
   const n = runs > 1 ? mergeFinds((x.news ?? []).filter((y) => y.k !== "differ" && y.k !== "learned" && !(y.k === "driven" && / · by /.test(x.text))))[0] : undefined;
   return n ? [h("b", { class: "news-lead" }, n.text.replace(/^driven off: (.+)$/, /* copy:callout */ "repelled by $1")), " · "] : [];
 }
-function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: { boss: string; text: string }[] = [], shop = true): HTMLElement | null {
+function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: { boss: string; text: string }[] = [], shop = true, pen = true): HTMLElement | null {
   // Cut 28 §2 (core `ReturnReport.lead`): the first screen leads with the decisions (`oath kept: D10 · no drink`, `plateau: none past
   // D13`, `mother: fire learned`, `D9 death · order`), then what was new that they do not already say
   const lead = r.lead ?? [];
@@ -201,7 +201,10 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
   // docs/COPY.md pass 2 (`warlord: aim learned` read as the boss's move, 2/2): a counter learned reads as the rule that beats him
   const said2 = (t: string): string => t.replace(/^driven off: (.+)$/, /* copy:callout */ "repelled by $1").replace(/^deeper: (D\d+), last (D\d+)$/, /* copy:callout */ "reached $1 · was $2").replace(/^(\w+): (.+) learned$/, (m, boss: string) => { const c = counters.find((x) => x.boss.endsWith(boss)); return c?.text ? /* copy:callout */ `${boss} counter: ${c.text}` : m; });
   // (a drive-off's line carries the counter fact, `· warlord: aim`: the counter's own line says it) — then each line once
-  const said3 = (t: string): string => said2(t).replace(/ · (\w+): [a-z ?]+$/, (m, boss: string) => (counters.some((x) => x.boss.endsWith(boss)) ? "" : m));
+  // c30-legible (the coordinator: `D1 death · gap` before the pen opens): a death's verdict word is the pen's vocabulary — before it
+  // opens the lead says the floor alone (`D1 death`)
+  const prePenT = (t: string): string => pen ? t : t.replace(/^(D\d+ death) · .+$/, "$1");
+  const said3 = (t: string): string => prePenT(said2(t)).replace(/ · (\w+): [a-z ?]+$/, (m, boss: string) => (counters.some((x) => x.boss.endsWith(boss)) ? "" : m));
   const shown = new Set<string>(); const once = (t: string): boolean => !shown.has(t) && !!shown.add(t);
   // Cut 30 integration: before the unlocks open (the pen's catalogue) no line names one (`unlock throw (3)` read as a shop nowhere on screen)
   const shown2 = (t: string): boolean => shop || !/^unlock\b/.test(t);
@@ -246,6 +249,17 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // docs/COPY.md pass 4 (`BANKED 0` read as gold banked by all 4 readers): an end's count is a share of the runs (`0/16`)
   const ofRuns = (k: number): string => (exits && r.runs > 0 ? `${k}/${r.runs}` : `${k}`);
   const banked = tile(ofRuns(bankedN), /* copy:label */ "banked"), returned = tile(ofRuns(returnedN), /* copy:label */ "returned");
+  // c30-legible (the owner, a new player: "I didn't understand … why the run ended early"): an end's tile says why, the core's ≤ 3
+  // words — the most common reason among this report's exits of that end (`banks every record`, `hurt · went home`)
+  const why = (lead: RegExp): string | undefined => {
+    const n = new Map<string, number>();
+    for (const x of r.exits ?? []) if (x.reason && lead.test(x.text)) n.set(x.reason, (n.get(x.reason) ?? 0) + 1);
+    return [...n].sort((a, b) => b[1] - a[1])[0]?.[0];
+  };
+  for (const [t, lead, n] of [[banked, /^banked\b/, bankedN], [returned, /^returned\b/, returnedN]] as const) {
+    const w = n > 0 ? why(lead) : undefined;
+    if (w) t.appendChild(h("span", { class: "tile-why num", "data-why": w }, w));
+  }
   // Cut 14 §4: the stalls' cost — what the stalled runs carried home for nothing (their lines' `carried`; lines the slices
   // dropped are not counted, so the sum is a floor) — `2 STALLED · $161 lost` (rater T: "`2 STALLED` says nothing about what the
   // stalls cost")
@@ -508,7 +522,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    grewBlock(r, heroFace(L)), workersBlock(L, r), newsBlock(r, named, L.counters ?? [], shopOpen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    grewBlock(r, heroFace(L)), workersBlock(L, r), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop

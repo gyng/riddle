@@ -80,7 +80,7 @@ export const ALIASES: Partial<Record<Term, string[]>> = /* copy:none */ {
   heir: ["heir"], marks: ["marks"], renown: ["renown"], package: ["packages", "package"], stance: ["stance"], tactic: ["tactics", "tactic"],
   temperament: ["temperament"], drill: ["drills", "drill", "drilled"], scar: ["scarred", "scars"], quest: ["quests", "quest"], track: ["tracks", "track"],
   pen: ["the pen"], lever: ["lever"], bank: ["bank"], banked: ["banked"], returned: ["returned"], death: ["deaths"], plateau: ["plateau"], reach: ["reach"],
-  ends: ["ends"], priority: ["priority"], condition: ["condition"], action: ["action"], vault: ["vault"], bones: ["bones"], bounty: ["bounty"],
+  ends: ["ends"], priority: ["priority"], condition: ["condition"], action: ["action"], vault: ["vault", "storehouse"], bones: ["bones"], bounty: ["bounty"],
   waystone: ["waystone", "waystones"], grudge: ["grudge"], kennel: ["kennel"], forge: ["forge", "blacksmith"],
   works: ["works"], worker: ["workers", "worker"], chest: ["chest"], scout: ["scout"],
 };

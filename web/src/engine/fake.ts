@@ -823,6 +823,8 @@ function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   // Cut 11 §3: every exit trace carries the run's provenance (the `because` events) beside its turns; ticks ×10 as on the events
   const trace: Trace = { turns: scaleTrace(run.trace), provenance: Object.values(run.prov).sort((a, b) => a.t - b.t).map((p) => ({ text: p.text, t: p.t * 10, depth: p.depth })) };
   run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · "), trace,
+    // c30-legible stand-in: the core's `reason` (`engine::exit_reason`), in miniature
+    reason: run.stalled ? "stuck · gave up" : tier === "death" ? "slain" : tier === "bank" ? "banks every record" : "hurt · went home",
     news: [{ k: "differ", text: `reached D${run.depth}` }] };   // Cut 24 §2 stand-in: the core's `news` (what was new; else the one thing that differed)
   ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line, trace });
   // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake
@@ -2237,7 +2239,7 @@ function packages30(e: Fk30, L: Lineage): Packages {
 function town30(e: Fk30, L: Lineage): Town {
   const st = st30(e); const order: [string, string, boolean][] = [["blacksmith", "first gold home", L.gold > 0 || L.best_depth > 2], ["storehouse", "first find kept", L.vault.length > 0], ["kennel", "first tame", L.party.length + L.kennel.length > 0], ["bank", "a night's purse", L.gold >= 500]];
   const built = order.filter(([, , b]) => b); const next = order.find(([, , b]) => !b);
-  return { buildings: built.map(([id]) => ({ id, level: 1, day: 0 })), ...(next ? { next: next[0], next_trigger: next[1] } : {}), bank: st.bank, bank_cap: 3000, interest: st.interest,
+  return { buildings: built.map(([id, trigger]) => ({ id, level: 1, day: 0, trigger })), ...(next ? { next: next[0], next_trigger: next[1] } : {}), bank: st.bank, bank_cap: 3000, interest: st.interest,
     ...(L.best_depth >= 9 ? { quest: quest30(st, L) } : {}), quests_done: st.quest };
 }
 /** The fake's quest: `reach D<n>` drawn one past the record, its progress the deepest floor a run reached since (the record's floor
@@ -2367,19 +2369,19 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
 // run: an absence then yields only the run in flight).
 // (id, name, branch, chore, need, price in tenths of a forge unit, fallback age h, post, beat, tip, the chore's system)
 const NODES305: [string, string, string, string, number, number, number, string, string, string, string][] = [
-  ["quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "crate", "", "Packs the heal and the drill's item.", ""],
-  ["porter", "porter", "trunk", "chest", 3, 0, 0, "mouth", "AUTO HAUL", "Carries hauls home while you're away.", ""],
-  ["scout", "scout", "trunk", "send", 3, 5, 0, "fire", "AUTO SEND", "Sends the hero down after each rest.", ""],
-  ["armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "AUTO EQUIP", "Wears the better find each send.", "storehouse"],
-  ["apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "blacksmith", "AUTO FORGE", "Buys the next forge step, keeping a reserve.", "forge"],
-  ["keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "AUTO KEEP", "Sorts every exit's finds; never asks.", "storehouse"],
-  ["clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "AUTO BANK", "Banks the purse above a reserve.", "bank"],
-  ["drillmaster", "drillmaster", "character", "level", 2, 30, 36, "tent", "AUTO LEVEL", "Spends marks on the worn stance's levels.", ""],
-  ["kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "AUTO PETS", "Fields the best pets each send.", "kennel"],
-  ["herald", "herald", "town", "swap", 2, 20, 40, "board", "AUTO QUEST", "Swaps a quest the day left unkept.", "quests"],
-  ["guide", "guide", "scale", "start", 3, 40, 44, "mouth", "AUTO START", "Starts sends a band under the record.", "start"],
+  ["quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "crate", "", "packs heal · drill item", ""],
+  ["porter", "porter", "trunk", "chest", 3, 0, 0, "mouth", "AUTO HAUL", "hauls home · while away", ""],
+  ["scout", "scout", "trunk", "send", 3, 5, 0, "fire", "AUTO SEND", "sends him · each rest", ""],
+  ["armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "AUTO EQUIP", "wears better finds", "storehouse"],
+  ["apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "blacksmith", "AUTO FORGE", "buys forge steps", "forge"],
+  ["keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "AUTO KEEP", "sorts finds · never asks", "storehouse"],
+  ["clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "AUTO BANK", "banks spare gold", "bank"],
+  ["drillmaster", "drillmaster", "character", "level", 2, 30, 36, "tent", "AUTO LEVEL", "levels the stance", ""],
+  ["kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "AUTO PETS", "fields best pets", "kennel"],
+  ["herald", "herald", "town", "swap", 2, 20, 40, "board", "AUTO QUEST", "swaps stale quests", "quests"],
+  ["guide", "guide", "scale", "start", 3, 40, 44, "mouth", "AUTO START", "starts deeper", "start"],
 ];
-type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[] };
+type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[]; ranks?: Record<string, number> };
 type Fk305 = Fk30 & { s: Fk30["s"] & { st305?: St305 } };
 // (client half: the fake's demo lineage — a 7th heir with a chronicle — is an old save: the quartermaster, porter and scout pre-hired, as the
 // core maps a save without a tree (docs/CUT30_5.md §2); a heir-1 lineage starts the tree from the quartermaster)
@@ -2395,7 +2397,10 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     const done = st.hired.includes(id);
     let state = done ? "done" : !open ? "shut" : ready ? (lit ? "ready" : "lit") : "open";
     if (state === "lit") lit = id;
-    nodes.push({ id, kind: "worker", branch, name, state, ...(chore ? { chore, count, need } : {}), price, affordable: purse + st.chest >= price, ...(fb ? { fallback_h: fb } : {}),
+    const rank = done && chore ? (st.ranks?.[id] ?? 1) : undefined;
+    // (week 2 stand-in: a rank on offer once the scout is hired, a forge unit × the rank less one — the core waits 5 / 9 days of service)
+    const rankNext = rank && rank < 3 && st.hired.includes("scout") ? { rank_price: unit * rank, rank_wait_d: 0 } : {};
+    nodes.push({ id, kind: "worker", branch, name, state, ...(rank ? { rank, ...rankNext } : {}), ...(chore ? { chore, count, need } : {}), price, affordable: purse + st.chest >= price, ...(fb ? { fallback_h: fb } : {}),
       ...(!open && gate ? { trigger: `${gate} built` } : {}), tip, ...(beat ? { beat } : {}), post, ...(st.paused.includes(id) ? { paused: true } : {}) });
   }
   for (const t of L.tracks ?? []) {
@@ -2411,7 +2416,8 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     : litN ? { kind: "gold", node: lit, text: `${litN.name} · $${purse + st.chest}/$${litN.price}`, have: purse + st.chest, need: litN.price }
     : counting ? { kind: "count", node: counting.id, text: `${counting.name} · ${counting.count}/${counting.need}`, have: counting.count, need: counting.need }
     : { kind: "none", text: "" };
-  return { nodes, ...(lit ? { lit } : {}), next, chest: st.chest, waits, sent: st.sent, auto_send: auto, ledger: purse + st.chest + (L.town?.bank ?? 0) };
+  const litRank = lit ? undefined : nodes.find((n) => n.rank_wait_d === 0)?.id;
+  return { nodes, ...(lit ? { lit } : {}), ...(litRank ? { lit_rank: litRank } : {}), next, chest: st.chest, waits, sent: st.sent, auto_send: auto, ledger: purse + st.chest + (L.town?.bank ?? 0) };
 }
 {
   const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
@@ -2420,7 +2426,7 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     const L = lin.call(this) as Lineage; if (DEV_NO_SYSTEMS) return L;
     const st = st305(this); const purse = Math.max(0, L.gold - st.chest); L.gold = purse;
     L.tree = works305(this, L, purse);
-    const posts: WorkerPost[] = NODES305.filter(([id]) => st.hired.includes(id)).map(([id, , , , , , , post]) => ({ id, post, ...(st.paused.includes(id) ? { paused: true } : {}) }));
+    const posts: WorkerPost[] = NODES305.filter(([id]) => st.hired.includes(id)).map(([id, , , , , , , post]) => ({ id, post, rank: st.ranks?.[id] ?? 1, ...(st.paused.includes(id) ? { paused: true } : {}) }));
     const litN = L.tree.nodes.find((n) => n.id === L.tree!.lit); if (litN) posts.push({ id: litN.id, post: litN.post ?? "mouth", lit: true, price: litN.price });
     if (L.town) L.town.workers = posts;
     return L;
@@ -2451,6 +2457,12 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     const price = n.price ?? 0; if (L.gold + st.chest < price) throw new Error("not enough gold");
     const fromPurse = Math.min(price, L.gold); this.s.lineage.gold -= price; st.chest -= price - fromPurse; st.hired.push(id as string);
     if (id === "porter") st.chest = 0;
+    return this.lineage();
+  };
+  P.promote = function (this: Fk305, id: unknown): Lineage {
+    const st = st305(this); const L = this.lineage(); const n = L.tree!.nodes.find((x) => x.id === id);
+    if (!n || L.tree!.lit_rank !== id) throw new Error("not on offer"); const price = n.rank_price ?? 0; if (L.gold + st.chest < price) throw new Error("not enough gold");
+    const fromPurse = Math.min(price, L.gold); this.s.lineage.gold -= price; st.chest -= price - fromPurse; (st.ranks ??= {})[id as string] = (n.rank ?? 1) + 1;
     return this.lineage();
   };
   P.setWorker = function (this: Fk305, id: unknown, on: unknown): Lineage {

@@ -214,6 +214,10 @@ impl Game {
     pub fn hire(&mut self, id: &str) -> Result<(), String> {
         tree::hire(&mut self.lineage, id)
     }
+    /// Cut 30.5, week 2: promote the worker whose rank is on offer (`tree.lit_rank`); its new rank.
+    pub fn promote(&mut self, id: &str) -> Result<u32, String> {
+        tree::promote(&mut self.lineage, id)
+    }
     /// Cut 30.5: the haul chest into the purse (the porter's chore); the gold it held.
     pub fn open_chest(&mut self) -> Result<i32, String> {
         tree::open_chest(&mut self.lineage)

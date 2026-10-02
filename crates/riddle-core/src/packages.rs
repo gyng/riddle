@@ -250,6 +250,8 @@ fn bank_at(best: u32, extra: u32) -> i32 {
     (best + 1 + extra).max(2) as i32
 }
 
+/// Cut 30.5 (the owner, 2026-10-02): Steady banks a floor further when whole while the record is under this.
+pub const EARLY_DEEPER_UNTIL: u32 = 8;
 /// Steady rests only when well hurt (`Guarded` rests at 80 %): L2 under this, L3 under the next.
 pub const STEADY_REST: i32 = 40;
 pub const STEADY_REST_L3: i32 = 50;
@@ -294,10 +296,12 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
         // heal 30 %, return 20 %, bank at the record, attack nearest. L2 heals at 35 % and rests when
         // well hurt (under 40 %), L3 rests under 50 %, L4 banks a floor further when whole (at the
         // record when hurt), L5 steps off a telegraph when hurt. The long rest is `Guarded`'s.
+        // Cut 30.5 (the owner, 2026-10-02: a first run banking at D2–D3 at near-full hp read as broken): while the
+        // record is under D8 the L4 shape from L1 — two floors past the record when whole (hp ≥ 60 %), one when hurt.
         "steady" => {
             // (the safest default: from L3 it walks home at a quarter of its hp)
             let mut g = vec![drink, r(vec![n("hp<", if level >= 3 && best >= 8 { 25 } else { 20 })], Verb::new("return"))];
-            if level >= 4 {
+            if level >= 4 || best < EARLY_DEEPER_UNTIL {
                 g.push(r(vec![n("hp<", 60), n("depth>=", bank_at(best, 0))], Verb::new("bank")));
                 g.push(r(vec![n("depth>=", bank_at(best, 1))], Verb::new("bank")));
             } else {

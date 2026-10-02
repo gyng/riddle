@@ -39,23 +39,27 @@ const fn node(id: &'static str, name: &'static str, branch: &'static str, chore:
 
 /// The tree in its order (the trunk, then the branches): one node lit at a time, the first ready one.
 pub const NODES: &[NodeDef] = &[
-    node("quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "", "crate", "", "Packs the heal and the drill's item."),
-    node("porter", "porter", "trunk", "chest", 3, 0, 0, "", "mouth", "AUTO HAUL", "Carries hauls home while you're away."),
-    node("scout", "scout", "trunk", "send", 3, 5, 0, "", "fire", "AUTO SEND", "Sends the hero down after each rest."),
-    node("armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "storehouse", "AUTO EQUIP", "Wears the better find each send."),
-    node("apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "forge", "blacksmith", "AUTO FORGE", "Buys the next forge step, keeping a reserve."),
-    node("keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "storehouse", "AUTO KEEP", "Sorts every exit's finds; never asks."),
-    node("clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "bank", "AUTO BANK", "Banks the purse above a reserve."),
-    node("drillmaster", "drillmaster", "character", "level", 2, 30, 36, "", "tent", "AUTO LEVEL", "Spends marks on the worn stance's levels."),
-    node("kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "kennel", "AUTO PETS", "Fields the best pets each send."),
-    node("herald", "herald", "town", "swap", 2, 20, 40, "quests", "board", "AUTO QUEST", "Swaps a quest the day left unkept."),
-    node("guide", "guide", "scale", "start", 3, 40, 44, "start", "mouth", "AUTO START", "Starts sends a band under the record."),
+    node("quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "", "crate", "", "packs heal · drill item"),
+    node("porter", "porter", "trunk", "chest", 3, 0, 0, "", "mouth", "AUTO HAUL", "hauls home · while away"),
+    node("scout", "scout", "trunk", "send", 3, 5, 0, "", "fire", "AUTO SEND", "sends him · each rest"),
+    node("armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "storehouse", "AUTO EQUIP", "wears better finds"),
+    node("apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "forge", "blacksmith", "AUTO FORGE", "buys forge steps"),
+    node("keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "storehouse", "AUTO KEEP", "sorts finds · never asks"),
+    node("clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "bank", "AUTO BANK", "banks spare gold"),
+    node("drillmaster", "drillmaster", "character", "level", 2, 30, 36, "", "tent", "AUTO LEVEL", "levels the stance"),
+    node("kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "kennel", "AUTO PETS", "fields best pets"),
+    node("herald", "herald", "town", "swap", 2, 20, 40, "quests", "board", "AUTO QUEST", "swaps stale quests"),
+    node("guide", "guide", "scale", "start", 3, 40, 44, "start", "mouth", "AUTO START", "starts deeper"),
 ];
 
 /// The apprentice and the clerk keep this many forge units in the purse (the shelf's money).
 pub const RESERVE_UNITS: i32 = 3;
 /// The guide starts sends at the deepest lit stone this many floors under the record.
 pub const GUIDE_GAP: u32 = 4;
+/// Cut 30.5, week 2 (the owner, 2026-10-02: later worker upgrades): a worker's ranks II and III come these many
+/// days of service after its hire, each bought with gold — the worker's look (and its post's) on the town scene.
+pub const RANK_DAYS: [u32; 3] = [4, 8, 12];
+pub const MAX_RANK: u32 = 4;
 /// The chores of a save from before the tree: its workers up to the scout are hired (no player regresses).
 pub const LEGACY: [&str; 3] = ["quartermaster", "porter", "scout"];
 
@@ -92,6 +96,64 @@ pub struct Tree {
     /// Each worker's acts in all (the report's `first`).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub acts: BTreeMap<String, u32>,
+    /// Week 2: each promoted worker's rank (2–3; a hired worker absent here is rank 1).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub ranks: BTreeMap<String, u32>,
+    /// The guide's ledger: per waystone started from, the recent sends and those that brought gold home
+    /// (halved past `STONE_MEMORY` sends); and the start last picked by hand.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub stones: BTreeMap<u32, (u32, u32)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_by_hand: Option<(u32, u32)>,
+    /// The record the stones' ledger was kept under (a new record forgets it: a stronger hero tries again).
+    #[serde(default)]
+    pub stones_best: u32,
+    /// The armourer's ledger: the recent sends and those that died (halved past `STONE_MEMORY`).
+    #[serde(default)]
+    pub sends: (u32, u32),
+}
+
+/// The sends a stone's record remembers before it halves.
+pub const STONE_MEMORY: u32 = 12;
+
+/// A send from a waystone came home (non-sim): its start's record — whether it brought gold home.
+pub fn note_start(l: &mut LineageState, start: u32, paid: bool, died: bool) {
+    let s = &mut l.tree.sends;
+    s.0 += 1;
+    s.1 += died as u32;
+    if s.0 > STONE_MEMORY {
+        s.0 /= 2;
+        s.1 /= 2;
+    }
+    if l.tree.stones_best != l.best_depth {
+        l.tree.stones.clear();
+        l.tree.stones_best = l.best_depth;
+    }
+    if start <= 1 {
+        return;
+    }
+    let e = l.tree.stones.entry(start).or_insert((0, 0));
+    e.0 += 1;
+    e.1 += paid as u32;
+    if e.0 > STONE_MEMORY {
+        e.0 /= 2;
+        e.1 /= 2;
+    }
+}
+
+/// A stone pays: untried under this record, too few sends to say, or at least half of its recent sends brought
+/// gold home.
+pub fn stone_pays(l: &LineageState, s: u32) -> bool {
+    l.tree.stones_best != l.best_depth || l.tree.stones.get(&s).is_none_or(|(n, p)| *n < 3 || 2 * p >= *n)
+}
+
+/// The guide's start: the deepest lit stone a band (`GUIDE_GAP`) under the record that pays (D1 when none) —
+/// a start picked by hand stands while it pays and the record holds (`by_hand`: the hand's own pick, the same rule).
+pub fn guide_pick(l: &LineageState, by_hand: bool) -> u32 {
+    if let Some((h, _)) = l.tree.start_by_hand.filter(|(h, best)| !by_hand && *h == l.start.max(1) && *best == l.best_depth && stone_pays(l, *h)) {
+        return h;
+    }
+    l.stones().into_iter().filter(|s| s + GUIDE_GAP <= l.best_depth && stone_pays(l, *s)).max().unwrap_or(1)
 }
 
 impl Tree {
@@ -201,6 +263,70 @@ pub fn lit(l: &LineageState) -> Option<&'static NodeDef> {
     NODES.iter().find(|n| !hired(l, n.id) && ready(l, n))
 }
 
+/// A hired worker's rank (1–3; 0 unhired).
+pub fn rank(l: &LineageState, id: &str) -> u32 {
+    if !hired(l, id) {
+        return 0;
+    }
+    l.tree.ranks.get(id).copied().unwrap_or(1)
+}
+
+/// The day a hired worker was hired.
+fn hire_day(l: &LineageState, id: &str) -> Option<u32> {
+    l.tree.hired.iter().find(|(h, _)| h == id).map(|(_, d)| *d)
+}
+
+/// The days until a hired worker's next rank comes (0: it is on offer; `None`: at the top, or not hired, or given).
+pub fn rank_wait(l: &LineageState, n: &NodeDef) -> Option<u32> {
+    let r = rank(l, n.id);
+    if r == 0 || r >= MAX_RANK || n.chore.is_empty() {
+        return None;
+    }
+    let due = hire_day(l, n.id)? + RANK_DAYS[(r - 1) as usize];
+    Some(due.saturating_sub(l.day))
+}
+
+/// A rank's price: a forge unit × the rank less one (a look, not a second hire: week 2's purse barely notices).
+pub fn rank_price(l: &LineageState, n: &NodeDef) -> i32 {
+    let next = rank(l, n.id) + 1;
+    crate::kit::unit_of(l) as i32 * (next as i32 - 1)
+}
+
+/// The one rank on offer: the first hired worker (in the tree's order) whose next rank has come — only when no
+/// hire is lit (one BUY at a time).
+pub fn lit_rank(l: &LineageState) -> Option<&'static NodeDef> {
+    if l.pkg.literal || lit(l).is_some() {
+        return None;
+    }
+    NODES.iter().find(|n| rank_wait(l, n) == Some(0))
+}
+
+/// Promote the worker whose rank is on offer: its price from the purse, then the chest.
+pub fn promote(l: &mut LineageState, id: &str) -> Result<u32, String> {
+    let n = def(id).ok_or("unknown worker")?;
+    if lit_rank(l).map(|x| x.id) != Some(id) {
+        return Err("not on offer".into());
+    }
+    let p = rank_price(l, n);
+    if l.gold < p {
+        return Err("not enough gold".into());
+    }
+    l.gold_move(-p, &format!("hire {id} rank"));
+    let r = rank(l, id) + 1;
+    l.tree.ranks.insert(id.to_string(), r);
+    Ok(r)
+}
+
+/// A rank's numeral (`II`, `III`).
+pub fn numeral(r: u32) -> &'static str {
+    match r {
+        2 => "II",
+        3 => "III",
+        4 => "IV",
+        _ => "",
+    }
+}
+
 /// A node's price in gold (forge units, fixed with the forge's).
 pub fn price(l: &LineageState, n: &NodeDef) -> i32 {
     ((crate::kit::unit_of(l) * n.price_tenths + 5) / 10) as i32
@@ -273,6 +399,13 @@ fn act(game: &mut Game, id: &str, n: u32) {
     *game.lineage.tree.acts.entry(id.to_string()).or_insert(0) += n;
 }
 
+/// A weapon's worth a blow: its mean hit with its aim (a forged arm's steps), at its pace.
+fn blow_worth(w: &crate::item::Item) -> i64 {
+    let (lo, hi) = w.atk();
+    let hit = if crate::kit::is_kit_id(w.id) { 80 + crate::kit::AIM_PER_STEP as i64 * w.enchant.clamp(0, crate::kit::AIM_STEPS) as i64 } else { 80 };
+    (lo + hi) as i64 * hit * (10 + w.def().speed) as i64
+}
+
 /// The workers' standing orders, at a real send (before the run begins; never in a sim, never on a
 /// harness's literal lineage).
 pub fn at_send(game: &mut Game) {
@@ -342,22 +475,32 @@ pub fn at_send(game: &mut Game) {
             }
         }
     }
-    // the guide: the deepest lit stone a band under the record, never shallower than the start set
+    // the guide: the deepest lit stone a band under the record whose sends bring gold home (a stone that stops
+    // paying is given up for the next one up; a start picked by hand stands while it pays)
     if on(&game.lineage, "guide") {
-        let l = &game.lineage;
-        let pick = l.stones().into_iter().filter(|s| s + GUIDE_GAP <= l.best_depth).max();
-        if let Some(s) = pick.filter(|s| *s > l.start.max(1)) {
-            if game.lineage.set_start(s).is_ok() {
-                act(game, "guide", 1);
-            }
+        let pick = guide_pick(&game.lineage, false);
+        if pick != game.lineage.start.max(1) && game.lineage.set_start(pick).is_ok() {
+            act(game, "guide", 1);
         }
     }
-    // the armourer: the best vault weapon and armour go with each send
-    if on(&game.lineage, "armourer") && !game.lineage.vault.is_empty() {
+    // the armourer: the vault's best weapon and armour go with each send — each only when it beats the forged kit
+    // the hero would wear (a weaker one rides in the pack and takes a find's slot)
+    // (and only while the sends come home: at a wall, where half of them die, the find stays safe in the storehouse —
+    // a death's insurance is paid again at every send, and an uninsured find is lost to the bones)
+    let (n, died) = game.lineage.tree.sends;
+    if on(&game.lineage, "armourer") && !game.lineage.vault.is_empty() && 4 * died < n.max(1) {
         let mut add = Vec::new();
+        let mut kit = crate::hero::Hero::new(game.lineage.class, crate::geom::Pos::new(0, 0));
+        crate::kit::equip(&game.lineage, &mut kit);
         for cat in [crate::defs::Cat::Weapon, crate::defs::Cat::Armour] {
             if let Some(it) = game.lineage.vault.iter().filter(|v| v.cat() == cat).max_by_key(|v| (v.value(), std::cmp::Reverse(v.id))) {
-                if !game.loadout.contains(&it.id) {
+                // (truly better: a blow's worth with its aim and its pace, or more armour at no drag — the
+                // pack's own choice weighs the blow alone, and a found arm over a forged one lost the aim)
+                let better = match cat {
+                    crate::defs::Cat::Weapon => kit.weapon.as_ref().is_none_or(|k| blow_worth(it) > blow_worth(k)),
+                    _ => it.def().speed >= 0 && kit.armour.as_ref().is_none_or(|k| it.def_bonus() > k.def_bonus()),
+                };
+                if better && !game.loadout.contains(&it.id) {
                     add.push(it.id);
                 }
             }
@@ -400,6 +543,13 @@ pub struct WorkNodeWire {
     pub post: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub paused: bool,
+    /// Week 2: a hired worker's rank (1–3), and its next rank — the price, the days it still waits (0: on offer).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank_price: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rank_wait_d: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
@@ -419,6 +569,9 @@ pub struct WorksWire {
     pub nodes: Vec<WorkNodeWire>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lit: Option<String>,
+    /// Week 2: the one worker rank on offer (`promote(id)`), when no hire is lit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lit_rank: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<NextPill>,
     pub chest: i32,
@@ -432,6 +585,9 @@ pub struct WorksWire {
 pub struct WorkerPost {
     pub id: String,
     pub post: String,
+    /// Week 2: the worker's rank (1–3): its look.
+    #[serde(default)]
+    pub rank: u32,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub lit: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -496,6 +652,9 @@ pub fn wire(l: &LineageState, waits: bool) -> WorksWire {
                 beat: (!n.beat.is_empty()).then(|| n.beat.into()),
                 post: Some(n.post.into()),
                 paused: l.tree.paused.contains(n.id),
+                rank: done.then(|| rank(l, n.id)).filter(|_| has_chore),
+                rank_price: rank_wait(l, n).map(|_| rank_price(l, n)),
+                rank_wait_d: rank_wait(l, n),
             }
         })
         .collect();
@@ -515,7 +674,7 @@ pub fn wire(l: &LineageState, waits: bool) -> WorksWire {
             nodes.push(WorkNodeWire { id: format!("{t}:{s}"), kind: "stage".into(), branch: t.into(), name: s.to_string(), state: state.into(), trigger: (!trig.is_empty()).then(|| trig.to_string()), ..Default::default() });
         }
     }
-    WorksWire { next: Some(next_pill(l, waits)), nodes, lit: lit_id.map(String::from), chest: l.tree.chest, waits, sent: l.tree.sent, auto_send: auto_send(l), ledger: l.tree.ledger }
+    WorksWire { next: Some(next_pill(l, waits)), nodes, lit: lit_id.map(String::from), lit_rank: lit_rank(l).map(|n| n.id.to_string()), chest: l.tree.chest, waits, sent: l.tree.sent, auto_send: auto_send(l), ledger: l.tree.ledger }
 }
 
 /// The single next goal (docs/CUT30_5.md §3).
@@ -537,6 +696,10 @@ pub fn next_pill(l: &LineageState, waits: bool) -> NextPill {
         let p = price(l, n);
         return pill("gold", Some(n.id), format!("{} · ${}/${p}", n.name, l.gold.max(0)), Some(l.gold.max(0) as i64), Some(p as i64));
     }
+    if let Some(n) = lit_rank(l) {
+        let (p, r) = (rank_price(l, n), numeral(rank(l, n.id) + 1));
+        return if l.gold >= p { pill("buy", Some(n.id), format!("{} {r} · ${p}", n.name), None, None) } else { pill("gold", Some(n.id), format!("{} {r} · ${}/${p}", n.name, l.gold.max(0)), Some(l.gold.max(0) as i64), Some(p as i64)) };
+    }
     if let Some(n) = NODES.iter().find(|n| !hired(l, n.id) && !n.chore.is_empty() && chore_open(l, n)) {
         let c = count(l, n.id).min(n.need);
         return pill("count", Some(n.id), format!("{} · {c}/{}", n.name, n.need), Some(c as i64), Some(n.need as i64));
@@ -550,9 +713,9 @@ pub fn next_pill(l: &LineageState, waits: bool) -> NextPill {
 
 /// The workers at their posts (hired; the lit node's greyed with its price).
 pub fn posts(l: &LineageState) -> Vec<WorkerPost> {
-    let mut v: Vec<WorkerPost> = NODES.iter().filter(|n| hired(l, n.id)).map(|n| WorkerPost { id: n.id.into(), post: n.post.into(), paused: l.tree.paused.contains(n.id), ..Default::default() }).collect();
+    let mut v: Vec<WorkerPost> = NODES.iter().filter(|n| hired(l, n.id)).map(|n| WorkerPost { id: n.id.into(), post: n.post.into(), paused: l.tree.paused.contains(n.id), rank: rank(l, n.id), ..Default::default() }).collect();
     if let Some(n) = lit(l) {
-        v.push(WorkerPost { id: n.id.into(), post: n.post.into(), lit: true, price: Some(price(l, n)), paused: false });
+        v.push(WorkerPost { id: n.id.into(), post: n.post.into(), lit: true, price: Some(price(l, n)), paused: false, rank: 0 });
     }
     v
 }

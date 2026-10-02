@@ -149,7 +149,11 @@ pub fn stages(track: &str) -> &'static [(&'static str, &'static str)] {
         "items" => &[("pack of 3", ""), ("storehouse", "first find kept"), ("blacksmith steps", "first gold home"), ("a counter packed", "a drill's item")],
         // (a waystone lit deeper is the scale's next stage: the sends can start there)
         // (each band boss slain is a stage too: the descent opens past him for good)
-        "scale" => &[("one hero", ""), ("party slot 2", "a second slot"), ("waystones", "slay Warlord"), ("Mother slain", "slay Mother"), ("Lich slain", "slay Lich"), ("Master slain", "slay Master"), ("Queen slain", "slay Queen"), ("the bottom", "reach D33"), ("waystone D14", "bank at D14"), ("waystone D19", "bank at D19"), ("waystone D24", "bank at D24"), ("waystone D29", "bank at D29"), ("party slots 3–4", "a fourth slot")],
+        "scale" => &[("one hero", ""), ("party slot 2", "a second slot"), ("waystones", "slay Warlord"), ("Mother slain", "slay Mother"), ("Lich slain", "slay Lich"), ("Master slain", "slay Master"), ("Queen slain", "slay Queen"), ("the bottom", "reach D33"), ("waystone D14", "bank at D14"), ("waystone D19", "bank at D19"), ("waystone D24", "bank at D24"), ("waystone D29", "bank at D29"), ("party slots 3–4", "a fourth slot"),
+            // (Cut 30.5, week 2: a wall wears down — each band boss's scars at ×3 and at the cap ×6, a day met each: the
+            // progress a held record makes while it holds)
+            ("Warlord scarred ×3", "3 days met"), ("Mother scarred ×3", "3 days met"), ("Lich scarred ×3", "3 days met"), ("Master scarred ×3", "3 days met"), ("Queen scarred ×3", "3 days met"), ("King scarred ×3", "3 days met"),
+            ("Warlord scarred ×6", "6 days met"), ("Mother scarred ×6", "6 days met"), ("Lich scarred ×6", "6 days met"), ("Master scarred ×6", "6 days met"), ("Queen scarred ×6", "6 days met"), ("King scarred ×6", "6 days met")],
         "town" => &[("camp", ""), ("blacksmith", "first gold home"), ("storehouse", "first find kept"), ("kennel", "first tame"), ("bank", "a night's purse")],
         _ => &[],
     }
@@ -191,6 +195,18 @@ pub fn reached(l: &LineageState, track: &str, stage: &str) -> bool {
                 _ => "lurker_queen",
             };
             l.kills.contains(boss)
+        }
+        ("scale", w) if w.contains(" scarred ×") => {
+            let (who, n) = w.split_once(" scarred ×").unwrap_or(("", "9"));
+            let boss = match who {
+                "Warlord" => "goblin_warlord",
+                "Mother" => "bloat_mother",
+                "Lich" => "lich",
+                "Master" => "foundry_master",
+                "Queen" => "lurker_queen",
+                _ => "mirror_king",
+            };
+            l.pkg.meets.get(boss).copied().unwrap_or(0) >= n.parse().unwrap_or(99)
         }
         ("scale", w) if w.starts_with("waystone D") => w.trim_start_matches("waystone D").parse::<u32>().is_ok_and(|d| l.stones().contains(&d)),
         // (the King's floor: the descent's last band seen)
@@ -240,6 +256,18 @@ pub fn stage_set(l: &LineageState) -> Vec<(String, String)> {
         for (s, _) in stages(t) {
             if reached(l, t, s) {
                 v.push((t.to_string(), s.to_string()));
+            }
+        }
+    }
+    // (Cut 30.5: the works tree replaces the tracks — a worker hired is a stage of the town's: `+apprentice`)
+    if !l.pkg.literal {
+        for (id, _) in &l.tree.hired {
+            if let Some(n) = crate::tree::def(id).filter(|n| !n.chore.is_empty()) {
+                v.push(("town".to_string(), format!("+{}", n.name)));
+                // (week 2: each rank a worker reaches)
+                for r in 2..=crate::tree::rank(l, id) {
+                    v.push(("town".to_string(), format!("+{} {}", n.name, crate::tree::numeral(r))));
+                }
             }
         }
     }
@@ -344,6 +372,9 @@ pub fn grew(a: &Snap, b: &Snap) -> Vec<GrewLine> {
                 }
             }
             _ => {
+                for (_, s) in new.iter().filter(|(t, s)| t == "town" && s.starts_with('+')) {
+                    add(s.clone());
+                }
                 if b.bank > a.bank {
                     add("interest".into());
                 }
@@ -357,7 +388,7 @@ pub fn grew(a: &Snap, b: &Snap) -> Vec<GrewLine> {
 pub fn wire(l: &LineageState) -> TownWire {
     let next = BUILDINGS.iter().find(|(id, _)| !built(l, id)).map(|(id, tr)| (id.to_string(), tr.to_string()));
     TownWire {
-        buildings: l.town.built.iter().map(|(id, day)| crate::wire::BuildingWire { id: id.clone(), level: level(l, id), day: *day }).collect(),
+        buildings: l.town.built.iter().map(|(id, day)| crate::wire::BuildingWire { id: id.clone(), level: level(l, id), day: *day, trigger: BUILDINGS.iter().find(|b| b.0 == id).map(|b| b.1.to_string()).unwrap_or_default() }).collect(),
         next: next.as_ref().map(|n| n.0.clone()),
         next_trigger: next.map(|n| n.1),
         bank: l.town.bank,
