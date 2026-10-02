@@ -348,6 +348,10 @@ fn camp_taps(g: &mut Game, ask: &Ask, arm: u8, out: &mut SeedOut, h: f64) {
         if off.is_some_and(|sys| !ask.has(sys)) {
             let _ = g.set_worker(n.id, false);
         }
+        // (`DP_OFF=a,b`: a probe's workers hired and switched off — never in a gate run)
+        if std::env::var("DP_OFF").is_ok_and(|v| v.split(',').any(|x| x == n.id)) {
+            let _ = g.set_worker(n.id, false);
+        }
     }
     let l = &g.lineage;
     if l.gold as i64 + l.town.bank as i64 != l.tree.ledger || l.tree.chest < 0 || l.tree.chest > l.gold {
@@ -360,7 +364,8 @@ fn camp_taps(g: &mut Game, ask: &Ask, arm: u8, out: &mut SeedOut, h: f64) {
 /// The guide's start: the deepest lit stone a band under the record (by hand or by the worker).
 fn guide_pick(g: &Game) -> Option<u32> {
     let l = &g.lineage;
-    l.stones().into_iter().filter(|s| s + riddle_core::tree::GUIDE_GAP <= l.best_depth).max().filter(|s| *s > l.start.max(1))
+    let gap = std::env::var("RIDDLE_GUIDE_GAP").ok().and_then(|v| v.parse().ok()).unwrap_or(riddle_core::tree::GUIDE_GAP);
+    l.stones().into_iter().filter(|s| s + gap <= l.best_depth).max().filter(|s| *s > l.start.max(1))
 }
 
 /// The chores HANDS, PICKED and TUNED do by hand until a worker does them: the herald's swap (a quest from an
@@ -371,13 +376,13 @@ fn by_hand_rest(g: &mut Game, ask: &Ask) {
     if !tree::on(l, "herald") && riddle_core::town::quests_open(l) && l.town.quest.as_ref().is_some_and(|q| !q.done && q.day < riddle_core::town::today(l)) && l.town.swap_day != Some(l.day) {
         let _ = g.swap_quest();
     }
-    if !tree::on(&g.lineage, "guide") {
+    if !tree::on(&g.lineage, "guide") && std::env::var_os("DP_NO_HAND_START").is_none() {
         if let Some(s) = guide_pick(g) {
             let _ = g.set_start(s);
         }
     }
     let l = &g.lineage;
-    if !tree::on(l, "kennel_hand") && l.party.len() < l.party_slots() as usize && !l.kennel.is_empty() && ask.has("pets") {
+    if !tree::on(l, "kennel_hand") && std::env::var_os("DP_NO_HAND_PETS").is_none() && l.party.len() < l.party_slots() as usize && !l.kennel.is_empty() && ask.has("pets") {
         field_kennel(g);
     }
 }
@@ -804,6 +809,12 @@ impl Play {
         out.gold_day.push(g.lineage.gold as i64 + g.lineage.town.bank as i64 - self.wealth0);
         out.stance_level_day.push(g.lineage.pkg.level(&g.lineage.pkg.stance));
         self.opened |= riddle_core::town::stage_set(&g.lineage).len() > self.stages0.len();
+        // `DP_STAGES=1`: each day's new stages
+        if std::env::var_os("DP_STAGES").is_some() {
+            let now = riddle_core::town::stage_set(&g.lineage);
+            let new: Vec<String> = now.iter().filter(|x| !self.stages0.contains(x)).map(|(t, s)| format!("{t}:{s}")).collect();
+            eprintln!("  [{}] s{} day {} D{} stages {} {}", cfg.label(), self.seed, day + 1, g.lineage.best_depth, if self.opened { "Y" } else { "-" }, new.join(", "));
+        }
         out.stage_days += self.opened as usize;
         self.new_today |= g.lineage.class_level() > self.level0;
         if day == 0 {
@@ -1135,6 +1146,11 @@ fn main() {
             );
             if verbose {
                 println!("      rules: {}", o.rules);
+            }
+            // `DP_NODES=1`: each node's hours — its chore open · its trigger met · hired
+            if std::env::var_os("DP_NODES").is_some() {
+                let at = |v: &[(String, f64)], id: &str| v.iter().find(|(x, _)| x == id).map_or("-".to_string(), |x| format!("{:.1}", x.1));
+                println!("      nodes: {}", riddle_core::tree::NODES.iter().skip(1).map(|n| format!("{} {}/{}/{}", n.id, at(&o.node_open_h, n.id), at(&o.node_ready_h, n.id), at(&o.node_hired_h, n.id))).collect::<Vec<_>>().join(" · "));
             }
         }
     }

@@ -243,6 +243,14 @@ pub fn stage_set(l: &LineageState) -> Vec<(String, String)> {
             }
         }
     }
+    // (Cut 30.5: the works tree replaces the tracks — a worker hired is a stage of the town's: `+apprentice`)
+    if !l.pkg.literal {
+        for (id, _) in &l.tree.hired {
+            if let Some(n) = crate::tree::def(id).filter(|n| !n.chore.is_empty()) {
+                v.push(("town".to_string(), format!("+{}", n.name)));
+            }
+        }
+    }
     v
 }
 
@@ -344,6 +352,9 @@ pub fn grew(a: &Snap, b: &Snap) -> Vec<GrewLine> {
                 }
             }
             _ => {
+                for (_, s) in new.iter().filter(|(t, s)| t == "town" && s.starts_with('+')) {
+                    add(s.clone());
+                }
                 if b.bank > a.bank {
                     add("interest".into());
                 }
