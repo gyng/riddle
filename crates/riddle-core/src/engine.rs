@@ -4436,9 +4436,10 @@ impl Game {
             items,
             alert: run.alert,
             turn: run.turn,
-            loot: run.loot,
+            // (Cut 30.5: the gold carried — the checkpoints' secured gold with the carry since; the stake reads the carry at risk)
+            loot: run.carried(),
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn, start: run.start.max(1), passage: run.passage },
-            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.loot.max(0) * ExitTier::Death.pct() / 100, swapped: run.swapped, swap_left: run.swap_left.last().cloned() },
+            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.kept(ExitTier::Death), swapped: run.swapped, swap_left: run.swap_left.last().cloned() },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
                 items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
@@ -4565,7 +4566,7 @@ impl Game {
         // the stone it started from
         if !self.sim {
             self.lineage.tree.sent = false;
-            crate::tree::note_start(&mut self.lineage, run.start, run.over != Some(ExitTier::Death) && run.loot > 0, run.over == Some(ExitTier::Death));
+            crate::tree::note_start(&mut self.lineage, run.start, run.over != Some(ExitTier::Death) && run.carried() > 0, run.over == Some(ExitTier::Death));
         }
         let tier = run.over.unwrap_or(ExitTier::Return);
         // (c30-legible: the record before this run, for the end's reason)

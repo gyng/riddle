@@ -145,7 +145,7 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
     let mut g = sim_game(game, rules, tag, i, passage);
     let mut n = 0;
     let mut fires = vec![0u32; rules.rows.len()];
-    let mut arrive: Vec<(u32, u32, i32)> = g.run.as_ref().map(|r| vec![(r.max_depth, 0, r.loot.max(0))]).unwrap_or_default();
+    let mut arrive: Vec<(u32, u32, i32)> = g.run.as_ref().map(|r| vec![(r.max_depth, 0, r.carried())]).unwrap_or_default();
     while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.max_depth < stop_depth) && n < SIM_MAX_TICKS {
         g.tick();
         count_fires(&mut fires, &g.events);
@@ -153,7 +153,8 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
         n += 1;
         if let Some(r) = g.run.as_ref() {
             if arrive.last().is_none_or(|a| r.max_depth > a.0) {
-                arrive.push((r.max_depth, n, r.loot.max(0)));
+                // (Cut 30.5: the gold carried — what the checkpoints secured with the carry since)
+                arrive.push((r.max_depth, n, r.carried()));
             }
         }
     }
@@ -200,7 +201,7 @@ fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> S
     let tier = run.over.unwrap_or(ExitTier::Return);
     // (Cut 27 §1: a waystone start's passage is the send's gold too — paid at the send)
     let loot_kept = run.kept(tier) + run.passage;
-    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage, arrive: Vec::new() }
+    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.carried(), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage, arrive: Vec::new() }
 }
 
 /// The sims `from..sims` of a panel on the cores, in index order: a worker takes the next index

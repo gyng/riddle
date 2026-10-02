@@ -40,7 +40,7 @@ impl Game {
         }
         let mut all: Vec<Ev> = Vec::new();
         let first = std::mem::take(&mut self.events);
-        let loot0 = self.run.as_ref().map_or(0, |r| r.loot);
+        let loot0 = self.run.as_ref().map_or(0, |r| r.carried());
         let mut acc = Acc { depth: from, snapshot: self.snapshot(), events: Vec::new(), loot0, dip: None, beats: Vec::new() };
         self.beats_of(&mut acc, &first);
         all.extend(first.iter().cloned());
@@ -57,7 +57,7 @@ impl Game {
             if depth > to || n >= FOLD_MAX_TICKS {
                 break;
             }
-            let loot_before = self.run.as_ref().map_or(0, |r| r.loot);
+            let loot_before = self.run.as_ref().map_or(0, |r| r.carried());
             self.tick();
             n += 1;
             let evs = std::mem::take(&mut self.events);
@@ -89,7 +89,7 @@ impl Game {
         if run_over && acc.depth <= to {
             let s = self.snapshot();
             merge(&mut acc.snapshot, &s);
-            let loot = self.run.as_ref().map_or(0, |r| r.loot);
+            let loot = self.run.as_ref().map_or(0, |r| r.carried());
             floors.push(close(acc, clear_of, loot));
         }
         let step = self.step_result(all, run_over);

@@ -219,7 +219,7 @@ fn pick_package(g: &mut Game, verbose: bool, day: usize, swap: bool) -> bool {
 fn pick_score(o: &riddle_core::packages::PkgOption) -> f64 {
     riddle_core::packages::score(o) + PICK_MEAN * o.d_mean
 }
-const PICK_MEAN: f64 = 0.4;
+const PICK_MEAN: f64 = 0.2;
 
 /// The forecast's panel for a package move, and the move it must clear.
 const PICK_SIMS: u32 = 32;
