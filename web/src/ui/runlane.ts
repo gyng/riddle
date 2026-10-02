@@ -40,7 +40,7 @@ export function renderLanes(app: App, hooks: LaneHooks): LanesUi {
   const log = h("button", { class: "lanes-log", "data-tile": "log", "aria-label": /* copy:label */ "runs log", onclick: () => hooks.log() });
   kwHost(log, "log");
   const el = h("div", { class: "lanes", role: "group", "aria-label": /* copy:label */ "runs" }, rows, log);
-  let last = "";
+  let last = "", lastLog = "";
   function paint(): void {
     const L = app.lineage;
     const lanes = lanesOf(L, app.restLeftS());
@@ -49,11 +49,17 @@ export function renderLanes(app: App, hooks: LaneHooks): LanesUi {
     const unseen = unseenRuns(L);
     // (the rows rebuild only when what they say changes: a press on a row is never lost to a repaint)
     const key = JSON.stringify([shown.map((x) => [x.id, x.state, x.depth, x.hp, x.max_hp, x.rest_s === undefined ? "" : spanOf(x.rest_s), x.auto, x.have, x.need, x.name, x.kind]), more, runs, unseen, L.class, L.look]);
-    el.dataset.n = String(lanes.length);
-    el.dataset.states = lanes.map((x) => x.state).join(" ");
-    log.hidden = runs === 0 && !(L.chronicle?.length) && L.heir < 5;   // day 0: nothing to read (the town keeps its four surfaces); the heirs' book from the 5th heir
-    replace(log, h("span", { class: "ll-ico", "aria-hidden": "true" }, "☰"), h("span", { class: "ll-l" }, /* copy:button */ "log"),
-      unseen > 0 ? h("b", { class: "ll-n num", "data-n": unseen }, String(Math.min(unseen, 99))) : "");
+    if (el.dataset.n !== String(lanes.length)) el.dataset.n = String(lanes.length);
+    const states = lanes.map((x) => x.state).join(" ");
+    if (el.dataset.states !== states) el.dataset.states = states;
+    const hide = runs === 0 && !(L.chronicle?.length) && L.heir < 5;   // day 0: nothing to read (the town keeps its four surfaces); the heirs' book from the 5th heir
+    // (the DOM is written only when what it says changes: a repaint a second must not move what a finger or a test is about to press)
+    const logKey = `${hide}|${unseen}`;
+    if (logKey !== lastLog) {
+      lastLog = logKey; log.hidden = hide;
+      replace(log, h("span", { class: "ll-ico", "aria-hidden": "true" }, "☰"), h("span", { class: "ll-l" }, /* copy:button */ "log"),
+        unseen > 0 ? h("b", { class: "ll-n num", "data-n": unseen }, String(Math.min(unseen, 99))) : "");
+    }
     if (key === last) return;
     last = key;
     replace(rows, ...shown.map((x, i) => laneRow(app, x, i, hooks, runs > 0)), more > 0 ? moreRow(lanes.slice(LANES_SHOWN)) : "");
