@@ -204,7 +204,7 @@ pub struct Run {
     /// QA on 23ed91f: summoned foes cut down this run (no XP, renown or bestiary count).
     #[serde(default)]
     pub summoned_kills: u32,
-    pub brought: Vec<u32>,
+    pub brought: crate::shared::Shared<Vec<u32>>,
     pub trace: Vec<crate::shared::Shared<TraceTurn>>,
     pub notes: crate::shared::Shared<Vec<(u32, String)>>,
     pub over: Option<ExitTier>,
@@ -221,7 +221,7 @@ pub struct Run {
     pub hurt_last: bool,
     pub kill_since_action: bool,
     pub kill_last: bool,
-    pub seen_ids: BTreeSet<u32>,
+    pub seen_ids: crate::shared::Shared<BTreeSet<u32>>,
     pub new_seen: bool,
     pub telegraphs_now: Vec<String>,
     pub low10_t: Option<u32>,
@@ -279,7 +279,7 @@ pub struct Run {
     pub stolen_kinds: Vec<(u32, String, i32)>,
     pub ally_lost: Vec<(u32, String)>,
     pub ally_freed: Vec<u32>,
-    pub boss_kills: Vec<(u32, String)>,
+    pub boss_kills: crate::shared::Shared<Vec<(u32, String)>>,
     /// Cut 28 §1: what an oath reads of a run — the potions the hero drank (any kind, a trait's
     /// sip included), whether he rested, the bosses fire hurt (their kinds).
     #[serde(default, skip_serializing_if = "is_zero_u32")]
@@ -311,11 +311,11 @@ pub struct Run {
     pub route2: bool,
     /// Cut 28 §4 (AU: a one-slot vault salvaged a caged sword +1, no choice): the items taken from
     /// a cage this run — a return's cut never takes them; they reach the keep sheet.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub caged: Vec<u32>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub caged: crate::shared::Shared<Vec<u32>>,
     /// Cut 28 §1: (floor, tick) each time the run went deeper than it had been (the `swift` oath).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub depth_t: Vec<(u32, u32)>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub depth_t: crate::shared::Shared<Vec<(u32, u32)>>,
     /// Cut 28 §2: the hero's max-hp steps this run, oldest first (`Trace.max_steps`).
     #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
     pub max_steps: crate::shared::Shared<Vec<crate::wire::MaxStep>>,
@@ -324,8 +324,8 @@ pub struct Run {
     pub boss_seen_t: Option<u32>,
     /// Cut 30 §1: the band bosses this run saw (a meeting: drills, scars), and the scars the send
     /// carried (boss → percent of max hp off).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub bosses_met: Vec<String>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub bosses_met: crate::shared::Shared<Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scars: Vec<(String, u32)>,
     pub hurt_since_boss: bool,
@@ -333,7 +333,7 @@ pub struct Run {
     pub renderable_events: u32,
     pub ended: bool,
     pub max_depth: u32,
-    pub trophies_run: Vec<String>,
+    pub trophies_run: crate::shared::Shared<Vec<String>>,
     /// Companion records active in this run (party members and new tames).
     pub companions: Vec<Companion>,
     pub recalled: Vec<u32>,
@@ -346,7 +346,7 @@ pub struct Run {
     /// QA on 0c6e126 (qaZ: `new find: leash`, the free supply back from bones): the kinds the
     /// send packed (its supplies), never a find of the run.
     #[serde(default)]
-    pub packed: Vec<String>,
+    pub packed: crate::shared::Shared<Vec<String>>,
     /// QA on 524827b (qaAB: a bought 2nd leash, $30, merged into the kennel's free stack at the
     /// pack and went back to the kennel as the free one at a return — gone, run after run): the
     /// price paid for each bought leash packed into the stack (the stack's units carry no mark).
@@ -493,8 +493,8 @@ pub struct Run {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blows: Vec<crate::wire::TraceBlow>,
     /// QA on 524827b: the hp lost since the hero was last at full hp, per cause (`Trace.hp_lost`).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub hp_lost: Vec<(String, i32)>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub hp_lost: crate::shared::Shared<Vec<(String, i32)>>,
     /// QA on 308f045 (qaAC: `since full hp` summing to 72 on a 36-hp hero): the hp he had when
     /// the count began (`hp_lost`'s first blow) — what the losses beyond it were healed from.
     #[serde(default, skip_serializing_if = "is_zero_i32")]
@@ -680,7 +680,7 @@ pub struct Run {
     #[serde(default)]
     pub lit: bool,
     #[serde(default)]
-    pub passed: Vec<String>,
+    pub passed: crate::shared::Shared<Vec<String>>,
     /// §3: the gas lock's tiles (bloats swell on sight), for the `on_see: lock` token.
     #[serde(default)]
     pub lock_tiles: Vec<Pos>,
@@ -701,9 +701,9 @@ pub struct Run {
     /// the run's seed (each band's flagship floor is drawn from it), and a kind forced on
     /// the next floor (trials and probes; never saved).
     #[serde(default)]
-    pub floor_twist: Option<String>,
+    pub floor_twist: crate::shared::Shared<Option<String>>,
     #[serde(default)]
-    pub last_twist: Option<String>,
+    pub last_twist: crate::shared::Shared<Option<String>>,
     #[serde(default)]
     pub seed: u64,
     #[serde(skip)]
@@ -731,14 +731,14 @@ pub struct Run {
     pub bounty_gold: i32,
     /// §5: the grudges (by name) this run avenged — the lineage marks them at the exit, and a
     /// later kill of the same named foe reads `slain`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub avenged: Vec<String>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub avenged: crate::shared::Shared<Vec<String>>,
     // Cut 24 §2
     /// Named foes (a stray, the first jackal) met in the last two runs (`LineageState::
     /// named_met`): they rest this run — a named foe appears at most every third run unless it
     /// holds a grudge. And the names this run placed.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub named_rest: Vec<String>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub named_rest: crate::shared::Shared<Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub named_placed: Vec<String>,
     /// The floor events' lines (by kind: `shrine`, `lock`, `omen:fens` …) shown in the last two
@@ -755,7 +755,7 @@ pub struct Run {
     /// thinned depths; `LineageState::thin_map` at the send) — a floor's gold piles and item
     /// budget are kept at this rate (`populate_floor`).
     #[serde(default)]
-    pub thin: BTreeMap<u32, u32>,
+    pub thin: crate::shared::Shared<BTreeMap<u32, u32>>,
 }
 
 impl Run {
@@ -3555,7 +3555,7 @@ impl Game {
             kills_floor: 0,
             kills: Vec::new().into(),
             summoned_kills: 0,
-            brought,
+            brought: brought.into(),
             trace: Vec::new(),
             notes: Vec::new().into(),
             over: None,
@@ -3567,7 +3567,7 @@ impl Game {
             hurt_last: false,
             kill_since_action: false,
             kill_last: false,
-            seen_ids: BTreeSet::new(),
+            seen_ids: BTreeSet::new().into(),
             new_seen: false,
             telegraphs_now: Vec::new(),
             low10_t: None,
@@ -3590,7 +3590,7 @@ impl Game {
             stolen_kinds: Vec::new(),
             ally_lost: Vec::new(),
             ally_freed: Vec::new(),
-            boss_kills: Vec::new(),
+            boss_kills: Vec::new().into(),
             drinks: 0,
             rested: false,
             oath: crate::oath::sworn(&self.lineage).cloned(),
@@ -3601,20 +3601,20 @@ impl Game {
             tamed_grudges: Vec::new(),
             meters: Default::default(),
             burned: Vec::new(),
-            caged: Vec::new(),
-            depth_t: Vec::new(),
+            caged: Vec::new().into(),
+            depth_t: Vec::new().into(),
             max_steps: Vec::new().into(),
             drank_heal: false,
             melee_used: false,
             boss_seen_t: None,
-            bosses_met: Vec::new(),
+            bosses_met: Vec::new().into(),
             scars: crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| (k.to_string(), self.lineage.pkg.scar(k, &self.lineage.kills))).filter(|(_, p)| *p > 0).collect(),
             hurt_since_boss: false,
             row_fired: vec![0; ROWS_TOTAL],
             renderable_events: 0,
             ended: false,
             max_depth: start,
-            trophies_run: Vec::new(),
+            trophies_run: Vec::new().into(),
             companions: Vec::new(),
             recalled: Vec::new(),
             tamed: Vec::new(),
@@ -3661,7 +3661,7 @@ impl Game {
             pickup_dry: 0,
             drain_on: None,
             blows: Vec::new(),
-            hp_lost: Vec::new(),
+            hp_lost: Vec::new().into(),
             hp_lost_from: 0,
             known_foes: BTreeMap::new(),
             loot_raw: 0,
@@ -3720,7 +3720,7 @@ impl Game {
             den_bolted: false,
             bounty: self.lineage.bounty,
             bounty_gold: 0,
-            avenged: Vec::new(),
+            avenged: Vec::new().into(),
             named_rest: self.lineage.named_met.keys().filter(|n| self.lineage.named_resting(n, id)).cloned().collect(),
             named_placed: Vec::new(),
             event_recent: self.lineage.event_recent.iter().map(|(k, v)| (k.clone(), v.iter().filter(|(r, _)| r + 2 >= id).map(|(_, i)| *i).collect::<Vec<u8>>())).filter(|(_, v)| !v.is_empty()).collect(),
@@ -3729,17 +3729,17 @@ impl Game {
             gas_dmg_floor: 0,
             lock_last_pop: 0,
             lit: false,
-            passed: Vec::new(),
+            passed: Vec::new().into(),
             lock_tiles: Vec::new(),
             raiding: false,
             acting_row: -1,
-            floor_twist: None,
-            last_twist: None,
+            floor_twist: None.into(),
+            last_twist: None.into(),
             seed,
             next_twist: None,
             sleepers: Vec::new(),
-            thin: self.lineage.thin_map(),
-            packed: Vec::new(),
+            thin: self.lineage.thin_map().into(),
+            packed: Vec::new().into(),
             bought_leashes: Vec::new(),
         };
         // Cut 30 §1: the heir's traits go on the run (`frail` takes its max hp here).
@@ -4397,7 +4397,7 @@ impl Game {
         self.batch.band_runs.push(BandRun {
             depth: run.max_depth,
             met: run.situations.iter().map(|(_, s)| s.clone()).filter(|s| band.contains(&s.as_str())).collect(),
-            passed: run.passed.clone(),
+            passed: (*run.passed).clone(),
         });
         self.lineage.heir_best = self.lineage.heir_best.max(run.max_depth);
         if !run.ally_freed.is_empty() {
@@ -4726,11 +4726,11 @@ impl Game {
         }
         self.batch.heirs = Some(self.batch.heirs.map_or((run.heir, run.heir), |(lo, hi)| (lo.min(run.heir), hi.max(run.heir))));
         self.batch.gold_earned += loot_kept;
-        let mut all: Vec<Item> = run.hero.inv.clone();
-        if let Some(w) = &run.hero.weapon {
+        let mut all: Vec<Item> = (*run.hero.inv).clone();
+        if let Some(w) = &*run.hero.weapon {
             all.push(w.clone());
         }
-        if let Some(a) = &run.hero.armour {
+        if let Some(a) = &*run.hero.armour {
             all.push(a.clone());
         }
         // QA on 778fa1b (qaV): the melee weapon parked while the bow is up comes home too.
@@ -6447,7 +6447,7 @@ pub fn place_bones(run: &mut Run) {
 /// den, lock, captive, nest, shrine, vault, stray, hunger), never the previous floor's kind;
 /// `Run.floor_twist` names it for the interstitial and the reel.
 pub fn place_situations(run: &mut Run, lost: &[Lost]) {
-    run.last_twist = run.floor_twist.take();
+    run.last_twist = run.floor_twist.take().into();
     // Cut 24 §2: a lost companion met in the last two runs rests (`Run.named_rest`).
     let lost: Vec<Lost> = lost.iter().filter(|l| !run.named_rest.contains(&l.name)).cloned().collect();
     let lost = &lost[..];

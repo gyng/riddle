@@ -99,6 +99,11 @@ pub fn vec_is_empty<T>(v: &Shared<Vec<T>>) -> bool {
     v.is_empty()
 }
 
+/// `skip_serializing_if` for a shared `Option`.
+pub fn option_is_none<T>(o: &Shared<Option<T>>) -> bool {
+    o.is_none()
+}
+
 /// `skip_serializing_if` for a shared `BTreeMap`.
 pub fn map_is_empty<K, V>(m: &Shared<BTreeMap<K, V>>) -> bool {
     m.is_empty()

@@ -730,7 +730,7 @@ fn bloat_mother_swells_and_pops_a_big_cloud() {
         run.overlays.clear();
         run.monsters.retain(|m| m.hp > 0);
         run.monsters[0].hp = 3;
-        run.hero.weapon = None;
+        run.hero.weapon = None.into();
         run.hero.auto_equip(Item::new(77, "bow"));
         run.hero.pos = Pos::new(2, 5);
         run.hero_dist_pos = None;
@@ -909,7 +909,7 @@ fn scrolls_read_identify_and_take_effect() {
 #[test]
 fn gear_stats_and_bow_shoots_at_range() {
     let mut g = arena();
-    g.run.as_mut().unwrap().hero.weapon = None;
+    g.run.as_mut().unwrap().hero.weapon = None.into();
     g.run.as_mut().unwrap().hero.auto_equip(Item::new(60, "bow"));
     g.run.as_mut().unwrap().hero.auto_equip(Item::new(61, "mail"));
     assert_eq!(hero(&g).atk(), (2, 6));
@@ -2039,7 +2039,7 @@ fn hero_party_scope_recall_is_a_free_action() {
 #[test]
 fn counters_scale_damage_and_are_learned() {
     let mut g = arena();
-    g.run.as_mut().unwrap().hero.weapon = None;
+    g.run.as_mut().unwrap().hero.weapon = None.into();
     g.run.as_mut().unwrap().hero.auto_equip(Item::new(60, "bow"));
     let o = add_monster(&mut g, "ogre", 8, 5);
     g.run.as_mut().unwrap().monsters[0].awake = false;
@@ -2580,7 +2580,7 @@ fn lich_reflects_arrows_and_keeps_chanting_while_summons_stand() {
     let mut g = arena();
     g.run.as_mut().unwrap().hero.max_hp = 400;
     g.run.as_mut().unwrap().hero.hp = 399;
-    g.run.as_mut().unwrap().hero.weapon = None;
+    g.run.as_mut().unwrap().hero.weapon = None.into();
     g.run.as_mut().unwrap().hero.auto_equip(Item::new(60, "bow"));
     let l = add_monster(&mut g, "lich", 9, 5);
     attack_rules(&mut g);
@@ -2727,7 +2727,7 @@ fn iron_golem_reflects_melee_but_not_arrows() {
     // Arrows land.
     let mut g = arena();
     let id = add_monster(&mut g, "iron_golem", 9, 5);
-    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "bow"));
+    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "bow")).into();
     attack_rules(&mut g);
     ticks(&mut g, 60);
     assert!(monster(&g, id).is_none_or(|m| m.hp < m.max_hp), "a shot golem is hurt");
@@ -2940,7 +2940,7 @@ fn echo_splits_on_ranged_hits_only() {
     let count = |g: &Game| g.run.as_ref().unwrap().monsters.iter().filter(|m| m.kind == "echo" && m.hp > 0).count();
     let mut g = arena();
     add_monster(&mut g, "echo", 9, 5);
-    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "bow"));
+    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "bow")).into();
     attack_rules(&mut g);
     let mut split = false;
     for _ in 0..60 {
@@ -3226,14 +3226,14 @@ fn new_potions_take_effect() {
 #[test]
 fn spear_reaches_two_tiles_and_mace_stuns_sometimes() {
     let mut g = arena();
-    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "spear"));
+    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "spear")).into();
     add_monster(&mut g, "goblin", 6, 5);
     attack_rules(&mut g);
     let evs = ticks(&mut g, 10);
     assert!(evs.iter().any(|e| matches!(e, Ev::Attack { src: HERO_ID, .. })), "struck from two tiles");
     assert_eq!(hero(&g).pos, Pos::new(4, 5), "without stepping");
     let mut g = arena();
-    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "mace"));
+    g.run.as_mut().unwrap().hero.weapon = Some(Item::new(2, "mace")).into();
     g.run.as_mut().unwrap().hero.hp = 9999;
     g.run.as_mut().unwrap().hero.max_hp = 9999;
     let id = add_monster(&mut g, "ogre", 5, 5);
@@ -6106,7 +6106,7 @@ fn boss_counter_patch_is_pinned_at_the_top_only() {
 fn death_margin_reads_hp_short() {
     let mut g = arena();
     g.run.as_mut().unwrap().hero.hp = 3;
-    g.run.as_mut().unwrap().hero.armour = None;
+    g.run.as_mut().unwrap().hero.armour = None.into();
     for (x, y) in [(5, 5), (5, 4), (5, 6)] {
         add_monster(&mut g, "ogre", x, y);
     }
@@ -9443,7 +9443,7 @@ fn den_pass_checks_the_runs_thefts() {
         let mut g = arena();
         {
             let run = g.run.as_mut().unwrap();
-            run.floor_twist = Some("den".into());
+            run.floor_twist = Some("den".into()).into();
             run.met_situation("den");
             if outstanding {
                 run.stolen_ids.push(9999);
@@ -9683,9 +9683,9 @@ fn a_thief_takes_the_found_then_coins_then_a_packed_supply() {
     assert!(run.hero.weapon.as_ref().is_some_and(|w| crate::kit::is_kit_id(w.id)));
     assert!(crate::ai::thief_pick(run, false, false).is_none(), "the kit's arm is never a thief's");
     let found = run.new_item_id();
-    run.hero.weapon = Some(crate::item::Item::new(found, "axe"));
+    run.hero.weapon = Some(crate::item::Item::new(found, "axe")).into();
     let worn = run.new_item_id();
-    run.hero.armour = Some(crate::item::Item::new(worn, "mail"));
+    run.hero.armour = Some(crate::item::Item::new(worn, "mail")).into();
     assert!(crate::ai::thief_pick(run, false, false).is_none(), "the worn axe and mail are never a thief's");
     run.loot_add_gold(3);
     assert!(matches!(crate::ai::thief_pick(run, false, false), Some(crate::ai::Take::Coins(3))));
@@ -10935,7 +10935,7 @@ fn a_full_pack_never_paces_over_an_item_it_cannot_take() {
         let kit = Item::new(crate::kit::WEAPON_ID, "sword");
         run.hero.inv.push(kit);
         let axe = run.new_item_id();
-        run.hero.weapon = Some(Item::new(axe, "axe"));
+        run.hero.weapon = Some(Item::new(axe, "axe")).into();
         let spare = run.new_item_id();
         run.hero.inv.push(Item::new(spare, "sword"));
         for _ in 0..9 {
