@@ -176,12 +176,12 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   async function openChest(b: HTMLElement): Promise<void> {
     if (!app.engine.openChest || (app.lineage.tree?.chest ?? 0) <= 0) return;
     const gold = app.lineage.tree!.chest;
+    const flew = coinsFly(b, gold);   // (from the chest's box before the repaint takes its target away)
     chestOpenUntil = performance.now() + 1500; paint();
     clearTimeout(chestTimer); chestTimer = window.setTimeout(() => { if (el.isConnected) paint(); }, 1550);
     audio.cue("exit_bank");
-    const flew = coinsFly(b, gold);
     if (flew) await new Promise((r) => setTimeout(r, 380));   // the purse ticks as the first coins land
-    await app.mutate(() => app.engine.openChest!(), /* copy:callout */ "chest");
+    await app.mutate(() => app.engine.openChest!());   // (no forecast move to name: the purse is the sims' either way)
   }
   function send(after: () => void): void {
     if (sending) return;
@@ -210,7 +210,7 @@ export function coinsFly(from: HTMLElement, gold: number): boolean {
       { transform: "translate(0, 0) scale(.6)", opacity: 0 },
       { transform: `translate(${sx}px, ${-up}px) scale(1.1)`, opacity: 1, offset: 0.3 },
       { transform: `translate(${x1 - x0}px, ${y1 - y0}px) scale(.7)`, opacity: 1 },
-    ], { duration: 520 + i * 12, delay: i * 35, easing: "cubic-bezier(.3,.1,.5,1)", fill: "both" });
+    ], { duration: 640 + i * 14, delay: i * 35, easing: "cubic-bezier(.3,.1,.5,1)", fill: "both" });
     anim.onfinish = () => c.remove(); setTimeout(() => c.remove(), 1600);
   }
   return true;

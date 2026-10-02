@@ -39,7 +39,7 @@ const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: shots ? 2 : 1 });
 page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-const shot = async (name) => { if (shots) { await sleep(500); await page.screenshot({ path: resolve(shots, `${name}.png`) }); } };
+const shot = async (name, ms = 500) => { if (shots) { await page.mouse.move(1, 300); await sleep(ms); await page.screenshot({ path: resolve(shots, `${name}.png`) }); } };
 async function until(pred, label, timeout = 20_000, arg) {
   const t = Date.now(); let v;
   while (Date.now() - t < timeout) { v = await page.evaluate(pred, arg).catch(() => null); if (v) return v; await sleep(80); }
@@ -122,7 +122,7 @@ const sheetRead = () => page.evaluate(() => {
 const closeSheets = () => page.evaluate(() => { for (const s of document.querySelectorAll(".sheet .close-stud, .sheet .sheet-x")) s.click(); });
 
 try {
-  await boot(30501);
+  await boot(Number(process.env.CUT305_SEED ?? 30504));
 
   // ---- day 0
   if (part("day0") || part("walk")) {
@@ -157,7 +157,7 @@ try {
         if (chests === 0) await shot("chest-full");
         const before = s.gold, haul = s.chest;
         await page.locator('.town-hit[data-building="chest"]').click();
-        if (chests === 0) await shot("chest-open");
+        if (chests === 0) await shot("chest-open", 240);   // (the coins in the air)
         await until(() => (window.__riddle.lineage.tree?.chest ?? 1) === 0, "the chest emptied", 5000);
         await sleep(200); s = await S(); chests++;
         step(`${t}+`, s.gold === before + haul && s.porter.count === chests && (s.tchest === "open" || s.porter.state === "lit"), `chest tapped: $${before} → $${s.gold} (+$${haul}), porter ${s.porter.count}/${s.porter.need}, the pill moves (\`${s.pill}\`)`);

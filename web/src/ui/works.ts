@@ -128,7 +128,7 @@ export function openWorks(app: App, focus?: string, anchor?: HTMLElement | null)
 /** The hire: the core's (`hire(id)`), then the beat — `PORTER HIRED` — while the worker walks to his post (the town's). */
 export async function hireNode(app: App, n: WorkNode, close?: () => void): Promise<boolean> {
   if (!app.engine.hire) return false;
-  const ok = await app.mutate(() => app.engine.hire!(n.id), /* copy:callout */ "hire");
+  const ok = await app.mutate(() => app.engine.hire!(n.id));
   if (!ok) return false;
   audio.cue("unlock");
   close?.();
@@ -175,7 +175,7 @@ export function mergeWorkers(a: WorkerAct[] | undefined, b: WorkerAct[] | undefi
     const x = out.find((z) => z.id === y.id);
     if (!x) { out.push({ ...y }); continue; }
     const n = x.n + y.n;
-    x.what = /\d/.test(y.what) ? y.what.replace(/\d+/, String(n)) : y.what; x.n = n; x.first = x.first || y.first;
+    x.what = /\d/.test(y.what) ? y.what.replace(/\d+/, String(n)).replace(/\b(step|level)$/, n > 1 ? "$1s" : "$1") : y.what; x.n = n; x.first = x.first || y.first;
   }
   return out;
 }
