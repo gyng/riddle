@@ -3945,8 +3945,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the ARMOURER: a broad figure in a chain-mail shirt under a leather tabard, holding a steel HELMET up in one hand to inspect it, beside a wooden WEAPON RACK (to the right, as tall as their shoulder) with two swords and a spear standing in it, MIST edges on the blades — the weapon rack and the held helmet are the tag. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the ARMOURER: a broad figure in a chain-mail shirt under a leather tabard, holding a steel HELMET up in one hand to inspect it, beside a wooden WEAPON RACK (to the right, as tall as their shoulder) with two swords and a spear standing in it, MIST edges on the blades — the weapon rack and the held helmet are the tag."
+      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the ARMOURER: a broad figure WEARING a full suit of bright polished steel PLATE armour (the lightest figure in town: MIST-lit steel with BONE highlights, no helmet, a bare BONE face), holding a steel HELMET up in one hand, beside a wooden WEAPON RACK (to the right, as tall as their shoulder) with two swords and a spear with MIST blades — the shining armour, the held helmet and the rack are the tag; nothing like a dark smith. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the ARMOURER: a broad figure WEARING a full suit of bright polished steel PLATE armour (the lightest figure in town: MIST-lit steel with BONE highlights, no helmet, a bare BONE face), holding a steel HELMET up in one hand, beside a wooden WEAPON RACK (to the right, as tall as their shoulder) with two swords and a spear with MIST blades — the shining armour, the held helmet and the rack are the tag; nothing like a dark smith."
     },
     {
       "id": "town_worker_armourer_1",
@@ -3985,8 +3985,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the STOREKEEPER: an old stooped figure in a long DUSK coat and a knit cap, a big iron KEY RING hanging at the belt, sweeping with a tall straw BROOM held diagonally, a small lidded crate by the feet — the broom and the big key ring are the tag. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the STOREKEEPER: an old stooped figure in a long DUSK coat and a knit cap, a big iron KEY RING hanging at the belt, sweeping with a tall straw BROOM held diagonally, a small lidded crate by the feet — the broom and the big key ring are the tag."
+      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the STOREKEEPER: a short stout old man with a bald head and a white beard, in a short work jacket and a long pale BONE-canvas apron (no robe, no hood, no long coat), a huge iron KEY RING with big keys held up in one hand at shoulder height, a pale straw BROOM tucked under the other arm — the pale apron, the big keys and the broom are the tag; nothing like a hooded traveller. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the STOREKEEPER: a short stout old man with a bald head and a white beard, in a short work jacket and a long pale BONE-canvas apron (no robe, no hood, no long coat), a huge iron KEY RING with big keys held up in one hand at shoulder height, a pale straw BROOM tucked under the other arm — the pale apron, the big keys and the broom are the tag; nothing like a hooded traveller."
     },
     {
       "id": "town_worker_keeper_1",
@@ -3995,8 +3995,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "the idle-work frame of town_worker_keeper: the same keeper with the broom swept to the other side, a little puff of BONE dust at its head; same scale, the feet and the head top where frame 0 has them, nothing higher than the head. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "the idle-work frame of town_worker_keeper: the same keeper with the broom swept to the other side, a little puff of BONE dust at its head; same scale, the feet and the head top where frame 0 has them, nothing higher than the head."
+      "description": "the idle-work frame of town_worker_keeper: the same storekeeper sweeping with the broom in both hands, the key ring hanging large at the belt, a puff of BONE dust; same scale, the feet and the head top where frame 0 has them, nothing higher than the head. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "the idle-work frame of town_worker_keeper: the same storekeeper sweeping with the broom in both hands, the key ring hanging large at the belt, a puff of BONE dust; same scale, the feet and the head top where frame 0 has them, nothing higher than the head."
     },
     {
       "id": "town_worker_clerk",
@@ -4005,8 +4005,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the bank CLERK: a thin upright figure in a long dark frock coat with GILT buttons, round spectacles, a big open LEDGER book with pale BONE pages held open on one forearm, a quill pen in the other hand, a small coin purse at the belt — the open pale ledger is the tag. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the bank CLERK: a thin upright figure in a long dark frock coat with GILT buttons, round spectacles, a big open LEDGER book with pale BONE pages held open on one forearm, a quill pen in the other hand, a small coin purse at the belt — the open pale ledger is the tag."
+      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the bank CLERK: a thin upright figure in a long dark frock coat with GILT buttons, round spectacles, holding a BIG open LEDGER wide open in both hands in front of the chest, the two pale BONE pages as wide as their shoulders and facing the viewer (a big bright rectangle on the dark coat), a quill tucked behind the ear — the big open pale ledger is the tag. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the bank CLERK: a thin upright figure in a long dark frock coat with GILT buttons, round spectacles, holding a BIG open LEDGER wide open in both hands in front of the chest, the two pale BONE pages as wide as their shoulders and facing the viewer (a big bright rectangle on the dark coat), a quill tucked behind the ear — the big open pale ledger is the tag."
     },
     {
       "id": "town_worker_clerk_1",
@@ -4015,8 +4015,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "the idle-work frame of town_worker_clerk: the same clerk with the head bent, writing in the ledger with the quill; same scale, the feet and the head top where frame 0 has them, nothing higher than the head. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "the idle-work frame of town_worker_clerk: the same clerk with the head bent, writing in the ledger with the quill; same scale, the feet and the head top where frame 0 has them, nothing higher than the head."
+      "description": "the idle-work frame of town_worker_clerk: the same clerk holding the big ledger open on one forearm, writing in it with a quill, the pages still facing the viewer; same scale, the feet and the head top where frame 0 has them, nothing higher than the head. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "the idle-work frame of town_worker_clerk: the same clerk holding the big ledger open on one forearm, writing in it with a quill, the pages still facing the viewer; same scale, the feet and the head top where frame 0 has them, nothing higher than the head."
     },
     {
       "id": "town_worker_drillmaster",
@@ -4105,8 +4105,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the SCOUT (the send-worker: sends the hero down): a lean light-footed figure in a short hooded cape over a leather jerkin, a wide-brimmed hat with a MIST feather, raising a brass SPYGLASS to the eye with one hand, the other arm stretched out pointing forward and down (toward the dungeon), a short horn at the hip — the raised spyglass and the pointing arm are the tag. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the SCOUT (the send-worker: sends the hero down): a lean light-footed figure in a short hooded cape over a leather jerkin, a wide-brimmed hat with a MIST feather, raising a brass SPYGLASS to the eye with one hand, the other arm stretched out pointing forward and down (toward the dungeon), a short horn at the hip — the raised spyglass and the pointing arm are the tag."
+      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the SCOUT (the send-worker: sends the hero down): a lean light-footed figure in a short hooded MOON-blue cape over a leather jerkin, a wide-brimmed hat with a MIST feather, holding a short, fat, segmented brass SPYGLASS (GILT, three clear rings, a flared eyepiece; thick, clearly not a gun) to the eye angled UP, the other arm stretched out pointing forward and down toward the dungeon — the gilt spyglass at the eye and the pointing arm are the tag. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the SCOUT (the send-worker: sends the hero down): a lean light-footed figure in a short hooded MOON-blue cape over a leather jerkin, a wide-brimmed hat with a MIST feather, holding a short, fat, segmented brass SPYGLASS (GILT, three clear rings, a flared eyepiece; thick, clearly not a gun) to the eye angled UP, the other arm stretched out pointing forward and down toward the dungeon — the gilt spyglass at the eye and the pointing arm are the tag."
     },
     {
       "id": "town_worker_scout_1",
@@ -4115,8 +4115,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "the idle-work frame of town_worker_scout: the same scout lowering the spyglass and waving the pointing arm forward, a 'go now' beckon; same scale, the feet and the head top where frame 0 has them, nothing higher than the head. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "the idle-work frame of town_worker_scout: the same scout lowering the spyglass and waving the pointing arm forward, a 'go now' beckon; same scale, the feet and the head top where frame 0 has them, nothing higher than the head."
+      "description": "the idle-work frame of town_worker_scout: the same scout with the spyglass lowered to the chest and the free arm waving forward, a 'go now' beckon; same scale, the feet and the head top where frame 0 has them, nothing higher than the head. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "the idle-work frame of town_worker_scout: the same scout with the spyglass lowered to the chest and the free arm waving forward, a 'go now' beckon; same scale, the feet and the head top where frame 0 has them, nothing higher than the head."
     },
     {
       "id": "town_worker_quartermaster",
@@ -4125,8 +4125,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the QUARTERMASTER (packs the hero's supplies): a stout figure in a buff padded coat and a leather cap, a big stuffed BACKPACK with a bedroll strapped on held up in front by its straps, a corked POTION flask with a pale BONE label hanging at the belt, a coil of rope over the shoulder — the held-up backpack is the tag. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the QUARTERMASTER (packs the hero's supplies): a stout figure in a buff padded coat and a leather cap, a big stuffed BACKPACK with a bedroll strapped on held up in front by its straps, a corked POTION flask with a pale BONE label hanging at the belt, a coil of rope over the shoulder — the held-up backpack is the tag."
+      "description": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the QUARTERMASTER (packs the hero's supplies): a stout figure in a DARK UMBRA coat and a leather cap, holding out in front with both hands a BIG stuffed brown leather BACKPACK (half their height) with a rolled pale BONE BEDROLL strapped across its top and a coiled rope on its side, a corked potion flask with a pale label at the belt — the big backpack with the pale bedroll, bright against the dark coat, is the tag. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "a TOWNSFOLK worker standing at their post, facing right in the high three-quarter town view, full body; workers wear no BLOOD (BLOOD is the hero's); a pale BONE face; the tag object drawn LARGE (it is the role's read at 24 px); the QUARTERMASTER (packs the hero's supplies): a stout figure in a DARK UMBRA coat and a leather cap, holding out in front with both hands a BIG stuffed brown leather BACKPACK (half their height) with a rolled pale BONE BEDROLL strapped across its top and a coiled rope on its side, a corked potion flask with a pale label at the belt — the big backpack with the pale bedroll, bright against the dark coat, is the tag."
     },
     {
       "id": "town_worker_quartermaster_1",
@@ -4135,8 +4135,8 @@
       "gen": "1024x1024",
       "master_h": 96,
       "texel_h": 48,
-      "description": "the idle-work frame of town_worker_quartermaster: the same quartermaster tucking the potion flask into the backpack's top, the pack held against the hip; same scale, the feet and the head top where frame 0 has them, nothing higher than the head. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
-      "brief3": "the idle-work frame of town_worker_quartermaster: the same quartermaster tucking the potion flask into the backpack's top, the pack held against the hip; same scale, the feet and the head top where frame 0 has them, nothing higher than the head."
+      "description": "the idle-work frame of town_worker_quartermaster: the same quartermaster swinging the big backpack onto one shoulder, holding a corked potion flask up in the other hand; same scale, the feet and the head top where frame 0 has them, nothing higher than the head. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
+      "brief3": "the idle-work frame of town_worker_quartermaster: the same quartermaster swinging the big backpack onto one shoulder, holding a corked potion flask up in the other hand; same scale, the feet and the head top where frame 0 has them, nothing higher than the head."
     },
     {
       "id": "town_haul_chest",

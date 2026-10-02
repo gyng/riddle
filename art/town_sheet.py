@@ -58,11 +58,11 @@ GREY = {"town_worker_scout"}
 
 
 def grey(f: Image.Image) -> Image.Image:
-    """not yet hired: the figure's values only, lifted toward MIST and dimmed, a little see-through (render/town.ts does the same)"""
+    """not yet hired: the figure's values only, lifted toward a pale MIST grey, a little see-through (render/town.ts does the same)"""
     a = np.asarray(f, np.float32)
     lum = a[..., :3] @ np.array([0.2126, 0.7152, 0.0722], np.float32)
-    g = lum[..., None] * 0.45 + np.array([164, 188, 214], np.float32) * 0.22
-    out = np.dstack([g, a[..., 3:] * 0.72])
+    g = lum[..., None] * 0.4 + np.array([164, 188, 214], np.float32) * 0.42   # (blind read: × 0.45 + MIST × 0.22 vanished at night)
+    out = np.dstack([g, a[..., 3:] * 0.8])
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "RGBA")
 TREES = [(8, 40), (28, 30), (44, 60), (366, 36), (388, 64), (350, 74), (12, 130), (392, 140), (10, 330), (392, 330),
          (16, 490), (384, 490), (40, 556), (360, 556), (230, 560), (156, 556)]
@@ -141,7 +141,7 @@ def scene(a: Image.Image, fr: dict, night: bool | None, labels: bool) -> Image.I
         im.alpha_composite(f, (ox, oy))
         for dx, dy, st in lights.get(k, []):
             pools.append((ax + dx, ay + dy, st, (232, 146, 58)))
-        if k.startswith("walk_") and night:
+        if k.startswith(("walk_", "town_worker_")) and night:   # (blind read: dark-coated workers sank into the night grass)
             pools.append((ax, ay - 20, 0.35, (164, 188, 214)))
     rgb = np.asarray(im, np.float32)[..., :3]
     if night is None:

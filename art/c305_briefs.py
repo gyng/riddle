@@ -24,9 +24,7 @@ WORKERS = [
      "— the handcart heaped with sacks is the tag",
      "the same porter LEANING forward into the handles, pushing the cart, the near wheel turned a quarter, one foot back"),
     ("armourer",
-     "the ARMOURER: a broad figure in a chain-mail shirt under a leather tabard, holding a steel HELMET up in one hand to inspect it, "
-     "beside a wooden WEAPON RACK (to the right, as tall as their shoulder) with two swords and a spear standing in it, MIST edges on "
-     "the blades — the weapon rack and the held helmet are the tag",
+     'the ARMOURER: a broad figure WEARING a full suit of bright polished steel PLATE armour (the lightest figure in town: MIST-lit steel with BONE highlights, no helmet, a bare BONE face), holding a steel HELMET up in one hand, beside a wooden WEAPON RACK (to the right, as tall as their shoulder) with two swords and a spear with MIST blades — the shining armour, the held helmet and the rack are the tag; nothing like a dark smith',
      "the same armourer setting the helmet on top of the rack, the other hand on a sword's hilt in the rack"),
     ("apprentice",
      "the forge APPRENTICE: a YOUNG slight figure in an oversized leather apron, sleeves rolled, a small hammer raised to shoulder "
@@ -34,14 +32,11 @@ WORKERS = [
      "— the anvil and the raised hammer are the tag",
      "the same apprentice with the hammer DOWN on the glowing bar, three or four small EMBER sparks flying off it"),
     ("keeper",
-     "the STOREKEEPER: an old stooped figure in a long DUSK coat and a knit cap, a big iron KEY RING hanging at the belt, sweeping "
-     "with a tall straw BROOM held diagonally, a small lidded crate by the feet — the broom and the big key ring are the tag",
-     "the same keeper with the broom swept to the other side, a little puff of BONE dust at its head"),
+     'the STOREKEEPER: a short stout old man with a bald head and a white beard, in a short work jacket and a long pale BONE-canvas apron (no robe, no hood, no long coat), a huge iron KEY RING with big keys held up in one hand at shoulder height, a pale straw BROOM tucked under the other arm — the pale apron, the big keys and the broom are the tag; nothing like a hooded traveller',
+     'the same storekeeper sweeping with the broom in both hands, the key ring hanging large at the belt, a puff of BONE dust'),
     ("clerk",
-     "the bank CLERK: a thin upright figure in a long dark frock coat with GILT buttons, round spectacles, a big open LEDGER book "
-     "with pale BONE pages held open on one forearm, a quill pen in the other hand, a small coin purse at the belt "
-     "— the open pale ledger is the tag",
-     "the same clerk with the head bent, writing in the ledger with the quill"),
+     'the bank CLERK: a thin upright figure in a long dark frock coat with GILT buttons, round spectacles, holding a BIG open LEDGER wide open in both hands in front of the chest, the two pale BONE pages as wide as their shoulders and facing the viewer (a big bright rectangle on the dark coat), a quill tucked behind the ear — the big open pale ledger is the tag',
+     'the same clerk holding the big ledger open on one forearm, writing in it with a quill, the pages still facing the viewer'),
     ("drillmaster",
      "the DRILLMASTER: a tall broad-shouldered veteran in a padded gambeson and a round kettle helm, one hand behind the back, the "
      "other pointing a long wooden PRACTICE SWORD forward at a straw TRAINING DUMMY on a post (to the right, a little shorter than "
@@ -62,15 +57,11 @@ WORKERS = [
      "and the hood are the tag",
      "the same guide lifting the lantern to shoulder height and peering ahead, the staff planted"),
     ("scout",
-     "the SCOUT (the send-worker: sends the hero down): a lean light-footed figure in a short hooded cape over a leather jerkin, a "
-     "wide-brimmed hat with a MIST feather, raising a brass SPYGLASS to the eye with one hand, the other arm stretched out pointing "
-     "forward and down (toward the dungeon), a short horn at the hip — the raised spyglass and the pointing arm are the tag",
-     "the same scout lowering the spyglass and waving the pointing arm forward, a 'go now' beckon"),
+     'the SCOUT (the send-worker: sends the hero down): a lean light-footed figure in a short hooded MOON-blue cape over a leather jerkin, a wide-brimmed hat with a MIST feather, holding a short, fat, segmented brass SPYGLASS (GILT, three clear rings, a flared eyepiece; thick, clearly not a gun) to the eye angled UP, the other arm stretched out pointing forward and down toward the dungeon — the gilt spyglass at the eye and the pointing arm are the tag',
+     "the same scout with the spyglass lowered to the chest and the free arm waving forward, a 'go now' beckon"),
     ("quartermaster",
-     "the QUARTERMASTER (packs the hero's supplies): a stout figure in a buff padded coat and a leather cap, a big stuffed BACKPACK "
-     "with a bedroll strapped on held up in front by its straps, a corked POTION flask with a pale BONE label hanging at the belt, "
-     "a coil of rope over the shoulder — the held-up backpack is the tag",
-     "the same quartermaster tucking the potion flask into the backpack's top, the pack held against the hip"),
+     "the QUARTERMASTER (packs the hero's supplies): a stout figure in a DARK UMBRA coat and a leather cap, holding out in front with both hands a BIG stuffed brown leather BACKPACK (half their height) with a rolled pale BONE BEDROLL strapped across its top and a coiled rope on its side, a corked potion flask with a pale label at the belt — the big backpack with the pale bedroll, bright against the dark coat, is the tag",
+     'the same quartermaster swinging the big backpack onto one shoulder, holding a corked potion flask up in the other hand'),
 ]
 CHEST = [
     ("town_haul_chest",

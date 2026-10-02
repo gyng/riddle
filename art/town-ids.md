@@ -107,9 +107,10 @@ the frame, so a wide frame's anchor sits a little left of the figure for those f
 offsets below are the sheet's). Facing right; flip for left. Frame `_1` is the idle-work pose: alternate `town_worker_<w>` and
 `_1` every ~0.9–1.4 s (a slow chore beat, desynchronised per worker), never a walk.
 
-**Not yet hired = a renderer tint, no frames of its own**: the frame's luminance only, × 0.45 plus MIST × 0.22 (a cool pale
-grey), alpha × 0.72 (`art/town_sheet.py grey()`; the town quad's `dim` alone keeps the hue, so `town.ts` needs the desaturate).
-Draw frame 0 only (no idle beat) while greyed, with the price marker above.
+**Not yet hired = a renderer tint, no frames of its own**: the frame's values only, lifted to a cool pale
+grey (luminance × 0.4 + MIST × 0.42, alpha × 0.8 (`art/town_sheet.py grey()`; the town quad's `dim` alone keeps the hue, so
+`town.ts` needs the desaturate). Draw frame 0 only (no idle beat) while greyed, with the price marker above. At night give each
+worker the walkers' small MIST light (r ≈ 18, 0.35, at (0, −20)): the dark-coated ones sink into the night grass without it (blind read).
 
 | id (+ `_1`) | node | post (sheet anchor, units) | tag | fallback |
 |---|---|---|---|---|
