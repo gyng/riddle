@@ -117,7 +117,9 @@ pub fn withdraw(l: &mut LineageState, amount: i32) -> Result<i32, String> {
 
 /// A night ended: the bank pays its interest (never negative; the balance may pass the cap by it).
 pub fn night(l: &mut LineageState) -> i32 {
-    let i = (l.town.bank.max(0) * BANK_PCT / 100).max(0);
+    // (Cut 30.5, week 2: the clerk's rank adds a quarter of a percent a night each)
+    let permille = BANK_PCT * 10 + crate::tree::CLERK_BONUS_PERMILLE * crate::tree::bonus_rank(l, "clerk") as i32;
+    let i = (l.town.bank.max(0) * permille / 1000).max(0);
     l.town.bank += i;
     l.town.interest += i;
     l.tree.ledger += i as i64;

@@ -3387,7 +3387,7 @@ impl Game {
 
     /// Cut 3: camp rest after a run (`no_rest` halves it).
     pub fn rest_after(&self, turns: u32, tier: ExitTier) -> u32 {
-        let r = crate::offline::rest_after(turns, tier);
+        let r = crate::tree::rest_scaled(&self.lineage, crate::offline::rest_after(turns, tier));
         if self.lineage.variant_is("no_rest") {
             r / 2
         } else {
@@ -3861,7 +3861,7 @@ impl Game {
         if self.lineage.night_passes.contains(&want) {
             return (want, None, 0);
         }
-        let toll = LineageState::start_toll(want);
+        let toll = crate::tree::toll_scaled(&self.lineage, LineageState::start_toll(want));
         let short = toll > 0 && (self.lineage.gold < toll || (self.offline && self.lineage.night_short == Some(want)));
         if short {
             if self.offline {
