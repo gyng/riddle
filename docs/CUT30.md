@@ -462,6 +462,26 @@ share* — raterAG died on none of its 60 sends at 8 seeds × 8 h (the bar wants
 forge's steps re-roll the runs (a 2-day probe without the forge: identical to IDLE, seed for seed), ±16–32 h at D13/D18
 either way on 3 of 8 seeds — a per-seed bar against a chaotic twin.
 
+**Checkpoint 10 — the full gate on `961a01a`** (round 8 rows; cut30 + gate-speed + hotpath; `GATES_THREADS=20`,
+cold, 1 h 44 min on a shared box: metrics 2021 s, qa 577 s, dayplayer 6214 s — 16 seeds of every bot and leave-one-out):
+metrics **all PASS** (30 seeds; the return row 22/22 at full size; Steady safest 7 % vs 9/87/23 %; Guarded, Bold,
+Hunter best at 1, 2, 3 walls); qa **all PASS** (30 seeds). Dayplayer:
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days) | 16/16 · 1.7 · 16/16 med 7.3 · 3 · 14 · 0/16 · 1/5 · 672/672 · 8.0 | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.67 · 2.25 · 1.74 | PASS |
+| Never out-paced · stage days ≥ 10 · content reach · stalls IDLE/PICKED/TUNED | 100 % · 10.0 · 16/16 · 0 / 0.17 / 0 % | PASS |
+| TUNED beats PICKED by ≥ 15 % at D33 (D29 info 1.11) | 1.26 | PASS |
+| RANDOM never beats PICKED at D13 · D23 | 16/16 · 16/16 | PASS |
+| Each system by its own output | packages 96/152 h→D23 · pen 28.3/27.5 · forge 28.3/26.2 · pets 36.2/43.9 % · bank $2772/$2557 · quests 12.5/0 | PASS |
+| Nothing required (median ± a check-in; no seed > 24 h behind) | every system ok but packages: median lag D13 0 · D18 −8 · D23 −28 h; worst seed +32 · +72 · +40 h | FAIL (worst-seed clause) |
+
+The one fail is the chaotic twin again: until the pen opens (day 5) TUNED − packages is IDLE with the forge and the
+bank, and the forge's steps re-roll the runs. Four forge orders measured side by side on 16 seeds × 4 days (as bought,
+no armour, weapon first, no pack): the lags at D13 spread −16 … +24/+40 h around a median of 0 in every one; no
+order gives TUNED − packages a lead over IDLE before D23, where the pen's 28 h shows.
+
 ## Deviations
 - **Round 6, owner-approved 2026-10-01.** (1) *TUNED beats PICKED by ≥ 15 %* is measured at **D29** (past D28) and
   D33, not D28 and D33: the D28 floor is gated by the walls above it, which drill before the pen opens.
