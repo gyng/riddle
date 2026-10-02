@@ -1,0 +1,61 @@
+/* Run-clear — the run's card before the town (ui/runclear.ts). The report's parchment and the death's wax seal: the end pressed as a
+   seal of its colour (banked gilt, returned moonlit, a stall or a drive-off ember, a death the blood seal), its reason in the display face
+   under it, then the floor, the coins, the finds and one plaque. No new chrome: the plaque is the report's tile metal, the seal the death's. */
+main.report.clearing .report-well { display: flex; flex-direction: column; justify-content: safe center; }
+.run-clear { position: relative; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 16px 12px 18px; text-align: center; cursor: pointer;
+  min-height: min(520px, calc(100% - 8px)); justify-content: safe center; flex: none; box-sizing: border-box; height: auto; outline: none; }
+.skin-panel .run-clear { padding: 12px 10px 16px; }
+.run-clear:focus-visible { box-shadow: 0 0 0 2px var(--gilt); }
+
+.rc-stamp { position: relative; width: 112px; height: 112px; border-radius: 50%; transform: rotate(-9deg); display: flex; align-items: center; justify-content: center;
+  font: 900 23px/1 var(--display); text-transform: uppercase; letter-spacing: .02em; color: #efe5cc; text-shadow: 0 2px 0 rgba(13, 12, 20, .65);
+  background: radial-gradient(circle, #a7001f 52%, var(--clot) 66%, #440005 70%, transparent 72%); flex: none; margin-bottom: 2px; }
+.skin-seal .rc-stamp { background: url(/ui/frames/seal.png) center / 100% 100% no-repeat; }
+/* the end's colour: the same wax, re-pigmented (filters keep the seal's painted relief) */
+.rc-stamp.end-banked { filter: grayscale(1) sepia(1) saturate(2.8) brightness(1.2) hue-rotate(-6deg); }
+.rc-stamp.end-returned { filter: hue-rotate(205deg) saturate(.55) brightness(1.05); }
+.rc-stamp.end-stalled, .rc-stamp.end-repelled { filter: hue-rotate(28deg) saturate(1.2); }
+.rc-stamp.end-returned, .rc-stamp.end-stalled, .rc-stamp.end-repelled { font-size: 19px; }
+.rc-stamp.end-repelled { font-size: 17px; }
+
+.rc-reason { font: 600 23px/1.1 var(--display); color: var(--ink-text); letter-spacing: .01em; }
+.rc-depth, .rc-gold, .rc-xp-row { display: flex; align-items: center; justify-content: center; gap: 10px; }
+/* the plaque: the report's tile metal in miniature */
+.rc-plaque { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 5px; font: 700 20px/1.1 var(--num); color: var(--bone);
+  background: linear-gradient(#262c44, #15141e); box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1px rgba(164, 188, 214, .35), 0 2px 3px rgba(13, 12, 20, .45); }
+.rc-plaque .ico { width: 22px; height: 22px; }
+.rc-best { font: 700 15px/1 var(--display); text-transform: uppercase; letter-spacing: .06em; color: #fff3d6; padding: 5px 10px; border-radius: 4px;
+  background: linear-gradient(#c49a4f, #8a6526); box-shadow: 0 0 0 1px var(--ink), inset 0 1px 0 rgba(255, 240, 200, .5); }
+.rc-gold { font: 700 28px/1 var(--num); color: var(--ink-text); }
+.rc-gold .ico { width: 30px; height: 30px; }
+.rc-gold .rc-coins { min-width: 2.6ch; text-align: right; font-variant-numeric: tabular-nums; }
+.rc-gold .rc-arrow { color: var(--ink-dim); font-size: 22px; }
+.rc-gold .rc-to { font: 600 20px/1 var(--display); color: var(--ink-dim); }
+.rc-finds { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.rc-find-name { font: 700 19px/1.1 var(--display); }
+.rc-xp { font-size: 17px; }
+.rc-xp.up b { color: var(--r-uncommon-lit, #86bc95); }
+
+/* a death's header strip (the death screen is the card for a death): on the dark well */
+.rc-strip { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 6px auto 2px; }
+.rc-strip .rc-plaque { font-size: 16px; padding: 3px 9px; }
+.rc-strip .rc-best { font-size: 12px; padding: 4px 8px; }
+.rc-strip .item-row { gap: 6px; }
+
+/* juice: the seal slams, the reason rises, the plaques drop in; the coins count (runclear.ts); the finds pop by rarity (items.css) */
+@media (prefers-reduced-motion: no-preference) {
+  html[data-juice="on"] .run-clear .rc-stamp { animation: j-seal-slam .5s cubic-bezier(.3, 1.7, .45, 1) .08s both; }
+  html[data-juice="on"] .run-clear .rc-stamp::before { content: ""; position: absolute; inset: -26%; border-radius: 50%; pointer-events: none;
+    border: 3px solid rgba(234, 223, 197, .6); animation: rc-ring .7s ease-out .3s both; }
+  @keyframes rc-ring { from { transform: scale(.5); opacity: .9; } to { transform: scale(1.35); opacity: 0; } }
+  html[data-juice="on"] .run-clear .rc-reason { animation: rc-rise .4s ease-out .35s both; }
+  html[data-juice="on"] .run-clear .rc-depth, html[data-juice="on"] .run-clear .rc-gold, html[data-juice="on"] .run-clear .rc-xp-row { animation: rc-drop .42s cubic-bezier(.3, 1.3, .5, 1) both; }
+  html[data-juice="on"] .run-clear .rc-depth { animation-delay: .45s; }
+  html[data-juice="on"] .run-clear .rc-gold { animation-delay: .5s; }
+  html[data-juice="on"] .run-clear .rc-xp-row { animation-delay: .9s; }
+  html[data-juice="on"] .run-clear .rc-best { animation: rc-badge .5s cubic-bezier(.3, 1.8, .45, 1) .7s both; }
+  html[data-juice="on"] .run-clear .rc-find-name { animation: rc-rise .4s ease-out 1.1s both; }
+  @keyframes rc-rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes rc-drop { from { transform: translateY(-12px) scale(1.06); opacity: 0; filter: brightness(1.6); } to { transform: none; opacity: 1; filter: none; } }
+  @keyframes rc-badge { from { transform: scale(2) rotate(-6deg); opacity: 0; } 60% { transform: scale(.94) rotate(-6deg); opacity: 1; } to { transform: rotate(-3deg); } }
+}

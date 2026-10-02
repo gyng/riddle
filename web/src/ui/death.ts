@@ -17,6 +17,7 @@ import { morgueVerbs } from "./chain";
 import { lastRun, replayable } from "./runlog";
 import { openReplay } from "./replay";
 import { h, copyText, items } from "./dom";
+import { clearStrip } from "./runclear";   // run-clear: the death's header strip
 import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
 import { applyOf, fillReach, leadFirst, openDropSheet, patchOf, patchRows, sinkHarms } from "./patches";
@@ -305,6 +306,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerSrc ? " has-killer" : ""}` },
       // gfx round 10 (raters, every round: "show the killer behind the banner"): the killer's portrait in an iron medallion on the cloth
       killerSrc ? h("img", { class: "killer", src: killerSrc, alt: "", draggable: "false", "aria-hidden": "true" }) : null, luckLead, line)),
+    // run-clear: the death screen is a death's card — its header carries the floor, a new best, the finds left in the bones
+    kept || from ? null : clearStrip(d.line),
     ...(prePen ? [whyEl, now] : [whyEl, details, now, more, tail]));
   const wide = wideCols(app, null);   // desktop: the rules left, the shaft right (wide.css); the fight is under details
   const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}${prePen ? " prepen" : ""}` }, bar.el, well, cons.el, ...wide.els);

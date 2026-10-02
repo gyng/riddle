@@ -111,6 +111,22 @@ pub fn step_label(l: &LineageState, slot: &str, i: usize) -> String {
     }
 }
 
+/// Run-clear: a step's item and its rarity (`item::rarity` of the kit piece it forges: `sword +3`, `mail +1`);
+/// `None` for the pack's steps (no item).
+pub fn step_item(l: &LineageState, slot: &str, i: usize) -> Option<(String, crate::item::Rarity)> {
+    let (kind, e) = match slot {
+        "weapon" => (l.class.starting_weapon().to_string(), i as i32 + 1),
+        "armour" => {
+            let (k, e) = ARMOUR_STEPS[i.min(ARMOUR_STEPS.len() - 1)];
+            (k.to_string(), e)
+        }
+        _ => return None,
+    };
+    let mut it = Item::new(0, &kind);
+    it.enchant = e;
+    Some((kind, crate::item::rarity(&it, true)))
+}
+
 /// The price of step `i` of a ladder (fixed once the forge is shown: `unit_of`).
 pub fn price(l: &LineageState, slot: &str, i: usize) -> u32 {
     unit_of(l) * mults(slot).get(i).copied().unwrap_or(0)
@@ -155,7 +171,10 @@ pub fn ladders(l: &LineageState) -> Vec<KitLadder> {
         .iter()
         .map(|slot| {
             let n = owned(l, slot) as usize;
-            let steps: Vec<KitStep> = (0..mults(slot).len()).map(|i| KitStep { label: step_label(l, slot, i), price: price(l, slot, i), owned: i < n }).collect();
+            let steps: Vec<KitStep> = (0..mults(slot).len()).map(|i| {
+                let item = step_item(l, slot, i);
+                KitStep { label: step_label(l, slot, i), price: price(l, slot, i), owned: i < n, kind: item.as_ref().map(|x| x.0.clone()), rarity: item.map(|x| x.1).unwrap_or_default() }
+            }).collect();
             let short = s_short(l, steps.get(n).map(|s| s.price).unwrap_or(0));
             let purse = crate::tree::purse(l);
             let next = steps.get(n).map(|s| KitNext { label: s.label.clone(), price: s.price, affordable: purse >= s.price as i32, nights: nights(l, s.price as i64 - purse as i64), per_night: (short > 0 && per_night(l) > 0).then(|| per_night(l)), ..Default::default() });

@@ -1,0 +1,62 @@
+You are painting UI ICONS for the game "Riddle" (a gothic dark-fantasy roguelike on a phone held in portrait). FIRST look
+at these approved STYLE TARGETS (you may open these images and nothing else in the repository): /home/g/p/riddle/.claude/worktrees/runclear/art/ui/targets/style/ui_sheet.png, /home/g/p/riddle/.claude/worktrees/runclear/art/ui/targets/style/death.png, /home/g/p/riddle/.claude/worktrees/runclear/art/ui/targets/style/watch_warrens.png. They are the target look.
+
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT modify
+anything outside /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/. Save each final PNG (sRGB) to the exact path at the exact size; resample with PIL (Lanczos) if needed,
+keeping the aspect (crop the long side, never stretch). Delete any scratch or _inspection_ files you create. OVERWRITE existing
+files. When done, look at each output once and regenerate it once if it breaks a rule below.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== ICON RULES (ui_sheet.png's resource icons and command-tile icons) ===
+Each icon is ONE object drawn as a BONE ink drawing: a confident INK contour, one line weight, BONE and MIST washes inside with
+granulation, a hint of the pixel grid in its stepped edges, cold light from above. No gradients, no glossy metal, no warm amber,
+no tile or frame behind it, no text, no letters, no numbers. It must read at 32-40 px: a strong simple silhouette filling ~75 % of
+the canvas, centred. Only where the subject says so, one small accent: BLOOD, EMBER, GILT or MIST.
+ALPHA: every asset marked RGBA has a TRUE TRANSPARENT background outside the object (the four canvas corners alpha 0, no
+checkerboard, no key colour, no black or paper fill). OPAQUE assets fill the canvas edge to edge.
+
+=== ASSETS ===
+These are ITEM icons for the inventory, vault and run-end card, beside the existing command icons (open /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/forge.png and /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/vault.png and /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/node_armourer.png: match their ink, wash and weight). Each: the OBJECT ALONE (no hands, no people), in a three-quarter view, filling ~75 % of the canvas. They must tell apart at 32 px by silhouette alone: weapons by their heads, armour by their outline and texture. Keep them NEUTRAL in colour (BONE, MIST, DUSK washes, INK contour): the game draws a rarity rim around them, so no coloured glow, no frame, no gem colour.
+1) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_dagger.png — 256x256 RGBA — a short DAGGER, blade up-right, plain crossguard, leather grip.
+2) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_sword.png — 256x256 RGBA — a straight one-handed SWORD diagonal hilt lower-left, a small GILT pommel.
+3) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_axe.png — 256x256 RGBA — a single-bitted war AXE on a short haft, the broad crescent head large.
+4) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_bow.png — 256x256 RGBA — a recurve longBOW drawn as a tall curve with its string, one arrow across it.
+5) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_spear.png — 256x256 RGBA — a SPEAR diagonal, a long leaf-shaped head and a short cloth tassel.
+6) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_mace.png — 256x256 RGBA — a flanged MACE, the heavy ribbed head large at the top, short haft.
+7) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_leather.png — 256x256 RGBA — a LEATHER jerkin seen front-on, laced front, stitched seams.
+8) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_mail.png — 256x256 RGBA — a MAIL shirt (chain mail) front-on, short sleeves, the ring texture as fine hatching.
+9) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_plate.png — 256x256 RGBA — a steel PLATE breastplate front-on, a ridge down the middle, rivets, pauldrons.
+10) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_scale.png — 256x256 RGBA — a SCALE armour coat front-on, overlapping scales like a fish, short sleeves.
+11) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_potion.png — 256x256 RGBA — a round-bellied glass POTION flask with a cork, a MIST liquid inside (no colour accent).
+12) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_scroll.png — 256x256 RGBA — a rolled parchment SCROLL tied with a cord, diagonal.
+13) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_lantern.png — 256x256 RGBA — a hooded iron LANTERN with a ring handle, a small EMBER flame inside.
+14) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_bell.png — 256x256 RGBA — a bronze HAND BELL with a wooden handle, ringing marks.
+15) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_salt.png — 256x256 RGBA — a small cloth SALT pouch spilling a little heap of white grains.
+16) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_chalk.png — 256x256 RGBA — a stick of white CHALK and a chalk sigil line drawn under it.
+17) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_mirror_shard.png — 256x256 RGBA — a jagged SHARD of mirror glass, a MIST glint along one edge.
+18) /home/g/p/riddle/.claude/worktrees/runclear/art/ui/icons/it_leash.png — 256x256 RGBA — a coiled leather LEASH with an iron collar ring.
+When all assets are saved, list the final paths and sizes. Do nothing else.
