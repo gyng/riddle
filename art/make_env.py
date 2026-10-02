@@ -387,6 +387,12 @@ def main() -> int:
     for tid in refined:
         written[tid] = Image.open(OUT / f"{tid}.png")
     print(f"refined: {len(refined)} tiles from the round-26 register")
+    # Cut 30 town v1: the town's ground banded and painted like the dungeon's, and the path's edges (art/town_tiles.py)
+    from town_tiles import build as town_build  # noqa: E402
+    town = town_build(OUT)
+    for tid in town:
+        written[tid] = Image.open(OUT / f"{tid}.png")
+    print(f"town ground: {len(town)} tiles")
     sheet(written).save(OUT / "_env_sheet.png")
     print(f"wrote {len(written)} env tiles -> {OUT}")
     if missing:
