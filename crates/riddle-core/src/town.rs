@@ -39,6 +39,10 @@ pub struct Town {
     /// A harness's switch (the dayplayer's leave-one-out): the board never opens.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub off: bool,
+    /// The day on the lineage's clock inside an absence (the offline loop's, as its sends finish):
+    /// `LineageState::day` moves at an absence's start, the board's day at every day it crosses.
+    #[serde(skip)]
+    pub today: u32,
 }
 
 fn triggered(l: &LineageState, id: &str) -> bool {
@@ -246,7 +250,8 @@ pub fn stage_set(l: &LineageState) -> Vec<(String, String)> {
 pub struct Snap {
     pub xp: u64,
     pub class_level: u32,
-    pub pkg_levels: u32,
+    /// Each package's level (id, level).
+    pub pkg_level: Vec<(String, u32)>,
     pub gold: i64,
     pub kit: u32,
     pub finds: usize,
@@ -262,7 +267,7 @@ pub fn snap(l: &LineageState) -> Snap {
     Snap {
         xp: l.classes.values().map(|c| c.xp as u64 + 1000 * c.level as u64).sum(),
         class_level: l.class_level(),
-        pkg_levels: l.pkg.runs.keys().map(|k| l.pkg.level(k)).sum(),
+        pkg_level: l.pkg.runs.keys().map(|k| (k.clone(), l.pkg.level(k))).collect(),
         gold: l.gold as i64 + l.town.bank as i64,
         kit: crate::kit::KIT_SLOTS.iter().map(|s| crate::kit::owned(l, s)).sum(),
         finds: l.vault.len() + l.found_kinds.len(),
@@ -275,45 +280,73 @@ pub fn snap(l: &LineageState) -> Snap {
     }
 }
 
-/// What grew on each track between two snaps (the report leads with it).
+/// What grew on each track between two snaps (the report leads with it). Per track, the most
+/// important first — a new stage, a package that arrived, a level, then xp and gold — each fact once
+/// (no `opened` prefix: the stage's name is the news; a stage another line already says is left out).
 pub fn grew(a: &Snap, b: &Snap) -> Vec<GrewLine> {
-    let mut out = Vec::new();
-    let mut add = |track: &str, what: String| out.push(GrewLine { track: track.into(), what });
-    if b.class_level > a.class_level {
-        add("character", format!("L{}", b.class_level));
-    } else if b.xp > a.xp {
-        add("character", "xp".into());
-    }
-    if b.pkg_levels > a.pkg_levels {
-        add("character", "package level".into());
-    }
-    if b.drills > a.drills {
-        add("character", "drilled".into());
-    }
-    if b.gold > a.gold {
-        add("items", format!("+${}", b.gold - a.gold));
-    }
-    if b.kit > a.kit {
-        add("items", "blacksmith step".into());
-    }
-    if b.finds > a.finds {
-        add("items", "a find".into());
-    }
-    if b.best > a.best {
-        add("scale", format!("best D{}", b.best));
-    }
-    if b.party > a.party {
-        add("scale", "a companion".into());
-    }
-    if b.buildings > a.buildings {
-        add("town", "a building".into());
-    }
-    if b.bank > a.bank {
-        add("town", "interest".into());
-    }
-    for s in &b.stages {
-        if !a.stages.contains(s) {
-            add(&s.0.clone(), format!("opened {}", s.1));
+    let new: Vec<&(String, String)> = b.stages.iter().filter(|s| !a.stages.contains(s)).collect();
+    let has = |t: &str, s: &str| new.iter().any(|(tt, ss)| tt == t && ss == s);
+    let arrived = new.iter().any(|(t, s)| t == "character" && s.starts_with('+'));
+    let mut out: Vec<GrewLine> = Vec::new();
+    for track in TRACKS {
+        let mut add = |what: String| out.push(GrewLine { track: track.into(), what });
+        // 1 · the stages (a package's arrival after them; its slot's stage is the same news)
+        for (t, s) in new.iter().filter(|(t, s)| t == track && !s.starts_with('+')) {
+            let said = match (t.as_str(), s.as_str()) {
+                ("character", "second stance" | "a tactic" | "a temperament") => arrived,
+                // (the town's row names the building)
+                ("items", "storehouse") => true,
+                ("items", "blacksmith steps") => has("town", "blacksmith"),
+                _ => false,
+            };
+            if !said {
+                add(s.clone());
+            }
+        }
+        match track {
+            "character" => {
+                for (_, s) in new.iter().filter(|(t, s)| t == "character" && s.starts_with('+')) {
+                    add(s.clone());
+                }
+                if b.class_level > a.class_level {
+                    add(format!("L{}", b.class_level));
+                }
+                for (id, lv) in &b.pkg_level {
+                    if a.pkg_level.iter().find(|(k, _)| k == id).map_or(1, |(_, l)| *l) < *lv {
+                        add(format!("{} L{lv}", crate::packages::name(id)));
+                    }
+                }
+                if b.drills > a.drills && !new.iter().any(|(t, s)| t == "character" && s.ends_with(" drilled")) {
+                    add("drilled".into());
+                }
+                if b.class_level <= a.class_level && b.xp > a.xp {
+                    add("xp".into());
+                }
+            }
+            "items" => {
+                if b.gold > a.gold {
+                    add(format!("+${}", b.gold - a.gold));
+                }
+                if b.finds > a.finds {
+                    add("a find".into());
+                }
+                if b.kit > a.kit {
+                    add("blacksmith step".into());
+                }
+            }
+            "scale" => {
+                if b.best > a.best {
+                    add(format!("best D{}", b.best));
+                }
+                if b.party > a.party {
+                    add("a companion".into());
+                }
+            }
+            _ => {
+                if b.bank > a.bank {
+                    add("interest".into());
+                }
+            }
         }
     }
     out
@@ -416,8 +449,21 @@ pub fn draw(l: &mut LineageState) {
         _ => crate::descent::boss_depth(next_boss.as_deref().unwrap_or("")).unwrap_or(best),
     };
     let reward = reward_for(l, seq);
-    let day = l.day;
+    let day = today(l);
     l.town.quest = Some(Quest { id: seq, goal: goal.into(), depth, boss: if goal == "slay" { next_boss } else { None }, reward, progress: 0, day, done: false });
+}
+
+/// The board's day: the lineage's, or a later one an absence has crossed.
+pub fn today(l: &LineageState) -> u32 {
+    l.day.max(l.town.today)
+}
+
+/// A new day on the board: a quest kept on an earlier day gives way to the day's draw (from the
+/// record as it stands), as does an empty board.
+pub fn roll(l: &mut LineageState) {
+    if quests_open(l) && l.town.quest.as_ref().is_none_or(|q| q.done && q.day < today(l)) {
+        draw(l);
+    }
 }
 
 /// One free swap a day: a fresh quest in place of the one on the board.
@@ -440,10 +486,8 @@ pub fn on_run(l: &mut LineageState, max_depth: u32, tier: crate::engine::ExitTie
         return None;
     }
     // a new quest the day after one was kept (or at the board's first look)
-    let stale = l.town.quest.as_ref().is_none_or(|q| q.done && q.day < l.day);
-    if stale {
-        draw(l);
-    }
+    roll(l);
+    let day = today(l);
     let q = l.town.quest.as_mut()?;
     if q.done {
         return None;
@@ -464,7 +508,7 @@ pub fn on_run(l: &mut LineageState, max_depth: u32, tier: crate::engine::ExitTie
         return None;
     }
     q.done = true;
-    q.day = l.day;
+    q.day = day;
     let reward = q.reward.clone();
     let text = goal_text(q);
     l.town.quests_done += 1;

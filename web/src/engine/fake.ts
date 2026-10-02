@@ -2283,9 +2283,9 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
     if (this.s.lineage.gold > g0) grew.push({ track: "items", what: `+$${this.s.lineage.gold - g0}` });
     if (this.s.lineage.best_depth > b) grew.push({ track: "scale", what: `best D${this.s.lineage.best_depth}` });
     grew.push({ track: "character", what: "xp" });
-    for (const t of after.tracks ?? []) if (!stages0.includes(`${t.id}:${t.stage}`)) grew.push({ track: t.id, what: `opened ${t.stage}` });
+    for (const t of after.tracks ?? []) if (!stages0.includes(`${t.id}:${t.stage}`)) grew.push({ track: t.id, what: t.stage });
     const beats: string[] = [];
-    const lv1 = lv30(st.runs[st.stance]); if (lv1 > lv0) { beats.push(`${st.stance.toUpperCase()} L${lv1}`); grew.push({ track: "character", what: "package level" }); }
+    const lv1 = lv30(st.runs[st.stance]); if (lv1 > lv0) { beats.push(`${st.stance.toUpperCase()} L${lv1}`); grew.push({ track: "character", what: `${st.stance[0].toUpperCase()}${st.stance.slice(1)} L${lv1}` }); }
     for (const p of after.packages!.all) if (p.owned && !owned0.includes(p.id)) beats.push(`+${p.name}`);
     const q = after.town?.quest;
     if (q?.done && (!q0 || !q0.done)) { beats.push(`QUEST DONE · ${q.goal}`); st.qdone = true; }

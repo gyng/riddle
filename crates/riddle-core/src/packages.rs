@@ -77,8 +77,8 @@ const fn temper(id: &'static str, name: &'static str, t: crate::hero::Trait) -> 
 pub const PACKAGES: &[PackageDef] = &[
     stance("steady", "Steady", ""),
     stance("guarded", "Guarded", "meet Captain"),
-    stance("bold", "Bold", "a day on"),
-    stance("hunter", "Hunter", "a day on"),
+    stance("bold", "Bold", "tomorrow"),
+    stance("hunter", "Hunter", "tomorrow"),
     tactic("boss_focus", "boss focus"),
     tactic("corridor_fighting", "corridor fighting"),
     tactic("kite_archers", "kite archers"),
@@ -619,6 +619,22 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
     new
 }
 
+/// A package's trigger as it stands (owner check, 2026-10-02: `⊘ a day on` read as nothing): a stance of
+/// the drip arrives the day after the one before it — `tomorrow`, `next send` once that day has come,
+/// `after <name>` while the one before is still to come.
+fn trigger_now(l: &LineageState, d: &PackageDef) -> String {
+    let before = match d.id {
+        "bold" => "guarded",
+        "hunter" => "bold",
+        _ => return d.trigger.into(),
+    };
+    match l.pkg.arrived.get(before) {
+        Some(day) if l.day > *day => "next send".into(),
+        Some(_) => "tomorrow".into(),
+        None => format!("after {}", name(before)),
+    }
+}
+
 /// Tactic slots: one from the Warlord slain, two from the Lich met.
 pub fn tactic_slots(l: &LineageState) -> usize {
     let lich = l.pkg.meets.get("lich").copied().unwrap_or(0) > 0 || l.best_depth >= 18;
@@ -1028,7 +1044,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
                 next_at: next_at(runs),
                 slot: slot_of(d.id),
                 owned: p.owned.contains(d.id),
-                trigger: if p.owned.contains(d.id) { String::new() } else { d.trigger.into() },
+                trigger: if p.owned.contains(d.id) { String::new() } else { trigger_now(l, d) },
                 level_price: p.owned.contains(d.id).then(|| level_price(l, d.id)).flatten(),
             }
         })

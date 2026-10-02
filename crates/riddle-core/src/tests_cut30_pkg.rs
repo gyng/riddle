@@ -303,3 +303,69 @@ fn equipping_is_free_and_gated_by_arrival() {
     let set: RuleSet = g.lineage.rules().clone();
     assert!(set.validate().is_ok());
 }
+
+/// §5 (owner check, 2026-10-02: `reach D6 · QUEST DONE` beside best D20 after a 48 h absence): a kept
+/// quest gives way to the next day's draw at each day an absence crosses, and a draw follows the
+/// record as it stands.
+#[test]
+fn a_kept_quest_is_redrawn_each_day_of_an_absence() {
+    let mut g = Game::new(23);
+    g.lineage.kills.insert("goblin_warlord".into());
+    g.lineage.best_depth = 9;
+    // kept on day 0
+    crate::town::draw(&mut g.lineage);
+    assert!(crate::town::on_run(&mut g.lineage, 9, ExitTier::Bank, false, 9, &[]).is_some());
+    // the same day: the board keeps it
+    assert!(crate::town::on_run(&mut g.lineage, 9, ExitTier::Bank, false, 9, &[]).is_none());
+    assert!(g.lineage.town.quest.as_ref().is_some_and(|q| q.done && q.day == 0));
+    // the record climbs, a day passes inside the absence (`LineageState::day` still 0): the day's draw, from the new record
+    g.lineage.best_depth = 20;
+    g.lineage.town.today = 1;
+    crate::town::roll(&mut g.lineage);
+    let q = g.lineage.town.quest.clone().unwrap();
+    assert!(!q.done && q.day == 1, "{q:?}");
+    let floor = match q.goal.as_str() {
+        "reach" => 17,
+        "reach_no_return" => 15,
+        "slay" => 2,
+        _ => 2,
+    };
+    assert!(q.depth >= floor, "a draw follows the record: {q:?}");
+    // drawn once a day
+    crate::town::roll(&mut g.lineage);
+    assert_eq!(g.lineage.town.quest.as_ref().unwrap().id, q.id);
+
+    // a whole absence in one call: the board at the return holds the return day's quest, from the record then
+    let mut g = Game::new(3101);
+    let _ = crate::offline::run_offline_counts(&mut g, 72 * 3600);
+    let l = &g.lineage;
+    let q = l.town.quest.clone().expect("the board is open by the third day");
+    let day = (l.clock_s / crate::engine::DAY_S) as u32;
+    assert!(l.town.quests_done >= 2, "a quest a day: {} kept", l.town.quests_done);
+    assert!(q.day == day || !q.done, "a kept quest is from the return's day: {q:?} on day {day}");
+    if q.goal == "reach" {
+        assert_eq!(q.depth, l.best_depth.saturating_sub(3).max(2), "{q:?} best D{}", l.best_depth);
+    }
+}
+
+/// §4 (owner check, 2026-10-02: the hero's line read `xp · package level · opened a class · L3 · opened
+/// +Guarded · …`): what grew names each fact once, without `opened`, the stages first, xp last.
+#[test]
+fn grew_names_each_fact_once_stages_first() {
+    let mut g = Game::new(3101);
+    let a = crate::town::snap(&g.lineage);
+    let _ = crate::offline::run_offline_counts(&mut g, 8 * 3600);
+    let grew = crate::town::grew(&a, &crate::town::snap(&g.lineage));
+    assert!(!grew.is_empty());
+    assert!(grew.iter().all(|x| !x.what.starts_with("opened") && x.what != "a building" && x.what != "package level"), "{grew:?}");
+    let mut seen = std::collections::BTreeSet::new();
+    for x in &grew {
+        assert!(seen.insert((x.track.clone(), x.what.clone())), "once: {grew:?}");
+    }
+    let hero: Vec<&str> = grew.iter().filter(|x| x.track == "character").map(|x| x.what.as_str()).collect();
+    if let Some(i) = hero.iter().position(|w| *w == "xp") {
+        assert_eq!(i, hero.len() - 1, "xp last: {hero:?}");
+    }
+    // a building is named once, on the town's row
+    assert!(!grew.iter().any(|x| x.track == "items" && x.what == "storehouse"), "{grew:?}");
+}

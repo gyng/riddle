@@ -122,6 +122,8 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
             consumed += (game.run.as_ref().unwrap().turn - before) as u64;
         }
         if game.run.as_ref().is_some_and(|r| r.over.is_some()) {
+            // (the board's day: the day this send came home on, inside the absence)
+            game.lineage.town.today = ((game.lineage.clock_s + consumed / TICKS_PER_SECOND) / crate::engine::DAY_S) as u32;
             let outcome = game.finish_run().unwrap_or_default();
             game.batch.rested += game.lineage.rest_left as u64;
             game.auto_keep();
@@ -157,6 +159,7 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
                     if tier == ExitTier::Death {
                         *deaths.entry(cause.unwrap_or_else(|| "unknown".into())).or_insert(0) += 1;
                     }
+                    game.lineage.town.today = ((game.lineage.clock_s + (consumed + ticks) / TICKS_PER_SECOND) / crate::engine::DAY_S) as u32;
                     game.finish_run();
                     game.auto_keep();
                     game.events.clear();
@@ -211,6 +214,10 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     // Cut 29 §1: the night's mark — ◆1 for each day this absence covered whose sends came home (a
     // bank or a return), each day once.
     game.lineage.clock_s += elapsed_s;
+    // Cut 30 §5: the board at the return shows the day's quest (a quest kept yesterday gives way to
+    // today's draw, from the record the absence reached).
+    game.lineage.town.today = (game.lineage.clock_s / crate::engine::DAY_S) as u32;
+    crate::town::roll(&mut game.lineage);
     if elapsed_s > 0 && game.batch.banked + game.batch.returned > 0 {
         let last = ((game.lineage.clock_s - 1) / crate::engine::DAY_S) as u32;
         let first = day0.max(game.lineage.mark_day);

@@ -974,8 +974,9 @@ export function mergeGrew(a: Pick<ReturnReport, "grew" | "packages">, b: Pick<Re
   if (a.grew || b.grew) {
     const lines: { track: string; what: string }[] = [];
     for (const g of [...(a.grew ?? []), ...(b.grew ?? [])]) {
-      const gold = /^\+\$(\d+)$/.exec(g.what), num = /^(best D|L)(\d+)$/.exec(g.what);
-      const at = lines.findIndex((x) => x.track === g.track && (gold ? /^\+\$\d+$/.test(x.what) : num ? x.what.startsWith(num[1]) && /^(best D|L)\d+$/.test(x.what) : x.what === g.what));
+      // (a level: the class's `L7`, a package's `Steady L3` — the later slice's stands)
+      const gold = /^\+\$(\d+)$/.exec(g.what), num = /^(best D|(?:.+ )?L)(\d+)$/.exec(g.what);
+      const at = lines.findIndex((x) => x.track === g.track && (gold ? /^\+\$\d+$/.test(x.what) : num ? x.what.startsWith(num[1]) && /^(best D|(?:.+ )?L)\d+$/.test(x.what) && x.what.slice(num[1].length).match(/^\d+$/) !== null : x.what === g.what));
       if (at < 0) { lines.push({ ...g }); continue; }
       if (gold) lines[at].what = `+$${Number(lines[at].what.slice(2)) + Number(gold[1])}`;
       else if (num && Number(num[2]) > Number(/\d+$/.exec(lines[at].what)![0])) lines[at].what = g.what;

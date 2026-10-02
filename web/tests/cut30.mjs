@@ -134,7 +134,7 @@ try {
     });
     check(/^reach D\d+ (\d+%|<\d+%|>\d+%)$/.test(P.head), `the panel's head is the forecast's one headline (\`${P.head}\`)`);
     check(P.stance === "Steady L3" && P.bar && P.bar !== "0%", `the worn stance's chip \`Steady L3\` and its level bar (${P.stance}, ${P.bar})`);
-    check(P.alts.length >= 2 && P.alts.every((a) => a.price.length === 1 && /^(death|past|bank) [+−]\d+$|^—$/.test(a.price[0])), `each other stance priced in one line, \`—\` inside the noise (${P.alts.map((a) => `${a.name} · ${a.price.join("|")}`).join(", ")})`);
+    check(P.alts.length >= 2 && P.alts.every((a) => a.price.length === 1 && /^(death|past|bank) [+−]\d+$|^$/.test(a.price[0])), `each other stance priced in one line, nothing inside the noise (${P.alts.map((a) => `${a.name} · ${a.price.join("|")}`).join(", ")})`);
     const rank = (c) => (/ up/.test(c) ? 2 : / down/.test(c) ? 0 : 1);
     const ordered = (xs) => xs.every((x, i) => i === 0 || rank(xs[i - 1]) >= rank(x));
     check(ordered(P.alts.map((a) => a.cls)) && ordered(P.tPrices.map((x) => x.cls)) && / up/.test(P.alts[0].cls), `the best move leads each kind, a loss last (stances ${P.alts.map((a) => a.price[0]).join(" · ")}; tactics ${P.tPrices.map((x) => x.t).join(" · ")})`);
