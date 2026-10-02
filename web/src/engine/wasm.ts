@@ -124,6 +124,10 @@ export class WasmEngine implements Engine {
   bankDeposit(amount: number): Lineage { return this.call("bankDeposit", amount); }
   bankWithdraw(amount: number): Lineage { return this.call("bankWithdraw", amount); }
   swapQuest(): Lineage { return this.call("swapQuest"); }
+  // Cut 30.5: throw `wasm: <name>` on a build without them
+  hire(id: string): Lineage { return this.call("hire", id); }
+  openChest(): Lineage { return this.call("openChest"); }
+  setWorker(id: string, on: boolean): Lineage { return this.call("setWorker", id, on); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

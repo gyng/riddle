@@ -353,7 +353,8 @@ export type Building = { id: string; level: number; day: number };
 export type Quest = { goal: string; reward: string; progress: number; done: boolean; swap: boolean };
 /** Cut 30 §3 (core) — the town: its buildings (built in order), the next plot staked and its trigger, the bank (`bankDeposit` /
  *  `bankWithdraw`; ~2 % a night, capped at `bank_cap`), the interest it paid in all, the quest board (from the Warlord slain). */
-export type Town = { buildings: Building[]; next?: string; next_trigger?: string; bank: number; bank_cap: number; interest: number; quest?: Quest; quests_done?: number };
+export type Town = { buildings: Building[]; next?: string; next_trigger?: string; bank: number; bank_cap: number; interest: number; quest?: Quest; quests_done?: number;
+  workers?: WorkerPost[] };   // Cut 30.5 (core): the workers at their posts (hired; the lit node's greyed with its price)
 /** Cut 30 §2 (core) — a package (`Guarded L3`): `kind` stance · tactic · temperament; `level` 1–5 from `runs` (the runs one of its rows
  *  fired in; `next_at` the runs the next level wants); `slot` when equipped; `owned` once its stage came (`trigger` until then);
  *  `level_price` the marks a level spend costs (`spendLevel`). */
@@ -374,8 +375,47 @@ export type Packages = { all: Package[]; stance: string; tactics?: string[]; tac
  *  of the sends that pass the record / reach it / bank / die, and each move against the set as it stands (`Guarded · death −8`). */
 export type PkgOption = { id: string; action: string; slot?: number; price?: number; past: number; bank: number; death: number; reach?: number;
   d_past: number; d_bank: number; d_death: number; d_reach?: number };
+/** Cut 30.5 (core; docs/CUT30_5.md, docs/AUTOMATION_TREE.md §2) — a node of the works tree. A **worker** retires a chore done by hand a few
+ *  times (`count`/`need`, or `fallback_h` of lineage age once its chore exists); a **stage** is one of the four tracks' stages (the tracks
+ *  panel's rows, now the tree's branches). ids — workers: quartermaster · porter · scout · armourer · apprentice · keeper · clerk · drillmaster ·
+ *  kennel_hand · herald · guide (in the tree's order); stages: `<track>:<stage>` (`town:bank`, `character:second stance`).
+ *  `state` — a worker: `done` (hired) · `lit` (the one node to buy: trigger met, its turn; ≤ 1 at a time) · `ready` (trigger met, waits its
+ *  turn behind the lit one) · `open` (its chore exists; counting) · `shut` (its chore not yet: `trigger` names the gate); a stage: `done` ·
+ *  `next` (the track's next) · `later`. Draw done dimmed, the lit one full with its price, the next two as silhouettes; never the whole tree. */
+export type WorkNode = {
+  id: string; kind: "worker" | "stage"; branch: string;   // branch: trunk · character · items · scale · town
+  name: string;                                         // ≤ 2 words (`porter`, `kennel-hand`, `second stance`)
+  state: string;
+  chore?: string;                                       // worker: the act by hand — chest · send · wear · forge · keep · deposit · level · field · swap · start (none: the quartermaster, given)
+  count?: number; need?: number;                        // worker: chores done by hand / the trigger (`2/3`); a hired worker keeps its last count
+  price?: number; affordable?: boolean;                 // worker: the hire's gold (0 = free; forge units, fixed with the forge's), paid from the purse then the chest
+  fallback_h?: number;                                  // worker: the lineage age (h) that lights it without the count, once its chore exists
+  trigger?: string;                                     // ≤ 3 words: a stage's trigger, a shut worker's gate (`bank built`)
+  tip?: string;                                         // worker: ≤ 10 words (`Carries hauls home while you're away.`)
+  beat?: string;                                        // worker: the hire's beat, ≤ 2 words, caps (`AUTO HAUL`)
+  post?: string;                                        // worker: where it stands — crate · mouth · storehouse · blacksmith · bank · tent · kennel · board
+  paused?: boolean;                                     // worker: hired and switched off (`setWorker(id, false)`): its chore is by hand again
+};
+/** Cut 30.5 (core) — the `next` pill: the single next goal. `kind` buy (the lit node, affordable) · chest (a haul waits, before the porter) ·
+ *  send (the hero waits for a SEND, before the scout) · gold (the lit node, short: `have`/`need` in gold) · count (a node's chores by hand:
+ *  `have`/`need`) · system (the next system's wait: `need` hours) · none. `text` ≤ 3 words + the number (`open chest`, `porter · 2/3`,
+ *  `apprentice · $96/$120`, `bank · in 3h`); tapping it opens the tree on `node`. */
+export type NextPill = { kind: string; node?: string; text: string; have?: number; need?: number };
+/** Cut 30.5 (core) — the works tree (`Lineage.tree`; the tracks panel's successor). `chest` the haul waiting uncollected (gold not in
+ *  `Lineage.gold`, which is the purse: collected gold, what a tap can spend) — `openChest()`; it never caps or decays, and the engine's own
+ *  needs (the restock, insurance, a waystone's toll) draw on it after the purse. `waits` the hero is home and waits for a SEND (before the
+ *  scout: a send is one run; the gem/mouth sends him); `sent` a send by hand is under way; `auto_send` the scout is hired (offline uncapped).
+ *  `ledger` = purse + chest + bank: every gold movement summed (the conservation audit). */
+export type Works = { nodes: WorkNode[]; lit?: string; next?: NextPill; chest: number; waits: boolean; sent: boolean; auto_send: boolean; ledger: number };
+/** Cut 30.5 (core) — a worker at its post on the town scene (`Town.workers`): hired ones, and the lit node's worker greyed (`lit`, `price`). */
+export type WorkerPost = { id: string; post: string; lit?: boolean; price?: number; paused?: boolean };
+/** Cut 30.5 (core) — what a worker did over an absence (`ReturnReport.workers`): `apprentice` · `+2 steps` (n 2); `first` the first time it
+ *  ever acted (name it once: `apprentice · +1 step`; later fold into the report's lines). */
+export type WorkerAct = { id: string; what: string; n: number; first: boolean };
 export type ReturnReport = {
-  grew?: GrewLine[];                                                           // Cut 30 §4 (core): what grew on each track over the absence — the report leads with it
+  workers?: WorkerAct[];                                                       // Cut 30.5 (core): the workers' acts this absence (porter's hauls, apprentice's steps, clerk's deposits, …)
+  chest?: number;                                                              // Cut 30.5 (core): the haul gold this absence left in the chest (before the porter; the chest's badge)
+  grew?: GrewLine[];                                                          // Cut 30 §4 (core): what grew on each track over the absence — the report leads with it
   packages?: string[];                                                         // Cut 30 §1–2 (core): the packages' beats (`STEADY L3`, `DRILLED · Warlord`, `+Guarded`, `the pen`, `built bank`, `QUEST DONE · reach D10`)
   lead?: ReportLead[];                                                         // Cut 28 §2 (core): the report's first screen, ≤ 4, decisions first; salvage, bones and spent fold under `details`
   oath?: OathReport;                                                           // Cut 28 §1 (core): the sworn oath's absence; absent with none sworn
@@ -419,7 +459,8 @@ export type Lineage = { age_h?: number; reveal_queue?: string[]; reveal_next?: {
                         glory?: number; expeditions?: number; era_gate?: number;                                   // PROGRESSION_V2 §2 (core, reserved for Cut 31)
                         packages?: Packages;                                                                        // Cut 30 §2 (core): stances, tactics, temperaments, levels, drills, scars, the pen
                         town?: Town;                                                                                // Cut 30 §3 (core): the buildings, the next plot, the bank, the quest board
-                        tracks?: Track[];                                                                           // Cut 30 §4 (core): character · items · scale · town — stage, next stage and trigger
+                        tracks?: Track[];                                                                           // Cut 30 §4 (core): character · items · scale · town — stage, next stage and trigger. Cut 30.5: superseded by `tree` (its stage nodes); kept until the client moves, then dropped
+                        tree?: Works;                                                                               // Cut 30.5 (core): the works tree — workers, the four tracks as branches, the chest, the `next` pill. NB `gold` is the purse (collected); the chest is `tree.chest`
                         systems?: SystemInfo[];                                                                    // Cut 29 §2 (core): the curriculum — every system in order, `open` or not, its `trigger` (≤ 3 words), `new` since the camp last looked (`seenSystems()` clears); gate the editor's vocabulary and the camp's tiles by `open`
                         tier?: number;                                                                             // Cut 29 §1 (core): the catalogue's tier now (0–6: T1 the first bank, T2 the Warlord met … T6 the Lurker Queen met)
                         oath_slots?: number; sworn?: string[];                                                     // Cut 29 §1 (core): oaths that may be sworn at once (1–3, `oath_slot_2/3`); every sworn oath's id (first slot's first; `oath` is that one). An oath lapses unkept at its day's end
@@ -566,6 +607,12 @@ export type MeterWire = { seconds: number; dealt: MeterSides; taken: MeterSides;
                           gold: number; gold_per_min: number; hits_hero: number; hits_pets: number; fights: number };
 export type SnapMeters = { run: MeterWire; fight?: MeterWire; fighting?: boolean };
 export interface Engine {
+  // Cut 30.5 (core): the works tree — each returns the Lineage (throws with a ≤ 3-word reason). The chores by hand are the existing calls:
+  // send (before the scout) · loadout (wear a find) · buyKit · keep (a keep sheet) / sellVault · bankDeposit · spendLevel · setParty / hatch ·
+  // swapQuest · setStart — each fills its node's count (`WorkNode.count`) until its worker is hired.
+  hire?(id: string): Lineage;                           // hire the lit node's worker (`Works.lit`; its price from the purse, then the chest)
+  openChest?(): Lineage;                                // the haul chest into the purse (`Works.chest` → `gold`); the porter's chore
+  setWorker?(id: string, on: boolean): Lineage;         // switch a hired worker off (its chore by hand again) or back on
   // Cut 30 (core): packages, drills, the bank, the quest board — each returns the Lineage (throws with a ≤ 3-word reason)
   equipPackage?(id: string, slot: number): Lineage;     // §2: a stance, a tactic in `slot` 0/1, a temperament — free, instant
   unequipPackage?(id: string): Lineage;                 // §2: empty a tactic or temperament slot (the stance is never empty)

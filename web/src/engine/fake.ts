@@ -5,6 +5,7 @@ import type {
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
   Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders, WallEdit,
   Packages, Package, PkgOption, Town, Track, GrewLine, Quest, RowOrigin,
+  WorkNode, Works, NextPill, WorkerPost, WorkerAct,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -2359,4 +2360,98 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
       : boss ? { kind: "wait", text: "drill next" } : { kind: "wait", text: `${st.name} L${Math.min(5, st.level + 1)}` };
     return { ...d, lever, package: `${st.name} · ${d.cause === "stall" ? "explore" : "attack nearest"}` };
   };
+}
+
+// ---- Cut 30.5 stand-ins (the core's `tree.rs`): the works tree — workers that retire chores done by hand, the four tracks as branches,
+// the haul chest, the `next` pill, manual sends before the scout. Shapes only: the fake's sims are its own (a send before the scout is one
+// run: an absence then yields only the run in flight).
+// (id, name, branch, chore, need, price in tenths of a forge unit, fallback age h, post, beat, tip, the chore's system)
+const NODES305: [string, string, string, string, number, number, number, string, string, string, string][] = [
+  ["quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "crate", "", "Packs the heal and the drill's item.", ""],
+  ["porter", "porter", "trunk", "chest", 3, 0, 0, "mouth", "AUTO HAUL", "Carries hauls home while you're away.", ""],
+  ["scout", "scout", "trunk", "send", 3, 5, 0, "fire", "AUTO SEND", "Sends the hero down after each rest.", ""],
+  ["armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "AUTO EQUIP", "Wears the better find each send.", "storehouse"],
+  ["apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "blacksmith", "AUTO FORGE", "Buys the next forge step, keeping a reserve.", "forge"],
+  ["keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "AUTO KEEP", "Sorts every exit's finds; never asks.", "storehouse"],
+  ["clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "AUTO BANK", "Banks the purse above a reserve.", "bank"],
+  ["drillmaster", "drillmaster", "character", "level", 2, 30, 36, "tent", "AUTO LEVEL", "Spends marks on the worn stance's levels.", ""],
+  ["kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "AUTO PETS", "Fields the best pets each send.", "kennel"],
+  ["herald", "herald", "town", "swap", 2, 20, 40, "board", "AUTO QUEST", "Swaps a quest the day left unkept.", "quests"],
+  ["guide", "guide", "scale", "start", 3, 40, 44, "mouth", "AUTO START", "Starts sends a band under the record.", "start"],
+];
+type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[] };
+type Fk305 = Fk30 & { s: Fk30["s"] & { st305?: St305 } };
+const st305 = (e: Fk305): St305 => (e.s.st305 ??= { hired: ["quartermaster"], counts: {}, chest: 0, sent: false, paused: [], acted: [] });
+const on305 = (st: St305, id: string): boolean => st.hired.includes(id) && !st.paused.includes(id);
+function works305(e: Fk305, L: Lineage, purse: number): Works {
+  const st = st305(e); const age = L.age_h ?? 0; const unit = kitUnit(L.best_depth);
+  const sysOpen = (id: string): boolean => !id || (L.systems ?? []).some((x) => x.id === id && x.open) || (id === "storehouse" && L.vault.length > 0) || (id === "forge" && L.best_depth > 1);
+  const nodes: WorkNode[] = []; let lit: string | undefined;
+  for (const [id, name, branch, chore, need, tenths, fb, post, beat, tip, gate] of NODES305) {
+    const count = st.counts[id] ?? 0; const price = Math.round(unit * tenths / 10); const open = sysOpen(gate);
+    const ready = open && (count >= need || (fb > 0 && age >= fb));
+    const done = st.hired.includes(id);
+    let state = done ? "done" : !open ? "shut" : ready ? (lit ? "ready" : "lit") : "open";
+    if (state === "lit") lit = id;
+    nodes.push({ id, kind: "worker", branch, name, state, ...(chore ? { chore, count, need } : {}), price, affordable: purse + st.chest >= price, ...(fb ? { fallback_h: fb } : {}),
+      ...(!open && gate ? { trigger: `${gate} built` } : {}), tip, ...(beat ? { beat } : {}), post, ...(st.paused.includes(id) ? { paused: true } : {}) });
+  }
+  for (const t of L.tracks ?? []) {
+    nodes.push({ id: `${t.id}:${t.stage}`, kind: "stage", branch: t.id, name: t.stage, state: "done" });
+    if (t.next) nodes.push({ id: `${t.id}:${t.next}`, kind: "stage", branch: t.id, name: t.next, state: "next", ...(t.trigger ? { trigger: t.trigger } : {}) });
+  }
+  const auto = on305(st, "scout"); const waits = !auto && !st.sent;
+  const litN = nodes.find((n) => n.id === lit);
+  const counting = nodes.find((n) => n.kind === "worker" && n.state === "open" && n.need);
+  const next: NextPill = litN && litN.affordable ? { kind: "buy", node: lit, text: `${litN.name} · ${litN.price ? `$${litN.price}` : "free"}` }
+    : st.chest > 0 && !on305(st, "porter") ? { kind: "chest", node: "porter", text: "open chest", have: st.chest }
+    : waits ? { kind: "send", node: "scout", text: "send" }
+    : litN ? { kind: "gold", node: lit, text: `${litN.name} · $${purse + st.chest}/$${litN.price}`, have: purse + st.chest, need: litN.price }
+    : counting ? { kind: "count", node: counting.id, text: `${counting.name} · ${counting.count}/${counting.need}`, have: counting.count, need: counting.need }
+    : { kind: "none", text: "" };
+  return { nodes, ...(lit ? { lit } : {}), next, chest: st.chest, waits, sent: st.sent, auto_send: auto, ledger: purse + st.chest + (L.town?.bank ?? 0) };
+}
+{
+  const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
+  const count = (e: Fk305, id: string): void => { const st = st305(e); if (!st.hired.includes(id)) st.counts[id] = (st.counts[id] ?? 0) + 1; };
+  const lin = P.lineage; P.lineage = function (this: Fk305): Lineage {
+    const L = lin.call(this) as Lineage; if (DEV_NO_SYSTEMS) return L;
+    const st = st305(this); const purse = Math.max(0, L.gold - st.chest); L.gold = purse;
+    L.tree = works305(this, L, purse);
+    const posts: WorkerPost[] = NODES305.filter(([id]) => st.hired.includes(id)).map(([id, , , , , , , post]) => ({ id, post, ...(st.paused.includes(id) ? { paused: true } : {}) }));
+    const litN = L.tree.nodes.find((n) => n.id === L.tree!.lit); if (litN) posts.push({ id: litN.id, post: litN.post ?? "mouth", lit: true, price: litN.price });
+    if (L.town) L.town.workers = posts;
+    return L;
+  };
+  const off = P.runOffline; P.runOffline = function (this: Fk305, s: unknown): ReturnReport {
+    if (DEV_NO_SYSTEMS) return off.call(this, s) as ReturnReport;
+    const st = st305(this); const auto = on305(st, "scout");
+    // (before the scout: a send is one run — an absence yields the run in flight, if any)
+    const g0 = this.s.lineage.gold; const r = off.call(this, auto ? s : st.sent ? 1 : 0) as ReturnReport; st.sent = false;
+    const gain = Math.max(0, this.s.lineage.gold - g0); const workers: WorkerAct[] = [];
+    if (!on305(st, "porter")) st.chest += gain;
+    else if (gain > 0) { workers.push({ id: "porter", what: `hauled $${gain}`, n: gain, first: !st.acted.includes("porter") }); st.acted.push("porter"); }
+    return { ...r, ...(gain && !on305(st, "porter") ? { chest: gain } : {}), ...(workers.length ? { workers } : {}) };
+  };
+  const send = P.send; P.send = function (this: Fk305): Snapshot { const st = st305(this); if (!on305(st, "scout") && !st.sent) { count(this, "scout"); st.sent = true; } return send.call(this) as Snapshot; };
+  P.openChest = function (this: Fk305): Lineage { const st = st305(this); if (st.chest <= 0) throw new Error("chest empty"); count(this, "porter"); st.chest = 0; return this.lineage(); };
+  P.hire = function (this: Fk305, id: unknown): Lineage {
+    const st = st305(this); const L = this.lineage(); const n = L.tree!.nodes.find((x) => x.id === id);
+    if (!n || n.kind !== "worker") throw new Error("unknown worker"); if (n.state === "done") throw new Error("hired already"); if (L.tree!.lit !== id) throw new Error("not lit");
+    const price = n.price ?? 0; if (L.gold + st.chest < price) throw new Error("not enough gold");
+    const fromPurse = Math.min(price, L.gold); this.s.lineage.gold -= price; st.chest -= price - fromPurse; st.hired.push(id as string);
+    if (id === "porter") st.chest = 0;
+    return this.lineage();
+  };
+  P.setWorker = function (this: Fk305, id: unknown, on: unknown): Lineage {
+    const st = st305(this); if (!st.hired.includes(id as string)) throw new Error("not hired");
+    st.paused = st.paused.filter((x) => x !== id); if (!on) st.paused.push(id as string); return this.lineage();
+  };
+  // the chores by hand fill their nodes' counts
+  for (const [m, id] of [["buyKit", "apprentice"], ["bankDeposit", "clerk"], ["spendLevel", "drillmaster"], ["swapQuest", "herald"], ["setStart", "guide"], ["setParty", "kennel_hand"], ["hatch", "kennel_hand"], ["sellVault", "keeper"]] as const) {
+    const f = P[m]; if (!f) continue;
+    P[m] = function (this: Fk305, ...a: unknown[]): unknown { const r = f.apply(this, a); count(this, id); return r; };
+  }
+  const keep = P.keep; P.keep = function (this: Fk305, ...a: unknown[]): unknown { const r = keep.apply(this, a); count(this, "keeper"); return r; };
+  const lo = P.loadout; P.loadout = function (this: Fk305, ids: unknown): unknown { const r = lo.call(this, ids); if ((ids as number[]).length) count(this, "armourer"); return r; };
 }
