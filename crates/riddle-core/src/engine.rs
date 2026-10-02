@@ -3433,6 +3433,7 @@ impl Game {
     /// Cut 21 §1: the floor the next sends start on — 1, or a lit waystone (refused otherwise).
     pub fn set_start(&mut self, depth: u32) -> Result<(), String> {
         self.lineage.set_start(depth)?;
+        self.lineage.tree.start_by_hand = Some((depth.max(1), self.lineage.best_depth));
         crate::tree::did(&mut self.lineage, "start");
         Ok(())
     }
@@ -4304,9 +4305,11 @@ impl Game {
     /// class XP and renown; a dead heir's kit stays on the floor as bones.
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
-        // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout)
+        // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout); the guide's record of
+        // the stone it started from
         if !self.sim {
             self.lineage.tree.sent = false;
+            crate::tree::note_start(&mut self.lineage, run.start, run.over != Some(ExitTier::Death) && run.loot > 0, run.over == Some(ExitTier::Death));
         }
         let tier = run.over.unwrap_or(ExitTier::Return);
         // (c30-legible: the record before this run, for the end's reason)

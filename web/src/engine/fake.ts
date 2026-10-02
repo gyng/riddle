@@ -2381,7 +2381,7 @@ const NODES305: [string, string, string, string, number, number, number, string,
   ["herald", "herald", "town", "swap", 2, 20, 40, "board", "AUTO QUEST", "swaps stale quests", "quests"],
   ["guide", "guide", "scale", "start", 3, 40, 44, "mouth", "AUTO START", "starts deeper", "start"],
 ];
-type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[] };
+type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[]; ranks?: Record<string, number> };
 type Fk305 = Fk30 & { s: Fk30["s"] & { st305?: St305 } };
 const st305 = (e: Fk305): St305 => (e.s.st305 ??= { hired: ["quartermaster"], counts: {}, chest: 0, sent: false, paused: [], acted: [] });
 const on305 = (st: St305, id: string): boolean => st.hired.includes(id) && !st.paused.includes(id);
@@ -2395,7 +2395,10 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     const done = st.hired.includes(id);
     let state = done ? "done" : !open ? "shut" : ready ? (lit ? "ready" : "lit") : "open";
     if (state === "lit") lit = id;
-    nodes.push({ id, kind: "worker", branch, name, state, ...(chore ? { chore, count, need } : {}), price, affordable: purse + st.chest >= price, ...(fb ? { fallback_h: fb } : {}),
+    const rank = done && chore ? (st.ranks?.[id] ?? 1) : undefined;
+    // (week 2 stand-in: a rank on offer once the scout is hired, a forge unit × the rank less one — the core waits 5 / 9 days of service)
+    const rankNext = rank && rank < 3 && st.hired.includes("scout") ? { rank_price: unit * rank, rank_wait_d: 0 } : {};
+    nodes.push({ id, kind: "worker", branch, name, state, ...(rank ? { rank, ...rankNext } : {}), ...(chore ? { chore, count, need } : {}), price, affordable: purse + st.chest >= price, ...(fb ? { fallback_h: fb } : {}),
       ...(!open && gate ? { trigger: `${gate} built` } : {}), tip, ...(beat ? { beat } : {}), post, ...(st.paused.includes(id) ? { paused: true } : {}) });
   }
   for (const t of L.tracks ?? []) {
@@ -2411,7 +2414,8 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     : litN ? { kind: "gold", node: lit, text: `${litN.name} · $${purse + st.chest}/$${litN.price}`, have: purse + st.chest, need: litN.price }
     : counting ? { kind: "count", node: counting.id, text: `${counting.name} · ${counting.count}/${counting.need}`, have: counting.count, need: counting.need }
     : { kind: "none", text: "" };
-  return { nodes, ...(lit ? { lit } : {}), next, chest: st.chest, waits, sent: st.sent, auto_send: auto, ledger: purse + st.chest + (L.town?.bank ?? 0) };
+  const litRank = lit ? undefined : nodes.find((n) => n.rank_wait_d === 0)?.id;
+  return { nodes, ...(lit ? { lit } : {}), ...(litRank ? { lit_rank: litRank } : {}), next, chest: st.chest, waits, sent: st.sent, auto_send: auto, ledger: purse + st.chest + (L.town?.bank ?? 0) };
 }
 {
   const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
@@ -2420,7 +2424,7 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     const L = lin.call(this) as Lineage; if (DEV_NO_SYSTEMS) return L;
     const st = st305(this); const purse = Math.max(0, L.gold - st.chest); L.gold = purse;
     L.tree = works305(this, L, purse);
-    const posts: WorkerPost[] = NODES305.filter(([id]) => st.hired.includes(id)).map(([id, , , , , , , post]) => ({ id, post, ...(st.paused.includes(id) ? { paused: true } : {}) }));
+    const posts: WorkerPost[] = NODES305.filter(([id]) => st.hired.includes(id)).map(([id, , , , , , , post]) => ({ id, post, rank: st.ranks?.[id] ?? 1, ...(st.paused.includes(id) ? { paused: true } : {}) }));
     const litN = L.tree.nodes.find((n) => n.id === L.tree!.lit); if (litN) posts.push({ id: litN.id, post: litN.post ?? "mouth", lit: true, price: litN.price });
     if (L.town) L.town.workers = posts;
     return L;
@@ -2443,6 +2447,12 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
     const price = n.price ?? 0; if (L.gold + st.chest < price) throw new Error("not enough gold");
     const fromPurse = Math.min(price, L.gold); this.s.lineage.gold -= price; st.chest -= price - fromPurse; st.hired.push(id as string);
     if (id === "porter") st.chest = 0;
+    return this.lineage();
+  };
+  P.promote = function (this: Fk305, id: unknown): Lineage {
+    const st = st305(this); const L = this.lineage(); const n = L.tree!.nodes.find((x) => x.id === id);
+    if (!n || L.tree!.lit_rank !== id) throw new Error("not on offer"); const price = n.rank_price ?? 0; if (L.gold + st.chest < price) throw new Error("not enough gold");
+    const fromPurse = Math.min(price, L.gold); this.s.lineage.gold -= price; st.chest -= price - fromPurse; (st.ranks ??= {})[id as string] = (n.rank ?? 1) + 1;
     return this.lineage();
   };
   P.setWorker = function (this: Fk305, id: unknown, on: unknown): Lineage {

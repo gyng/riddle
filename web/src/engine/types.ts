@@ -396,6 +396,8 @@ export type WorkNode = {
   beat?: string;                                        // worker: the hire's beat, ≤ 2 words, caps (`AUTO HAUL`)
   post?: string;                                        // worker: where it stands — crate · mouth · storehouse · blacksmith · bank · tent · kennel · board
   paused?: boolean;                                     // worker: hired and switched off (`setWorker(id, false)`): its chore is by hand again
+  rank?: number;                                        // week 2 (the owner: later worker upgrades): a hired worker's rank 1–3 — its look (and its post's)
+  rank_price?: number; rank_wait_d?: number;            // week 2: the next rank's gold and the days of service it still waits (0: on offer, `Works.lit_rank`); absent at III
 };
 /** Cut 30.5 (core) — the `next` pill: the single next goal. `kind` buy (the lit node, affordable) · chest (a haul waits, before the porter) ·
  *  send (the hero waits for a SEND, before the scout) · gold (the lit node, short: `have`/`need` in gold) · count (a node's chores by hand:
@@ -407,9 +409,9 @@ export type NextPill = { kind: string; node?: string; text: string; have?: numbe
  *  needs (the restock, insurance, a waystone's toll) draw on it after the purse. `waits` the hero is home and waits for a SEND (before the
  *  scout: a send is one run; the gem/mouth sends him); `sent` a send by hand is under way; `auto_send` the scout is hired (offline uncapped).
  *  `ledger` = purse + chest + bank: every gold movement summed (the conservation audit). */
-export type Works = { nodes: WorkNode[]; lit?: string; next?: NextPill; chest: number; waits: boolean; sent: boolean; auto_send: boolean; ledger: number };
+export type Works = { nodes: WorkNode[]; lit?: string; lit_rank?: string; next?: NextPill; chest: number; waits: boolean; sent: boolean; auto_send: boolean; ledger: number };
 /** Cut 30.5 (core) — a worker at its post on the town scene (`Town.workers`): hired ones, and the lit node's worker greyed (`lit`, `price`). */
-export type WorkerPost = { id: string; post: string; lit?: boolean; price?: number; paused?: boolean };
+export type WorkerPost = { id: string; post: string; lit?: boolean; price?: number; paused?: boolean; rank?: number };   // rank 1–3 (week 2): the worker's look
 /** Cut 30.5 (core) — what a worker did over an absence (`ReturnReport.workers`): `apprentice` · `+2 steps` (n 2); `first` the first time it
  *  ever acted (name it once: `apprentice · +1 step`; later fold into the report's lines). */
 export type WorkerAct = { id: string; what: string; n: number; first: boolean };
@@ -614,6 +616,7 @@ export interface Engine {
   hire?(id: string): Lineage;                           // hire the lit node's worker (`Works.lit`; its price from the purse, then the chest)
   openChest?(): Lineage;                                // the haul chest into the purse (`Works.chest` → `gold`); the porter's chore
   setWorker?(id: string, on: boolean): Lineage;         // switch a hired worker off (its chore by hand again) or back on
+  promote?(id: string): Lineage;                        // week 2: the worker rank on offer (`Works.lit_rank`; II 5 days after the hire, III 9; a forge unit × the rank less one)
   // Cut 30 (core): packages, drills, the bank, the quest board — each returns the Lineage (throws with a ≤ 3-word reason)
   equipPackage?(id: string, slot: number): Lineage;     // §2: a stance, a tactic in `slot` 0/1, a temperament — free, instant
   unequipPackage?(id: string): Lineage;                 // §2: empty a tactic or temperament slot (the stance is never empty)

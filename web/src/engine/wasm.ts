@@ -128,6 +128,7 @@ export class WasmEngine implements Engine {
   hire(id: string): Lineage { return this.call("hire", id); }
   openChest(): Lineage { return this.call("openChest"); }
   setWorker(id: string, on: boolean): Lineage { return this.call("setWorker", id, on); }
+  promote(id: string): Lineage { return this.call("promote", id); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

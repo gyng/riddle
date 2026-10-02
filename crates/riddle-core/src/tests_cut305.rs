@@ -193,8 +193,16 @@ fn workers_keep_their_standing_orders() {
     let mut s = g.clone();
     tree::grant(&mut s.lineage, &["guide"]);
     run_offline_counts(&mut s, 3600);
-    let want = s.lineage.stones().into_iter().filter(|x| x + tree::GUIDE_GAP <= s.lineage.best_depth).max().unwrap_or(1);
-    assert!(s.lineage.start >= want.max(1), "start D{} want D{want}", s.lineage.start);
+    let want = tree::guide_pick(&s.lineage, false);
+    assert_eq!(s.lineage.start.max(1), want, "the guide's start");
+    // a stone whose sends stop paying is given up
+    let mut t = s.clone();
+    if want > 1 {
+        for _ in 0..4 {
+            tree::note_start(&mut t.lineage, want, false, true);
+        }
+        assert!(tree::guide_pick(&t.lineage, false) < want, "the guide steps back");
+    }
     // the armourer: the best vault weapon/armour goes with each send
     let mut w = g.clone();
     tree::grant(&mut w.lineage, &["armourer"]);
@@ -265,4 +273,32 @@ fn an_old_save_gets_its_workers_up_to_the_scout() {
     // a save with the tree keeps it
     let again = Game::load(&g.save()).unwrap();
     assert_eq!(again.lineage.tree, g.lineage.tree);
+}
+
+#[test]
+fn a_worker_ranks_up_with_service() {
+    let mut g = Game::new(41);
+    tree::grant(&mut g.lineage, &["porter", "scout"]);
+    assert!(tree::lit_rank(&g.lineage).is_none(), "no rank on the first day");
+    let porter = tree::def("porter").unwrap();
+    assert_eq!(tree::rank_wait(&g.lineage, porter), Some(tree::RANK_DAYS[0]));
+    g.lineage.day = tree::RANK_DAYS[0];
+    assert_eq!(tree::lit_rank(&g.lineage).map(|n| n.id), Some("porter"), "the first hired worker's rank on offer");
+    g.lineage.gold += 10_000;
+    g.lineage.tree.ledger += 10_000;
+    let before = crate::town::stage_set(&g.lineage);
+    assert_eq!(g.promote("porter").unwrap(), 2);
+    assert!(g.promote("porter").is_err(), "one rank at a time, III waits its days");
+    assert!(crate::town::stage_set(&g.lineage).len() > before.len(), "a rank is a town stage");
+    assert!(conserved(&g));
+    let w = g.lineage().tree.unwrap();
+    assert_eq!(w.nodes.iter().find(|n| n.id == "porter").unwrap().rank, Some(2));
+    // a hire on offer comes first: no rank while a node is lit
+    for _ in 0..3 {
+        g.send();
+        run_offline_counts(&mut g, 1);
+    }
+    if tree::lit(&g.lineage).is_some() {
+        assert!(tree::lit_rank(&g.lineage).is_none());
+    }
 }
