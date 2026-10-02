@@ -415,6 +415,27 @@ export type WorkerPost = { id: string; post: string; lit?: boolean; price?: numb
 /** Cut 30.5 (core) — what a worker did over an absence (`ReturnReport.workers`): `apprentice` · `+2 steps` (n 2); `first` the first time it
  *  ever acted (name it once: `apprentice · +1 step`; later fold into the report's lines). */
 export type WorkerAct = { id: string; what: string; n: number; first: boolean };
+/** RUNS_UI (core; docs/RUNS_UI.md) — one run in the runs log (`Lineage.runs`, oldest first, cap 60). `via`: how it ran — `away` (an absence's
+ *  batch, `runOffline*`), `town` (unwatched while the app was open: `advance`), `watched` (live in the watch). `absence`: the absence an `away`
+ *  run belongs to (the log folds by it). `clock_s`: the lineage clock at its end (the stamp: `Lineage.clock_s` − it). `gold` what came home,
+ *  `found` the units found, `kept` what went to the vault, `turns` its ticks (10 a second), `best` a new best depth, `death_id` a death whose
+ *  verdict the core still holds (`death(id)`). A record with `sampled` is no run: the absence's runs extrapolated past its stall (`+N`). */
+export type RunRec = { id: number; heir: number; via: "away" | "town" | "watched"; absence?: number; clock_s: number;
+  start: number; depth: number; tier: "bank" | "return" | "death"; reason?: string; gold: number; found: number; kept?: string[];
+  turns: number; best?: boolean; death_id?: number; sampled?: number };
+/** RUNS_UI (core) — the run under way right now (`Lineage.live`; absent at home): the hero's floor, hp, and the run's tick. */
+export type LiveRun = { run_id: number; heir: number; depth: number; start: number; hp: number; max_hp: number; turn: number };
+/** RUNS_UI (core) — `advance(ms)`: the open app's clock run on the lineage (rest, then the next run, unwatched; a run in flight stays in
+ *  flight at the budget's end). `ended` the runs it finished (refresh the lineage then), `live` the run under way after it. */
+export type Advance = { ended: number[]; live?: LiveRun };
+/** RUNS_UI (core) — a past run re-simulated from its send (`replay(id)`): each floor's first snapshot (later entities, items and seen tiles
+ *  folded in, as the watch's run log does) and its events; `hash` the FNV-1a of its events (an exit's line and trace left out), `ticks` its
+ *  length. Identical to the run as it was played (same seed, state and inputs). */
+export type ReplayFloor = { snapshot: Snapshot; events: Ev[] };
+export type Replay = { run_id: number; floors: ReplayFloor[]; hash: string; ticks: number };
+/** RUNS_UI (client; Cut 31's heroes on the wire later) — one lane: a hero's run state. `state` live · rests · waits. */
+export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
+  rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
   workers?: WorkerAct[];                                                       // Cut 30.5 (core): the workers' acts this absence (porter's hauls, apprentice's steps, clerk's deposits, …)
   chest?: number;                                                              // Cut 30.5 (core): the haul gold this absence left in the chest (before the porter; the chest's badge)
@@ -458,7 +479,9 @@ export type ReturnReport = {
   meters?: MeterWire;                                                         // Cut 29 §3 (core): the absence's real runs metered, summed (the report's per-night meter)
   fallen?: Fallen[];                                                          // Cut 29 §6 (core; AX: Greth gone with only `party −1 ogre`): each companion that fell, named — `Greth · ogre L5 · fell D12 to lurker`
 };
-export type Lineage = { age_h?: number; reveal_queue?: string[]; reveal_next?: { id: string; trigger: string; triggered: boolean; wait_h: number };   // Cut 30 (core; PROGRESSION_V2 §4): the lineage's age in hours (offline included); systems ready and waiting their turn (one opens a report); the next to come and the hours it still waits (`next · tactics · 3 h`)
+export type Lineage = { runs?: RunRec[]; live?: LiveRun | null; replays?: number[]; clock_s?: number; absences?: number;   // RUNS_UI (core): the runs log, the run under way, the run ids a replay is held for, the lineage clock (s), the absences counted
+                        heroes?: HeroLane[];                                                                     // RUNS_UI: reserved for Cut 31 (a lane per hero); the client derives the one hero's lane until then
+                        age_h?: number; reveal_queue?: string[]; reveal_next?: { id: string; trigger: string; triggered: boolean; wait_h: number };   // Cut 30 (core; PROGRESSION_V2 §4): the lineage's age in hours (offline included); systems ready and waiting their turn (one opens a report); the next to come and the hours it still waits (`next · tactics · 3 h`)
                         glory?: number; expeditions?: number; era_gate?: number;                                   // PROGRESSION_V2 §2 (core, reserved for Cut 31)
                         packages?: Packages;                                                                        // Cut 30 §2 (core): stances, tactics, temperaments, levels, drills, scars, the pen
                         town?: Town;                                                                                // Cut 30 §3 (core): the buildings, the next plot, the bank, the quest board
@@ -617,6 +640,9 @@ export interface Engine {
   openChest?(): Lineage;                                // the haul chest into the purse (`Works.chest` → `gold`); the porter's chore
   setWorker?(id: string, on: boolean): Lineage;         // switch a hired worker off (its chore by hand again) or back on
   promote?(id: string): Lineage;                        // week 2: the worker rank on offer (`Works.lit_rank`; II 5 days after the hire, III 9; a forge unit × the rank less one)
+  // RUNS_UI (core; docs/RUNS_UI.md): runs go on while the app is open, and any held run replays
+  advance?(elapsedMs: number): Advance;                 // the open app's clock: rest, then runs, unwatched; a run in flight stays in flight
+  replay?(runId: number): Replay | null;                // a past run re-simulated from its send (null: no capsule held for it)
   // Cut 30 (core): packages, drills, the bank, the quest board — each returns the Lineage (throws with a ≤ 3-word reason)
   equipPackage?(id: string, slot: number): Lineage;     // §2: a stance, a tactic in `slot` 0/1, a temperament — free, instant
   unequipPackage?(id: string): Lineage;                 // §2: empty a tactic or temperament slot (the stance is never empty)
