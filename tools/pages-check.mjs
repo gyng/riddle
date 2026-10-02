@@ -10,13 +10,17 @@ if (out) await mkdir(out, { recursive: true });
 const browser = await launchBrowser();
 try {
   const context = await browser.newContext({ viewport: { width: 400, height: 800 } });
-  const page = await context.newPage(), errors = [];
+  const page = await context.newPage(), errors = [], wasmReads = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("response", (r) => { if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`); });
+  page.on("response", (r) => {
+    if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`);
+    if (new URL(r.url()).pathname.endsWith(".wasm")) wasmReads.push(r.body().then((b) => r.ok() && b.subarray(0, 4).equals(Buffer.from([0, 97, 115, 109])), () => false));
+  });
   page.on("request", (r) => { if (new URL(r.url()).origin === target.origin && !r.url().startsWith(target.href)) errors.push(`outside base: ${r.url()}`); });
   await page.goto(target.href);
   await page.waitForSelector(".build-banner");
   await page.evaluate(() => navigator.serviceWorker.ready);
+  assert.ok((await Promise.all(wasmReads)).some(Boolean), "real WASM engine must load successfully");
   assert.match(await page.locator(".build-banner").innerText(), /alpha\s*build \d{4}-\d{2}-\d{2}/i);
   assert.equal(await page.evaluate(() => navigator.serviceWorker.controller?.scriptURL), new URL("sw.js", target).href);
   for (const width of [400, 1440]) {
@@ -29,5 +33,5 @@ try {
   await page.reload();
   await page.waitForSelector(".build-banner");
   assert.deepEqual(errors, []);
-  console.log("pages: scoped assets, banner, mobile/desktop layout, offline reload PASS");
+  console.log("pages: real WASM engine, scoped assets, banner, mobile/desktop layout, offline reload PASS");
 } finally { await browser.close(); }

@@ -13,6 +13,7 @@ function swPrecache(): Plugin {
     configResolved(c) { outDir = c.build.outDir; base = c.base; },
     generateBundle(_o, bundle) { for (const f of Object.keys(bundle)) if (!/\.map$/.test(f)) files.push(`${base}${f}`); },
     closeBundle() {
+      if (!files.some((f) => f.endsWith(".wasm"))) throw new Error("Production engine missing: run tools/wasm.sh --ship before building the site");
       const p = join(outDir, "sw.js");
       let src: string;
       try { src = readFileSync(p, "utf8"); } catch { return; }
