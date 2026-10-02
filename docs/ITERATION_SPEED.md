@@ -545,6 +545,117 @@ lineage's state read by population) still not provably complete.
   rebased tree builds (lib, tests, examples, the wasm crate), 461 tests pass, fingerprint (8 seeds)
   **f81bfcfe4fc17ffb**, the same as `cut30`'s own build (12.0 → 6.1 s); dayplayer 4 bots × 2 seeds × 4 days
   identical to `cut30`'s (354 → 257 CPU-s at 3 threads each, side by side).
+## 0h. Round 7 — the targeted, fail-fast dayplayer, 2026-10-02 (branch `failfast`, on `cut30` e08ebb7)
+
+*A tuning loop's tool, not the gate. When the Cut 30 agent tunes content to pass a few failing rows, the full
+dayplayer replays every bot on every seed for 35–60+ min before it says anything. The aim: a check that will fail
+reports in minutes, and a row run to completion prints exactly the full run's value. Only `examples/dayplayer.rs`'s
+`main` (~30 lines), a new `examples/dayplayer_rows/mod.rs` and `tools/gates.mjs` changed. The file less `main`, which
+is the job cache's key, is byte-identical, so every kept fortnight still reads back. A shared box (load 30–55 on 32
+threads, the Cut 30 agent's gates beside it); at most 6 threads; times are CPU seconds unless marked wall.*
+
+```sh
+node tools/gates.mjs [--full] --rows <ids|substrings> [--fail-fast] [--seeds 8 --tuned-seeds 8 …]
+target/fast/examples/dayplayer --seeds 8 --rows random-picked,tuned-picked [--fail-fast] [--threads 6]
+target/fast/examples/dayplayer --rows ?          # the row ids and the bars they match
+```
+
+**What a row needs** (`ROWS` in `dayplayer_rows/mod.rs`, one entry a bar). Each entry lists:
+- **the configurations it reads**: e.g. RANDOM vs PICKED reads those two, nothing-required reads the six
+  leave-one-outs and IDLE.
+- **those it needs only to be there**: `main` computes PICKED's stage row only when IDLE has a result, so IDLE's
+  seed 1 is played for zero days.
+- **its seeds**: the smallest seed count among its bots, as the bars' `zip` reads them.
+- **how far each game must go**: a day limit (D8 by the end of day 1, D14 by day 2) and an earlier stop:
+  - the milestone depth reached (`Depth(23)` for RANDOM-vs-PICKED and PICKED-vs-IDLE, `Depth(33)` for TUNED-vs-PICKED,
+    outpace and nothing-required). The milestone's hours are written at the check-in that reaches it.
+  - the end of the day D23 is reached (the stall row stops counting there).
+  - stance L5 at a day's end.
+  - the whole fortnight (stage days, gold, stalls, grew, the king, each system).
+
+`--rows` plays only those configurations and seeds, through the same `Group`/`Ask`/`Play` shared-prefix
+machinery. Each group stops when every member has what every row reading it needs (`while !p.done() &&
+!plan.enough(..)`). A game stopped early is never kept in the job cache; a kept fortnight is read back whole and
+satisfies any need. Only the targeted bars print, and the last line says `targeted … not a gate pass`.
+
+**`--fail-fast`.** Groups are queued lowest seed first. After each result lands, each targeted row's settle rule
+runs on the seeds complete so far:
+- **every-seed rows** (D8 by day 1, stalls, gold, the king, grew, RANDOM never beats PICKED, nothing-required's
+  worst seed) fail on their first failing seed;
+- **median rows** take the median with the seeds left all at −∞ and all at +∞. The ratio rows can also drop a seed
+  (one where the faster bot never reaches the milestone), so for them each number of dropped seeds is tried too. A
+  threshold that holds at both extremes holds between them, so all pass means settled PASS and all fail means
+  settled FAIL;
+- **count rows** (D23 ≥ 6/8, content reach) and the 90 % outpace row are bounded the same way (each seed left adds
+  7 kept or 7 lost pairs);
+- **each system adds value** compares means: it settles only at the end, by its bar.
+
+The first row settled FAIL aborts the run (exit 1), naming the game that settled it, the seed and the values. A
+row settled PASS frees the games only it needed. When every row has settled, the run ends.
+
+**Drift check.** At the end of every targeted run, each row's settle rule is re-run on the whole results and must
+agree with the bar `main` printed. Otherwise the run prints `MISMATCH` and fails, and a row whose bar was renamed
+prints `MISSING`. It caught one bug this round: PICKED's stage row printed nothing until IDLE was present. Bar
+thresholds held in `main` constants (`NOTHING_REQ_MAX_LAG`, `PEN_DAY_H`) are read from `dayplayer.rs`'s own source
+(`main_const`), so round 10's 24 → 48 h needed no edit here.
+
+**Exactness** (every diff whole on the bar lines):
+- `--rows X` without fail-fast against the full 8-seed run (IDLE, PICKED, TUNED, RANDOM; 22.4 k CPU-s), each
+  played fresh in its own directory:
+  - `random-picked`: `8/8 · 8/8 PASS`, identical.
+  - `picked-stages`: `10.0 PASS`, identical (reprinted from its own kept fortnights after the IDLE-presence fix).
+  - `tuned-picked` on the start-of-round head 7d9f2b9 (D29 · D33, a scratch build of it with this round's
+    files): `1.02 · 1.26 FAIL`, identical (7,503 CPU-s, 42 m wall).
+- IDLE on 3 seeds: `idle-d8`, `idle-d13`, `idle-d23`, `idle-stall` and `stance` each identical to the full run.
+- All 20 rows at once from the Cut 30 agent's own kept 16-seed gate jobs (the same `RIDDLE_SRC_KEY`; the file less
+  `main` is byte-identical): the 20 bar lines byte-identical to that gate's printout. Checked on round 9
+  (nothing-required FAIL `packages D23 median −28 h · worst from day 5 +40 h`) and on round 10's 48 h cap (all
+  PASS); no MISMATCH, no MISSING.
+- Fail-fast verdicts agree with the full run:
+  - round 9 `nothing-required`: FAIL, `seed 15: packages D18: +40 h behind IDLE from day 5 (cap 24 h)`;
+  - round 10: PASS;
+  - all 19 settling rows on the 16-seed jobs: the gate's PASS/FAIL each;
+  - 7d9f2b9's D29 · D33 row: FAIL at seed 6, `D29 0.93…1.13 with 2 seeds left (s1 1.65, s2 1.09, s3 1.17,
+    s4 0.94, s5 0.89, s6 0.91)`; the full run reads 1.02;
+  - D33 (round 8 on): PASS at seed 5, `D33 1.20…1.55 with 3 seeds left`; the full run reads 1.26.
+- **On e08ebb7** (the ring merge, core-only and bit-identical): the 20 rows from the round-10 kept jobs, read with
+  the e08ebb7 binary, give 20/20 bar lines identical to the round-10 gate printout and no drift. Seven rows played
+  fresh on e08ebb7 (`idle-d8,idle-d13,idle-d23,idle-stall,stance,random-picked,reach`, 8 seeds) are identical to the
+  pre-ring full run (5 m 33 s, 986 CPU-s at 3 threads).
+
+**Timings** (8 seeds, fresh, no job cache; targeted runs at `--threads 3`, two side by side; the full run at
+`--threads 4`; the box at load 30–55):
+
+| Check | Wall | CPU-s | vs full (CPU) | Verdict |
+|---|---|---|---|---|
+| full dayplayer, 8 seeds, IDLE/PICKED/TUNED/RANDOM (no leave-one-outs) | 1 h 40 m | 22,424 | 1× | (all rows) |
+| RANDOM never beats PICKED, `--rows` | 20 m 20 s | 2,410 | 9.3× less | PASS 8/8 · 8/8 |
+| RANDOM never beats PICKED, `--fail-fast` | 20 m 16 s | 2,398 | 9.4× less | PASS (every seed needed: an every-seed row cannot pass early) |
+| PICKED stage days, `--fail-fast` | 1 h 9 m | 11,492 | 2.0× less | PASS settled at 7/8 seeds (median 10.0–10.5 whatever s8 does) |
+| TUNED vs PICKED at D29 · D33 (7d9f2b9, failing), `--rows` | 42 m 33 s | 7,503 | 3.0× less | FAIL 1.02 · 1.26 |
+| TUNED vs PICKED at D29 · D33 (7d9f2b9, failing), `--fail-fast` | **29 m 48 s** | **5,357** | **4.2× less** | FAIL settled at seed 6 |
+| TUNED vs PICKED at D33 (now), `--fail-fast` | 26 m 42 s | 4,664 | 4.8× less | PASS settled at seed 5 |
+
+(Timed on the pre-ring core, 3f1ae7e's. On e08ebb7 the ring makes IDLE's and RANDOM's absences cheaper:
+RANDOM-vs-PICKED with five IDLE rows and content reach took 5 m 33 s, 986 CPU-s. PICKED and TUNED fortnights are
+mostly panels and barely move.) At 6 threads a failing TUNED row settles in ~15–20 min of wall on a quiet box,
+against the full run's ~1 h.
+
+Where it saves:
+- **Rows read up to a milestone**, not the fortnight: RANDOM-vs-PICKED stops each PICKED game at D23 (day 4–6), so
+  it costs a tenth of the full run.
+- **Failing rows**: they abort at their first settling seed, with the seeds ordered so it comes early.
+
+Where it cannot:
+- **A row that reads the whole fortnight of a PICKED or TUNED bot** (stage days, stalls, each system) still plays
+  those fortnights. It saves only the other bots and, for medians, the seeds that cannot change the outcome.
+- **An every-seed row that passes** needs every seed. Settling on games still in progress (RANDOM at D13 before
+  PICKED gets there) would fail sooner; it is not done.
+
+`gates.mjs --rows` runs the dayplayer leg alone at the tier's seeds (quick 2, `--full` 16; `--seeds N` etc. after
+the flags win). Its printout is kept as `target/gates/dayplayer-rows-<hash>.txt`, keyed by the binary, the
+arguments and the core's sources, and its full-length fortnights go to the gate's job cache (`RIDDLE_SRC_KEY`). It
+never prints `gates: all PASS` or `dayplayer: all bars pass`; it ends with `gates: TARGETED — … not a gate pass`.
 
 ## 1. The evaluation loop (the afternoon)
 

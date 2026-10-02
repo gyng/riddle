@@ -24,13 +24,14 @@ export type Pt = { x: number; y: number };
 
 export const BUILDINGS = ["blacksmith", "storehouse", "kennel", "bank"] as const;
 export type BuildingId = (typeof BUILDINGS)[number];
-export type PlotId = "mouth" | "fire" | "tent" | "crate" | BuildingId;
+export type PlotId = "mouth" | "fire" | "tent" | "crate" | "board" | BuildingId;
 /** each plot's foot (texels) and its drawn height */
 export const PLOTS: Record<PlotId, Pt & { h: number }> = {
   mouth: { ...T(CX, 6.6), h: 64 },
   fire: { ...T(CX, 14.7), h: 16 },
   tent: { ...T(CX + 3.3, 14.0), h: 32 },
   crate: { ...T(CX + 5.0, 14.9), h: 16 },
+  board: { ...T(CX - 2.2, 7.6), h: 28 },   // Cut 30 §5: the notice board by the mouth (the quest), from the Warlord slain
   blacksmith: { ...T(CX - 4.6, 10.7), h: 64 },
   bank: { ...T(CX + 4.6, 10.7), h: 64 },
   storehouse: { ...T(CX - 4.5, 19.6), h: 64 },
@@ -82,9 +83,10 @@ export type TownState = {
   penned: string[];                                // companions lying in the kennel's pen
   parties: Party[];                                // the absence's runs walking out of the mouth
   markers: Marker[];                               // ≤ 3
+  board: boolean;                                  // the quest board stands by the mouth
   depth: number;                                   // the best depth (the mouth's plaque)
 };
-export type TownOpts = { seen?: string[]; opened?: string[]; kit?: { n: number; price?: number }; now?: Date; absenceNew?: boolean };
+export type TownOpts = { board?: boolean; seen?: string[]; opened?: string[]; kit?: { n: number; price?: number }; now?: Date; absenceNew?: boolean };
 
 const hashN = (...xs: number[]): number => { let h = 2166136261; for (const x of xs) { h ^= x | 0; h = Math.imul(h, 16777619); h ^= h >>> 13; } return h >>> 0; };
 export const localDay = (now = new Date()): number => Math.floor((now.getTime() - now.getTimezoneOffset() * 60000) / 86400000);
@@ -126,7 +128,7 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   return {
     seed, day, stage: buildings.length, buildings, staked: next, hero: { cls: L.class || "fighter", look: L.look },
     pets: (L.party ?? []).slice(0, 2).map((c) => c.kind), penned: has("kennel") ? (L.kennel ?? []).slice(0, 2).map((c) => c.kind) : [],
-    parties, markers: markers.slice(0, 3), depth: L.best_depth ?? 0,
+    parties, markers: markers.slice(0, 3), depth: L.best_depth ?? 0, board: !!o.board,
   };
 }
 
@@ -148,7 +150,7 @@ const ATLAS = 1024;
 /** a walker's coat hue by class (rgb 0..255, applied to the mid-tones at a pixel's own value) */
 const WALKER_TINT: Record<string, number[]> = { rogue: [120, 70, 140], ranger: [80, 140, 72], caster: [70, 96, 200], fighter: [150, 160, 176] };
 /** fallback aspect (w / h) per id family */
-const ASPECT: [RegExp, number][] = [[/^town_mouth/, 1.55], [/^town_(blacksmith|bank|storehouse|kennel)_/, 1.25], [/^town_tent/, 1.05], [/^town_campfire/, 1.1],
+const ASPECT: [RegExp, number][] = [[/^town_mouth/, 1.55], [/^town_(blacksmith|bank|storehouse|kennel)_/, 1.25], [/^town_tent/, 1.05], [/^town_board/, 0.85], [/^town_campfire/, 1.1],
   [/^town_plot/, 1.1], [/^town_scaffold/, 0.9], [/^(hero_|walk_|town_(smith|merchant|carter|child))/, 0.7], [/^town_(sack|chest)/, 0.95], [/^town_flag/, 0.6],
   [/^env_torch/, 0.66], [/^town_env_tree/, 0.5], [/^town_env_/, 1], [/^fx_/, 1]];
 export class TownAtlas {
@@ -226,6 +228,7 @@ function drawPrimitive(g: CanvasRenderingContext2D, id: string, x: number, y: nu
     if (/bank/.test(id)) { g.fillStyle = "#e3c24a"; g.beginPath(); g.arc(x + w * 0.5, y + h * 0.3, Math.max(2, h * 0.08), 0, Math.PI * 2); g.fill(); }
   }
   else if (/^town_tent/.test(id)) { tri("#c9b48a", w / 2, 0, 0, w, h); tri("#2a2218", w / 2, h * 0.45, w * 0.36, w * 0.64, h); }
+  else if (/^town_board/.test(id)) { R("#4a321f", w * 0.15, h * 0.3, 2, h * 0.7); R("#4a321f", w * 0.8, h * 0.3, 2, h * 0.7); R("#6a5034", 0, 0, w, h * 0.6); R("#d8c8a0", w * 0.2, h * 0.12, w * 0.3, h * 0.25); }
   else if (/^town_crate/.test(id)) { R("#8a6034", 0, 0, w, h); R("#5a3c1e", 0, h / 2, w, 1); R("#5a3c1e", w / 2, 0, 1, h); }
   else if (/^town_campfire/.test(id)) { R("#4a321f", 0, h * 0.75, w, h * 0.25); tri(/_1$/.test(id) ? "#ffcf5a" : "#f08a2a", w / 2, 0, w * 0.15, w * 0.85, h * 0.8); }
   else if (/^town_plot/.test(id)) { for (const a of [0.1, 0.9]) R("#6a4a2a", w * a - 1, h * 0.2, 2, h * 0.8); R("#d8c8a0", w * 0.1, h * 0.35, w * 0.8, 1); }
@@ -511,6 +514,7 @@ export function createTownView(host: HTMLElement): TownView {
     sprite("town_tent", PLOTS.tent.h, PLOTS.tent.x, PLOTS.tent.y);
     if (night > 0.3) F.lights.push({ x: PLOTS.tent.x, y: PLOTS.tent.y - 6, r: 14, c: [0.9, 0.55, 0.25] });
     sprite("town_crate", PLOTS.crate.h, PLOTS.crate.x, PLOTS.crate.y);
+    if (s.board) sprite("town_board", PLOTS.board.h, PLOTS.board.x, PLOTS.board.y);
     // the buildings: scaffold → built (dust, a glint)
     for (const b of s.buildings) {
       const p = PLOTS[b.id];
@@ -680,7 +684,7 @@ export function createTownView(host: HTMLElement): TownView {
       if (!state) return null;
       const plot = id === "staked" ? (state.staked ? PLOTS[state.staked.id] : null) : PLOTS[id];
       if (!plot) return null;
-      const ids: Record<string, string[]> = { mouth: ["town_mouth_cave"], fire: ["town_campfire_0"], tent: ["town_tent"], crate: ["town_crate"] };
+      const ids: Record<string, string[]> = { mouth: ["town_mouth_cave"], fire: ["town_campfire_0"], tent: ["town_tent"], crate: ["town_crate"], board: ["town_board"] };
       let s: Slot;
       if (id === "staked") s = atlas.get("town_plot", 16);
       else if ((BUILDINGS as readonly string[]).includes(id)) { const b = state.buildings.find((x) => x.id === id); if (!b) return null; s = atlas.get([`town_${id}_${b.look}`, `town_${id}_1`], plot.h); }

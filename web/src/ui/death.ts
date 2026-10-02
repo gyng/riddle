@@ -25,6 +25,8 @@ import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel
 import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
 import { foeSrc } from "./skin";
+import { penOpen } from "./packages";
+import { openForge } from "./forge";
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
@@ -98,6 +100,9 @@ export const lineShown = (x: ExitLine, name?: (label: string) => string, opts: E
 export function renderDeath(app: App, d: Death, lost: string[] = [], kept = false, from?: { report: ReturnReport; absence?: boolean }): Mounted {
   setRefRows(() => d.rules?.rows ?? app.rules.rows);   // docs/COPY.md §2: the core's `R2` on this screen names the rules that ran
   const drove = isDriven(d) ? d.line!.driven! : undefined;   // Cut 26 §6: a drive-off's verdict (below)
+  // Cut 30 §2: before the pen opens the screen is the cause and ONE cheapest lever (`Death.lever`: spend · package · wait); the trace,
+  // `gap`/`dice`, the replays and the fixes' odds come with the pen
+  const prePen = !penOpen(app.lineage);
   // a stall's margin is the guard's reason (or empty): the headline never carries an empty segment
   const seg = headlineMargin(d.margin ?? "");
   const margin = seg ? ` · ${seg}` : "";
@@ -111,7 +116,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // (one word, engine data: `gap` · `dice` · `stall`); the text reads as before (`goblin archer · D6 · gap`)
   // docs/COPY.md pass 3 (`UNANSWERED` under `goblin warlord · D8` read as "boss not beaten yet" 4/4): a gap whose margin does not say
   // what went unmet says it (`no rule for it`)
-  const gapWord = d.verdict === "gap" && !/unanswered|unused|unmet/.test(margin) ? /* copy:death_line */ " · no rule for it" : "";
+  const gapWord = !prePen && d.verdict === "gap" && !/unanswered|unused|unmet/.test(margin) ? /* copy:death_line */ " · no rule for it" : "";
   // death screen v2 (owner, 2026-10-01: "too wordy and incomprehensible"): the headline answers what killed him — the killer, the floor and (`hero at`: blind check read a bare `at 1 hp` as the foe's)
   // the hp he had before the blow (`gas · D7 · at 3 hp`); a stall keeps its loop (its moment is the rules'); the rule, the margin and
   // `no rule for it` move to the why line and the details
@@ -128,24 +133,24 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 26 §6 (AO: `GAP` beside `unpatched 10/12` — "my fault or luck?"): the stamp and its counts agree — a gap, row or order most of
   // whose unpatched replays survive (the core's `lean`, else > half the replays) carries `dice-leaning` beside the stamp; the stamp stays
   const leanCounts = (d.verdict === "gap" || d.verdict === "row" || d.verdict === "order") && (d.replays ? Math.round((d.baseline ?? 0) * d.replays) * 2 > d.replays : (d.baseline ?? 0) > 0.5);
-  const lean = !drove && (d.lean === "dice" || leanCounts);
+  const lean = !prePen && !drove && (d.lean === "dice" || leanCounts);
   const word = d.verdict;
   // docs/COPY.md §2: the stamp blames the right thing in a plain word — `dice` is luck, `row` the player's own rule
   // passes 2–3: `gap` alone read "no idea" 4/4; `unanswered` did not fit the seal and `unmet` read "a goal not met" 6/6 — the seal keeps
   // `gap` and the headline says what it means (`no rule for it`, or the core's `telegraph unanswered`)
   // Cut 29 (owner, 2026-09-28): the gap's seal reads YOU DIED — the headline's `no rule for it` under it keeps what it means (the report,
   // reel, trace and patches keep their own words for a gap)
-  const stamp = word === "gap" ? /* copy:verdict */ "you died" : word === "dice" ? /* copy:verdict */ "luck" : word === "row" ? /* copy:verdict */ "rule" : (word as string) === "driven" ? /* copy:verdict */ "repelled" : word;
+  const stamp = prePen && word !== "stall" && !drove ? /* copy:verdict */ "you died" : word === "gap" ? /* copy:verdict */ "you died" : word === "dice" ? /* copy:verdict */ "luck" : word === "row" ? /* copy:verdict */ "rule" : (word as string) === "driven" ? /* copy:verdict */ "repelled" : word;
   // Cut 28 §2 (AU: `8/12 live unpatched` deaths "felt like the dungeon's decision"; AV: `10/12 live unpatched` under GAP read as blame): a
   // death most of whose replays live — or a `dice` — leads with the event that killed him and its odds (`goblin −6 at 6 hp · 1 in 6`), over
   // the stamp, which steps back (the patches still answer it)
-  const luck = !drove && d.verdict !== "stall" && d.verdict !== "route" && (lean || word === "dice") ? luckOf(d) : null;
+  const luck = !prePen && !drove && d.verdict !== "stall" && d.verdict !== "route" && (lean || word === "dice") ? luckOf(d) : null;
   const luckLead = luck ? h("div", { class: "luck-lead num" }, h("span", { class: "luck-event" }, luck.event), h("span", { class: "luck-odds" }, /* copy:callout */ ` · 1 in ${luck.oneIn}`)) : null;
   const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } , "data-size": stamp.includes(" ") ? "w2" : stamp.length > 6 ? "l" : stamp.length > 3 ? "m" : undefined }, stamp);
   // QA 524827b (qaAB: tapped `gas · D6` expecting the clip; it only scrolled to the trace): the cause opens the moment — the killing
   // blow's replay when this session still holds the run — else brings up the trace
   const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;
-  const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else { if (!el.classList.contains("full")) more.click(); tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); } };
+  const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else if (!prePen) { if (!el.classList.contains("full")) more.click(); tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); } };
   const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: onCause }, causeEl), h("span", { class: "sep" }, " · "), seal,
     // QA 308f045 (qaAD: `GAP` over `dice-leaning` — "two verdicts on one death"): beside the stamp the lean is the count it rests on, a fact
     // and not a second verdict (`10/12 live unpatched`; without the count, `most live unpatched`)
@@ -226,10 +231,31 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // says so on the stone (`harms`, never `apply`: the player's own pick still applies, warned)
   // Cut 27 §4 (AS: the stall screen's gem applied `depth ≥ 5 → return · drops R10` over `cut R8`): a stall's gem goes through the same
   // guard — its patches are measured on whole runs (`deathDeltas`) before the gem offers one, and never a harming one
-  const measureAll = !drove && !(d.verdict === "route" && d.route_cause) && (d.patches.some((p) => p.camp_pending) || (d.verdict === "stall" && d.patches.some((p) => p.insert_at >= 0)));
+  const measureAll = !prePen && !drove && !(d.verdict === "route" && d.route_cause) && (d.patches.some((p) => p.camp_pending) || (d.verdict === "stall" && d.patches.some((p) => p.insert_at >= 0)));
   let measuring = measureAll && !!app.engine.deathDeltas;
+  const lever = prePen ? (d as Death & { lever?: Lever }).lever : undefined;   // Cut 30 (core): before the pen opens, the one cheapest lever (spend · package · wait) leads
+  const canSend = !kept && app.rules.rows.length > 0 && !app.overBudget;
+  /** The lever's act: `spend` opens the blacksmith on its step, `package` wears it (free, instant) and goes to camp, `wait` sends again. */
+  const leverAct = (): void => {
+    if (!lever) { app.go({ kind: "camp" }); return; }
+    if (lever.kind === "spend") { openForge(app); return; }
+    if (lever.kind === "package") {
+      const p = app.lineage.packages?.all.find((x) => x.name === lever.text || x.id === lever.text.toLowerCase());
+      if (p && p.owned && app.engine.equipPackage) void app.mutate(() => app.engine.equipPackage!(p.id, 0), /* copy:callout */ p.name, true).then(() => app.go({ kind: "camp" }));
+      else app.go({ kind: "camp" });
+      return;
+    }
+    if (canSend) app.go({ kind: "watch" }); else app.go({ kind: "camp" });
+  };
+  /* copy:label */
+  const LEVER_WORD: Record<string, string> = { spend: "buy", package: "wear", wait: "wait" };
+  /* copy:button */
+  const LEVER_GEM: Record<string, string> = { spend: "forge", package: "wear", wait: "send" };
+  const leverBtn = lever ? h("button", { class: "death-lever tablet", "data-kind": lever.kind, onclick: leverAct },
+    h("span", { class: "lever-kind" }, LEVER_WORD[lever.kind] ?? lever.kind), h("b", null, lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
+  function leverGem(): HTMLButtonElement { return gem({ label: lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "camp" : /* copy:button */ "camp", cls: "lever-gem", pulse: true, onclick: leverAct }); }
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
-  const makeGem = (): HTMLButtonElement => top && measuring && isPatchTop()
+  const makeGem = (): HTMLButtonElement => prePen ? leverGem() : top && measuring && isPatchTop()
     ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, "…"), h("small", { class: "gem-w" }, /* copy:label */ "measuring")), cls: "patch-gem pending", onclick: () => undefined })
     : top
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
@@ -237,7 +263,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     : gem({ label: /* copy:button */ "edit", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
-    top ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
+    top && !prePen ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
     // QA 308f045 (qaAD: a verdict opened from the return report had no way back — `edit · morgue · camp`, browser back to the camp): a
     // verdict opened from a report leads back to it
     from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report }) }) : null,
@@ -251,14 +277,12 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const rowsRan = d.rules?.rows ?? app.rules.rows;
   const whyEl = h("div", { class: "death-why" });
   const leadPatch = (): Patch | undefined => { const b = top?.btn; return b ? patchOf.get(b) : undefined; };
-  const setWhy = (): void => { whyEl.textContent = whyOf(app, d, leadPatch(), rowsRan, luck, drove, causeRow); };
-  const lever = (d as Death & { lever?: Lever }).lever;   // Cut 30 (core): before the pen opens, the one cheapest lever (spend · package · wait) leads
-  const leverBtn = lever ? h("button", { class: "death-lever tablet", "data-k": lever.k, onclick: () => app.go({ kind: "camp" }) }, h("b", null, lever.text), lever.effect ? h("small", { class: "num" }, ` · ${lever.effect}`) : "") : null;
-  const canSend = !kept && app.rules.rows.length > 0 && !app.overBudget;
-  const sendAgain = canSend ? h("button", { class: "death-send chip", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send again") : null;
-  const now = h("div", { class: "death-now" }, leverBtn, patches, sendAgain);
+  // (before the pen the why is the package row that acted — `Steady · HP<20% → return` — never a verdict term)
+  const setWhy = (): void => { whyEl.textContent = prePen ? (d as Death & { package?: string }).package ?? "" : whyOf(app, d, leadPatch(), rowsRan, luck, drove, causeRow); whyEl.hidden = !whyEl.textContent; };
+  const sendAgain = canSend && !prePen ? h("button", { class: "death-send chip", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send again") : null;
+  const now = h("div", { class: "death-now" }, leverBtn, prePen ? null : patches, sendAgain);
   // the rest view: the lit fix and one other; `send again` when the death leaned on luck or nothing helps (both when there is room)
-  function rest(): void { const n = restLayout(patches, leverBtn ? 1 : 2, measuring); if (sendAgain) sendAgain.hidden = !(luck || n === 0 || !!drove && n < 2); }
+  function rest(): void { if (prePen) return; const n = restLayout(patches, leverBtn ? 1 : 2, measuring); if (sendAgain) sendAgain.hidden = !(luck || n === 0 || !!drove && n < 2); }
   const marginEl = marginText_ ? h("div", { class: "death-margin num dim" }, marginText_, gapWord) : null;
   const meters = d.fight ? h("div", { class: "parchment fight-meters" }, meterPanel(d.fight, rowsRan, { title: /* copy:label */ "last fight" })) : null;
   const morgueBtn = d.morgue ? h("button", { class: "chip mini death-morgue", onclick: openMorgue }, /* copy:button */ "morgue") : null;
@@ -274,9 +298,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerSrc ? " has-killer" : ""}` },
       // gfx round 10 (raters, every round: "show the killer behind the banner"): the killer's portrait in an iron medallion on the cloth
       killerSrc ? h("img", { class: "killer", src: killerSrc, alt: "", draggable: "false", "aria-hidden": "true" }) : null, luckLead, line)),
-    whyEl, details, now, more, tail);
+    ...(prePen ? [whyEl, now] : [whyEl, details, now, more, tail]));
   const wide = wideCols(app, null);   // desktop: the rules left, the shaft right (wide.css); the fight is under details
-  const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}` }, bar.el, well, cons.el, ...wide.els);
+  const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}${prePen ? " prepen" : ""}` }, bar.el, well, cons.el, ...wide.els);
   setWhy(); rest();
   // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
   if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }
@@ -499,7 +523,7 @@ export function forecastSaid(app: App, depth: number): number | undefined {
 
 /** Cut 30 (core, `Death.lever`, before the pen opens): the one cheapest lever — `spend` (buy the counter item), `package` (a swap), `wait`
  *  (the heir rests, the floor's odds rise) — its words (`+ heal potion`) and its effect (`survives more`). Shape provisional: the core's. */
-export type Lever = { k: "spend" | "package" | "wait"; text: string; effect?: string };
+export type Lever = { kind: "spend" | "package" | "wait" | string; text: string };
 
 /** The hp the hero had before the blow that killed him (the last blow's hp plus its damage); none without a blow. */
 export function momentHp(d: Death): number | undefined {

@@ -13,6 +13,7 @@ import { kitAffordable } from "./forge";
 import { openSheet } from "./sheet";
 import { tile } from "./frame";
 import { audio } from "../audio";
+import { questShown } from "./quest";
 
 /** what a target opens (the camp wires each to its panel or sheet) */
 export type TownHooks = {
@@ -20,9 +21,10 @@ export type TownHooks = {
   hero(anchor: HTMLElement): void;
   open(what: "loadout" | "vault" | "party", anchor: HTMLElement): void;
   forge(anchor: HTMLElement): void;
+  quest(anchor: HTMLElement): void;
 };
 /* copy:label */
-const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "pack", blacksmith: "blacksmith", storehouse: "storehouse", kennel: "kennel", bank: "bank", staked: "next plot" };
+const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "pack", blacksmith: "blacksmith", storehouse: "storehouse", kennel: "kennel", bank: "bank", staked: "next plot", board: "quest board" };
 /** a building's tile on the bar: its id (the old console ids, kept: tests and badges key on them), icon and word */
 /* copy:button */
 export const BUILDING_TILE: Record<BuildingId, { id: string; icon: string; label: string; glyph: string }> = {
@@ -67,7 +69,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   function paint(): void {
     const L = app.lineage;
     const s0 = load(L) ?? store!;
-    state = townState(L, absence, { seen: s0.seen, opened: s0.opened, kit: kitInfo(), absenceNew: !!absence });
+    state = townState(L, absence, { seen: s0.seen, opened: s0.opened, kit: kitInfo(), absenceNew: !!absence, board: questShown(L) });
     view.setState(state);
     // seen now (a re-mount does not raise it again)
     const built = state.buildings.map((b) => b.id);
@@ -78,7 +80,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   function targets(): void {
     const s = state; if (!s) return;
     const want: { id: string; plot: PlotId | "staked" }[] = [{ id: "mouth", plot: "mouth" }, { id: "tent", plot: "tent" }, { id: "crate", plot: "crate" },
-      ...s.buildings.map((b) => ({ id: b.id, plot: b.id as PlotId }))];
+      ...s.buildings.map((b) => ({ id: b.id, plot: b.id as PlotId })), ...(s.board ? [{ id: "board", plot: "board" as PlotId }] : [])];
     // the staked plot shows from day 0; it taps (its trigger) once the first building stands — day 0 keeps its four surfaces
     if (s.staked && s.stage >= 1) want.push({ id: "staked", plot: "staked" });
     for (const [id, b] of btns) if (!want.some((w) => w.id === id)) { b.remove(); btns.delete(id); }
@@ -137,6 +139,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     else if (id === "kennel") hooks.open("party", b);
     else if (id === "blacksmith") hooks.forge(b);
     else if (id === "bank") openBank(app, b);
+    else if (id === "board") hooks.quest(b);
   }
   /** the sword marker: one tap buys the cheapest kit step the purse can pay (the check-in's spend) */
   async function buyKit(): Promise<void> {

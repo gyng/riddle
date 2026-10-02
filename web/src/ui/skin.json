@@ -213,5 +213,15 @@
   "shard_3_px",
   "shield",
   "shield_px"
+ ],
+ "quest": [
+  "card",
+  "heir",
+  "route",
+  "row",
+  "slot",
+  "title",
+  "verb",
+  "waystone"
  ]
 }

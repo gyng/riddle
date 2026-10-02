@@ -700,7 +700,8 @@ export class App {
     this.rulesChanged();
   }
   /** Runs an engine call that returns a Lineage and adopts it. Errors (unaffordable, locked) are swallowed after a warn. */
-  async mutate(fn: () => Promise<Lineage>, move?: string): Promise<boolean> {
+  /** `adopt` (Cut 30 §2): the call recompiled the set (a package equipped, levelled, a drill revoked) — the editing copy is the core's again. */
+  async mutate(fn: () => Promise<Lineage>, move?: string, adopt = false): Promise<boolean> {
     // QA 0c6e126 (qaY): a purchase, a drop, a cage or a kit step (`move`, its word) — the camp's next forecast for these rules is read
     // against the one painted before it (`lineageMove`)
     // QA 524827b (qaAA: after `+1 row` and `verb: throw` bought, the line under the forecast still read `drop · D6 ≈ ±6` from the leash
@@ -708,6 +709,7 @@ export class App {
     if (move) { this.lmPending = { label: move, before: this.lastForecast, rules: JSON.stringify(this.rules.rows) }; this.lmove = null; }
     else { this.lmPending = null; this.lmove = null; }
     try { this.lineage = await fn(); } catch (e) { this.lmPending = null; console.warn("engine refused", e); return false; }
+    if (adopt) this.adoptSets();
     this.baseMoved = true;
     await this.afterLineage();
     return true;
@@ -946,7 +948,34 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     oaths_kept: cat(a.oaths_kept, b.oaths_kept),
     fallen: cat(a.fallen, b.fallen),
     meters: mergeMeters(a.meters, b.meters),
+    ...mergeGrew(a, b),
   };
+}
+/** Cut 30 §4: what grew over an absence adds up across its slices — per track, the gold summed (`+$2400`), a best or a level the
+ *  highest (`best D14`, `L7`), the rest once each; the packages' beats in order, a package's levels collapsed to its highest (`STEADY L3`). */
+export function mergeGrew(a: Pick<ReturnReport, "grew" | "packages">, b: Pick<ReturnReport, "grew" | "packages">): Pick<ReturnReport, "grew" | "packages"> {
+  const out: Pick<ReturnReport, "grew" | "packages"> = {};
+  if (a.grew || b.grew) {
+    const lines: { track: string; what: string }[] = [];
+    for (const g of [...(a.grew ?? []), ...(b.grew ?? [])]) {
+      const gold = /^\+\$(\d+)$/.exec(g.what), num = /^(best D|L)(\d+)$/.exec(g.what);
+      const at = lines.findIndex((x) => x.track === g.track && (gold ? /^\+\$\d+$/.test(x.what) : num ? x.what.startsWith(num[1]) && /^(best D|L)\d+$/.test(x.what) : x.what === g.what));
+      if (at < 0) { lines.push({ ...g }); continue; }
+      if (gold) lines[at].what = `+$${Number(lines[at].what.slice(2)) + Number(gold[1])}`;
+      else if (num && Number(num[2]) > Number(/\d+$/.exec(lines[at].what)![0])) lines[at].what = g.what;
+    }
+    out.grew = lines;
+  }
+  if (a.packages || b.packages) {
+    const beats: string[] = [];
+    for (const x of [...(a.packages ?? []), ...(b.packages ?? [])]) {
+      const lv = /^(.+) L(\d+)$/.exec(x);
+      const at = lv ? beats.findIndex((y) => y.startsWith(`${lv[1]} L`) && /^.+ L\d+$/.test(y)) : beats.indexOf(x);
+      if (at < 0) beats.push(x); else if (lv) beats[at] = x;
+    }
+    out.packages = beats;
+  }
+  return out;
 }
 /** Cut 28 §1–2: the sworn oath's night adds up across slices of one oath (a kept one wins: its reward was granted), and the report's
  *  decisions (`lead`, the core's first screen) merge by kind — the later slice's word for a kind, the oath's rebuilt from the merged tally,

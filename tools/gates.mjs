@@ -16,6 +16,11 @@
 // sources (`RIDDLE_SRC_KEY`: crates/riddle-core/src, the manifests, the lockfile, rustc) and the harness file each
 // job runs — an edit to a bar or a row reprints the leg from its jobs, a core edit replays them. `--fresh` replays
 // them all (and keeps the new ones). `GATES_THREADS=N` (the cores unless set): each leg's threads.
+//   node tools/gates.mjs [--full] --rows <ids or substrings> [--fail-fast] [dayplayer args]
+//                                 TARGETED, a tuning loop's check (docs/ITERATION_SPEED.md §0h): the dayplayer leg alone,
+//                                 only the configurations, seeds and days the named rows read (`dayplayer --rows`);
+//                                 `--fail-fast` aborts on the first row settled FAIL. Seeds as the tier's (quick 2, --full
+//                                 16) unless `--seeds N` etc. follow. Cached like the legs; never a gate pass.
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -23,8 +28,12 @@ import os from "node:os";
 const full = process.argv.includes("--full");
 const fast = process.argv.includes("--fast");
 const fresh = process.argv.includes("--fresh");
-const extra = process.argv.slice(2).filter((a) => a !== "--full" && a !== "--fresh" && a !== "--fast");
-const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "metrics", "--example", "dayplayer", "--example", "qa"], { stdio: "inherit" });
+const rowsAt = process.argv.indexOf("--rows");
+const rows = rowsAt >= 0 ? process.argv[rowsAt + 1] : null;
+const failFast = process.argv.includes("--fail-fast");
+const extra = process.argv.slice(2).filter((a, i) => a !== "--full" && a !== "--fresh" && a !== "--fast" && a !== "--fail-fast" && !(rowsAt >= 0 && (i + 2 === rowsAt || i + 2 === rowsAt + 1)));
+if (rowsAt >= 0 && !rows) { console.error("gates --rows: name the rows (ids or substrings; `target/fast/examples/dayplayer --rows ?` lists them)"); process.exit(2); }
+const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", ...(rows ? [] : ["--example", "metrics", "--example", "qa"]), "--example", "dayplayer"], { stdio: "inherit" });
 if (b.status !== 0) process.exit(b.status ?? 1);
 // The binaries hash every input exactly (sources, deps, rustc); the presets and the cohort cards are read at run time
 // (metrics.rs `cohort_sets`: every eval/cards/*.rules.json — a new card changes the table without changing a binary).
@@ -44,6 +53,32 @@ const srcKey = (() => {
   return h.digest("hex").slice(0, 16);
 })();
 const jobEnv = { RIDDLE_SRC_KEY: srcKey, ...(fresh ? { RIDDLE_CACHE_FRESH: "1" } : {}) };
+// TARGETED (`--rows`): the dayplayer leg alone on the named rows — its printout kept like a leg's (the binary, the
+// arguments), its full-length jobs kept and read like the gate's (`RIDDLE_SRC_KEY`). Never a gate pass: it prints
+// no `gates: all PASS` and says so.
+if (rows) {
+  const tier = full ? ["--seeds", "16", "--loo-seeds", "16", "--tuned-seeds", "16"] : ["--seeds", "2", "--loo-seeds", "1", "--tuned-seeds", "2"];
+  // (the dayplayer reads an argument's first occurrence: `extra` — `--seeds 8` … — before the tier's)
+  const args = [...extra, ...tier, "--rows", rows, ...(failFast ? ["--fail-fast"] : []), "--threads", String(Number(process.env.GATES_THREADS ?? os.availableParallelism()))];
+  const leg = `target/gates/dayplayer-rows-${keyOf("target/fast/examples/dayplayer", [["args", args.filter((a, i) => args[i - 1] !== "--threads" && a !== "--threads").join(" ")], ["src", srcKey]])}.txt`;
+  let res = !fresh && existsSync(leg) ? JSON.parse(readFileSync(leg, "utf8")) : null;
+  const hitRows = !!res;
+  if (!res) {
+    res = await new Promise((resolve) => {
+      const p = spawn("target/fast/examples/dayplayer", args, { stdio: ["ignore", "pipe", "inherit"], env: { ...process.env, ...jobEnv } });
+      let out = ""; p.stdout.on("data", (d) => (out += d));
+      p.on("close", (status) => resolve({ status, stdout: out }));
+    });
+    mkdirSync("target/gates", { recursive: true });
+    writeFileSync(leg, JSON.stringify(res));
+  }
+  const out = res.stdout ?? "";
+  const from = out.lastIndexOf("\nfail-fast:") >= 0 ? out.lastIndexOf("\nfail-fast:") : out.lastIndexOf("\nbar (targeted");
+  process.stdout.write(from >= 0 ? out.slice(from + 1) : out);
+  const ok = res.status === 0 && /targeted rows PASS/.test(out);
+  console.log(`gates: TARGETED — dayplayer rows \`${rows}\`${failFast ? " (fail-fast)" : ""} ${ok ? "PASS" : "FAIL"}; not a gate pass (the gate is \`node tools/gates.mjs [--full]\`)${hitRows ? ` (cached: ${leg}; --fresh to rerun)` : ""}`);
+  process.exit(ok ? 0 : 1);
+}
 const runtimeInputs = [
   ...readdirSync("crates/riddle-core/presets").sort().map((f) => [f, readFileSync(`crates/riddle-core/presets/${f}`)]),
   ...readdirSync("eval/cards").filter((f) => f.endsWith(".rules.json")).sort().map((f) => [f, readFileSync(`eval/cards/${f}`)]),

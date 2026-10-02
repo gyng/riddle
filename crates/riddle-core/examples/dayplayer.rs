@@ -729,6 +729,9 @@ fn main() {
             }
         }
     }
+    // `--rows <ids or substrings> [--fail-fast]`: only the configurations, seeds and days the named rows read
+    // (dayplayer_rows: the rows' needs, the early verdicts) — a tuning loop's check, never the gate
+    let plan = a.iter().position(|x| x == "--rows").and_then(|i| a.get(i + 1)).map(|r| rows::Plan::new(r, a.iter().any(|x| x == "--fail-fast"), &mut cfgs, seeds, get("--tuned-seeds", seeds), get("--loo-seeds", 4), days, checkins));
     let t0 = std::time::Instant::now();
     // (a leave-one-out is a TUNED fortnight less a system — the table's costliest job, ~25 CPU-min
     // each: `--loo-seeds`, 4 by default, the first seeds of the bots' own)
@@ -771,7 +774,7 @@ fn main() {
     let max_seed = (0..cfgs.len()).map(&seeds_of).max().unwrap_or(0);
     for s in (1..=max_seed).filter(|s| only.is_none_or(|o| o == *s)) {
         let mut members = Vec::new();
-        for c in (0..cfgs.len()).filter(|c| s <= seeds_of(*c)) {
+        for c in (0..cfgs.len()).filter(|c| s <= seeds_of(*c) && plan.as_ref().is_none_or(|p| p.wants(&cfgs[*c], s))) {
             let hit = if keep && std::env::var_os("RIDDLE_CACHE_FRESH").is_none() { jobcache::read::<SeedOut>(&cache_of(&cfgs[c], s)) } else { None };
             match hit {
                 Some(o) => results.lock().unwrap().push((c, o)),
@@ -790,8 +793,15 @@ fn main() {
     }
     let threads = get("--threads", 10) as usize;
     let pool = Pool::default();
+    // (fail-fast: the lower seeds first, so a seed's verdicts land early)
+    let push = |g: Group| if plan.as_ref().is_some_and(|p| p.fail_fast) { rows::push_seed_first(&pool, g, &cfgs, days, checkins) } else { pool.push(g, &cfgs, days, checkins) };
     for g in groups {
-        pool.push(g, &cfgs, days, checkins);
+        push(g);
+    }
+    let cap = (days as f64 + 1.0) * 24.0;
+    if let Some(pl) = &plan {
+        eprintln!("dayplayer: targeted rows {} — configurations {}", pl.say(), cfgs.iter().map(|c| c.label()).collect::<Vec<_>>().join(","));
+        pl.check(&results.lock().unwrap(), &cfgs, cap, "the kept jobs", t0);
     }
     let playing = std::sync::Mutex::new(0usize);
     let widen = |d: isize| {
@@ -809,7 +819,7 @@ fn main() {
                     let part = |ask: &Ask, members: &mut Vec<usize>, snap: Option<Play>| {
                         let (same, diff): (Vec<usize>, Vec<usize>) = members[1..].iter().partition(|m| ask.same(&cfgs[**m]));
                         if !diff.is_empty() {
-                            pool.push(Group { seed: s, members: diff, state: snap }, &cfgs, days, checkins);
+                            push(Group { seed: s, members: diff, state: snap });
                         }
                         members.truncate(1);
                         members.extend(same);
@@ -824,7 +834,7 @@ fn main() {
                         }
                     };
                     riddle_core::forecast::with_sim_width(&WIDTH, || {
-                        while !p.done() {
+                        while !p.done() && !plan.as_ref().is_some_and(|pl| pl.enough(&p, &members, &cfgs)) {
                             let snap = (members.len() > 1).then(|| p.clone());
                             let ask = Ask::new(&cfgs[lead]);
                             p.step(&ask);
@@ -836,12 +846,17 @@ fn main() {
                     widen(-1);
                     let phs = PH.with(|m| std::mem::take(&mut *m.borrow_mut()));
                     for &c in &members {
-                        if keep {
+                        // (a game stopped early for `--rows` is not the job: never kept)
+                        if keep && p.done() {
                             jobcache::keep(&cache_of(&cfgs[c], s), &p.out);
                         }
                         results.lock().unwrap().push((c, p.out.clone()));
                     }
                     eprintln!("dayplayer: {} s{s} done in {:.0}s {}", members.iter().map(|c| cfgs[*c].label()).collect::<Vec<_>>().join(" = "), t.elapsed().as_secs_f64(), phs.iter().map(|(k, v)| format!("{k} {v:.0}")).collect::<Vec<_>>().join(" "));
+                    if let Some(pl) = &plan {
+                        let last = format!("{} s{s} (day {})", members.iter().map(|c| cfgs[*c].label()).collect::<Vec<_>>().join(" = "), p.day);
+                        pl.check(&results.lock().unwrap(), &cfgs, cap, &last, t0);
+                    }
                     pool.done();
                 }
             });
@@ -850,7 +865,6 @@ fn main() {
     let mut res = results.into_inner().unwrap();
     res.sort_by_key(|(c, o)| (*c, o.seed));
     let by = |label: &str| -> Vec<SeedOut> { res.iter().filter(|(c, _)| cfgs[*c].label() == label).map(|(_, o)| o.clone()).collect() };
-    let cap = (days as f64 + 1.0) * 24.0;
     for (ci, cfg) in cfgs.iter().enumerate() {
         println!("\n{} ({} seeds)", cfg.label(), res.iter().filter(|(c, _)| *c == ci).count());
         println!("seed  {}  best by day", MILESTONES.iter().map(|m| format!("{:>6}", format!("h→D{m}"))).collect::<Vec<_>>().join(" "));
@@ -1042,6 +1056,10 @@ fn main() {
             let _ = (gap, d23_tuned);
         }
     }
+    if let Some(pl) = &plan {
+        let fails = pl.finish(&bars, &res, &cfgs, cap, t0);
+        std::process::exit((fails > 0) as i32);
+    }
     // PROGRESSION_V2 (reported now, gated in Cut 31)
     for (label, v) in [("IDLE", &idle), ("PICKED", &picked), ("TUNED", &tuned)] {
         if v.is_empty() {
@@ -1079,3 +1097,7 @@ fn main() {
     }
     let _ = RuleSet::default();
 }
+
+// (after `main`: outside the job cache's key — it picks the games and where they stop, never what they do)
+#[path = "dayplayer_rows/mod.rs"]
+mod rows;

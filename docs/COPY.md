@@ -99,6 +99,18 @@ is named by what it does, not by an index.
 | bounty | `bounty 2× gold` | `$×2` | read as "$2" |
 | route | `route D5 burrows`, `or fens · untried`, `fork D5` | `⑂` | |
 | heir's rest | `heir rests 20m` | `send skips rest` | nothing punishes a send |
+| a pre-written rule bundle that levels from runs (Cut 30) | **package**; its chip `<name> L<n>` (`Guarded L3`); a level's beat `GUARDED L3` | `bundle`, `kit`, `loadout` | the panel's tile `packages`; the panel's head is the forecast's one headline (`reach D9 72%`) |
+| the package that sets how he fights and when he leaves (one, never empty) | **stance** (`Steady`, `Guarded`, `Bold`, `Hunter`) | `style`, `mode`, `preset` | the school stance is `Steady` |
+| a package that answers one kind of fight (one slot, two at its stage) | **tactic** (`boss focus`, `kite archers`) | `card`, `rule: kite archers` | an old save's owned cards become tactics |
+| the heir's nature, a package of one or two rows (from heir 3) | **temperament** (`skittish`, `unbowed`, `light hands`, `iron gut`) | `trait` | the old `trait` word maps to it |
+| a boss's known counter written in at its second meeting | **drill** (`drill · Warlord`, beat `DRILLED`) | `auto-rule`, `learned rule` | named, announced once, shown, revocable (one tap) |
+| a boss worn down by each meeting | **scar** (`scarred ×3`) | `weakened`, `−15%` alone | −5 % a meeting, cap −30 %, gone once slain |
+| a move's price on the paired panel | `<package> · <end> <signed pts>` (`Guarded · death −8`) | a bare `%` | one line, the end that moves most |
+| a package row another always pre-empts | greyed, **`<winner> wins`** (`Guarded wins`) | `shadowed`, `unreachable` | |
+| the one goal on the board | **quest** (`reach D10 · no return`, ≤ 5 words; `QUEST DONE`; `new quest` once a day) | `oath`, `vow`, `stake`, `swear` | the reward is a picture, never words |
+| one of the four ways the lineage grows | **track** (`hero` · `items` · `scale` · `town`); `next · <stage> · <trigger>` (`next · kennel · first tame`) | `progress`, `tree`, `path` | opened from the portrait-mini |
+| the rule editor, opened late | **the pen** (the stage and the system); the editor itself keeps `edit` | `editor`, `rules unlocked` | the Mother met (and 72 h), or 5 days |
+| the death's cheapest move before the pen | the **lever** tablet: `buy sword +2` · `wear Hunter` · `wait scarred ×3` | `fix`, `patch` | exactly one; fixes, trace and odds come with the pen |
 
 ## 3. Audit (pass 0 → the fix)
 
