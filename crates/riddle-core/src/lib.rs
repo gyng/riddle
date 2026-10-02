@@ -250,3 +250,5 @@ mod tests_cut30;
 mod tests_cut30_pkg;
 #[cfg(test)]
 mod tests_cut305;
+#[cfg(test)]
+mod tests_runsui;

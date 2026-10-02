@@ -1589,6 +1589,8 @@ impl Clock {
 }
 
 fn main() {
+    // RUNS_UI: real games at scale keep no replay capsules (a lineage clone per send never read)
+    riddle_core::engine::set_capsules(false);
     // The table fills the machine seed by seed; a panel's sims stay sequential inside a job.
     riddle_core::forecast::set_parallel_sims(false);
     let args: Vec<String> = std::env::args().collect();

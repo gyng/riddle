@@ -56,6 +56,11 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
     game.batch = Batch::default();
     game.events.clear();
     game.offline = true;
+    // RUNS_UI: an absence's batch (its slices one absence until a send, a step or `advance`)
+    if !game.lineage.in_absence {
+        game.lineage.absences += 1;
+        game.lineage.in_absence = true;
+    }
     // Cut 7 §5: nothing in an absence is watched (a run left mid-watch finishes unwatched).
     game.watched = false;
     // Cut 27 §1: the absence's sends from a waystone are paid the passage the camp priced for the
@@ -139,7 +144,9 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
         if game.run.as_ref().is_some_and(|r| r.over.is_some()) {
             // (the board's day: the day this send came home on, inside the absence)
             game.lineage.town.today = ((game.lineage.clock_s + consumed / TICKS_PER_SECOND) / crate::engine::DAY_S) as u32;
+            game.clock_at = Some(game.lineage.clock_s + consumed / TICKS_PER_SECOND);
             let outcome = game.finish_run().unwrap_or_default();
+            game.clock_at = None;
             game.batch.rested += game.lineage.rest_left as u64;
             game.auto_keep();
             game.events.clear();
@@ -186,6 +193,11 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
                     let remaining = budget - consumed;
                     let extra = remaining / mean;
                     game.batch.runs += extra as u32;
+                    // RUNS_UI: the extrapolated runs, one record in the log (`+N`)
+                    if extra > 0 {
+                        let rec = RunRec { via: "away".into(), absence: Some(game.lineage.absences), clock_s: game.lineage.clock_s + budget / TICKS_PER_SECOND, tier: "return".into(), sampled: Some(extra as u32), ..Default::default() };
+                        game.lineage.push_run(rec);
+                    }
                     // Cut 13 §6: the extrapolated runs are apportioned so `runs == deaths +
                     // banked + returned` holds to the run (largest remainder over the sample's
                     // exits; rounding each share alone left the report a run short).
@@ -638,4 +650,100 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     cands.sort_by(|a, b| b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap());
     cands.truncate(STALL_SHOWN);
     cands
+}
+
+/// RUNS_UI: the open app's clock on the lineage — `elapsed_ms` of rest, then the next run, unwatched,
+/// as an absence plays them, except that a run in flight at the budget's end stays in flight (the
+/// lane shows it live; the watch can take it up), nothing is sampled, the run settles its renown as a
+/// watched one does (`offline` stays false: the log's `town`), no reveal is reset and no rest is
+/// capped. Cheap when nothing ends: no report, no forecast (the passage is priced at a send only).
+pub fn advance(game: &mut Game, elapsed_ms: u64) -> Advance {
+    let ms = game.advance_rem.0 + elapsed_ms;
+    game.advance_rem.0 = ms % 100;
+    let budget = ms / 100;
+    game.lineage.in_absence = false;
+    game.watched = false;
+    let mut out = Advance::default();
+    if budget == 0 {
+        out.live = game.live_run();
+        return out;
+    }
+    let clock0 = game.lineage.clock_s;
+    let day0 = (clock0 / crate::engine::DAY_S) as u32;
+    crate::oath::new_day(&mut game.lineage, day0);
+    let mut hour = clock0 / 3600;
+    let mut consumed: u64 = 0;
+    let mut home = 0u32;
+    while consumed < budget {
+        let now = (clock0 + consumed / TICKS_PER_SECOND) / 3600;
+        if now > hour && game.run.as_ref().is_none_or(|r| r.turn == 0) {
+            hour = now;
+            crate::tree::at_hour(game);
+        }
+        // (before the scout the hero home waits: only a send by hand under way runs)
+        if !game.may_go() && game.run.as_ref().is_none_or(|r| r.turn == 0) {
+            break;
+        }
+        if game.lineage.rest_left > 0 && game.run.as_ref().is_none_or(|r| r.turn == 0) {
+            consumed += game.rest_tick((budget - consumed).min(u32::MAX as u64) as u32) as u64;
+            if game.lineage.rest_left > 0 {
+                break;
+            }
+        }
+        if consumed >= budget {
+            break;
+        }
+        if game.run.is_none() {
+            let rules = game.lineage.rules().clone();
+            game.passage = crate::forecast::sim_passage(game, &rules);
+            game.start_run(None);
+            game.events.clear();
+        }
+        while game.run.as_ref().is_some_and(|r| r.over.is_none()) && consumed < budget {
+            game.tick();
+            game.events.clear();
+            consumed += 1;
+        }
+        if game.run.as_ref().is_some_and(|r| r.over.is_some()) {
+            game.lineage.town.today = ((clock0 + consumed / TICKS_PER_SECOND) / crate::engine::DAY_S) as u32;
+            game.clock_at = Some(clock0 + consumed / TICKS_PER_SECOND);
+            let id = game.run.as_ref().map_or(0, |r| r.id);
+            let outcome = game.finish_run().unwrap_or_default();
+            game.clock_at = None;
+            game.auto_keep();
+            game.events.clear();
+            out.ended.push(id);
+            if matches!(outcome.tier, Some(ExitTier::Bank) | Some(ExitTier::Return)) {
+                home += 1;
+            }
+            if outcome.new_facts == 0 && !outcome.new_best {
+                game.stall_runs += 1;
+            } else {
+                game.stall_runs = 0;
+            }
+        }
+    }
+    // the clock moves by the whole budget (a hero who waits still lets the hours pass)
+    let ticks = game.advance_rem.1 + budget;
+    game.advance_rem.1 = ticks % TICKS_PER_SECOND;
+    game.lineage.clock_s += ticks / TICKS_PER_SECOND;
+    let clock = game.lineage.clock_s;
+    if clock / 3600 > hour && game.run.as_ref().is_none_or(|r| r.turn == 0) {
+        crate::tree::at_hour(game);
+    }
+    if clock / crate::engine::DAY_S != clock0 / crate::engine::DAY_S || !out.ended.is_empty() {
+        game.lineage.town.today = (clock / crate::engine::DAY_S) as u32;
+        crate::town::roll(&mut game.lineage);
+    }
+    // Cut 29 §1's night mark, as an absence pays it: ◆1 a day whose sends came home
+    if home > 0 && clock > clock0 {
+        let last = ((clock - 1) / crate::engine::DAY_S) as u32;
+        let first = day0.max(game.lineage.mark_day);
+        if last >= first {
+            game.lineage.marks += last - first + 1;
+            game.lineage.mark_day = last + 1;
+        }
+    }
+    out.live = game.live_run();
+    out
 }

@@ -38,6 +38,82 @@ pub fn without_history<R>(f: impl FnOnce() -> R) -> R {
     NO_HISTORY.with(|c| c.set(was));
     r
 }
+
+/// RUNS_UI: the runs log's cap (`LineageState::run_log`) and the replay capsules kept in memory.
+pub const RUN_LOG_CAP: usize = 60;
+pub const CAPSULES: usize = 40;
+static CAPSULES_OFF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// RUNS_UI: harnesses that play real games at scale (the dayplayer, the gate table) keep no replay
+/// capsules — a lineage clone per send they never read. Process-wide.
+pub fn set_capsules(on: bool) {
+    CAPSULES_OFF.store(!on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// RUNS_UI: a player's input inside a live run, replayed at its tick (`Game::replay`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Input {
+    Choose(u32),
+    Bail,
+}
+/// RUNS_UI: a real run's send, kept to re-simulate it — the game as `start_run` left it, the events
+/// it left pending, and the inputs the run took.
+#[derive(Clone, Debug)]
+pub struct Capsule {
+    pub id: u32,
+    pub game: Box<Game>,
+    pub pre: Vec<Ev>,
+    pub inputs: Vec<(u32, Input)>,
+}
+/// The capsules (newest last). Never saved and never compared: a loaded game equals the one saved.
+#[derive(Clone, Debug, Default)]
+pub struct Capsules(pub VecDeque<Capsule>);
+impl PartialEq for Capsules {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+/// RUNS_UI: what a later snapshot of the same floor showed, folded into its first (a replay viewer
+/// rebuilds from the first): entities and items first seen since, at their first sighting, and the
+/// tiles seen (web/src/ui/runlog.ts `floorSnapshot`).
+fn fold_into(first: &mut Snapshot, later: &Snapshot) {
+    if later.depth != first.depth {
+        return;
+    }
+    for e in &later.entities {
+        if e.id != first.hero.entity.id && !first.entities.iter().any(|x| x.id == e.id) {
+            first.entities.push(e.clone());
+        }
+    }
+    for i in &later.items {
+        if !first.items.iter().any(|x| x.id == i.id) {
+            first.items.push(i.clone());
+        }
+    }
+    if later.seen.len() == first.seen.len() {
+        for (a, b) in first.seen.iter_mut().zip(&later.seen) {
+            *a |= *b;
+        }
+    }
+}
+
+/// RUNS_UI: FNV-1a 64 over each event's JSON, an exit's `line` and `trace` left out (a replay
+/// never settles the exit), hex.
+pub fn events_hash(events: &[Ev]) -> String {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    for e in events {
+        let j = match e {
+            Ev::Exit { t, tier, loot_kept, .. } => serde_json::to_string(&Ev::Exit { t: *t, tier: tier.clone(), loot_kept: *loot_kept, line: None, trace: None }),
+            _ => serde_json::to_string(e),
+        }
+        .unwrap_or_default();
+        for b in j.bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+    format!("{h:016x}")
+}
 /// Cut 4: a hostile that stepped out of view is remembered (snapshot `remembered`, the hunt)
 /// for this many hero actions after it was last seen.
 pub const REMEMBER_ACTIONS: u32 = 10;
@@ -1434,6 +1510,14 @@ pub struct LineageState {
     /// save from before it (`tree::upgrade` at the load).
     #[serde(default)]
     pub tree: crate::tree::Tree,
+    /// RUNS_UI: the runs log (oldest first, cap `RUN_LOG_CAP`), the absences counted and whether an
+    /// absence's batch is the latest thing that ran (a send, a step or `advance` ends it).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub run_log: Vec<crate::wire::RunRec>,
+    #[serde(default)]
+    pub absences: u32,
+    #[serde(default)]
+    pub in_absence: bool,
 }
 
 /// Cut 29 §1: a day of the lineage's clock.
@@ -1661,6 +1745,9 @@ impl LineageState {
             night_meter: Default::default(),
             last_night_meter: Default::default(),
             meters_recent: Vec::new(),
+            run_log: Vec::new(),
+            absences: 0,
+            in_absence: false,
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -1668,6 +1755,14 @@ impl LineageState {
         l.facts.insert("item:leash".into());
         l.kennel_leash();
         l
+    }
+    /// RUNS_UI: a record onto the runs log (cap `RUN_LOG_CAP`, oldest dropped).
+    pub fn push_run(&mut self, rec: crate::wire::RunRec) {
+        self.run_log.push(rec);
+        if self.run_log.len() > RUN_LOG_CAP {
+            let k = self.run_log.len() - RUN_LOG_CAP;
+            self.run_log.drain(..k);
+        }
     }
     /// Cut 8B §3: the kennel's leash — while the lineage has never tamed, a free, known leash
     /// sits on the shelf (never refunded, never rebought; one at a time).
@@ -1874,7 +1969,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -2865,6 +2960,19 @@ pub struct Game {
     /// (`forecast::forecast_move`). Saved (a mirror lane loads the save); never on a sim clone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sent_state: Option<Box<SentState>>,
+    /// RUNS_UI: the last `CAPSULES` real sends, to replay (`replay`); memory only.
+    #[serde(skip)]
+    pub capsules: Capsules,
+    /// RUNS_UI (tests): every real run's events by run id (its send's pending events, then each tick's).
+    #[serde(skip)]
+    pub tap: Option<BTreeMap<u32, Vec<Ev>>>,
+    /// RUNS_UI: the lineage clock at the end of the run settling now (an absence's or `advance`'s
+    /// clock inside its budget); None reads `LineageState::clock_s`.
+    #[serde(skip)]
+    pub clock_at: Option<u64>,
+    /// RUNS_UI: `advance`'s remainders — ms short of a tick, ticks short of a second.
+    #[serde(skip)]
+    pub advance_rem: (u64, u64),
 }
 
 /// Cut 28 §2: the camp state a send left from (`Game::sent_state`) — the lineage less its history
@@ -2930,6 +3038,10 @@ impl Game {
             passage: None,
             fold_plan: None,
             sent_state: None,
+            capsules: Capsules::default(),
+            tap: None,
+            clock_at: None,
+            advance_rem: (0, 0),
         };
         // Cut 28 §1: the oath board is drawn with the lineage.
         crate::oath::refresh(&mut g.lineage);
@@ -2982,6 +3094,10 @@ impl Game {
             passage: self.passage,
             fold_plan: None,
             sent_state: None,
+            capsules: Capsules::default(),
+            tap: None,
+            clock_at: None,
+            advance_rem: (0, 0),
         }
     }
 
@@ -2998,7 +3114,68 @@ impl Game {
         if !self.lineage.pkg.literal {
             l.tree = Some(crate::tree::wire(&self.lineage, self.waits()));
         }
+        // RUNS_UI: the run under way and the runs a replay is held for
+        l.live = self.live_run();
+        l.replays = self.capsules.0.iter().map(|c| c.id).collect();
         l
+    }
+
+    /// RUNS_UI: the run under way (begun, not over).
+    pub fn live_run(&self) -> Option<crate::wire::LiveRun> {
+        self.run.as_ref().filter(|r| r.turn > 0 && r.over.is_none()).map(|r| crate::wire::LiveRun { run_id: r.id, heir: r.heir, depth: r.depth, start: r.start.max(1), hp: r.hero.hp, max_hp: r.hero.max_hp, turn: r.turn })
+    }
+
+    /// RUNS_UI: the open app's clock (`offline::advance`).
+    pub fn advance(&mut self, elapsed_ms: u64) -> crate::wire::Advance {
+        crate::offline::advance(self, elapsed_ms)
+    }
+
+    /// RUNS_UI: a held run re-simulated from its send — floor by floor (each floor's first snapshot
+    /// with what it later showed folded in, as the watch's run log keeps it) and its events, the
+    /// inputs it took applied at their ticks. The exit is not settled (no verdict's cost).
+    pub fn replay(&self, run_id: u32) -> Option<crate::wire::Replay> {
+        let cap = self.capsules.0.iter().find(|c| c.id == run_id)?;
+        without_history(|| {
+            let mut g = (*cap.game).clone();
+            g.events = cap.pre.clone();
+            let mut all: Vec<Ev> = Vec::new();
+            let mut floors: Vec<crate::wire::ReplayFloor> = Vec::new();
+            let mut cur = crate::wire::ReplayFloor { snapshot: g.snapshot(), events: Vec::new() };
+            let mut inputs = cap.inputs.iter().peekable();
+            let mut n = 0u32;
+            while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < MAX_TURNS_PER_RUN {
+                let turn = g.run.as_ref().map_or(0, |r| r.turn);
+                while let Some((_, inp)) = inputs.next_if(|(t, _)| *t <= turn) {
+                    match inp {
+                        Input::Choose(id) => {
+                            let _ = g.choose(*id);
+                        }
+                        Input::Bail => g.bail(),
+                    }
+                }
+                g.tick();
+                n += 1;
+                let evs = std::mem::take(&mut g.events);
+                all.extend(evs.iter().cloned());
+                match evs.iter().position(|e| matches!(e, Ev::Descend { .. })) {
+                    Some(k) if g.run.as_ref().is_some_and(|r| r.over.is_none()) => {
+                        cur.events.extend(evs[..=k].iter().cloned());
+                        floors.push(std::mem::replace(&mut cur, crate::wire::ReplayFloor { snapshot: g.snapshot(), events: evs[k + 1..].to_vec() }));
+                    }
+                    _ => {
+                        cur.events.extend(evs);
+                        if n.is_multiple_of(20) && g.run.as_ref().is_some_and(|r| r.over.is_none()) {
+                            fold_into(&mut cur.snapshot, &g.snapshot());
+                        }
+                    }
+                }
+            }
+            if g.run.is_some() {
+                fold_into(&mut cur.snapshot, &g.snapshot());
+            }
+            floors.push(cur);
+            Some(crate::wire::Replay { run_id, hash: events_hash(&all), floors, ticks: g.run.as_ref().map_or(n, |r| r.turn) })
+        })
     }
 
     /// QA on 778fa1b (qaU: after the absence the loadout read `1/3` — the heal not re-packed
@@ -3253,7 +3430,16 @@ impl Game {
         if let Some(run) = self.run.as_mut() {
             if run.over.is_none() {
                 run.bail = true;
+                let (id, t) = (run.id, run.turn);
+                self.input(id, t, Input::Bail);
             }
+        }
+    }
+
+    /// RUNS_UI: an input the live run took, on its capsule (replayed at its tick).
+    fn input(&mut self, id: u32, t: u32, inp: Input) {
+        if let Some(c) = self.capsules.0.iter_mut().rev().find(|c| c.id == id) {
+            c.inputs.push((t, inp));
         }
     }
 
@@ -3271,7 +3457,13 @@ impl Game {
         if !run.vault_choice.as_ref().unwrap().1.iter().any(|i| i.id == item_id) {
             return Err("not in the vault".into());
         }
+        let n0 = cx.events.len();
         crate::turn::vault_take(run, &mut cx, Some(item_id));
+        let (id, t) = (run.id, run.turn);
+        self.input(id, t, Input::Choose(item_id));
+        if let Some(tap) = self.tap.as_mut() {
+            tap.entry(id).or_default().extend(self.events[n0..].iter().cloned());
+        }
         Ok(())
     }
 
@@ -3410,6 +3602,7 @@ impl Game {
         }
         // Cut 30: a watched send is a check-in of its own — one system may open by its report
         self.lineage.reveal_left = 1;
+        self.lineage.in_absence = false;
         self.lineage.rest_left = 0;
         self.watched = true;
         // Cut 27 §1: a run begun here is priced as the camp priced it — its passage and the floors
@@ -3468,6 +3661,7 @@ impl Game {
     }
 
     pub fn start_run(&mut self, seed_override: Option<u64>) {
+        let ev0 = self.events.len();
         self.auto_keep();
         // Cut 30.5: the workers' standing orders, between real runs
         crate::tree::at_send(self);
@@ -3838,6 +4032,28 @@ impl Game {
         if d > 1 {
             crate::facts::learn(run, &mut cx.1, format!("biome:{}", biome.name()));
         }
+        // RUNS_UI: the send kept to replay (real sends; not a harness's literal lineage, nor a
+        // thread or process that keeps no history / no capsules)
+        if !self.sim {
+            let id = self.run.as_ref().map_or(0, |r| r.id);
+            let pre: Vec<Ev> = self.events[ev0.min(self.events.len())..].to_vec();
+            if let Some(tap) = self.tap.as_mut() {
+                tap.insert(id, pre.clone());
+            }
+            if !self.lineage.pkg.literal && !NO_HISTORY.with(|c| c.get()) && !CAPSULES_OFF.load(std::sync::atomic::Ordering::Relaxed) {
+                let mut g = self.sim_clone();
+                g.sim = false;
+                g.watched = self.watched;
+                g.offline = self.offline;
+                g.prov = self.prov.clone();
+                g.row_tally = self.row_tally.clone();
+                g.facts_at_run_start = self.facts_at_run_start;
+                self.capsules.0.push_back(Capsule { id, game: Box::new(g), pre, inputs: Vec::new() });
+                while self.capsules.0.len() > CAPSULES {
+                    self.capsules.0.pop_front();
+                }
+            }
+        }
     }
 
     /// Cut 21 §1: the floor this send starts on, the toll paid for it (a gold line
@@ -3915,6 +4131,7 @@ impl Game {
         let mut events = Vec::new();
         let mut run_over = false;
         self.watched = true;
+        self.lineage.in_absence = false;
         // Cut 30.5: before the scout the hero home waits for a send (no run begins by itself)
         if !self.may_go() && self.run.as_ref().is_none_or(|r| r.turn == 0) {
             let snapshot = match self.last_snapshot.clone() {
@@ -3998,6 +4215,19 @@ impl Game {
 
     /// One turn of the live run. Records history for verdicts when not simulating.
     pub fn tick(&mut self) {
+        if self.tap.is_none() {
+            return self.tick_inner();
+        }
+        // RUNS_UI (tests): the tick's events, by run
+        let (n0, id) = (self.events.len(), self.run.as_ref().map_or(0, |r| r.id));
+        self.tick_inner();
+        let evs: Vec<Ev> = self.events[n0.min(self.events.len())..].to_vec();
+        if let Some(tap) = self.tap.as_mut() {
+            tap.entry(id).or_default().extend(evs);
+        }
+    }
+
+    fn tick_inner(&mut self) {
         if self.run.as_ref().is_none_or(|r| r.over.is_some()) {
             return;
         }
@@ -5194,6 +5424,28 @@ impl Game {
         self.batch.exits.push(line.clone());
         while self.batch.exits.len() > EXITS_CAP {
             self.batch.exits.remove(0);
+        }
+        // RUNS_UI: the runs log
+        if !self.sim {
+            let rec = crate::wire::RunRec {
+                id: run.id,
+                heir: run.heir,
+                via: if self.offline { "away" } else if self.watched { "watched" } else { "town" }.into(),
+                absence: self.offline.then_some(self.lineage.absences),
+                clock_s: self.clock_at.unwrap_or(self.lineage.clock_s),
+                start: run.start.max(1),
+                depth: run.depth,
+                tier: tier.name().into(),
+                reason: line.reason.clone(),
+                gold: line.kept,
+                found: line.found_n,
+                kept: line.found.iter().filter(|f| f.fate == "kept").map(|f| f.kind.clone()).collect(),
+                turns: run.turn,
+                best: outcome.new_best,
+                death_id: (matches!(tier, ExitTier::Death) || stalled).then_some(run.id).filter(|id| self.deaths.contains_key(id)),
+                sampled: None,
+            };
+            self.lineage.push_run(rec);
         }
         self.last_exit = Some(line);
         // Cut 24 §3: the forge's prices are fixed the first time it is shown.
