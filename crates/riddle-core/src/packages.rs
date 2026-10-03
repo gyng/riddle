@@ -452,10 +452,23 @@ pub fn drill_rows(boss: &str, heal: i32) -> Vec<Row> {
 /// A boss's counter targets its known distinguishing tag, leaving unrelated bosses to their drill.
 /// Stored counter facts keep their original fingerprint; only generated/copy templates are scoped.
 fn scope_drill_row(boss: &str, mut row: Row) -> Row {
+    if boss == "lurker_queen" {
+        // Only the generated silence template changes scope. Legacy saved drills used
+        // `blind`, which spent the Queen's scrolls on ordinary lurkers before D28.
+        // Saved bodies and explicitly authored pen rows retain their conditions.
+        let counter = row.verb == Verb::arg("read", "silence")
+            && row.conds.iter().all(|c| c.k == "hp>"
+                || c.k == "foe_tag" && matches!(c.t.as_deref(), Some("boss" | "blind" | "brood")));
+        if counter {
+            for cond in &mut row.conds {
+                if cond.k == "foe_tag" { cond.t = Some("brood".into()); }
+            }
+        }
+        return row;
+    }
     let tag = match boss {
         "bloat_mother" => "gas",
         "lich" => "undead",
-        "lurker_queen" => "blind",
         "mirror_king" => "mirror",
         _ => return row,
     };

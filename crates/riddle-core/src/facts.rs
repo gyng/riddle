@@ -263,6 +263,11 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
         if m.has_tag("blind") && m.hostile() && want("blind") {
             sight_facts.push(format!("foe:{kind}:blind"));
         }
+        // The Queen's brood distinguishes her from ordinary blind lurkers. A visible
+        // Queen teaches this counter scope before the next authored action.
+        if m.has_tag("brood") && m.hostile() && want("brood") {
+            sight_facts.push(format!("foe:{kind}:brood"));
+        }
         if m.has_tag("ally") && m.neutral && want("ally") {
             sight_facts.push(format!("foe:{kind}:ally"));
         }

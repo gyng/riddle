@@ -583,7 +583,7 @@ fn generated_counter_scopes_match_the_wire_and_preserve_explicit_player_priority
     g.lineage.pkg.pen_open = true;
     let player = Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("tactic", "cadence")).from("player");
     g.lineage.pkg.pen.push(player.clone());
-    for (boss, tag) in [("bloat_mother", "gas"), ("lich", "undead"), ("lurker_queen", "blind"), ("mirror_king", "mirror")] {
+    for (boss, tag) in [("bloat_mother", "gas"), ("lich", "undead"), ("lurker_queen", "brood"), ("mirror_king", "mirror")] {
         let canonical = packages::drill_rows(boss, 35);
         let scoped = canonical.iter().find(|r| r.conds.iter().any(|c| c.t.as_deref() == Some(tag))).expect("the copy template scopes the generic boss row");
         assert!(scoped.conds.len() <= 2);
@@ -1123,4 +1123,77 @@ fn quartermaster_retires_the_queens_counter_only_when_the_send_skips_her() {
     assert_eq!(packages::quartermaster(&g.lineage), ["silence"], "choosing D24 restores its counter even after the record passes D28");
     g.lineage.pkg.drills[0].revoked = true;
     assert!(packages::quartermaster(&g.lineage).is_empty(), "revoked policy stays revoked");
+}
+
+
+#[test]
+fn queens_generated_counter_keeps_silence_for_the_boss_instead_of_ordinary_lurkers() {
+    for legacy in [false, true] {
+        let mut g = crate::tests::arena();
+        g.lineage.pkg.literal = false;
+        let rows = if legacy {
+            vec![Row::new(vec![Cond::t("foe_tag", "blind"), Cond::n("hp>", 35)], Verb::arg("read", "silence"))]
+        } else { vec![crate::facts::counter_row("lurker_queen")] };
+        let saved_rows = rows.clone();
+        g.lineage.pkg.drills.push(packages::Drill { boss: "lurker_queen".into(), rows, revoked: false, announced: false });
+        packages::recompile(&mut g.lineage);
+        crate::tests::give(&mut g, "silence");
+        g.lineage.facts.insert(crate::item::ident_fact(&g.lineage.flavours, "silence").unwrap());
+        g.lineage.facts.insert("foe:lurker:blind".into());
+        crate::tests::add_monster(&mut g, "lurker", 5, 5);
+        g.run.as_mut().unwrap().hero.energy = 100;
+        let events = crate::tests::ticks(&mut g, 1);
+        assert!(g.run.as_ref().unwrap().hero.inv.iter().any(|i| i.kind == "silence"), "ordinary lurker must not consume the Queen's generated counter; legacy={legacy}, events={events:?}");
+        assert!(!events.iter().any(|e| matches!(e, crate::wire::Ev::Use { item, .. } if item == "silence scroll")));
+        assert_eq!(g.lineage.pkg.drills[0].rows, saved_rows, "saved drill bodies remain intact");
+    }
+}
+
+#[test]
+fn queens_generated_counter_is_learned_in_sight_and_yields_to_healing() {
+    for hurt in [false, true] {
+        let mut g = crate::tests::arena();
+        g.lineage.pkg.literal = false;
+        g.lineage.pkg.drills.push(packages::Drill { boss: "lurker_queen".into(), rows: packages::drill_rows("lurker_queen", 35), revoked: false, announced: false });
+        packages::recompile(&mut g.lineage);
+        for kind in ["silence", "heal"] {
+            crate::tests::give(&mut g, kind);
+            g.lineage.facts.insert(crate::item::ident_fact(&g.lineage.flavours, kind).unwrap());
+        }
+        crate::tests::add_monster(&mut g, "lurker_queen", 5, 5);
+        let run = g.run.as_mut().unwrap(); run.hero.max_hp = 100; run.hero.hp = if hurt { 20 } else { 100 }; run.hero.energy = 100;
+        assert!(!g.lineage.facts.contains("foe:lurker_queen:brood"));
+        let mut events = crate::tests::ticks(&mut g, 1);
+        assert!(g.lineage.facts.contains("foe:lurker_queen:brood"), "Queen sight teaches the scope");
+        assert!(g.vocabulary().conds.contains(&Cond::t("foe_tag", "brood")));
+        // Vision learns a newly met foe after the first action. Use the next actual action.
+        g.run.as_mut().unwrap().hero.energy = 100;
+        events.extend(crate::tests::ticks(&mut g, 1));
+        let kind = if hurt { "heal potion" } else { "silence scroll" };
+        assert!(events.iter().any(|e| matches!(e, crate::wire::Ev::Use { item, .. } if item == kind)), "the real Queen counter must yield to healing: {events:?}");
+        assert!(g.lineage.rules().validate().is_ok());
+        assert!(g.lineage.rules().rows.iter().all(|r| r.conds.len() <= 2));
+    }
+}
+
+
+#[test]
+fn queens_counter_scope_preserves_an_explicit_blind_pen_row() {
+    let mut g = crate::tests::arena();
+    g.lineage.pkg.literal = false;
+    g.lineage.pkg.pen_open = true;
+    let authored = Row::new(vec![Cond::t("foe_tag", "blind")], Verb::arg("read", "silence")).from("player");
+    g.lineage.pkg.pen.push(authored.clone());
+    g.lineage.pkg.drills.push(packages::Drill { boss: "lurker_queen".into(), rows: packages::drill_rows("lurker_queen", 35), revoked: false, announced: false });
+    packages::recompile(&mut g.lineage);
+    g.lineage.facts.insert("foe:lurker:blind".into());
+    g.lineage.facts.insert(crate::item::ident_fact(&g.lineage.flavours, "silence").unwrap());
+    crate::tests::give(&mut g, "silence");
+    crate::tests::add_monster(&mut g, "lurker", 5, 5);
+    g.run.as_mut().unwrap().hero.energy = 100;
+    let events = crate::tests::ticks(&mut g, 1);
+    assert_eq!(g.lineage.pkg.pen[0], authored);
+    assert_eq!(g.lineage.rules().rows[0], authored);
+    assert!(events.iter().any(|e| matches!(e, crate::wire::Ev::Use { item, .. } if item == "silence scroll")), "the explicit policy still reads at ordinary lurkers");
+    assert_eq!(crate::facts::counter_row("lurker_queen").conds[0], Cond::t("foe_tag", "boss"), "learned counter fingerprints remain stable");
 }

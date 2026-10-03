@@ -56,7 +56,7 @@ pub const MONSTERS: &[MonsterDef] = &[
     MonsterDef { kind: "sentinel", title: "sentinel", hp: 26, atk: (3, 6), def: 1, speed: 8, tags: &["gaze", "telegraph"], boss: false },
     // Cut 3 bosses.
     MonsterDef { kind: "foundry_master", title: "Foundry Master", hp: 42, atk: (3, 6), def: 1, speed: 8, tags: &["boss", "reflect_melee", "buffer", "telegraph"], boss: true },
-    MonsterDef { kind: "lurker_queen", title: "Lurker Queen", hp: 60, atk: (4, 7), def: 0, speed: 10, tags: &["boss", "blind", "summoner", "telegraph"], boss: true },
+    MonsterDef { kind: "lurker_queen", title: "Lurker Queen", hp: 60, atk: (4, 7), def: 0, speed: 10, tags: &["boss", "blind", "brood", "summoner", "telegraph"], boss: true },
     MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 80, atk: (3, 6), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
 ];
 
