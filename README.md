@@ -1,8 +1,11 @@
 # Riddle
 
-A real roguelike whose hero you never drive. You write its brain as an ordered rule list, send it
-down, and it comes back with loot, a story, and a death that names the rule you got wrong. Runs
-happen while you are away. The dungeon has a bottom.
+An idle roguelike whose hero you never drive. Send a warrior into the dungeon, collect the haul,
+and hire workers to keep the town and expeditions running while you are away. Choose stances and
+tactics as they unlock; write rules later to fine-tune a build. Watch live runs or replay the log.
+The dungeon has a bottom.
+
+[Play the alpha](https://gyng.github.io/riddle/). The banner shows the build date.
 
 | Doc | What |
 |---|---|
@@ -16,12 +19,16 @@ happen while you are away. The dungeon has a bottom.
 
 Score a card: `eval/score.sh eval/cards/<card>.json [--profile=achievement]` (needs `../eval-fun`).
 
-Status: **Cut 1 built and playable** (2026-09-16). `tools/verify.sh` is the gate.
+Status: **Alpha · Cut 30.5**. `tools/verify.sh` checks the engine and web build; `node tools/gates.mjs --full` checks progression.
 
 ```sh
-tools/verify.sh                    # tests → clippy → wasm → build → copy-lint → 17 bot gates
-cd web && pnpm dev --port 5219     # http://localhost:5219/  (?engine=fake for UI without wasm)
+tools/verify.sh --quick            # engine tests, TypeScript, copy checks
+tools/wasm.sh                     # build the engine for local play
+tools/dev.sh                     # http://localhost:5219/  (?engine=fake for UI without wasm)
 node tools/browser.mjs --probe     # GPU harness under WSLg (see AGENTS.md)
 ```
 
-Next: Cut 2 on the two gated axes, tension and expression (see PLAN.md → Milestones).
+Pushes to `main` build the release engine and deploy through GitHub Actions to Pages.
+For a local Pages build: `RIDDLE_BASE=/riddle/ pnpm --dir web build`.
+
+Current contract: [Cut 30.5](docs/CUT30_5.md); resume notes: [HANDOFF](docs/HANDOFF.md).

@@ -1,19 +1,20 @@
 # AGENTS.md — operating manual for Riddle
 
-**Resuming? Read `docs/HANDOFF.md` first.** Read `PLAN.md` (canonical design) and `docs/CUT30.md` (the current implementation contract),
+**Resuming? Read `docs/HANDOFF.md` first.** Read `PLAN.md` (canonical design) and `docs/CUT30_5.md` (the current implementation contract),
 then this file. `CLAUDE.md` is a bare import of this file.
 
 ## What the game is
 
 A real roguelike whose hero you never drive. The hero climbs on his own while you are away;
 you equip packages (stances, tactics, temperaments: pre-written rule bundles that level from
-runs), build a town, and late on open the pen to write your own rows. The engine does chores
-silently. Runs happen offline, uncapped. Every death names its cause. The dungeon has a bottom.
+runs), build a town, and late on open the pen to write your own rows. Town chores begin by hand; hire named workers to automate them. The first few sends are
+manual, until the scout is hired (within the first session). In-run chores stay silent.
+Then runs happen offline, uncapped. Every death names its cause. The dungeon has a bottom.
 
 ```
-town (packages, buildings, tracks, forecast; the pen late) → send → run (rows fire, facts learned, drills)
-   → exit: bank 100% · return 60% · death 30% → death screen (trace, gap/dice, patches)
-   → report (learned · bests · found · deaths · pending · reel) → camp
+town (packages, buildings, works, forecast; the pen late) → send → run (rows fire, facts learned, drills)
+   → checkpoint: secure gold → exit on remaining carry: bank 100% · return 60% · death 0% → death screen (trace, gap/dice, patches)
+   → report (learned · bests · found · deaths · workers · chest · reel) → camp
 ```
 
 ## Repo map
@@ -79,8 +80,8 @@ third of it the chores' floods).
 - Idle alone progresses (`examples/dayplayer.rs`, 16 seeds × 14 days): IDLE (no picks, no edits)
   reaches D8 on day 1 and D23 by day 12, gold every day, stall ≤ 4 d, and never slays the King
   in a fortnight. Engaging multiplies: PICKED (packages) reaches D13/D18/D23 ≥ 1.5× sooner than
-  IDLE and is never out-paced; TUNED (the pen, optional late fine-tuning) beats PICKED by ≥ 15 %
-  at D33. RANDOM never beats PICKED. Nothing is required: removing any one system never leaves a
+  IDLE and is never out-paced on ≥ 90% of seed × milestone pairs; TUNED (the pen, optional late fine-tuning) beats PICKED by ≥ 15 %
+  at D33. RANDOM is slower than PICKED at D13/D23 on the median and on ≥ 14/16 seeds. Nothing is required: removing any one system never leaves a
   bot slower than IDLE on the median seed (± a check-in), no seed > 48 h behind from day 5; each
   system adds value by its own output. Steady is the safest default; every other stance is best
   at some wall. (Cut 30; DEFAULT/EDITED/PASSIVE/LEARNED retired with the pivot.)
@@ -90,13 +91,22 @@ third of it the chores' floods).
 - Art never blocks the game: every sprite id has a primitive fallback.
 - Copy: callout ≤ 3 words, verdict 1 word, no sentences in chrome (`eval/copy-budgets.json`,
   `tools/copy-lint.mjs`). No tutorial text.
-- Offline is uncapped; nothing punishes absence.
+- Offline is uncapped after the scout; before then an absence finishes at most the run in flight.
+  Nothing punishes absence; chest gold does not decay and funds restocking. IDLE taps only until
+  the scout is hired, then makes no picks or edits; its early delta from Cut 30 is bounded.
+- Workers are named in the town and report, with their first act announced. Works replaces tracks.
+  Policy rungs stay optional. Automation improves the away player without costing the daily player
+  more than one floor of mean best depth (Cut 30.5).
+- A record checkpoint secures carry permanently, even on death. The 30% heir purse floor is
+  separate from the exit share; never describe death as keeping 30% of the new carry.
 
 ## Gotchas
 
 - `/home/g` is itself a git repo. Never stage from the home toplevel.
 - Codex writes asynchronously; poll `art/generated/` mtimes to quiescence; run batches
   detached (`setsid nohup`).
+- `web/src/engine/pkg` must be a real directory: Vite glob imports skip a symlink and can
+  fall back to the fake engine. Production builds and release smoke must verify real WASM.
 - After editing Rust, rebuild `web/src/engine/pkg`; the PWA precache is versioned, so verify
   frontend changes on a fresh port.
 - `tools/ship.sh` takes ~2 min (fat-LTO wasm + wasm-opt; `--preview` ~25 s). Never pipe it

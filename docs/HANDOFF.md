@@ -1,4 +1,39 @@
-# Handoff — where Riddle stands and how to resume
+# Handoff — Riddle
+
+**2026-10-03: Cut 30.5 complete; hold before Cut 31.** Read `PLAN.md`,
+`docs/CUT30_5.md`, then `AGENTS.md`. The works tree, worker art, manual first
+sends, run-clear/runs UI and Pages release are integrated. The first porter is
+free; sends stay manual until the scout. Record checkpoints secure carried
+gold without ending the run. Offline is uncapped after the scout.
+
+The canonical `tools/verify.sh --full` is green (437s): 517 tests, one ignored,
+TypeScript/copy lint, all-target Clippy, shipping WASM/web build, 30-seed engine
+and trace/wire checks, all 272 fortnight cases. Focused client 88/88 and
+real-WASM/SW/offline/headed 400/1440 release checks pass. Existing full client,
+headed send/scout/8-hour walkthrough and 493-frame art QC passed earlier;
+frontend/art inputs stayed unchanged.
+
+Final core source `2822afe224cb289b`, content commit `5386ab4`: Guarded L5 dry
+exit 44%, heal45/hurt25 unchanged. Queen-scope fix `7fe1229` narrows generated
+silence to learned brood; explicit rows/raw templates/counter facts stay intact.
+Quartermaster requests stop only once the chosen start passes the boss.
+Actual income/upfront guide pricing and checkpoint accounting repairs remain.
+
+All 16 no-forge pairs meet48h, and companions add value:10.58349% deaths/send
+with vs10.98394% without. Away workers27.26 vs27.14 mean best; daily27.52 vs27.41.
+Shipping WASM3929188bytes SHA256
+`2210c7a151a1887817ccc349cc04b006f9377d43317b0c623fcd8298c8a47a3b`.
+Private evidence: `scratchpad/cut30_5-check-pack`; final log
+`/tmp/riddle-final-verify-full.log`. Rejected probes and bounded causal audits
+are retained there; no fabricated caches or weakened gates were used.
+
+Next: owner fun review, then cohort25 when approved. **Do not begin Cut31.**
+The alpha entry point is `https://gyng.github.io/riddle/`; deployment status
+and final merge are recorded in the local check pack after publication.
+
+The dated sections below preserve earlier decisions and implementation history; this resume note supersedes
+older "next" and branch-status statements.
+
 
 > **Session end, 2026-09-28 — stopped before Cut 30 (owner's call).** All work is on **`cut29-wip`**
 > (last `b3d1d46` + parked oath art); `main` has this doc. Cut 29 is built end to end (core + client +
@@ -40,6 +75,18 @@
   progress bar; no stake mechanic; arriving late on the ladder, or cut if it doesn't fit the four tracks.
   Validate with the owner, not only blind agent readers.
 - Death screen: the `gap` seal reads **YOU DIED** (score screen only; `no rule for it` stays under it).
+
+## Latest live gate finding (2026-10-03)
+
+Integration `d1fef1d`, raw core `5f72af3420faf66d`, combines the Master sustain/canonical copied-counter order repair with automatic pack-plan deduplication, remembered automatic-slot refresh and protected manual-slot provenance. All **502 native tests pass (one ignored)**, the two self-contained dayplayer example tests pass, and all-target clippy passes. Shipping WASM remains the older 759c build and must be rebuilt after the final core freeze.
+
+The isolated combined no-forge seed 1 reaches D23/D28 at 104 h and D29/D33 at 256 h. Its exact same-source IDLE control reaches D23 at 160 h and D28 at 176 h, but never reaches D29 in 14 days. Earlier 759c IDLE numbers are not a valid control for this new source. The exact 16-seed IDLE-only subset passes bounded D13 delta (−4 h) and other idle bars but fails the pre-D23 stall cap: seed 7 holds D20 for five days (allowed four). Master-only d0 reproduces that trajectory exactly; pack-only 243f has a three-day stall. A scope-restoration prototype keeps the current heal guard plus the original D19+ restriction, with `attack tag:buffer` supplying target filtering within two conditions. It remains isolated pending behavioral tests and a bounded seed-7 pair.
+
+A controlled proof exposes prospective edit forecasts simulating raw row placement while public `set_rules` compiles authored pen rows before packages. A suggested generated-row move can also compile back to its original position. The scoped prospective repair (`af9dc52e419cbbbd`) passes five behavioral tests, all-target clippy and an actual saved-camp proof: every measured candidate equals public application, with archived fights unchanged. The example consumer repair passes six tests and clippy: landed non-harming gems, positive report-stall measures and faithful move/remove/replace/drop operations. Both are applied to integration (uncommitted); **507 native tests pass (one ignored)**. Example/integration lint checks are pending.
+
+The retained complete gate session 87510 remains the **759c comparison**, not the current integration source. It completed all 272 jobs with exit 1. Metrics and QA (30 seeds) pass; TUNED/PICKED D33 ratio 1.67, workers and IDLE bounded delta −4 h pass. Its two remaining balance failures are no-forge seed 1 D23 (192 h versus 136 h, +56 h against a 48 h cap) and the complete 16 pet pairs (20.9534% deaths with pets versus 17.8967% without). Evidence is `pet-waystone-final-*` in the check pack. Do not merge or publish before current-source verification is green.
+
+The retained older `f3b0f27564074581` comparison unexpectedly exited with SIGTERM 143; no owned comparison process remains. Its 233 completed job caches and partial log are retained as `supply-interrupted-*`, without a full verdict. Avoid non-TTY ETX stops during parallel checks. Rejected trace sustain and owned-counter maintenance prototypes remain unapplied.
 
 ## 1. The goal and the honest target
 
