@@ -1,19 +1,22 @@
 # Handoff — Riddle
 
-**2026-10-03: Cut 30.5 complete; hold before Cut 31.** Read `PLAN.md`,
+**2026-10-03: Cut 30.5 and local iteration pass deployed; hold before Cut 31.** Read `PLAN.md`,
 `docs/CUT30_5.md`, then `AGENTS.md`. The works tree, worker art, manual first
 sends, run-clear/runs UI and Pages release are integrated. The first porter is
 free; sends stay manual until the scout. Record checkpoints secure carried
 gold without ending the run. Offline is uncapped after the scout.
 
-The canonical `tools/verify.sh --full` is green (437s): 517 tests, one ignored,
+The Cut 30.5 baseline `tools/verify.sh --full` passed in 437s with warm primitive
+caches. The local performance follow-up passed genuinely fresh in 4679s, then
+again in 111s with all three simulation legs cached (including test-artifact
+rebuilds): 517 tests, one ignored,
 TypeScript/copy lint, all-target Clippy, shipping WASM/web build, 30-seed engine
 and trace/wire checks, all 272 fortnight cases. Focused client 88/88 and
 real-WASM/SW/offline/headed 400/1440 release checks pass. Existing full client,
 headed send/scout/8-hour walkthrough and 493-frame art QC passed earlier;
 frontend/art inputs stayed unchanged.
 
-Final core source `2822afe224cb289b`, content commit `5386ab4`: Guarded L5 dry
+Pre-optimization core source `2822afe224cb289b`, content commit `5386ab4`: Guarded L5 dry
 exit 44%, heal45/hurt25 unchanged. Queen-scope fix `7fe1229` narrows generated
 silence to learned brood; explicit rows/raw templates/counter facts stay intact.
 Quartermaster requests stop only once the chosen start passes the boss.
@@ -21,7 +24,7 @@ Actual income/upfront guide pricing and checkpoint accounting repairs remain.
 
 All 16 no-forge pairs meet48h, and companions add value:10.58349% deaths/send
 with vs10.98394% without. Away workers27.26 vs27.14 mean best; daily27.52 vs27.41.
-Shipping WASM3929188bytes SHA256
+Pre-optimization shipping WASM3929188bytes SHA256
 `2210c7a151a1887817ccc349cc04b006f9377d43317b0c623fcd8298c8a47a3b`.
 Private evidence: `scratchpad/cut30_5-check-pack`; final log
 `/tmp/riddle-final-verify-full.log`. Rejected probes and bounded causal audits
@@ -29,7 +32,7 @@ are retained there; no fabricated caches or weakened gates were used.
 
 Next: owner fun review, then cohort25 when approved. **Do not begin Cut31.**
 The public alpha is live at `https://gyng.github.io/riddle/`, repository
-`https://github.com/gyng/riddle`, deployed `df30c53`. CI run `37120657683` passed;
+`https://github.com/gyng/riddle`, deployed core commit `ef316dd`. CI run `37128479275` passed;
 headed public-site checks passed real WASM, scoped assets/service worker, dated
 alpha banner, phone/desktop layout and offline reload. Public screenshots and
 CI evidence are under `scratchpad/perf-20261003/`. Publication was explicitly
@@ -52,8 +55,11 @@ test artifacts. Current core source is `d84ba387fbdb62da`; shipping WASM SHA256
 `5c1b05d077df71c0d166e1ed46df051b68e20afb260611d4907eb2e7222dde5d`.
 Reports/saves and eight-seed fingerprint `35cb82317410f64e` are unchanged.
 Native catch-up gain is 2–5%, with no measured WASM gain. A quiet native tuning
-repeat is pending. Core publication follows verification; do not assume the public
-site has this source until its deployment check is recorded. Tooling commits
+repeat did not confirm the earlier contended improvement (CPU15.52→15.88s);
+no tuning speedup is claimed. Core commit `ef316dd` deployed successfully; public
+real-WASM/SW/offline/400/1440 checks and an eight-capture headed walk passed.
+The walk took29.6s with no console/page errors; two pre-existing WebGL warnings
+remain. Evidence: `scratchpad/perf-20261003/core-public-{checkpoint,walk}`. Tooling commits
 `cfed378` and `be1283f` passed public CI and deployed successfully.
 This engineering queue does not start Cut 31 or a new cohort.
 

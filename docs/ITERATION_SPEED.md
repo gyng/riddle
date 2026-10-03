@@ -24,6 +24,17 @@ samples, player behavior and public wire/save semantics remain the acceptance cr
 Earlier rounds below are historical; shared history, primitive job caches, targeted dayplayer
 and compound driver operations already exist and should not be rebuilt as new work.
 
+Architecture follow-up requested by the owner: preserve the local Rust/WASM catch-up
+model and existing worker lanes. Audit elapsed-time accounting before adding shortcuts:
+`offline.rs` finishes a begun run beyond each slice's budget, while the client invokes
+30-minute slices; the stall branch samples 20 runs after 20 without new facts/bests and
+extrapolates counts rather than simulating every remaining expedition. Check slice-size
+effects, rest carry, sampled rewards/worker hours and save/load continuation explicitly.
+Any change here affects game semantics and needs a contract, not a silent performance fix.
+For long gate jobs, consider reusable immutable policy/map inputs and resumable within-case
+checkpoints after profiling; existing whole-case/leg caches and worker lanes already exist.
+The rejected package-panel cache prototype is evidence against assuming any cache helps.
+
 Verified baseline: main `9d49b19`, core `2822afe224cb289b`; canonical full verification
 437 s, native tests 30.96 s, metrics 263 s, QA 151.7 s, all 272 dayplayer cases pass.
 Metrics and QA overlap; these timings do not add to the total. Primitive dayplayer caches

@@ -171,3 +171,19 @@ hash above. The 111 s includes rebuilding test artifacts and is not a fully warm
 unit-test build measurement. Full-gate cold cost remains about 78 minutes in this
 run; the iteration gains are targeted checks and correct unchanged-work reuse,
 not a claim that all fresh simulations now finish in seconds.
+
+Quiet tuning follow-up after full verification, both binaries pinned to CPU 0,
+three alternating fresh TUNED seed-1/day-1 pairs: median CPU **15.519 → 15.876 s**,
+wall **15.533 → 15.890 s**, identical printed outcomes. This does not confirm the
+earlier contended 7% tuning improvement; no native tuning speedup is claimed.
+The retained runtime result is the small paired saved-camp catch-up gain and
+fewer allocation requests. Neither tuning nor browser/WASM performance met the
+larger improvement target. Larger picker/BFS/vision work remains queued.
+
+Core commit `ef316dd` passed public CI/deployment run `37128479275`. Public
+WASM/base/service-worker/mobile/desktop/offline checks passed, and the final
+headed manual-send/scout/8 h walk passed eight captures in 29.6 s with no
+console/page errors (the two existing WebGL warnings remain). Actual fetched
+CI WASM provenance is recorded in `core-public-walk/checkpoints.json`; local
+shipping and CI builds can have different hashes. This walk is functional
+release evidence, not a paired browser-performance claim.
