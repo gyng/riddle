@@ -11758,3 +11758,92 @@ fn waystone_companions_start_with_the_same_health_as_normal_descent() {
         assert_eq!((live.level, run.companions[0].level, run.companions[0].max_hp), (level, level, pet.max_hp), "save/load retains the companion's level and base record");
     }
 }
+
+#[test]
+fn quiet_tick_batches_match_single_ticks_at_arbitrary_boundaries() {
+    let mut skipped = 0;
+    for seed in 1..=12 {
+        for sim in [false, true] {
+            let mut batched = arena_seed(seed);
+            add_monster(&mut batched, "goblin", 9, 5);
+            add_monster(&mut batched, "goblin_archer", 10, 6);
+            batched.sim = sim;
+            {
+                let r = batched.run.as_mut().unwrap();
+                r.hero.speed_t = 17;
+                r.hero.poison = (1, 23);
+                r.hero.regen_t = 37;
+                r.hero.paralysed = 3;
+                r.hero.bulwark_t = 15;
+                r.taunt_t = 11;
+                r.monsters[0].slow_t = 19;
+                r.monsters[0].poison = (1, 29);
+                r.monsters[1].ttl = Some(51);
+                r.monsters[1].ally = true;
+                r.monsters[1].buff_def = (2, 13);
+                r.monsters[1].fear = 7;
+            }
+            let mut reference = batched.clone();
+            let mut settled = false;
+            for limit in [1, 2, 9, 13, 3, 1, 23, 7, 41, 99, 17] {
+                let mut used = 0;
+                while used < limit && batched.run.as_ref().unwrap().over.is_none() {
+                    let n = batched.tick_batch(limit - used, &mut settled);
+                    assert!(n > 0 && n <= limit - used);
+                    skipped += n.saturating_sub(1);
+                    for _ in 0..n { reference.tick(); }
+                    used += n;
+                    assert_eq!(batched.events, reference.events, "seed {seed} sim {sim}");
+                    assert!(batched.save() == reference.save(), "save divergence: seed {seed} sim {sim} turn {}", batched.run.as_ref().unwrap().turn);
+                    assert_eq!(serde_json::to_value(&batched.history).unwrap(), serde_json::to_value(&reference.history).unwrap());
+                    assert_eq!(serde_json::to_value(&batched.floor_start).unwrap(), serde_json::to_value(&reference.floor_start).unwrap());
+                }
+            }
+        }
+    }
+    assert!(skipped > 0, "reference cases must exercise real batching");
+}
+
+#[test]
+fn quiet_meter_batch_matches_empty_tick_fight_transition() {
+    for quiet in [0, 1, 28, 29, 30, 31, u32::MAX - 1, u32::MAX] {
+        for fights in [0, 1, 3] {
+            for ticks in [1, 2, 9, 40] {
+                let mut batch = crate::meters::RunMeters { quiet, ..Default::default() };
+                batch.run.fights = fights;
+                let mut reference = batch.clone();
+                batch.quiet_ticks(ticks);
+                for _ in 0..ticks { reference.tick(&[], std::iter::empty()); }
+                assert_eq!(batch, reference);
+            }
+        }
+    }
+}
+
+#[test]
+fn quiet_batches_preserve_periodic_effects_and_floor_boundaries() {
+    for (turn, floor_turn) in [(9, 119), (19, 799), (39, 795), (119_995, 7)] {
+        let mut batch = arena_seed(7);
+        add_monster(&mut batch, "goblin", 10, 9);
+        {
+            let run = batch.run.as_mut().unwrap();
+            run.turn = turn;
+            run.floor_turn = floor_turn;
+            run.hero.energy = -17;
+            run.hero.poison = (2, 19);
+            run.hero.regen_t = 15;
+            run.monsters[0].energy = -29;
+            run.overlays.push(crate::tiles::Overlay { x: 4, y: 5, k: OverlayKind::Gas, ttl: 3, spread: false });
+        }
+        let mut reference = batch.clone();
+        let mut settled = false;
+        for _ in 0..30 {
+            let n = batch.tick_batch(13, &mut settled);
+            for _ in 0..n { reference.tick(); }
+            assert_eq!(batch.events, reference.events);
+            assert!(batch.save() == reference.save(), "periodic save divergence at turn {}", batch.run.as_ref().unwrap().turn);
+            assert_eq!(serde_json::to_value(&batch.history).unwrap(), serde_json::to_value(&reference.history).unwrap());
+            if n == 0 || batch.run.as_ref().unwrap().over.is_some() { break; }
+        }
+    }
+}

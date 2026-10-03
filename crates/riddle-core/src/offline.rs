@@ -123,10 +123,11 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
             game.start_run(None);
             game.events.clear();
         }
+        let mut settled = false;
         while game.run.as_ref().is_some_and(|r| r.over.is_none()) && consumed < budget {
-            game.tick();
+            let ticks = game.tick_batch((budget - consumed).min(u64::from(u32::MAX)) as u32, &mut settled);
             game.events.clear();
-            consumed += 1;
+            consumed += u64::from(ticks);
         }
         // Cut 12: a begun run finishes past the budget (≤ one run), so an absence always ends
         // at camp and the next send packs what the player bought and runs the rules they
@@ -700,10 +701,11 @@ pub fn advance(game: &mut Game, elapsed_ms: u64) -> Advance {
             game.start_run(None);
             game.events.clear();
         }
+        let mut settled = false;
         while game.run.as_ref().is_some_and(|r| r.over.is_none()) && consumed < budget {
-            game.tick();
+            let ticks = game.tick_batch((budget - consumed).min(u64::from(u32::MAX)) as u32, &mut settled);
             game.events.clear();
-            consumed += 1;
+            consumed += u64::from(ticks);
         }
         if game.run.as_ref().is_some_and(|r| r.over.is_some()) {
             game.lineage.town.today = ((clock0 + consumed / TICKS_PER_SECOND) / crate::engine::DAY_S) as u32;

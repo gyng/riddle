@@ -4374,12 +4374,78 @@ impl Game {
         self.descend_to(depth);
     }
 
+    /// An ordinary tick or a span before the next possible effect or action. `settled`
+    /// belongs to this uninterrupted loop: its first tick observes the state normally.
+    /// Single-step/replay callers continue using `tick`; taps must observe each tick.
+    pub(crate) fn tick_batch(&mut self, limit: u32, settled: &mut bool) -> u32 {
+        if limit == 0 || self.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            return 0;
+        }
+        if !*settled || self.tap.is_some() {
+            self.tick();
+            *settled = true;
+            return 1;
+        }
+        let run = self.run.as_mut().unwrap();
+        if !self.sim && self.floor_start.as_ref().is_none_or(|(floor, _)| floor.id != run.id || floor.depth != run.depth) {
+            self.tick();
+            return 1;
+        }
+        if run.stuck_fires >= STALL_FIRES {
+            self.tick();
+            return 1;
+        }
+        let mut quiet = limit
+            .min(TICKS_PER_TURN - 1 - run.turn % TICKS_PER_TURN)
+            .min(TICKS_PER_TURN - 1 - run.floor_turn % TICKS_PER_TURN)
+            .min(MAX_TURNS_PER_RUN.saturating_sub(run.turn + 1));
+        if !self.sim && !NO_HISTORY.with(|c| c.get()) {
+            let rem = run.turn % HISTORY_STRIDE;
+            quiet = quiet.min(if rem == 0 { 0 } else { HISTORY_STRIDE - rem });
+        }
+        if let Some((t0, _)) = run.vault_choice.as_ref() {
+            quiet = quiet.min((t0 + VAULT_GRACE).saturating_sub(run.turn + 1));
+        }
+        if quiet == 0 { self.tick(); return 1; }
+        let before_action = |bound: u32, energy: i32, speed: i32| -> u32 {
+            if speed <= 0 || energy >= ACT_ENERGY - speed { return 0; }
+            let distance = ACT_ENERGY.saturating_sub(energy).saturating_sub(1);
+            if distance <= speed.saturating_mul(bound as i32) { bound.min((distance / speed) as u32) } else { bound }
+        };
+        let hero_speed = run.hero.speed();
+        quiet = before_action(quiet, run.hero.energy, hero_speed);
+        if run.hero.speed_t > 0 { quiet = quiet.min(run.hero.speed_t as u32); }
+        if quiet == 0 { self.tick(); return 1; }
+        for m in &run.monsters {
+            quiet = before_action(quiet, m.energy, m.effective_speed());
+            if m.slow_t > 0 { quiet = quiet.min(m.slow_t as u32); }
+            if let Some(ttl) = m.ttl { quiet = quiet.min(ttl.saturating_sub(1).max(0) as u32); }
+            if quiet == 0 { break; }
+        }
+        if quiet == 0 { self.tick(); return 1; }
+        let ticks = quiet as i32;
+        run.turn += quiet;
+        run.floor_turn += quiet;
+        run.hero.energy += hero_speed * ticks;
+        if run.hero.poison.1 > 0 { run.hero.poison.1 = (run.hero.poison.1 - ticks).max(0); }
+        run.hero.tick_statuses_by(ticks);
+        if run.taunt_t > 0 { run.taunt_t = (run.taunt_t - ticks).max(0); }
+        for m in &mut run.monsters {
+            m.energy += m.effective_speed() * ticks;
+            if m.poison.1 > 0 { m.poison.1 = (m.poison.1 - ticks).max(0); }
+            m.tick_statuses_by(ticks);
+        }
+        if !self.sim { run.meters.quiet_ticks(quiet); }
+        self.lineage.total_turns += u64::from(quiet);
+        quiet
+    }
+
     /// Run the live expedition to its end (used by forecasts and the offline batch).
     pub fn run_to_end(&mut self, max_turns: u32) {
         let mut n = 0;
+        let mut settled = false;
         while self.run.as_ref().is_some_and(|r| r.over.is_none()) && n < max_turns {
-            self.tick();
-            n += 1;
+            n += self.tick_batch(max_turns - n, &mut settled);
         }
     }
 

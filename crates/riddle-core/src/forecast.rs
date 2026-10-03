@@ -155,13 +155,14 @@ pub fn sim_game(game: &Game, rules: &RuleSet, tag: u64, i: u32, passage: Option<
 fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32, passage: Option<(u32, i32)>) -> (u32, SimResult) {
     let mut g = sim_game(game, rules, tag, i, passage);
     let mut n = 0;
+    let mut settled = false;
     let mut fires = vec![0u32; rules.rows.len()];
     let mut arrive: Vec<(u32, u32, i32)> = g.run.as_ref().map(|r| vec![(r.max_depth, 0, r.carried())]).unwrap_or_default();
     while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.max_depth < stop_depth) && n < SIM_MAX_TICKS {
-        g.tick();
+        let ticks = g.tick_batch(SIM_MAX_TICKS - n, &mut settled);
         count_fires(&mut fires, &g.events);
         g.events.clear();
-        n += 1;
+        n += ticks;
         if let Some(r) = g.run.as_ref() {
             if arrive.last().is_none_or(|a| r.max_depth > a.0) {
                 // (Cut 30.5: the gold carried — what the checkpoints secured with the carry since)

@@ -221,6 +221,16 @@ impl RunMeters {
 }
 
 impl RunMeters {
+    /// Consecutive ticks without events; exactly the same accounting as `tick(&[], ..)`.
+    pub(crate) fn quiet_ticks(&mut self, ticks: u32) {
+        let fighting = if self.run.fights > 0 { FIGHT_GAP.saturating_sub(self.quiet.saturating_add(1)).min(ticks) } else { 0 };
+        self.quiet = self.quiet.saturating_add(ticks);
+        self.run.ticks += ticks;
+        self.run.time.fight += fighting;
+        self.run.time.travel += ticks - fighting;
+        self.fight.ticks += fighting;
+        self.fight.time.fight += fighting;
+    }
     pub fn is_empty(&self) -> bool {
         self.run.ticks == 0
     }

@@ -395,35 +395,38 @@ impl Hero {
         None
     }
     pub fn tick_statuses(&mut self) {
+        self.tick_statuses_by(1);
+    }
+    pub(crate) fn tick_statuses_by(&mut self, ticks: i32) {
         if self.speed_t > 0 {
-            self.speed_t -= 1;
+            self.speed_t = (self.speed_t - ticks).max(0);
         }
         if self.invis_t > 0 {
-            self.invis_t -= 1;
+            self.invis_t = (self.invis_t - ticks).max(0);
         }
         if self.vanish_t > 0 {
-            self.vanish_t -= 1;
+            self.vanish_t = (self.vanish_t - ticks).max(0);
         }
         if self.paralysed > 0 {
-            self.paralysed -= 1;
+            self.paralysed = (self.paralysed - ticks).max(0);
         }
         if self.confused > 0 {
-            self.confused -= 1;
+            self.confused = (self.confused - ticks).max(0);
         }
         if self.bash_cd > 0 {
-            self.bash_cd -= 1;
+            self.bash_cd = (self.bash_cd - ticks).max(0);
         }
         if self.vanish_cd > 0 {
-            self.vanish_cd -= 1;
+            self.vanish_cd = (self.vanish_cd - ticks).max(0);
         }
         if self.cleave_cd > 0 {
-            self.cleave_cd -= 1;
+            self.cleave_cd = (self.cleave_cd - ticks).max(0);
         }
         if self.bulwark_t > 0 {
-            self.bulwark_t -= 1;
+            self.bulwark_t = (self.bulwark_t - ticks).max(0);
         }
         if self.bulwark_cd > 0 {
-            self.bulwark_cd -= 1;
+            self.bulwark_cd = (self.bulwark_cd - ticks).max(0);
         }
         for c in [
             &mut self.volley_cd,
@@ -438,7 +441,7 @@ impl Hero {
             &mut self.clarity_t,
         ] {
             if *c > 0 {
-                *c -= 1;
+                *c = (*c - ticks).max(0);
             }
         }
     }

@@ -263,35 +263,38 @@ impl Monster {
         self.has_tag("blind")
     }
     pub fn tick_statuses(&mut self) {
+        self.tick_statuses_by(1);
+    }
+    pub(crate) fn tick_statuses_by(&mut self, ticks: i32) {
         if self.stun > 0 {
-            self.stun -= 1;
+            self.stun = (self.stun - ticks).max(0);
         }
         if self.paralysed > 0 {
-            self.paralysed -= 1;
+            self.paralysed = (self.paralysed - ticks).max(0);
         }
         if self.confused > 0 {
-            self.confused -= 1;
+            self.confused = (self.confused - ticks).max(0);
         }
         if self.fear > 0 {
-            self.fear -= 1;
+            self.fear = (self.fear - ticks).max(0);
         }
         if self.blind > 0 {
-            self.blind -= 1;
+            self.blind = (self.blind - ticks).max(0);
         }
         if self.buff_def.1 > 0 {
-            self.buff_def.1 -= 1;
+            self.buff_def.1 = (self.buff_def.1 - ticks).max(0);
         }
         if self.cooldown > 0 {
-            self.cooldown -= 1;
+            self.cooldown = (self.cooldown - ticks).max(0);
         }
         if self.marked > 0 {
-            self.marked -= 1;
+            self.marked = (self.marked - ticks).max(0);
         }
         if self.slow_t > 0 {
-            self.slow_t -= 1;
+            self.slow_t = (self.slow_t - ticks).max(0);
         }
         if let Some(t) = self.ttl.as_mut() {
-            *t -= 1;
+            *t -= ticks;
         }
     }
 }

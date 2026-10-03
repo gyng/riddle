@@ -1,5 +1,53 @@
 # Catch-up throughput — 2026-10-03
 
+## Authorized fix — 2026-10-04
+
+Prototype exact quiet-tick batching in offline/forecast loops. Execute an ordinary
+tick first to settle observations and events; batch only following ticks before
+any actor action, periodic effect, history snapshot, vault deadline, summon expiry
+or run limit. Preserve status countdowns, energy, clocks and meter time exactly.
+Keep single-step/replay behavior unchanged and fall back for event taps or unsafe
+states. Compare against the unmodified binary and tick-by-tick reference at arbitrary
+budget boundaries, including statuses, history, events, forecast arrivals and saves.
+Target 15% lower median shipping-WASM catch-up over seven alternating pairs on
+multiple camps; separately measure native and tuning. Require existing full gates
+and public screenshot checkpoints before landing/deploying a retained change.
+
+The retained candidate uses a stack-local initialized flag for each uninterrupted
+loop, so even a single quiet tick can bypass the ordinary pipeline. New floors
+still execute a normal tick to capture the exact death checkpoint. Eligibility
+short-circuits at effect/action boundaries and divides only when an actor tightens
+the current span. No readiness flag enters game state or saves. Three differential
+tests cover arbitrary budgets/statuses/history, fight-meter transitions, periodic
+effects and run limits; each comparison checks the original single-tick execution.
+The checkpoint test caught and resolved a prototype mismatch after descending.
+The predicate-inlining experiment gave only 0.50% in native pairs and was removed.
+
+Final shipping WASM, seven alternating headed-browser pairs per saved camp:
+
+| Camp | Original | Candidate | Gain |
+|---|---:|---:|---:|
+| IDLE seed 15, day 1 | 0.165300 s | 0.160000 s | 3.21% |
+| IDLE seed 15, day 5 | 1.821500 s | 1.710500 s | 6.09% |
+| TUNED seed 15, day 8 | 0.774100 s | 0.747000 s | 3.50% |
+
+Every pair preserves exact report/save hashes. Final native day-5 pairs gave
+1.529355 → 1.440019 s (5.84%). Earlier native screens ran alongside compilation
+and are not tuning evidence. The 15% target was missed: retain the candidate only
+after full verification passed, as a consistent small browser gain across three
+workloads with exact scheduler/reference agreement. No larger gain or long-gate
+speedup is claimed. Full verification passed in 3906 s after resuming nine
+real completed cases from an interrupted run: native tests, TS/copy lint,
+all-target Clippy, shipping WASM/web build, full metrics/trace-wire QA and all
+272 fortnight cases. All 272 decoded result records equal the previous accepted
+records with no fields ignored. The subsequent complete cached table passed in
+1.32 s (metrics/QA/dayplayer all genuine cache hits); this is not fresh simulation
+throughput. Local shipping real-WASM/SW/offline/400/1440 checks and the headed
+send/scout/eight-hour walk pass. The walk took104 s under full-gate contention;
+functional evidence only. Core source `97a4dba1715763c3`, local shipping WASM
+SHA256 `3451f53c3654c1d11063bee831d4815a3a6ca08d560c0b9411884dcca5a3a132`.
+Evidence: `scratchpad/tick-batch-20261004/`.
+
 Owner requested faster offline tick processing after the local iteration pass.
 Keep the 10 ticks/second progression rate, policies, elapsed-time accounting and
 current sampling behavior unchanged. This is engineering work, not Cut 31.

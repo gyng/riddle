@@ -1,5 +1,25 @@
 # Handoff — Riddle
 
+**Verified quiet-tick fix, 2026-10-04:** exact batching in offline, advance,
+run-to-end and forecast loops; `docs/PERF_CATCHUP.md`. Three differential tests
+and full verification pass (3906s, resumed nine real completed cases after
+SIGTERM). All272 fortnight records match the previous accepted records exactly.
+Seven headed shipping-WASM pairs per camp give3.21% /6.09% /3.50% gains
+(early/late/tuned); every report/save matches. Target15% missed; retained as a
+consistent small gain with exact reference/gate agreement. No tuning speedup
+claimed. The complete cached table passed in1.32s (all three genuine leg hits).
+Core source `97a4dba1715763c3`, local shipping SHA256
+`3451f53c3654c1d11063bee831d4815a3a6ca08d560c0b9411884dcca5a3a132`.
+Evidence: `scratchpad/tick-batch-20261004/{full-resumed.log,full-exit.txt,
+completed-case-comparison.json,cached-full.log,cached-full-time.txt}`.
+Local shipping real-WASM/SW/offline/400/1440 and the eight-capture headed
+send/scout/8h walk pass; screenshots shown inline. Walk104s under full-gate load:
+functional evidence only. Publication is approved; finish the pushed release's
+CI/public checks and inline public checkpoint before reporting it deployed.
+Owner asks all gates/cases within minutes: plan at the top of
+`docs/ITERATION_SPEED.md`. Split safe test-only dependencies first; fresh runtime
+runs require major exact forecast-work reduction, not more worker threads.
+
 **2026-10-03: Cut 30.5 and local iteration pass deployed; hold before Cut 31.** Read `PLAN.md`,
 `docs/CUT30_5.md`, then `AGENTS.md`. The works tree, worker art, manual first
 sends, run-clear/runs UI and Pages release are integrated. The first porter is

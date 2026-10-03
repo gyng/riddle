@@ -44,6 +44,60 @@ before further tick changes; scope, exact hashes, rejected probes and limits are
 in `docs/PERF_CATCHUP.md`. The next candidate should target pathfinding and validate
 multiple saved camps, then the application-level chunked absence path.
 
+Quiet-tick candidate, 2026-10-04: seven alternating headed shipping-WASM pairs
+on early/late/tuned camps give 3.21% / 6.09% / 3.50% faster engine catch-up,
+with exact report/save agreement. The 15% target was missed; full verification
+passed in3906s (resumed nine real completed cases). The cached complete gate
+table then passed in1.32s. All272 fortnight records match the accepted baseline.
+Differential tests preserve arbitrary slice
+boundaries, effects, status expiry, meters and floor checkpoints. This is not
+measured evidence of faster tuning or whole-app absence handling.
+
+Next local tuning investigation: use the existing `DP_PHASES=1` with one group
+and `--threads 1` to attribute process CPU to offline/pick/death/wall phases on
+an uncached representative case. The retained previous native tuning profile
+(`scratchpad/perf-20261003/tuned-profile.folded`, 7643 samples) attributes 72.67%
+of inclusive samples to package picking, 6.37% to offline progression, 10.24%
+to nearest-tile searches and 7.42% to vision; inclusive categories overlap.
+This is an older separate profiling build, not a candidate speed measurement.
+Use it to prioritize forecast work, then refresh phase evidence before selecting
+a change. Source inspection shows wall search screens
+every candidate on 12 sends, then the best three on 48, for up to two steps;
+these counts and ordering must stay intact. Profile actual candidate simulation
+before choosing immutable-input reuse or pathfinding work. Common-prefix trees,
+whole-case caches and panel reuse already exist. Do not launch extra heavy probes
+beside full acceptance, or infer gains from contended wall time.
+
+Owner follow-up, 2026-10-04: aim for all gates/cases within minutes locally.
+Separate three acceptance workloads: no-change/cached full checks; test-only or
+non-runtime edits; genuinely fresh simulations after a runtime change. A five-minute
+fresh target needs roughly 16× less wall time than the preceding 4679 s run.
+The current unfinished full dayplayer alone had already spent over 60,000 CPU-s;
+even ideal scheduling on 32 logical threads allows only 9600 CPU-s in five minutes.
+Evidence: `scratchpad/tick-batch-20261004/gate-cpu-target.json`. Extra workers alone
+cannot close this gap, and more SMT threads are not more physical cores.
+
+First safe iteration-speed candidate: split runtime simulation dependencies from
+test-only sources. `tools/gates.mjs` currently hashes every core source file,
+including modules imported solely under `#[cfg(test)]` in `lib.rs`. Adding a unit
+test unnecessarily invalidates every primitive simulation job. Design a versioned
+runtime key with verified dependency coverage; keep test execution independent.
+Prove test-only edits preserve runtime inputs and runtime/content/toolchain edits
+invalidate their dependent jobs. Never rekey old simulation evidence without proof.
+Do this after the active full verification, not halfway through its provenance.
+
+For a genuinely fresh full run, refresh per-phase and per-candidate work counts;
+measure panel-cache eviction/recomputation (current bound32) and clone/allocation
+costs before redesigning reuse. Existing shared configuration-prefix trees,
+ordered budgeted simulation prefixes and adaptive group/panel widths are already
+implemented. Extend only exact reuse supported by measurements. A candidate may
+share immutable map/compiled policy inputs or identical simulation prefixes;
+changed policy effects, RNG draws, seed counts, ordered results and numeric bars
+must stay intact. Benchmark three paired fresh runs on the same machine with
+whole-case caches disabled, separately from cached performance. A five-minute goal
+is an investigation target, not a promised speedup. If CPU work cannot be reduced
+enough, report the measured limit before considering distributed hardware.
+
 Verified baseline: main `9d49b19`, core `2822afe224cb289b`; canonical full verification
 437 s, native tests 30.96 s, metrics 263 s, QA 151.7 s, all 272 dayplayer cases pass.
 Metrics and QA overlap; these timings do not add to the total. Primitive dayplayer caches
