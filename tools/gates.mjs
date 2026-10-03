@@ -23,7 +23,7 @@
 //                                 16) unless `--seeds N` etc. follow. Cached like the legs; never a gate pass.
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 const full = process.argv.includes("--full");
 const fast = process.argv.includes("--fast");
@@ -53,6 +53,16 @@ const srcKey = (() => {
   return h.digest("hex").slice(0, 16);
 })();
 const jobEnv = { RIDDLE_SRC_KEY: srcKey, ...(fresh ? { RIDDLE_CACHE_FRESH: "1" } : {}) };
+const readResult = (file) => {
+  try { return JSON.parse(readFileSync(file, "utf8")); }
+  catch { return null; }   // missing/corrupt cache is a miss, never evidence
+};
+const writeResult = (file, result) => {
+  mkdirSync("target/gates", { recursive: true });
+  const temporary = `${file}.tmp-${process.pid}`;
+  writeFileSync(temporary, JSON.stringify({ status: result.status, stdout: result.stdout }));
+  renameSync(temporary, file);
+};
 // TARGETED (`--rows`): the dayplayer leg alone on the named rows — its printout kept like a leg's (the binary, the
 // arguments), its full-length jobs kept and read like the gate's (`RIDDLE_SRC_KEY`). Never a gate pass: it prints
 // no `gates: all PASS` and says so.
@@ -61,7 +71,7 @@ if (rows) {
   // (the dayplayer reads an argument's first occurrence: `extra` — `--seeds 8` … — before the tier's)
   const args = [...extra, ...tier, "--rows", rows, ...(failFast ? ["--fail-fast"] : []), "--threads", String(Number(process.env.GATES_THREADS ?? os.availableParallelism()))];
   const leg = `target/gates/dayplayer-rows-${keyOf("target/fast/examples/dayplayer", [["args", args.filter((a, i) => args[i - 1] !== "--threads" && a !== "--threads").join(" ")], ["src", srcKey]])}.txt`;
-  let res = !fresh && existsSync(leg) ? JSON.parse(readFileSync(leg, "utf8")) : null;
+  let res = !fresh ? readResult(leg) : null;
   const hitRows = !!res;
   if (!res) {
     res = await new Promise((resolve) => {
@@ -69,8 +79,7 @@ if (rows) {
       let out = ""; p.stdout.on("data", (d) => (out += d));
       p.on("close", (status) => resolve({ status, stdout: out }));
     });
-    mkdirSync("target/gates", { recursive: true });
-    writeFileSync(leg, JSON.stringify(res));
+    writeResult(leg, res);
   }
   const out = res.stdout ?? "";
   const from = out.lastIndexOf("\nfail-fast:") >= 0 ? out.lastIndexOf("\nfail-fast:") : out.lastIndexOf("\nbar (targeted");
@@ -97,8 +106,13 @@ const legs = {
   qa: `target/gates/qa-${keyOf("target/fast/examples/qa", [["args", `--seeds ${qaSeeds}`]])}.txt`,
   dayplayer: `target/gates/dayplayer-${keyOf("target/fast/examples/dayplayer", [["args", dpArgs.join(" ")]])}.txt`,
 };
-const cached = (leg) => (!fresh && !extra.length && existsSync(legs[leg]) ? JSON.parse(readFileSync(legs[leg], "utf8")) : null);
-const keep = (leg, r) => { if (!extra.length) { mkdirSync("target/gates", { recursive: true }); writeFileSync(legs[leg], JSON.stringify({ status: r.status, stdout: r.stdout })); } };
+const cached = (leg) => {
+  return fresh || extra.length ? null : readResult(legs[leg]);
+};
+const keep = (leg, r) => {
+  if (extra.length) return;
+  writeResult(legs[leg], r);
+};
 const pendingLegs = new Map();
 // Keep each completed leg immediately: a long dayplayer or an interrupted tuning session
 // must not discard the already completed table and wire checks. Keys and checks are unchanged.

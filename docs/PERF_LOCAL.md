@@ -121,3 +121,6 @@ and a 30-second pending-leg update. An isolated process-interruption fixture
 verified metrics/QA remain saved while dayplayer is pending and are reused after
 restart. The fixture is orchestration testing, not game gate evidence. Binary,
 source and runtime-input keys, samples, assertions and pass criteria are unchanged.
+Completed-leg and targeted printout writes use atomic rename; corrupt older
+printouts are misses. `node tools/gates-cache-test.mjs` repeats the interruption,
+restart/reuse and corrupt-cache checks in an isolated temporary fixture.

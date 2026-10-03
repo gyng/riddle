@@ -36,6 +36,7 @@ research/              the four research reports behind the plan
 
 ```sh
 tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint            ~45 s
+tools/tune.sh <row-ids>        # content iteration: full seed counts, targeted requirements, fail-fast; --list lists rows; never a full gate pass
 tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~2 min + the quick gate (cached: seconds; fresh after a core edit: ~30–40 min, below)
 tools/verify.sh --full         # + shipping wasm → full gate table                  ~4 min + the full gate (fresh after a core edit: ~1–1.5 h, below)
 cargo test -q --workspace --profile fast                     # ~36 s warm (CPU-bound on the cores); never plain `cargo test` (7× slower)
