@@ -46,6 +46,14 @@ throughput. Local shipping real-WASM/SW/offline/400/1440 checks and the headed
 send/scout/eight-hour walk pass. The walk took104 s under full-gate contention;
 functional evidence only. Core source `97a4dba1715763c3`, local shipping WASM
 SHA256 `3451f53c3654c1d11063bee831d4815a3a6ca08d560c0b9411884dcca5a3a132`.
+Core commit `9292f49` deployed in successful CI run37143883486 (520 engine
+and11 harness tests). Public real-WASM/SW/offline/400/1440 checks and the
+eight-capture headed walk pass. Public WASM
+`029b2160dd0620e13c508f942411356b1c211e52de04a1842163a1a33d077bf8`
+matches that release artifact; this is distinct from local packaging. Walk29.5s,
+8h absence2.4s: functional release evidence, not a paired whole-app speedup.
+Public camp/report screenshots were shown inline. No console/page errors;
+two pre-existing WebGL warnings remain.
 Evidence: `scratchpad/tick-batch-20261004/`.
 
 Owner requested faster offline tick processing after the local iteration pass.

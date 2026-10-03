@@ -14,8 +14,16 @@ Evidence: `scratchpad/tick-batch-20261004/{full-resumed.log,full-exit.txt,
 completed-case-comparison.json,cached-full.log,cached-full-time.txt}`.
 Local shipping real-WASM/SW/offline/400/1440 and the eight-capture headed
 send/scout/8h walk pass; screenshots shown inline. Walk104s under full-gate load:
-functional evidence only. Publication is approved; finish the pushed release's
-CI/public checks and inline public checkpoint before reporting it deployed.
+functional evidence only. Core commit `9292f49` deployed successfully in CI run
+`37143883486`:520 native tests/one ignored and11 dayplayer tests pass. Public
+real-WASM/SW/offline/400/1440 checks pass; public eight-capture headed walk
+passed in29.5s (8h absence2.4s, functional evidence only; no paired whole-app
+speed claim). No console/page errors; the two existing WebGL warnings remain.
+Public WASM SHA256
+`029b2160dd0620e13c508f942411356b1c211e52de04a1842163a1a33d077bf8`
+matches the CI artifact exactly; local packaging has a different toolchain hash.
+Public camp/report screenshots shown inline. Proof and capture manifest:
+`scratchpad/tick-batch-20261004/{public-verification.json,public-walk/checkpoints.json}`.
 Owner asks all gates/cases within minutes: plan at the top of
 `docs/ITERATION_SPEED.md`. Split safe test-only dependencies first; fresh runtime
 runs require major exact forecast-work reduction, not more worker threads.
