@@ -642,7 +642,8 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     let budget = crate::forecast::CAMP_TICK_BUDGET;
     let (base, n) = crate::forecast::reach_counted(game, rules, target, sims, tag, budget);
     for p in cands.iter_mut() {
-        let r = crate::forecast::reach_paired(game, &apply_patch(rules, p, max_rows), target, n, tag);
+        let edited = crate::forecast::edited_game(game, &apply_patch(rules, p, max_rows));
+        let r = crate::forecast::reach_paired(&edited, edited.lineage.rules(), target, n, tag);
         p.survive = r;
         p.forecast_delta = r - base;
     }

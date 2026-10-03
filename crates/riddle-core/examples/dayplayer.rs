@@ -148,6 +148,55 @@ fn insert_row(g: &mut Game, row: Row, at: i32) -> bool {
     g.set_rules(rules).is_ok()
 }
 
+/// Follow the death screen's landed gem, not the moment's provisional survival estimate.
+fn measured_death_patch(patches: &[riddle_core::Patch]) -> Option<&riddle_core::Patch> {
+    patches.iter().find(|p| p.gem && !p.camp_pending && riddle_core::trace::gem_eligible(p))
+}
+
+/// Report plateau patches already carry the camp's paired reach measurement (no death gem).
+fn measured_stall_patch(patches: &[riddle_core::Patch]) -> Option<&riddle_core::Patch> {
+    patches.iter().find(|p| !p.camp_pending && !p.below_bar && p.forecast_delta > 0.0
+        && p.whole.as_ref().is_none_or(|_| riddle_core::trace::gem_eligible(p)))
+}
+
+/// Apply the offered operation and its purchase just as the patch tablet does. A full pen
+/// without a measured named drop asks a player; the bot does not invent a different drop.
+fn take_patch(g: &mut Game, patch: &riddle_core::Patch) -> bool {
+    if !g.lineage.pkg.literal && !g.lineage.pkg.pen_open {
+        return false;
+    }
+    let same = |r: &Row| r.conds == patch.row.conds && r.verb == patch.row.verb;
+    let insert = !patch.remove && !patch.replace && patch.moves_from.is_none();
+    let held = insert && g.lineage.rules().rows.iter().any(same);
+    if patch.insert_at < 0 {
+        let vocab = g.vocabulary();
+        let locked = patch.row.conds.iter().find(|c| vocab.locked.iter().any(|l| l.cond.same_token(c)))
+            .or_else(|| patch.row.conds.iter().find(|c| !vocab.conds.iter().any(|v| v.same_token(c))));
+        let Some(cond) = locked else { return false };
+        let Some(id) = riddle_core::meta::cond_unlock(&cond.k) else { return false };
+        if !g.unlocks().iter().any(|u| u.id == id && !u.owned && u.available) || g.buy(id).is_err() {
+            return false;
+        }
+        if held { return true }
+        let mut p = patch.clone();
+        p.insert_at = 0;
+        return take_patch(g, &p);
+    }
+    if held { return false }
+    let max_rows = g.vocabulary().max_rows;
+    if insert && !patch.row.is_card() && g.lineage.rules().own_rows() >= max_rows && patch.drops.is_none() {
+        return false;
+    }
+    if let Some(buy) = &patch.buys {
+        if g.buy_supply(&buy.kind).is_err() { return false }
+    }
+    let mut p = patch.clone();
+    if p.row.origin.is_none() { p.row = p.row.from("patch"); }
+    let rules = riddle_core::offline::apply_patch(g.lineage.rules(), &p, max_rows);
+    if rules == *g.lineage.rules() { return false }
+    g.set_rules(rules).is_ok()
+}
+
 /// Copy the fallback counter in canonical priority order at the pen's top.
 fn write_counter_rows(g: &mut Game, b: &str, heal: i32) {
     for row in riddle_core::packages::drill_rows(b, heal).into_iter().rev() {
@@ -768,19 +817,17 @@ impl Play {
                         if let Some(id) = rep.worst_death_id.filter(|_| ci == 0 && riddle_core::wall::at_wall(&g.lineage)) {
                             if let Some(death) = ph("death", || g.death(id)) {
                                 if death.verdict == "gap" {
-                                    if let Some(p) = death.patches.first() {
-                                        // (never a walk home: a return row trades the record's floors for the
-                                        // run's life — at the deep walls it held TUNED at the Queen for days)
-                                        if p.survive > death.baseline + 0.15 && p.forecast_delta >= 0.0 && p.row.verb.v != "return" {
-                                            insert_row(g, p.row.clone(), 0);
+                                    if let Some(patches) = ph("death_deltas", || g.death_deltas(id)) {
+                                        if let Some(p) = measured_death_patch(&patches) {
+                                            take_patch(g, p);
                                         }
                                     }
                                 }
                             }
                         }
                         if let Some(stall) = &rep.stall {
-                            if let Some(p) = stall.patches.first().filter(|p| !p.remove && !p.replace) {
-                                insert_row(g, p.row.clone(), 0);
+                            if let Some(p) = measured_stall_patch(&stall.patches) {
+                                take_patch(g, p);
                             }
                         }
                         // (the wall search is the harness's costliest call: at most every other day)
@@ -1622,3 +1669,152 @@ mod counter_order_tests {
 // (after `main`: outside the job cache's key — it picks the games and where they stop, never what they do)
 #[path = "dayplayer_rows/mod.rs"]
 mod rows;
+
+#[cfg(test)]
+mod patch_consumer_tests {
+    use super::*;
+    use riddle_core::{Cond, Patch, PatchBuy, PatchWhole, Verb};
+
+    fn row(n: i32) -> Row {
+        Row::new(vec![Cond::n("hp<", n)], Verb::new("rest")).from("player")
+    }
+    fn game() -> Game {
+        let mut g = Game::new_literal(1);
+        g.set_rules(RuleSet { rows: vec![row(10), row(20), row(30)], ..Default::default() }).unwrap();
+        g
+    }
+    fn patch(r: Row, at: i32) -> Patch {
+        Patch { row: r, insert_at: at, survive: 1.0, forecast_delta: 0.2,
+            replace: false, remove: false, root: None, below_bar: false, forecast_depth: 8,
+            forecast_pm: 0.02, camp_pending: false, drops: None, exits: false, buys: None,
+            moves_from: None, whole: Some(PatchWhole { reach: 0.2, ..Default::default() }),
+            gem: true, restores: None, no_gain: false }
+    }
+    fn rows(g: &Game) -> Vec<i32> {
+        g.lineage.rules().rows.iter().map(|r| r.conds[0].n.unwrap()).collect()
+    }
+
+    #[test]
+    fn patch_consumer_applies_remove_replace_move_and_restore_at_actual_positions() {
+        let mut g = game();
+        let mut p = patch(row(20), 1);
+        p.remove = true;
+        assert!(take_patch(&mut g, &p));
+        assert_eq!(rows(&g), [10, 30]);
+        p.remove = false;
+        p.restores = Some(1);
+        assert!(take_patch(&mut g, &p));
+        assert_eq!(rows(&g), [10, 20, 30]);
+        p.restores = None;
+        p.replace = true;
+        p.row = row(25);
+        assert!(take_patch(&mut g, &p));
+        assert_eq!(rows(&g), [10, 25, 30]);
+        p.replace = false;
+        p.row = row(30);
+        p.moves_from = Some(2);
+        p.insert_at = 0;
+        assert!(take_patch(&mut g, &p));
+        assert_eq!(rows(&g), [30, 10, 25]);
+        assert_eq!(g.lineage.rules().rows[0].origin.as_deref(), Some("player"));
+    }
+
+    #[test]
+    fn patch_consumer_drops_named_row_and_preserves_measured_insertion_position() {
+        let mut g = game();
+        let max = g.vocabulary().max_rows;
+        g.set_rules(RuleSet { rows: (0..max).map(|i| row(10 + i as i32)).collect(), ..Default::default() }).unwrap();
+        let mut p = patch(Row::new(vec![Cond::n("hp<", 80)], Verb::new("rest")), 2);
+        // No named drop is a player choice, never an arbitrary bottom-row deletion.
+        assert!(!take_patch(&mut g, &p));
+        p.drops = Some(0);
+        assert!(take_patch(&mut g, &p));
+        let mut expected: Vec<i32> = (1..max).map(|i| 10 + i as i32).collect();
+        expected.insert(1, 80);
+        assert_eq!(rows(&g), expected);
+        assert_eq!(g.lineage.rules().rows[1].origin.as_deref(), Some("patch"));
+    }
+
+    #[test]
+    fn patch_consumer_requires_landed_gem_and_rejects_whole_run_harm() {
+        let mut provisional = patch(row(40), 0);
+        provisional.camp_pending = true;
+        provisional.whole = None;
+        let mut harm = patch(row(50), 0);
+        harm.whole.as_mut().unwrap().death = 0.1;
+        let mut harm_flag = patch(row(60), 0);
+        harm_flag.whole.as_mut().unwrap().harms = true;
+        let mut loss = patch(row(70), 0);
+        loss.whole.as_mut().unwrap().reach = -0.1;
+        let mut below = patch(row(80), 0);
+        below.below_bar = true;
+        let safe = patch(row(90), 1);
+        let patches = vec![provisional, harm, harm_flag, loss, below, safe.clone()];
+        assert_eq!(measured_death_patch(&patches), Some(&safe));
+        assert!(measured_death_patch(&patches[..5]).is_none());
+        let mut no_gem = safe;
+        no_gem.gem = false;
+        assert!(measured_death_patch(&[no_gem]).is_none());
+    }
+
+    #[test]
+    fn patch_consumer_report_stall_accepts_measured_cut_and_replace_without_death_gem() {
+        let mut g = game();
+        let mut cut = patch(row(20), 1);
+        cut.whole = None;
+        cut.gem = false;
+        cut.remove = true;
+        let selected = measured_stall_patch(std::slice::from_ref(&cut)).unwrap();
+        assert!(take_patch(&mut g, selected));
+        assert_eq!(rows(&g), [10, 30]);
+        let mut replace = patch(row(35), 1);
+        replace.whole = None;
+        replace.gem = false;
+        replace.replace = true;
+        assert!(take_patch(&mut g, measured_stall_patch(std::slice::from_ref(&replace)).unwrap()));
+        assert_eq!(rows(&g), [10, 35]);
+        replace.forecast_delta = 0.0;
+        assert!(measured_stall_patch(&[replace]).is_none());
+    }
+
+    #[test]
+    fn patch_consumer_purchase_failure_applies_nothing_and_success_carries_supply() {
+        let mut g = game();
+        g.set_rules(RuleSet { rows: vec![row(10), row(20)], ..Default::default() }).unwrap();
+        let mut p = patch(Row::new(vec![Cond::n("hp<", 40)], Verb::arg("drink", "heal")), 1);
+        g.lineage.facts.insert(riddle_core::item::ident_fact(&g.lineage.flavours, "heal").unwrap());
+        p.buys = Some(PatchBuy { kind: "heal".into(), label: "heal".into(), price: 10 });
+        let before = g.lineage.rules().clone();
+        g.lineage.gold = 0;
+        assert!(!take_patch(&mut g, &p));
+        assert_eq!(g.lineage.rules(), &before);
+        g.lineage.gold = 1000;
+        assert!(take_patch(&mut g, &p));
+        assert!(g.lineage.supplies.iter().any(|s| s.kind == "heal"));
+        assert_eq!(g.lineage.rules().rows[1].verb, p.row.verb);
+        let purse = g.lineage.gold;
+        assert!(!take_patch(&mut g, &p));
+        assert_eq!(g.lineage.gold, purse, "already-written patch buys nothing twice");
+    }
+
+    #[test]
+    fn patch_consumer_package_recompile_keeps_existing_authored_priority() {
+        let mut g = Game::new(1);
+        g.lineage.pkg.pen_open = true;
+        g.set_rules(RuleSet { rows: vec![row(10), row(20)], ..Default::default() }).unwrap();
+        let generated: Vec<Row> = g.lineage.rules().rows.iter().filter(|r| r.is_pkg()).cloned().collect();
+        assert!(!generated.is_empty());
+        let mut p = patch(row(30), 1);
+        p.row.origin = None;
+        assert!(take_patch(&mut g, &p));
+        let own: Vec<_> = g.lineage.rules().rows.iter().filter(|r| !r.is_pkg()).cloned().collect();
+        assert_eq!(own, [row(10), row(30).from("patch"), row(20)]);
+        assert_eq!(g.lineage.rules().rows[..3], own);
+        assert_eq!(g.lineage.rules().rows[3..], generated);
+        let canonical = g.lineage.rules().clone();
+        let mut generated_move = patch(g.lineage.rules().rows[3].clone(), 0);
+        generated_move.moves_from = Some(3);
+        assert!(take_patch(&mut g, &generated_move));
+        assert_eq!(g.lineage.rules(), &canonical, "public setter keeps generated rows behind authored pen");
+    }
+}

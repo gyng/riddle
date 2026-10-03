@@ -120,6 +120,17 @@ pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, s
     out
 }
 
+/// A prospective camp edit, composed as the public editor composes it before any sims.
+/// Raw panels also compare historical sets, so projection belongs at edit callers only.
+pub fn edited_game(game: &Game, rules: &RuleSet) -> Game {
+    let mut g = game.sim_clone();
+    g.lineage = crate::packages::project_edit(&game.lineage, rules);
+    g.panel_cache = game.panel_cache.clone();
+    g.forecast_cache = game.forecast_cache.clone();
+    g.refined_panels = game.refined_panels.clone();
+    g
+}
+
 /// The `i`-th sim of a panel under `rules`, at its first tick (the run started on its seed,
 /// its passage paid): what `simulate_one` plays, and what `divergence` plays twice in step.
 pub fn sim_game(game: &Game, rules: &RuleSet, tag: u64, i: u32, passage: Option<(u32, i32)>) -> Game {
@@ -1423,6 +1434,9 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&format!("{loadout:?}"));
     feed(&serde_json::to_string(&l.party).unwrap_or_default());
     feed(&serde_json::to_string(&l.supplies).unwrap_or_default());
+    // Automatic supplies read the effective package and pen as well as the compiled rows.
+    feed(&format!("{:?}", crate::packages::quartermaster(l)));
+    feed(&format!("{:?}", crate::packages::pack_kinds(l)));
     feed(&format!("{:?}", l.last_supplies));
     if !l.last_supply_origins.is_empty() { feed(&format!("{:?}", l.last_supply_origins)); }
     feed(&l.gold.to_string());

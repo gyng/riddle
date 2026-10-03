@@ -29,7 +29,11 @@ pub const STEPS: usize = 2;
 
 /// (the share of the sends past floor `at`, the share reaching it) on the camp's panel.
 fn shares(g: &Game, set: &RuleSet, n: u32, at: u32) -> (f64, f64) {
-    let rs: Vec<SimResult> = camp_panel(g, set, n);
+    let edited = crate::forecast::edited_game(g, set);
+    let rs: Vec<SimResult> = camp_panel(&edited, edited.lineage.rules(), n);
+    for (k, v) in edited.panel_cache.into_inner() {
+        crate::forecast::panel_insert(g, k, v);
+    }
     let k = rs.len().max(1) as f64;
     (rs.iter().filter(|r| r.max_depth > at).count() as f64 / k, rs.iter().filter(|r| r.max_depth >= at).count() as f64 / k)
 }
@@ -121,6 +125,7 @@ pub fn edits(g: &Game, set: &RuleSet, at: u32) -> Vec<(String, RuleSet)> {
     };
     let mut out: Vec<(String, RuleSet)> = Vec::new();
     let mut push = |label: String, s: RuleSet| {
+        let s = crate::packages::project_edit(&g.lineage, &s).rules().clone();
         if s != *set && s.validate().is_ok() && s.own_rows() <= max_rows && !out.iter().any(|(_, o)| *o == s) {
             out.push((label, s));
         }

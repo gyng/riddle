@@ -585,6 +585,20 @@ pub fn absorb(l: &mut LineageState, set: &RuleSet) {
     l.sets[i].name = set.name.clone();
 }
 
+/// The state a prospective public rule edit produces. Historical sets and replay rules
+/// stay literal unless their caller explicitly requests this projection.
+pub fn project_edit(l: &LineageState, set: &RuleSet) -> LineageState {
+    let mut edited = l.clone();
+    if edited.pkg.literal {
+        let i = edited.active_set.min(edited.sets.len() - 1);
+        edited.sets[i] = set.clone();
+    } else {
+        absorb(&mut edited, set);
+        recompile(&mut edited);
+    }
+    edited
+}
+
 /// A fresh lineage's packages: `Steady`, compiled.
 pub fn init(l: &mut LineageState) {
     l.pkg = PkgState::default();

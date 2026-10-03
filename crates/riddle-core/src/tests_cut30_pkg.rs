@@ -857,3 +857,176 @@ fn empty_legacy_repeat_refills_keep_authored_ownership_across_two_sends_and_pack
     g.drop_supply(id).unwrap();
     assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 1, "only an explicit player drop reduces the authored repeat");
 }
+
+fn projection_arena() -> Game {
+    let mut g = crate::tests::arena();
+    g.lineage.pkg.literal = false;
+    g.lineage.pkg.stance = "guarded".into();
+    g.lineage.pkg.runs.insert("guarded".into(), 220);
+    g.lineage.pkg.pen_open = true;
+    g.lineage.pkg.pen.clear();
+    packages::recompile(&mut g.lineage);
+    crate::tests::add_monster(&mut g, "jackal", 5, 5);
+    crate::tests::give(&mut g, "heal");
+    crate::tests::give(&mut g, "silence");
+    if let Some(fact) = crate::item::ident_fact(&g.lineage.flavours, "heal") { g.lineage.facts.insert(fact); }
+    let run = g.run.as_mut().unwrap();
+    run.hero.max_hp = 100;
+    run.hero.hp = 40;
+    run.hero.energy = 100;
+    g
+}
+
+#[test]
+fn prospective_projection_matches_public_unknown_scroll_priority_and_held_heal() {
+    let g = projection_arena();
+    let mut edit = g.lineage.rules().clone();
+    let heal = edit.rows.iter().position(|r| r.verb == Verb::arg("drink", "heal")).unwrap();
+    edit.rows.insert(heal + 1, Row::new(vec![Cond::n("hp<", 50)], Verb::arg("read", "unknown")));
+    let old = g.lineage.clone();
+    let mut projected = crate::forecast::edited_game(&g, &edit);
+    let mut public = g.clone();
+    public.set_rules(edit.clone()).unwrap();
+    assert_eq!(projected.lineage.pkg, public.lineage.pkg);
+    assert_eq!(projected.lineage.rules().rows, public.lineage.rules().rows);
+    assert_eq!(projected.lineage.rules().rows[0].verb, Verb::arg("read", "unknown"));
+    assert_eq!(g.lineage, old, "projection never edits the live lineage");
+    for h in [&mut projected, &mut public] {
+        let events = crate::tests::ticks(h, 1);
+        let fired = events.iter().find_map(|e| if let crate::wire::Ev::Rule { verb, .. } = e { Some(verb) } else { None }).unwrap();
+        assert_eq!(*fired, Verb::arg("read", "unknown"), "both paths model the authored pen above package healing");
+        assert!(h.run.as_ref().unwrap().hero.inv.iter().any(|i| i.kind == "heal"));
+    }
+    // A raw historical panel still plays the archived placement literally.
+    let raw = crate::forecast::sim_game(&g, &edit, 33, 0, None);
+    assert_eq!(raw.lineage.rules().rows, edit.rows);
+    assert_eq!(g.lineage.rules().rows, old.rules().rows);
+}
+
+#[test]
+fn prospective_projection_restores_generated_moves_and_wall_edits_are_real_public_sets() {
+    let g = projection_arena();
+    let before = g.lineage.rules().clone();
+    let mut moved = before.clone();
+    let index = moved.rows.len() - 1;
+    let row = moved.rows.remove(index);
+    moved.rows.insert(0, row);
+    let projected = packages::project_edit(&g.lineage, &moved);
+    assert_eq!(projected.rules().rows, before.rows, "moving an untouched generated row changes no public policy");
+    let mut public = g.clone();
+    public.set_rules(moved).unwrap();
+    assert_eq!(public.lineage.rules().rows, projected.rules().rows);
+    for (_, edit) in crate::wall::edits(&g, &before, 8) {
+        let mut applied = g.clone();
+        applied.set_rules(edit.clone()).unwrap();
+        assert_eq!(edit.rows, applied.lineage.rules().rows, "offered wall rows are already public compositions");
+        assert_ne!(edit.rows, before.rows);
+    }
+}
+
+#[test]
+fn prospective_projection_preserves_literal_and_custom_rules_without_rewriting_archives() {
+    let mut g = projection_arena();
+    let archived = g.run.clone();
+    let mut edit = g.lineage.rules().clone();
+    edit.rows.insert(0, Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal")));
+    g.lineage.pkg.literal = true;
+    assert_eq!(packages::project_edit(&g.lineage, &edit).rules().rows, edit.rows);
+    g.lineage.pkg.literal = false;
+    g.lineage.pkg.stance = packages::CUSTOM.into();
+    g.lineage.pkg.custom = vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))];
+    packages::recompile(&mut g.lineage);
+    let mut custom = g.lineage.rules().clone();
+    custom.rows.insert(0, Row::new(vec![Cond::n("hp<", 50)], Verb::arg("drink", "heal")));
+    let projected = packages::project_edit(&g.lineage, &custom);
+    let mut public = g.clone();
+    public.set_rules(custom).unwrap();
+    assert_eq!(projected.pkg, public.lineage.pkg);
+    assert_eq!(projected.rules().rows, public.lineage.rules().rows);
+    assert_eq!(g.run, archived, "projecting a future camp policy does not rewrite the live run");
+}
+
+#[test]
+fn prospective_projection_updates_counter_supply_requests_and_cache_dependencies() {
+    let mut g = Game::new(55);
+    g.lineage.best_depth = 28;
+    g.lineage.pkg.pen_open = true;
+    g.lineage.gold = 10_000;
+    g.lineage.facts.insert("foe:lurker_queen".into());
+    g.lineage.facts.insert("foe:lurker_queen:blind".into());
+    if let Some(fact) = crate::item::ident_fact(&g.lineage.flavours, "silence") { g.lineage.facts.insert(fact); }
+    if let Some(fact) = crate::item::ident_fact(&g.lineage.flavours, "heal") { g.lineage.facts.insert(fact); }
+    packages::recompile(&mut g.lineage);
+    let before = crate::forecast::lineage_key(&g);
+    let mut edit = g.lineage.rules().clone();
+    edit.rows.insert(0, Row::new(vec![Cond::t("foe_tag", "blind")], Verb::arg("read", "silence")));
+    let projected = crate::forecast::edited_game(&g, &edit);
+    assert!(packages::quartermaster(&projected.lineage).contains(&"silence".into()));
+    assert!(!packages::quartermaster(&g.lineage).contains(&"silence".into()));
+    assert!(packages::pack_kinds(&projected.lineage).contains(&"heal".into()));
+    assert_ne!(crate::forecast::lineage_key(&projected), before, "the next-send counter pack is a simulation input");
+    let mut public = g.clone();
+    public.set_rules(edit).unwrap();
+    assert_eq!(crate::forecast::lineage_key(&projected), crate::forecast::lineage_key(&public));
+    let mut projected = projected;
+    projected.start_run(Some(55));
+    public.start_run(Some(55));
+    for game in [&projected, &public] {
+        let pack = &game.run.as_ref().unwrap().hero.inv;
+        assert!(pack.iter().any(|item| item.kind == "silence"), "the prospective counter is actually packed");
+        assert!(pack.iter().any(|item| item.kind == "heal"), "the sustain pack remains available");
+    }
+}
+
+#[test]
+fn prospective_projection_death_deltas_measure_current_indices_and_recache_after_edits() {
+    // An actual archived death supplies the replay state; current camp rules can then change.
+    let mut g = Game::new_literal(1047);
+    g.send();
+    let mut id = None;
+    for _ in 0..4000 {
+        let step = g.step(50);
+        if step.run_over {
+            id = step.events.iter().any(|e| matches!(e, crate::wire::Ev::Exit { tier, .. } if tier == "death")).then_some(step.snapshot.run.id);
+            break;
+        }
+    }
+    let id = id.expect("the first heir dies");
+    g.keep(vec![]).unwrap();
+    let recorded = g.deaths[&id].rules.clone();
+    let archived = g.deaths[&id].t10.clone();
+    let current = RuleSet { rows: vec![Row::new(vec![], Verb::new("bank")), Row::new(vec![], Verb::new("return"))], ..Default::default() };
+    g.set_rules(current.clone()).unwrap();
+    let patch: crate::wire::Patch = serde_json::from_value(serde_json::json!({
+        "row": recorded.rows[0], "insert_at": 0, "moves_from": 1,
+        "survive": 1.0, "forecast_delta": 0.0, "camp_pending": true
+    })).unwrap();
+    {
+        let rec = g.deaths.get_mut(&id).unwrap();
+        rec.verdict_done = true;
+        rec.deltas_done = true;
+        rec.shaped = true;
+        rec.death.patches = vec![patch.clone()];
+        rec.camp_key = 0;
+    }
+    let edited = crate::offline::apply_patch(&current, &patch, g.lineage.max_rows());
+    let projected = crate::forecast::edited_game(&g, &edited);
+    let mut public = g.clone();
+    public.set_rules(edited).unwrap();
+    assert_eq!(projected.lineage.rules().rows, public.lineage.rules().rows);
+    assert_eq!(projected.lineage.rules().rows[0].verb.v, "return", "current-index move uses today's row, not the archived row echoed in the patch");
+    let measured = g.death_deltas(id).unwrap();
+    assert_eq!(measured.len(), 1);
+    assert!(!measured[0].camp_pending);
+    assert_eq!(measured[0].whole.as_ref().unwrap().death_from, 0.0, "the current bank policy supplies the camp baseline");
+    let first_key = g.deaths[&id].camp_key;
+    let before = crate::forecast::lineage_key(&g);
+    let mut next = current;
+    next.rows[1] = Row::new(vec![Cond::n("hp<", 50)], Verb::new("return"));
+    g.set_rules(next).unwrap();
+    assert_eq!(before, crate::forecast::lineage_key(&g), "this row edit does not alter any next-send supplies or state");
+    g.death_deltas(id).unwrap();
+    assert_ne!(g.deaths[&id].camp_key, first_key, "active rules invalidate prospective patch measures independently of state");
+    assert_eq!(g.deaths[&id].rules.rows, recorded.rows, "historical survival still reads the archived set");
+    assert_eq!(g.deaths[&id].t10, archived, "the saved fight remains unchanged");
+}

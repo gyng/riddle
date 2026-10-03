@@ -2624,7 +2624,8 @@ pub fn death_deltas(game: &mut Game, run_id: u32) -> Option<Vec<Patch>> {
 }
 
 fn camp_key(game: &Game) -> u64 {
-    crate::forecast::lineage_key(&camp_state(game)).max(1)
+    let g = camp_state(game);
+    splitmix(crate::forecast::lineage_key(&g) ^ crate::rng::hash_str(&crate::forecast::rules_key(g.lineage.rules()))).max(1)
 }
 
 /// The camp a patch is applied in: the game with its pending exit resolved as the night
@@ -2651,33 +2652,40 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
         return;
     }
     let g = camp_state(game);
-    let key = crate::forecast::lineage_key(&g).max(1);
+    let key = camp_key(game);
     if rec.camp_key == key {
         return;
     }
     rec.camp_key = key;
     let depth = (rec.death.depth + 1).min(g.lineage.best_depth + 1).max(1);
-    let (base, _) = crate::forecast::camp_reach(&g, &rec.rules, depth);
-    let max_rows = max_rows(rec);
+    // The death replay keeps its recorded set; a camp tap edits today's active set.
+    let current = g.lineage.rules().clone();
+    let (base, _) = crate::forecast::camp_reach(&g, &current, depth);
+    let max_rows = g.lineage.max_rows();
     let mut unlocked = g.sim_clone();
     unlock_base(&mut unlocked, rec);
-    let base_panel = crate::forecast::camp_panel(&g, &rec.rules, crate::forecast::FORECAST_SIMS);
+    let base_panel = crate::forecast::camp_panel(&g, &current, crate::forecast::FORECAST_SIMS);
     let mut panels: Vec<Vec<crate::forecast::SimResult>> = Vec::with_capacity(rec.death.patches.len());
     for p in rec.death.patches.iter_mut() {
         // QA on 308f045 (qaAD: `retreat · drops R3 · survives 12/12`, applied: `vs sent · bank −30 · death +29`): an insert onto a
         // full set is measured as the tap applies it — its `drops` row out (`offline::apply_patch`, the client's `applyPatchOver`),
         // never over the cap with every row kept
-        let rules = if p.drops.is_some() && p.insert_at >= 0 { crate::offline::apply_patch(&rec.rules, p, rec.vocab.max_rows) } else { patched_rules(&rec.rules, p, max_rows) };
+        let rules = if p.insert_at >= 0 { crate::offline::apply_patch(&current, p, max_rows) } else { patched_rules(&current, p, max_rows) };
         // QA on 0c6e126: a patch offered with its purchase is measured with it bought.
         let bought = with_buy(&g, p);
         let at = if p.insert_at < 0 { &unlocked } else { bought.as_ref().unwrap_or(&g) };
-        let (r, n) = crate::forecast::camp_reach(at, &rules, depth);
+        let edited = crate::forecast::edited_game(at, &rules);
+        let rules = edited.lineage.rules();
+        let (r, n) = crate::forecast::camp_reach(&edited, rules, depth);
         p.forecast_delta = r - base;
         p.forecast_depth = depth;
         p.forecast_pm = crate::forecast::half_width(r, n as usize);
         p.camp_pending = false;
         // QA on 524827b: the whole run's move on the same panel (a cache hit: `camp_reach`'s).
-        panels.push(crate::forecast::camp_panel(at, &rules, crate::forecast::FORECAST_SIMS));
+        panels.push(crate::forecast::camp_panel(&edited, rules, crate::forecast::FORECAST_SIMS));
+        for (k, v) in edited.panel_cache.into_inner() {
+            crate::forecast::panel_insert(game, k, v);
+        }
     }
     // QA on 308f045 (qaAC: `survives 12/12 · reach D9 ≈ ±1`, applied: the camp's `vs sent · D6 −21`): the bar the move is read at
     // is the camp's `vs sent` head — the frontier when it moves, else the depth that moves most — so the patch and the camp after
@@ -2686,7 +2694,7 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
     let longest = panels.iter().map(Vec::len).max().unwrap_or(0);
     let base_n = if base_panel.len() < longest {
         let tag = crate::forecast::forecast_tag(&g, g.lineage.best_depth + 1);
-        crate::forecast::simulate_budget_from(&g, &rec.rules, longest as u32, tag, u32::MAX, u64::MAX, base_panel.clone())
+        crate::forecast::simulate_budget_from(&g, &current, longest as u32, tag, u32::MAX, u64::MAX, base_panel.clone())
     } else {
         base_panel.clone()
     };
