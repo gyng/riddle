@@ -47,6 +47,7 @@ tools/wasm.sh [--ship]                                       # fast wasm (~8 s a
 tools/ship.sh [--preview]                                    # cohort build on :5230 (fat LTO, ~2 min); --preview: fast wasm, ~25 s, for QA rounds
 cargo run -q --profile fast -p riddle-core --example cli -- --seed 1 --rules crates/riddle-core/presets/good.json --runs 3
 cargo run -q --profile fast -p riddle-core --example timing -- 1 8   # where a gate job spends its time
+node tools/profile-catchup.mjs SAVE --out scratchpad/profile     # headed shipping-WASM CPU profile; --hours N --runs N
 tools/dev.sh                                                 # ensure the Vite dev server on :5219 (never restart a running one)
 node tools/playtest.mjs [--seed N] [--absent 8h] [--out dir] # scripted walk of every screen, text + screenshots, headed on the GPU (~30 s; --headless ~65 s)
 node tools/driver.mjs --dir scratchpad/<who> --port 5347 [--headed] &   # one browser context across an agent session; tools/drive.sh 5347 '{"op":"text"}'

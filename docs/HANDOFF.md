@@ -63,6 +63,13 @@ remain. Evidence: `scratchpad/perf-20261003/core-public-{checkpoint,walk}`. Tool
 `cfed378` and `be1283f` passed public CI and deployed successfully.
 This engineering queue does not start Cut 31 or a new cohort.
 
+Catch-up profiling follow-up, 2026-10-04: `docs/PERF_CATCHUP.md` records actual
+shipping-WASM and symbolized browser profiles, exact report/save comparisons and
+rejected compiler/vision-cache probes. The vision candidate gave 3.95% in seven
+headed pairs, below the 15% target, and was not promoted. Production core source
+and live behavior remain unchanged. New reusable tool:
+`node tools/profile-catchup.mjs SAVE --out scratchpad/profile`.
+
 The dated sections below preserve earlier decisions and implementation history; this resume note supersedes
 older "next" and branch-status statements.
 

@@ -35,6 +35,15 @@ For long gate jobs, consider reusable immutable policy/map inputs and resumable 
 checkpoints after profiling; existing whole-case/leg caches and worker lanes already exist.
 The rejected package-panel cache prototype is evidence against assuming any cache helps.
 
+Catch-up follow-up completed 2026-10-04: actual shipping and separate symbolized
+headed-browser CPU profiles identify vision and pathfinding alongside the tick
+loop. Compiler settings gave no meaningful gain; explicit vision-cache invalidation
+gave 3.95% on seven headed pairs, below the 15% target, and stayed private. Public
+engine behavior is unchanged. Reuse `tools/profile-catchup.mjs SAVE --out DIR`
+before further tick changes; scope, exact hashes, rejected probes and limits are
+in `docs/PERF_CATCHUP.md`. The next candidate should target pathfinding and validate
+multiple saved camps, then the application-level chunked absence path.
+
 Verified baseline: main `9d49b19`, core `2822afe224cb289b`; canonical full verification
 437 s, native tests 30.96 s, metrics 263 s, QA 151.7 s, all 272 dayplayer cases pass.
 Metrics and QA overlap; these timings do not add to the total. Primitive dayplayer caches
