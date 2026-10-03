@@ -793,7 +793,10 @@ fn obsolete_automatic_repeat_slots_follow_the_pack_but_manual_duplicates_remain(
     loaded.lineage.supplies.clear();
     loaded.lineage.kills.insert("bloat_mother".into()); loaded.lineage.best_depth = 20;
     loaded.lineage.pkg.tactics.clear(); packages::recompile(&mut loaded.lineage);
+    loaded.lineage.light_waystones(20);
+    loaded.set_start(14).unwrap(); // this send actually skips the Mother's floor
     loaded.start_run(None);
+    assert_eq!(loaded.run.as_ref().unwrap().start, 14);
     assert_eq!(loaded.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && *a).count(), 0, "the former package's automatic fire stops repeating");
     assert_eq!(loaded.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 2);
 }
@@ -1071,4 +1074,53 @@ fn master_secondary_keeps_its_deep_scope_for_new_and_both_legacy_templates() {
             if hp == 40 { assert_eq!(*verb, Verb::arg("drink", "heal"), "Master secondary must yield to sustain"); }
         }
     }
+}
+
+#[test]
+fn quartermaster_keeps_the_queens_counter_on_a_route_below_the_record() {
+    for pen in [false, true] {
+        let mut g = Game::new(55);
+        g.lineage.best_depth = 33;
+        g.lineage.gold = 100_000;
+        g.lineage.light_waystones(33);
+        g.set_start(24).unwrap();
+        for boss in ["goblin_warlord", "bloat_mother", "lich", "foundry_master", "lurker_queen"] {
+            g.lineage.kills.insert(boss.into());
+        }
+        for kind in ["silence", "heal"] {
+            g.lineage.facts.insert(crate::item::ident_fact(&g.lineage.flavours, kind).unwrap());
+        }
+        if pen {
+            g.lineage.pkg.pen_open = true;
+            g.lineage.pkg.pen.push(Row::new(vec![Cond::t("foe_tag", "blind")], Verb::arg("read", "silence")));
+        } else {
+            g.lineage.pkg.drills.push(packages::Drill { boss: "lurker_queen".into(), rows: packages::drill_rows("lurker_queen", 30), revoked: false, announced: false });
+        }
+        packages::recompile(&mut g.lineage);
+        let saved = g.save();
+        let mut loaded = Game::load(&saved).unwrap();
+        loaded.restock();
+        loaded.start_run(Some(55));
+        let run = loaded.run.as_ref().unwrap();
+        assert_eq!(run.start, 24);
+        assert!(run.hero.inv.iter().any(|item| item.kind == "silence"), "actual D24 send still crosses D28; pen={pen}");
+        assert!(run.hero.inv.iter().any(|item| item.kind == "heal"), "the counter leaves sustain slots; pen={pen}");
+    }
+}
+
+#[test]
+fn quartermaster_retires_the_queens_counter_only_when_the_send_skips_her() {
+    let mut g = Game::new(55);
+    g.lineage.best_depth = 33;
+    g.lineage.light_waystones(33);
+    g.set_start(29).unwrap();
+    g.lineage.kills.insert("lurker_queen".into());
+    g.lineage.facts.insert(crate::item::ident_fact(&g.lineage.flavours, "silence").unwrap());
+    g.lineage.pkg.drills.push(packages::Drill { boss: "lurker_queen".into(), rows: packages::drill_rows("lurker_queen", 30), revoked: false, announced: false });
+    packages::recompile(&mut g.lineage);
+    assert!(packages::quartermaster(&g.lineage).is_empty(), "D29 skips the Queen");
+    g.lineage.start = 24;
+    assert_eq!(packages::quartermaster(&g.lineage), ["silence"], "choosing D24 restores its counter even after the record passes D28");
+    g.lineage.pkg.drills[0].revoked = true;
+    assert!(packages::quartermaster(&g.lineage).is_empty(), "revoked policy stays revoked");
 }

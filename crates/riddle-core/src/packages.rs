@@ -948,12 +948,14 @@ pub fn on_run_end(l: &mut LineageState, bosses_met: &[String], max_depth: u32, f
 }
 
 /// The drill items a send should carry now: the drills whose boss the send may meet (his floor
-/// within reach of the record) and whose item the hero can name.
+/// within reach of the record and not skipped by its starting floor) and whose item
+/// the hero can name. Beating a boss once does not remove it from a later send
+/// that still starts above its floor.
 pub fn quartermaster(l: &LineageState) -> Vec<String> {
     let mut out = Vec::new();
     for d in l.pkg.drills.iter().filter(|d| !d.revoked) {
         let Some(depth) = crate::descent::boss_depth(&d.boss) else { continue };
-        if l.best_depth + 2 < depth || l.kills.contains(&d.boss) && l.best_depth > depth + 1 {
+        if l.best_depth + 2 < depth || l.start.max(1) > depth {
             continue;
         }
         if let Some(k) = drill_item(d) {
@@ -972,7 +974,7 @@ pub fn quartermaster(l: &LineageState) -> Vec<String> {
                 continue;
             }
             let Some(depth) = l.rules().route().boss_depth(boss) else { continue };
-            if l.best_depth + 2 < depth || l.kills.contains(boss) && l.best_depth > depth + 1 {
+            if l.best_depth + 2 < depth || l.start.max(1) > depth {
                 continue;
             }
             let d = Drill { boss: boss.to_string(), rows: vec![counter], revoked: false, announced: false };
