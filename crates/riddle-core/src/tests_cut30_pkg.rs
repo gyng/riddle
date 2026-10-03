@@ -668,7 +668,7 @@ fn master_secondary_new_and_legacy_drills_yield_to_healing_but_keep_the_buffer_a
         assert_eq!(g.lineage.pkg.drills[0].rows, learned, "stored learned rows are not rewritten");
         let wire = packages::wire(&g.lineage);
         let effective = &wire.drills[0].rows[1];
-        assert_eq!(effective.conds, vec![Cond::t("foe_tag", "buffer"), Cond::n("hp>", 45)]);
+        assert_eq!(effective.conds, vec![Cond::n("depth>=", 19), Cond::n("hp>", 45)]);
         assert_eq!(g.lineage.rules().rows[1].conds, effective.conds, "the wire shows the actual secondary guard");
         assert!(g.lineage.rules().validate().is_ok());
         assert!(g.lineage.rules().rows.iter().all(|r| r.conds.len() <= 2));
@@ -1029,4 +1029,46 @@ fn prospective_projection_death_deltas_measure_current_indices_and_recache_after
     assert_ne!(g.deaths[&id].camp_key, first_key, "active rules invalidate prospective patch measures independently of state");
     assert_eq!(g.deaths[&id].rules.rows, recorded.rows, "historical survival still reads the archived set");
     assert_eq!(g.deaths[&id].t10, archived, "the saved fight remains unchanged");
+}
+
+#[test]
+fn master_secondary_keeps_its_deep_scope_for_new_and_both_legacy_templates() {
+    for template in 0..3 {
+        let mut base = crate::tests::arena();
+        for fact in ["foe:goblin_warlord", "foe:goblin_warlord:boss", "foe:goblin_warlord:buffer", "foe:smith", "foe:smith:buffer", "foe:goblin"] {
+            base.lineage.facts.insert(fact.into());
+        }
+        base.lineage.pkg.literal = false;
+        base.lineage.pkg.stance = "guarded".into();
+        base.lineage.pkg.runs.insert("guarded".into(), 220);
+        let mut learned = packages::drill_rows("foundry_master", 35);
+        match template {
+            1 => learned[1].conds = vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 19)],
+            2 => learned[1].conds = vec![Cond::t("foe_tag", "buffer"), Cond::n("hp>", 35)],
+            _ => {},
+        }
+        base.lineage.pkg.drills.push(packages::Drill { boss: "foundry_master".into(), rows: learned.clone(), ..Default::default() });
+        packages::recompile(&mut base.lineage);
+        assert_eq!(base.lineage.pkg.drills[0].rows, learned, "saved generated templates remain intact");
+        let effective = &packages::wire(&base.lineage).drills[0].rows[1];
+        assert_eq!(effective.conds, vec![Cond::n("depth>=", 19), Cond::n("hp>", 45)]);
+        assert_eq!(effective.conds, base.lineage.rules().rows[1].conds);
+        assert!(base.lineage.rules().validate().is_ok());
+        assert_eq!(Game::load(&base.save()).unwrap().lineage.pkg.drills[0].rows, learned);
+
+        for (depth, kind, hp, should_fire) in [(18, "goblin_warlord", 100, false), (19, "smith", 100, true), (23, "smith", 40, false), (23, "goblin", 100, false)] {
+            let mut g = base.clone();
+            g.run.as_mut().unwrap().depth = depth;
+            crate::tests::add_monster(&mut g, kind, 5, 5);
+            crate::tests::give(&mut g, "heal");
+            g.lineage.facts.insert(crate::item::ident_fact(&g.lineage.flavours, "heal").unwrap());
+            let run = g.run.as_mut().unwrap();
+            run.hero.max_hp = 100; run.hero.hp = hp; run.hero.energy = 100;
+            let events = crate::tests::ticks(&mut g, 1);
+            let (fired, verb) = events.iter().find_map(|e| if let crate::wire::Ev::Rule { row, verb, .. } = e { Some((*row, verb)) } else { None }).expect("another policy row acts when secondary is unavailable");
+            assert_eq!(fired == 1, should_fire, "template {template}, D{depth}, {kind}, hp {hp}: {events:?}");
+            if should_fire { assert_eq!(*verb, Verb::arg("attack", "tag:buffer")); }
+            if hp == 40 { assert_eq!(*verb, Verb::arg("drink", "heal"), "Master secondary must yield to sustain"); }
+        }
+    }
 }
