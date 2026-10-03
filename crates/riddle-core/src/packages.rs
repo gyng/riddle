@@ -337,7 +337,7 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             let mut g = vec![drink];
             // Rest succeeds only without foes, poison, or a hazardous tile. Recover before the dry exit;
             // the hurt exits still come first, and a guard unable to rest banks out of supplies.
-            let mut home = home_rows(best, if level >= 5 { 25 } else { GUARDED_HOME }, 45);
+            let mut home = home_rows(best, if level >= 5 { 25 } else { GUARDED_HOME }, if level >= 5 { 44 } else { 45 });
             home.insert(2, r(vec![n("hp<", 100)], Verb::new("rest")));
             g.extend(home);
             if level >= 3 {
