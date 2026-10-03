@@ -197,8 +197,52 @@ fn take_patch(g: &mut Game, patch: &riddle_core::Patch) -> bool {
     g.set_rules(rules).is_ok()
 }
 
+/// Exact fallback rows authored by this bot; cloned together with the game at forks.
+#[derive(Clone, Default)]
+struct CounterCopy { boss: String, rows: Vec<Row> }
+
+fn same_owned_row(a: &Row, b: &Row) -> bool {
+    a == b && a.origin == b.origin
+}
+
+/// Refresh only a tracked, unedited fallback copy. Independent pen edits retain priority.
+fn maintain_counter_copies(g: &mut Game, copies: &mut Vec<CounterCopy>) {
+    let heal = riddle_core::packages::heal_pct(&g.lineage.pkg.stance, g.lineage.pkg.level(&g.lineage.pkg.stance));
+    let mut set = g.lineage.rules().clone();
+    let mut next = Vec::new();
+    for copy in copies.iter() {
+        let wanted: Vec<Row> = riddle_core::packages::drill_rows(&copy.boss, heal)
+            .into_iter().map(|r| r.from("player")).collect();
+        let shape = |r: &Row| {
+            let mut r = r.clone();
+            for c in &mut r.conds { if c.k == "hp>" { c.n = None; } }
+            r
+        };
+        let independent: Vec<Row> = set.rows.iter()
+            .filter(|row| !row.is_pkg() && !copy.rows.iter().any(|r| same_owned_row(r, row)))
+            .cloned().collect();
+        let mut assigned = Vec::new();
+        let mut rows = Vec::new();
+        for row in set.rows {
+            if copy.rows.iter().any(|r| same_owned_row(r, &row)) {
+                let fresh = wanted.iter().find(|r| shape(r) == shape(&row)).cloned().unwrap_or(row);
+                // An independent authored equivalent keeps its original origin and position.
+                if independent.contains(&fresh) { continue; }
+                if !assigned.iter().any(|r| same_owned_row(r, &fresh)) {
+                    assigned.push(fresh.clone());
+                    rows.push(fresh);
+                }
+            } else { rows.push(row); }
+        }
+        set.rows = rows;
+        if !assigned.is_empty() { next.push(CounterCopy { boss: copy.boss.clone(), rows: assigned }); }
+    }
+    if set != *g.lineage.rules() && g.set_rules(set).is_err() { return; }
+    *copies = next;
+}
+
 /// Copy the fallback counter in canonical priority order at the pen's top.
-fn write_counter_rows(g: &mut Game, b: &str, heal: i32) {
+fn write_counter_rows(g: &mut Game, b: &str, heal: i32, copies: &mut Vec<CounterCopy>) {
     for row in riddle_core::packages::drill_rows(b, heal).into_iter().rev() {
         // (the card or the verb it needs, bought with marks or gold when the purse has it)
         let need = match (row.verb.v.as_str(), row.card()) {
@@ -211,7 +255,12 @@ fn write_counter_rows(g: &mut Game, b: &str, heal: i32) {
                 let _ = g.buy_unlock_gold(&u);
             }
         }
-        insert_row(g, row, 0);
+        if insert_row(g, row.clone(), 0) {
+            let owned = row.from("player");
+            if let Some(copy) = copies.iter_mut().find(|copy| copy.boss == b) {
+                if !copy.rows.iter().any(|r| same_owned_row(r, &owned)) { copy.rows.push(owned); }
+            } else { copies.push(CounterCopy { boss: b.into(), rows: vec![owned] }); }
+        }
     }
 }
 
@@ -652,6 +701,7 @@ struct Play {
     ci: u64,
     /// Cut 30.5: the first session's seconds (the first absence is the check-in interval less them)
     session_s: u64,
+    counter_copies: Vec<CounterCopy>,
 }
 
 impl Play {
@@ -668,7 +718,7 @@ impl Play {
         }
         let out = SeedOut { seed, hours: vec![None; MILESTONES.len()], ..Default::default() };
         let rng = Rng::derive(seed, 0x5EED_0B07);
-        Play { seed, days, checkins, interval, verbose, g, out, rng, last_best: 0, stall_cur: 0, reached23: false, k: 0, last_key: None, cool: 0, last_wall: None, gap: 0, wealth0: 0, new_today: false, level0: 0, stages0: Vec::new(), opened: false, day: 0, ci: 0, session_s: 0 }
+        Play { seed, days, checkins, interval, verbose, g, out, rng, last_best: 0, stall_cur: 0, reached23: false, k: 0, last_key: None, cool: 0, last_wall: None, gap: 0, wealth0: 0, new_today: false, level0: 0, stages0: Vec::new(), opened: false, day: 0, ci: 0, session_s: 0, counter_copies: Vec::new() }
     }
 
     fn done(&self) -> bool {
@@ -687,7 +737,7 @@ impl Play {
             self.stages0 = riddle_core::town::stage_set(&g.lineage);
             self.opened = false;
         }
-        let Play { g, out, rng, k, last_key, cool, last_wall, session_s, .. } = self;
+        let Play { g, out, rng, k, last_key, cool, last_wall, session_s, counter_copies, .. } = self;
         {
             *k += 1;
             let tuned = g.lineage.pkg.pen_open && ask.q(Q::Tuned) == 1;
@@ -791,6 +841,7 @@ impl Play {
                     }
                     if tuned {
                         let pets = || ask.has("pets");
+                        maintain_counter_copies(g, counter_copies);
                         write_own_rows(g, pets);
                         // a wall's counter, written once its fact is known (the drill is days away; at the deep
                         // walls a week): the boss on the record's floor or the next, not yet slain nor drilled
@@ -808,7 +859,7 @@ impl Play {
                             };
                             if known && !g.lineage.kills.contains(b) && !g.lineage.pkg.drills.iter().any(|d| d.boss == b) {
                                 let heal = riddle_core::packages::heal_pct(&g.lineage.pkg.stance, g.lineage.pkg.level(&g.lineage.pkg.stance));
-                                write_counter_rows(g, b, heal);
+                                write_counter_rows(g, b, heal, counter_copies);
                             }
                         }
                         // (a death's patch is taken at a wall — the record held — not on the walk: the pen is
@@ -1606,7 +1657,7 @@ mod counter_order_tests {
             }
         }
         let heal = riddle_core::packages::heal_pct(&g.lineage.pkg.stance, g.lineage.pkg.level(&g.lineage.pkg.stance));
-        write_counter_rows(&mut g, boss, heal);
+        write_counter_rows(&mut g, boss, heal, &mut Vec::new());
         assert_eq!(g.lineage.pkg.pen.len(), 2, "both legally exposed fallback rows were written");
         assert!(g.lineage.rules().validate().is_ok());
         g.start_run(Some(55));
@@ -1816,5 +1867,140 @@ mod patch_consumer_tests {
         generated_move.moves_from = Some(3);
         assert!(take_patch(&mut g, &generated_move));
         assert_eq!(g.lineage.rules(), &canonical, "public setter keeps generated rows behind authored pen");
+    }
+}
+#[cfg(test)]
+mod counter_copy_tests {
+    use super::*;
+    use riddle_core::{Cond, Verb, geom::Pos, gen::Floor, item::Item, monster::Monster, tiles::{Map, Tile, VISION}, wire::Ev};
+
+    fn game() -> Game {
+        let mut g = Game::new(11);
+        g.lineage.best_depth = 28;
+        g.lineage.gold = 10_000;
+        g.lineage.marks = 100;
+        g.lineage.pkg.pen_open = true;
+        g.lineage.unlocks.extend(["row5", "row6", "row7", "row8"].map(String::from));
+        g.lineage.pkg.stance = "hunter".into();
+        g.lineage.pkg.runs.insert("hunter".into(), 220);
+        for kind in ["lurker_queen", "lich", "spectral_blade"] {
+            g.lineage.facts.insert(format!("foe:{kind}"));
+            for tag in riddle_core::defs::monster_def(kind).tags {
+                g.lineage.facts.insert(format!("foe:{kind}:{tag}"));
+            }
+        }
+        for kind in ["heal", "silence"] {
+            if let Some(f) = riddle_core::item::ident_fact(&g.lineage.flavours, kind) { g.lineage.facts.insert(f); }
+        }
+        riddle_core::packages::recompile(&mut g.lineage);
+        g
+    }
+
+    fn queen_fight(g: &mut Game) {
+        g.start_run(Some(11));
+        let run = g.run.as_mut().unwrap();
+        run.depth = 28;
+        let mut map = Map::new(16, 12, Tile::Wall);
+        for y in 1..11 { for x in 1..15 { map.set(Pos::new(x, y), Tile::Floor); } }
+        let up = Pos::new(1, 1);
+        let down = Pos::new(14, 10);
+        map.set(up, Tile::StairsUp);
+        map.set(down, Tile::StairsDown);
+        run.floor = Floor { map, stairs_up: up, stairs_down: down, rooms: Vec::new(), vision: VISION };
+        run.monsters.clear();
+        run.items.clear();
+        run.overlays.clear();
+        run.hero.pos = Pos::new(4, 5);
+        run.hero_dist_pos = None;
+        run.hero.max_hp = 100;
+        run.hero.hp = 30;
+        run.hero.energy = 100;
+        run.hero.inv = vec![Item::new(990001, "heal"), Item::new(990002, "silence")].into();
+        let mut queen = Monster::spawn(run.new_id(), "lurker_queen", Pos::new(5, 5), 28);
+        queen.awake = true;
+        queen.stun = 500;
+        run.monsters.push(queen);
+        run.floor.map.update_vision(run.hero.pos, VISION);
+        g.events.clear();
+    }
+
+    #[test]
+    fn owned_copy_refresh_yields_to_held_heal_through_public_setter() {
+        let mut g = game();
+        let mut copies = Vec::new();
+        write_counter_rows(&mut g, "lurker_queen", 25, &mut copies);
+        write_counter_rows(&mut g, "lurker_queen", 45, &mut copies);
+        assert_eq!(copies[0].rows.len(), 2);
+        let mut before = g.clone();
+        queen_fight(&mut before);
+        before.tick();
+        assert!(before.events.iter().any(|e| matches!(e, Ev::Rule { verb, .. } if *verb == Verb::arg("read", "silence"))));
+        maintain_counter_copies(&mut g, &mut copies);
+        write_counter_rows(&mut g, "lurker_queen", 35, &mut copies);
+        assert_eq!(copies[0].rows.len(), 1);
+        assert_eq!(g.lineage.pkg.pen.len(), 1);
+        assert!(g.lineage.rules().validate().is_ok());
+        queen_fight(&mut g);
+        g.tick();
+        assert!(g.events.iter().any(|e| matches!(e, Ev::Rule { verb, .. } if *verb == Verb::arg("drink", "heal"))));
+        assert!(g.run.as_ref().unwrap().hero.inv.iter().any(|i| i.kind == "silence"));
+        assert!(!g.run.as_ref().unwrap().hero.inv.iter().any(|i| i.kind == "heal"));
+    }
+
+    #[test]
+    fn refresh_preserves_independent_equivalent_instead_of_claiming_it() {
+        let mut g = game();
+        let mut copies = Vec::new();
+        write_counter_rows(&mut g, "lurker_queen", 25, &mut copies);
+        let independent = riddle_core::packages::drill_rows("lurker_queen", 35)
+            .remove(0).from("patch");
+        let before = Row::new(vec![Cond::n("hp<", 80)], Verb::new("rest")).from("player");
+        let after = Row::new(vec![Cond::n("hp<", 5)], Verb::new("retreat")).from("patch");
+        let mut set = g.lineage.rules().clone();
+        set.rows.insert(1, before.clone());
+        set.rows.insert(2, independent.clone());
+        set.rows.insert(3, after.clone());
+        g.set_rules(set).unwrap();
+        maintain_counter_copies(&mut g, &mut copies);
+        assert!(copies.is_empty(), "equivalent independent row is never claimed");
+        assert_eq!(g.lineage.pkg.pen.len(), 3);
+        assert!(same_owned_row(&g.lineage.pkg.pen[0], &before));
+        assert!(same_owned_row(&g.lineage.pkg.pen[1], &independent));
+        assert!(same_owned_row(&g.lineage.pkg.pen[2], &after));
+    }
+
+    #[test]
+    fn ownership_preserves_independent_rows_and_forked_counter_order() {
+        let mut g = game();
+        let mut copies = Vec::new();
+        write_counter_rows(&mut g, "lurker_queen", 25, &mut copies);
+        let independent = riddle_core::packages::drill_rows("lurker_queen", 70).remove(0).from("patch");
+        let custom = Row::new(vec![Cond::n("hp<", 15)], Verb::new("retreat")).from("player");
+        let mut set = g.lineage.rules().clone();
+        set.rows.insert(0, independent.clone());
+        set.rows.insert(0, custom.clone());
+        g.set_rules(set).unwrap();
+        let mut fork = g.clone();
+        let mut fork_copies = copies.clone();
+        maintain_counter_copies(&mut fork, &mut fork_copies);
+        assert!(fork.lineage.pkg.pen.iter().any(|r| same_owned_row(r, &independent)));
+        assert!(fork.lineage.pkg.pen.iter().any(|r| same_owned_row(r, &custom)));
+        assert_eq!(copies[0].rows[0].conds[1].n, Some(25));
+        assert_eq!(fork_copies[0].rows[0].conds[1].n, Some(35));
+        write_counter_rows(&mut fork, "lich", 25, &mut fork_copies);
+        let verbs: Vec<_> = fork.lineage.pkg.pen.iter().take(2).map(|r| r.verb.clone()).collect();
+        maintain_counter_copies(&mut fork, &mut fork_copies);
+        let after: Vec<_> = fork.lineage.pkg.pen.iter().take(2).map(|r| r.verb.clone()).collect();
+        assert_eq!(after, verbs);
+        maintain_counter_copies(&mut fork, &mut fork_copies);
+        assert_eq!(fork_copies.iter().find(|c| c.boss == "lich").unwrap().rows.len(), 2);
+        // This experiment maintains an owned fallback even if its drill later arrives.
+        fork.lineage.pkg.drills.push(riddle_core::packages::Drill {
+            boss: "lurker_queen".into(), rows: riddle_core::packages::drill_rows("lurker_queen", 35),
+            revoked: false, announced: false,
+        });
+        riddle_core::packages::recompile(&mut fork.lineage);
+        maintain_counter_copies(&mut fork, &mut fork_copies);
+        assert_eq!(fork_copies.iter().find(|c| c.boss == "lurker_queen").unwrap().rows.len(), 1);
     }
 }
