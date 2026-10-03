@@ -3762,12 +3762,25 @@ impl Game {
             let used = self.lineage.row_kinds();
             self.lineage.last_supplies.iter().enumerate().filter(|(_, k)| !self.lineage.last_wasted.contains(k) && used.contains(*k)).map(|(i, k)| (k.clone(), self.lineage.last_supply_origins.get(i).is_some_and(|(kind, auto)| kind == k && *auto))).collect()
         };
+        let plan = current_repeat_plan(&self.lineage, plan);
         self.restock();
         // (a found supply packs free and is not the repeat's — Cut 21 §2)
         let mut origins: Vec<(String, bool)> = self.lineage.supplies.iter().filter(|i| !i.free && !i.found).map(|i| (i.kind.clone(), i.auto_packed)).collect();
         let mut kinds: Vec<String> = origins.iter().map(|(k, _)| k.clone()).collect();
-        let supplied = supplied_slots(&plan, &origins);
-        for ((k, auto), present) in plan.into_iter().zip(supplied) {
+        let assignments = supplied_slot_assignments(&plan, &origins);
+        let shelf_indices: Vec<usize> = self.lineage.supplies.iter().enumerate().filter(|(_, i)| !i.free && !i.found).map(|(i, _)| i).collect();
+        // A current package refill may satisfy an older authored slot. Its ownership stays
+        // authored, so a later package change cannot prune that repeated purchase.
+        for ((_, automatic), assigned) in plan.iter().zip(&assignments) {
+            if !automatic {
+                if let Some(i) = assigned {
+                    origins[*i].1 = false;
+                    self.lineage.supplies[shelf_indices[*i]].auto_packed = false;
+                }
+            }
+        }
+        for ((k, auto), assigned) in plan.into_iter().zip(assignments) {
+            let present = assigned.is_some();
             if !present { origins.push((k.clone(), auto)); kinds.push(k); }
         }
         // QA on 778fa1b: the price the camp's badge showed is the price this send's exit re-packs at.
@@ -6104,14 +6117,8 @@ impl Game {
         // silence scroll at the Queen) — its slot is reserved before any other supply, the repeat on
         // or off.
         let qm = crate::packages::quartermaster(&self.lineage);
-        // (then the packages' own kinds — the stance's heal — fill the free slots: the idle floor's
-        // pack of 3 is restocked with no tap)
-        let fill = crate::packages::pack_kinds(&self.lineage);
         let cap = self.lineage.supply_cap();
-        let mut want: Vec<String> = qm.clone();
-        for k in fill.iter().cycle().take(if fill.is_empty() { 0 } else { cap.min(crate::packages::PACK_FILL) }) {
-            want.push(k.clone());
-        }
+        let want = automatic_pack_plan(&self.lineage);
         for (i, kind) in want.iter().enumerate() {
             let drill = i < qm.len();
             if drill && self.lineage.supplies.iter().any(|s| s.kind == *kind) {
@@ -6134,7 +6141,7 @@ impl Game {
                 let Some(price) = self.supply_catalogue().iter().find(|e| e.kind == *kind).map(|e| e.price) else { continue };
                 if self.lineage.gold < price { continue; }
                 let surplus = self.lineage.supplies.iter().rposition(|s| {
-                    s.auto_packed && !s.free && !s.found && !qm.contains(&s.kind)
+                    s.auto_packed && !s.free && !s.found
                         && self.lineage.supplies.iter().filter(|t| t.kind == s.kind).count()
                             > want.iter().filter(|k| **k == s.kind).count()
                 });
@@ -6161,6 +6168,7 @@ impl Game {
             return bought;
         }
         let plan: Vec<(String, bool)> = self.lineage.last_supplies.iter().enumerate().map(|(i, kind)| (kind.clone(), self.lineage.last_supply_origins.get(i).is_some_and(|(k, auto)| k == kind && *auto))).collect();
+        let plan = current_repeat_plan(&self.lineage, plan);
         let on_shelf: Vec<(String, bool)> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| (s.kind.clone(), s.auto_packed)).collect();
         let supplied = supplied_slots(&plan, &on_shelf);
         let mut short = Vec::new();
@@ -6171,7 +6179,7 @@ impl Game {
         // kinds a row of the active set can use are re-bought (`LineageState::row_kinds`).
         let used = self.lineage.row_kinds();
         let mut skip = self.lineage.theft_skip.clone();
-        for (slot, kind) in self.lineage.last_supplies.clone().into_iter().enumerate() {
+        for (slot, (kind, automatic)) in plan.iter().cloned().enumerate() {
             if supplied[slot] { continue; }
             if wasted.contains(&kind) || !used.contains(&kind) {
                 continue;
@@ -6193,7 +6201,6 @@ impl Game {
             let gold = self.lineage.gold;
             match self.buy_supply_priced(&kind, &format!("repeat {}", kind.replace('_', " ")), quote) {
                 Ok(()) => {
-                    let automatic = self.lineage.last_supply_origins.get(slot).is_some_and(|(k, auto)| *k == kind && *auto);
                     if let Some(item) = self.lineage.supplies.last_mut() { item.auto_packed = automatic; }
                     bought.push(kind.replace('_', " "));
                     let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
@@ -7260,17 +7267,42 @@ fn is_zero_u32(n: &u32) -> bool {
     *n == 0
 }
 
+/// The automatic pack reserves each active counter once, then fills sustain slots with other kinds.
+fn automatic_pack_plan(l: &LineageState) -> Vec<String> {
+    let qm = crate::packages::quartermaster(l);
+    let fill: Vec<String> = crate::packages::pack_kinds(l).into_iter().filter(|k| !qm.contains(k)).collect();
+    let mut want = qm;
+    want.extend(fill.iter().cycle().take(if fill.is_empty() { 0 } else { l.supply_cap().min(crate::packages::PACK_FILL) }).cloned());
+    want
+}
+
+/// Old automatic slots track the current package pack; authored and unknown-origin repeats stay exact.
+fn current_repeat_plan(l: &LineageState, plan: Vec<(String, bool)>) -> Vec<(String, bool)> {
+    if l.pkg.literal || l.pkg.stance == crate::packages::CUSTOM { return plan; }
+    let want = automatic_pack_plan(l);
+    let mut kept: BTreeMap<String, usize> = BTreeMap::new();
+    plan.into_iter().filter(|(kind, automatic)| {
+        if !automatic { return true; }
+        let n = kept.entry(kind.clone()).or_default();
+        *n += 1;
+        *n <= want.iter().filter(|k| *k == kind).count()
+    }).collect()
+}
+
 /// Assign surviving supplies to their repeat slots. Reserve exact origins across the whole
 /// plan before matching kinds alone, so a manual duplicate cannot consume an automatic slot.
 fn supplied_slots(plan: &[(String, bool)], supplies: &[(String, bool)]) -> Vec<bool> {
-    let mut available = supplies.to_vec();
-    let mut supplied = vec![false; plan.len()];
+    supplied_slot_assignments(plan, supplies).into_iter().map(|i| i.is_some()).collect()
+}
+
+fn supplied_slot_assignments(plan: &[(String, bool)], supplies: &[(String, bool)]) -> Vec<Option<usize>> {
+    let mut available: Vec<(usize, &(String, bool))> = supplies.iter().enumerate().collect();
+    let mut supplied = vec![None; plan.len()];
     for exact in [true, false] {
         for (slot, (kind, automatic)) in plan.iter().enumerate() {
-            if supplied[slot] { continue; }
-            if let Some(i) = available.iter().position(|(k, a)| k == kind && (!exact || a == automatic)) {
-                available.remove(i);
-                supplied[slot] = true;
+            if supplied[slot].is_some() { continue; }
+            if let Some(i) = available.iter().position(|(_, (k, a))| k == kind && (!exact || a == automatic)) {
+                supplied[slot] = Some(available.remove(i).0);
             }
         }
     }

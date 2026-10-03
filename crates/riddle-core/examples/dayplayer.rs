@@ -148,6 +148,24 @@ fn insert_row(g: &mut Game, row: Row, at: i32) -> bool {
     g.set_rules(rules).is_ok()
 }
 
+/// Copy the fallback counter in canonical priority order at the pen's top.
+fn write_counter_rows(g: &mut Game, b: &str, heal: i32) {
+    for row in riddle_core::packages::drill_rows(b, heal).into_iter().rev() {
+        // (the card or the verb it needs, bought with marks or gold when the purse has it)
+        let need = match (row.verb.v.as_str(), row.card()) {
+            (_, Some(c)) => Some(c.to_string()),
+            ("throw", _) => Some("throw".to_string()),
+            _ => None,
+        };
+        if let Some(u) = need.filter(|u| !g.lineage.unlocks.contains(u)) {
+            if g.buy(&u).is_err() {
+                let _ = g.buy_unlock_gold(&u);
+            }
+        }
+        insert_row(g, row, 0);
+    }
+}
+
 /// The situation answers a player writes once the pen is open and the fact is held (the stray's
 /// tame row only when pets are in play).
 fn write_own_rows(g: &mut Game, pets: impl Fn() -> bool) -> u32 {
@@ -741,20 +759,7 @@ impl Play {
                             };
                             if known && !g.lineage.kills.contains(b) && !g.lineage.pkg.drills.iter().any(|d| d.boss == b) {
                                 let heal = riddle_core::packages::heal_pct(&g.lineage.pkg.stance, g.lineage.pkg.level(&g.lineage.pkg.stance));
-                                for row in riddle_core::packages::drill_rows(b, heal) {
-                                    // (the card or the verb it needs, bought with marks or gold when the purse has it)
-                                    let need = match (row.verb.v.as_str(), row.card()) {
-                                        (_, Some(c)) => Some(c.to_string()),
-                                        ("throw", _) => Some("throw".to_string()),
-                                        _ => None,
-                                    };
-                                    if let Some(u) = need.filter(|u| !g.lineage.unlocks.contains(u)) {
-                                        if g.buy(&u).is_err() {
-                                            let _ = g.buy_unlock_gold(&u);
-                                        }
-                                    }
-                                    insert_row(g, row, 0);
-                                }
+                                write_counter_rows(g, b, heal);
                             }
                         }
                         // (a death's patch is taken at a wall — the record held — not on the walk: the pen is
@@ -1532,6 +1537,86 @@ fn main() {
         std::process::exit(1);
     }
     let _ = RuleSet::default();
+}
+
+#[cfg(test)]
+mod counter_order_tests {
+    use super::*;
+    use riddle_core::{geom::Pos, gen::Floor, item::Item, monster::Monster, tiles::{Map, Tile, VISION}, wire::Ev};
+
+    fn counter_fight(boss: &str) -> (Game, u32, u32) {
+        let mut g = Game::new(55);
+        g.lineage.best_depth = 23;
+        g.lineage.gold = 1_000;
+        g.lineage.marks = 100;
+        g.lineage.systems.insert("pen".into());
+        assert!(riddle_core::packages::update_pen(&mut g.lineage));
+        riddle_core::packages::recompile(&mut g.lineage);
+        for kind in [boss, "spectral_blade"] {
+            g.lineage.facts.insert(format!("foe:{kind}"));
+            for tag in riddle_core::defs::monster_def(kind).tags {
+                g.lineage.facts.insert(format!("foe:{kind}:{tag}"));
+            }
+        }
+        let heal = riddle_core::packages::heal_pct(&g.lineage.pkg.stance, g.lineage.pkg.level(&g.lineage.pkg.stance));
+        write_counter_rows(&mut g, boss, heal);
+        assert_eq!(g.lineage.pkg.pen.len(), 2, "both legally exposed fallback rows were written");
+        assert!(g.lineage.rules().validate().is_ok());
+        g.start_run(Some(55));
+        let run = g.run.as_mut().unwrap();
+        run.depth = if boss == "lich" { 18 } else { 23 };
+        let mut map = Map::new(16, 12, Tile::Wall);
+        for y in 1..11 { for x in 1..15 { map.set(Pos::new(x, y), Tile::Floor); } }
+        let up = Pos::new(1, 1);
+        let down = Pos::new(14, 10);
+        map.set(up, Tile::StairsUp);
+        map.set(down, Tile::StairsDown);
+        run.floor = Floor { map, stairs_up: up, stairs_down: down, rooms: Vec::new(), vision: VISION };
+        run.monsters.clear();
+        run.items.clear();
+        run.overlays.clear();
+        run.hero.pos = Pos::new(4, 5);
+        run.hero_dist_pos = None;
+        run.hero.hp = run.hero.max_hp;
+        run.hero.energy = 100;
+        run.hero.inv.push(Item::new(700_001, "bow"));
+        let id = run.new_id();
+        let mut m = Monster::spawn(id, boss, Pos::new(5, 5), run.depth);
+        m.awake = true;
+        m.stun = 500;
+        run.monsters.push(m);
+        let minion = if boss == "lich" {
+            let id = run.new_id();
+            let mut m = Monster::spawn(id, "spectral_blade", Pos::new(4, 6), run.depth);
+            m.awake = true;
+            m.stun = 500;
+            run.monsters.push(m);
+            id
+        } else { id };
+        run.floor.map.update_vision(run.hero.pos, VISION);
+        g.events.clear();
+        (g, id, minion)
+    }
+
+    #[test]
+    fn copied_master_counter_raises_the_bow_before_its_buffer_attack() {
+        let (mut g, _, _) = counter_fight("foundry_master");
+        g.tick();
+        let fired = g.events.iter().find_map(|e| if let Ev::Rule { verb, .. } = e { Some(verb) } else { None }).unwrap();
+        assert_eq!(*fired, riddle_core::rules::Verb::arg("tactic", "reflect_read"));
+        assert_eq!(g.run.as_ref().unwrap().hero.weapon_kind(), "bow");
+        assert!(!g.events.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), .. } if v == "reflect")));
+    }
+
+    #[test]
+    fn copied_lich_counter_hits_the_summoned_foe_before_the_boss() {
+        let (mut g, boss, minion) = counter_fight("lich");
+        g.tick();
+        let fired = g.events.iter().find_map(|e| if let Ev::Rule { verb, .. } = e { Some(verb) } else { None }).unwrap();
+        assert_eq!(*fired, riddle_core::rules::Verb::arg("attack", "tag:summoned"));
+        assert!(g.events.iter().any(|e| matches!(e, Ev::Attack { dst, .. } if *dst == minion)));
+        assert!(!g.events.iter().any(|e| matches!(e, Ev::Attack { dst, .. } if *dst == boss)));
+    }
 }
 
 // (after `main`: outside the job cache's key — it picks the games and where they stop, never what they do)

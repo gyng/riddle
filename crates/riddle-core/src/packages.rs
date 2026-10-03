@@ -442,7 +442,8 @@ pub fn drill_rows(boss: &str, heal: i32) -> Vec<Row> {
         rows.push(guard(scope_drill_row(boss, r(vec![tag("boss")], Verb::arg("attack", "tag:boss")))));
     }
     if boss == "foundry_master" {
-        rows.push(guard(r(vec![tag("buffer"), n("depth>=", 19)], Verb::arg("attack", "tag:buffer"))));
+        // The secondary attack yields to sustain like the main counter, within two conditions.
+        rows.push(guard(r(vec![tag("buffer")], Verb::arg("attack", "tag:buffer"))));
     }
     rows
 }
@@ -481,6 +482,10 @@ fn tagged(rows: Vec<Row>, origin: &str) -> Vec<Row> {
 fn effective_drill_rows(d: &Drill, heal: i32) -> Vec<Row> {
     d.rows.iter().cloned().map(|row| {
         let mut row = scope_drill_row(&d.boss, row);
+        if d.boss == "foundry_master" && row.verb == Verb::arg("attack", "tag:buffer") && row.conds == vec![tag("buffer"), n("depth>=", 19)] {
+            // Compile the exact legacy secondary with the current guard; keep the saved row intact.
+            row.conds[1] = n("hp>", heal);
+        }
         for cond in &mut row.conds {
             if cond.k == "hp>" { cond.n = Some(heal); }
         }

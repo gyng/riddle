@@ -651,3 +651,209 @@ fn legacy_camp_drills_refresh_before_editing_without_rewriting_live_replay_rows(
     let literal = Game::new_literal(12);
     assert_eq!(Game::load(&literal.save()).unwrap().lineage.rules(), literal.lineage.rules());
 }
+
+#[test]
+fn master_secondary_new_and_legacy_drills_yield_to_healing_but_keep_the_buffer_attack() {
+    for legacy in [false, true] {
+        let mut g = crate::tests::arena();
+        for fact in ["foe:foundry_master", "foe:foundry_master:buffer", "foe:foundry_master:reflect_melee", "foe:smith", "foe:smith:buffer"] { g.lineage.facts.insert(fact.into()); }
+        g.lineage.unlocks.insert("reflect_read".into());
+        g.lineage.pkg.literal = false;
+        g.lineage.pkg.stance = "guarded".into();
+        g.lineage.pkg.runs.insert("guarded".into(), 220);
+        let mut learned = packages::drill_rows("foundry_master", 35);
+        if legacy { learned[1].conds = vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 19)]; }
+        g.lineage.pkg.drills.push(packages::Drill { boss: "foundry_master".into(), rows: learned.clone(), ..Default::default() });
+        packages::recompile(&mut g.lineage);
+        assert_eq!(g.lineage.pkg.drills[0].rows, learned, "stored learned rows are not rewritten");
+        let wire = packages::wire(&g.lineage);
+        let effective = &wire.drills[0].rows[1];
+        assert_eq!(effective.conds, vec![Cond::t("foe_tag", "buffer"), Cond::n("hp>", 45)]);
+        assert_eq!(g.lineage.rules().rows[1].conds, effective.conds, "the wire shows the actual secondary guard");
+        assert!(g.lineage.rules().validate().is_ok());
+        assert!(g.lineage.rules().rows.iter().all(|r| r.conds.len() <= 2));
+        g.run.as_mut().unwrap().depth = 23;
+        crate::tests::add_monster(&mut g, "foundry_master", 5, 5);
+        crate::tests::give(&mut g, "heal");
+        if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "heal") { g.lineage.facts.insert(f); }
+        let run = g.run.as_mut().unwrap(); run.hero.max_hp = 100; run.hero.hp = 40; run.hero.energy = 100;
+        let mut healthy = g.clone();
+        let events = crate::tests::ticks(&mut g, 1);
+        let fired = events.iter().find_map(|e| if let crate::wire::Ev::Rule { verb, .. } = e { Some(verb) } else { None }).unwrap();
+        assert_eq!(*fired, Verb::arg("drink", "heal"), "both generated Master rows yield to a held heal: {events:?}");
+
+        // With no reflecting foe, a healthy hero still attacks the Foundry's buffer.
+        let run = healthy.run.as_mut().unwrap(); run.monsters.clear(); run.hero.hp = 100; run.hero.energy = 100;
+        let smith = crate::tests::add_monster(&mut healthy, "smith", 5, 5);
+        let events = crate::tests::ticks(&mut healthy, 1);
+        assert!(events.iter().any(|e| matches!(e, crate::wire::Ev::Rule { verb, .. } if *verb == Verb::arg("attack", "tag:buffer"))));
+        assert!(events.iter().any(|e| matches!(e, crate::wire::Ev::Attack { dst, .. } if *dst == smith)));
+    }
+}
+
+#[test]
+fn an_authored_legacy_buffer_row_keeps_its_priority_above_the_generated_heal() {
+    let mut g = crate::tests::arena();
+    for fact in ["foe:foundry_master", "foe:foundry_master:buffer", "foe:foundry_master:reflect_melee"] { g.lineage.facts.insert(fact.into()); }
+    g.lineage.pkg.literal = false;
+    g.lineage.pkg.stance = "guarded".into();
+    g.lineage.pkg.runs.insert("guarded".into(), 220);
+    g.lineage.pkg.pen_open = true;
+    let own = Row::new(vec![Cond::t("foe_tag", "buffer"), Cond::n("depth>=", 19)], Verb::arg("attack", "tag:buffer")).from("player");
+    g.lineage.pkg.pen = vec![own.clone()];
+    g.lineage.pkg.drills.push(packages::Drill { boss: "foundry_master".into(), rows: packages::drill_rows("foundry_master", 35), ..Default::default() });
+    packages::recompile(&mut g.lineage);
+    assert_eq!(g.lineage.rules().rows[0], own);
+    assert_eq!(g.lineage.pkg.pen.as_slice(), std::slice::from_ref(&own));
+    g.run.as_mut().unwrap().depth = 23;
+    crate::tests::add_monster(&mut g, "foundry_master", 5, 5);
+    crate::tests::give(&mut g, "heal");
+    if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "heal") { g.lineage.facts.insert(f); }
+    let run = g.run.as_mut().unwrap(); run.hero.max_hp = 100; run.hero.hp = 40; run.hero.energy = 100;
+    let events = crate::tests::ticks(&mut g, 1);
+    assert!(events.iter().any(|e| matches!(e, crate::wire::Ev::Rule { row: 0, verb, .. } if *verb == own.verb)), "the explicit player row remains above sustain: {events:?}");
+    assert!(g.run.as_ref().unwrap().hero.inv.iter().any(|i| i.kind == "heal"));
+}
+
+fn shared_fire_counter_pack() -> Game {
+    let mut g = Game::new(13);
+    g.lineage.supplies.clear();
+    g.lineage.gold_move(10_000 - g.lineage.gold, "test");
+    g.lineage.best_depth = 12;
+    g.lineage.pkg.stance = "guarded".into();
+    g.lineage.pkg.runs.insert("guarded".into(), 220);
+    g.lineage.pkg.tactics.push("boss_focus".into());
+    g.lineage.pkg.drills.push(packages::Drill { boss: "bloat_mother".into(), rows: packages::drill_rows("bloat_mother", 45), revoked: false, announced: false });
+    for kind in ["heal", "fire"] { if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, kind) { g.lineage.facts.insert(f); } }
+    packages::recompile(&mut g.lineage);
+    assert_eq!(packages::quartermaster(&g.lineage), ["fire"]);
+    assert_eq!(packages::pack_kinds(&g.lineage), ["heal", "fire"]);
+    for _ in 0..3 { g.buy_supply("fire").unwrap(); g.lineage.supplies.last_mut().unwrap().auto_packed = true; }
+    g
+}
+
+#[test]
+fn shared_counter_fire_does_not_take_the_stances_second_heal_slot() {
+    let mut g = shared_fire_counter_pack();
+    let gold = g.lineage.gold;
+    let heal_price = g.supply_catalogue().iter().find(|s| s.kind == "heal").unwrap().price;
+    g.restock();
+    assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "heal").count(), 2);
+    assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "fire").count(), 1, "the active counter keeps one slot");
+    assert_eq!(gold - g.lineage.gold, 2 * heal_price);
+    g.start_run(None);
+    assert_eq!(g.run.as_ref().unwrap().hero.inv.iter().filter(|s| s.kind == "heal").count(), 2);
+    let r = g.run.as_mut().unwrap(); r.monsters.clear(); r.hero.max_hp = 100; r.hero.hp = 40; r.hero.energy = 100;
+    g.tick();
+    assert!(g.run.as_ref().unwrap().hero.hp > 40, "the packed sustain actually heals the hero");
+    { let (r, mut cx) = g.ctx(); r.hero.inv.retain(|i| !["heal", "fire"].contains(&i.kind.as_str())); crate::turn::end_run(r, &mut cx, ExitTier::Bank); }
+    g.finish_run();
+    assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "heal").count(), 2, "repeat restores the two sustain slots");
+    assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "fire").count(), 1);
+}
+
+#[test]
+fn shared_counter_surplus_replacement_respects_budget_and_protected_supplies() {
+    let mut g = shared_fire_counter_pack();
+    g.offline = true;
+    let price = g.supply_catalogue().iter().find(|s| s.kind == "heal").unwrap().price;
+    let before = g.lineage.supplies.clone(); let gold = g.lineage.gold;
+    g.restock(); assert_eq!(g.lineage.supplies, before, "no absence income authorizes no replacement"); assert_eq!(g.lineage.gold, gold);
+    g.batch.gold_earned = price;
+    g.restock();
+    assert_eq!(g.lineage.supplies.iter().filter(|s| s.kind == "heal").count(), 1, "only one heal fits the earned budget");
+    assert_eq!(g.batch.spent_total(), price);
+    assert!(g.batch.spent_total() <= g.batch.income());
+    let mut protected = shared_fire_counter_pack();
+    protected.lineage.supplies[0].auto_packed = false;
+    protected.lineage.supplies[1].found = true;
+    protected.lineage.supplies[2].free = true;
+    let held = protected.lineage.supplies.clone(); protected.restock();
+    assert_eq!(protected.lineage.supplies, held, "manual, found and free counter supplies keep every slot");
+}
+
+#[test]
+fn obsolete_automatic_repeat_slots_follow_the_pack_but_manual_duplicates_remain() {
+    let mut g = shared_fire_counter_pack();
+    g.lineage.supplies.clear();
+    g.lineage.last_supplies = vec!["fire".into(); 5];
+    g.lineage.last_supply_origins = (0..5).map(|i| ("fire".into(), i < 3)).collect();
+    g.buy_supply("fire").unwrap(); // an actual manual duplicate remains protected
+    let manual = g.lineage.supplies[0].id;
+    g.restock();
+    assert!(g.lineage.supplies.iter().any(|s| s.id == manual && !s.auto_packed));
+    g.start_run(None);
+    assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && *a).count(), 1, "only the active automatic counter repeats");
+    assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 2, "every authored duplicate is remembered");
+    assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "heal" && *a).count(), 2);
+    let mut loaded = Game::load(&g.save()).unwrap();
+    assert_eq!(loaded.lineage.last_supply_origins, g.lineage.last_supply_origins, "save/load retains exact origins");
+    { let (r, mut cx) = loaded.ctx(); r.hero.inv.retain(|i| i.kind != "heal"); crate::turn::end_run(r, &mut cx, ExitTier::Bank); }
+    loaded.finish_run();
+    loaded.lineage.supplies.clear();
+    loaded.lineage.kills.insert("bloat_mother".into()); loaded.lineage.best_depth = 20;
+    loaded.lineage.pkg.tactics.clear(); packages::recompile(&mut loaded.lineage);
+    loaded.start_run(None);
+    assert_eq!(loaded.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && *a).count(), 0, "the former package's automatic fire stops repeating");
+    assert_eq!(loaded.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 2);
+}
+
+#[test]
+fn lifecycle_pack_caps_leave_literal_custom_and_unknown_origin_quotes_unchanged() {
+    for custom in [false, true] {
+        let mut g = Game::new_literal(13);
+        if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "fire") { g.lineage.facts.insert(f); }
+        g.lineage.gold_move(10_000 - g.lineage.gold, "test");
+        g.lineage.supplies.clear();
+        let row = Row::new(vec![], Verb::arg("throw", "fire,nearest"));
+        g.set_rules_raw(RuleSet { rows: vec![row.clone()], ..Default::default() }).unwrap();
+        if custom { g.lineage.pkg.literal = false; g.lineage.pkg.stance = packages::CUSTOM.into(); g.lineage.pkg.custom = vec![row]; packages::recompile(&mut g.lineage); }
+        let quote = g.supply_catalogue().iter().find(|s| s.kind == "fire").unwrap().price - 1;
+        g.lineage.repeat_quote.insert("fire".into(), quote);
+        g.lineage.last_supplies = vec!["fire".into(); 2];
+        g.lineage.last_supply_origins = vec![("fire".into(), true); 2];
+        let gold = g.lineage.gold;
+        g.restock();
+        assert_eq!(gold - g.lineage.gold, 2 * quote);
+        assert_eq!(g.lineage.supplies.len(), 2, "literal/custom repeats retain their automatic quantities");
+        g = Game::load(&g.save()).unwrap();
+        let id = g.lineage.supplies[0].id; g.drop_supply(id).unwrap();
+        assert_eq!(g.lineage.last_supplies, ["fire"]);
+        assert_eq!(g.lineage.last_supply_origins, [("fire".into(), true)]);
+    }
+    let mut g = shared_fire_counter_pack();
+    g.lineage.supplies.clear();
+    g.lineage.last_supplies = vec!["fire".into(); 2];
+    g.lineage.last_supply_origins.clear(); // old saves lack provenance: never invent automatic ownership
+    g.buy_supply("fire").unwrap(); g.buy_supply("fire").unwrap(); // surviving legacy/manual slots
+    g.start_run(None);
+    assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 2);
+}
+
+
+#[test]
+fn empty_legacy_repeat_refills_keep_authored_ownership_across_two_sends_and_package_changes() {
+    let mut g = shared_fire_counter_pack();
+    g.lineage.supplies.clear();
+    g.lineage.last_supplies = vec!["fire".into(); 2];
+    g.lineage.last_supply_origins.clear();
+    for send in 0..2 {
+        g.start_run(None);
+        assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 2, "both legacy purchases stay authored at send{send}");
+        assert!(g.run.as_ref().unwrap().hero.inv.iter().filter(|i| i.kind == "fire").all(|i| !i.auto_packed), "a package refill matched to the authored order is owned by the player");
+        g = Game::load(&g.save()).unwrap();
+        assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 2);
+        { let (r, mut cx) = g.ctx(); r.hero.inv.retain(|i| i.kind != "fire"); crate::turn::end_run(r, &mut cx, ExitTier::Bank); }
+        g.finish_run();
+        g.lineage.kills.insert("bloat_mother".into()); g.lineage.best_depth = 20;
+        g.lineage.pkg.tactics.clear(); packages::recompile(&mut g.lineage);
+    }
+    g.start_run(None);
+    assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 2, "the authored quantity survives the old counter becoming obsolete");
+    { let (r, mut cx) = g.ctx(); crate::turn::end_run(r, &mut cx, ExitTier::Bank); }
+    g.finish_run();
+    g.lineage.supplies.clear(); g.buy_supply("fire").unwrap();
+    let id = g.lineage.supplies.last().unwrap().id;
+    g.drop_supply(id).unwrap();
+    assert_eq!(g.lineage.last_supply_origins.iter().filter(|(k,a)| k == "fire" && !a).count(), 1, "only an explicit player drop reduces the authored repeat");
+}
