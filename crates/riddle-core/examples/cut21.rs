@@ -7,7 +7,7 @@
 use riddle_core::{Ev, Game, RuleSet};
 
 fn lineage_for(set: &RuleSet, seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     g.max_deaths = 100_000;
     for u in ["row5", "row6", "row7", "row8", "throw", "cond_alert", "cond_turns", "cond_loot", "cond_on_kill", "cond_on_see", "tame", "supply_cap_5"] {
         g.lineage.unlocks.insert(u.into());

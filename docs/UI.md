@@ -118,3 +118,44 @@ a one-beat reveal (the tile unchipped from the stone, a glint), never a tutorial
 - `screens.mjs` / copy-lint unchanged in content; the skin is layout and art, not new copy.
 - The reveal ladder (§5) holds on a fresh lineage.
 - A blind rater's aesthetic and feel ≥ 0.8.
+
+## 7. Auto-continue — idling never stalls on a button (2026-10-02)
+
+The owner: "for idle, buttons need a timer to auto close". A screen or panel that waits for a tap closes or continues on its own,
+with the countdown drawn on the thing it will press. One helper, `autoDismiss(el, { ms, onExpire, scope })` (`web/src/ui/autodismiss.ts`),
+and a one-line hook per screen.
+
+- **The mark**: a thin gilt ring drains around the element whose action the timeout takes — the gem, the `send again` chip, a
+  console tile, a panel's close stud. No text in the chrome; under `prefers-reduced-motion` the ring stands full and carries the
+  seconds left as a small number instead of draining.
+- **What it may do**: continue, close, or press what that element already shows. Never a buy, an equip, a spend, an applied fix
+  or a card pick (a send without a pick still takes card 1, as before).
+
+| Where | After | It presses | Why that long |
+|---|---|---|---|
+| the run's card (run-clear) | 7 s | the gem, `camp` (the town) — a watched run's card over its report | six things at ~1 s: the seal, the reason, the floor, the coins, the finds, one plaque |
+| an absence's last-run card | 6 s | the card itself: it lifts to the absence's report (whose 12 s then starts) | the same card, read before the night's table |
+| the report | 12 s | the gem, `camp` (the town) | the grew lines, ≤ 5 beat plaques and the tiles are ~12 things at ~1 s each; the plaques land in its first 2 s |
+| the death screen | 12 s | the gem when it sends or goes to camp (lever `wait`, none); else `send again` when shown; else the `camp` tile | the what · why · what-now read is three lines; the lever `forge` / `wear` and a fix's `apply` are decisions, so the ring goes elsewhere |
+| a death opened from the report or the chronicle | 20 s | `report` (back), else `camp` | the player opened it to read: a panel's time |
+| an open sheet or camp panel | 20 s of no input | its close stud | long enough to read a full sheet, short enough that a phone left on the table is back in the town within a minute |
+| beats and plaques | (3 s) | — | none waits for a tap outside the watch: the level-up and arrival beats are the report's plaques and share its clock |
+
+- **Input** (a press, a key, the wheel, a scroll, a pointer move) restarts the clock; a press held down, a pointer resting on the
+  ringed control or on the open panel, an open tooltip, an open sheet over a screen, or a busy engine pauses it.
+- **A hidden tab** pauses it; on return the clock starts over full, so a report waiting for a returning player is always seen.
+- **The watch** has none (its exit already walks on by itself); its sheets (the cage, the keep) have none.
+- **Settings**: `auto continue` on / off, on by default (`riddle.autoContinue`).
+- **Tests**: off under automation (`navigator.webdriver`) so the old gates keep their meaning; `?autodismiss=1` opts in,
+  `?autodismiss=0.1` also runs the clocks 10× fast, `?autodismiss=0` turns it off anywhere. Gates: `web/tests/autodismiss.mjs`.
+
+## 8. Run-clear — every run that ends has its card (2026-10-02)
+
+The owner: "each run should have the clear screen? did that disappear. eg, hurt/went home". A run's end is a short card before the
+town (`web/src/ui/runclear.ts`): the end as a wax seal in the exit vocabulary (`BANKED` gilt · `RETURNED` moonlit · `STALLED` /
+`REPELLED` ember), the core's reason (`hurt · went home`), the floor reached with a `new best` badge, the gold kept and where it went
+(`$58 → chest` until the porter, then the purse), the finds as icons in their rarity rims (the rarest named), and the xp as one plaque.
+≤ 20 words at rest. A watched run's card stands over its report (a tap or the gem goes on; the `report` tile lifts it); an absence opens
+on its last run's card, which lifts to the night's report. A death has no card screen: the death screen is its card, and its header
+carries the strip (the floor, a best, the finds left in the bones). Off under automation unless `?runclear=1` (as §7's clocks).
+Gates: `web/tests/runclear.mjs`.

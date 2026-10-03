@@ -1,18 +1,20 @@
 # AGENTS.md — operating manual for Riddle
 
-**Resuming? Read `docs/HANDOFF.md` first.** Read `PLAN.md` (canonical design) and `docs/CUT29.md` (the current implementation contract),
+**Resuming? Read `docs/HANDOFF.md` first.** Read `PLAN.md` (canonical design) and `docs/CUT30_5.md` (the current implementation contract),
 then this file. `CLAUDE.md` is a bare import of this file.
 
 ## What the game is
 
-A real roguelike whose hero you never drive. The player writes an ordered rule list (≤ 8 rows
-of `conds → verb`); the hero learns the dungeon's facts on its own; the engine does chores
-silently. Runs happen offline, uncapped. Every death names a rule. The dungeon has a bottom.
+A real roguelike whose hero you never drive. The hero climbs on his own while you are away;
+you equip packages (stances, tactics, temperaments: pre-written rule bundles that level from
+runs), build a town, and late on open the pen to write your own rows. Town chores begin by hand; hire named workers to automate them. The first few sends are
+manual, until the scout is hired (within the first session). In-run chores stay silent.
+Then runs happen offline, uncapped. Every death names its cause. The dungeon has a bottom.
 
 ```
-camp (edit rules, loadout, unlocks, forecast) → send → run (rules fire, facts learned)
-   → exit: bank 100% · return 60% · death 30% → death screen (trace, gap/dice, patches)
-   → report (learned · bests · found · deaths · pending · reel) → camp
+town (packages, buildings, works, forecast; the pen late) → send → run (rows fire, facts learned, drills)
+   → checkpoint: secure gold → exit on remaining carry: bank 100% · return 60% · death 0% → death screen (trace, gap/dice, patches)
+   → report (learned · bests · found · deaths · workers · chest · reel) → camp
 ```
 
 ## Repo map
@@ -34,10 +36,11 @@ research/              the four research reports behind the plan
 
 ```sh
 tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint            ~45 s
-tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~5 min (the quick gate ~4 min fresh)
-tools/verify.sh --full         # + shipping wasm → full gate table                  ~11 min
+tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~2 min + the quick gate (cached: seconds; fresh after a core edit: ~30–40 min, below)
+tools/verify.sh --full         # + shipping wasm → full gate table                  ~4 min + the full gate (fresh after a core edit: ~1–1.5 h, below)
 cargo test -q --workspace --profile fast                     # ~36 s warm (CPU-bound on the cores); never plain `cargo test` (7× slower)
-node tools/gates.mjs [--full] [--fresh]                      # quick: 8 seeds × 8 h × 3 verdicts + dayplayer + the wire invariants (examples/qa.rs) alongside (~4 min); full: 30 × 8 × 8 (~8 min on a shared box); each leg cached by its own binary hash — a client-only change reprints in 0.2 s, a new qa invariant reruns qa alone
+node tools/gates.mjs [--full|--fast] [--fresh]               # quick: 8 seeds × 8 h × 3 verdicts + the dayplayer (2 seeds, 1 leave-one-out) + the wire invariants (examples/qa.rs) alongside; full: 30 × 8 × 8, dayplayer 16 seeds (TUNED and the leave-one-outs too); --fast: the quick table less the retired progression lineages, qa 10 seeds, IDLE's rows. CPU-bound: fresh, the full gate is ~40–50 min of a quiet box (the dayplayer's PICKED/TUNED fortnights, ~1 k CPU-s each at one thread since the hot-path round, are most of it; docs/ITERATION_SPEED.md round 5) and the quick one ~30–40 min. Each leg's printout cached by its own binary hash (a client-only change reprints in 0.2 s); inside the legs the long jobs (dayplayer fortnights, progression lineages, lever/oath/lane jobs, IDLE snapshots) are kept by the core's sources + their own harness file (`RIDDLE_SRC_KEY`), so a bar or row edit reprints in seconds to minutes and only a core edit replays them (docs/ITERATION_SPEED.md 0e). `GATES_THREADS=N` caps each leg
+node tools/gates.mjs [--full] --rows <ids|substrings> [--fail-fast] [--seeds 8 …]   # TARGETED, a tuning loop's check, never the gate: the dayplayer on the named rows alone — only the bots, seeds and days they read, each game stopped at its row's milestone; --fail-fast plays seeds lowest first and aborts on the first row settled FAIL (an every-seed row's first failing seed, a median the seeds left cannot rescue), naming the seed and value. `target/fast/examples/dayplayer --rows ?` lists the row ids (docs/ITERATION_SPEED.md §0h)
 (cd web && pnpm -s test)                                     # the client gates, headless, on the suite's own no-HMR Vite server (~5 min); `node tests/run.mjs fights clarity:paint` for a few
 tools/wasm.sh [--ship]                                       # fast wasm (~8 s after a core edit) / wasm-pack release (~2 min)
 tools/ship.sh [--preview]                                    # cohort build on :5230 (fat LTO, ~2 min); --preview: fast wasm, ~25 s, for QA rounds
@@ -67,27 +70,43 @@ third of it the chores' floods).
 1. Write a contract (`docs/CUT<n>.md`) with numeric gates.
 2. Build core / client / renderer / art in parallel; they meet at the wire types.
 3. Gate it. Never weaken a gate to pass it; tune content, or record a deviation with a reason.
-4. Fun-verdict playtest on the `idle-roguelike` preset (`docs/FUN_EVAL_IDLE.md`); the gaps
+4. Fun-verdict playtest on the `idle-hybrid` preset (`docs/FUN_EVAL_IDLE.md`); the gaps
    become the next contract.
 
 ## Hard invariants
 
 - All game truth in Rust. TS renders and edits only.
 - Determinism: same seed + rules + elapsed ⇒ identical events. Replay-hash test exists.
-- Inviolable bots: DEFAULT dies by D6; EDITED beats it by ≥ 15 pts; RANDOM and PASSIVE lose
-  every seed; LEARNED (facts only) gains ≤ 2 floors. These keep policy load-bearing.
-- Every death has a verdict and a trace; `dice` deaths ≤ 5%.
-- Facts are learned; policy is written. Nothing learns policy implicitly.
+- Idle alone progresses (`examples/dayplayer.rs`, 16 seeds × 14 days): IDLE (no picks, no edits)
+  reaches D8 on day 1 and D23 by day 12, gold every day, stall ≤ 4 d, and never slays the King
+  in a fortnight. Engaging multiplies: PICKED (packages) reaches D13/D18/D23 ≥ 1.5× sooner than
+  IDLE and is never out-paced on ≥ 90% of seed × milestone pairs; TUNED (the pen, optional late fine-tuning) beats PICKED by ≥ 15 %
+  at D33. RANDOM is slower than PICKED at D13/D23 on the median and on ≥ 14/16 seeds. Nothing is required: removing any one system never leaves a
+  bot slower than IDLE on the median seed (± a check-in), no seed > 48 h behind from day 5; each
+  system adds value by its own output. Steady is the safest default; every other stance is best
+  at some wall. (Cut 30; DEFAULT/EDITED/PASSIVE/LEARNED retired with the pivot.)
+- Every death has a cause, a trace and a cheapest lever; `dice` deaths ≤ 5%.
+- Facts are learned; policy is chosen, drilled or written — never silent: every drilled row is
+  named, announced once, shown and revocable.
 - Art never blocks the game: every sprite id has a primitive fallback.
 - Copy: callout ≤ 3 words, verdict 1 word, no sentences in chrome (`eval/copy-budgets.json`,
   `tools/copy-lint.mjs`). No tutorial text.
-- Offline is uncapped; nothing punishes absence.
+- Offline is uncapped after the scout; before then an absence finishes at most the run in flight.
+  Nothing punishes absence; chest gold does not decay and funds restocking. IDLE taps only until
+  the scout is hired, then makes no picks or edits; its early delta from Cut 30 is bounded.
+- Workers are named in the town and report, with their first act announced. Works replaces tracks.
+  Policy rungs stay optional. Automation improves the away player without costing the daily player
+  more than one floor of mean best depth (Cut 30.5).
+- A record checkpoint secures carry permanently, even on death. The 30% heir purse floor is
+  separate from the exit share; never describe death as keeping 30% of the new carry.
 
 ## Gotchas
 
 - `/home/g` is itself a git repo. Never stage from the home toplevel.
 - Codex writes asynchronously; poll `art/generated/` mtimes to quiescence; run batches
   detached (`setsid nohup`).
+- `web/src/engine/pkg` must be a real directory: Vite glob imports skip a symlink and can
+  fall back to the fake engine. Production builds and release smoke must verify real WASM.
 - After editing Rust, rebuild `web/src/engine/pkg`; the PWA precache is versioned, so verify
   frontend changes on a fresh port.
 - `tools/ship.sh` takes ~2 min (fat-LTO wasm + wasm-opt; `--preview` ~25 s). Never pipe it

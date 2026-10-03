@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Bot gate table (examples/metrics.rs) on the `fast` cargo profile.
-//   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds alongside (~4 min: the per-set rows' edits and lanes do not scale with seeds)
-//   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 3 seeds (~8 min on a shared box; docs/ITERATION_SPEED.md 0d); the number that counts
+//   node tools/gates.mjs          quick: 8 seeds × 8 h × 3 verdicts, dayplayer 2 seeds (1 leave-one-out) alongside (~30–40 min fresh on the Cut 30 tree)
+//   node tools/gates.mjs --full   30 seeds × 8 h × 8 verdicts, dayplayer 16 seeds, the leave-one-outs too (~1–1.5 h fresh; docs/ITERATION_SPEED.md 0e); the number that counts
 // Cut 13 §6: the wire invariants (examples/qa.rs, 30 seeds, ~700 thread-s: ~45 s alone on the cores, ~120 s beside
 // the table) run beside both as a third job; the run fails if they do. `METRICS_PHASES=1` prints the table's and
 // qa's phase and job walls (qa: thread-seconds per leg). `QA_SHARE=0.5` gives qa that share of the cores (0.75).
@@ -9,14 +9,31 @@
 //                                 its own binary (+ what it reads at run time: the presets and the cohort cards for the table)
 //                                 — a client-only commit reprints all three in 0.2 s, and an edit to one example (a new qa
 //                                 invariant, a metrics row) reruns that leg alone (docs/ITERATION_SPEED.md §3.3, round 3)
+//   node tools/gates.mjs --fast   the gated rows that fit a few minutes: the quick table less the retired progression
+//                                 lineages (`metrics --fast`), qa on 10 seeds, the dayplayer's IDLE rows on 2 seeds — an
+//                                 inner-loop check, never the gate (docs/ITERATION_SPEED.md, round 4)
+// Round 4: the long jobs inside the legs are kept too (target/gates/{dp,prog,idle-snaps}/), keyed by the core's
+// sources (`RIDDLE_SRC_KEY`: crates/riddle-core/src, the manifests, the lockfile, rustc) and the harness file each
+// job runs — an edit to a bar or a row reprints the leg from its jobs, a core edit replays them. `--fresh` replays
+// them all (and keeps the new ones). `GATES_THREADS=N` (the cores unless set): each leg's threads.
+//   node tools/gates.mjs [--full] --rows <ids or substrings> [--fail-fast] [dayplayer args]
+//                                 TARGETED, a tuning loop's check (docs/ITERATION_SPEED.md §0h): the dayplayer leg alone,
+//                                 only the configurations, seeds and days the named rows read (`dayplayer --rows`);
+//                                 `--fail-fast` aborts on the first row settled FAIL. Seeds as the tier's (quick 2, --full
+//                                 16) unless `--seeds N` etc. follow. Cached like the legs; never a gate pass.
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import os from "node:os";
 const full = process.argv.includes("--full");
+const fast = process.argv.includes("--fast");
 const fresh = process.argv.includes("--fresh");
-const extra = process.argv.slice(2).filter((a) => a !== "--full" && a !== "--fresh");
-const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "metrics", "--example", "dayplayer", "--example", "qa"], { stdio: "inherit" });
+const rowsAt = process.argv.indexOf("--rows");
+const rows = rowsAt >= 0 ? process.argv[rowsAt + 1] : null;
+const failFast = process.argv.includes("--fail-fast");
+const extra = process.argv.slice(2).filter((a, i) => a !== "--full" && a !== "--fresh" && a !== "--fast" && a !== "--fail-fast" && !(rowsAt >= 0 && (i + 2 === rowsAt || i + 2 === rowsAt + 1)));
+if (rowsAt >= 0 && !rows) { console.error("gates --rows: name the rows (ids or substrings; `target/fast/examples/dayplayer --rows ?` lists them)"); process.exit(2); }
+const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", ...(rows ? [] : ["--example", "metrics", "--example", "qa"]), "--example", "dayplayer"], { stdio: "inherit" });
 if (b.status !== 0) process.exit(b.status ?? 1);
 // The binaries hash every input exactly (sources, deps, rustc); the presets and the cohort cards are read at run time
 // (metrics.rs `cohort_sets`: every eval/cards/*.rules.json — a new card changes the table without changing a binary).
@@ -26,15 +43,59 @@ const keyOf = (bin, parts) => {
   for (const [name, text] of parts) h.update(name).update(text);
   return h.digest("hex").slice(0, 16);
 };
+// The core's semantics: its sources, the manifests and the lockfile, the toolchain (the job caches' key; a binary's
+// bytes also move with an example's edit, which a job of another file does not read).
+const srcKey = (() => {
+  const h = createHash("sha1");
+  const walk = (d) => readdirSync(d).sort().flatMap((f) => (statSync(`${d}/${f}`).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]));
+  for (const f of [...walk("crates/riddle-core/src"), "crates/riddle-core/Cargo.toml", "Cargo.toml", "Cargo.lock"]) h.update(f).update("\0").update(readFileSync(f)).update("\0");
+  h.update(spawnSync("rustc", ["-vV"], { encoding: "utf8" }).stdout ?? "");
+  return h.digest("hex").slice(0, 16);
+})();
+const jobEnv = { RIDDLE_SRC_KEY: srcKey, ...(fresh ? { RIDDLE_CACHE_FRESH: "1" } : {}) };
+// TARGETED (`--rows`): the dayplayer leg alone on the named rows — its printout kept like a leg's (the binary, the
+// arguments), its full-length jobs kept and read like the gate's (`RIDDLE_SRC_KEY`). Never a gate pass: it prints
+// no `gates: all PASS` and says so.
+if (rows) {
+  const tier = full ? ["--seeds", "16", "--loo-seeds", "16", "--tuned-seeds", "16"] : ["--seeds", "2", "--loo-seeds", "1", "--tuned-seeds", "2"];
+  // (the dayplayer reads an argument's first occurrence: `extra` — `--seeds 8` … — before the tier's)
+  const args = [...extra, ...tier, "--rows", rows, ...(failFast ? ["--fail-fast"] : []), "--threads", String(Number(process.env.GATES_THREADS ?? os.availableParallelism()))];
+  const leg = `target/gates/dayplayer-rows-${keyOf("target/fast/examples/dayplayer", [["args", args.filter((a, i) => args[i - 1] !== "--threads" && a !== "--threads").join(" ")], ["src", srcKey]])}.txt`;
+  let res = !fresh && existsSync(leg) ? JSON.parse(readFileSync(leg, "utf8")) : null;
+  const hitRows = !!res;
+  if (!res) {
+    res = await new Promise((resolve) => {
+      const p = spawn("target/fast/examples/dayplayer", args, { stdio: ["ignore", "pipe", "inherit"], env: { ...process.env, ...jobEnv } });
+      let out = ""; p.stdout.on("data", (d) => (out += d));
+      p.on("close", (status) => resolve({ status, stdout: out }));
+    });
+    mkdirSync("target/gates", { recursive: true });
+    writeFileSync(leg, JSON.stringify(res));
+  }
+  const out = res.stdout ?? "";
+  const from = out.lastIndexOf("\nfail-fast:") >= 0 ? out.lastIndexOf("\nfail-fast:") : out.lastIndexOf("\nbar (targeted");
+  process.stdout.write(from >= 0 ? out.slice(from + 1) : out);
+  const ok = res.status === 0 && /targeted rows PASS/.test(out);
+  console.log(`gates: TARGETED — dayplayer rows \`${rows}\`${failFast ? " (fail-fast)" : ""} ${ok ? "PASS" : "FAIL"}; not a gate pass (the gate is \`node tools/gates.mjs [--full]\`)${hitRows ? ` (cached: ${leg}; --fresh to rerun)` : ""}`);
+  process.exit(ok ? 0 : 1);
+}
 const runtimeInputs = [
   ...readdirSync("crates/riddle-core/presets").sort().map((f) => [f, readFileSync(`crates/riddle-core/presets/${f}`)]),
   ...readdirSync("eval/cards").filter((f) => f.endsWith(".rules.json")).sort().map((f) => [f, readFileSync(`eval/cards/${f}`)]),
 ];
-const seeds = full ? 3 : 2;
+// Cut 30 §6: the idle bots over 16 seeds on the full table (the owner, round 5: the ratio rows — PICKED vs
+// IDLE, RANDOM — are noisy at 8); TUNED and the leave-one-outs over 8 until the gate speed-up lands (the
+// owner, round 6), then 16 — the speed-up landed (gate-speed, 2026-10-02): 16. 2 seeds and 1 leave-one-out on the quick table.
+const seeds = full ? 16 : 2;
+const looSeeds = full ? 16 : 1;
+const tunedSeeds = full ? 16 : 2;
+const dpArgs = ["--gate", "--seeds", String(seeds), ...(fast ? ["--bots", "idle", "--loo-seeds", "0"] : ["--loo-seeds", String(looSeeds), "--tuned-seeds", String(tunedSeeds)])];
+const qaSeeds = fast ? 10 : 30;
+const tableArgs = [...(full ? [] : [fast ? "--fast" : "--quick"]), ...extra];
 const legs = {
-  metrics: `target/gates/metrics-${keyOf("target/fast/examples/metrics", [...runtimeInputs, ["args", JSON.stringify({ full, extra })]])}.txt`,
-  qa: `target/gates/qa-${keyOf("target/fast/examples/qa", [["args", "--seeds 30"]])}.txt`,
-  dayplayer: `target/gates/dayplayer-${keyOf("target/fast/examples/dayplayer", [["args", `--gate --seeds ${seeds}`]])}.txt`,
+  metrics: `target/gates/metrics-${keyOf("target/fast/examples/metrics", [...runtimeInputs, ["args", JSON.stringify({ full, fast, extra })]])}.txt`,
+  qa: `target/gates/qa-${keyOf("target/fast/examples/qa", [["args", `--seeds ${qaSeeds}`]])}.txt`,
+  dayplayer: `target/gates/dayplayer-${keyOf("target/fast/examples/dayplayer", [["args", dpArgs.join(" ")]])}.txt`,
 };
 const cached = (leg) => (!fresh && !extra.length && existsSync(legs[leg]) ? JSON.parse(readFileSync(legs[leg], "utf8")) : null);
 const keep = (leg, r) => { if (!extra.length) { mkdirSync("target/gates", { recursive: true }); writeFileSync(legs[leg], JSON.stringify({ status: r.status, stdout: r.stdout })); } };
@@ -45,7 +106,7 @@ const run = (bin, args, signal, env) => {
   let started;
   const ready = new Promise((r) => (started = r));
   const done = new Promise((resolve) => {
-    const p = spawn(bin, args, { stdio: ["ignore", "pipe", signal ? "pipe" : "inherit"], env: env ? { ...process.env, ...env } : process.env });
+    const p = spawn(bin, args, { stdio: ["ignore", "pipe", signal ? "pipe" : "inherit"], env: { ...process.env, ...jobEnv, ...(env ?? {}) } });
     let out = ""; p.stdout.on("data", (d) => (out += d));
     let buf = "";
     if (signal) {
@@ -62,15 +123,18 @@ const run = (bin, args, signal, env) => {
   });
   return { ready, done };
 };
-// The dayplayer's chains start first. They were the critical path while the table left them
-// their cores; with the table at ~2.5 min and the chains at ~1 min alone (docs/ITERATION_SPEED.md,
-// 2026-09-24), the table is, so it takes every core but one and shares them while the others run.
+// Every leg is CPU-bound and they run side by side, each on the whole budget (the cores share them out).
+// Round 4: the dayplayer's fortnights are the gate's longest chains (its PICKED/TUNED groups, hours of CPU
+// each): they start first, and its groups, like the table's chains (the progression lineages, the idle
+// snapshots), widen their camp panels onto the threads the other jobs leave as they end — the tails run
+// on every core instead of one (docs/ITERATION_SPEED.md, round 4).
 const QA_SHARE = Number(process.env.QA_SHARE ?? 0.75);
-const cores = os.availableParallelism();
+const cores = Number(process.env.GATES_THREADS ?? os.availableParallelism());
 const hit = { metrics: cached("metrics"), qa: cached("qa"), dayplayer: cached("dayplayer") };
 const done = (r) => ({ ready: Promise.resolve(), done: Promise.resolve(r) });
-const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", ["--gate", "--seeds", String(seeds)])).done;
-const table = hit.metrics ? done(hit.metrics) : run("target/fast/examples/metrics", [...(full ? [] : ["--quick"]), "--threads", String(Math.max(4, cores - 1)), ...extra], "metrics: quiet ticks measured", { METRICS_QUIET_SIGNAL: "1" });
+const dpThreads = Math.max(4, cores);
+const dayplayer = (hit.dayplayer ? done(hit.dayplayer) : run("target/fast/examples/dayplayer", [...dpArgs, "--threads", String(dpThreads)])).done;
+const table = hit.metrics ? done(hit.metrics) : run("target/fast/examples/metrics", [...tableArgs, "--threads", String(Math.max(4, cores - 1))], "metrics: quiet ticks measured", { METRICS_QUIET_SIGNAL: "1" });
 // The invariants (a job pool of seeds and their legs) start once the table's single-threaded quiet
 // per-tick measurement is done (a few seconds), then take three quarters of the cores beside the
 // table's all-but-one: at four threads they were the gate's critical path (305 s beside a 200 s
@@ -78,7 +142,7 @@ const table = hit.metrics ? done(hit.metrics) : run("target/fast/examples/metric
 // again (docs/ITERATION_SPEED.md, round 3).
 // (a cached table leaves qa every core)
 const qaThreads = hit.metrics ? cores : Math.max(4, Math.round(cores * QA_SHARE));
-const qa = hit.qa ? Promise.resolve(hit.qa) : table.ready.then(() => run("target/fast/examples/qa", ["--seeds", "30", "--threads", String(qaThreads)]).done);
+const qa = hit.qa ? Promise.resolve(hit.qa) : table.ready.then(() => run("target/fast/examples/qa", ["--seeds", String(qaSeeds), "--threads", String(qaThreads)]).done);
 const [r, p, q] = await Promise.all([table.done, dayplayer, qa]);
 for (const [leg, res] of [["metrics", r], ["qa", q], ["dayplayer", p]]) if (!hit[leg]) keep(leg, res);
 const say = (t) => process.stdout.write(t);

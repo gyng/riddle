@@ -206,10 +206,10 @@ pub struct Arc {
     pub cornered: bool,
     pub chased: bool,
     /// The first action after the low point, and whether it is still awaited.
-    pub row: Option<Act>,
+    pub row: Option<crate::shared::Shared<Act>>,
     pub row_pending: bool,
     /// The last hero action (the row when the episode has no low).
-    pub last: Option<Act>,
+    pub last: Option<crate::shared::Shared<Act>>,
     pub items_used: Vec<String>,
     pub allies_lost: Vec<String>,
     pub situation: Option<String>,
@@ -220,7 +220,7 @@ pub struct Arc {
     /// Cut 8B §1: the last few hero actions as (action number, act), the action number of the
     /// low point's act, and the combo credited once two adjacent rows fired around it.
     #[serde(default)]
-    pub acts: Vec<(u32, Act)>,
+    pub acts: Vec<(u32, crate::shared::Shared<Act>)>,
     #[serde(default)]
     pub low_act: Option<u32>,
     #[serde(default)]
@@ -261,7 +261,7 @@ impl Arc {
             threat: self.threat.clone(),
             cornered: self.cornered,
             chased: self.chased,
-            act: self.row.clone().or_else(|| self.last.clone()).unwrap_or_default(),
+            act: self.row.as_deref().or(self.last.as_deref()).cloned().unwrap_or_default(),
             trait_: run.trait_,
             situation: self.situation.clone(),
             detail: self.detail.clone(),
@@ -270,7 +270,7 @@ impl Arc {
             allies_lost: self.allies_lost.clone(),
             resolution: res,
             combo: self.combo.clone(),
-            twist: run.floor_twist.clone(),
+            twist: (*run.floor_twist).clone(),
         }
     }
     /// Cut 8B §1: two adjacent rows (`a` then `b`, in row order) fired within the three hero
@@ -375,7 +375,8 @@ pub fn on_action(run: &mut Run, row: i32, verb: &Verb) {
     // The walk home is the committing row's (the chores step it: `ai::chore`).
     let walk = row == -2 && matches!(verb.v.as_str(), "return" | "bank") && run.homeward.is_some_and(|h| h >= 0);
     let row = if walk { run.homeward.unwrap_or(row) } else { row };
-    let act = Act { row, verb: verb.clone(), target: target.as_ref().map(|t| t.0.clone()), boss: target.is_some_and(|t| t.1), walk };
+    // One act, shared by the window, the low's row and `last` (and the history ring's copies).
+    let act = crate::shared::Shared::new(Act { row, verb: verb.clone(), target: target.as_ref().map(|t| t.0.clone()), boss: target.is_some_and(|t| t.1), walk });
     let turn = run.turn;
     let actions = run.actions;
     let a = &mut run.arc;
@@ -394,7 +395,7 @@ pub fn on_action(run: &mut Run, row: i32, verb: &Verb) {
     }
     // A situation opened this action (a stray tamed) takes the action as its turn beat.
     for e in a.sealed.iter_mut().filter(|e| e.t == turn && e.setup == Setup::Stray && e.act == Act::default()) {
-        e.act = act.clone();
+        e.act = (*act).clone();
     }
     a.last = Some(act);
 }
@@ -435,7 +436,7 @@ pub fn open_situation(run: &mut Run, setup: Setup, situation: &str, detail: &str
     ep.situation = Some(situation.to_string());
     ep.detail = detail.to_string();
     ep.name = name.to_string();
-    ep.act = run.arc.last.clone().unwrap_or_default();
+    ep.act = run.arc.last.as_deref().cloned().unwrap_or_default();
     push_sealed(run, ep);
 }
 

@@ -65,8 +65,10 @@ try {
     await waitFor((x) => x?.screen === "death", "the order death"); await sleep(300);
     const d = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict")?.textContent,
       sealUp: getComputedStyle(document.querySelector(".death-line .verdict")).textTransform, lead: document.querySelector("button.patch .target")?.textContent.trim(),
-      lit: document.querySelector("button.patch.top .target")?.textContent.trim(), surv: document.querySelector("button.patch .surv")?.textContent }));
-    check(d.cause === "ogre · D8 · return at 20% under attack nearest" && d.seal === "order" && d.sealUp === "uppercase", `an order death names both rows, the seal one word ("${d.cause}" · ${d.seal})`);
+      lit: document.querySelector("button.patch.top .target")?.textContent.trim(), surv: document.querySelector("button.patch .surv")?.textContent,
+      margin: document.querySelector(".death .death-margin")?.textContent, why: document.querySelector(".death .death-why")?.textContent }));
+    // death v2: the headline is the killer and the floor; both rows are the details' margin, the why line the one that never acted
+    check(/^ogre · D8\b/.test(d.cause ?? "") && d.margin === "return at 20% under attack nearest" && d.why === "return at 20% never fired" && d.seal === "order" && d.sealUp === "uppercase", `an order death names both rows, the seal one word ("${d.cause}" · ${d.seal})`);
     check(d.lead === "move above attack nearest" && d.lit === d.lead && /survives 11\/12 · was 0\/12/.test(d.surv ?? ""), `its lead patch is the move, lit for the gem ("${d.lead}" · ${d.surv})`);
     await shot("cut25-order");
     await page.locator(".patch-gem").click({ timeout: 5000 }); await sleep(250);

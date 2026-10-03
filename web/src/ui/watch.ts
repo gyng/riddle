@@ -114,6 +114,7 @@
 // ticks after the last of those stops holding. Entry and exit are released at the viewer's clock (the engine runs ahead),
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
+import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Row, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
@@ -126,9 +127,10 @@ import { verbsAt } from "../engine/classes";
 import { openSheet } from "./sheet";
 import { salvageValue } from "./salvage";
 import { mergeFinds } from "./report";
+import { itemIcon, itemName } from "./items";   // run-clear
 import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
-import { glossOf, kindGlyph, noteText, ruleName, setRefRows, verbLabel } from "./tokens";
+import { glossOf, noteText, ruleName, setRefRows, verbLabel } from "./tokens";
 import { EXIT_TRACE_ROWS, traceTable } from "./trace";
 import { drivenDeath, exitExtras } from "./death";
 import { laneTitle, seenForks } from "./route";
@@ -137,6 +139,8 @@ import { lastRun, markEnd, recordRun } from "./runlog";
 import { FoldTally, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
+import { kwHost } from "./tips";   // RUNS_UI: the live badge's tip
+import { goesOnCap } from "./runlane";   // RUNS_UI: the town tile's first-watches caption
 
 type Tier = "bank" | "return" | "death";
 /** QA 92eb880 (N: the `fights` chip read `1.332247798006322×` over the portrait): a rate as the chip shows it — whole from 2×, one
@@ -339,6 +343,14 @@ export function renderWatch(app: App): Mounted {
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });
   const ticker = h("div", { class: "ticker" });
+  // c30-legible: the run's end, why — its own line under the ticker (`hurt · banked`, `hurt · went home`, `slain · jackal`)
+  const whyLine = h("div", { class: "beat-why num", "aria-live": "polite" });
+  let whyTimer2 = 0;
+  function showWhy(text: string, ms: number): void {
+    replace(whyLine, text); whyLine.classList.add("show"); el.classList.add("has-why");
+    clearTimeout(whyTimer2); whyTimer2 = window.setTimeout(() => { whyLine.classList.remove("show"); el.classList.remove("has-why"); }, ms);
+    if ("__riddle" in window) ((window as unknown as { __whyLog?: string[] }).__whyLog ??= []).push(text);   // dev
+  }
   // Cut 23 §3: a reasoned line's reason, on tap (the line's text → the reason), over the ticker
   const whyTip = h("div", { class: "why-tip num", "aria-live": "polite" });
   const whyOf = new Map<string, string>();
@@ -356,6 +368,12 @@ export function renderWatch(app: App): Mounted {
   };
   const skip = tile({ id: "skip", cls: "hud-btn", icon: "skip", label: "▶▶|", onclick: () => skipToEvent() });
   const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
+  // RUNS_UI (docs/RUNS_UI.md): back to the town while he goes on — leaving the watch never stops the run (the town's lane shows it live;
+  // the open app's clock plays it on, unwatched). The ↻ on the tile is the mark; its tip says the rest
+  const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "⌂", label: /* copy:button */ "town", onclick: () => { if (!done) app.leaveWatch(); } });
+  // (its ↻ — he keeps going — is drawn on the tile's corner: runs.css `.town-btn::after`; the first watches also carry the one-time caption
+  // `he keeps going` over it — the owner's concept rule: an icon and a one-time ≤ 3-word caption; its words are CSS's, not the tile's text)
+  { const cap = goesOnCap(); if (cap) toTown.appendChild(cap); }
   // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
   const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
   // Cut 27 §1: the fold line — the interstitial over a folded stretch (`D1–6 · 100% · +$84` and its chips), docked under the HUD once the
@@ -375,7 +393,7 @@ export function renderWatch(app: App): Mounted {
   const meterTile = tile({ id: "meters", cls: "meter-btn", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
     metersOn = !metersOn; writeMetersOn(metersOn); meterTile.classList.toggle("on", metersOn); meterBox.hidden = !metersOn; paintMeters(true);
   } });
-  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile], gem: pause, top: scrub });
+  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile, toTown], gem: pause, top: scrub });
   const wideMeters = h("div", { class: "meters-live" });
   const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
   function paintMeters(now = false): void {
@@ -384,10 +402,14 @@ export function renderWatch(app: App): Mounted {
     if (metersOn) replace(meterBox, compactLine(lastMeters));
     if (wide.slot) replace(wideMeters, meterPanel(lastMeters.run, app.rules.rows, { title: /* copy:label */ "this run" }));
   }
+  // RUNS_UI (the blind read: "is WATCH the live run or a replay? does it go on if I leave?"): the HUD says it is the run going on now,
+  // and that it goes on by itself (`↻ auto`, the lane's mark) — the `town` tile's ↻ is the same mark
+  const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), /* copy:label */ "live",
+    app.lineage.tree?.auto_send !== false ? h("span", { class: "lb-auto" }, " · ↻ ", /* copy:label */ "auto") : ""), "live");
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
-      h("div", { class: "hud top" }, depth, alert, bossBar, stake),
-      meterBox, banner, ticker, whyTip),
+      h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
+      meterBox, banner, ticker, whyLine, whyTip),
     cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
@@ -421,7 +443,7 @@ export function renderWatch(app: App): Mounted {
   // Cut 8A: the fight frame — whether the engine's latest snapshot holds it, the viewer ticks it spans, the frame shown
   let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map", lastBlow = -Infinity;
   // Cut 13 §4: the situation beat the frame is holding for (engine ticks), its text shown once at the cut; beats shown so far
-  type Beat = { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean; cage?: boolean };
+  type Beat = { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean; cage?: boolean; why?: string };
   let beat: Beat | null = null, beats = 0;   // hold: Cut 15 §4, the clock at 1× through it (a boss's kill)
   let exitBeatUntil = 0;              // Cut 14 §3: the exit flow waits while the bank / return beat is on screen
   let holdLineUntil = 0;              // Cut 15 §4: a boss kill's `WARLORD DOWN` keeps the ticker this long
@@ -503,6 +525,8 @@ export function renderWatch(app: App): Mounted {
   }
   let prepended = false;              // bail fell back to the row prepend (an engine without `bail`)
   const cls = app.lineage.class;
+  let recordBeat = false;   // run-clear: the run's `NEW BEST` stamp, once
+  const RECORD_MS = 2400;
   const before = { best: app.lineage.best_depth, marks: app.lineage.marks, level: app.lineage.classes?.[cls]?.level ?? 1, xp: app.lineage.classes?.[cls]?.xp ?? 0, renown: app.lineage.renown ?? 0, rank: app.lineage.rank ?? 0 };
   const learned: string[] = [], found: InvItem[] = [], notes: Highlight[] = [], tamed: string[] = [], lost: string[] = [];
   const kinds = new Map<number, string>(), names = new Map<number, string>();
@@ -722,7 +746,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** Cut 13 §4: a situation's note opens the fight frame for SCENE_TICKS from its tick (or rides a fight already framed there);
    *  its text is the callout, shown once the frame is up. */
-  function beatAt(t: number, text: string, exit = false, hold = false, isCage = false): void {
+  function beatAt(t: number, text: string, exit = false, hold = false, isCage = false, why?: string): void {
     const v = viewerTick();
     // a frame that is up (or opening) before t carries the beat; a fight the probe dropped (`fightFrom` cleared) does not
     const framed = fightFrom <= t && (fightOn || v < fightUntil);
@@ -731,7 +755,7 @@ export function renderWatch(app: App): Mounted {
     if (exit) fightUntil = Infinity;   // Cut 14 §3: the run is over — the frame holds; the exit flow's own clock (SCENE_MS, real time) lets go
     // an earlier beat the playhead has yet to reach keeps its place; this one takes over at its own tick (QA on 3d71c33: a den's
     // release showed the later `BANKED $13`, which had overwritten it, on D2 ~15 s before the bank)
-    const b: Beat = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold, cage: isCage };
+    const b: Beat = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold, cage: isCage, why };
     if (!(beat && !beat.shown && beat.from < t)) beat = b;
     el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
     // Cut 18 §1: a beat the playhead jumped over (a skip, a seek to live) is not held after the fact
@@ -765,8 +789,12 @@ export function renderWatch(app: App): Mounted {
     tickerQueue.length = 0; showTicker(b.text, b.cage ? "beat cage" : "beat", dur);
     // Cut 19 §1: the cage's line is a plate the finger finds (a tap within the hold opens the override)
     if (b.cage) { replace(ticker, h("span", { class: "cage-line" }, b.text)); if (cage) cage.shown = true; }
+    // c30-legible (the owner: "I didn't understand … why the run ended early"): the end's reason under its sum, the core's ≤ 3 words
+    // (`hurt · banked`, `hurt · went home`); a death's beat is its reason alone (`slain · jackal`)
+    // (its own line under the ticker: the ticker's text stays the beat's own)
+    if (b.why) showWhy(b.why, dur);
     el.dataset.held = "1";
-    if ("__riddle" in window) ((window as unknown as { __beatLog?: unknown[] }).__beatLog ??= []).push({ text: b.text, from: b.from, until: b.until, v: viewerTick(), frame, ms: Math.round(now) });   // dev
+    if ("__riddle" in window) ((window as unknown as { __beatLog?: unknown[] }).__beatLog ??= []).push({ text: b.text, why: b.why, from: b.from, until: b.until, v: viewerTick(), frame, ms: Math.round(now) });   // dev
   }
   const beatHeld = (): boolean => performance.now() < beatHoldUntil;
   /** Cut 18 §1: the tick a held beat's picture stops at — its span's end, or two ticks before the next stairs (a descend fades the
@@ -855,6 +883,8 @@ export function renderWatch(app: App): Mounted {
           // without it): the fork is a beat, cut in as the situations are (the fight frame, its line), in every mode — not a callout the mode drops
           if (/^two stairs$/i.test(ev.text)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); beatAt(ev.t, /* copy:callout */ "TWO STAIRS"); } break; }
           if (ev.text === /* copy:none */ "choose one") break;   // Cut 19 §1: the cage beat names the pick instead
+          // c305-core: a new record is the core's callout (`new best · D5`) — one beat, drawn as run-clear's gilt stamp (`NEW BEST D5`), once a run
+          { const m = /^new best · D(\d+)$/i.exec(ev.text); if (m) { if (!recordBeat) { recordBeat = true; const d = Number(m[1]); at(ev.t, () => { if (folding) return; showBanner(/* copy:callout */ `NEW BEST D${d}`, RECORD_MS, "record-beat"); cue("level"); }); } break; } }
           if (breakBeat(ev.t, ev.text)) break;   // Cut 16 §4: `warlord breaks` is the beat's, not a plain callout
           // Cut 12 §6: a sanity refusal (`drink ✗ no use`) shows once per floor, not once per streak
           if (ev.text.includes("✗")) { const key = `${ev.text}@${s.depth}`; if (refused.has(key)) break; refused.add(key); }
@@ -941,6 +971,10 @@ export function renderWatch(app: App): Mounted {
           const up = floors.get(ev.depth - 1)?.biome ?? (s.depth === ev.depth - 1 ? s.biome : undefined);
           const lane = ev.biome && up && up !== ev.biome && ev.biome !== "warrens" && seenForks(app.lineage).length ? ev.biome : undefined;
           at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap); ambient(lane ? /* copy:callout */ `D${ev.depth} · ${lane}` : rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
+          // run-clear (the owner, 2026-10-02: a record no longer ends a run — it is a beat and a checkpoint, and he carries on): the
+          // first floor past the lineage's record this run stamps a gilt `NEW BEST D5` over the floor's arrival — the boss stamps' look,
+          // but it never holds the frame or takes a fight's beat (he walks on; the card's `new best` badge says it again)
+          // (c305-core 2ec1cb0: the core says it — the `new best · D5` callout, a beat and a checkpoint; the stamp is drawn from it below)
           break;
         }
         case "fact": {
@@ -991,7 +1025,10 @@ export function renderWatch(app: App): Mounted {
           // less than it carried says what it lost (`DRIVEN $0 · −$186`)
           const lostC = ev.line ? Math.max(0, ev.line.carried - ev.line.kept) : 0;
           const oathW = exitOath ? ` · ${exitOath}` : ""; exitOath = "";
-          if (tier !== "death") beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true);
+          const why = ev.line?.reason;
+          // (a death's reason rides its last frame, no beat: the death screen comes as it did)
+          if (tier === "death") { if (why) at(ev.t, () => showWhy(why, SCENE_MS)); }
+          else beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true, false, false, why);
           break;
         }
         // Cut 28b (owner: "it's not clear what oaths do"): the sworn oath's fate is a beat as it happens — `OATH KEPT`, or `OATH BROKEN · R2 return`
@@ -1964,7 +2001,7 @@ export function renderWatch(app: App): Mounted {
         if (sent) return; sent = true; vaultChosen = true;
         releaseBeat();
         app.engine.choose(it.id).catch((e) => console.warn("choose", e)).finally(() => { vaultClose?.(); if (!disposed) { tickerQueue.length = 0; showTicker(tookText(it.label), "", 2400); } });   // the next step's snapshot carries the pickup
-      } }, h("b", { class: "glyph" }, kindGlyph(it.kind)), " ", it.label)));
+      } }, itemIcon(it, { size: "s" }), itemName(it))));   // run-clear: the cage's three in their rarity rims
       // the wait as a shrinking bar (QA on 56f2a1d: "closes by itself ~2–4 s later with no timer"): Cut 15 §5, the wall-clock wait
       // (VAULT_WAIT_MS; the world stands meanwhile), width 100% → 0 over it — `vc.left` is the engine's own grace, after that
       const bar = h("i", { style: `transition-duration:${VAULT_WAIT_MS / 1000}s` });
@@ -2006,7 +2043,8 @@ export function renderWatch(app: App): Mounted {
     // QA 92eb880 (N: "VERDICT appears while the hero is still up (8/36), three more hits follow"): during the walk-out the gem slot holds
     // the stilled pause; the verdict / report gem comes once the last frame has played (`nextGem`)
     pause.disabled = true;
-    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail]) b.disabled = true;
+    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, toTown]) b.disabled = true;
+    liveBadge.hidden = true;   // RUNS_UI: the run is over — nothing live left here
   }
   function nextGem(): void {
     if (el.dataset.next === "1" || !pause.isConnected) return;
@@ -2178,7 +2216,7 @@ export function renderWatch(app: App): Mounted {
           if (keep.has(it.id)) keep.delete(it.id);
           else { if (keep.size >= free) { const oldest = keep.values().next().value; if (oldest === undefined) return; keep.delete(oldest); } keep.add(it.id); }
           paint();
-        } }, it.label, " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "vault") : unpaid ? "" : h("b", { class: "num gold" }, `$${worthOf(i)}`))));   // the engine's worth at this exit (its old client table read 4×)
+        } }, itemIcon(it, { size: "s" }), itemName(it), " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "vault") : unpaid ? "" : h("b", { class: "num gold" }, `$${worthOf(i)}`))));   // the engine's worth at this exit (its old client table read 4×)
       };
       paint();
       // the pile once: the exit line carries `bones: 8 items on D4` (the core's), so the client's `bones left` line only stands in

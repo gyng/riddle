@@ -62,7 +62,7 @@ pub fn stall_record(game: &Game, run: &Run) -> DeathRec {
 }
 
 fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
-    let turns: Vec<_> = run.trace.iter().rev().take(TRACE_LEN).rev().cloned().collect();
+    let turns: Vec<crate::wire::TraceTurn> = run.trace.iter().rev().take(TRACE_LEN).rev().map(|t| (**t).clone()).collect();
     let provenance = crate::provenance::all(&game.prov);
     let chain = chain_of(&turns);
     let root = if stall { None } else { root_of(&game.prov, game.lineage.rules(), turns.last()) };
@@ -85,6 +85,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let rules = game.lineage.rules().clone();
     let vocab = context_vocab(game, run);
     let death = Death {
+        package: None,
+        lever: None,
         run_id: run.id,
         depth: run.depth,
         cause: cause.clone(),
@@ -135,7 +137,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     };
     let (t10, t10_facts) = match game.history.get(pick) {
         Some((r, f)) => (Some(r.clone()), f.clone()),
-        None => (None, BTreeSet::new()),
+        None => (None, BTreeSet::new().into()),
     };
     // The kill counts as they stood at the checkpoint: the lineage's now, less this run's
     // kills after it (`Run.kills` carries the tick of each).
@@ -155,7 +157,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let row_fired = run.row_fired.clone();
     let gamble_row = if stall { None } else { gamble_row(run, &rules) };
     let home = run.home_at.map(|(t, hp, _)| (hp, run.turn.saturating_sub(t)));
-    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.clone().filter(|(f, _)| f.id == run.id && f.depth == run.depth), gamble_row, chase_row: None, moves: Vec::new(), removed: removed_rows(&game.lineage.sent_sets, &game.lineage.rules().clone()) }
+    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.as_ref().filter(|(f, _)| f.id == run.id && f.depth == run.depth).map(|(r, f)| (r.clone(), (**f).clone())), gamble_row, chase_row: None, moves: Vec::new(), removed: removed_rows(&game.lineage.sent_sets, &game.lineage.rules().clone()) }
 }
 
 /// Cut 27 §5: the rows of the latest sent set other than `now` that `now` no longer holds (by
@@ -442,10 +444,15 @@ fn card_counter(game: &Game, rec: &DeathRec) -> Option<Row> {
 /// verb, the row above it that acted most in `trace`, the fight's last actions; ties: the higher
 /// row). (None, None) when no row carries it; `over` None when no row above it acted.
 pub fn driven_order(rules: &RuleSet, counter: &Row, trace: &[crate::wire::TraceTurn]) -> (Option<u32>, Option<u32>) {
+    driven_order_in(rules, counter, trace)
+}
+
+/// `driven_order` over a run's own trace (its rows `Shared`) or a wire trace.
+pub fn driven_order_in<T: std::borrow::Borrow<crate::wire::TraceTurn>>(rules: &RuleSet, counter: &Row, trace: &[T]) -> (Option<u32>, Option<u32>) {
     let carries = |r: &Row| r.verb == counter.verb || r.card().and_then(crate::meta::unlock_rows).is_some_and(|rows| rows.iter().any(|x| x.verb == counter.verb));
     let Some(held) = rules.rows.iter().position(carries) else { return (None, None) };
     let mut counts: Vec<(i32, usize)> = Vec::new();
-    for t in trace.iter().filter(|t| t.row >= 0 && (t.row as usize) < held) {
+    for t in trace.iter().map(|t| t.borrow()).filter(|t| t.row >= 0 && (t.row as usize) < held) {
         match counts.iter_mut().find(|c| c.0 == t.row) {
             Some(c) => c.1 += 1,
             None => counts.push((t.row, 1)),
@@ -760,7 +767,7 @@ pub fn stall_candidates(vocab: &Vocabulary, state: &Run) -> Vec<Row> {
 struct Replayer {
     g: Game,
     run: Run,
-    facts: BTreeSet<String>,
+    facts: crate::shared::Shared<BTreeSet<String>>,
     kill_counts: BTreeMap<String, u32>,
     total_turns: u64,
     ended: bool,
@@ -882,7 +889,7 @@ impl Replayer {
 fn floor_base(game: &Game, rec: &DeathRec) -> Option<(Game, u32)> {
     let (start, facts) = rec.floor.clone()?;
     let mut base = game.sim_clone();
-    base.lineage.facts = facts;
+    base.lineage.facts = facts.into();
     if let Some(k) = &rec.t10_kill_counts {
         base.lineage.kill_counts = k.clone();
     }
@@ -2327,9 +2334,11 @@ fn shape_patches(game: &Game, rec: &mut DeathRec) {
     // death still names its alternative (Cut 11 §4), even a hopeless one.
     // … and any 0 % row (the pinned boss counter too — QA on 3d71c33: `attack boss · survives
     // 0%` beside a 100 % candidate); the root's unlock pseudo-patch is measured apart.
+    // The causal theft patch prevents an earlier loss, not the killing blow at this checkpoint.
+    // Keep it beside the immediate fixes even at zero survival, with its honest `no_gain` mark.
     let hopeless = |p: &Patch| p.insert_at >= 0 && p.survive <= 1e-9;
     if rec.death.patches.iter().any(|p| !hopeless(p)) {
-        rec.death.patches.retain(|p| !hopeless(p));
+        rec.death.patches.retain(|p| p.root.is_some() || !hopeless(p));
     }
     // Cut 6 §8: on a boss death a `return` is never the only patch — the best other scored
     // candidate joins it (giving up is not the answer to a wall).
@@ -2582,6 +2591,11 @@ pub fn death(game: &mut Game, run_id: u32) -> Option<Death> {
     compute_verdict(game, &mut rec);
     compute_deltas(game, &mut rec);
     mark_no_gain(&mut rec.death);
+    // Cut 30 §2: the verdict names `package · row` — the cause row when it names one, else the last
+    // row that acted
+    let acted = rec.death.cause_row.map(|r| r as i32).or_else(|| rec.death.trace.turns.iter().rev().find(|t| t.row >= 0).map(|t| t.row));
+    rec.death.package = acted.and_then(|i| rec.rules.rows.get(i as usize)).and_then(|row| crate::packages::row_label(row).map(|l| format!("{l} · {}", row.describe())));
+    rec.death.lever = crate::packages::lever(&game.lineage, &rec.death.cause);
     let mut d = rec.death.clone();
     // QA on 23ed91f: the camp's numbers are `death_deltas`'s (four camp panels — seconds in
     // wasm): until measured on this camp state, the shown patches carry the verdict's own
@@ -2610,7 +2624,8 @@ pub fn death_deltas(game: &mut Game, run_id: u32) -> Option<Vec<Patch>> {
 }
 
 fn camp_key(game: &Game) -> u64 {
-    crate::forecast::lineage_key(&camp_state(game)).max(1)
+    let g = camp_state(game);
+    splitmix(crate::forecast::lineage_key(&g) ^ crate::rng::hash_str(&crate::forecast::rules_key(g.lineage.rules()))).max(1)
 }
 
 /// The camp a patch is applied in: the game with its pending exit resolved as the night
@@ -2637,33 +2652,40 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
         return;
     }
     let g = camp_state(game);
-    let key = crate::forecast::lineage_key(&g).max(1);
+    let key = camp_key(game);
     if rec.camp_key == key {
         return;
     }
     rec.camp_key = key;
     let depth = (rec.death.depth + 1).min(g.lineage.best_depth + 1).max(1);
-    let (base, _) = crate::forecast::camp_reach(&g, &rec.rules, depth);
-    let max_rows = max_rows(rec);
+    // The death replay keeps its recorded set; a camp tap edits today's active set.
+    let current = g.lineage.rules().clone();
+    let (base, _) = crate::forecast::camp_reach(&g, &current, depth);
+    let max_rows = g.lineage.max_rows();
     let mut unlocked = g.sim_clone();
     unlock_base(&mut unlocked, rec);
-    let base_panel = crate::forecast::camp_panel(&g, &rec.rules, crate::forecast::FORECAST_SIMS);
+    let base_panel = crate::forecast::camp_panel(&g, &current, crate::forecast::FORECAST_SIMS);
     let mut panels: Vec<Vec<crate::forecast::SimResult>> = Vec::with_capacity(rec.death.patches.len());
     for p in rec.death.patches.iter_mut() {
         // QA on 308f045 (qaAD: `retreat · drops R3 · survives 12/12`, applied: `vs sent · bank −30 · death +29`): an insert onto a
         // full set is measured as the tap applies it — its `drops` row out (`offline::apply_patch`, the client's `applyPatchOver`),
         // never over the cap with every row kept
-        let rules = if p.drops.is_some() && p.insert_at >= 0 { crate::offline::apply_patch(&rec.rules, p, rec.vocab.max_rows) } else { patched_rules(&rec.rules, p, max_rows) };
+        let rules = if p.insert_at >= 0 { crate::offline::apply_patch(&current, p, max_rows) } else { patched_rules(&current, p, max_rows) };
         // QA on 0c6e126: a patch offered with its purchase is measured with it bought.
         let bought = with_buy(&g, p);
         let at = if p.insert_at < 0 { &unlocked } else { bought.as_ref().unwrap_or(&g) };
-        let (r, n) = crate::forecast::camp_reach(at, &rules, depth);
+        let edited = crate::forecast::edited_game(at, &rules);
+        let rules = edited.lineage.rules();
+        let (r, n) = crate::forecast::camp_reach(&edited, rules, depth);
         p.forecast_delta = r - base;
         p.forecast_depth = depth;
         p.forecast_pm = crate::forecast::half_width(r, n as usize);
         p.camp_pending = false;
         // QA on 524827b: the whole run's move on the same panel (a cache hit: `camp_reach`'s).
-        panels.push(crate::forecast::camp_panel(at, &rules, crate::forecast::FORECAST_SIMS));
+        panels.push(crate::forecast::camp_panel(&edited, rules, crate::forecast::FORECAST_SIMS));
+        for (k, v) in edited.panel_cache.into_inner() {
+            crate::forecast::panel_insert(game, k, v);
+        }
     }
     // QA on 308f045 (qaAC: `survives 12/12 · reach D9 ≈ ±1`, applied: the camp's `vs sent · D6 −21`): the bar the move is read at
     // is the camp's `vs sent` head — the frontier when it moves, else the depth that moves most — so the patch and the camp after
@@ -2672,7 +2694,7 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
     let longest = panels.iter().map(Vec::len).max().unwrap_or(0);
     let base_n = if base_panel.len() < longest {
         let tag = crate::forecast::forecast_tag(&g, g.lineage.best_depth + 1);
-        crate::forecast::simulate_budget_from(&g, &rec.rules, longest as u32, tag, u32::MAX, u64::MAX, base_panel.clone())
+        crate::forecast::simulate_budget_from(&g, &current, longest as u32, tag, u32::MAX, u64::MAX, base_panel.clone())
     } else {
         base_panel.clone()
     };
@@ -2859,7 +2881,7 @@ mod tests_trace {
 
     /// A game with a live run on an open 16×12 room, no monsters or items.
     fn arena(seed: u64) -> Game {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_literal(seed);
         g.max_deaths = 1000;
         g.start_run(Some(seed.wrapping_mul(7) + 3));
         let run = g.run.as_mut().unwrap();
@@ -3132,7 +3154,7 @@ mod tests_trace {
     #[cfg(not(debug_assertions))]
     #[test]
     fn a_verdict_takes_under_point_six_seconds() {
-        let mut g = Game::new(3);
+        let mut g = Game::new_literal(3);
         g.run_offline(2 * 3600);
         let ids: Vec<u32> = g.deaths.iter().filter(|(_, r)| !r.verdict_done).map(|(id, _)| *id).take(3).collect();
         assert!(!ids.is_empty(), "no unjudged death in two hours");
@@ -3158,7 +3180,7 @@ mod tests_faithful {
     /// inside the replay window (the window reaches the killing blow, not just the last action).
     #[test]
     fn replay_without_reseed_reproduces_the_death() {
-        let mut g = Game::new(3);
+        let mut g = Game::new_literal(3);
         g.max_deaths = 1000;
         g.run_offline(2 * 3600);
         let ids: Vec<u32> = g.deaths.keys().copied().collect();
@@ -3186,5 +3208,28 @@ mod tests_faithful {
             assert!(!rec.stall || (r.timed_out && r.stuck_fires >= crate::engine::STALL_FIRES), "stall {id} did not replay as a stall");
             assert_eq!(r.turn, rec.death_tick, "death {id}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests_causal_root {
+    use super::*;
+
+    #[test]
+    fn historical_theft_root_stays_beside_the_immediate_fix_without_claiming_a_gain() {
+        let mut g = Game::new_literal(14);
+        g.max_deaths = 1000;
+        crate::systems::open_all(&mut g.lineage);
+        crate::traits::neutral(&mut g.lineage);
+        crate::offline::run_offline_counts(&mut g, 8 * 3600);
+        let death = g.death(10).expect("the seed's death after its monkey theft");
+        assert_eq!(death.baseline, 0.0);
+        let root = death.patches.iter().find(|p| p.root.is_some()).expect("the earlier theft still has its causal patch");
+        assert_eq!(root.root.as_ref().unwrap().text, "monkey took the murky potion?");
+        assert_eq!(root.survive, 0.0, "the root patch cannot undo the loss at the death checkpoint");
+        assert_eq!(root.forecast_delta, 0.0);
+        assert!(root.no_gain, "the screen must not claim a survival gain");
+        assert!(death.patches.first().is_some_and(|p| p.root.is_none() && p.survive > 0.0), "the immediate surviving fix still leads");
+        assert!(death.patches.len() <= SHOWN);
     }
 }

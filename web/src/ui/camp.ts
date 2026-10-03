@@ -30,7 +30,6 @@ import { renderScene } from "./divergence";
 import { gem, metersSlot, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
-import { openChronicle } from "./chronicle";
 import { kitAffordable, measureKit, openForge } from "./forge";
 import { afterOf, labelOf, stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
@@ -38,10 +37,19 @@ import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
 import { isFreeSupply, ownRowCount, setRefRows, verbLabel } from "./tokens";
 import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
+import { AUTO, autoDismiss } from "./autodismiss";
 import { setBusyHost } from "./progress";
 import { icon } from "./skin";
 import { biomeAt, routeChips, routeForks, seenForks, withFork } from "./route";
 import { openOathBoard, paintOathTab } from "./oaths";
+import { anchorPanel, buildingTile, exposeTown, markOpened, openBank, openHero, renderTown, townBuilt } from "./town";
+import { onPackages, openPackages, packagesShown, packagesStrip, penOpen } from "./packages";   // Cut 30 §2: the packages, the pen gated late
+import { openQuest, questShown } from "./quest";   // Cut 30 §5: the quest board
+import { sendMark } from "./works";
+import { itemIcon, itemName } from "./items";   // run-clear: items in their rarity rims
+import { kwHost } from "./tips";
+import { renderLanes } from "./runlane";   // RUNS_UI: the run lanes
+import { openRuns } from "./runs";         // RUNS_UI: the runs log   // Cut 30.5: the gem's send counter before the scout, `auto` after
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -160,12 +168,14 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const repeatAdd = h("div", { class: "chips repeat-add", hidden: true });
   // Cut 29 §1 (E1): the wall's edit the core cached for the day (`Lineage.wall`) as a patch tablet under the rules
   const wallBox = h("div", { class: "wall-host", hidden: true });
-  const paintWall = (): void => { const w = app.lineage.wall && JSON.stringify(app.lineage.wall.rules.rows.map((r) => [r.conds, r.verb])) !== JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb])) ? app.lineage.wall : undefined; wallBox.hidden = !w; if (w) replace(wallBox, wallTablet(app, w, () => undefined)); };
+  const paintWall = (): void => { const w = penOpen(app.lineage) && app.lineage.wall && JSON.stringify(app.lineage.wall.rules.rows.map((r) => [r.conds, r.verb])) !== JSON.stringify(app.rules.rows.map((r) => [r.conds, r.verb])) ? app.lineage.wall : undefined; wallBox.hidden = !w; if (w) replace(wallBox, wallTablet(app, w, () => undefined)); };
   // Cut 28 §1: the oath board — its own tablet under the start's (`oath → D10 no drink · 34%`, or `oaths 3`), carved when an oath is
   // first affordable; the tap opens the board (three oaths, each its chips, its reward, its price)
   const oathTab: HTMLButtonElement = h("button", { class: "row tablet compact oath-tab", hidden: true, onclick: () => openOathBoard(app, oathTab) });
-  const paintOath = (): void => { const R = revealed(app); if (R.has("oaths")) { paintOathTab(app, oathTab); oathTab.classList.toggle("reveal", R.fresh("oaths")); } else oathTab.hidden = true; };
+  const paintOath = (): void => { const R = revealed(app); if (R.has("oaths") && !onPackages(app.lineage)) { paintOathTab(app, oathTab); oathTab.classList.toggle("reveal", R.fresh("oaths")); } else oathTab.hidden = true; };
   const party = renderParty(app);
+  // Cut 30 §2: before the pen the tablets' place holds the worn packages (`Steady L3`, its level bar); the rule tablets come with the pen
+  const pkgStrip = packagesStrip(app);
   const fc = renderForecast(app);
   const shaft = renderShaft(app, () => togglePanel("forecast"), () => revealed(app).has("gems"));
   const vault = h("section", { class: "vault" });
@@ -175,7 +185,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // a camp opened on a lit tablet (a patch applied, `highlight`) keeps its send deaf for SEND_ARM_MS, so the tap (or a second one) that
   // applied never lands on `send`; the player sends
   const armedAt = performance.now() + (highlight !== undefined ? SEND_ARM_MS : 0);
-  const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => { if (performance.now() < armedAt) return; if (!app.overBudget && app.rules.rows.length > 0) app.go({ kind: "watch" }); } });
+  // Cut 30 §3: the send — the gem or the dungeon's mouth; the hero walks from where he is into the mouth, then the watch opens
+  // RUNS_UI: with a run under way the gem watches it (he is already down there: no walk to the mouth)
+  const doSend = (): void => { if (performance.now() < armedAt) return; if (isLive()) { app.go({ kind: "watch" }); return; } if (!app.overBudget && app.rules.rows.length > 0) town.send(() => { if (el.isConnected) app.go({ kind: "watch" }); }); };
+  const isLive = (): boolean => !!app.lineage.live && app.lineage.live.turn > 0;
+  const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => doSend() });
   // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
   const rest = h("span", { class: "rest chip num" });
   // the engine's busy label (`forecast` · `offline`) in its own strip under the header (QA on 50bb162: it drew over `D4 ★0`)
@@ -191,22 +205,38 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const panelStore = h("div", { class: "panel-store", hidden: true, inert: true }, ...Object.values(PANELS));
   let open: string | null = null;
   function closePanel(): void { if (!open) return; open = null; panelStore.append(...Object.values(PANELS)); panelHost.replaceChildren(); panelHost.classList.remove("open"); paintTiles(); }
-  function togglePanel(name: string): void {
+  function togglePanel(name: string, anchor?: HTMLElement | null): void {
     if (open === name) { closePanel(); return; }
     closeAllSheets();   // QA 778fa1b (qaV: `vault` tapped under the open CAGE sheet stacked VAULT under CAGE): one sheet or panel at a time
     if (open) panelStore.append(...Object.values(PANELS));
     open = name;
-    panelHost.replaceChildren(h("section", { class: "panel", "data-panel": name }, stud(closePanel), h("div", { class: "panel-body" }, PANELS[name])));
+    const pstud = stud(closePanel);
+    const panel = h("section", { class: "panel", "data-panel": name }, pstud, h("div", { class: "panel-body" }, PANELS[name]));
+    autoDismiss(pstud, { ms: AUTO.panel, scope: panel, yieldToSheets: true, onExpire: closePanel });   // docs/UI.md §7
+    panelHost.replaceChildren(panel);
     panelHost.classList.add("open");
+    if (anchor) anchorPanel(panel, anchor, panelHost);   // Cut 30 §3: opened from its building, the panel stands over it
     paintTiles();
   }
   setPanelEscape(() => { if (!open) return false; closePanel(); return true; });
-  // the vista over the camp (the title art: the stair down into the Warrens), cropped to a band, framed
-  const vista = h("div", { class: "vista", "aria-hidden": "true" });
-  const well = h("div", { class: "well camp-well" }, busyStrip, vista, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
+  // Cut 30 §3: the town (the camp, then the buildings as the core raises them) is the well's first screen, where the vista stood;
+  // every building opens the panel its tile opens, standing over it
+  const town = renderTown(app, {
+    send: () => doSend(),
+    // RUNS_UI: the hero's tent keeps his log once he has runs (the lane's `log` stud opens the same); his class and look are the
+    // portrait's (the console's well), the hero sheet before the first run
+    hero: (a) => { if ((app.lineage.runs ?? []).some((r) => r.id > 0)) { openRuns(app); return; } const R = revealed(app); if (R.has("edit") || R.has("unlocks")) pickClass(); else openHero(app, a); },
+    open: (what, a) => { closeAllSheets(); if (open === what) closePanel(); togglePanel(what, a); },
+    forge: (a) => { closePanel(); openForge(app, a); },
+    quest: (a) => { closePanel(); openQuest(app, a); },
+  });
+  exposeTown(town);
+  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
-  const restLine = h("div", { class: "rest-line" }, rest);
+  // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
+  const lanes = renderLanes(app, { watch: () => app.go({ kind: "watch" }), log: () => openRuns(app) });
+  const restLine = h("div", { class: "rest-line lanes-line" }, lanes.el, rest);
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
   // Cut 27 §2: the edit as a scene — over the well's foot after an edit's refine (before · after on the renderer), then its line under `vs sent`
@@ -223,6 +253,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     s0.style.height = `${Math.round(shrink >= 140 ? shrink : grow)}px`;
   };
   new MutationObserver(() => fitScene()).observe(scene.el, { attributes: true, attributeFilter: ["hidden"] });
+  // the scene fills the well's first screen (the rows, the shaft and the rest scroll under it)
+  const fitTown = (): void => { const hgt = well.clientHeight; if (hgt > 0) town.el.style.setProperty("--town-h", `${hgt}px`); };
+  const wellRo = typeof ResizeObserver !== "undefined" ? new ResizeObserver(fitTown) : null;
+  wellRo?.observe(well);
   const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, scene.el, shaft.vsEl, scene.line, restLine, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
@@ -232,14 +266,49 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   /** Cut 23 §1: the forge tile's badge — the kit steps the purse can buy now (`2`), none when there are none. */
   const kitBadge = (): HTMLElement | null => { const n = kitAffordable(app.lineage); return n ? h("span", { class: "kit-n num", "data-n": n }, `${n}`) : null; };
   const withBadge = (el: HTMLElement, badge: HTMLElement | null): HTMLElement => { if (badge) { el.appendChild(badge); el.classList.add("badged"); } return el; };
-  /** Cut 17 §1/§3: the command card as revealed — edit · loadout · unlocks · vault · forge · party · ledger · chronicle. */
+  /** Cut 30 (the Reveal): a system the core opened since the camp last looked glints once (its `new`). */
+  const freshSys = (...ids: string[]): boolean => !!app.lineage.systems?.some((x) => ids.includes(x.id) && x.new);
+  /** Cut 30 §2: the pen gates the editor (and the forecast's detail: one headline before it). */
+  function paintPen(): void {
+    const pen = penOpen(app.lineage);
+    editor.el.hidden = !pen;
+    el.classList.toggle("prepen", !pen);
+    pkgStrip.paint();
+  }
+  /** Cut 17 §1/§3: the command card as revealed — edit · loadout · unlocks · vault · forge · party · ledger · chronicle.
+   *  Cut 30 §3: the building bar — one tile per building standing, in build order (the forge, the vault, the kennel, the bank: tile and
+   *  building open the same panel, the badge shared), then the tiles with no building (the pen's edit, the pack, unlocks, the heirs'). */
   function paintTiles(): void {
     const R = revealed(app);
     const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick: () => { closeAllSheets(); onclick(); }, on, fresh: R.fresh(STEP_OF[id]) || (id === "forge" && R.fresh("forge")) });
+    const built = townBuilt(app.lineage);
+    if (built) {
+      // a sheet opened from a tile stands over its building only while the building is on screen (the well may be scrolled to its rows)
+      const anchor = (id: string): HTMLElement | null => { const x = town.anchorOf(id); if (!x || x.hidden) return null; const r = x.getBoundingClientRect(), w = well.getBoundingClientRect(); return r.bottom > w.top + 8 && r.top < w.bottom - 8 ? x : null; };
+      const bt: Record<string, () => HTMLElement> = {
+        blacksmith: () => withBadge(buildingTile("blacksmith", { fresh: R.fresh("forge") || R.fresh("kit"), onclick: () => { closeAllSheets(); closePanel(); markOpened(app.lineage, "blacksmith"); openForge(app, anchor("blacksmith")); } }), kitBadge()),
+        storehouse: () => buildingTile("storehouse", { on: open === "vault", fresh: R.fresh("vault"), onclick: () => { closeAllSheets(); markOpened(app.lineage, "storehouse"); togglePanel("vault"); } }),
+        kennel: () => buildingTile("kennel", { on: open === "party", fresh: R.fresh("party"), onclick: () => { closeAllSheets(); markOpened(app.lineage, "kennel"); togglePanel("party"); } }),
+        bank: () => buildingTile("bank", { onclick: () => { closeAllSheets(); closePanel(); markOpened(app.lineage, "bank"); openBank(app, anchor("bank")); } }),
+      };
+      cons.setTiles([
+        ...built.map((b) => bt[b]?.()),
+        // Cut 30 §2/§5: the packages and the quest board (the board by the mouth opens it too)
+        packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "packages", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
+        questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: () => { closeAllSheets(); openQuest(app, anchor("board")); } }),
+        R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
+        R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
+        R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
+        R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
+        // RUNS_UI: the chronicle is the log's `heirs` (the lane's log stud) — its tile gave its place to the run lanes' log
+      ]);
+      shaft.el.classList.toggle("on", open === "forecast");
+      return;
+    }
     cons.setTiles([
       // QA 92eb880 (N: "the `edit` tile toggles: tapping it while editing closes the editor (I lost the next tap twice)"): it turns
       // editing on and stays lit; a second tap closes the open panel, never the editor
-      R.has("edit") && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
+      R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
       R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
       R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
       R.has("vault") && t("vault", /* copy:button */ "vault", "vault", () => togglePanel("vault"), open === "vault"),
@@ -247,8 +316,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // the steps affordable now
       (R.has("forge") || R.has("kit")) && withBadge(t("forge", /* copy:button */ "forge", "forge", () => openForge(app)), kitBadge()),
       R.has("party") && t("party", /* copy:button */ "party", "party", () => togglePanel("party"), open === "party"),
+      // Cut 30 §2/§5: the packages (from the second stance) and the quest board (from the Warlord slain), each glinting once as it comes
+      packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "packages", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
+      questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: (e: Event) => { closeAllSheets(); openQuest(app, e.currentTarget as HTMLElement); } }),
       R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
-      R.has("heirs") && t("chronicle", /* copy:button */ "chronicle", "chronicle", () => openChronicle(app)),
+      // RUNS_UI: the chronicle is the log's `heirs` (the lane's log stud)
     ]);
     shaft.el.classList.toggle("on", open === "forecast");
   }
@@ -257,7 +329,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const L = app.lineage; const lvl: { level: number; xp: number; next?: number } = L.classes?.[L.class] ?? { level: 1, xp: 0 };
     bar.paint();
     // Cut 13 §2: the offer as chips while it stands (the bar's plain trait otherwise); Cut 16 §2: the class chips beside them
-    const traits = (L.trait_offer?.length ?? 0) >= 2
+    // Cut 30 §2: on packages the old two-trait chips leave the wake (the temperaments, from heir 3, are the packages panel's cards)
+    const traits = (L.trait_offer?.length ?? 0) >= 2 && !onPackages(L)
       // QA 524827b (qaAA: a bare `✓` over the first chip, "the trait is picked for you"): the row says what it picks (`trait`) — the ✓ is
       // the heir's own, the other chip the swap
       ? h("span", { class: "chips traits" }, h("small", { class: "dim offer-label" }, /* copy:label */ "trait"), ...L.trait_offer!.map((t) => h("button", { class: `chip trait${t === L.trait ? " on" : ""}`, disabled: t === L.trait, onclick: () => void pickTrait(t), "aria-pressed": t === L.trait ? "true" : "false" },
@@ -277,12 +350,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const R = revealed(app);
     // Cut 28 §4 (AV: "couldn't open the class picker (portrait)"): the portrait opens it whenever classes can be had — while the wake's
     // class chips stand too (the portrait was inert then, and it is where a player looks for the class)
-    const picker = R.has("edit") || R.has("unlocks");   // from the first death (a second heir may take another class)
+    const picker = R.has("edit") || R.has("unlocks") || (onPackages(L) && sysOpen(L, "class"));   // from the first death (a second heir may take another class)
     const next = portrait(app, { hp: 1, cls: picker ? "cls" : "", onclick: picker ? () => pickClass() : undefined,
       label: h("span", { class: "plabel-in" }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),
         // QA 92eb880: the bar is the core's own ladder (`classes[c].next`, the XP the next level costs; 0 at the top: full)
         h("span", { class: "xp" }, h("span", { class: "fill", style: `width:${Math.round(Math.min(1, lvl.next ? lvl.xp / lvl.next : lvl.next === 0 ? 1 : 0) * 100)}%` }))) });
-    if (R.has("edit")) next.el.appendChild(lookStud(app));   // hero looks: the stud opens the look sheet — from the first death, like the picker (a fresh camp stays ≤ 8 controls)
+    if (R.has("edit") || (onPackages(L) && L.best_depth > 0)) next.el.appendChild(lookStud(app));   // Cut 30: before the pen, from the first run (a hero rarely dies on Steady)   // hero looks: the stud opens the look sheet — from the first death, like the picker (a fresh camp stays ≤ 8 controls)
     face.el.replaceWith(next.el); face.el = next.el;
     paintRest();
   }
@@ -294,9 +367,13 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 2 §1: camp rest remaining; `send` skips it, so the number just disappears
   function paintRest(): void {
     const restS = app.lineage.rest_left_s ?? 0;
+    // Cut 30.5: before the scout the hero is home and waits for a SEND (no rest runs out into a send)
+    const waits = !!app.lineage.tree?.waits;
     // QA 912e135 (qaW: "`rest 20m · send skips` — no screen says what rests or what `send skips` means"): who rests, and what the send skips
-    replace(rest, /* copy:callout */ `heir rests ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
-    rest.hidden = restS <= 0; restLine.hidden = rest.hidden;
+    replace(rest, waits ? /* copy:callout */ "heir waits" : /* copy:callout */ `heir rests ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
+    // RUNS_UI: the lane says it now (`rests 18m` · `waits ▸ send` · `live D3`); the old chip stays for screen readers only
+    rest.hidden = !waits && restS <= 0; rest.classList.add("vh"); rest.classList.toggle("waits", waits);
+    restLine.hidden = false; lanes.paint();
   }
   // Cut 2 §4: whatever the lineage and the unlock catalogue provide (fighter · rogue · ranger · caster).
   // Cut 5 §6: each row carries the class's verb ladder as chips (`L1 shield bash · L3 cleave · …`), reached rungs lit.
@@ -353,9 +430,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const chips = h("div", { class: "chips" });
     for (const it of L.vault) {
       const on = app.loadout.includes(it.id);
-      chips.appendChild(h("button", { class: `chip item${on ? " on risk" : ""}`, onclick: () => {
+      chips.appendChild(kwHost(h("button", { class: `chip item${on ? " on risk" : ""}`, "data-rarity": it.rarity ?? "common", onclick: () => {
         app.setLoadout(on ? app.loadout.filter((x) => x !== it.id) : [...app.loadout, it.id]);
-      } }, on ? "⚠ " : "", it.label, keptAs(L.facts, it) ? h("small", { class: "dim flav" }, ` · ${keptAs(L.facts, it)}`) : ""));
+      } }, on ? "⚠ " : "", itemIcon(it, { size: "s" }), itemName(it), keptAs(L.facts, it) ? h("small", { class: "dim flav" }, ` · ${keptAs(L.facts, it)}`) : ""), "rarity"));   // run-clear: its icon in its rarity rim, its name tinted
       if (on) {
         const ins = (L.insured ?? []).includes(it.id);
         const price = Math.ceil(salvageValue(it.kind, "bank") * 10 / 4);
@@ -675,7 +752,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // Cut 21 §2: a line an exit shelved reads `· found` (packed free); with the repeat on, a kind no row names reads `· no row` — the
       // next send will not re-buy it (the core's narrowed `repeat_kinds`)
       const noRow = !free && !p.found && L.repeat !== false && L.repeat_kinds !== undefined && !L.repeat_kinds.includes(p.kind);
-      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l", title: SUPPLY_USE[p.kind] ? `${p.label} · ${SUPPLY_USE[p.kind]}` : p.label }, shelfLabel(p.label), free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
+      chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l", title: SUPPLY_USE[p.kind] ? `${p.label} · ${SUPPLY_USE[p.kind]}` : p.label }, itemIcon(p, { size: "s" }), itemName(p, shelfLabel(p.label)), free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
         noRow ? h("small", { class: "dim no-row" }, /* copy:callout */ " · no row") : ""), x));
     }
     for (let i = picks.length; i < cap; i++) chips.appendChild(h("span", { class: "chip slot empty", "aria-hidden": "true" }, ""));
@@ -838,7 +915,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       onclick: (e: Event) => { e.stopPropagation(); e.preventDefault(); app.watchMode = MODES[(MODES.indexOf(app.watchMode) + 1) % MODES.length]; app.persist(); paintSend(); } },
       /* copy:none */ "▸ ", MODE_LABEL[app.watchMode] ?? app.watchMode);
     replace(send, empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
-      : h("span", { class: "send-l" }, /* copy:button */ "send", pill));   // Cut 12 §1: own rows
+      : h("span", { class: "send-l" }, isLive() ? /* copy:button */ "watch" : /* copy:button */ "send", pill, sendMark(app.lineage)));   // Cut 12 §1: own rows; RUNS_UI: a run under way is watched
+    send.dataset.live = isLive() ? "1" : "0";
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists
   }
@@ -849,7 +927,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     fn();
     boxes.forEach((b, i) => { if (b && b.scrollTop !== tops[i]) b.scrollTop = tops[i]; });
   }
-  function paintAll(): void { keepScroll(() => { paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintWall(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { keepScroll(() => { town.paint(); paintPen(); paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintWall(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
@@ -866,5 +944,6 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // next edit's first pass ~1 s in wasm — clarity:paint)
   const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
   const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
-  return { el, dispose: () => { off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  const offLive = app.onLive(() => { if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
+  return { el, dispose: () => { offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

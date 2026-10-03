@@ -14,8 +14,9 @@ import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { systemIcon, systemLabel } from "./systems";
 import { measureKit, openForge } from "./forge";
+import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
-import type { Counter, ExitLine, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
+import type { Counter, ExitLine, InvItem, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
 import { h, replace, items, spanOf } from "./dom";
 import { openDropSheet, patchRows } from "./patches";
 import { BANDS, laneTitle, lanes, routeForks, seenForks } from "./route";
@@ -30,7 +31,15 @@ import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
+import { grewBlock, heroFace } from "./tracks";
+import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
+import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
+import { kw, kwHost, kwText } from "./tips";
+import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
+import { mountClear } from "./runclear";   // run-clear: the run's card before the town
+import { itemIcon, itemName } from "./items";
+
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
@@ -186,7 +195,7 @@ function newsLead(x: ExitLine, runs: number): (string | HTMLElement)[] {
   const n = runs > 1 ? mergeFinds((x.news ?? []).filter((y) => y.k !== "differ" && y.k !== "learned" && !(y.k === "driven" && / · by /.test(x.text))))[0] : undefined;
   return n ? [h("b", { class: "news-lead" }, n.text.replace(/^driven off: (.+)$/, /* copy:callout */ "repelled by $1")), " · "] : [];
 }
-function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: { boss: string; text: string }[] = []): HTMLElement | null {
+function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: { boss: string; text: string }[] = [], shop = true, pen = true): HTMLElement | null {
   // Cut 28 §2 (core `ReturnReport.lead`): the first screen leads with the decisions (`oath kept: D10 · no drink`, `plateau: none past
   // D13`, `mother: fire learned`, `D9 death · order`), then what was new that they do not already say
   const lead = r.lead ?? [];
@@ -196,9 +205,14 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
   // docs/COPY.md pass 2 (`warlord: aim learned` read as the boss's move, 2/2): a counter learned reads as the rule that beats him
   const said2 = (t: string): string => t.replace(/^driven off: (.+)$/, /* copy:callout */ "repelled by $1").replace(/^deeper: (D\d+), last (D\d+)$/, /* copy:callout */ "reached $1 · was $2").replace(/^(\w+): (.+) learned$/, (m, boss: string) => { const c = counters.find((x) => x.boss.endsWith(boss)); return c?.text ? /* copy:callout */ `${boss} counter: ${c.text}` : m; });
   // (a drive-off's line carries the counter fact, `· warlord: aim`: the counter's own line says it) — then each line once
-  const said3 = (t: string): string => said2(t).replace(/ · (\w+): [a-z ?]+$/, (m, boss: string) => (counters.some((x) => x.boss.endsWith(boss)) ? "" : m));
+  // c30-legible (the coordinator: `D1 death · gap` before the pen opens): a death's verdict word is the pen's vocabulary — before it
+  // opens the lead says the floor alone (`D1 death`)
+  const prePenT = (t: string): string => pen ? t : t.replace(/^(D\d+ death) · .+$/, "$1");
+  const said3 = (t: string): string => prePenT(said2(t)).replace(/ · (\w+): [a-z ?]+$/, (m, boss: string) => (counters.some((x) => x.boss.endsWith(boss)) ? "" : m));
   const shown = new Set<string>(); const once = (t: string): boolean => !shown.has(t) && !!shown.add(t);
-  const leadT = lead.map((l) => ({ l, t: said3(l.text) })).filter((x) => once(x.t)), nsT = ns.map((n) => ({ n, t: said3(n.text) })).filter((x) => once(x.t));
+  // Cut 30 integration: before the unlocks open (the pen's catalogue) no line names one (`unlock throw (3)` read as a shop nowhere on screen)
+  const shown2 = (t: string): boolean => shop || !/^unlock\b/.test(t);
+  const leadT = lead.map((l) => ({ l, t: said3(l.text) })).filter((x) => shown2(x.t) && once(x.t)), nsT = ns.map((n) => ({ n, t: said3(n.text) })).filter((x) => shown2(x.t) && once(x.t));
   return h("div", { class: `news${lead.length ? " with-lead" : ""}` },
     ...leadT.map(({ l, t }, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k }, t)),
     ...nsT.slice(0, lead.length ? 2 : 4).map(({ n, t }, i) => h("div", { class: `news-line k-${n.k}${i === 0 && !lead.length ? " lead" : ""}` }, t)));
@@ -228,7 +242,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // what it counts, `runs banked` (the key stays the one word, `data-k`)
   const SAYS: Record<string, string> = /* copy:label */ { banked: "runs banked", returned: "runs returned", stalled: "runs stalled" };
   const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile plaque", "data-k": label }, icon(PLAQUE[label] ?? "depth"),
-    h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, SAYS[label] ?? label));
+    h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, ...kwText(SAYS[label] ?? label, ["banked", "returned", "marks", "death"])));   // docs/TOOLTIPS.md
   // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
   const exits = r.banked !== undefined || r.returned !== undefined;
   // a stall is inside the core's `returned` (a return that kept nothing); the tiles count it apart — `returned` is the returns
@@ -239,6 +253,17 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // docs/COPY.md pass 4 (`BANKED 0` read as gold banked by all 4 readers): an end's count is a share of the runs (`0/16`)
   const ofRuns = (k: number): string => (exits && r.runs > 0 ? `${k}/${r.runs}` : `${k}`);
   const banked = tile(ofRuns(bankedN), /* copy:label */ "banked"), returned = tile(ofRuns(returnedN), /* copy:label */ "returned");
+  // c30-legible (the owner, a new player: "I didn't understand … why the run ended early"): an end's tile says why, the core's ≤ 3
+  // words — the most common reason among this report's exits of that end (`hurt · banked`, `hurt · went home`)
+  const why = (lead: RegExp): string | undefined => {
+    const n = new Map<string, number>();
+    for (const x of r.exits ?? []) if (x.reason && lead.test(x.text)) n.set(x.reason, (n.get(x.reason) ?? 0) + 1);
+    return [...n].sort((a, b) => b[1] - a[1])[0]?.[0];
+  };
+  for (const [t, lead, n] of [[banked, /^banked\b/, bankedN], [returned, /^returned\b/, returnedN]] as const) {
+    const w = n > 0 ? why(lead) : undefined;
+    if (w) t.appendChild(h("span", { class: "tile-why num", "data-why": w }, w));
+  }
   // Cut 14 §4: the stalls' cost — what the stalled runs carried home for nothing (their lines' `carried`; lines the slices
   // dropped are not counted, so the sum is a floor) — `2 STALLED · $161 lost` (rater T: "`2 STALLED` says nothing about what the
   // stalls cost")
@@ -253,9 +278,17 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     if (stalled && bankedN === 0) return [stalled, returned, drivenTile];
     return [banked, returned, stalled, drivenTile];
   };
+  // RUNS_UI: the runs tile opens the runs log on these runs (the absence's fold) — what happened while away, run by run
+  const toLog = (t: HTMLElement): HTMLElement => {
+    if (!(L.runs ?? []).some((x) => x.id > 0)) return t;
+    t.classList.add("to-log"); t.setAttribute("role", "button"); t.tabIndex = 0; t.dataset.log = "1";
+    t.onclick = () => openRuns(app, { focus: (r.exits ?? []).map((x) => x.run_id ?? 0).filter((x) => x > 0).pop(), tab: "runs" });
+    t.onkeydown = (e: KeyboardEvent) => { if (e.key === "Enter") t.click(); };
+    return kwHost(t, "log");
+  };
   const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
     // QA 912e135 (qaW: `♟18` over a report of ♟2–♟17, read as the heir who ran): the runs tile names whose runs they were
-    withHeirs(tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"), r.heirs),
+    toLog(withHeirs(tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"), r.heirs)),
     exits ? null : tile(`${deathsN}`, /* copy:label */ "deaths"),
     // the send's deepest floor, a delta like the tiles beside it (the lineage best is in the header; both QA players read
     // `1 RUNS · D4 BEST` as this send's); an old wire without it shows the lineage best
@@ -396,10 +429,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     })) : null;
   // Stall verdict (core README): every run came home and nothing got deeper — the row that ended them, then patches as on
   // the death screen (tap: replace / remove / insert, camp on the row). The core's line is the copy (≤ 12 words).
+  // Cut 30 integration: before the pen the plateau is its line alone, as the death screen before the pen (no trace, no row patches)
+  const prePen = !penOpen(L), shopOpen = !prePen || revealed(app).has("unlocks");
   const stall = r.stall ? h("section", { class: "rsec stall" },
-    h("div", { class: "label" }, /* copy:label */ "plateau"),   // every run came home, none deeper — not a stalled run (QA on 56f2a1d: `STALL` over `14 RETURNED`)
-    h("div", { class: "stall-line num" }, r.stall.text, " ", traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
-    r.stall.patches.length ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
+    h("div", { class: "label" }, kw("plateau")),   // every run came home, none deeper — not a stalled run (QA on 56f2a1d: `STALL` over `14 RETURNED`)
+    h("div", { class: "stall-line num" }, r.stall.text, " ", prePen ? "" : traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
+    r.stall.patches.length && !prePen ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
   // Cut 2 §2: one line per pile recovered this send (the core sends `heir 3 · D7 · 4 items`, `bones:7:4` too; the watch
   // `D5 · 7 items`). Every line says it was found — `found ♟3's bones · D7 · 4 items` — since `bones D8 · 11 items · ♟3` read
   // as a pile still lying there (QA on e0f87e7: "survived 16 offline runs", "persisted through run 3")
@@ -441,7 +476,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const paintPending = (affordable: ReturnType<typeof visible>): void => {
     // `R1 fired n of m runs` lines come for every row (summed across slices); only the quiet ones are decisions
     const quiet = (p: string): boolean => { const m = /^R\d+ fired (\d+) of (\d+) runs/.exec(p); return !m || Number(m[1]) * 3 < Number(m[2]); };
-    const pendingLines = (affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending).filter(quiet);
+    // Cut 30: before the pen no line speaks the pen's words (a patch, a rule's fires, the marks' catalogue)
+    const penWords = (p: string): boolean => !penOpen(L) && /^(patch|unlock|R\d+)\b|\bfired\b/.test(p);
+    const pendingLines = (affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending).filter(quiet).filter((p) => !penWords(p));
     pendingBody.replaceChildren();
     // Cut 23 §1: the core's `forge sword +1 · $300` (a kit step the purse buys now) opens the forge
     const forgeLines = pendingLines.filter((p) => /^forge /.test(p));
@@ -455,6 +492,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // (the larger reach gain, then the cheaper); the camp's `more` has the rest
     if (!coreShort) affordable = affordable.map((u, i) => ({ u, i })).sort((a, b) => (b.u.delta ?? 0) - (a.u.delta ?? 0) || a.u.cost - b.u.cost || a.i - b.i).slice(0, 3).map((x) => x.u);
     // QA 524827b (qaAA: `card: kite archers · free` — "no card anywhere on screen"): the cards are the camp's unlocks — they say so
+    if (!shopOpen) affordable = [];   // Cut 30 integration: the unlock cards with the catalogue (the camp shows no unlocks before it opens)
     if (affordable.length) pendingBody.appendChild(h("div", { class: "cards-head num dim" }, /* copy:label */ "unlocks"));
     if (affordable.length) pendingBody.appendChild(h("div", { class: "cards" }, ...affordable.map((u) => h("button", { class: "card", onclick: () => openUnlockSheet(app, u, () => app.go({ kind: "report", report: r })) }, h("span", null, u.label), h("span", { class: "num cost" }, priceLabel(u))))));   // Cut 18 §5: both prices
     if (pendingSec) pendingSec.hidden = !pendingBody.childElementCount;
@@ -468,17 +506,18 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 17 §4: the console — `open` (the worst death's verdict) · `gold` (the ledger of this absence's gold) · `ledger` (the
   // bestiary, from the 5th heir); the gem is `camp`
   const bar = renderBar(app);
-  const cons = renderConsole({
-    portrait: portrait(app, { hp: 1, label: heirOrd(L.heir) }).el,
-    gem: gem({ label: /* copy:button */ "camp", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
-    tiles: [
+  const consTiles = [
       // QA e75ec29 (Q: "`open` opens ♟5's death, not the newest; the label names nothing"): it is the absence's worst death — it says so
       // QA 912e135 (qaW: "`worst` — I read it as the shallowest death"): the tile says what it ranks by — the deepest death (a stall at
       // its floor yields to it)
       r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "deepest", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [], from: { report: r } }) }) : null,
       cmdTile({ id: "gold", label: /* copy:button */ "gold", icon: "gold", onclick: () => openGoldSheet(app) }),
       revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "ledger", icon: "ledger", onclick: () => openLedger(app) }) : null,
-    ],
+  ];
+  const cons = renderConsole({
+    portrait: portrait(app, { hp: 1, label: heirOrd(L.heir) }).el,
+    gem: gem({ label: /* copy:button */ "camp", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
+    tiles: consTiles,
   });
   // QA 524827b (qaAA: KEPT `axe +7 → vault` after the cage's `took axe +1`): an item enchant scrolls raised says by how many
   const keptItems: { label: string; enchanted?: number }[] = r.kept ? r.kept.map((label) => ({ label })) : r.new_finds ? r.found : [];
@@ -487,15 +526,25 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // the ledger (exits, gold, salvage, bones, finds, the reel) folds under one `details` tap
   // Cut 29 §1 (E1): the wall's edit lands here when the core's search answers (after the paint; never waited on)
   const wallHost = h("div", { class: "wall-host" });
-  void wallOffer(app).then((w) => { if (w && wallHost.isConnected) replace(wallHost, h("div", { class: "label" }, /* copy:label */ "wall fix"), wallTablet(app, w, () => app.go({ kind: "camp" }))); });
+  if (penOpen(L)) void wallOffer(app).then((w) => { if (w && wallHost.isConnected) replace(wallHost, h("div", { class: "label" }, /* copy:label */ "wall fix"), wallTablet(app, w, () => app.go({ kind: "camp" }))); });
   const details = h("div", { class: "report-details", hidden: true });
   const detailsBtn: HTMLButtonElement = h("button", { class: "details-fold num", "aria-expanded": "false", onclick: () => {
     details.hidden = !details.hidden; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details");
+  // run-clear: a find or a kept item in its rarity rim — the rarity is the core's (the exit lines' finds, the vault), matched by label
+  const rarityOf = new Map<string, InvItem>([...(r.exits ?? []).flatMap((x) => x.finds ?? []), ...L.vault].map((it) => [it.label, it]));
+  const withRim = (label: string, text: string): (HTMLElement | string)[] => { const it = rarityOf.get(label); return it ? [itemIcon(it, { size: "s" }), itemName(it, text)] : [text]; };
+  const foundChips = (): HTMLElement | null => {
+    const names = r.found.map((i) => i.label);
+    if (!names.length) return null;
+    const seen = new Map<string, number>(); for (const n of names) seen.set(n, (seen.get(n) ?? 0) + 1);
+    return h("div", { class: "chips" }, ...[...seen].map(([label, n]) => h("span", { class: "chip" }, ...withRim(label, named(label).replace(/_/g, " ")), n > 1 ? h("b", { class: "num" }, ` ×${n}`) : "")));
+  };
   const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const sheet = h("div", { class: "parchment report-sheet" },
-    newsBlock(r, named, L.counters ?? []), tiles, opened(r), wallHost, oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
+    grewBlock(r, heroFace(L)), workersBlock(L, r), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
@@ -514,7 +563,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // QA 0c6e126 (qaY: the header's `new find: bow, leather` beside FOUND `mail +1` — the item the send brought from the vault): an
     // absence's FOUND is its first finds (`ReturnReport.new_finds`, the core's, every one the header's `new find` names); what went to
     // the vault is KEPT (`→ vault`)
-    section(/* copy:label */ "found", r.new_finds ? chips(r.new_finds.map(named)) : chips(r.found.map((i) => named(i.label)))),
+    section(/* copy:label */ "found", r.new_finds ? chips(r.new_finds.map(named)) : foundChips()),
     // QA e75ec29 (R: six thefts in one run, "the report and gold sheet say nothing"): what thieves took and no run got back
     // QA a946e04 (S: `leash ×4` beside `leash (2)`, `black potion?` after LEARNED said confusion): one chip per name, identified kinds by
     // their name; T (`−$36 stolen` on the strip, only items here): the carry the thefts took leads (`$36`)
@@ -527,7 +576,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     // Cut 24 §5 (AK, AL: the tapped chip read as salvaged — a twin or the return's cut sold, the kept one renamed by the vault): what
     // the keep sheet sent to the vault leads the sell-off
-    section(/* copy:label */ "kept", keptItems.length ? h("div", { class: "chips kept" }, ...keptItems.map((x) => h("span", { class: "chip kept" }, named(x.label), flavourTag(L, x.label), /* copy:callout */ " → vault",
+    section(/* copy:label */ "kept", keptItems.length ? h("div", { class: "chips kept" }, ...keptItems.map((x) => h("span", { class: "chip kept" }, ...withRim(x.label, named(x.label)), flavourTag(L, x.label), /* copy:callout */ " → vault",
       x.enchanted && x.enchanted > 0 ? h("small", { class: "num dim enchanted" }, /* copy:callout */ ` · enchanted ×${x.enchanted}`) : ""))) : null),
     // Cut 21 §2: found supplies the exits put on the shelf (the next send packs them free), before what was sold
     section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → supplies"))) : null),
@@ -542,7 +591,14 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   ].filter((x): x is HTMLElement => !!x));
   detailsBtn.hidden = !details.childElementCount;
   const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null);   // desktop: the rules left, the shaft right (wide.css)
-  const el = h("main", { class: "report frame" }, bar.el, h("div", { class: "well report-well" }, sheet), cons.el, ...wide.els);
+  const reportWell = h("div", { class: "well report-well" }, sheet);
+  const el = h("main", { class: "report frame" }, bar.el, reportWell, cons.el, ...wide.els);
+  const gemEl = cons.el.querySelector<HTMLElement>(".gem")!;
+  // run-clear (the owner: "each run should have the clear screen"): the run's card over the report — a watched run's, or an absence's
+  // last; its own clock, then the report's
+  const clear = mountClear(app, r, absence, reportWell, gemEl, () => cons.setTiles(consTiles));
+  if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
+  if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
   return { el, dispose: () => { bar.dispose(); wide.dispose(); } };
 }
 

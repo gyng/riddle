@@ -180,7 +180,21 @@ pub fn learn_boss_counter(run: &mut Run, cx: &mut Ctx, kind: &str) -> bool {
     if boss_counter_known(cx.facts, kind) {
         return false;
     }
-    learn(run, cx, boss_counter_fact(kind))
+    let learned = learn(run, cx, boss_counter_fact(kind));
+    // Cut 30 (the owner's round 5: the deep walls answered by a written counter): a counter that is an
+    // item — the Queen's silence, the Mother's fire — is learned with what the item is, or the row the
+    // fact names could never be packed (the silence scroll stayed unread into the second week)
+    let row = counter_row(kind);
+    if matches!(row.verb.v.as_str(), "read" | "throw") {
+        if let Some(item) = row.verb.a.as_deref().and_then(|a| a.split(',').next()) {
+            if let Some(f) = crate::item::ident_fact(cx.flavours, item) {
+                if !cx.facts.contains(&f) {
+                    learn(run, cx, f);
+                }
+            }
+        }
+    }
+    learned
 }
 
 /// Cut 6 §5: a save's old-form counter facts (`boss:<kind>:counter`) take the row.
@@ -196,6 +210,12 @@ pub fn upgrade_counter_facts(facts: &mut BTreeSet<String>) {
 /// Sight-based facts, called after every vision update. Cheap when nothing changed.
 pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
     let map = &run.floor.map;
+    // (the monsters in view, read in place against the last: the same ids in the same order is the
+    // common tick, and returns before anything is collected)
+    let mut in_view = run.monsters.iter().filter(|m| m.hp > 0 && map.is_visible(m.pos)).map(|m| m.id);
+    if run.last_visible.iter().all(|id| in_view.next() == Some(*id)) && in_view.next().is_none() {
+        return;
+    }
     let visible: Vec<usize> =
         (0..run.monsters.len()).filter(|i| run.monsters[*i].hp > 0 && map.is_visible(run.monsters[*i].pos)).collect();
     let ids: Vec<u32> = visible.iter().map(|&i| run.monsters[i].id).collect();
@@ -243,6 +263,11 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
         if m.has_tag("blind") && m.hostile() && want("blind") {
             sight_facts.push(format!("foe:{kind}:blind"));
         }
+        // The Queen's brood distinguishes her from ordinary blind lurkers. A visible
+        // Queen teaches this counter scope before the next authored action.
+        if m.has_tag("brood") && m.hostile() && want("brood") {
+            sight_facts.push(format!("foe:{kind}:brood"));
+        }
         if m.has_tag("ally") && m.neutral && want("ally") {
             sight_facts.push(format!("foe:{kind}:ally"));
         }
@@ -271,6 +296,10 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
     for &i in &visible {
         if run.monsters[i].is_boss() && run.boss_seen_t.is_none() {
             run.boss_seen_t = Some(run.turn);
+            let kind = run.monsters[i].kind.clone();
+            if !run.bosses_met.contains(&kind) {
+                run.bosses_met.push(kind);
+            }
             run.hurt_since_boss = false;
             run.wall_seen = true;   // Cut 28b: the oath board opens (`LineageState::oath_open`)
             let title = run.monsters[i].title();

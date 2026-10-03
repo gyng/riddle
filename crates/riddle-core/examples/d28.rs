@@ -14,7 +14,7 @@ fn main() {
             .map(|seed| {
                 let (dv, da) = (drop_verb.clone(), drop_arg.clone());
                 sc.spawn(move || {
-                    let mut g = Game::new(seed);
+                    let mut g = Game::new_literal(seed);
                     g.max_deaths = 100_000;
                     for u in riddle_core::meta::UNLOCKS {
                         g.lineage.unlocks.insert(u.id.into());

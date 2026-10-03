@@ -26,6 +26,7 @@ import { h, clear, pct, replace } from "./dom";
 import { closeAllSheets } from "./sheet";
 import { pickedLine } from "./report";
 import { shaftOath } from "./oaths";
+import { kw } from "./tips";
 
 const sameRow = (a: Row, b: Row): boolean =>
   a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
@@ -237,7 +238,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   // is the right column's meters)
   const runs = app.lineage.meters?.runs ?? [];
   const cmp = runs.length >= 2 && !isWide() ? meterCompare(runs[runs.length - 2], runs[runs.length - 1]) : null;
-  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast", settling), h("div", { class: "label reach-label dim" }, /* copy:label */ "reach"), bars, ends, vsHost, picked, yours, causes, cmp);
+  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast", settling), h("div", { class: "label reach-label dim" }, kw("reach")), bars, ends, vsHost, picked, yours, causes, cmp);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
@@ -256,7 +257,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const epm = pmShown(e.death, e.pm);
     const pm = epm !== undefined ? h("small", { class: "dim pm band", style: bandW(epm), title: `±${epm}` }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";   // Cut 29: `±6` read as −6 — a band
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, /* copy:label */ "ends"), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
+    replace(ends, h("span", { class: "label ends-label" }, kw("ends", /* copy:label */ "ends")), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -380,7 +381,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   // Cut 28 §1: the sworn oath rides the shaft, under the notches, with the forecast's share of keeping it
   const oathEl = h("div", { class: "shaft-oath-host" });
   // docs/COPY.md pass 2 (the notches' % read as "success" or "clear rate"): the column says what its numbers are
-  const el = h("button", { class: "shaft", onclick: () => onOpen() }, oathEl, h("small", { class: "shaft-head dim" }, /* copy:label */ "reach"), notches, ends);
+  const el = h("button", { class: "shaft", onclick: () => onOpen() }, oathEl, h("small", { class: "shaft-head dim" }, kw("reach")), notches, ends);
   let last: Forecast | null = app.lastForecast;
   // notches shown at most: D1 … the deepest (best+1, or the bounty floor). QA e75ec29 (R: "the column starts at D7 but the run starts
   // on D1"): past MAX the shallow floors fold into one notch (`D1–6`, lit by its deepest floor's reach — they are the ones every run

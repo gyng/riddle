@@ -252,6 +252,411 @@ forecast 0.6–1.4 s (fresh, three loads); the D11 fixture's first forecast 0.53
 history `Run`s travel with it); the watch in `fights` 16.7 ms a frame median, p95 17.5, p99 31.9 (21 of 1130 over 20 ms);
 the pkg 3.88 MB fast, 3.03 MB shipped (`wasm-pack --release`, 2 m 10 s).
 
+## 0e. Round 4 — the gate machinery, 2026-10-01 (on b51dd30, Cut 30 round 6)
+
+*The full gate had grown to 50–70+ min on the Cut 30 tree (metrics 4386 s, qa 905 s) with the 16-seed dayplayer
+leg stopped at ~3 h (its TUNED and leave-one-out fortnights 35–40 min each at 24 threads). Only the gate
+machinery changed — `tools/gates.mjs`, `examples/{dayplayer,metrics}.rs`, `examples/{progression,oath}_lib`, a new
+`examples/jobcache_lib` — plus one parallel helper in `forecast.rs`; no rule, content or bar. The box ran another
+agent's full gate the whole session (load 60–120 on 32 threads), so the numbers below are **CPU seconds** (`time
+-v` user time, or a job's thread CPU) unless marked wall, and A/B pairs ran side by side.*
+
+**Where the time went** (profiled: `DP_PHASES=1` and `PROG_PHASES=1` print phase CPU; `METRICS_JOBCPU=1` job CPU):
+
+| Leg | CPU | What |
+|---|---|---|
+| dayplayer, a PICKED or TUNED fortnight | 4–5 k CPU-s | 250–400 a day from day 2: the picker's camp panels (`package_options`: every candidate × the start and the stone panel × 32 sims from D1 to D19–28) and, past the pen, the wall search and `death()`; the absences themselves ~15 a day |
+| dayplayer, an IDLE or RANDOM fortnight | 140–190 CPU-s | the 42 absences, one chain |
+| dayplayer, panels on 3 threads | +30–50 % | the parallel panel ran every sim and cut to the tick budget afterwards: a 32-sim panel from D1 to D19+ stops at ~15–22 sims sequentially, so a third to a half of its sims were thrown away |
+| metrics `--quick` | 15.3 k CPU-s, 87 min wall at 16 threads | **progression lineages 7.6 k (50 %)**, 9 chains of 510–1260 CPU-s each (the longest is the table's critical path: wall search 390–700, absences 170–180 of which the unread stall verdict half, oath reads 35–40); cut30 rows 2.7 k, run *after* the pool (the 8 IDLE snapshot chains then the panels: 1600 s of wall alone at the end); everything else ~5 k |
+| metrics full | ~35–45 k CPU-s (est.) | 30 seeds of the per-seed jobs, 18 progression lineages, the lever (93 jobs) and the oaths |
+
+What moved it:
+
+1. **The dayplayer's fortnights share their prefix** (`dayplayer.rs` `Ask`, `Play`, `Group`, `Pool`). Every read a
+   bot makes of its configuration goes through `Ask` and is logged; a seed's configurations play as **one game**
+   until a check-in where one of them would answer a read differently — that one goes on from the check-in's start
+   (the `Play` state cloned there: the game with its memos, the RNG, the day's tallies) as a group of its own. Reads
+   are asked where their answer is used (`forge` only when a step is affordable, `bank` only when there is a spare
+   to deposit, `pets` only when the stray is known or the kennel has a companion), so PICKED, TUNED and its
+   leave-one-outs are one game until the pen opens (day 5 on seed 1), TUNED − pen **is** PICKED throughout, and TUNED −
+   pets / − bank stay with TUNED until a pet or a deposit. Exact by construction: the code reads the configuration
+   only through `Ask`, and two configurations that answer every read alike from the same state play the same
+   check-in. The groups run longest first (the TUNED family, then by check-ins left). `--no-share` plays each alone.
+2. **The parallel panel stops at its budget** (`forecast::par_sims`): workers take sims in index order and none
+   past the point where the finished prefix already spends the budget — the sequential loop's own stop, which the
+   ordered trim still applies. Same results; no thrown-away sims beyond the few in flight.
+3. **Widths follow the free threads** (`forecast::with_sim_width`, a thread-local width read at each panel): the
+   dayplayer gives its groups `--threads / groups playing` (one each while they fill the threads, all of them to
+   the last fortnight), the table its progression chains `1 + idle threads / chains`. Same results at any width.
+   (The dayplayer's `RIDDLE_THREADS=3` default is gone.)
+4. **The rater lineages skip the stall verdict** (`progression_lib`: `run_offline_counts` in `Mode::Rater`, which never
+   reads `rep.stall`): absences 181 → 86 CPU-s on raterAV, 172 → 106 on raterAU — the printout identical.
+5. **The idle floor's rows play beside the pool** (`metrics.rs`: `cut30_rows` on its own thread from the start; they
+   read nothing of the pool's jobs): the 2-seed table 41 → 25 min wall at 5 threads under load, the same CPU.
+6. **Jobs kept by their sources** (`examples/jobcache_lib`, `target/gates/{dp,prog,lever,oath,lane,idle-snaps}/`).
+   `gates.mjs` sets `RIDDLE_SRC_KEY` = sha1 of `crates/riddle-core/src/**`, the core and workspace manifests,
+   `Cargo.lock` and `rustc -vV`. A job is kept under that key + the source text of the harness file it runs + every
+   argument (`params`, written beside each call: change them together) + `RIDDLE_SKIP_TWIST`:
+   - **dayplayer** (each configuration × seed × days × check-ins): `dayplayer.rs` less `fn main` — the bars are in
+     `main`, so an edit to a bar (round 6's D29/D33 and RANDOM-vs-PICKED rows) reprints the 3-hour leg from its jobs;
+   - **progression lineages** (`progression_lib/mod.rs`, the set's rules, seed, days, schedule), **lever** and
+     **oath** jobs (`lever_lib`, `oath_lib`), **lane** jobs (`lanes_lib`, `presets/lanes.json`'s finds, `LANE_*`),
+     **IDLE's snapshots** (`idle_lib`) — the retired rows' jobs and the cut30 chains: ~60 % of the table's CPU.
+   Without `RIDDLE_SRC_KEY` (a tool run by hand) nothing is kept or read; `--fresh` replays every job and keeps the
+   new results (`RIDDLE_CACHE_FRESH`). Floats are kept as their bits (`{"f64bits": 1, "v": …}`): serde_json
+   without `float_roundtrip` reads some decimal floats an ulp off (7 of the 18 progression lineages' purse ratios
+   did not read back; a random-bits test: 56 % of floats), so a plain JSON cache could have misread a result. The
+   legs' own printouts stay cached by binary hash as before.
+7. **`gates.mjs --fast`**: the quick table less the progression lineages (their rows are all retired: `metrics
+   --fast`), qa on 10 seeds, the dayplayer's IDLE rows on 2 seeds. `GATES_THREADS=N` sets every leg's threads (the
+   cores by default; the legs share them).
+
+**Proof (bit-identical).** Each change was A/B'd against `b51dd30`'s own binaries (built in a scratch worktree) on
+the same arguments, the printouts diffed whole:
+- dayplayer, every bot and leave-one-out, seed 1, 5 days (the pen opens on day 5: TUNED parts from PICKED, TUNED −
+  pets parts later, − forge / − packages / − quests on day 1, − bank never): identical but for the `(Ns)` line;
+  **7372 → 2523 CPU-s (−66 %)**, 22.4 → 14.8 min wall (shared prefixes alone: 3443 CPU-s; + budgeted panels: 2523);
+- the same with the job cache (`RIDDLE_SRC_KEY` set) written then read back: identical;
+- metrics `--quick --seeds 2 --prog-seeds 0` (every job kind but the lineages, the cut30 rows on their thread):
+  identical but for the wall-clock lines (`death()` mean secs, the per-tick and slowest-scene timings, the
+  `(Ns)` line); 3654 vs 3671 CPU-s;
+- metrics `--quick` (8 seeds, the 9 progression lineages, everything): identical but for the same wall-clock lines;
+  87 → 39 min wall (16 / 14 threads, load 60–100 — the base's first minutes ran on a quieter box);
+- **the full gate at full size** against the Cut 30 agent's own `gates.mjs --full` on `b51dd30` (the same afternoon):
+  the metrics printout (538 lines) and qa's (133) identical but for the wall-clock lines (`death()` mean, per-tick,
+  verdict time, slowest scene, the `(Ns)` lines); **all 106 dayplayer jobs** (16 seeds of IDLE/PICKED/RANDOM, 8 of
+  TUNED and its six leave-one-outs) byte-identical to that run's own job cache (`target/gates/dp/`), the leg's
+  printout identical but for its `(Ns)`; the same again when the legs were reprinted from the kept jobs;
+- `progression --bars` on raterAU/AV with and without the stall verdict: identical;
+- `examples/fingerprint` cbc89a0d92fd3db8 before and after; `cargo test --profile fast -p riddle-core` 460 passed
+  (the replay hash among them).
+
+**Wall times** (a shared box: the before run shared it with this round's experiments, the after runs with the other
+agent's dayplayer probes; threads per leg as `gates.mjs` gave them):
+
+| | Before (`b51dd30`) | After |
+|---|---|---|
+| `gates.mjs --full`, fresh | **4 h 37 m** (16:04–20:41; metrics 31 thr, qa 24, dayplayer 24; load 60–120) | ~1.5 h of a quiet 32-thread box by CPU (dayplayer ~120 k CPU-s + table ~45 k + qa ~3 k); measured in pieces below |
+| — metrics full | 7369 s | 2672 s at 9 threads (11 of 18 lineages and the lever/oath/lane jobs from an interrupted first attempt) |
+| — qa (30 seeds) | 1046 s | 616 s at 8 threads (unchanged code) |
+| — dayplayer (16 seeds; TUNED/leave-one-outs 8) | 16593 s | 6716 s at 24 threads, 113.9 k CPU-s (20 of 106 jobs from the interrupted attempt) |
+| full gate after a **bar edit** (dayplayer `main`) | the dayplayer leg replays: 16593 s | the leg reprints from its 106 jobs: **0 s** (the table's and qa's printouts cached) |
+| full gate after a **row edit** (`metrics.rs`) | the table replays: 7369 s | **1072 s** at 19 threads (lever/oath/lane jobs kept, 7 lineages not yet kept replayed; with all 18 kept, ~10 k CPU-s) |
+| `gates.mjs --fast`, fresh | — | 8 m 14 s at 24 threads per leg, 8.6 k CPU-s (load 15–30) |
+| `gates.mjs --fast` after a row edit | — | **3 m 45 s**, 4.9 k CPU-s (lanes and IDLE snapshots kept) |
+| dayplayer, every bot, seed 1, 5 days | 22.4 min, 7372 CPU-s | 14.8 min, 2523 CPU-s |
+| metrics `--quick` | 87 min (16 thr) | 39 min (14 thr) |
+
+**What it cannot do.** A fresh full gate is CPU-bound: the table is ~45 k CPU-s and the dayplayer leg ~120 k (8
+TUNED/leave-one-out seeds; 16 would add ~60 k) — on 32 threads ~1.5 h, not 15 min, whatever the scheduling. Under 15
+min needs the kept jobs (a bar, row or qa edit, a client change: seconds to ~18 min) or less work per fortnight — the
+picker's camp panels, which are the content (a core decision, not the harness's). `--fast` likewise: ~8.6 k CPU-s
+fresh, 4.9 k with the lanes and the IDLE snapshots kept, and its critical path is a fourteen-day chain (IDLE's,
+~150–190 CPU-s; the snapshots') — ~3.75 min after a row edit, ~4–5 min fresh on a quiet box, never under 3 while it
+plays a fortnight.
+
+**Not done, and why.** *Sequential sampling* (stop a ratio row once settled, the fast tier only): the fast tier
+holds no ratio row — its dayplayer is IDLE alone, because one PICKED fortnight (4–5 k CPU-s) is already past the
+3-minute budget; the full tier stays exact. *Hot-path engine work* (the brief's idea 4): the coordinator kept this
+round to the machinery (the core is changing on `cut30`). *The metrics jobs whose code lives in `metrics.rs`*
+(bots, cohort, gold, forge, paired, divergence) are not kept per job: their key would be all of `metrics.rs`, so a
+row edit replays them anyway; the leg's printout cache covers an unchanged binary.
+
+## 0f. Round 5 — the hot path, 2026-10-02 (branch `hotpath`, on `gate-speed` 2fa8532)
+
+*The sim and forecast internals only — no data table, bar or bot policy. Every change is exact: the same
+results by construction, proved below against 2fa8532's own binaries. A shared box (load 13–24 on 32 threads,
+another agent's gate beside it), so times are CPU seconds, A/B pairs side by side; at most 8 threads.*
+
+**Where a PICKED fortnight's CPU went** (seed 1, one thread, `DP_PHASES=1`): 1800 CPU-s = the picker's panels 1534
+(85 %) + the 42 absences 266. Profiled with the pprof scratch crate (`scratchpad/hp/prof`: the dayplayer's own
+`main` linked in, or `package_options` on saved camps — `Game::save` at each check-in of a PICKED-like loop, seed 1
+days 3–11 — with folded stacks and per-line leaf tables). Two findings past the tick itself:
+
+- **The wall's passage was a fifth of the picker.** Each move reads two panels — from the sends' start, and at the
+  wall (the deepest lit stone) — and the wall's sends are paid the floors above the stone, priced by 20 sims from
+  D1 stopped at the stone (`passage_for`): sims the move's own D1 panel had just run, on the same seeds, past the
+  stone.
+- **~11 ticks per hero action** in a panel's sims (5.7 monsters on a floor, 1.2 µs a tick): what every tick did —
+  `max_rows` (a `BTreeSet` range per `ctx()`), `on_vision`'s two `Vec`s, `hunger_tick`'s floor scan before its
+  clock test — was as costly as a flood.
+
+What changed (9 commits; each its own test run and fingerprint):
+
+1. **The wall's passage from sims already run** (`forecast::passage_from`, `packages::panels`). `SimResult.arrive`
+   records each new deepest floor as the sim reached it (depth, ticks, loot): a sim stopped at a shallower floor is
+   that sim cut there (`cut_at`). Sends from D1: the wall's passage reads the move's D1 panel cut at the stone (the
+   sims past it run as before, the passage's budget applied to the whole in order). Sends from a shallower stone:
+   the start's passage is the wall's passage sims cut at the start. Only a panel run here on that very set is read
+   (one from the memo may have run on a set that only plays alike, `played_key`); the memo entries are the ones
+   `passage_for` writes, at the same moment. `package_options` on seed 1's day-3–6 camps: 81.9 → 55.0 s alone.
+2. **The moves share the threads, not each panel its sims** (`packages::options`, `forecast::sim_width`): with
+   2 × moves ≥ the panel's width the moves run on `par_map`, each worker's panels one sim after another. A panel's
+   sims on W threads run past its tick budget by up to W − 1 sims in flight; PICKED 4 days at `--threads 4`:
+   166.7 → 144.4 CPU-s from this alone (one thread: 130.7). Same results at any width.
+3. **The tick's own work.** `item_def` / `monster_def` by an open-addressed index (the first entry of a kind, as the
+   scan; tested against it); `choose_and_act` borrows the set's rows (it cloned every row every action);
+   `rules::shadows` by reference; `oscillation_guard` counts the window's distinct tiles in place; `can_take` reads
+   the spares' need only when it asks for spares; `meta::unlock_rows_any` builds the cards' rows once
+   (`row_needs` built them per item per slot); `is_identified` without a `format!`; `Ctx::max_rows` worked out
+   when a row is chosen, not per tick; `hunger_tick` tests its clock first; `on_vision` compares the monsters in
+   view with the last in place; a shadowed row's reason is not formatted in a sim (`row_why` keeps none there).
+4. **The floods** (`tiles::each_step`): neighbours by index offset, the row's edges tested once — the same tests in
+   `DIRS8` order — for `bfs_layers` and `flood_resume`. The chores' tests reordered cheap-first where every one is
+   pure (the den and skipped items before `would_take`; the stairs seen before the floor's `seen_pct` pass, since
+   `descend_step` declines without a side effect otherwise).
+5. **Vision.** `Map::vis_from` keeps what `update_vision` last worked out (the hero's tile, the radius, the map's
+   size, the square's walls as bits — read a row slice at a time): the same inputs return at once (`visible` is
+   only written there; nothing unsees a tile). And the square itself: no tile outside it is visible, so
+   `situations_seen` and `sees_situation` scan it, not the map. Never saved; equal on every map.
+6. **One look reads the pack once** (`turn::PackRead`): what `would_take` / `can_take` read of the pack alone
+   (each slot's `row_needs`, the spares, the cheapest consumable, the swap, `queen_slot`) worked out once for all
+   the items `nearest_item_step` weighs; the public `would_take` / `can_take` unchanged.
+
+**Measured** (CPU-s; base = 2fa8532's binaries, built the same way):
+
+| | Base | After | |
+|---|---|---|---|
+| `package_options(32)` on seed 1's camps, one thread (days 5 / 8 / 11) | 25.1 / 37.4 / 27.3 s | 10.9 / 15.9 / 12.3 s | **2.3×** |
+| PICKED fortnight, seed 1, `--threads 1` | 1800 (panels 1534, absences 266) | 1002 (panels 729, absences 273) | 1.80× (panels 2.1×) |
+| PICKED fortnight, seed 1, `--threads 8` | 3521 (771 s wall) | 1004 (333 s wall) | **3.5×** (wall 2.3×) |
+| TUNED, seed 1, 8 days, `--threads 1` (phases) | — | 305: panels 238, wall search 24, absences 41, `death()` 2 | |
+| dayplayer, 4 bots × 8 seeds × 5 days, `--threads 4` | 4677 (1175 s wall) | 2783 (701 s wall) | 1.68× |
+| metrics `--quick --seeds 2` (`--threads 2`, `RIDDLE_THREADS=2`) | 7720 (3599 s wall) | 4839 (2210 s wall) | 1.60× |
+| per-tick (the table's quiet FULL batch) | 3.58 µs | 1.23 µs | |
+| `death()` with deltas, mean of 7 | 0.98 s | 0.61 s | |
+
+At a gate's widths the moves' sharing removes the sims run past the budget outright — 8 threads cost what one does
+(1004 vs 1002 CPU-s) — so the fortnight as the gate plays it is 3.5× cheaper; at one thread 1.8×, the absences'
+share now a quarter of it. By the §0e accounting the fresh full gate (dayplayer ~120 k CPU-s, of which the PICKED /
+TUNED / leave-one-out fortnights ~115 k and IDLE / RANDOM's ~5 k; table ~45 k; qa ~3 k) comes to ~33 + 5 + 28 + 3 ≈
+70 k CPU-s, **~40–50 min** on the 32 threads (an estimate: this round could not use more than 8); `cut30`'s
+return of TUNED and the leave-one-outs to 16 seeds adds ~17 k of that, ~10 min. `--fast` keeps its critical path,
+IDLE's fourteen-day chain of absences (below): its table share is ~1.6× cheaper, but it stays over 3 min.
+
+The absences did not move: their cost is the history ring (`Run` + facts cloned every `HISTORY_STRIDE` and dropped
+31 strides later, ~45 % of an absence) and the trace's provenance (`view_because`), which sims never pay. So IDLE
+and RANDOM fortnights — and `--fast`'s critical path, IDLE's chain — are where they were; §4.1 still applies.
+
+**Proof (bit-identical)**, each against 2fa8532's own binaries on the same arguments, printouts diffed whole:
+- `cargo test --profile fast -p riddle-core`: 461 passed (the replay hash among them) after every commit;
+- `examples/fingerprint` **cbc89a0d92fd3db8** after every commit;
+- `package_options` on 6 saved camps (seed 1, days 3–11): the options' `Debug` hash identical every run;
+- dayplayer PICKED seed 1, 14 days at `--threads 1` and `--threads 8`: identical to the base's but for the `(Ns)` and
+  phase-CPU lines (and at 4 threads to one thread: the moves' sharing);
+- dayplayer `--bots idle,picked,tuned,random`, 8 seeds × 5 days: identical but for the `(Ns)` line;
+- metrics `--quick --seeds 2`: identical but for the wall-clock lines (`death()` mean, per-tick cost, divergence's
+  slowest scene, verdict time, the `(Ns)` line);
+- **rebased onto `cut30` 4d08386** (round 7, which moved the fingerprint): clean, no conflict; fingerprint
+  f81bfcfe4fc17ffb, the same as `cut30`'s own build; dayplayer 4 bots × 2 seeds × 4 days identical to `cut30`'s
+  (615 → 344 CPU-s at one thread).
+
+**Not done, and why.** *The history ring* (§4.1): truth-bearing, and its cheap forms (`Arc` facts, interned kinds,
+`clone_from` reuse) change `Run`'s types or need a hand-written `Clone` a later field could silently miss — the
+absences' remaining cost. *Sharing a chore's floods* (one flood from the hero for the item, stairs and frontier
+tests of one action): ~3 % for a refactor of five consumers' side-effect contracts. *Floor generation memoised
+across panels* (a panel's sim i plays the same floors on every move, ~4 % of a panel): population reads the run's
+RNG and the lineage, so its key is not provably complete. *The wall search's screening panels on `par_map`*: 24 of
+TUNED's 305 CPU-s, and its panels land in the real game's memo, whose order would have to be replayed exactly.
+
+## 0g. Round 6 — the history ring, 2026-10-02 (branch `ring`, on `hotpath` 0e16b30)
+
+*The engine's internals only — no content, bar, bot or example row. Every change exact, proved below against
+0e16b30's own binaries (`scratchpad/ring/base/`). A shared box (another agent's full gate beside it, load 10–50 on
+32 threads), at most 6 threads; times are CPU seconds, A/B pairs side by side.*
+
+**What an absence paid for the ring.** Every `HISTORY_STRIDE` ticks the live `Run` and the lineage's facts were
+cloned into the ring and the entry 31 strides older dropped (§4.1). On a deep IDLE run (seed 1, day 9, D23, tick
+40 000) one snapshot was **115–170 µs**: the trace's 16 rows 32–36 µs (each row's strings), the kills 16–30 (a
+string per kill, the run's whole list), the episodes 23, the facts 13–22, the notes, found units, max steps, bones,
+floor items and event lines 2–6 each — fields that change a few times a floor, copied 3–10 times between changes.
+Two measurement lessons: the pprof scratch crate blocklists libc, so **malloc/free are not in its samples** (its
+profile put the ring at ~42 % of an absence; cutting most of it made absences 2.6–4.3× cheaper); and the shared box
+biases CPUs (one core read 35 % slower than its neighbour), so the A/B alternates the two binaries' CPUs each
+round (`scratchpad/ring/ab.sh`, the min of 4).
+
+**What changed** (2 commits):
+
+1. **`shared::Shared<T>`** — an `Arc` that is a value: it reads as `T` (`Deref`), any `&mut` access copies first
+   when shared (`DerefMut` = `Arc::make_mut`), and its equality, `Debug` and serde are `T`'s own, so a save, a
+   printout or a comparison cannot tell it from a `T`. A clone is a reference count; a write after a snapshot
+   copies the one field once. `Run`, `LineageState`, `Hero`, `sifter::Arc` and `Game` keep `#[derive(Clone)]`
+   — a field added later as a plain type is cloned deep as before (slower, never wrong); a field turned
+   `Shared` that is written every tick costs one copy a stride, as before. Held in `Shared`: the run's kills,
+   notes, episodes, found units/gone, max steps, bones, floor items, event lines, situations; each trace row
+   (`Vec<Shared<TraceTurn>>`); the lineage's facts (so the ring, `floor_start`, `DeathRec.t10_facts` and each
+   verdict replay's reset share one set); then the hero's pack, weapon and armour, fifteen small run fields
+   written a few times a run (trophies, packed kinds, bosses met / slain, passed events, rested names, the thin
+   map, hp lost, the avenged, ids seen, the brought ids, depth times, the caged, the twists) and the arc's acts
+   (one `Shared<Act>` for the window, the low's row and `last`). Two writes made conditional where they were
+   no-ops (`trace_seen` writes the last row only when its count rises). Allocations a snapshot on that run:
+   hundreds → **35**; clone + drop in a loop 115–170 → 3.5 µs.
+2. A test that compared `&'static` defs by pointer (`lookups_match_a_scan`) compares by value: a `const` table's
+   promoted copy may differ between codegen units, and this branch's layout split them.
+
+**Measured** (CPU-s, one thread, side by side):
+
+| | Base (0e16b30) | After | |
+|---|---|---|---|
+| absence µs/tick, seed-1 IDLE saves day 2 / 5 / 9 (quieter box) | 3.74 / 5.29 / 6.31 | 1.46 / 1.63 / 1.91 | **2.6–3.3×** |
+| the same under load 30–50 | 8.93 / 13.21 / 18.59 | 3.17 / 3.56 / 4.34 | 2.8–4.3× |
+| IDLE fortnight, seed 1, `--threads 1` (load ~15) | 133.6 | **31.3** | 4.3× |
+| RANDOM fortnight, seed 1, `--threads 1` (load ~15) | 86.3 | **26.5** | 3.3× |
+| the two under load 30–50 | 216 / 156 | 62 / 52 | |
+| `timing 1 8 seq` (DEFAULT, shallow): `run_offline` 8 h | 1.18 s | 0.91 s (first commit) | |
+| fingerprint, 3 seeds × 8 h, 6 threads | 10.4 s wall | 4.6–6.3 s | |
+| dayplayer 4 bots × 4 seeds × 5 days, 6 threads (sequential runs, different load) | 1553 | 994 (first commit, load ~15) · 1168 (both, load ~40) | |
+| metrics `--quick --seeds 2`, 3 threads each, side by side | 4620 (25.8 min wall) | 4063 (22.6 min) | 1.14× (its jobs are mostly panels, verdicts and `without_history` sends) |
+
+`--fast`'s critical path was IDLE's fourteen-day chain of absences (~150–190 CPU-s, §0e); it is now ~30–60
+CPU-s, under the 3-minute budget with room. The PICKED / TUNED fortnights gain their absences' share (a
+quarter at one thread after round 5) and cheaper `Game` clones in the panels' sims.
+
+**What is left in an absence.** The ring is still ~25–28 % of an absence (the same saves under
+`without_history` run 1.31–1.39× faster — the ring's whole remaining cost): what changes every stride — the monsters (a kind string
+each), the meters' maps, the arc's window, the map's sight bits, the hero's distance field (4 KB), the inline
+`Run` (3.8 KB) — 35 allocations and ~16 KB a snapshot, freed cold 310 ticks later. Next steps if wanted: share
+the map's `tiles`/`corridor` (an extra indirection on the floods' hot reads: measure first), the monster's `kind`
+as a shared string (a wide type change), the meters' `healed`/`supplies` maps. Not dropped from the snapshot: the
+hero's distance field and flood (`#[serde(skip)]` caches) — a partially settled flood whose readers (`approach`,
+`situations`) are written to be indifferent to how far it has run; leaving it out of the ring would need that
+proved for every reader. Tried and dropped (no measurable gain, ±5 %): `TaggedKinds` for
+`provenance::view_because`'s scans of the kills and the log (7–10 % of an absence: a monster-def lookup per kill,
+~33 kills scanned per call, a call every other tick).
+
+**Not done, and why.** *Shared chore floods*: the floods are ~15 % of an absence now (bfs_layers 8.7, flood_resume
+3.1, of which `nearest_tile` for explore/items 4.7); one flood serving the item, stairs and frontier tests would
+need the five consumers' side-effect contracts re-proved — left for a round with the profile on a quiet box.
+*Floor generation memoised*: 1.4 % of an absence, ~4 % of a panel, and its key (the run's RNG stream, the
+lineage's state read by population) still not provably complete.
+
+**Proof (bit-identical)**, against 0e16b30's binaries built from `hotpath` into `scratchpad/ring/base/`:
+- `cargo test --profile fast -p riddle-core`: 461 passed (the replay hash among them) after each commit;
+- `examples/fingerprint --seeds 3`: **db508cf021c21768** before and after each commit (the 8-seed print below);
+- dayplayer `--bots idle,picked,tuned,random --seeds 4 --days 5`: identical but for the `(Ns)` line, each commit;
+- metrics `--quick --seeds 2`: identical but for the wall-clock lines (`death()` mean, per-tick, divergence's
+  slowest scene, verdict time, the `(Ns)` line), each commit;
+- IDLE and RANDOM fortnights, seed 1: identical but for the `(Ns)` line;
+- saves: a seed-1 IDLE save (days 3 and 9) loaded, 8 h absent, a `death()` screen, saved, reloaded and played 3000
+  ticks mid-run, saved again (the ring in it) — the whole text byte-identical to the base's;
+- clippy (all targets) clean; the wasm crate builds (`wasm32-unknown-unknown`, fast profile);
+- **onto `cut30`** (961a01a, then 2c15a91 with all three commits): `git merge-tree` clean; cherry-picked, the
+  rebased tree builds (lib, tests, examples, the wasm crate), 461 tests pass, fingerprint (8 seeds)
+  **f81bfcfe4fc17ffb**, the same as `cut30`'s own build (12.0 → 6.1 s); dayplayer 4 bots × 2 seeds × 4 days
+  identical to `cut30`'s (354 → 257 CPU-s at 3 threads each, side by side).
+## 0h. Round 7 — the targeted, fail-fast dayplayer, 2026-10-02 (branch `failfast`, on `cut30` e08ebb7)
+
+*A tuning loop's tool, not the gate. When the Cut 30 agent tunes content to pass a few failing rows, the full
+dayplayer replays every bot on every seed for 35–60+ min before it says anything. The aim: a check that will fail
+reports in minutes, and a row run to completion prints exactly the full run's value. Only `examples/dayplayer.rs`'s
+`main` (~30 lines), a new `examples/dayplayer_rows/mod.rs` and `tools/gates.mjs` changed. The file less `main`, which
+is the job cache's key, is byte-identical, so every kept fortnight still reads back. A shared box (load 30–55 on 32
+threads, the Cut 30 agent's gates beside it); at most 6 threads; times are CPU seconds unless marked wall.*
+
+```sh
+node tools/gates.mjs [--full] --rows <ids|substrings> [--fail-fast] [--seeds 8 --tuned-seeds 8 …]
+target/fast/examples/dayplayer --seeds 8 --rows random-picked,tuned-picked [--fail-fast] [--threads 6]
+target/fast/examples/dayplayer --rows ?          # the row ids and the bars they match
+```
+
+**What a row needs** (`ROWS` in `dayplayer_rows/mod.rs`, one entry a bar). Each entry lists:
+- **the configurations it reads**: e.g. RANDOM vs PICKED reads those two, nothing-required reads the six
+  leave-one-outs and IDLE.
+- **those it needs only to be there**: `main` computes PICKED's stage row only when IDLE has a result, so IDLE's
+  seed 1 is played for zero days.
+- **its seeds**: the smallest seed count among its bots, as the bars' `zip` reads them.
+- **how far each game must go**: a day limit (D8 by the end of day 1, D14 by day 2) and an earlier stop:
+  - the milestone depth reached (`Depth(23)` for RANDOM-vs-PICKED and PICKED-vs-IDLE, `Depth(33)` for TUNED-vs-PICKED,
+    outpace and nothing-required). The milestone's hours are written at the check-in that reaches it.
+  - the end of the day D23 is reached (the stall row stops counting there).
+  - stance L5 at a day's end.
+  - the whole fortnight (stage days, gold, stalls, grew, the king, each system).
+
+`--rows` plays only those configurations and seeds, through the same `Group`/`Ask`/`Play` shared-prefix
+machinery. Each group stops when every member has what every row reading it needs (`while !p.done() &&
+!plan.enough(..)`). A game stopped early is never kept in the job cache; a kept fortnight is read back whole and
+satisfies any need. Only the targeted bars print, and the last line says `targeted … not a gate pass`.
+
+**`--fail-fast`.** Groups are queued lowest seed first. After each result lands, each targeted row's settle rule
+runs on the seeds complete so far:
+- **every-seed rows** (D8 by day 1, stalls, gold, the king, grew, RANDOM never beats PICKED, nothing-required's
+  worst seed) fail on their first failing seed;
+- **median rows** take the median with the seeds left all at −∞ and all at +∞. The ratio rows can also drop a seed
+  (one where the faster bot never reaches the milestone), so for them each number of dropped seeds is tried too. A
+  threshold that holds at both extremes holds between them, so all pass means settled PASS and all fail means
+  settled FAIL;
+- **count rows** (D23 ≥ 6/8, content reach) and the 90 % outpace row are bounded the same way (each seed left adds
+  7 kept or 7 lost pairs);
+- **each system adds value** compares means: it settles only at the end, by its bar.
+
+The first row settled FAIL aborts the run (exit 1), naming the game that settled it, the seed and the values. A
+row settled PASS frees the games only it needed. When every row has settled, the run ends.
+
+**Drift check.** At the end of every targeted run, each row's settle rule is re-run on the whole results and must
+agree with the bar `main` printed. Otherwise the run prints `MISMATCH` and fails, and a row whose bar was renamed
+prints `MISSING`. It caught one bug this round: PICKED's stage row printed nothing until IDLE was present. Bar
+thresholds held in `main` constants (`NOTHING_REQ_MAX_LAG`, `PEN_DAY_H`) are read from `dayplayer.rs`'s own source
+(`main_const`), so round 10's 24 → 48 h needed no edit here.
+
+**Exactness** (every diff whole on the bar lines):
+- `--rows X` without fail-fast against the full 8-seed run (IDLE, PICKED, TUNED, RANDOM; 22.4 k CPU-s), each
+  played fresh in its own directory:
+  - `random-picked`: `8/8 · 8/8 PASS`, identical.
+  - `picked-stages`: `10.0 PASS`, identical (reprinted from its own kept fortnights after the IDLE-presence fix).
+  - `tuned-picked` on the start-of-round head 7d9f2b9 (D29 · D33, a scratch build of it with this round's
+    files): `1.02 · 1.26 FAIL`, identical (7,503 CPU-s, 42 m wall).
+- IDLE on 3 seeds: `idle-d8`, `idle-d13`, `idle-d23`, `idle-stall` and `stance` each identical to the full run.
+- All 20 rows at once from the Cut 30 agent's own kept 16-seed gate jobs (the same `RIDDLE_SRC_KEY`; the file less
+  `main` is byte-identical): the 20 bar lines byte-identical to that gate's printout. Checked on round 9
+  (nothing-required FAIL `packages D23 median −28 h · worst from day 5 +40 h`) and on round 10's 48 h cap (all
+  PASS); no MISMATCH, no MISSING.
+- Fail-fast verdicts agree with the full run:
+  - round 9 `nothing-required`: FAIL, `seed 15: packages D18: +40 h behind IDLE from day 5 (cap 24 h)`;
+  - round 10: PASS;
+  - all 19 settling rows on the 16-seed jobs: the gate's PASS/FAIL each;
+  - 7d9f2b9's D29 · D33 row: FAIL at seed 6, `D29 0.93…1.13 with 2 seeds left (s1 1.65, s2 1.09, s3 1.17,
+    s4 0.94, s5 0.89, s6 0.91)`; the full run reads 1.02;
+  - D33 (round 8 on): PASS at seed 5, `D33 1.20…1.55 with 3 seeds left`; the full run reads 1.26.
+- **On e08ebb7** (the ring merge, core-only and bit-identical): the 20 rows from the round-10 kept jobs, read with
+  the e08ebb7 binary, give 20/20 bar lines identical to the round-10 gate printout and no drift. Seven rows played
+  fresh on e08ebb7 (`idle-d8,idle-d13,idle-d23,idle-stall,stance,random-picked,reach`, 8 seeds) are identical to the
+  pre-ring full run (5 m 33 s, 986 CPU-s at 3 threads).
+
+**Timings** (8 seeds, fresh, no job cache; targeted runs at `--threads 3`, two side by side; the full run at
+`--threads 4`; the box at load 30–55):
+
+| Check | Wall | CPU-s | vs full (CPU) | Verdict |
+|---|---|---|---|---|
+| full dayplayer, 8 seeds, IDLE/PICKED/TUNED/RANDOM (no leave-one-outs) | 1 h 40 m | 22,424 | 1× | (all rows) |
+| RANDOM never beats PICKED, `--rows` | 20 m 20 s | 2,410 | 9.3× less | PASS 8/8 · 8/8 |
+| RANDOM never beats PICKED, `--fail-fast` | 20 m 16 s | 2,398 | 9.4× less | PASS (every seed needed: an every-seed row cannot pass early) |
+| PICKED stage days, `--fail-fast` | 1 h 9 m | 11,492 | 2.0× less | PASS settled at 7/8 seeds (median 10.0–10.5 whatever s8 does) |
+| TUNED vs PICKED at D29 · D33 (7d9f2b9, failing), `--rows` | 42 m 33 s | 7,503 | 3.0× less | FAIL 1.02 · 1.26 |
+| TUNED vs PICKED at D29 · D33 (7d9f2b9, failing), `--fail-fast` | **29 m 48 s** | **5,357** | **4.2× less** | FAIL settled at seed 6 |
+| TUNED vs PICKED at D33 (now), `--fail-fast` | 26 m 42 s | 4,664 | 4.8× less | PASS settled at seed 5 |
+
+(Timed on the pre-ring core, 3f1ae7e's. On e08ebb7 the ring makes IDLE's and RANDOM's absences cheaper:
+RANDOM-vs-PICKED with five IDLE rows and content reach took 5 m 33 s, 986 CPU-s. PICKED and TUNED fortnights are
+mostly panels and barely move.) At 6 threads a failing TUNED row settles in ~15–20 min of wall on a quiet box,
+against the full run's ~1 h.
+
+Where it saves:
+- **Rows read up to a milestone**, not the fortnight: RANDOM-vs-PICKED stops each PICKED game at D23 (day 4–6), so
+  it costs a tenth of the full run.
+- **Failing rows**: they abort at their first settling seed, with the seeds ordered so it comes early.
+
+Where it cannot:
+- **A row that reads the whole fortnight of a PICKED or TUNED bot** (stage days, stalls, each system) still plays
+  those fortnights. It saves only the other bots and, for medians, the seeds that cannot change the outcome.
+- **An every-seed row that passes** needs every seed. Settling on games still in progress (RANDOM at D13 before
+  PICKED gets there) would fail sooner; it is not done.
+
+`gates.mjs --rows` runs the dayplayer leg alone at the tier's seeds (quick 2, `--full` 16; `--seeds N` etc. after
+the flags win). Its printout is kept as `target/gates/dayplayer-rows-<hash>.txt`, keyed by the binary, the
+arguments and the core's sources, and its full-length fortnights go to the gate's job cache (`RIDDLE_SRC_KEY`). It
+never prints `gates: all PASS` or `dayplayer: all bars pass`; it ends with `gates: TARGETED — … not a gate pass`.
+
 ## 1. The evaluation loop (the afternoon)
 
 Today: QA round (2 players, parallel, ~55 min) → triage + fixes → reship → QA round 2 →
@@ -423,7 +828,11 @@ check` (1.5 s) answers type errors before the 13 s.
 ## 4. The core sim (bit-identical: nothing below is read by `tick`; the replay-hash gate and
 the 3977696 fingerprint method prove it)
 
-### 4.1 The history ring — do now
+### 4.1 The history ring — done (§0g)
+
+*2026-10-02: the slow-changing fields, the facts and the trace rows are `shared::Shared` (copy on write); a deep
+snapshot 115–170 → 3.5 µs, an IDLE fortnight 4.3× cheaper. What is left is per-stride state (§0g).*
+
 
 Every 10 ticks `Run` + `facts` are cloned: 12 µs shallow, **52 µs on deep floors** (33 % of a
 DEFAULT batch's live time, 49 % of a FULL batch's). The clone by field, FULL: trace 12.8 µs

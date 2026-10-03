@@ -30,7 +30,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from make_tiles import BOSS_FLASH, PALETTES  # noqa: E402  single source of truth for ramps
+from make_tiles import BOSS_FLASH, PALETTES, style_ramp  # noqa: E402  single source of truth for ramps
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "generated"
@@ -43,7 +43,7 @@ OUTLINE_PX = 2
 INK = (22, 18, 20)
 QUANT_COLOURS = 32
 GUTTER = 1
-ATLAS_W = 512
+ATLAS_W = 1024
 
 
 def key_source(src: Path) -> np.ndarray:
@@ -56,11 +56,23 @@ def key_source(src: Path) -> np.ndarray:
     if min(corners) < 0.95:
         return rgba  # authored alpha
     r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-    dist = np.sqrt(r * r + g * g + (b - 255.0) ** 2)
+    kr = key_red(rgb)
+    dist = np.sqrt((r - kr) ** 2 + g * g + (b - 255.0) ** 2)
     alpha = np.clip((dist - LO) / (HI - LO), 0.0, 1.0)
     spill = alpha < 1.0
-    b = np.where(spill, np.minimum(b, np.maximum(r, g)), b)
+    if kr:   # art direction phase 2: a magenta key (#FF00FF, far from the moonlit blues) — pull r and b down to g where they spill
+        ex = np.maximum(0.0, np.minimum(r, b) - g)
+        r = np.where(spill, r - ex, r)
+        b = np.where(spill, b - ex, b)
+    else:
+        b = np.where(spill, np.minimum(b, np.maximum(r, g)), b)
     return np.dstack([r, g, b, alpha * 255.0])
+
+
+def key_red(rgb: np.ndarray) -> float:
+    """The source's key: pure blue #0000FF (v1/v2) or magenta #FF00FF (phase 2), by the corners' red channel."""
+    c = np.array([rgb[0, 0], rgb[0, -1], rgb[-1, 0], rgb[-1, -1]])
+    return 255.0 if float(np.median(c[:, 0])) > 128 else 0.0
 
 
 def crop_to_alpha(rgba: np.ndarray, thresh: float = 8.0) -> np.ndarray:
@@ -132,13 +144,73 @@ def quantise(rgba: np.ndarray, colours: int) -> np.ndarray:
     return out
 
 
-def build_sprite(src: Path, master_h: int, quant: bool) -> Image.Image:
+RIM = (234, 223, 197)   # BONE
+
+
+def moon_rim(before: np.ndarray, after: np.ndarray, k: float = 0.6) -> np.ndarray:
+    """art direction phase 2 (the owner: "the hero must be readable"; blind round 27: "the hero a tiny grey blob"): a thin BONE moon
+    rim on the hero — the silhouette's top- and left-facing edge pixels (just inside the ink ring) take the moon instead of the ring's
+    darkening. `before` is the resampled master, `after` the same padded and outlined."""
+    p = OUTLINE_PX
+    m = np.pad(before[..., 3] >= 128, p)
+    q = np.pad(m, 1)
+    edge = m & ~q[:-2, 1:-1] & q[2:, 1:-1]   # top-facing (the moon is above), not a one-texel strand (a bowstring, a hair)
+    e = np.pad(edge, ((0, 0), (1, 1)))
+    edge &= e[:, :-2] | e[:, 2:]   # runs of two or more (a lone step on a diagonal would read as a dotted line)
+    rows = np.where(m.any(1))[0]
+    if rows.size:   # the upper 60 % of the figure (head, shoulders, the raised weapon), where the moon lands
+        edge[int(rows[0] + 0.6 * (rows[-1] - rows[0])):] = False
+    src = np.pad(before[..., :3], ((p, p), (p, p), (0, 0)))
+    out = after.copy()
+    out[edge, :3] = src[edge] * (1 - k) + np.array(RIM, np.float32) * k
+    return out
+
+
+EMBER_CORE, EMBER_BODY = np.array([255, 216, 140], np.float32), np.array([232, 146, 58], np.float32)
+
+
+def warm_mask(rgb: np.ndarray) -> np.ndarray:
+    """a flame's texels: bright, red well over blue, green between a third and 0.68 of red (EMBER #e8923a is 0.63; GILT #b89448 0.8 and the painted gold coins ~0.7 stay gold)"""
+    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    return (r > 170) & (r - b > 90) & (g > 0.35 * r) & (g < 0.68 * r)
+
+
+def keep_emissive(src_rgba: np.ndarray, master: np.ndarray) -> np.ndarray:
+    """Cut 30 town: a torch flame, a forge mouth or a lit window is a few hundred px in a 1536 px master and the box downscale
+    averages it into the dark wood around it (the mouth's two torches came out (112, 92, 79): unlit). Where a master texel was
+    at least a fifth flame in the source, it takes EMBER (half flame or more: the pale core), so the warm lights survive at game size."""
+    h, w = master.shape[:2]
+    inner_h = h
+    m = (warm_mask(src_rgba[..., :3]) & (src_rgba[..., 3] > 128)).astype(np.float32) * 255
+    frac = np.asarray(Image.fromarray(m.astype(np.uint8), "L").resize((w, inner_h), Image.Resampling.BOX), np.float32) / 255
+    out = master.copy()
+    op = out[..., 3] >= 128
+    body = op & (frac >= 0.2)
+    core = op & (frac >= 0.5)
+    out[body, :3] = out[body, :3] * 0.25 + EMBER_BODY * 0.75
+    out[core, :3] = out[core, :3] * 0.2 + EMBER_CORE * 0.8
+    return out
+
+
+def build_sprite(src: Path, master_h: int, quant: bool, rim: bool = False, emissive: bool = False) -> Image.Image:
     rgba = key_source(src)
     rgba = crop_to_alpha(rgba)
+    hi = rgba
     rgba = resample_master(rgba, master_h)
-    rgba = outline(rgba)
+    if emissive:
+        rgba = keep_emissive(hi, rgba)
+    out = outline(rgba)
+    if rim:
+        out = moon_rim(rgba, out)
+    elif emissive:   # Cut 30 town: the moon on the roofs and the tops of props (§6: MIST rims on top edges), a lighter touch than the hero's
+        out = moon_rim(rgba, out, k=0.45)
+    rgba = out
     if quant:
-        rgba = quantise(rgba, QUANT_COLOURS)
+        q = quantise(rgba, QUANT_COLOURS)
+        if emissive:   # the flame's two colours survive the median cut (a small cluster is the first thing it merges)
+            keep = np.all(np.abs(rgba[..., :3] - q[..., :3]) > 0, -1) & warm_mask(rgba[..., :3])
+            q[keep, :3] = rgba[keep, :3]
+        rgba = q
     return Image.fromarray(np.clip(rgba, 0, 255).astype(np.uint8), "RGBA")
 
 
@@ -176,7 +248,8 @@ def main(argv: list[str]) -> int:
             missing.append(aid)
             continue
         if asset["bg"] == "keyed":
-            im = build_sprite(src, int(asset["master_h"]), quant)
+            im = build_sprite(src, int(asset["master_h"]), quant, rim=aid.startswith(("hero_", "walk_")),
+                              emissive=asset.get("kind") == "town")
             items.append((aid, im))
             meta_sprites[aid] = {"kind": asset["kind"], "texel_h": asset["texel_h"], "master_h": asset["master_h"]}
             print(f"  {aid:<20} {im.width}x{im.height}  keyed")
@@ -211,7 +284,7 @@ def main(argv: list[str]) -> int:
             "tile": 8,
             "sprites": meta_sprites,
             "tiles": tile_ids,
-            "palettes": {**PALETTES, "boss_flash": BOSS_FLASH},
+            "palettes": {**PALETTES, "burrows": style_ramp("burrows"), "town": style_ramp("town"), "boss_flash": BOSS_FLASH},
         },
     }
     (DST / "atlas.json").write_text(json.dumps(data, indent=1, sort_keys=True) + "\n")

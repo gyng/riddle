@@ -13,6 +13,9 @@
     "unlock_card":    { "maxWords": 6,  "noSentences": true,  "example": "+1 row · cond: foe tag" },
     "button":         { "maxWords": 2,  "noSentences": true,  "example": "patch | send | keep all" },
     "label":          { "maxWords": 2,  "noSentences": true,  "example": "vault | banked runs | facts learned" },
+    "quest_goal":     { "maxWords": 5,  "noSentences": true,  "example": "reach D10 · no return | home from D14 | slay the Lich" },
+    "tooltip":        { "maxWords": 10, "noSentences": true,  "example": "stance — how he fights · one worn (docs/TOOLTIPS.md: the gloss and its live value; the term is the plate's title)" },
+    "node_tip":       { "maxWords": 4,  "noSentences": true,  "example": "hauls home · while away (Cut 30.5: a works node's blurb and the works tree's tooltips — a fragment, never a sentence, never `you`)" },
     "ending":         { "maxWords": 60, "noSentences": false, "example": "diegetic; judged separately" }
   }
 }

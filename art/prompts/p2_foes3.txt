@@ -1,0 +1,93 @@
+You are painting CHARACTER SPRITE masters for the game "Riddle" (a gothic dark-fantasy roguelike on a phone, seen
+top-down at a high three-quarter angle). FIRST look at these approved STYLE TARGETS (you may open these images and nothing
+else in the repository): /home/g/p/riddle/art/ui/targets/style/hero_sheet.png, /home/g/p/riddle/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/art/ui/targets/style/watch_fens.png, /home/g/p/riddle/art/ui/targets/style/boss.png. They show the target look: moonlit ink and wash on a visible pixel grid, one BLOOD accent.
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix; do NOT
+touch anything outside /home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. OVERWRITE existing files.
+
+For each asset: generate at the stated size and save the final PNG (sRGB) to the exact path. BACKGROUND: a TRANSPARENT
+background (PNG alpha) is best; if the tool returns an opaque image, the background must be ONE flat uniform pure MAGENTA
+#FF00FF (255,0,255) edge to edge (the pipeline keys it) — never paper, never a floor, never a gradient. Self-check each
+output: the four corners transparent or magenta, no magenta/pink-violet inside the subject, the subject not cropped;
+regenerate that asset once if not.
+
+=== STYLE (docs/ART_DIRECTION.md, approved — the FIRST and loudest rule) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== SPRITE RULES (on top of the style) ===
+- ONE full-body figure, a three-quarter view from slightly above, facing RIGHT, centred with ~10 % margin, nothing cropped.
+- Proportions (these override "tall" in the style above): the creature's own build, long and elegant where it allows, but always ONE bold readable mass; a humanoid's head at least one fifth of its height; the defining feature (its tag) drawn LARGE.
+- INK: one closed blue-black INK #0d0c14 contour around the whole silhouette, 12-16 px thick at 1024 px (it must survive a
+  downscale to 40-96 px tall), thicker on the lower/right shadow side; a few interior ink lines on the big forms only.
+- LIGHT: cold MOONLIGHT from ABOVE: MIST #a4bcd6 rims on the top edges (head, shoulders, weapon), the lower half falling
+  into DUSK/UMBRA. The lit side must stay clearly lighter than a dark stone floor; keep one pale element (BONE face,
+  MIST blade edge, bone) high on the figure so it pops at game size.
+- WASH on the GRID at sprite scale: chunky clusters (~12 px at 1024), washes with granulation inside them; no hairline
+  detail, no smooth airbrushed gradients, no noisy speckle. Paper grain only faintly inside the lightest washes.
+- COLOUR: only the palette above (+ the monster's one local hue when the brief names it). BLOOD only where the brief puts it.
+- NOTHING but the figure: NO floor, NO contact shadow, NO cast-shadow pool, NO scenery, NO paper sheet, NO frame, NO glow
+  halo, NO text or letters.
+
+=== READABILITY (the sprites are shown TINY: heroes ~48 px tall, monsters 20-48 px, bosses ~64 px) ===
+One bold readable mass, one clear gesture, 3-4 signature details. The defining feature (the "tag" in each brief) must
+be visible in the SILHOUETTE alone. Judge each output shrunk to that size before accepting it.
+
+=== ASSETS ===
+--- 1. id: ghoul
+Output path: /home/g/p/riddle/art/generated/ghoul.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Brief: A GHOUL facing right: HUNCHED and gaunt, grey DUSK corpse flesh with MOON lights, arms out front ending in long clawed hands (BONE claws), jaw hanging open, lank INK hair. TAG: HUNCHED with CLAWS reaching forward — the silhouette leans forward, two claw shapes leading. Distinct from the upright skeleton at 40 px.
+
+--- 2. id: wraith
+Output path: /home/g/p/riddle/art/generated/wraith.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 48 px tall; judge readability at that size.
+Brief: A WRAITH facing right, a GHOST: a tall floating tattered SHROUD with no legs, the hem torn into long trailing ribbons, drawn mostly in MIST and BONE washes (translucent, paper showing through), a hooded INK void for a face with two pale points, one long clawed reaching hand, wisps trailing. TAG: TATTERED and FLOATING — ragged hem, no feet. Reads at 48 px.
+
+--- 3. id: captive
+Output path: /home/g/p/riddle/art/generated/captive.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 48 px tall; judge readability at that size.
+Brief: A CAPTIVE facing right: a young adventurer kneeling, slumped, looking up hopefully; heavy iron manacles and ONE thick dark iron CHAIN looping across the whole figure from the wrists to the ground (INK links with MIST glints); torn DUSK tunic, a pale BONE face. TAG: IN CHAINS — the chain a bold dark loop in the silhouette at 48 px.
+
+--- 4. id: spectral_blade
+Output path: /home/g/p/riddle/art/generated/spectral_blade.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 20 px tall; judge readability at that size.
+Brief: A SPECTRAL BLADE: a single floating ghost-sword, point down, drawn in MIST and BONE washes (translucent, glowing cold), a faint trailing wisp, a bold INK outline. TAG: a floating sword — a vertical blade at 20 px.
+
+--- 5. id: spectral_hound
+Output path: /home/g/p/riddle/art/generated/spectral_hound.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 20 px tall; judge readability at that size.
+Brief: A SPECTRAL HOUND facing right: a lean running dog of MIST and BONE wash (translucent, cold), the hind legs fading into wisps, ears back, mouth open, a bold INK outline. TAG: a ghostly running dog. Reads at 20 px.
+
+--- 6. id: iron_golem
+Output path: /home/g/p/riddle/art/generated/iron_golem.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 48 px tall; judge readability at that size.
+Brief: An IRON GOLEM facing right, MASSIVE and boxy: a walking stack of thick riveted iron plates in INK/DUSK with MOON lights and MIST rims on every top edge, slab shoulders wider than it is tall at the top, a small visor-slit head sunk between them, block forearms, stubby plated legs; thin EMBER seams between the plates painted as flat bright cracks (no glow cloud). TAG: MASSIVE IRON PLATES — a squared-off stepped block, all right angles. Reads at 48 px.
+
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.

@@ -14,7 +14,7 @@ fn as_stall_set() -> RuleSet {
 /// A lineage owning everything, a levelled fighter, `set` — one send from D5 to its end (sims):
 /// the run's card ↔ chore loops, whether it stalled, and its loops' causes.
 fn send_from_d5(set: &RuleSet, seed: u64) -> (u32, bool, Vec<String>) {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     for u in crate::meta::UNLOCKS {
         g.lineage.unlocks.insert(u.id.into());
     }
@@ -115,7 +115,7 @@ fn a_row_taken_out_since_the_last_send_is_remembered() {
     let gas = Row::new(vec![Cond::t("foe_tag", "gas")], Verb::new("retreat"));
     let a = RuleSet { rows: vec![Row::new(vec![Cond::n("hp<", 30)], Verb::arg("drink", "heal")), gas.clone(), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], name: None, route: Vec::new() };
     let b = RuleSet { rows: vec![a.rows[0].clone(), a.rows[2].clone()], ..a.clone() };
-    let mut g = Game::new(3);
+    let mut g = Game::new_literal(3);
     g.set_rules_raw(a.clone()).unwrap();
     g.start_run(None);
     g.run = None;

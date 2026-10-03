@@ -1,0 +1,97 @@
+/* Cut 30 client panels: packages, tracks, the quest board, the pre-pen camp and death screen (docs/CUT30.md §2, §4, §5, the Reveal). */
+
+/* --- the packages panel --- */
+.pkg-panel .pkg-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pkg-panel .pkg-headline { color: #7a5c1e; font-size: 17px; letter-spacing: .01em; }
+.pkg-sec { margin: 4px 0 10px; }
+.pkg-sec .pkg-head { margin: 10px 0 6px; }
+.pkg-slot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 6px; }
+.chip.pkg { position: relative; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; min-height: 44px; padding: 4px 12px 6px; line-height: 1.15; }
+.chip.pkg .pkg-name { font-size: 14px; }
+.chip.pkg.on { background: linear-gradient(180deg, #2b2a3e, #1f1f31); border-color: var(--gilt); }
+.chip.pkg.on .pkg-name { color: var(--acc); font-weight: 600; }
+.chip.pkg.alt .pkg-price { font-size: 11px; }
+.pkg-price.up { color: var(--mist); }
+.pkg-price.down { color: var(--ember); }
+.pkg-price.flat, .pkg-price.pending { color: var(--dim); }
+.chip.pkg.locked { opacity: .5; border-style: dashed; cursor: default; }
+.chip.pkg.empty { opacity: .55; border-style: dotted; }
+/* an open slot: an outlined socket the chips below fill (owner check: two stacked `empty` chips read as two dead buttons) */
+.pkg-slots { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; }
+.pkg-slots .pkg-slot { margin: 0; }
+.chip.pkg.empty.socket { opacity: 1; background: rgba(122, 92, 30, .06); border: 1.5px dashed #8a6a2a; color: #7a5c1e; min-width: 112px; justify-content: center; box-shadow: none; font-style: italic; }
+.pkg-price:empty { display: none; }
+.chip.pkg.temper { min-width: 92px; }
+.pkg-alts { display: flex; flex-wrap: wrap; gap: 6px; }
+.lvl-bar { display: block; width: 100%; min-width: 64px; height: 4px; border-radius: 2px; background: rgba(77, 108, 153, .35); overflow: hidden; }
+.lvl-bar .fill { display: block; height: 100%; background: linear-gradient(90deg, var(--gilt), var(--acc)); }
+.chip.mini.pkg-level { color: var(--acc); }
+.chip.mini.pkg-off { min-width: 36px; justify-content: center; color: var(--dim); }
+.pkg-drill { display: flex; align-items: center; justify-content: flex-start; gap: 8px; margin: 0 0 6px; }
+.pkg-drill .chip.mini { margin: 0; text-transform: none; letter-spacing: .02em; }
+.pkg-drill.revoked .drill { opacity: .55; text-decoration: line-through; }
+.pkg-drill .scar { color: var(--blood); font-weight: 600; }
+.pkg-rows { margin: 6px 0 0; display: grid; gap: 3px; }
+.pkg-row { --fg: var(--bone); --dim: #a2987f; color: var(--fg); display: flex; justify-content: space-between; gap: 8px; padding: 5px 8px; border-radius: 6px; background: var(--panel2); font-size: 12px; }
+.pkg-row.shadowed { opacity: .45; }
+.pkg-row.shadowed .pkg-row-text { text-decoration: line-through; text-decoration-color: rgba(234, 223, 197, .4); }
+.pkg-row .pkg-row-src { white-space: nowrap; }
+
+/* --- the camp's packages strip (the tablets' place before the pen) --- */
+.pkg-strip { display: grid; gap: 6px; margin: 0 0 6px; }
+.pkg-strip[hidden], .pkg-rows[hidden], .death-why[hidden] { display: none; }
+.pkg-strip .pkg-tab { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; align-items: center; column-gap: 10px; min-height: 48px; padding: 6px 12px; text-align: left; }
+.pkg-strip .pkg-tab .pkg-kind { grid-row: 1 / span 2; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; }
+.pkg-strip .pkg-tab .pkg-name { color: var(--acc); font-size: 15px; }
+.pkg-strip .pkg-tab .lvl-bar { grid-column: 2; }
+.pkg-strip .pkg-tab.plaque { cursor: default; }
+/* before the pen the forecast is one headline: the next floor's notch */
+.camp.prepen .shaft .notch:not(.next), .camp.prepen .shaft .shaft-more, .camp.prepen .shaft .shaft-ends { display: none; }
+
+/* --- the tracks panel and the report's lead --- */
+.track-ico { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; background: var(--umbra); box-shadow: 0 0 0 2px #39496d; }
+.track-ico .ico { width: 24px; height: 24px; }
+.track-ico { overflow: hidden; }
+.track-ico img.track-hero { width: 100%; height: 100%; object-fit: cover; object-position: 50% 25%; }
+.track-head { display: flex; align-items: baseline; gap: 8px; }
+.track-name { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.track-stage { color: #7a5c1e; font-size: 15px; }
+.track-bar, .quest-bar { display: block; height: 5px; margin: 4px 0 2px; border-radius: 3px; background: rgba(77, 108, 153, .35); overflow: hidden; }
+.track-bar .fill, .quest-bar .fill { display: block; height: 100%; background: linear-gradient(90deg, var(--gilt), var(--acc)); }
+.track-next { display: block; color: #435a82; font-size: 12px; }
+@keyframes glint-ring { 0% { opacity: 0; transform: scale(.8); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.35); } }
+.grew { display: grid; gap: 4px; margin: 0 0 10px; }
+.grew-line { display: grid; grid-template-columns: 30px auto 1fr; gap: 8px; align-items: center; position: relative; overflow: hidden; }
+.grew-line .track-ico { width: 26px; height: 26px; }
+.grew-line .track-ico .ico { width: 18px; height: 18px; }
+.grew-what { color: var(--fg); font-size: 14px; }
+.grew-line.reveal, .beat-plaque.reveal { animation: carve .7s ease-out both; }
+.beats { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0; }
+.beat-plaque { position: relative; overflow: hidden; padding: 3px 10px; border-radius: 4px; border: 1px solid var(--gilt); color: var(--acc); font-size: 12px; letter-spacing: .08em; background: #241f2a; }
+.beat-plaque.quest { border-color: var(--blood); color: var(--bone); background: #3a1018; }
+.beat-plaque.drill { border-color: var(--mist); color: var(--mist); }
+
+/* --- the quest board --- */
+.quest-card { display: grid; grid-template-columns: 112px 1fr; gap: 12px; align-items: center; }
+.quest-reward { display: block; width: 112px; height: 112px; border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 2px #39496d, 0 0 0 4px var(--ink), 0 6px 14px rgba(0, 0, 0, .5); background: var(--umbra); }
+.quest-reward img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.quest-glyph { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; font-size: 48px; color: var(--acc); }
+.quest-goal { display: block; font-size: 19px; color: var(--fg); line-height: 1.2; margin: 0 0 6px; }
+.quest-prog { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+.quest-bar.done .fill { background: linear-gradient(90deg, var(--blood), #e2405a); }
+.quest-stamp { display: inline-block; margin: 6px 0 0; padding: 2px 10px; border: 2px solid var(--blood); color: var(--blood); font-weight: 700; font-size: 13px; letter-spacing: .14em; transform: rotate(-3deg); }
+.quest-foot { display: flex; align-items: center; gap: 10px; margin: 12px 0 0; }
+.quest-card.done .quest-reward { box-shadow: 0 0 0 2px var(--blood), 0 0 0 4px var(--ink), 0 0 18px rgba(192, 21, 48, .5); }
+
+/* --- the pre-pen death screen: the cause and one lever --- */
+.death .death-lever { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 16px; text-align: left;
+  border: 2px solid #46618b; border-radius: 6px; background: linear-gradient(rgba(68, 93, 134, .35), rgba(23, 22, 34, .7)); box-shadow: 0 0 14px rgba(164, 188, 214, .2); }
+.skin-tablet .death .death-lever { border: 2px solid transparent; border-image: url(/ui/frames/tablet.png) 24 fill / 12px stretch; background: linear-gradient(rgba(68, 93, 134, .3), rgba(23, 22, 34, .2)); background-clip: padding-box; }
+.death .death-lever .lever-kind { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.death .death-lever b { color: var(--acc); font-size: 17px; }
+.death .death-lever .lever-go { color: var(--mist); font-size: 20px; }
+.cmd .tile[data-tile="packages"] .tl { font-size: 10.5px; letter-spacing: -.03em; }
+.death.prepen .death-why { color: var(--mist); }
+
+/* the repeat plate belongs to the home screen: over a panel it is a stray caption (owner check, 2026-10-02) */
+body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hidden; }

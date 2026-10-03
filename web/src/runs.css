@@ -1,0 +1,142 @@
+/* RUNS_UI (docs/RUNS_UI.md) — the run lanes under the town, the runs log sheet, the run replay. Palette only, quiet: one accent for
+   the live beat (EMBER), GILT for `auto` lit, a new best and the log's count. */
+
+/* --- the lanes: the rest line's place, under the town, above the console --- */
+.rest-line.lanes-line { display: block; margin: 0; padding: 4px 8px 6px; background: linear-gradient(rgba(13, 12, 20, 0), rgba(13, 12, 20, .85) 30%); }
+.rest-line.lanes-line[hidden] { display: none; }
+.lanes { display: flex; align-items: stretch; gap: 6px; }
+.lanes .lane-rows { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.lane { display: flex; align-items: center; gap: 8px; min-height: 40px; width: 100%; padding: 3px 10px 3px 4px; border: 0; border-radius: 20px;
+  background: rgba(23, 22, 34, .9); box-shadow: 0 0 0 1px #2b3350; color: var(--bone); font: 15px/1.15 var(--sans); text-align: left; }
+button.lane { cursor: pointer; }
+button.lane:active { transform: translateY(1px); background: rgba(31, 31, 49, .95); }
+.lane .lane-face { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--umbra) center / cover no-repeat; box-shadow: 0 0 0 1px #39496d;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--dim); font-size: 16px; overflow: hidden; image-rendering: pixelated; }
+.lane .lane-name { flex: none; font-size: 13px; color: var(--dim); white-space: nowrap; }
+.lane .lane-state { flex: none; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.lane .ls-w { font-weight: 600; letter-spacing: .02em; }
+.lane .ls-go { color: var(--acc); font-size: 13px; }
+.lane .lane-beat { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+.lane[data-state="live"] .lane-beat { background: var(--ember); box-shadow: 0 0 6px var(--ember); }
+.lane[data-state="live"] .ls-w { color: #f2b067; }
+.lane[data-state="rests"] .lane-beat { background: var(--moon); }
+.lane[data-state="waits"] .lane-beat { background: var(--acc); }
+.lane[data-state="waits"] { box-shadow: 0 0 0 1px rgba(219, 186, 124, .55); }
+[data-juice="on"] .lane[data-state="live"] .lane-beat { animation: lane-beat 0.9s ease-in-out infinite; }
+[data-juice="on"] .lane[data-state="rests"] .lane-beat { animation: lane-beat 3.2s ease-in-out infinite; }
+[data-juice="on"] .lane[data-state="waits"] .lane-beat { animation: lane-beat 1.6s ease-in-out infinite; }
+@keyframes lane-beat { 0%, 100% { transform: scale(.75); opacity: .55; } 40% { transform: scale(1.15); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lane .lane-beat { animation: none !important; } }
+.lane .lane-gauge { position: relative; flex: 1; min-width: 36px; max-width: 260px; height: 6px; border-radius: 3px; background: rgba(77, 108, 153, .3); overflow: visible; }
+.lane .lane-gauge .fill { display: block; height: 100%; border-radius: 3px; background: var(--moon); }
+.lane .lane-gauge.g-hp .fill { background: linear-gradient(90deg, var(--clot), var(--blood)); }
+.lane .lane-gauge small { position: absolute; right: 0; top: -13px; font-size: 10px; color: var(--dim); }
+.lane[data-state="waits"] .lane-state { flex: 1; }
+.lane .lane-auto { flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 9px; font-size: 12px;
+  color: #6e7a90; box-shadow: inset 0 0 0 1px #39496d; white-space: nowrap; }
+.lane .lane-auto.on { color: #f3d192; box-shadow: inset 0 0 0 1px var(--gilt); }
+.lane .lane-auto .la-g { font-size: 12px; }
+.lane .lane-go { flex: none; color: var(--dim); font-size: 13px; }
+.lane.lane-more { min-height: 26px; justify-content: center; font-size: 13px; color: var(--dim); }
+.lanes .lanes-log { flex: none; position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  min-width: 48px; min-height: 40px; padding: 2px 6px; border: 0; border-radius: 12px; cursor: pointer;
+  background: rgba(23, 22, 34, .9); box-shadow: 0 0 0 1px #2b3350; color: var(--bone); }
+.lanes .lanes-log[hidden] { display: none; }
+.lanes .lanes-log .ll-ico { font-size: 15px; line-height: 1; color: var(--mist); }
+.lanes .lanes-log .ll-l { font-size: 12px; color: var(--dim); }
+.lanes .lanes-log .ll-n { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; font-size: 11px; line-height: 18px;
+  background: var(--gilt); color: var(--ink); text-align: center; }
+.lanes .lanes-log:active { transform: translateY(1px); }
+
+/* --- the runs log --- */
+.runs-sheet .runs-list { display: flex; flex-direction: column; gap: 3px; max-height: min(64vh, 560px); overflow-y: auto; overscroll-behavior: contain; }
+.runs-fold { display: flex; align-items: baseline; gap: 2px; width: 100%; min-height: 40px; padding: 6px 8px; border: 0; border-radius: 6px; cursor: pointer;
+  background: var(--panel2); color: var(--bone); font: 15px/1.2 var(--sans); text-align: left; }
+.runs-fold .rf-car { width: 16px; color: var(--dim); }
+.runs-fold .rf-w { font-weight: 600; text-transform: lowercase; }
+.runs-fold .rf-d.best { color: #f3d192; }
+.runs-fold .rf-t { margin-left: auto; }
+.runs-fold.on { box-shadow: inset 2px 0 0 var(--gilt); }
+.run-entry { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 22px; border-bottom: 1px solid rgba(43, 51, 80, .45); }
+.run-entry.fresh .re-id { color: #f3d192; }
+.run-entry .re-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 2px 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+button.re-body { cursor: pointer; }
+.run-entry .re-top { display: flex; align-items: baseline; gap: 9px; font-size: 15px; white-space: nowrap; }
+.run-entry .re-id { min-width: 34px; color: var(--dim); font-weight: 400; }
+.run-entry .re-tier { width: 14px; text-align: center; color: var(--dim); }
+.run-entry .re-tier.t-death { color: var(--blood); }
+.run-entry .re-tier.t-bank { color: var(--acc); }
+.run-entry .re-d.best { color: #f3d192; }
+.run-entry .re-best { margin-left: 1px; font-size: 12px; }
+.run-entry .re-f { color: var(--mist); }
+.run-entry .re-sub { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.run-entry[data-tier="death"] .re-sub { color: #c98a93; }
+.run-entry .re-play { flex: none; width: 44px; height: 36px; border: 0; border-radius: 18px; cursor: pointer; background: var(--umbra); box-shadow: 0 0 0 1px #39496d; color: var(--acc); font-size: 14px; }
+.run-entry .re-play:active { transform: translateY(1px); }
+.run-entry.sampled { padding: 6px 4px 6px 22px; font-size: 13px; }
+
+/* --- the replay --- */
+.run-replay .run-replay-view { display: block; width: 100%; height: min(52vh, 420px); border-radius: 6px; background: #000; }
+.run-replay .rr-floors { margin-top: 8px; flex-wrap: wrap; }
+.run-replay .rr-floors .chip.on { box-shadow: inset 0 0 0 1px var(--gilt); color: #f3d192; }
+
+/* --- the watch's way back (the run goes on) --- */
+.tile.town-btn .ico.glyph::before { color: #f3d192; }
+
+/* --- desktop: the lanes under the town in the centre column --- */
+@media (min-width: 1024px) {
+  main.camp .well-wrap > .rest-line.lanes-line { padding: 6px 24px 8px; background: none; }
+  .lane { min-height: 46px; font-size: 17px; padding-right: 14px; }
+  .lane .lane-name, .lane .ls-go { font-size: 15px; }
+  .lane .lane-face { width: 36px; height: 36px; }
+  .lane .lane-auto { font-size: 14px; }
+  .lanes .lanes-log { min-width: 56px; }
+}
+
+/* the log's two tabs: runs · heirs (the chronicle) */
+.runs-sheet .log-head { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.runs-sheet .log-tab { min-height: 32px; padding: 4px 10px; border: 0; border-radius: 4px; background: none; cursor: pointer;
+  color: var(--dim); font: 12px var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+.runs-sheet .log-tab.on { color: var(--bone); box-shadow: inset 0 -2px 0 var(--gilt); }
+.runs-sheet .chronicle { max-height: min(64vh, 560px); overflow-y: auto; }
+.tiles .tile.plaque.to-log { cursor: pointer; }
+.tiles .tile.plaque.to-log::before { content: "☰"; position: absolute; top: 4px; right: 6px; font-size: 11px; color: var(--ink-dim); }
+.run-entry .re-f { display: inline-flex; align-items: baseline; gap: 2px; }
+.run-entry .re-gem { font-size: 10px; }
+.run-entry .re-gem { color: var(--r-lit, var(--dim)); }   /* run-clear's rarity pigments (items.css) */
+.run-card-sheet .run-clear { margin: 6px 0 10px; }
+.run-card-sheet .re-play-wide { margin-top: 4px; }
+
+/* the log is a parchment sheet: INK on BONE (the folds stay dark plaques) */
+.runs-sheet .run-entry { border-bottom-color: var(--ink-line); color: var(--ink-text); }
+.runs-sheet .run-entry .re-id { color: var(--ink-dim); }
+.runs-sheet .run-entry.fresh .re-id { color: #7a5a14; font-weight: 700; }
+.runs-sheet .run-entry .dim, .runs-sheet .run-entry .re-sub { color: var(--ink-dim); }
+.runs-sheet .run-entry .re-d.best, .runs-sheet .run-entry .re-best { color: #7a5a14; }
+.runs-sheet .run-entry .re-tier { color: var(--ink-dim); }
+.runs-sheet .run-entry .re-tier.t-bank { color: #7a5a14; }
+.runs-sheet .run-entry .re-tier.t-death { color: #8c1022; }
+.runs-sheet .run-entry[data-tier="death"] .re-sub { color: #8c1022; }
+.runs-sheet .run-entry .gold { color: #6b4e12; }
+.runs-sheet .run-entry .re-gem { color: var(--r, var(--ink-dim)); }
+.runs-sheet .run-entry.sampled { color: var(--ink-dim); }
+.runs-sheet .log-tab { color: var(--ink-dim); }
+.runs-sheet .log-tab.on { color: var(--ink-text); font-weight: 700; box-shadow: inset 0 -2px 0 var(--gilt); }
+.runs-sheet .log-tab .num { margin-left: 4px; font-weight: 400; }
+.runs-sheet .chronicle .cline { color: var(--ink-text); }
+/* the watch's `town` tile: the run goes on — a ↻ on its corner */
+.tile.town-btn::after { content: "↻"; position: absolute; top: 3px; right: 6px; font-size: 14px; line-height: 1; color: #f3d192; text-shadow: 0 0 4px rgba(0, 0, 0, .8); }
+.tile.town-btn:disabled::after { opacity: .35; }
+/* the watch's HUD: the run going on now, and by itself */
+.watch .hud .live-badge { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; padding: 1px 8px; border-radius: 9px;
+  background: rgba(13, 12, 20, .72); box-shadow: inset 0 0 0 1px rgba(232, 146, 58, .55); color: #f2b067; font: 600 12px/18px var(--sans); letter-spacing: .04em; }
+.watch .hud .live-badge[hidden] { display: none; }
+.watch .hud .live-badge .lane-beat { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 6px var(--ember); }
+[data-juice="on"] .watch .hud .live-badge .lane-beat { animation: lane-beat 0.9s ease-in-out infinite; }
+.watch .hud .live-badge .lb-auto { color: #f3d192; font-weight: 400; }
+/* the town tile's one-time caption, over the tile (the concept captions' look) */
+.tile.town-btn .goes-on-cap { position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%); z-index: 6; pointer-events: none; width: max-content; max-width: 84px; text-align: left;
+  padding: 1px 8px; border-radius: 8px; font: italic 500 12px/1.5 var(--sans); color: #f3d192; background: rgba(13, 12, 20, .9); box-shadow: inset 0 0 0 1px var(--gilt); }
+.tile.town-btn .goes-on-cap::before { content: "↻ " attr(data-cap); }
+.tile.town-btn:disabled .goes-on-cap { display: none; }
+.cmd .tile.town-btn { overflow: visible; z-index: 4; }

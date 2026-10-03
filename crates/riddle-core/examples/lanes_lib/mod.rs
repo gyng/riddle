@@ -57,7 +57,7 @@ pub fn rows_cap(fork: u32) -> usize {
 /// shelf packed for the set, the fork's waystone lit on both lanes. The set is cut to the cap
 /// (its last own rows fall off, as the editor cuts).
 pub fn lane_game(set: &RuleSet, seed: u64, fork: u32) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     g.max_deaths = 100_000;
     let cap = rows_cap(fork);
     // The first fork's lineage (the first hour) owns no card: a card row is a row outside the cap.

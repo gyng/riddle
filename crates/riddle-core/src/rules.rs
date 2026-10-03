@@ -151,6 +151,9 @@ pub fn combo_slug(name: &str) -> String {
     name.split_whitespace().collect::<Vec<_>>().join("-")
 }
 
+/// Cut 30 §2: the origins of package rows (`Row::is_pkg`).
+pub const PKG_ORIGINS: [&str; 4] = ["stance:", "tactic:", "temper:", "drill:"];
+
 pub const COND_KEYS: &[&str] = &[
     "hp<", "hp>", "foes>=", "adj>=", "foe_tag", "foe_hp<", "item", "unknown_item", "floor_seen>=", "depth>=",
     "alert>=", "in_corridor", "path_stairs", "ally", "loot>=", "turns>", "on_hurt", "on_kill", "on_see",
@@ -160,6 +163,8 @@ pub const COND_KEYS: &[&str] = &[
     "in",
     // Cut 30 §4: the heir wears a trait (`trait: wrathful`); a worn gift's context holds now
     "trait", "gift_live",
+    // Cut 30.5 (the owner: a run ends when he is out of supplies): no `t` in the pack (`lacks heal`)
+    "lacks",
 ];
 
 pub const VERB_KEYS: &[&str] = &[
@@ -198,6 +203,7 @@ impl Cond {
             "foe_tag" => self.t.clone().unwrap_or_default(),
             "foe_hp<" => format!("foe<{n}%"),
             "item" => format!("has {}", self.t.clone().unwrap_or_default()),
+            "lacks" => format!("no {}", self.t.clone().unwrap_or_default()),
             "unknown_item" => "unknown".into(),
             "floor_seen>=" => format!("seen {n}%"),
             "depth>=" => format!("D{n}+"),
@@ -300,6 +306,11 @@ impl Row {
     pub fn is_card(&self) -> bool {
         self.verb.v == "tactic"
     }
+    /// Cut 30 §2: a package's row (compiled from a stance, a tactic, a temperament or a drill:
+    /// `stance:steady`, `drill:lich`) — outside the player's row cap, like a card's.
+    pub fn is_pkg(&self) -> bool {
+        self.origin.as_deref().is_some_and(|o| PKG_ORIGINS.iter().any(|p| o.starts_with(p)))
+    }
     /// The card a card row carries (`thief_guard`), if it is one.
     pub fn card(&self) -> Option<&str> {
         self.is_card().then(|| self.verb.a.as_deref().unwrap_or("")).filter(|c| !c.is_empty())
@@ -314,7 +325,7 @@ impl RuleSet {
     }
     /// Cut 12 §1: the player's own rows — every row that is not a card's.
     pub fn own_rows(&self) -> usize {
-        self.rows.iter().filter(|r| !r.is_card()).count()
+        self.rows.iter().filter(|r| !r.is_card() && !r.is_pkg()).count()
     }
     /// Cut 12 §1: the card rows (one per card once validated).
     pub fn card_rows(&self) -> usize {
@@ -354,6 +365,7 @@ impl RuleSet {
                     true
                 }
             }
+            None if r.is_pkg() => true,
             None => {
                 own += 1;
                 own <= max_rows
@@ -438,12 +450,12 @@ pub fn shadows(a: &Row, b: &Row, usable: &impl Fn(&Cond) -> bool) -> bool {
         return false;
     }
     // What changes how a verb acts besides its argument: the party scope and the den raid.
-    let scope = |r: &Row| -> Vec<Cond> {
-        let mut v: Vec<Cond> = r.conds.iter().filter(|c| c.k == "party" || (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief"))).cloned().collect();
+    fn scope(r: &Row) -> Vec<&Cond> {
+        let mut v: Vec<&Cond> = r.conds.iter().filter(|c| c.k == "party" || (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief"))).collect();
         v.sort_by(|x, y| (&x.k, &x.t, x.n).cmp(&(&y.k, &y.t, y.n)));
         v.dedup();
         v
-    };
+    }
     // Cut 19 §2: `return` walks to the stairs like `bank` and fails when a foe stands in the
     // way, so only `hold` always acts.
     let always = a.verb.v == "hold";
@@ -452,11 +464,8 @@ pub fn shadows(a: &Row, b: &Row, usable: &impl Fn(&Cond) -> bool) -> bool {
     }
     // B's moments: its conditions, and a foe in view when its verb strikes one or a
     // condition reads one.
-    let mut eff: Vec<Cond> = b.conds.clone();
-    if matches!(b.verb.v.as_str(), "attack" | "shield_bash" | "cleave" | "backstab" | "taunt") || b.conds.iter().any(|c| matches!(c.k.as_str(), "foe_tag" | "foe_hp<")) {
-        eff.push(Cond::n("foes>=", 1));
-    }
-    a.conds.iter().all(|ca| eff.iter().any(|cb| cond_implies(cb, ca)))
+    let foe = (matches!(b.verb.v.as_str(), "attack" | "shield_bash" | "cleave" | "backstab" | "taunt") || b.conds.iter().any(|c| matches!(c.k.as_str(), "foe_tag" | "foe_hp<"))).then(|| Cond::n("foes>=", 1));
+    a.conds.iter().all(|ca| b.conds.iter().chain(foe.as_ref()).any(|cb| cond_implies(cb, ca)))
 }
 
 /// Whenever `b` holds, `a` holds (the same token, a threshold at least as strict).

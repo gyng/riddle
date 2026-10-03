@@ -1,0 +1,60 @@
+You are painting PIXEL ITEM AND DRESSING SPRITES for the game "Riddle" (a gothic dark-fantasy roguelike on a phone held in portrait). FIRST look
+at these approved STYLE TARGETS (you may open these images and nothing else in the repository): /home/g/p/riddle/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/art/ui/targets/style/watch_fens.png. They are the target look.
+
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT modify
+anything outside /home/g/p/riddle/art/generated/. Save each final PNG (sRGB) to the exact path at the exact size; resample with PIL (Lanczos) if needed,
+keeping the aspect (crop the long side, never stretch). Delete any scratch or _inspection_ files you create. OVERWRITE existing
+files. When done, look at each output once and regenerate it once if it breaks a rule below.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== HOW THESE ARE USED (critical) ===
+Each asset is a TINY game sprite: the 1024 px image is box-downscaled to a 16x16 (torch 16x24, banner 16x20) pixel grid and
+drawn on the dungeon floor. Paint it AS that tiny tile enlarged (each cell a ~64 px square, stepped edges, washes inside the
+cells), BOLD simple shapes, an INK contour one cell thick, light from above. The object only, centred, on a TRANSPARENT
+background (or, if the tool gives an opaque image, a flat uniform pure MAGENTA #FF00FF edge to edge); no floor, no cast
+shadow, no glow halo (a flame may glow inside its own shape), no text, no magenta on the object.
+
+=== ASSETS ===
+1) /home/g/p/riddle/art/generated/env_item_potion.png — 1024x1024 — a round-bellied glass POTION flask with a short neck and a cork, three-quarter view: MIST-rimmed glass holding a BLOOD-red liquid in its lower two thirds, one BONE highlight, INK contour; fills ~60 % of the tile.
+2) /home/g/p/riddle/art/generated/env_item_scroll.png — 1024x1024 — a rolled parchment SCROLL lying diagonally: a BONE paper roll, the rolled ends darker spirals, tied in the middle with a BLOOD wax seal, INK contour; ~70 % of the tile.
+3) /home/g/p/riddle/art/generated/env_item_weapon.png — 1024x1024 — a short SWORD lying diagonally (hilt lower-left, tip upper-right): a MIST blade with a BONE edge line, a worn GILT crossguard and pommel, an UMBRA grip, INK contour; spans the tile.
+4) /home/g/p/riddle/art/generated/env_item_armour.png — 1024x1024 — a steel BREASTPLATE seen front-on with short shoulder guards: MOON/MIST steel washes lit from above, a line of rivets, a small BLOOD cloth trim at the collar, INK contour; ~70 % of the tile.
+5) /home/g/p/riddle/art/generated/env_item_gold.png — 1024x1024 — a small pile of COINS: 5-7 worn GILT coins stacked and scattered, BONE glints on their top edges, INK contour; ~60 % of the tile, bottom-centred.
+6) /home/g/p/riddle/art/generated/env_torch.png — 1024x1536 — a WALL TORCH SCONCE front view (a TALL piece, 16x24: paint on a 1024x1536 canvas): an INK iron bracket with a ring holding a short torch upright, burning with a bright EMBER flame (BONE core, EMBER body, CLOT tips, two or three tongues) in the top third.
+7) /home/g/p/riddle/art/generated/env_banner.png — 1024x1280 — a WALL BANNER hanging from a short INK iron rod (16x20: paint on a 1024x1280 canvas): a WIDE BLOOD-red cloth (CLOT folds, ragged swallowtail hem) with a bold BONE sigil (an upright sword crossed by a bar), a thin GILT trim along the top.
+8) /home/g/p/riddle/art/generated/env_blood_0.png — 1024x1024 — a BLOOD splatter on stone seen from above: one irregular splash of BLOOD with CLOT at its heart and a few droplets flying off; only the blood.
+9) /home/g/p/riddle/art/generated/env_blood_1.png — 1024x1024 — a smear and drip trail of BLOOD (CLOT darker), elongated, with 3-4 small droplets; only the blood.
+10) /home/g/p/riddle/art/generated/env_shrine.png — 1024x1024 — a small stone SHRINE ALTAR front view from slightly above, perfectly SYMMETRICAL, filling most of the tile: a wide low altar block of DUSK stone with a MIST-lit top edge, and on its back centre a short rounded stele with a carved BONE glyph; two tiny candles on the altar with EMBER flames.
+11) /home/g/p/riddle/art/generated/env_vault.png — 1024x1024 — a locked iron CAGE gate seen front-on from slightly above, filling most of the tile: a heavy INK iron frame with a riveted top rail and two thick posts, four MIST-lit iron bars with the dark interior between them, a square GILT padlock at the centre.
+12) /home/g/p/riddle/art/generated/env_vault_open.png — 1024x1024 — the SAME iron cage OPENED: the barred door swung open to the right (seen edge-on as a narrow barred strip at the right post), the GILT padlock hanging open, the dark EMPTY interior clearly visible.
+13) /home/g/p/riddle/art/generated/env_nest.png — 1024x1024 — a beast's NEST mound, three-quarter top-down: a low WIDE dome of heaped straw and twigs (DUSK and MOON washes, MIST on top), with a nearly black round burrow HOLE in the front centre.
+14) /home/g/p/riddle/art/generated/env_bones.png — 1024x1024 — scattered old skeleton remains seen from above: one BONE skull with two INK eye sockets upper-left, three or four long bones lying crossed below and right; BONE and MIST washes with INK contour only.
+15) /home/g/p/riddle/art/generated/env_moss_0.png — 1024x1024 — a patch of dark moss and tiny weeds growing in floor cracks (cold DUSK-green washes with a few MIST tips), irregular, about a third of the tile, spreading from one corner.
+16) /home/g/p/riddle/art/generated/env_moss_1.png — 1024x1024 — a smaller patch of dark moss (cold DUSK-green washes) along a crack, a few tiny BONE flowers.
+17) /home/g/p/riddle/art/generated/env_crack.png — 1024x1024 — a network of INK floor cracks with a few pale MIST broken stone chips, as if a heavy blow cracked the flagstone; only the cracks and chips.
+18) /home/g/p/riddle/art/generated/env_rubble.png — 1024x1024 — a small scatter of rubble: 5-7 broken stone chunks and pebbles (DUSK/MOON washes, MIST lit tops, INK contour).
+When all assets are saved, list the final paths and sizes. Do nothing else.

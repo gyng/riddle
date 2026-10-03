@@ -10,6 +10,7 @@ import { h, replace, twoTap } from "./dom";
 import { openSheet } from "./sheet";
 import { moveOf } from "./forecast";
 import { audio } from "../audio";
+import { itemIcon, itemName } from "./items";   // run-clear
 
 /** The last `kitDeltas()` and what it was measured for (the set, the kit owned, the best, the start): the sheet paints it at once. */
 let kitMemo: { key: string; kit: KitLadder[] } | null = null;
@@ -55,7 +56,7 @@ export function kitMove(n: NonNullable<KitLadder["next"]>): string | null {
 /** A term's colour: good or bad, whichever way its sign points (a death that falls is good). */
 const kitTone = (x: { dir: "up" | "down" | "flat"; worse: boolean }): string => x.dir === "flat" ? "flat" : (x.dir === "up") !== x.worse ? "up" : "down";
 
-export function openForge(app: App): void {
+export function openForge(app: App, anchor?: HTMLElement | null): void {   // Cut 30 §3: `anchor` — the blacksmith it stands over
   openSheet(() => {
     const kit = h("div", { class: "kit" });
     const paint = (measured: KitLadder[] | null, pending: boolean): void => {
@@ -69,7 +70,9 @@ export function openForge(app: App): void {
         if (!n) act = h("span", { class: "kit-top num dim" }, /* copy:callout */ "top step");
         else {
           const terms = kitTerms(n);
-          const inner = [h("span", { class: "kit-label" }, n.label),
+          // run-clear: the piece the step forges, in its rarity's rim and tint (the core's `KitStep.rarity`)
+          const st = lad.steps[lad.owned];
+          const inner = [h("span", { class: "kit-label" }, ...(st?.kind ? [itemIcon({ kind: st.kind, label: n.label, rarity: st.rarity }, { size: "s" }), itemName({ kind: st.kind, label: n.label, rarity: st.rarity })] : [n.label])),
             terms ? h("span", { class: "num kit-move" }, ...terms.flatMap((x) => [" · ", h("b", { class: `dlt ${kitTone(x)}` }, `${x.label} ${x.text}`)])) : pending ? h("small", { class: "num dim kit-move" }, /* copy:callout */ " · measuring…") : "",   // docs/COPY.md pass 2: a bare `…` read "no idea" (2/2)
             h("b", { class: "num gold kit-price" }, ` · $${n.price}`),
             // QA 912e135 (qaW: `7 nights` at 0 banked, 0 returned — "the income behind it is not on screen"): the net it divides by
@@ -109,7 +112,7 @@ export function openForge(app: App): void {
     if (!memo) measure();
     const hasKit = (app.lineage.kit?.length ?? 0) > 0;
     return h("div", { class: "sheet-body forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), hasKit ? kit : "", salvage(app));
-  });
+  }, { anchor });
 }
 
 /** Cut 9 §10: each kind's salvage ladder — `sword · salvaged 3/5 → craftable` (the engine's `next` rung); at the top, the count alone. */

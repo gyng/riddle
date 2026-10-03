@@ -977,7 +977,8 @@ fn check_exit_line(t: &mut Tally, seed: u64, x: &riddle_core::wire::ExitLine, at
     let lead = LEADS.iter().find(|w| x.text.starts_with(**w)).copied();
     let later = x.text.split(" · ").skip(1).filter(|seg| ["banked", "returned", "died", "stalled", "lost thread", "driven"].contains(seg)).count();
     t.check("an exit line leads with one tier word and names no other", lead.is_some() && later == 0, || format!("seed {seed} {at} run {}: `{}`", x.run_id, x.text));
-    t.check("a died / stalled / lost-thread line kept nothing", !matches!(lead, Some("died " | "stalled " | "lost thread ")) || (x.kept == 0 && x.keep_pct == 0), || format!("seed {seed} {at} run {}: `{}` kept {}", x.run_id, x.text, x.kept));
+    // (Cut 30.5: what the run's checkpoints secured comes home whatever the exit — a death keeps that and nothing else)
+    t.check("a died / stalled / lost-thread line kept nothing but its secured gold", !matches!(lead, Some("died " | "stalled " | "lost thread ")) || (x.kept == x.secured && x.keep_pct == 0), || format!("seed {seed} {at} run {}: `{}` kept {} secured {}", x.run_id, x.text, x.kept, x.secured));
     // QA on 0c6e126 (qaY): a drive-off's line says so (`driven`), never `returned`; a `driven` line is one.
     t.check("a drive-off's line leads `driven`", x.driven.is_some() == (lead == Some("driven ")), || format!("seed {seed} {at} run {}: `{}` driven {:?}", x.run_id, x.text, x.driven.as_ref().map(|d| &d.boss)));
     let n: u32 = x.text.split(" · ").find_map(|seg| seg.strip_prefix("bones: ").and_then(|r| r.split(' ').next()).and_then(|n| n.parse().ok())).unwrap_or(0);
@@ -1320,9 +1321,46 @@ fn check_forecast_move(t: &mut Tally, g: &Game, seed: u64) {
     t.check("the rows' part is the edit's paired move", m.rows && rows.is_some_and(|p| (p.move_.bank.delta - vs.bank.delta).abs() < 1e-9 && (p.move_.death.delta - vs.death.delta).abs() < 1e-9), || format!("seed {seed}: rows {:?}", rows.map(|p| (p.move_.bank.delta, vs.bank.delta))));
 }
 
-fn play(o: &mut Out, pool: &Pool, seed: u64) {
-    let Out { t, lp, .. } = o;
+/// Cut 30 §2: a lineage on packages after a night — a level spent moves the compiled set, and the
+/// camp's move against the set sent names a `package` part, the parts still summing to the whole; every
+/// death's verdict names `package · row` exactly when a package's row acted last; no trace turn is a
+/// trait's (`row −1`).
+fn check_packages(t: &mut Tally, seed: u64) {
     let mut g = Game::new(seed);
+    // (Cut 30.5: the send worker hired — a night of sends, as Cut 30's)
+    riddle_core::tree::grant(&mut g.lineage, &riddle_core::tree::LEGACY);
+    g.max_deaths = 1000;
+    riddle_core::offline::run_offline_counts(&mut g, 8 * 3600);
+    let ids: Vec<u32> = g.deaths.keys().copied().collect();
+    for id in ids.into_iter().take(3) {
+        let rules = g.deaths[&id].rules.clone();
+        let Some(d) = g.death(id) else { continue };
+        let acted = d.cause_row.map(|r| r as i32).or_else(|| d.trace.turns.iter().rev().find(|x| x.row >= 0).map(|x| x.row));
+        let pkg = acted.and_then(|i| rules.rows.get(i as usize)).filter(|r| r.is_pkg());
+        t.check("the verdict names `package · row` when a package row acted", pkg.is_some() == d.package.is_some() && pkg.is_none_or(|r| d.package.as_deref().is_some_and(|p| p.ends_with(&r.describe()))), || format!("seed {seed} run {id}: {:?} vs {:?}", pkg.map(|r| r.describe()), d.package));
+        t.check("no trace turn is a trait's (row −1)", d.trace.turns.iter().all(|x| x.row != -1), || format!("seed {seed} run {id}"));
+    }
+    let sent = g.lineage.rules().clone();
+    g.lineage.marks = 20;
+    let stance = g.lineage.pkg.stance.clone();
+    if g.spend_level(&stance).is_err() || *g.lineage.rules() == sent {
+        return;
+    }
+    let Some(m) = g.forecast_move(&sent) else {
+        t.check("a send is recorded after a night", false, || format!("seed {seed}"));
+        return;
+    };
+    t.check("a package move is the `package` part", m.parts.iter().any(|p| p.kind == "package") && m.parts.iter().all(|p| p.kind != "rows"), || format!("seed {seed}: {:?}", m.parts.iter().map(|p| &p.kind).collect::<Vec<_>>()));
+    let sum: f64 = m.parts.iter().map(|p| p.move_.bank.delta).sum();
+    t.check("a forecast move's parts (incl. package) sum to the whole", (sum - m.whole.bank.delta).abs() <= 1e-9, || format!("seed {seed}: Σ {sum:.4} vs {:.4}", m.whole.bank.delta));
+}
+
+fn play(o: &mut Out, pool: &Pool, seed: u64) {
+    if seed.is_multiple_of(3) {
+        check_packages(&mut o.t, seed);
+    }
+    let Out { t, lp, .. } = o;
+    let mut g = Game::new_literal(seed);
     check_gold(t, &g, seed, "new");
     check_needs(t, &g, seed);
     check_forecast(t, &g, seed);
@@ -1353,9 +1391,11 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
                 }
             }
         }
-        // Cut 20 §4: the stake names what a death keeps beside the exit row's keep.
+        // Cut 30.5: the stake names the carry at risk; checkpoints are the difference
+        // from the snapshot's total carried gold and come home whole even on death.
         let st = &r.snapshot.stake;
-        t.check("the stake's death keep == the death tier's share of carried", st.death_keep == st.loot.max(0) * ExitTier::Death.pct() / 100, || format!("seed {seed}: death keep {} of carried {}", st.death_keep, st.loot));
+        let secured = (r.snapshot.loot - st.loot.max(0)).max(0);
+        t.check("the stake's death keep == checkpoints + death share of carry at risk", st.death_keep == secured + st.loot.max(0) * ExitTier::Death.pct() / 100, || format!("seed {seed}: death keep {} of {} secured + {} at risk", st.death_keep, secured, st.loot));
         // QA on 912e135 (qaW: `−$8 swap` on the strip twice, `−$2 swapped` on the death line): the stake's swap counter only rises,
         // and the exit line's `swapped` is the run's own count
         t.check("the stake's swapped never falls within a run", st.swapped >= swapped_seen || r.run_over, || format!("seed {seed}: {} after {swapped_seen}", st.swapped));
@@ -1742,6 +1782,8 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
 }
 
 fn main() {
+    // RUNS_UI: real games at scale keep no replay capsules (a lineage clone per send never read)
+    riddle_core::engine::set_capsules(false);
     let args: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     let seeds = get("--seeds", 30);

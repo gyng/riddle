@@ -9,7 +9,7 @@ use riddle_core::{Game, RuleSet};
 use std::collections::BTreeSet;
 
 fn lineage_for(set: &RuleSet, seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     g.max_deaths = 100_000;
     for u in ["row5", "row6", "row7", "row8", "throw", "cond_alert", "cond_turns", "cond_loot", "cond_on_kill", "cond_on_see"] {
         g.lineage.unlocks.insert(u.into());
@@ -188,7 +188,7 @@ fn boss(seeds: u64, n: u32, drop: Option<&str>) {
     let mut stats: std::collections::BTreeMap<String, Vec<(u32, bool)>> = Default::default();
     let mut nohp_all = Vec::new();
     for seed in 1..=seeds {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_literal(seed);
         g.max_deaths = 100_000;
         for u in riddle_core::meta::UNLOCKS {
             g.lineage.unlocks.insert(u.id.into());
@@ -355,7 +355,7 @@ fn countered(seeds: u64, hours: u64) {
     let mut best = Vec::new();
     let mut by: std::collections::BTreeMap<String, u32> = Default::default();
     for seed in 1..=seeds {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_literal(seed);
         g.max_deaths = 100_000;
         for u in ["row5", "row6", "row7", "row8", "tame", "throw"] {
             g.lineage.unlocks.insert(u.into());

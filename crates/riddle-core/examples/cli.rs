@@ -13,7 +13,7 @@ fn main() {
     let seed: u64 = arg(&args, "--seed").and_then(|s| s.parse().ok()).unwrap_or(1);
     let runs: u32 = arg(&args, "--runs").and_then(|s| s.parse().ok()).unwrap_or(3);
     let verbose = args.iter().any(|a| a == "--verbose");
-    let mut game = Game::new(seed);
+    let mut game = Game::new_literal(seed);
     if let Some(path) = arg(&args, "--rules") {
         let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
         let set = RuleSet::parse(&text).unwrap_or_else(|e| panic!("{path}: {e}"));

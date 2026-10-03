@@ -17,12 +17,14 @@ pub mod kit;
 pub mod meta;
 pub mod monster;
 pub mod oath;
+pub mod packages;
 pub mod offline;
 pub mod probes;
 pub mod provenance;
 pub mod rng;
 pub mod rules;
 pub mod save;
+pub mod shared;
 pub mod sifter;
 pub mod situations;
 pub mod systems;
@@ -30,6 +32,8 @@ pub mod wall;
 pub mod meters;
 pub mod tiles;
 pub mod tokens;
+pub mod town;
+pub mod tree;
 pub mod trace;
 pub mod traits;
 pub mod turn;
@@ -164,6 +168,64 @@ impl Game {
     pub fn forecast_move(&self, prev: &RuleSet) -> Option<ForecastMove> {
         forecast::forecast_move(self, prev)
     }
+    /// Cut 30 §2: equip a package (a stance, a tactic in `slot`, a temperament) — free, instant.
+    pub fn equip_package(&mut self, id: &str, slot: usize) -> Result<(), String> {
+        packages::equip(&mut self.lineage, id, slot)
+    }
+    /// Cut 30 §2: empty a tactic or temperament slot.
+    pub fn unequip_package(&mut self, id: &str) -> Result<(), String> {
+        packages::unequip(&mut self.lineage, id)
+    }
+    /// Cut 30 §2: take a wake card (the temperament slot, heir 3 on).
+    pub fn pick_temperament(&mut self, id: &str) -> Result<(), String> {
+        packages::pick(&mut self.lineage, id)
+    }
+    /// Cut 30 §2: spend marks on a package's next level; the level reached.
+    pub fn spend_level(&mut self, id: &str) -> Result<u32, String> {
+        let lv = packages::spend_level(&mut self.lineage, id)?;
+        tree::did(&mut self.lineage, "level");
+        Ok(lv)
+    }
+    /// Cut 30 §1: revoke a drill (or restore it) — one tap, it stays.
+    pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<(), String> {
+        packages::revoke(&mut self.lineage, boss, revoked)
+    }
+    /// Cut 30 §2: every package move priced on the paired panel (`sims` sends each), best first.
+    pub fn package_options(&self, sims: u32) -> Vec<packages::PkgOption> {
+        packages::options(self, sims)
+    }
+    /// Cut 30 §3: bank a deposit (capped); the gold moved.
+    pub fn bank_deposit(&mut self, amount: i32) -> Result<i32, String> {
+        let n = town::deposit(&mut self.lineage, amount)?;
+        tree::did(&mut self.lineage, "deposit");
+        Ok(n)
+    }
+    /// Cut 30 §3: take gold out of the bank.
+    pub fn bank_withdraw(&mut self, amount: i32) -> Result<i32, String> {
+        town::withdraw(&mut self.lineage, amount)
+    }
+    /// Cut 30 §5: the day's free swap of the quest on the board.
+    pub fn swap_quest(&mut self) -> Result<(), String> {
+        town::swap(&mut self.lineage)?;
+        tree::did(&mut self.lineage, "swap");
+        Ok(())
+    }
+    /// Cut 30.5: hire the lit node's worker (its price from the purse, then the chest).
+    pub fn hire(&mut self, id: &str) -> Result<(), String> {
+        tree::hire(&mut self.lineage, id)
+    }
+    /// Cut 30.5, week 2: promote the worker whose rank is on offer (`tree.lit_rank`); its new rank.
+    pub fn promote(&mut self, id: &str) -> Result<u32, String> {
+        tree::promote(&mut self.lineage, id)
+    }
+    /// Cut 30.5: the haul chest into the purse (the porter's chore); the gold it held.
+    pub fn open_chest(&mut self) -> Result<i32, String> {
+        tree::open_chest(&mut self.lineage)
+    }
+    /// Cut 30.5: switch a hired worker off (its chore by hand again) or back on.
+    pub fn set_worker(&mut self, id: &str, on: bool) -> Result<(), String> {
+        tree::set_worker(&mut self.lineage, id, on)
+    }
     pub fn export_rules(&self) -> String {
         self.lineage.rules().to_text()
     }
@@ -184,3 +246,11 @@ mod tests_cut28;
 mod tests_cut29;
 #[cfg(test)]
 mod tests_cut30;
+#[cfg(test)]
+mod tests_cut30_pkg;
+#[cfg(test)]
+mod tests_cut305;
+#[cfg(test)]
+mod tests_runsui;
+#[cfg(test)]
+mod tests_runclear;

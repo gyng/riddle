@@ -46,6 +46,13 @@ async function waitFor(pred, label, timeout = 20_000) {
   }
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} booted=${s?.booted})`);
 }
+/** A forecast injected by a test must land after the camp's own (in flight at a mount, or the refine 1 s after it) — else the real one,
+ *  landing later, paints over it (a race under load). */
+async function quietForecast(max = 8_000) {
+  const t = Date.now();
+  while (Date.now() - t < max) { const q = await page.evaluate(() => { const r = window.__riddle; return !r.fcInFlight && !r.fcRunning && !!r.lastForecast?.refined; }).catch(() => true); if (q) break; await sleep(100); }
+  await sleep(100);
+}
 async function settle(max = 15_000) {
   const t = Date.now(); let clear = 0;
   while (Date.now() - t < max) { const s = await state(); clear = s && s.booted && !s.busy ? clear + 1 : 0; if (clear >= 2) break; await sleep(120); }
@@ -59,10 +66,13 @@ const patchSave = (fn) => page.evaluate(async (src) => {
   return r.importSave(JSON.stringify(b));
 }, `(${fn})(e)`);
 /** The interactive elements a player sees above the fold (buttons, inputs, links), open sheets included. */
+// (Cut 30 §3: inside every scrolling box around it too — the town fills the well's first screen, the tablets scroll under it)
 const interactive = () => page.evaluate(() => [...document.querySelectorAll("button, input, select, textarea, a[href], [role=button]")].filter((b) => {
   if (b.closest("[inert]") || !b.getClientRects().length || getComputedStyle(b).visibility === "hidden") return false;
   const r = b.getBoundingClientRect();
-  return r.bottom > 0 && r.top < innerHeight && r.width > 0 && r.height > 0;
+  let top = Math.max(0, r.top), bottom = Math.min(innerHeight, r.bottom);
+  for (let p = b.parentElement; p && bottom > top; p = p.parentElement) { if (getComputedStyle(p).overflowY === "visible") continue; const q = p.getBoundingClientRect(); top = Math.max(top, q.top); bottom = Math.min(bottom, q.bottom); }
+  return bottom - top > 1 && r.width > 0 && r.height > 0;
 }).map((b) => (b.getAttribute("aria-label") || b.textContent || b.className).replace(/\s+/g, " ").trim().slice(0, 24)));
 const tiles = () => page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((t) => ({ id: t.dataset.tile, reveal: t.classList.contains("reveal") })));
 const tileIds = async () => (await tiles()).map((t) => t.id);
@@ -88,12 +98,25 @@ async function qaK() {
     const range = document.createRange(); range.selectNodeContents(document.querySelector(".death-line .cause")); const lines = [...range.getClientRects()];
     return { line: document.querySelector(".death-line .cause")?.textContent, causeBottom: Math.max(...lines.map((l) => l.bottom)), sealTop: seal.top, topPatch: top ? [top.top, top.bottom] : null, consoleTop: cons.top, scroll: well.scrollTop,
       gemN: document.querySelector(".gem.patch-gem .gem-n")?.textContent, gemW: document.querySelector(".gem.patch-gem .gem-w")?.textContent,
-      heads: [...document.querySelectorAll(".death .trace thead th")].map((t) => t.textContent), ledger: document.querySelector(".death .ledger-line")?.textContent };
+      heads: [...document.querySelectorAll(".death .trace thead th")].map((t) => t.textContent), ledger: document.querySelector(".death .ledger-line")?.textContent,
+      margin: document.querySelector(".death .death-margin")?.textContent };
   });
-  check(d.line === "monkey · D5 · 5 unknown unused", `the headline drops the hp margin inside a longer one ("${d.line}")`);
+  // death v2: the headline is the killer, the floor and the moment; the margin (hp part dropped) is the details' first line
+  check(/^monkey · D5\b/.test(d.line ?? "") && d.margin === "5 unknown unused", `the headline drops the hp margin inside a longer one ("${d.line}"; details "${d.margin}")`);
   check(d.causeBottom <= d.sealTop + 0.5, `the verdict line ends above the seal: nothing under it (line to ${Math.round(d.causeBottom)}, seal from ${Math.round(d.sealTop)})`);
   check(!!d.topPatch && d.topPatch[1] <= d.consoleTop && d.scroll === 0, `the top patch is whole above the console at 400 × 800, unscrolled (${d.topPatch?.map(Math.round).join("–")} ≤ ${Math.round(d.consoleTop)})`);
   check(d.gemN === "100%" && d.gemW === "apply", `the gem reads its number over the word \`apply\` ("${d.gemN}" / "${d.gemW}")`);
+  // death v2 (owner: "too wordy and incomprehensible"): at rest the well answers what · why · what now — the headline, one why line, the lit
+  // fix and at most one other (short name + effect), the `details` fold shut over the trace; ≤ 25 words in the well
+  const rest = await page.evaluate(() => {
+    const vis = (e) => !!e && e.getClientRects().length > 0, wc = (t) => t.split(/\s+/).filter((w) => /[a-z0-9]/i.test(w)).length;
+    const tabs = [...document.querySelectorAll(".death button.patch")].filter(vis);
+    const pseudo = tabs.map((b) => ["::before", "::after"].map((p) => getComputedStyle(b, p).content.replace(/^"|"$/g, "")).join(" ")).join(" ");
+    return { why: document.querySelector(".death .death-why")?.textContent, tabs: tabs.length, short: tabs.map((b) => b.dataset.short), trace: vis(document.querySelector(".death .trace-panel")),
+      fold: document.querySelector(".death .death-more")?.getAttribute("aria-expanded"), words: wc(document.querySelector(".death-well").innerText) + wc(pseudo) };
+  });
+  check(!!rest.why && rest.tabs >= 1 && rest.tabs <= 2 && rest.short.every(Boolean) && !rest.trace && rest.fold === "false" && rest.words <= 25,
+    `the death at rest: why "${rest.why}", ${rest.tabs} fixes (${rest.short.join(" | ")}), trace ${rest.trace ? "shown" : "folded"}, ${rest.words} words`);
   check(d.heads.join(",") === "t,rule,hp,foes", `no empty \`tele\` column (${d.heads.join(",")})`);
   // QA 0c6e126 (qaZ: `died $0` read as "died carrying $0"): the kept and the carried named apart — `died · kept $0 · $111 carried`
   check(/^died · kept \$0 · \$111 carried · bones/.test(d.ledger ?? ""), `a death's line says \`kept $0\` once, no \`keeps 0%\` after it ("${d.ledger}")`);
@@ -108,6 +131,7 @@ async function qaK() {
   await page.keyboard.press("Escape"); await sleep(150);
   // QA 0c6e126 (qaZ: the row's name jumped to the editor with no way back): it opens the row's sheet over the death screen; its `edit`
   // opens the editor on the row
+await page.evaluate(() => document.querySelector('.death .death-more[aria-expanded="false"]')?.click());   // death v2: the trace, the ledger and every tablet fold under `details`
   await page.locator(".death button.row-link", { hasText: /^drink unknown at 30%$/ }).first().click({ timeout: 3000 });
   await sleep(250);
   const rs = await page.evaluate(() => ({ sheet: document.querySelector(".sheet-wrap .row-sheet")?.textContent ?? null }));
@@ -230,7 +254,7 @@ async function qaL() {
   await waitFor((x) => x?.screen === "camp", "camp"); await settle();
   await page.evaluate(() => { const r = window.__riddle; while (r.ownRows() < 3) r.insertRow({ conds: [{ k: "hp<", n: 40 + r.rules.rows.length }], verb: { v: "retreat" } }, r.rules.rows.length); r.go({ kind: "camp" }); });
   await settle();
-  const fake = (f) => page.evaluate((f) => { const r = window.__riddle; const b = r.lastForecast; const x = { ...b, ...f }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); }, f);
+  const fake = async (f) => { await quietForecast(); return page.evaluate((f) => { const r = window.__riddle; const b = r.lastForecast; const x = { ...b, ...f }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); }, f); };
   const depthsF = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i === 0 ? 0.5 : i === 1 ? 0.05 : 0, pm: 0.02 }));
   await fake({ depths: depthsF, known_to: 9, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0, return: 0.04, death: 0.66, stall: 0.3, gold: 3, pm: 0.03 }, refined: true });
   await sleep(150);
@@ -445,12 +469,13 @@ async function cut19() {
     patches: [{ row: rows[0].row ?? rows[0], insert_at: 0, remove: true, survive: 0.8, forecast_delta: 0.1 },
               { row: { conds: [{ k: "foe_tag", t: "ranged" }], verb: { v: "retreat" } }, insert_at: 1, survive: 0.7, forecast_delta: 0.05, drops: 4 }] } }), rows);
   await waitFor((x) => x?.screen === "death", "the row death"); await sleep(300);
-  const dd = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict") ? getComputedStyle(document.querySelector(".death-line .verdict")).textTransform + ":" + document.querySelector(".death-line .verdict").textContent : "",
+  const dd = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, why: document.querySelector(".death .death-why")?.textContent, seal: document.querySelector(".death-line .verdict") ? getComputedStyle(document.querySelector(".death-line .verdict")).textTransform + ":" + document.querySelector(".death-line .verdict").textContent : "",
     targets: [...document.querySelectorAll("button.patch .target")].map((t) => t.textContent.trim()) }));
-  check(/^goblin archer · D6 · drink unknown at 30%$/.test(dd.cause ?? "") && dd.seal === "uppercase:rule", `the row verdict: the headline names the row, the seal reads ROW ("${dd.cause}", ${dd.seal})`);
+  check(/^goblin archer · D6\b/.test(dd.cause ?? "") && dd.why === "drink unknown at 30% backfired" && dd.seal === "uppercase:rule", `the row verdict: the why line names the row, the seal reads ROW ("${dd.cause}" · "${dd.why}", ${dd.seal})`);
   check(dd.targets.join(" | ") === "cut | · drops bank at D8", `the cut leads, the insert names the row it drops (${dd.targets.join(" | ")})`);
   await shot("ui-cut19-row");
   // QA 1a2a4a9: a tablet tap lights it; the gem applies the lit one
+await page.evaluate(() => document.querySelector('.death .death-more[aria-expanded="false"]')?.click());   // death v2: the trace, the ledger and every tablet fold under `details`
   await page.locator("button.patch[data-full]").first().click({ timeout: 5000 }); await sleep(150);
   const lit = await page.evaluate(() => ({ top: document.querySelector("button.patch.top")?.dataset.full === "1", sheet: !!document.querySelector(".sheet-wrap .drop-sheet") }));
   check(lit.top && !lit.sheet, `a tablet tap lights the tablet and applies nothing (${JSON.stringify(lit)})`);
@@ -520,6 +545,7 @@ async function cut18() {
   // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · sealed by warlord`
   await page.evaluate(() => { const r = window.__riddle; r.engine.unlocks = async () => []; r.engine.unlockDeltas = async () => []; r.lineage = { ...r.lineage, best_depth: 8 }; r.go({ kind: "camp" }); });
   await settle();
+  await quietForecast();
   await page.evaluate(() => { const r = window.__riddle; const depths = Array.from({ length: 9 }, (_, i) => ({ depth: i + 1, reach: i < 8 ? 0.9 - i * 0.05 : 0, pm: 0.02, ...(i === 8 ? { wall: "goblin_warlord", cause: "goblin_warlord" } : {}) }));
     const x = { ...r.lastForecast, depths, known_to: 9, causes: [{ cause: "goblin_warlord", share: 1 }], refined: true }; r.lastForecast = x; for (const fn of r.fcListeners) fn(x); });
   await sleep(200);
@@ -549,6 +575,7 @@ async function cut18() {
   await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 4, cause: "jackal", margin: "", verdict: "gap", baseline: 0.3, morgue: "t1", patches: [],
     trace: { turns: [{ t: 10, row: -1, verb: { v: "explore" }, hp: 9, foes: 2, telegraphs: [], rows: [{ row: 0, why: "foes appeared after" }, { row: 1, why: "foes fleeing" }, { row: 2, why: "going home" }, { row: 3, why: "repeat short" }] }] } } }));
   await waitFor((x) => x?.screen === "death", "the reasons' death"); await sleep(300);
+  await page.evaluate(() => document.querySelector('.death .death-more[aria-expanded="false"]')?.click());   // death v2: the trace folds under `details`
   const whys = await page.evaluate(() => [...document.querySelectorAll(".rows-line .rw, .chain-row .why")].map((e) => ({ t: e.textContent, one: e.getClientRects().length === 1 })));
   check(["foes appeared after", "foes fleeing", "going home", "repeat short"].every((w) => whys.some((x) => x.t.endsWith(w) && x.one)), `the new reasons render whole, one line each (${whys.map((x) => x.t).join(" · ")})`);
   await shot("ui-cut18-stall");
@@ -628,8 +655,10 @@ try {
   check(await patchSave((e) => { e.lineage.heir = 5; }), "the lineage took its 5th heir");
   await waitFor((s) => s?.screen === "camp", "camp"); await settle();
   const ids = await tileIds();
-  check(ids.includes("ledger") && ids.includes("chronicle") && (await page.locator(".tabs:not([hidden]) .tab").count()) >= 3, `the 5th heir carves ledger and chronicle and the set tabs (${ids.join(" · ")})`);
-  check(ids.length === 8, `the command card is full at the ladder's top (${ids.length} tiles)`);
+  // RUNS_UI: the chronicle is the runs log's `heirs` (the lane's log stud, shown from the 5th heir as from the first run)
+  const logStud = await page.evaluate(() => { const b = document.querySelector(".lanes .lanes-log"); return !!b && !b.hidden; });
+  check(ids.includes("ledger") && logStud && (await page.locator(".tabs:not([hidden]) .tab").count()) >= 3, `the 5th heir carves the ledger, the log (the chronicle's heirs) and the set tabs (${ids.join(" · ")}; log ${logStud})`);
+  check(ids.length === 7, `the command card at the ladder's top: 7 tiles, the chronicle's slot gone to the log (${ids.length} tiles)`);
   await shot("ui-ladder-camp");
 
   // ---- the unlock panel: the next three, `more` for the catalogue
@@ -660,7 +689,7 @@ try {
   check(!(await page.locator(".panel-host .panel").count()), "Escape closes the open panel");
   const sheets = [
     ["settings", "button.gear"], ["gold", ".strip button.gold"], ["forge", ".cmd .tile[data-tile=forge]"], ["ledger", ".cmd .tile[data-tile=ledger]"],
-    ["chronicle", ".cmd .tile[data-tile=chronicle]"], ["class", "button.cls"], ["cond picker", ".editor .row .chip.cond"], ["verb picker", ".editor .row .chip.verb"], ["rename", ".tabs .tab.edit"],
+    ["log", ".lanes .lanes-log"], ["class", "button.cls"], ["cond picker", ".editor .row .chip.cond"], ["verb picker", ".editor .row .chip.verb"], ["rename", ".tabs .tab.edit"],
   ];
   for (const [name, sel] of sheets) {
     await page.locator(sel).first().click({ timeout: 5000 }); await sleep(200);
@@ -710,7 +739,7 @@ try {
   f = await frame();
   check(f.bar && f.console && f.gem?.visible && ["⏸", "▶"].includes(f.gem.text), `watch: bar + console, ⏸ in the gem (${JSON.stringify(f.gem)})`);
   const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((b) => b.textContent.trim()));
-  check(cmd.join(" · ") === "fights only · fast · normal · ▶▶| · bail · meters", `watch: the command card is fights only · fast · normal · ▶▶| · bail · meters (Cut 25 §3, Cut 29 §3) (${cmd.join(" · ")})`);
+  check(cmd.join(" · ") === "fights only · fast · normal · ▶▶| · bail · meters · town", `watch: the command card is fights only · fast · normal · ▶▶| · bail · meters · town (Cut 25 §3, Cut 29 §3, RUNS_UI: back to the town, the run goes on) (${cmd.join(" · ")})`);
   await shot("ui-watch");
   let s = await state(); const tw = Date.now();
   while (s?.screen === "watch" && Date.now() - tw < 90_000) { await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); await sleep(250); s = await state(); }
@@ -740,11 +769,12 @@ try {
     f = await frame();
     const patch = await page.locator("button.patch.top").count();
     check(f.bar && f.console && f.gem?.visible && (patch ? /\bpatch-gem\b/.test(f.gem.cls) : f.gem.text === "edit"), `death: bar + console, the top patch in the gem (${JSON.stringify(f.gem)}, ${patch} lit patch)`);
-    const d = await page.evaluate(() => ({ banner: !!document.querySelector(".banner-cloth .death-line"), seal: !!document.querySelector(".banner-cloth .death-line .verdict"), tiles: [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((t) => t.textContent.trim()) }));
-    check(d.banner && d.seal && d.tiles.includes("morgue") && d.tiles.includes("camp"), `death: the line on the banner, the verdict in the seal, morgue · camp on the card (${d.tiles.join(" · ")})`);
+    const d = await page.evaluate(() => ({ banner: !!document.querySelector(".banner-cloth .death-line"), seal: !!document.querySelector(".banner-cloth .death-line .verdict"), tiles: [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((t) => t.textContent.trim()), morgue: !!document.querySelector(".death .death-details .death-morgue") }));
+    check(d.banner && d.seal && d.morgue && d.tiles.includes("camp"), `death: the line on the banner, the verdict in the seal, camp on the card, the morgue under details (${d.tiles.join(" · ")}; morgue ${d.morgue})`);
     await shot("ui-death");
     // the morgue's sheet carries its stud too
-    await page.locator(".cmd .tile[data-tile=morgue]").click({ timeout: 5000 }); await sleep(200);
+    await page.evaluate(() => document.querySelector('.death .death-more[aria-expanded="false"]')?.click());   // death v2: the trace, the ledger and every tablet fold under `details`
+    await page.locator(".death .death-morgue").click({ timeout: 5000 }); await sleep(200);
     check(await page.locator(".sheet-wrap .sheet > .close-stud").count() === 1, "the morgue sheet has its close stud");
     await page.keyboard.press("Escape"); await sleep(100);
   } else check(false, "no death to check the death's frame on");

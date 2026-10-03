@@ -128,7 +128,7 @@ const REMEMBERED_DIM = 0.5; // Cut 4 §3: a remembered foe, like a memory tile
 const CUT_FRAMES = 0;       // Cut 8A: dark frames on a frame change (a cut, not a tween). gfx round 3: 0 — the cut stays a cut, the two black frames
                             // read as "a full black blank in the strip" to every blind rater
 const BAR_W = 8;            // Cut 8A: hp bar width in env texels (1 tall)
-const BAR_RED = "#c8302c"; // the missing part of an hp bar; the rest is the palette's brightest
+const BAR_RED = "#c01530"; // the missing part of an hp bar (phase 2: BLOOD); the rest is the palette's brightest
 const FIGHT_TOP_CSS = 96;   // Cut 8A: the caption sits this many CSS px below the top edge (under the DOM hud)
 const BASE_TEXELS = 160; // Cut 14 §3 (was 200, before that 270): ~20 tiles across at 400 CSS px, a 40-texel foe ≥ 24 CSS px tall
 const STACK_SPREAD = TILE * 2 / 3; // Cut 14 §3: a stack's members fan over ±⅓ tile
@@ -138,11 +138,11 @@ const ROOM_MAX = 600;              // Cut 14 §3: the room flood's cap in tiles 
  *  the sprite stays whole and readable, its light going (the fallen hero at ½ reads dimmed, never checkered). */
 const CORPSE_T = 4;                // gfx round 10: ticks after a boss's killing blow before his death pose replaces him
 const fadeDim = (e: { fade: number }): number => e.fade <= 0 ? 1 : Math.max(0.12, 1 - e.fade * 0.9);
-/** the cast of the hero's and the torches' light per biome (rgb multipliers on the warm amber; the Warrens and the Burrows keep it) */
-const LIGHT_TINT: Record<string, [number, number, number]> = {
-  default: [1, 1, 1], fens: [0.95, 0.92, 0.8],   // gfx round 18 (raters: the Fens "no light source, the room feels dead"): lantern-warm torches (was cold 0.6/1/1.1)
-  crypt: [0.8, 0.88, 1.2], deep: [0.7, 0.85, 1.25], sanctum: [0.95, 0.95, 1.05], foundry: [1.08, 0.9, 0.8],
-};
+/** art direction phase 2 (docs/ART_DIRECTION.md §6): a torch is an EMBER flame in every place (the only warm light); the places differ by
+ *  their tint and moonlight, not by the torch colour (the v2 per-biome casts are in git history at 7253bb9) */
+const LIGHT_TINT: Record<string, [number, number, number]> = { default: [1, 1, 1] };
+/** §6: the hero's own small light is cold MIST, not amber */
+const HERO_LIGHT: [number, number, number] = [0.88, 0.98, 1.12];   // round 28: brighter (was 0.66/0.78/0.95: "the hero a tiny grey blob")
 const HERO_Z = 3.2, HERO_COVER = 0.3, BOSS_COVER = 0.1, HIDDEN_MAX = 0.5; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
 const MAX_LIGHTS = 12;             // art pass: torches lighting the blit (nearest the camera)
 const ROOM_LOOK = 9;               // gfx round 5: the camera's lean looks this many tiles around the hero
@@ -152,7 +152,7 @@ const BOSS_TITLE_MS = 2200;        // gfx round 1: the boss's title plate on his
 const HERO_TEXELS = 24 * SPRITE_SCALE;   // Cut 14 §3: the hero sprite's height in env texels (48 sprite texels; gfx round 7: × SPRITE_SCALE); the fight k keeps it ≤ 1/5 of the screen
 
 export type ViewerOpts = {
-  atlasUrl?: string;   // default "/art/atlas.json" (+ atlas.png beside it)
+  atlasUrl?: string;   // default `${import.meta.env.BASE_URL}art/atlas.json` (+ atlas.png beside it)
   baseTexels?: number; // env texels along the short screen axis used to pick k (default 270)
 };
 
@@ -222,6 +222,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const numCss: { x: number; y: number; text: string; col: readonly number[]; sc: number; a: number; big: boolean }[] = [];   // gfx round 6: this frame's numbers (CSS px)
   let bossTitle: { text: string; until: number } | null = null; const bossTitled = new Set<number>();   // gfx round 1: the boss's title plate   // second art pass: the hostiles' serif name plates (DOM)
   const lights: [number, number][] = [];   // art pass: this frame's torch flames (world env texels)
+  const moons: [number, number][] = [];    // art direction phase 2 (§6): cold moonlight falling through cracks above — a few MIST pools on open floor
   const candles: [number, number][] = [];   // gfx round 10: candle clusters (a small warm light each)
   const syncPx = new Uint8Array(4);
   // juice (docs/JUICE.md): the effects tier, the light field, bloom and the event-driven feedback; `low` keeps the pre-juice look
@@ -281,7 +282,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   // gfx round 6 (raters: "a white 'F' placeholder silhouette" — the edit's scene drew its first frames before the atlas landed): the
   // viewer waits for the atlas up to ATLAS_WAIT_MS (a dark frame, as between floors); past that, or on a failed load, the primitives draw
   let atlasReady = false; const born = performance.now();
-  void atlas.load(opts.atlasUrl ?? "/art/atlas.json").finally(() => { atlasReady = true; });
+  void atlas.load(opts.atlasUrl ?? `${import.meta.env.BASE_URL}art/atlas.json`).finally(() => { atlasReady = true; });
 
   function measure(): boolean {
     const cw = canvas.clientWidth || canvas.width, ch = canvas.clientHeight || canvas.height;
@@ -550,6 +551,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       return;
     }
+    // art direction phase 2 (docs/ART_DIRECTION.md §6: "moonlight from above … shafts through cracks"): a lit floor tile now and then
+    // is where the moon falls through (deterministic in x, y; render-only)
+    if (t === "floor" && dim > 0.5 && hash2(x, y, 41) < 0.03) moons.push([wx, wy + TILE / 2]);
     // gfx round 22 (raters, every round: the Fens "a flat undressed teal field"): the Fens dress with their own pieces — lily pads on
     // the water, reeds along its edge, logs and stumps in the corners, a ruined pillar or a warm lantern post against a wall
     const fens = b === "fens" && !!atlas.envTile(b, "reeds");
@@ -636,7 +640,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const torchFrame = Math.floor(now / 180) & 1;
     const hd = atlas.envTile(b, "floor_0") !== undefined;   // art pass: register 3 loaded for this biome
     L.tiles.begin(); L.decor.begin(); L.decorHue.begin();
-    lights.length = 0; candles.length = 0;
+    lights.length = 0; candles.length = 0; moons.length = 0;
     stairsSeen.length = 0;
     for (let y = 0; y < st.h; y++) for (let x = 0; x < st.w; x++) {
       const i = y * st.w + x;
@@ -1051,17 +1055,17 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const tint = LIGHT_TINT[st.biome] ?? LIGHT_TINT.default!;
       // gfx round 16 (raters, the Fens: "light the hero with a warm radius"): the hero's own light stays warm in every biome (torches keep the cast)
       // (round 22, the Fens at 5.5: "warm the hero's pool further" — there it is wider and a lantern's amber against the cold water)
-      const fensHero = st.biome === "fens";
-      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(fensHero ? 8 : 7, st.vision + (fensHero ? 2.5 : 1.5)), c: fensHero ? [1.12, 0.8, 0.46] : [0.95, 0.74, 0.48] }); }   // gfx round 1: a wider, warmer pool ("dim flat lighting", "brown mush")
+      if (hero) { const [hx, hy] = feet(hero); fieldLights.push({ x: hx / TILE, y: -(hy + TILE / 2) / TILE, r: Math.min(8, st.vision + 2.5), c: HERO_LIGHT }); }   // phase 2: a cold MIST pool (was a warm amber one; the Fens' was a lantern)
       juice.lights(now, fieldLights);
       for (const [px, py] of st.projectilePositions()) fieldLights.push({ x: px + 0.5, y: py + 0.5, r: 2, c: [0.7, 0.6, 0.4] });
       for (const [cx, cy] of candles.slice(0, 3)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: cx / TILE, y: -cy / TILE, r: 2.2, c: [0.7, 0.45, 0.2] });
-      for (const [gx, gy] of ghostAt.slice(0, 4)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: gx / TILE, y: -gy / TILE, r: 3.2, c: [0.3, 0.5, 0.9] });   // gfx round 10: a ghost's own cold glow (round 22: brighter, wider)
+      for (const [mx, my] of moons.slice(0, 4)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: mx / TILE, y: -my / TILE, r: 3.4, c: [0.46, 0.56, 0.74] });   // phase 2: a moon pool
+      for (const [gx, gy] of ghostAt.slice(0, 4)) if (fieldLights.length < MAX_FIELD - 6) fieldLights.push({ x: gx / TILE, y: -gy / TILE, r: 3.2, c: [0.42, 0.56, 0.78] });   // gfx round 10: a ghost's own cold glow (round 22: brighter, wider)
       const fl = (i: number, a: number, b: number): number => quality.at("high") ? 0.88 + 0.08 * Math.sin(now * a + i * 1.7) + 0.05 * Math.sin(now * b + i * 4.1) : 1;
       fires.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD - 4) { const k = fl(i, 0.017, 0.041) * 0.9; fieldLights.push({ x: x / TILE, y: -y / TILE, r: 3, c: [1 * k, 0.5 * k, 0.15 * k] }); } });
       gases.slice(0, 4).forEach(([x, y]) => fieldLights.push({ x: x / TILE, y: -y / TILE, r: 1.8, c: [0.12, 0.2, 0.03] }));
       for (const sp of stairPlates) if (fieldLights.length < MAX_FIELD - 2) fieldLights.push({ x: sp.x + 0.5, y: sp.y + 0.5, r: sp.taken ? 2.6 : 1.6, c: sp.taken ? [0.95, 0.75, 0.35] : [0.35, 0.3, 0.22] });
-      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 5.6, c: [1.12 * k * tint[0], 0.78 * k * tint[1], 0.42 * k * tint[2]] }); } });   // (round 26: r 4.8 → 5.6, a touch brighter — "torches barely glow")
+      lights.forEach(([x, y], i) => { if (fieldLights.length < MAX_FIELD) { const k = fl(i, 0.011, 0.029); fieldLights.push({ x: x / TILE, y: -y / TILE, r: 5, c: [1.12 * k * tint[0], 0.66 * k * tint[1], 0.26 * k * tint[2]] }); } });   // phase 2: EMBER pools, a little smaller (§6: small warm pools)   // (round 26: r 4.8 → 5.6, a touch brighter — "torches barely glow")
       field.setLights(fieldLights);
       field.render(renderer);
     }

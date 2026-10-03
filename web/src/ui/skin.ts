@@ -12,11 +12,11 @@ const PORTRAITS = new Set(S.portraits ?? []);
 
 /** Art pass: a painted headshot (`hero_<class>`, `pet_<kind>`, `captive`, `boss_<kind>`) when packed, else null (the caller keeps
  *  its fallback — the atlas sprite crop). */
-export const portraitSrc = (id: string): string | null => (PORTRAITS.has(id) ? `/ui/portraits/${id}.webp` : null);
+export const portraitSrc = (id: string): string | null => (PORTRAITS.has(id) ? `${import.meta.env.BASE_URL}ui/portraits/${id}.webp` : null);
 
 /** gfx round 10 (raters: "show the killer"): a foe's painted head and shoulders (tools/foe-portraits.py) by kind, else null */
 const FOES = new Set(S.foes ?? []);
-export const foeSrc = (kind: string): string | null => { const k = kind.replace(/ /g, "_"); return FOES.has(k) ? `/ui/foes/${k}.webp` : null; };
+export const foeSrc = (kind: string): string | null => { const k = kind.replace(/ /g, "_"); return FOES.has(k) ? `${import.meta.env.BASE_URL}ui/foes/${k}.webp` : null; };
 
 export const hasFrame = (name: string): boolean => name in S.frames;
 export const hasIcon = (name: string): boolean => ICONS.has(name);
@@ -29,12 +29,12 @@ export function applySkin(): void {
   for (const name of S.deco ?? []) root.classList.add(`skin-deco-${name.replace(/_/g, "-")}`);
   // gfx round 19 (raters: the report's strip "starts as an empty black frame" — the scroll's frame decoded on first use): the frames and
   // backdrops decode at boot
-  if (typeof Image !== "undefined") for (const u of [...Object.keys(S.frames).map((n) => `/ui/frames/${n}.png`), ...(S.backdrops ?? []).map((n) => `/ui/backdrops/${n}.webp`)]) { const im = new Image(); im.decoding = "async"; im.src = u; void im.decode?.().catch(() => undefined); }   // gfx round 4: the frame's carved pillar, the camp's braziers
+  if (typeof Image !== "undefined") for (const u of [...Object.keys(S.frames).map((n) => `${import.meta.env.BASE_URL}ui/frames/${n}.png`), ...(S.backdrops ?? []).map((n) => `${import.meta.env.BASE_URL}ui/backdrops/${n}.webp`)]) { const im = new Image(); im.decoding = "async"; im.src = u; void im.decode?.().catch(() => undefined); }   // gfx round 4: the frame's carved pillar, the camp's braziers
 }
 
 /** An icon: the packed PNG, or a CSS-drawn glyph (no text node, so `textContent` is the caller's label alone). */
 export function icon(name: string, glyph = ""): HTMLElement {
-  if (hasIcon(name)) return h("img", { class: `ico ico-${name}`, src: `/ui/icons/${name}.png`, alt: "", draggable: "false", "aria-hidden": "true" });
+  if (hasIcon(name)) return h("img", { class: `ico ico-${name}`, src: `${import.meta.env.BASE_URL}ui/icons/${name}.png`, alt: "", draggable: "false", "aria-hidden": "true" });
   return h("span", { class: `ico glyph ico-${name}`, "data-glyph": glyph, "aria-hidden": "true" });
 }
 

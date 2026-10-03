@@ -148,8 +148,9 @@ try {
   {
     await page.evaluate(() => { const r = window.__riddle; r.go({ kind: "death", death: { run_id: 1, depth: 3, cause: "goblin_pack", margin: "3 over", verdict: "gap", baseline: 0.4, trace: { turns: [] }, patches: [], morgue: "" }, lost: ["jackal · Ashar"] }); });
     await sleep(300);
-    const d = await page.evaluate(() => ({ line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim(), egg: document.querySelector(".death .eggs-line .egg")?.textContent.replace(/\s+/g, " ").trim() }));
-    check(/^goblin pack · D3 · no rule for it · you died$/.test(d.line ?? ""), `the death line reads "${d.line}" (no hp margin)`);
+    const d = await page.evaluate(() => ({ line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim(), why: document.querySelector(".death .death-why")?.textContent, egg: document.querySelector(".death .eggs-line .egg")?.textContent.replace(/\s+/g, " ").trim() }));
+    // death v2: `no rule for it` is the why line under the banner
+    check(/^goblin pack · D3 · you died$/.test(d.line ?? "") && d.why === "no rule for it", `the death line reads "${d.line}" · "${d.why}" (no hp margin)`);
     check(d.egg === "◯ jackal Ashar fell", `the lost companion reads "${d.egg}"`);
   }
   // §3 the report: `banked · returned · deaths` always (QA 92eb880 withdrew the larger-first swap); exit lines lead with `returned $61`; lost chips `fell`;
@@ -507,6 +508,14 @@ try {
     await page.goto(`${url}?dev=1&fresh=1&seed=2302&absent=8h`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && ["camp", "report"].includes(s.screen), "the real engine's camp", 120_000);
     const kind = await page.evaluate(() => window.__riddle.kind);
+    // Cut 30: the editor comes with the pen (the Mother met and 72 h) — the save opens it, the core recompiles on load
+    await page.evaluate(async () => {
+      const r = window.__riddle, e = JSON.parse(await r.engine.save());
+      e.lineage.pkg.pen_open = true;
+      for (const id of ["pen", "edit", "dial", "unlocks", "reorder", "vs", "tags", "walls", "divergence", "route"]) if (!e.lineage.systems.includes(id)) e.lineage.systems.push(id);
+      await r.importSave(JSON.stringify({ v: 2, engine: JSON.stringify(e), loadout: [], last_seen: Date.now(), runs: 0 }));
+    });
+    await waitFor((s) => s?.booted && s.screen === "camp", "the pen's camp", 60_000);
     await page.evaluate(() => window.__riddle.go({ kind: "camp" }));
     await sleep(6000);   // the camp's own measures settle
     const t = await page.evaluate(async () => {

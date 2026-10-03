@@ -9,12 +9,14 @@ import { renderCamp } from "./ui/camp";
 import { renderWatch } from "./ui/watch";
 import { renderDeath } from "./ui/death";
 import { renderReport } from "./ui/report";
+import { mergeWorkers } from "./ui/works";   // Cut 30.5
 import { renderEnding } from "./ui/ending";
 import { closeAllSheets, onEscapeIdle } from "./ui/sheet";
 import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
 import { audio } from "./audio";
 import { applySkin } from "./ui/skin";
+import { initTips } from "./ui/tips";   // docs/TOOLTIPS.md: keyword tips
 import { mergeMeters } from "./ui/meters";
 import { basesOf, linSum, readSnap, rulesKey, sharesOf, stateLabel, stateTerms, writeSnap, type StateMove, type StateSnap } from "./ui/attrib";
 
@@ -40,6 +42,9 @@ export type DevOptions = {
 export type DevScreen = "camp" | "watch" | "death" | "report" | "ending" | "exit";
 
 const OFFLINE_MIN_S = 60;
+/** RUNS_UI: the open app's clock asks the engine every LIVE_TICK_MS while a run is live; at home, once the rest is due (and at least every
+ *  REST_SYNC_MS, so the core's rest and clock keep with the town's countdown) */
+const LIVE_TICK_MS = 2000, REST_SYNC_MS = 60_000;
 const SETS = 3;
 const SAVE_DEBOUNCE_MS = 1000;
 // runOffline is chunked so the progress label can count runs. `runOfflineQuick` skips the worst-death verdict
@@ -65,7 +70,83 @@ export class App {
   engine!: AsyncEngine;
   kind: EngineKind = "fake";
   version = "";
-  lineage!: Lineage;
+  /** RUNS_UI: the rest's countdown is anchored where the core's `rest_left_s` last moved (a re-read of the same value keeps the anchor) */
+  get lineage(): Lineage { return this.lin_; }
+  set lineage(L: Lineage) {
+    const s = L?.rest_left_s ?? 0;
+    if (!this.lin_ || s !== this.restAnchor.s || (this.lin_.live?.turn ?? 0) !== (L.live?.turn ?? 0)) this.restAnchor = { s, at: Date.now() };
+    this.lin_ = L;
+  }
+  private lin_!: Lineage;
+  private restAnchor = { s: 0, at: 0 };
+  /** RUNS_UI: the hero's rest left now (seconds), counted down from the core's last word */
+  restLeftS(): number { return Math.max(0, this.restAnchor.s - (Date.now() - this.restAnchor.at) / 1000); }
+  /** RUNS_UI (docs/RUNS_UI.md §2): the open app's clock on the lineage — `advance(ms)` while the town (or a report, a death) is up: the rest
+   *  runs out, the next run goes down, a run in flight plays on unwatched. The watch drives its own run (the clock pauses there); a hidden
+   *  tab's time is the next tick's, or an absence (`backFromHidden`). Off under automation unless `?runs=1` (the old gates keep their
+   *  meaning, as autodismiss does); `?runs=0` turns it off anywhere. */
+  private runnerAt = 0;
+  private runnerBusy = false;
+  private hiddenAt = 0;
+  private liveListeners = new Set<() => void>();
+  onLive(fn: () => void): () => void { this.liveListeners.add(fn); return () => this.liveListeners.delete(fn); }
+  private emitLive(): void { for (const fn of this.liveListeners) fn(); }
+  get runnerOn(): boolean {
+    const q = new URLSearchParams(location.search).get("runs");
+    if (q === "0") return false;
+    return q === "1" || !(typeof navigator !== "undefined" && navigator.webdriver);
+  }
+  /** one tick of the open app's clock (every second; the engine is asked every 2 s while a run is live, once a rest is due) */
+  async runTick(force = false): Promise<void> {
+    if (!this.booted || this.offlineRunning || this.runnerBusy || !this.engine?.advance || (!force && !this.runnerOn)) return;
+    const now = Date.now();
+    if (this.view.kind === "watch") { this.runnerAt = now; return; }   // the watch plays its own run; its time is not the town's
+    if (document.hidden) return;                                       // (the time hidden is the next tick's, or an absence)
+    const L = this.lineage, live = !!L.live && L.live.turn > 0;
+    if (!live && L.tree?.waits) { this.runnerAt = now; return; }      // before the scout the hero home waits: nothing runs
+    const dt = now - (this.runnerAt || now);
+    if (!force && !(live ? dt >= LIVE_TICK_MS : this.restLeftS() <= 0.25 || dt >= REST_SYNC_MS)) return;
+    if (dt <= 0) { this.runnerAt = now; return; }
+    this.runnerBusy = true;
+    try {
+      const r = await this.engine.advance(dt);
+      this.runnerAt = now;
+      const was = L.live?.run_id;
+      if (r.ended.length || !!r.live !== live || (r.live && r.live.run_id !== was)) {
+        this.lineage = await this.engine.lineage();   // a run ended or began: the town, the purse, the log
+        this.emitChange();
+      } else if (!live) this.lineage = await this.engine.lineage();   // the rest's sync: its countdown re-anchored, nothing repaints
+      else this.lineage = { ...this.lineage, live: r.live ?? null };
+      this.emitLive();
+    } catch (e) { console.warn("advance", e); this.runnerAt = now; }
+    finally { this.runnerBusy = false; }
+  }
+  /** RUNS_UI: out of the watch mid-run (`town ↻`) — the town, and the lineage read again (the watch began with the one before the send: the
+   *  run under way, the send by hand spent), so the lane shows him down there and the open app's clock takes the run on from there */
+  leaveWatch(): void {
+    this.go({ kind: "camp" });
+    this.runnerAt = Date.now();
+    void this.engine.lineage().then((L) => { this.lineage = L; this.emitChange(); this.emitLive(); }).catch(() => undefined);
+  }
+  /** RUNS_UI: back from a hidden tab — an absence's report when it was long enough to be one (the boot's rule), else the clock goes on */
+  private async backFromHidden(): Promise<void> {
+    const away = (Date.now() - this.hiddenAt) / 1000; this.hiddenAt = 0;
+    if (!this.runnerOn || !this.booted || this.offlineRunning || away < OFFLINE_MIN_S || this.view.kind === "watch") return;
+    await this.absence(Math.floor(away));
+  }
+  /** An absence: the camp underneath, inert, while the batch runs; then the report (or the camp, when nothing ran before the scout). */
+  async absence(elapsed: number): Promise<void> {
+    this.markRan();   // Cut 28 §2: the absence sends the rules now
+    this.offlineRunning = true;
+    this.go({ kind: "camp" });
+    const report = await this.runOfflineChunked(Math.floor(elapsed));
+    await this.refresh();
+    this.adoptSets();
+    this.runnerAt = Date.now();
+    // Cut 30.5: before the scout an absence with no send in flight ran nothing — the hero waited at home; no empty report
+    if (report.runs === 0 && this.lineage.tree && !this.lineage.tree.auto_send) this.go({ kind: "camp" });
+    else this.go({ kind: "report", report, absence: true });
+  }
   private vocab_!: Vocabulary;
   get vocab(): Vocabulary { return this.vocab_; }
   /** Cut 23 §3: the vocabulary's `why_gloss` is every reason line's gloss on tap (the trace's chain rows read it through `whyGloss`). */
@@ -75,6 +156,8 @@ export class App {
   active = 0;
   loadout: number[] = [];
   view: Screen = { kind: "camp" };
+  /** Cut 30 §3: the last absence's report — the town walks its runs out of the mouth once, on the camp after it (ui/town.ts) */
+  lastAbsence: { report: ReturnReport; played: boolean } | null = null;
   /** True once `boot()` has settled (after the offline batch, if any). Dev inspection. */
   booted = false;
   private root: HTMLElement;
@@ -364,22 +447,18 @@ export class App {
     }
     await this.engine.loadout(this.loadout);
     this.vocab = await this.engine.vocabulary();
-    document.addEventListener("visibilitychange", () => { if (document.hidden) this.flushSync(); });
+    document.addEventListener("visibilitychange", () => { if (document.hidden) { this.flushSync(); this.hiddenAt = Date.now(); } else if (this.hiddenAt) void this.backFromHidden(); });
     window.addEventListener("pagehide", () => this.flushSync());
     setInterval(() => { if (!document.hidden) void this.flush(); }, 30_000);
     if (dev?.absent) { elapsed = dev.absent; loaded = true; }
-    if (loaded && elapsed >= OFFLINE_MIN_S) {
-      this.markRan();   // Cut 28 §2: the absence sends the rules now
-      // the camp (last state) shows underneath, inert, while the batch runs (no forecast queued ahead of it)
-      this.offlineRunning = true;
-      this.go({ kind: "camp" });
-      const report = await this.runOfflineChunked(Math.floor(elapsed));
-      await this.refresh();
-      this.adoptSets();
-      this.go({ kind: "report", report, absence: true });
-    } else this.go({ kind: dev?.autosend ? "watch" : "camp" });
+    // the camp (last state) shows underneath, inert, while the batch runs (no forecast queued ahead of it)
+    if (loaded && elapsed >= OFFLINE_MIN_S) await this.absence(elapsed);
+    else this.go({ kind: dev?.autosend ? "watch" : "camp" });
     await this.flush();
     this.booted = true;
+    // RUNS_UI: the open app's clock starts now (the absence above covered the time before it)
+    this.runnerAt = Date.now();
+    setInterval(() => { void this.runTick(); }, 1000);
   }
 
   // --- dev inspection (window.__riddle in dev builds or with ?dev=1) ---
@@ -511,6 +590,22 @@ export class App {
   }
 
   get rules(): RuleSet { return this.sets[this.active]; }
+  /** Cut 30 §2: on a lineage on packages the core keeps the pen's rows above every package and recompiles (`packages::absorb`) — the
+   *  editing copy takes the core's order once the set is in, so the rows, their indices and the forecast's shadow marks are the core's.
+   *  Nothing when the order already matches (the common edit) or another edit came since. */
+  private adoptCompiled(seq: number): void {
+    if (!this.lineage?.packages || this.lineage.packages.literal) return;
+    void this.engine.lineage().then((L) => {
+      if (seq !== this.rulesSeq) return;
+      const key = (rows: Row[]): string => JSON.stringify(rows.map((r) => [r.conds, r.verb, r.origin ?? ""]));
+      const core = L.sets?.[L.active_set ?? this.active]?.rows ?? [];
+      const same = key(core.map((r) => ({ ...r, origin: r.origin ?? "player" }))) === key(this.rules.rows.map((r) => ({ ...r, origin: r.origin ?? "player" })));
+      this.lineage = L;
+      if (same) return;
+      this.adoptSets(); this.emitChange();
+      for (const fn of this.rulesListeners) fn();
+    }).catch(() => undefined);
+  }
   /** Cut 29 §2: the camp showed the newly opened systems; the next send tells the core (`seenSystems`) — never mid-edit. */
   seenPending = false;
 
@@ -530,7 +625,7 @@ export class App {
     for (const fn of this.rulesListeners) fn();
     if (this.overBudget) return;
     const seq = ++this.rulesSeq;
-    void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) this.shelfCheck(); }).catch((e) => console.warn("rules rejected", e));
+    void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) { this.shelfCheck(); this.adoptCompiled(seq); } }).catch((e) => console.warn("rules rejected", e));
     this.fcTimer = window.setTimeout(() => void this.emitForecast(), FC_DEBOUNCE_MS);
     // Cut 24 §4: the edit's refine starts beside its first pass (its own lane, the rules alone synced), not after it
     if (this.engine.refineLane) this.scheduleRefine(REFINE_PAR_MS, true);
@@ -698,7 +793,8 @@ export class App {
     this.rulesChanged();
   }
   /** Runs an engine call that returns a Lineage and adopts it. Errors (unaffordable, locked) are swallowed after a warn. */
-  async mutate(fn: () => Promise<Lineage>, move?: string): Promise<boolean> {
+  /** `adopt` (Cut 30 §2): the call recompiled the set (a package equipped, levelled, a drill revoked) — the editing copy is the core's again. */
+  async mutate(fn: () => Promise<Lineage>, move?: string, adopt = false): Promise<boolean> {
     // QA 0c6e126 (qaY): a purchase, a drop, a cage or a kit step (`move`, its word) — the camp's next forecast for these rules is read
     // against the one painted before it (`lineageMove`)
     // QA 524827b (qaAA: after `+1 row` and `verb: throw` bought, the line under the forecast still read `drop · D6 ≈ ±6` from the leash
@@ -706,6 +802,7 @@ export class App {
     if (move) { this.lmPending = { label: move, before: this.lastForecast, rules: JSON.stringify(this.rules.rows) }; this.lmove = null; }
     else { this.lmPending = null; this.lmove = null; }
     try { this.lineage = await fn(); } catch (e) { this.lmPending = null; console.warn("engine refused", e); return false; }
+    if (adopt) this.adoptSets();
     this.baseMoved = true;
     await this.afterLineage();
     return true;
@@ -809,6 +906,7 @@ export class App {
     this.mounted?.dispose?.();
     if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
     this.view = screen;
+    if (screen.kind === "report" && screen.absence && this.lastAbsence?.report !== screen.report) this.lastAbsence = { report: screen.report, played: false };
     if (screen.kind === "watch") { this.resetVs(); this.markRan(); }   // Cut 22 §3: the set that runs is the next edit's base
     let m: Mounted;
     switch (screen.kind) {
@@ -943,7 +1041,36 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     oaths_kept: cat(a.oaths_kept, b.oaths_kept),
     fallen: cat(a.fallen, b.fallen),
     meters: mergeMeters(a.meters, b.meters),
+    ...mergeGrew(a, b),
+    workers: mergeWorkers(a.workers, b.workers), chest: sum(a.chest, b.chest) || undefined,   // Cut 30.5: the workers' acts and the haul left in the chest add up
   };
+}
+/** Cut 30 §4: what grew over an absence adds up across its slices — per track, the gold summed (`+$2400`), a best or a level the
+ *  highest (`best D14`, `L7`), the rest once each; the packages' beats in order, a package's levels collapsed to its highest (`STEADY L3`). */
+export function mergeGrew(a: Pick<ReturnReport, "grew" | "packages">, b: Pick<ReturnReport, "grew" | "packages">): Pick<ReturnReport, "grew" | "packages"> {
+  const out: Pick<ReturnReport, "grew" | "packages"> = {};
+  if (a.grew || b.grew) {
+    const lines: { track: string; what: string }[] = [];
+    for (const g of [...(a.grew ?? []), ...(b.grew ?? [])]) {
+      // (a level: the class's `L7`, a package's `Steady L3` — the later slice's stands)
+      const gold = /^\+\$(\d+)$/.exec(g.what), num = /^(best D|(?:.+ )?L)(\d+)$/.exec(g.what);
+      const at = lines.findIndex((x) => x.track === g.track && (gold ? /^\+\$\d+$/.test(x.what) : num ? x.what.startsWith(num[1]) && /^(best D|(?:.+ )?L)\d+$/.test(x.what) && x.what.slice(num[1].length).match(/^\d+$/) !== null : x.what === g.what));
+      if (at < 0) { lines.push({ ...g }); continue; }
+      if (gold) lines[at].what = `+$${Number(lines[at].what.slice(2)) + Number(gold[1])}`;
+      else if (num && Number(num[2]) > Number(/\d+$/.exec(lines[at].what)![0])) lines[at].what = g.what;
+    }
+    out.grew = lines;
+  }
+  if (a.packages || b.packages) {
+    const beats: string[] = [];
+    for (const x of [...(a.packages ?? []), ...(b.packages ?? [])]) {
+      const lv = /^(.+) L(\d+)$/.exec(x);
+      const at = lv ? beats.findIndex((y) => y.startsWith(`${lv[1]} L`) && /^.+ L\d+$/.test(y)) : beats.indexOf(x);
+      if (at < 0) beats.push(x); else if (lv) beats[at] = x;
+    }
+    out.packages = beats;
+  }
+  return out;
 }
 /** Cut 28 §1–2: the sworn oath's night adds up across slices of one oath (a kept one wins: its reward was granted), and the report's
  *  decisions (`lead`, the core's first screen) merge by kind — the later slice's word for a kind, the oath's rebuilt from the merged tally,
@@ -994,12 +1121,13 @@ export function start(dev: DevOptions | null = null): void {
   root.id = "app";
   applySkin();   // Cut 17: the frames packed in web/public/ui (tools/ui-skin.py); absent ones keep the flat CSS
   const app = new App(root, dev);
+  initTips(app);
   audio.arm();   // Cut 10 §4: the WebAudio context opens on the first gesture
   if (dev) (window as unknown as { __riddle: App }).__riddle = app;
   // Cut 14 §4: the cue log is readable on every build (a rater assesses sound on the cohort build); the App stays dev-only
   Object.defineProperty(window, "__audio", { value: audio, writable: false, configurable: true });
   void app.boot().catch((e) => console.error("boot failed", e));
   if (import.meta.env.PROD && "serviceWorker" in navigator) {
-    window.addEventListener("load", () => { navigator.serviceWorker.register("/sw.js").catch(() => { /* offline-first is best effort */ }); });
+    window.addEventListener("load", () => { navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => { /* offline-first is best effort */ }); });
   }
 }

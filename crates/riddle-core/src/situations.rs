@@ -208,7 +208,7 @@ pub fn place_twist(run: &mut Run, lost: &[Lost]) {
             k => crate::engine::place_room_kind(run, &mut rng, k, false, &mut used),
         };
         if placed {
-            run.floor_twist = Some(kind.into());
+            run.floor_twist = Some(kind.into()).into();
             return;
         }
     }
@@ -278,11 +278,12 @@ fn lock_tiles(run: &Run) -> Vec<Pos> {
     }
     lock.sort_by_key(|p| (p.cheb(down), p.x, p.y));
     lock.truncate(LOCK_MAX);
-    // Each door's corridor holds two more bloats behind it (a one-door room still locks).
+    // A shallow Burrows lock covers its doors; later locks add two reserve bloats per corridor.
+    // Every door stays covered, while IDLE can reach the first band's end on both lanes.
     let doors = lock.clone();
     for d in doors {
         let mut cur = d;
-        for _ in 0..2 {
+        for _ in 0..if run.biome() == crate::descent::Biome::Burrows && run.depth < 8 { 0 } else { 2 } {
             if lock.len() >= LOCK_MAX {
                 break;
             }
@@ -570,7 +571,8 @@ pub fn lock_bloat_act(run: &mut Run, cx: &mut Ctx, mi: usize) -> bool {
 
 /// The hunger bites on an unlit D12: −1 max HP (never below 5) every `HUNGER_TURNS` turns.
 pub fn hunger_tick(run: &mut Run, cx: &mut Ctx) {
-    if !hunger_floor(run) || lit(run) || run.floor_turn == 0 || !run.floor_turn.is_multiple_of(HUNGER_TURNS * crate::engine::TICKS_PER_TURN) {
+    // (every test is pure: the clock's first, the floor's scan last)
+    if run.floor_turn == 0 || !run.floor_turn.is_multiple_of(HUNGER_TURNS * crate::engine::TICKS_PER_TURN) || lit(run) || !hunger_floor(run) {
         return;
     }
     if run.hero.max_hp <= 5 {
@@ -708,6 +710,35 @@ mod tests {
     use crate::engine::Game;
     use crate::rng::Rng;
 
+    #[test]
+    fn shallow_lock_keeps_the_door_barrier_and_later_locks_keep_reserves() {
+        let mut g = Game::new_literal(1);
+        g.start_run(Some(1));
+        let run = g.run.as_mut().unwrap();
+        run.depth = 6;
+        run.floor.map = crate::tiles::Map::new(12, 12, Tile::Wall);
+        let room = crate::gen::Rect { x: 5, y: 5, w: 5, h: 5 };
+        for y in 5..10 {
+            for x in 5..10 {
+                run.floor.map.set(Pos::new(x, y), Tile::Floor);
+            }
+        }
+        for x in 1..5 {
+            run.floor.map.set(Pos::new(x, 7), Tile::Floor);
+        }
+        run.floor.stairs_up = Pos::new(1, 7);
+        run.floor.stairs_down = Pos::new(7, 7);
+        run.floor.rooms = vec![room];
+        let shallow = lock_tiles(run);
+        assert_eq!(shallow, vec![Pos::new(4, 7)]);
+        let reachable = run.floor.map.bfs(run.floor.stairs_up, false, &|p| shallow.contains(&p));
+        assert_eq!(reachable[run.floor.map.idx(run.floor.stairs_down)], -1, "the lock still blocks the stairs");
+        run.depth = 8;
+        let later = lock_tiles(run);
+        assert_eq!(later.len(), 3, "later locks retain two corridor reserves");
+        assert!(shallow.iter().all(|p| later.contains(p)));
+    }
+
     /// Cut 12 §4: from D3 every floor holds exactly one situation, never the previous
     /// floor's kind; each band shows its flagship once (the den in D3–5, the lock in D6–7,
     /// the captive in D9–11, the hunger on D12); a boss's floor keeps to the room kinds; D1–2
@@ -716,13 +747,13 @@ mod tests {
     fn every_floor_from_d3_rolls_one_situation() {
         let mut kinds_seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for seed in 1..=30u64 {
-            let mut g = Game::new(seed);
+            let mut g = Game::new_literal(seed);
             g.start_run(Some(seed));
             let mut seq: Vec<Option<String>> = Vec::new();
             for d in 1..=13u32 {
                 g.descend_to(d);
                 let run = g.run.as_ref().unwrap();
-                let twist = run.floor_twist.clone();
+                let twist = (*run.floor_twist).clone();
                 if d <= 2 {
                     assert!(twist.is_none(), "seed {seed} D{d}: the doorstep has no twist word");
                 } else if crate::descent::boss_for(d).is_some() {
@@ -803,7 +834,7 @@ mod tests {
             assert_eq!(band(d).unwrap().first, d);
         }
         // A trial can choose the floor's kind.
-        let mut g = Game::new(3);
+        let mut g = Game::new_literal(3);
         g.start_run(Some(3));
         g.descend_to_twist(4, "lock");
         assert_eq!(g.run.as_ref().unwrap().floor_twist.as_deref(), Some("lock"));

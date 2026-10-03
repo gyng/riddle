@@ -38,6 +38,82 @@ pub fn without_history<R>(f: impl FnOnce() -> R) -> R {
     NO_HISTORY.with(|c| c.set(was));
     r
 }
+
+/// RUNS_UI: the runs log's cap (`LineageState::run_log`) and the replay capsules kept in memory.
+pub const RUN_LOG_CAP: usize = 60;
+pub const CAPSULES: usize = 40;
+static CAPSULES_OFF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// RUNS_UI: harnesses that play real games at scale (the dayplayer, the gate table) keep no replay
+/// capsules — a lineage clone per send they never read. Process-wide.
+pub fn set_capsules(on: bool) {
+    CAPSULES_OFF.store(!on, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// RUNS_UI: a player's input inside a live run, replayed at its tick (`Game::replay`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Input {
+    Choose(u32),
+    Bail,
+}
+/// RUNS_UI: a real run's send, kept to re-simulate it — the game as `start_run` left it, the events
+/// it left pending, and the inputs the run took.
+#[derive(Clone, Debug)]
+pub struct Capsule {
+    pub id: u32,
+    pub game: Box<Game>,
+    pub pre: Vec<Ev>,
+    pub inputs: Vec<(u32, Input)>,
+}
+/// The capsules (newest last). Never saved and never compared: a loaded game equals the one saved.
+#[derive(Clone, Debug, Default)]
+pub struct Capsules(pub VecDeque<Capsule>);
+impl PartialEq for Capsules {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+/// RUNS_UI: what a later snapshot of the same floor showed, folded into its first (a replay viewer
+/// rebuilds from the first): entities and items first seen since, at their first sighting, and the
+/// tiles seen (web/src/ui/runlog.ts `floorSnapshot`).
+fn fold_into(first: &mut Snapshot, later: &Snapshot) {
+    if later.depth != first.depth {
+        return;
+    }
+    for e in &later.entities {
+        if e.id != first.hero.entity.id && !first.entities.iter().any(|x| x.id == e.id) {
+            first.entities.push(e.clone());
+        }
+    }
+    for i in &later.items {
+        if !first.items.iter().any(|x| x.id == i.id) {
+            first.items.push(i.clone());
+        }
+    }
+    if later.seen.len() == first.seen.len() {
+        for (a, b) in first.seen.iter_mut().zip(&later.seen) {
+            *a |= *b;
+        }
+    }
+}
+
+/// RUNS_UI: FNV-1a 64 over each event's JSON, an exit's `line` and `trace` left out (a replay
+/// never settles the exit), hex.
+pub fn events_hash(events: &[Ev]) -> String {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    for e in events {
+        let j = match e {
+            Ev::Exit { t, tier, loot_kept, .. } => serde_json::to_string(&Ev::Exit { t: *t, tier: tier.clone(), loot_kept: *loot_kept, line: None, trace: None }),
+            _ => serde_json::to_string(e),
+        }
+        .unwrap_or_default();
+        for b in j.bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x0100_0000_01b3);
+        }
+    }
+    format!("{h:016x}")
+}
 /// Cut 4: a hostile that stepped out of view is remembered (snapshot `remembered`, the hunt)
 /// for this many hero actions after it was last seen.
 pub const REMEMBER_ACTIONS: u32 = 10;
@@ -59,7 +135,10 @@ pub const MAX_ROWS: usize = 10;
 /// Cut 12 §1: card rows sit outside the player's cap — one per owned card (8 tactic, 4 tier 2,
 /// 4 mastery); the per-row tallies are sized for both.
 pub const MAX_CARD_ROWS: usize = 16;
-pub const ROWS_TOTAL: usize = MAX_ROWS + MAX_CARD_ROWS;
+/// Cut 30 §2: a compiled set's package rows (drills, a stance, tactics, a temperament) sit outside
+/// the cap too.
+pub const MAX_PKG_ROWS: usize = 24;
+pub const ROWS_TOTAL: usize = MAX_ROWS + MAX_CARD_ROWS + MAX_PKG_ROWS;
 /// Cut 3: the ascension variants, in the order they are offered.
 pub const VARIANTS: [&str; 4] = ["no_rest", "short_list", "bones_only", "hunted"];
 /// Energy needed to act; actors gain `speed` per tick.
@@ -186,7 +265,7 @@ pub struct Run {
     #[serde(default)]
     pub gift: crate::traits::GiftRun,
     pub monsters: Vec<Monster>,
-    pub items: Vec<FloorItem>,
+    pub items: crate::shared::Shared<Vec<FloorItem>>,
     pub overlays: Vec<Overlay>,
     pub turn: u32,
     pub floor_turn: u32,
@@ -197,13 +276,13 @@ pub struct Run {
     pub kills_floor: u32,
     /// (turn, kind, depth) — the lineage's kills (XP, renown, the bestiary); summoned foes
     /// are counted apart (`summoned_kills`).
-    pub kills: Vec<(u32, String, u32)>,
+    pub kills: crate::shared::Shared<Vec<(u32, String, u32)>>,
     /// QA on 23ed91f: summoned foes cut down this run (no XP, renown or bestiary count).
     #[serde(default)]
     pub summoned_kills: u32,
-    pub brought: Vec<u32>,
-    pub trace: Vec<TraceTurn>,
-    pub notes: Vec<(u32, String)>,
+    pub brought: crate::shared::Shared<Vec<u32>>,
+    pub trace: Vec<crate::shared::Shared<TraceTurn>>,
+    pub notes: crate::shared::Shared<Vec<(u32, String)>>,
     pub over: Option<ExitTier>,
     pub death_cause: Option<String>,
     pub death_blow: i32,
@@ -218,7 +297,7 @@ pub struct Run {
     pub hurt_last: bool,
     pub kill_since_action: bool,
     pub kill_last: bool,
-    pub seen_ids: BTreeSet<u32>,
+    pub seen_ids: crate::shared::Shared<BTreeSet<u32>>,
     pub new_seen: bool,
     pub telegraphs_now: Vec<String>,
     pub low10_t: Option<u32>,
@@ -242,10 +321,10 @@ pub struct Run {
     /// (item id, kind), one entry per unit (a leash merged into a stack is the stack's id) —
     /// and the units that left the pack on the way, with where (`used` / `left` / `stolen`).
     /// The exit reads them into `ExitLine.found` (`Game::found_rows`).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub found_units: Vec<(u32, String)>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub found_gone: Vec<(u32, String, String)>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub found_units: crate::shared::Shared<Vec<(u32, String)>>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub found_gone: crate::shared::Shared<Vec<(u32, String, String)>>,
     /// Cut 22 §3: a forecast's sim (`forecast::simulate_one`): each floor below the first draws
     /// from a stream of its own, (run seed, depth) — `turn::descend`. A send, and any replay of
     /// one, goes on drawing from the run's stream.
@@ -276,7 +355,7 @@ pub struct Run {
     pub stolen_kinds: Vec<(u32, String, i32)>,
     pub ally_lost: Vec<(u32, String)>,
     pub ally_freed: Vec<u32>,
-    pub boss_kills: Vec<(u32, String)>,
+    pub boss_kills: crate::shared::Shared<Vec<(u32, String)>>,
     /// Cut 28 §1: what an oath reads of a run — the potions the hero drank (any kind, a trait's
     /// sip included), whether he rested, the bosses fire hurt (their kinds).
     #[serde(default, skip_serializing_if = "is_zero_u32")]
@@ -308,23 +387,33 @@ pub struct Run {
     pub route2: bool,
     /// Cut 28 §4 (AU: a one-slot vault salvaged a caged sword +1, no choice): the items taken from
     /// a cage this run — a return's cut never takes them; they reach the keep sheet.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub caged: Vec<u32>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub caged: crate::shared::Shared<Vec<u32>>,
     /// Cut 28 §1: (floor, tick) each time the run went deeper than it had been (the `swift` oath).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub depth_t: Vec<(u32, u32)>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub depth_t: crate::shared::Shared<Vec<(u32, u32)>>,
     /// Cut 28 §2: the hero's max-hp steps this run, oldest first (`Trace.max_steps`).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub max_steps: Vec<crate::wire::MaxStep>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub max_steps: crate::shared::Shared<Vec<crate::wire::MaxStep>>,
     pub drank_heal: bool,
     pub melee_used: bool,
     pub boss_seen_t: Option<u32>,
+    /// Cut 30 §1: the band bosses this run saw (a meeting: drills, scars), and the scars the send
+    /// carried (boss → percent of max hp off).
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub bosses_met: crate::shared::Shared<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scars: Vec<(String, u32)>,
     pub hurt_since_boss: bool,
     pub row_fired: Vec<u32>,
     pub renderable_events: u32,
     pub ended: bool,
     pub max_depth: u32,
-    pub trophies_run: Vec<String>,
+    /// Run-clear: the lineage's record when this run was sent — the exit line's `new_best` reads against it
+    /// (a record the run itself secured on its way down is still this run's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub best_at_send: Option<u32>,
+    pub trophies_run: crate::shared::Shared<Vec<String>>,
     /// Companion records active in this run (party members and new tames).
     pub companions: Vec<Companion>,
     pub recalled: Vec<u32>,
@@ -337,7 +426,7 @@ pub struct Run {
     /// QA on 0c6e126 (qaZ: `new find: leash`, the free supply back from bones): the kinds the
     /// send packed (its supplies), never a find of the run.
     #[serde(default)]
-    pub packed: Vec<String>,
+    pub packed: crate::shared::Shared<Vec<String>>,
     /// QA on 524827b (qaAB: a bought 2nd leash, $30, merged into the kennel's free stack at the
     /// pack and went back to the kennel as the free one at a return — gone, run after run): the
     /// price paid for each bought leash packed into the stack (the stack's units carry no mark).
@@ -484,8 +573,8 @@ pub struct Run {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blows: Vec<crate::wire::TraceBlow>,
     /// QA on 524827b: the hp lost since the hero was last at full hp, per cause (`Trace.hp_lost`).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub hp_lost: Vec<(String, i32)>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub hp_lost: crate::shared::Shared<Vec<(String, i32)>>,
     /// QA on 308f045 (qaAC: `since full hp` summing to 72 on a 36-hp hero): the hp he had when
     /// the count began (`hp_lost`'s first blow) — what the losses beyond it were healed from.
     #[serde(default, skip_serializing_if = "is_zero_i32")]
@@ -528,6 +617,15 @@ pub struct Run {
     /// carry is dropped — the game's exit pays nothing, as a stall's does (DEFAULT yields 0).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub driven_lost: bool,
+    /// Cut 30.5 (the owner, 2026-10-02: a new record never ends the run): the gold secured at this run's
+    /// checkpoints (each new deepest floor past the record secures the carry so far, as a waystone would — safe
+    /// whatever the exit, a death's included), the record the run left with, and its deepest checkpoint.
+    #[serde(default)]
+    pub secured: i32,
+    #[serde(default)]
+    pub record0: u32,
+    #[serde(default)]
+    pub record_mark: u32,
     /// Cut 24 §1: the rows a dance rested (`turn::nohp_guard`) and the action they rest until.
     #[serde(default)]
     pub rows_rested: (Vec<i32>, u32),
@@ -539,7 +637,7 @@ pub struct Run {
     pub aimed: bool,
     /// Cut 2 §2: the lineage's bones piles (copied at start) and the heirs recovered this run.
     #[serde(default)]
-    pub bones: Vec<Bones>,
+    pub bones: crate::shared::Shared<Vec<Bones>>,
     #[serde(default)]
     pub bones_found: Vec<u32>,
     /// Cut 2 §5: kills per kind this run were counted into the lineage's ledger up to here.
@@ -613,7 +711,7 @@ pub struct Run {
     #[serde(default)]
     pub arc: Arc,
     #[serde(default)]
-    pub episodes: Vec<Episode>,
+    pub episodes: crate::shared::Shared<Vec<Episode>>,
     /// §3: the hero's last line and the tick the current fight began (no lines in its first ten).
     #[serde(default)]
     pub voice_t: Option<u32>,
@@ -621,7 +719,7 @@ pub struct Run {
     pub fight_t: Option<u32>,
     /// §4: situations met this run (`shrine | vault | nest | stray`, with the tick).
     #[serde(default)]
-    pub situations: Vec<(u32, String)>,
+    pub situations: crate::shared::Shared<Vec<(u32, String)>>,
     /// §4: this floor's vault cage (three items) and, once opened, the choice waiting
     /// (tick opened, items) for `choose` or the preference.
     #[serde(default)]
@@ -671,7 +769,7 @@ pub struct Run {
     #[serde(default)]
     pub lit: bool,
     #[serde(default)]
-    pub passed: Vec<String>,
+    pub passed: crate::shared::Shared<Vec<String>>,
     /// §3: the gas lock's tiles (bloats swell on sight), for the `on_see: lock` token.
     #[serde(default)]
     pub lock_tiles: Vec<Pos>,
@@ -692,9 +790,9 @@ pub struct Run {
     /// the run's seed (each band's flagship floor is drawn from it), and a kind forced on
     /// the next floor (trials and probes; never saved).
     #[serde(default)]
-    pub floor_twist: Option<String>,
+    pub floor_twist: crate::shared::Shared<Option<String>>,
     #[serde(default)]
-    pub last_twist: Option<String>,
+    pub last_twist: crate::shared::Shared<Option<String>>,
     #[serde(default)]
     pub seed: u64,
     #[serde(skip)]
@@ -722,22 +820,22 @@ pub struct Run {
     pub bounty_gold: i32,
     /// §5: the grudges (by name) this run avenged — the lineage marks them at the exit, and a
     /// later kill of the same named foe reads `slain`.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub avenged: Vec<String>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub avenged: crate::shared::Shared<Vec<String>>,
     // Cut 24 §2
     /// Named foes (a stray, the first jackal) met in the last two runs (`LineageState::
     /// named_met`): they rest this run — a named foe appears at most every third run unless it
     /// holds a grudge. And the names this run placed.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub named_rest: Vec<String>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub named_rest: crate::shared::Shared<Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub named_placed: Vec<String>,
     /// The floor events' lines (by kind: `shrine`, `lock`, `omen:fens` …) shown in the last two
     /// runs and this one, oldest first (`chronicle::variant`), and this run's picks.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub event_recent: BTreeMap<String, Vec<u8>>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub event_used: Vec<(String, u8)>,
+    #[serde(default, skip_serializing_if = "crate::shared::map_is_empty")]
+    pub event_recent: crate::shared::Shared<BTreeMap<String, Vec<u8>>>,
+    #[serde(default, skip_serializing_if = "crate::shared::vec_is_empty")]
+    pub event_used: crate::shared::Shared<Vec<(String, u8)>>,
     /// The facts this run learned, in order (`facts::learn`; `ExitLine.news`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub learned: Vec<String>,
@@ -746,7 +844,7 @@ pub struct Run {
     /// thinned depths; `LineageState::thin_map` at the send) — a floor's gold piles and item
     /// budget are kept at this rate (`populate_floor`).
     #[serde(default)]
-    pub thin: BTreeMap<u32, u32>,
+    pub thin: crate::shared::Shared<BTreeMap<u32, u32>>,
 }
 
 impl Run {
@@ -801,7 +899,11 @@ impl Run {
             "stray" => return self.monsters.iter().any(|m| m.stray && m.hp > 0 && map.is_visible(m.pos)),
             _ => return false,
         };
-        let seen = map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]);
+        // (no tile outside the vision's last square is visible: `Map::visible_rows`)
+        let seen = match map.visible_rows() {
+            Some(mut rows) => rows.any(|r| r.into_iter().any(|i| map.tiles[i] == tile && map.visible[i])),
+            None => map.tiles.iter().enumerate().any(|(i, x)| *x == tile && map.visible[i]),
+        };
         seen && match what {
             "nest" => self.monsters.iter().any(|m| m.nest && m.dormant && m.hp > 0),
             // Cut 7 §3: the hunger's shrine can be lit once, whatever was prayed above.
@@ -924,6 +1026,15 @@ impl Run {
     }
     /// The share of the carry (and of the salvage, XP and renown) an exit at `tier` keeps: a
     /// timed-out run and a drive-off with no way home written keep nothing (Cut 2 §2, Cut 24 §1).
+    /// What the exit brings home: the secured gold whole, and the carry since the last checkpoint at the
+    /// tier's share (bank 100 % · return 60 % · death 30 %; a stall or a drive-off with no way home nothing).
+    pub fn kept(&self, tier: ExitTier) -> i32 {
+        self.secured + self.loot.max(0) * self.yield_pct(tier) / 100
+    }
+    /// All the run carried: the secured gold and the carry since.
+    pub fn carried(&self) -> i32 {
+        self.secured + self.loot.max(0)
+    }
     pub fn yield_pct(&self, tier: ExitTier) -> i32 {
         if self.timed_out || self.driven_lost {
             0
@@ -1001,8 +1112,21 @@ impl Run {
 }
 
 /// Per-turn context borrowed from the game.
+/// The own rows a set may play (`LineageState::max_rows`): 4, one per `row5`…`row10` unlock, at most 6
+/// under the `short_list` variant.
+pub fn max_rows_of(unlocks: &BTreeSet<String>, variant: &str) -> usize {
+    // One descent to the `row…` ids, not six lookups.
+    use std::ops::Bound::{Excluded, Included};
+    let n = 4 + unlocks.range::<str, _>((Included("row"), Excluded("rox"))).filter(|u| ["row5", "row6", "row7", "row8", "row9", "row10"].contains(&u.as_str())).count();
+    if variant == "short_list" {
+        n.min(6)
+    } else {
+        n
+    }
+}
+
 pub struct Ctx<'a> {
-    pub facts: &'a mut BTreeSet<String>,
+    pub facts: &'a mut crate::shared::Shared<BTreeSet<String>>,
     /// The lineage's trophies: a trophy's note is said the first time only (QA on 56f2a1d:
     /// `Trophy: no heal to D5.` in the reel of every D5 run).
     pub trophies: &'a [String],
@@ -1013,7 +1137,9 @@ pub struct Ctx<'a> {
     pub unlocks: &'a BTreeSet<String>,
     pub grudges: &'a [Grudge],
     pub forge: &'a BTreeMap<String, ForgeRow>,
-    pub max_rows: usize,
+    /// The own rows in play (`max_rows_of` the unlocks and the variant, which the context holds
+    /// unchanged): read when a row is chosen, not on every tick — `Ctx::max_rows`. `Some` fixes it.
+    pub max_rows: std::cell::Cell<Option<usize>>,
     pub events: &'a mut Vec<Ev>,
     pub sim: bool,
     /// Cut 11 §1: the live run's provenance log (`Game.prov`; sims never write it).
@@ -1030,6 +1156,20 @@ pub struct Ctx<'a> {
     /// Cut 23 §3: the live run's why-not tally per row of the set (`Game.row_tally`; sims
     /// never write it).
     pub tally: &'a mut Vec<RowTally>,
+}
+
+impl Ctx<'_> {
+    /// The own rows in play (`max_rows_of`), worked out once per context.
+    pub fn max_rows(&self) -> usize {
+        match self.max_rows.get() {
+            Some(n) => n,
+            None => {
+                let n = max_rows_of(self.unlocks, self.variant);
+                self.max_rows.set(Some(n));
+                n
+            }
+        }
+    }
 }
 
 /// Cut 5 §4: a companion that died on an expedition (its kennel entry is gone); a later run
@@ -1054,7 +1194,7 @@ pub struct LineageState {
     pub class: Class,
     pub best_depth: u32,
     pub marks: u32,
-    pub facts: BTreeSet<String>,
+    pub facts: crate::shared::Shared<BTreeSet<String>>,
     pub unlocks: BTreeSet<String>,
     pub vault: Vec<Item>,
     pub graveyard: Vec<Grave>,
@@ -1110,6 +1250,9 @@ pub struct LineageState {
     /// repeats by default; was the `auto_supply` automation).
     #[serde(default)]
     pub last_supplies: Vec<String>,
+    /// Origins parallel to `last_supplies`; absent old saves keep every repeat protected.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub last_supply_origins: Vec<(String, bool)>,
     /// Eggs ever laid (the incubator gate).
     #[serde(default)]
     pub eggs_laid: u32,
@@ -1365,6 +1508,41 @@ pub struct LineageState {
     /// §4: the standing orders' switches that have no field of their own (`insure`).
     #[serde(default)]
     pub orders: crate::wire::StandingSwitches,
+    /// Cut 30 §2: the packages (`packages::PkgState`: slots, levels, drills, meetings, the pen);
+    /// `pkg_v` 0 is a save from before them (`packages::migrate` at the load).
+    #[serde(default)]
+    pub pkg: crate::packages::PkgState,
+    #[serde(default)]
+    pub pkg_v: u32,
+    /// Cut 30 §3–5: the town (buildings, the bank, the quest board).
+    #[serde(default)]
+    pub town: crate::town::Town,
+    /// Cut 30 (PROGRESSION_V2 §4): the systems that may still open this report (one a report; set at
+    /// an absence's start and a send), and the ready ones waiting their turn, in curriculum order.
+    #[serde(default)]
+    pub reveal_left: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reveal_queue: Vec<String>,
+    /// PROGRESSION_V2 §2 (reserved for Cut 31: the expedition and the era; saved, unread): glory, the
+    /// expeditions taken, the era's gate.
+    #[serde(default)]
+    pub glory: u32,
+    #[serde(default)]
+    pub expeditions: u32,
+    #[serde(default)]
+    pub era_gate: u32,
+    /// Cut 30.5: the works tree (workers, chores by hand, the haul chest, the gold ledger); `v` 0 a
+    /// save from before it (`tree::upgrade` at the load).
+    #[serde(default)]
+    pub tree: crate::tree::Tree,
+    /// RUNS_UI: the runs log (oldest first, cap `RUN_LOG_CAP`), the absences counted and whether an
+    /// absence's batch is the latest thing that ran (a send, a step or `advance` ends it).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub run_log: Vec<crate::wire::RunRec>,
+    #[serde(default)]
+    pub absences: u32,
+    #[serde(default)]
+    pub in_absence: bool,
 }
 
 /// Cut 29 §1: a day of the lineage's clock.
@@ -1475,7 +1653,7 @@ impl LineageState {
             class: Class::Fighter,
             best_depth: 0,
             marks: 0,
-            facts: BTreeSet::new(),
+            facts: BTreeSet::new().into(),
             unlocks: BTreeSet::new(),
             vault: Vec::new(),
             graveyard: Vec::new(),
@@ -1509,6 +1687,7 @@ impl LineageState {
             bones: Vec::new(),
             kill_counts: BTreeMap::new(),
             last_supplies: Vec::new(),
+            last_supply_origins: Vec::new(),
             eggs_laid: 0,
             runs_banked: 0,
             runs_returned: 0,
@@ -1577,12 +1756,24 @@ impl LineageState {
             systems_new: Vec::new(),
             forks_seen: BTreeMap::new(),
             orders: Default::default(),
+            pkg: Default::default(),
+            pkg_v: 1,
+            town: Default::default(),
+            reveal_left: 0,
+            reveal_queue: Vec::new(),
+            glory: 0,
+            expeditions: 0,
+            era_gate: 0,
+            tree: crate::tree::Tree::fresh(),
             best_day: 0,
             wall_day: None,
             wall_offer: None,
             night_meter: Default::default(),
             last_night_meter: Default::default(),
             meters_recent: Vec::new(),
+            run_log: Vec::new(),
+            absences: 0,
+            in_absence: false,
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -1590,6 +1781,14 @@ impl LineageState {
         l.facts.insert("item:leash".into());
         l.kennel_leash();
         l
+    }
+    /// RUNS_UI: a record onto the runs log (cap `RUN_LOG_CAP`, oldest dropped).
+    pub fn push_run(&mut self, rec: crate::wire::RunRec) {
+        self.run_log.push(rec);
+        if self.run_log.len() > RUN_LOG_CAP {
+            let k = self.run_log.len() - RUN_LOG_CAP;
+            self.run_log.drain(..k);
+        }
     }
     /// Cut 8B §3: the kennel's leash — while the lineage has never tamed, a free, known leash
     /// sits on the shelf (never refunded, never rebought; one at a time).
@@ -1636,11 +1835,13 @@ impl LineageState {
     /// (`GoldLine.n`; QA on 778fa1b: `repeat heal ×1 · −$104` for four heals).
     pub fn gold_move_n(&mut self, delta: i32, why: &str, n: u32) {
         self.gold += delta;
+        // Cut 30.5: the haul chest and the gold ledger
+        crate::tree::on_gold(self, delta, why);
         // Cut 23 §1: the night's net is income less upkeep — the player's own purchases are not in it.
         // QA on 912e135 (qaW: `sword +1 · $300 · 7 nights` after a night of deaths — the purse held at $40 by the heir purse): the
         // heir purse's top-up refills to a floor and is no income; a night of deaths nets nothing toward a step.
         // (Cut 28 §1: an oath's price and a forswearing's refund are the player's purchase too)
-        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay", "oath ", "forswear "].iter().any(|p| why.starts_with(p)) {
+        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay", "oath ", "forswear ", "bank ", "hire "].iter().any(|p| why.starts_with(p)) {
             self.night_net += delta;
             self.day_net += delta;
         }
@@ -1735,6 +1936,11 @@ impl LineageState {
     pub fn variant_is(&self, v: &str) -> bool {
         self.variant == v
     }
+    /// Cut 30 (PROGRESSION_V2 §4): the lineage's age in hours — the clock of its absences, or the ticks
+    /// it has lived (watched play included), whichever is more.
+    pub fn age_h(&self) -> u32 {
+        (self.clock_s.max(self.total_turns / 10) / 3600) as u32
+    }
     pub fn rules(&self) -> &RuleSet {
         &self.sets[self.active_set.min(self.sets.len() - 1)]
     }
@@ -1789,7 +1995,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -1811,7 +2017,7 @@ impl LineageState {
             eggs: self.eggs.clone(),
             party_slots: self.party_slots(),
             ledger: self.ledger(),
-            gold: self.gold,
+            gold: crate::tree::purse(self),
             supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
             classes: self.classes.iter().map(|(k, c)| (k.clone(), ClassProg { next: if c.level >= MAX_LEVEL { 0 } else { xp_to_next(c.level) }, ..c.clone() })).collect(),
             // Cut 9 §10: every row carries its next rung (an older save's rows too).
@@ -1998,14 +2204,7 @@ impl LineageState {
     }
     /// Rows the rules may use: 4 plus the row unlocks (cap 10); `short_list` caps at 6.
     pub fn max_rows(&self) -> usize {
-        // One descent to the `row…` ids, not six lookups: this runs on every tick (`ctx`).
-        use std::ops::Bound::{Excluded, Included};
-        let n = 4 + self.unlocks.range::<str, _>((Included("row"), Excluded("rox"))).filter(|u| ["row5", "row6", "row7", "row8", "row9", "row10"].contains(&u.as_str())).count();
-        if self.variant_is("short_list") {
-            n.min(6)
-        } else {
-            n
-        }
+        max_rows_of(&self.unlocks, &self.variant)
     }
     pub fn party_slots(&self) -> u32 {
         1 + self.unlocks.contains("party_slot_2") as u32 + self.unlocks.contains("party_slot_3") as u32 + self.unlocks.contains("party_slot_4") as u32
@@ -2093,6 +2292,8 @@ impl LineageState {
         }
         // Cut 30 §3: the wake offers trait cards and passes the blood (`traits::wake`).
         crate::traits::wake(self);
+        // Cut 30 §2: from heir 3 the wake deals three temperament cards (card 1 worn until a pick).
+        crate::packages::wake(self);
     }
     /// Cut 16 §1: a floor's freshness at `depth`, in permille. The deepest depth the lineage
     /// has reached (and anything below it) is always fresh.
@@ -2141,6 +2342,8 @@ impl LineageState {
         self.last_night_net = std::mem::take(&mut self.night_net);
         // Cut 29 §3: the night's meters.
         self.last_night_meter = std::mem::take(&mut self.night_meter);
+        // Cut 30 §3: the bank pays its night's interest.
+        crate::town::night(self);
         // QA on a946e04: a new night buys a new waystone pass.
         self.night_passes.clear();
         self.night_short = None;
@@ -2285,7 +2488,7 @@ pub struct DeathRec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub home: Option<(i32, u32)>,
     pub t10: Option<Run>,
-    pub t10_facts: BTreeSet<String>,
+    pub t10_facts: crate::shared::Shared<BTreeSet<String>>,
     pub rules: RuleSet,
     pub vocab: Vocabulary,
     pub verdict_done: bool,
@@ -2475,6 +2678,12 @@ fn default_pct() -> i32 {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Batch {
     pub runs: u32,
+    /// Cut 30 §2: the packages' lines this batch (`STEADY L3`, `DRILLED · Warlord`, `+Guarded`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pkg_lines: Vec<String>,
+    /// Cut 30 §1: drill items the quartermaster packed this batch.
+    #[serde(default)]
+    pub drill_packs: u32,
     /// Cut 28 §1: the sworn oath over the batch — the oath, the sends while it was sworn, those
     /// that kept it, and whether it was kept (then granted).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2701,12 +2910,12 @@ pub struct Game {
     pub deaths: BTreeMap<u32, DeathRec>,
     pub loadout: Vec<u32>,
     pub sim: bool,
-    pub history: VecDeque<(Run, BTreeSet<String>)>,
+    pub history: VecDeque<(Run, crate::shared::Shared<BTreeSet<String>>)>,
     /// QA on e75ec29: the live run as it stood on arriving at its current floor, with the
     /// facts then — a death's patches are replayed from here as well (`trace::floor_fired`):
     /// a row the death's short window fires but the floor never reaches is not the fix.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub floor_start: Option<(Run, BTreeSet<String>)>,
+    pub floor_start: Option<(Run, crate::shared::Shared<BTreeSet<String>>)>,
     /// Cut 11 §1: the live run's provenance log (`provenance.rs`; cap `PROV_CAP`) — the
     /// events a row reason's `because` points at. Cleared at `start_run`; off the run so the
     /// history ring's clones do not carry it; empty on sims.
@@ -2777,6 +2986,19 @@ pub struct Game {
     /// (`forecast::forecast_move`). Saved (a mirror lane loads the save); never on a sim clone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sent_state: Option<Box<SentState>>,
+    /// RUNS_UI: the last `CAPSULES` real sends, to replay (`replay`); memory only.
+    #[serde(skip)]
+    pub capsules: Capsules,
+    /// RUNS_UI (tests): every real run's events by run id (its send's pending events, then each tick's).
+    #[serde(skip)]
+    pub tap: Option<BTreeMap<u32, Vec<Ev>>>,
+    /// RUNS_UI: the lineage clock at the end of the run settling now (an absence's or `advance`'s
+    /// clock inside its budget); None reads `LineageState::clock_s`.
+    #[serde(skip)]
+    pub clock_at: Option<u64>,
+    /// RUNS_UI: `advance`'s remainders — ms short of a tick, ticks short of a second.
+    #[serde(skip)]
+    pub advance_rem: (u64, u64),
 }
 
 /// Cut 28 §2: the camp state a send left from (`Game::sent_state`) — the lineage less its history
@@ -2842,12 +3064,26 @@ impl Game {
             passage: None,
             fold_plan: None,
             sent_state: None,
+            capsules: Capsules::default(),
+            tap: None,
+            clock_at: None,
+            advance_rem: (0, 0),
         };
         // Cut 28 §1: the oath board is drawn with the lineage.
         crate::oath::refresh(&mut g.lineage);
         // Cut 29: the free vocabulary its gates open, and the day-0 systems.
         crate::meta::grant_free(&mut g.lineage);
         crate::systems::update(&mut g.lineage, false);
+        // Cut 30 §1: every new lineage climbs on the school stance (`Steady`, compiled).
+        crate::packages::init(&mut g.lineage);
+        g
+    }
+
+    /// A harness's lineage (bots, tests): the class preset as written, nothing compiled — the
+    /// pre-Cut 30 behaviour (`packages::make_literal`).
+    pub fn new_literal(seed: u64) -> Game {
+        let mut g = Game::new(seed);
+        crate::packages::make_literal(&mut g.lineage);
         g
     }
 
@@ -2884,6 +3120,10 @@ impl Game {
             passage: self.passage,
             fold_plan: None,
             sent_state: None,
+            capsules: Capsules::default(),
+            tap: None,
+            clock_at: None,
+            advance_rem: (0, 0),
         }
     }
 
@@ -2896,7 +3136,72 @@ impl Game {
         l.repeat_due = due;
         l.repeat_unpaid = unpaid;
         l.repeat_added = self.repeat_adds();
+        // Cut 30.5: the works tree (the hero's wait is the game's: no run under way, before the scout)
+        if !self.lineage.pkg.literal {
+            l.tree = Some(crate::tree::wire(&self.lineage, self.waits()));
+        }
+        // RUNS_UI: the run under way and the runs a replay is held for
+        l.live = self.live_run();
+        l.replays = self.capsules.0.iter().map(|c| c.id).collect();
         l
+    }
+
+    /// RUNS_UI: the run under way (begun, not over).
+    pub fn live_run(&self) -> Option<crate::wire::LiveRun> {
+        self.run.as_ref().filter(|r| r.turn > 0 && r.over.is_none()).map(|r| crate::wire::LiveRun { run_id: r.id, heir: r.heir, depth: r.depth, start: r.start.max(1), hp: r.hero.hp, max_hp: r.hero.max_hp, turn: r.turn })
+    }
+
+    /// RUNS_UI: the open app's clock (`offline::advance`).
+    pub fn advance(&mut self, elapsed_ms: u64) -> crate::wire::Advance {
+        crate::offline::advance(self, elapsed_ms)
+    }
+
+    /// RUNS_UI: a held run re-simulated from its send — floor by floor (each floor's first snapshot
+    /// with what it later showed folded in, as the watch's run log keeps it) and its events, the
+    /// inputs it took applied at their ticks. The exit is not settled (no verdict's cost).
+    pub fn replay(&self, run_id: u32) -> Option<crate::wire::Replay> {
+        let cap = self.capsules.0.iter().find(|c| c.id == run_id)?;
+        without_history(|| {
+            let mut g = (*cap.game).clone();
+            g.events = cap.pre.clone();
+            let mut all: Vec<Ev> = Vec::new();
+            let mut floors: Vec<crate::wire::ReplayFloor> = Vec::new();
+            let mut cur = crate::wire::ReplayFloor { snapshot: g.snapshot(), events: Vec::new() };
+            let mut inputs = cap.inputs.iter().peekable();
+            let mut n = 0u32;
+            while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < MAX_TURNS_PER_RUN {
+                let turn = g.run.as_ref().map_or(0, |r| r.turn);
+                while let Some((_, inp)) = inputs.next_if(|(t, _)| *t <= turn) {
+                    match inp {
+                        Input::Choose(id) => {
+                            let _ = g.choose(*id);
+                        }
+                        Input::Bail => g.bail(),
+                    }
+                }
+                g.tick();
+                n += 1;
+                let evs = std::mem::take(&mut g.events);
+                all.extend(evs.iter().cloned());
+                match evs.iter().position(|e| matches!(e, Ev::Descend { .. })) {
+                    Some(k) if g.run.as_ref().is_some_and(|r| r.over.is_none()) => {
+                        cur.events.extend(evs[..=k].iter().cloned());
+                        floors.push(std::mem::replace(&mut cur, crate::wire::ReplayFloor { snapshot: g.snapshot(), events: evs[k + 1..].to_vec() }));
+                    }
+                    _ => {
+                        cur.events.extend(evs);
+                        if n.is_multiple_of(20) && g.run.as_ref().is_some_and(|r| r.over.is_none()) {
+                            fold_into(&mut cur.snapshot, &g.snapshot());
+                        }
+                    }
+                }
+            }
+            if g.run.is_some() {
+                fold_into(&mut cur.snapshot, &g.snapshot());
+            }
+            floors.push(cur);
+            Some(crate::wire::Replay { run_id, hash: events_hash(&all), floors, ticks: g.run.as_ref().map_or(n, |r| r.turn) })
+        })
     }
 
     /// QA on 778fa1b (qaU: after the absence the loadout read `1/3` — the heal not re-packed
@@ -2998,6 +3303,13 @@ impl Game {
         let i = self.lineage.active_set.min(self.lineage.sets.len() - 1);
         if self.lineage.sets[i] != set {
             self.stall = StallTally::default();
+        }
+        // Cut 30 §2: a lineage on packages keeps the rows the pen wrote (above every package) and
+        // recompiles; a sim's set, and a harness's literal lineage, are the set as written.
+        if !self.sim && !self.lineage.pkg.literal {
+            crate::packages::absorb(&mut self.lineage, &set);
+            crate::packages::recompile(&mut self.lineage);
+            return Ok(());
         }
         self.lineage.sets[i] = set;
         Ok(())
@@ -3144,7 +3456,16 @@ impl Game {
         if let Some(run) = self.run.as_mut() {
             if run.over.is_none() {
                 run.bail = true;
+                let (id, t) = (run.id, run.turn);
+                self.input(id, t, Input::Bail);
             }
+        }
+    }
+
+    /// RUNS_UI: an input the live run took, on its capsule (replayed at its tick).
+    fn input(&mut self, id: u32, t: u32, inp: Input) {
+        if let Some(c) = self.capsules.0.iter_mut().rev().find(|c| c.id == id) {
+            c.inputs.push((t, inp));
         }
     }
 
@@ -3162,7 +3483,13 @@ impl Game {
         if !run.vault_choice.as_ref().unwrap().1.iter().any(|i| i.id == item_id) {
             return Err("not in the vault".into());
         }
+        let n0 = cx.events.len();
         crate::turn::vault_take(run, &mut cx, Some(item_id));
+        let (id, t) = (run.id, run.turn);
+        self.input(id, t, Input::Choose(item_id));
+        if let Some(tap) = self.tap.as_mut() {
+            tap.entry(id).or_default().extend(self.events[n0..].iter().cloned());
+        }
         Ok(())
     }
 
@@ -3173,6 +3500,13 @@ impl Game {
             return;
         }
         self.loadout = ids.into_iter().filter(|id| self.lineage.vault.iter().any(|v| v.id == *id)).collect();
+        // Cut 30.5: a find worn by hand (each vault item once) counts toward the armourer
+        for id in self.loadout.clone() {
+            if !self.lineage.tree.worn.contains(&id) && !crate::tree::hired(&self.lineage, "armourer") {
+                self.lineage.tree.worn.push(id);
+                crate::tree::did(&mut self.lineage, "wear");
+            }
+        }
     }
 
     /// Cut 3: a new lineage after the ending that keeps classes (levels), kennel, vault, ledger,
@@ -3230,6 +3564,7 @@ impl Game {
         l.insured.clear();
         l.supplies.clear();
         l.last_supplies.clear();
+        l.last_supply_origins.clear();
         l.rest_left = 0;
         l.runs_banked = 0;
         l.runs_returned = 0;
@@ -3271,7 +3606,7 @@ impl Game {
 
     /// Cut 3: camp rest after a run (`no_rest` halves it).
     pub fn rest_after(&self, turns: u32, tier: ExitTier) -> u32 {
-        let r = crate::offline::rest_after(turns, tier);
+        let r = crate::tree::rest_scaled(&self.lineage, crate::offline::rest_after(turns, tier));
         if self.lineage.variant_is("no_rest") {
             r / 2
         } else {
@@ -3286,6 +3621,15 @@ impl Game {
     /// Start (or resume) an expedition. The player chose to go: any camp rest left is skipped.
     pub fn send(&mut self) -> Snapshot {
         self.bounty_seen = self.lineage.bounty;
+        // Cut 30.5 (the owner: manual send first): before the scout a send by hand is one run — counted
+        // toward him when it sends a hero who was home
+        if !crate::tree::auto_send(&self.lineage) && !self.lineage.tree.sent && self.run.as_ref().is_none_or(|r| r.turn == 0) {
+            crate::tree::did(&mut self.lineage, "send");
+            self.lineage.tree.sent = true;
+        }
+        // Cut 30: a watched send is a check-in of its own — one system may open by its report
+        self.lineage.reveal_left = 1;
+        self.lineage.in_absence = false;
         self.lineage.rest_left = 0;
         self.watched = true;
         // Cut 27 §1: a run begun here is priced as the camp priced it — its passage and the floors
@@ -3308,7 +3652,20 @@ impl Game {
 
     /// Cut 21 §1: the floor the next sends start on — 1, or a lit waystone (refused otherwise).
     pub fn set_start(&mut self, depth: u32) -> Result<(), String> {
-        self.lineage.set_start(depth)
+        self.lineage.set_start(depth)?;
+        self.lineage.tree.start_by_hand = Some((depth.max(1), self.lineage.best_depth));
+        crate::tree::did(&mut self.lineage, "start");
+        Ok(())
+    }
+
+    /// Cut 30.5: a run may begin — the scout sends him, or a send by hand is under way.
+    pub fn may_go(&self) -> bool {
+        crate::tree::auto_send(&self.lineage) || self.lineage.tree.sent
+    }
+
+    /// Cut 30.5: the hero is home and waits for a send (before the scout, no run under way).
+    pub fn waits(&self) -> bool {
+        !self.may_go() && self.run.as_ref().is_none_or(|r| r.turn == 0 || r.over.is_some())
     }
 
     /// A live run for the snapshot without touching the rest clock (reports, replays).
@@ -3331,7 +3688,18 @@ impl Game {
     }
 
     pub fn start_run(&mut self, seed_override: Option<u64>) {
+        let ev0 = self.events.len();
         self.auto_keep();
+        // Cut 30.5: the workers' standing orders, between real runs
+        let previous_start = self.lineage.start.max(1);
+        crate::tree::at_send(self);
+        // The guide may pick a different stone during an absence. Its send needs that
+        // stone's passage on the camp now, rather than the tuple priced before the workers.
+        // Unchanged starts keep their quote; sims never run workers or recursively price it.
+        if !self.sim && self.lineage.start.max(1) != previous_start {
+            let rules = self.lineage.rules().clone();
+            self.passage = crate::forecast::sim_passage(self, &rules);
+        }
         // Cut 28 §2: the camp this send left (a sim's send is no send).
         if !self.sim {
             self.sent_state = Some(Box::new(SentState::of(self)));
@@ -3396,23 +3764,32 @@ impl Game {
         // (Cut 29 §4: the kinds a player's `throw` row names are offered on the camp's repeat tile —
         // `Lineage.repeat_added`, one tap buys it and the repeat keeps it — never added unasked: added at
         // the send they moved the oath gate's raterAT sets to 1 row from bank-optimal)
-        let plan: Vec<String> = if self.lineage.restock_off {
+        let plan: Vec<(String, bool)> = if self.lineage.restock_off {
             Vec::new()
         } else {
             let used = self.lineage.row_kinds();
-            self.lineage.last_supplies.iter().filter(|k| !self.lineage.last_wasted.contains(k) && used.contains(*k)).cloned().collect()
+            self.lineage.last_supplies.iter().enumerate().filter(|(_, k)| !self.lineage.last_wasted.contains(k) && used.contains(*k)).map(|(i, k)| (k.clone(), self.lineage.last_supply_origins.get(i).is_some_and(|(kind, auto)| kind == k && *auto))).collect()
         };
+        let plan = current_repeat_plan(&self.lineage, plan);
         self.restock();
         // (a found supply packs free and is not the repeat's — Cut 21 §2)
-        let mut kinds: Vec<String> = self.lineage.supplies.iter().filter(|i| !i.free && !i.found).map(|i| i.kind.clone()).collect();
-        let mut bought = kinds.clone();
-        for k in plan {
-            match bought.iter().position(|b| *b == k) {
-                Some(i) => {
-                    bought.remove(i);
+        let mut origins: Vec<(String, bool)> = self.lineage.supplies.iter().filter(|i| !i.free && !i.found).map(|i| (i.kind.clone(), i.auto_packed)).collect();
+        let mut kinds: Vec<String> = origins.iter().map(|(k, _)| k.clone()).collect();
+        let assignments = supplied_slot_assignments(&plan, &origins);
+        let shelf_indices: Vec<usize> = self.lineage.supplies.iter().enumerate().filter(|(_, i)| !i.free && !i.found).map(|(i, _)| i).collect();
+        // A current package refill may satisfy an older authored slot. Its ownership stays
+        // authored, so a later package change cannot prune that repeated purchase.
+        for ((_, automatic), assigned) in plan.iter().zip(&assignments) {
+            if !automatic {
+                if let Some(i) = assigned {
+                    origins[*i].1 = false;
+                    self.lineage.supplies[shelf_indices[*i]].auto_packed = false;
                 }
-                None => kinds.push(k),
             }
+        }
+        for ((k, auto), assigned) in plan.into_iter().zip(assignments) {
+            let present = assigned.is_some();
+            if !present { origins.push((k.clone(), auto)); kinds.push(k); }
         }
         // QA on 778fa1b: the price the camp's badge showed is the price this send's exit re-packs at.
         // QA on 0c6e126 (qaY: `repeat on · ≤$20`, later `≤$24`, then `repeat −$26` overnight as the best floor climbed): a kind's
@@ -3421,6 +3798,7 @@ impl Game {
         let was = std::mem::take(&mut self.lineage.repeat_quote);
         self.lineage.repeat_quote = kinds.iter().filter_map(|k| cat.iter().find(|e| e.kind == *k).map(|e| (k.clone(), was.get(k).map_or(e.price, |q| (*q).min(e.price))))).collect();
         self.lineage.last_supplies = kinds;
+        self.lineage.last_supply_origins = if origins.iter().any(|(_, auto)| *auto) { origins } else { Vec::new() };
         for id in loadout {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
                 let it = self.lineage.vault.remove(i);
@@ -3444,7 +3822,7 @@ impl Game {
             worn: crate::traits::Worn::default(),
             gift: crate::traits::GiftRun::default(),
             monsters: Vec::new(),
-            items: Vec::new(),
+            items: Vec::new().into(),
             overlays: Vec::new(),
             turn: 0,
             floor_turn: 0,
@@ -3453,11 +3831,11 @@ impl Game {
             next_id: HERO_ID,
             next_item_id: 10,
             kills_floor: 0,
-            kills: Vec::new(),
+            kills: Vec::new().into(),
             summoned_kills: 0,
-            brought,
+            brought: brought.into(),
             trace: Vec::new(),
-            notes: Vec::new(),
+            notes: Vec::new().into(),
             over: None,
             death_cause: None,
             death_blow: 0,
@@ -3467,7 +3845,7 @@ impl Game {
             hurt_last: false,
             kill_since_action: false,
             kill_last: false,
-            seen_ids: BTreeSet::new(),
+            seen_ids: BTreeSet::new().into(),
             new_seen: false,
             telegraphs_now: Vec::new(),
             low10_t: None,
@@ -3481,8 +3859,8 @@ impl Game {
             gamble_harm: 0,
             own_throw: None,
             own_throw_harm: 0,
-            found_units: Vec::new(),
-            found_gone: Vec::new(),
+            found_units: Vec::new().into(),
+            found_gone: Vec::new().into(),
             stolen: Vec::new(),
             stolen_ids: Vec::new(),
             recovered: Vec::new(),
@@ -3490,7 +3868,7 @@ impl Game {
             stolen_kinds: Vec::new(),
             ally_lost: Vec::new(),
             ally_freed: Vec::new(),
-            boss_kills: Vec::new(),
+            boss_kills: Vec::new().into(),
             drinks: 0,
             rested: false,
             oath: crate::oath::sworn(&self.lineage).cloned(),
@@ -3501,18 +3879,24 @@ impl Game {
             tamed_grudges: Vec::new(),
             meters: Default::default(),
             burned: Vec::new(),
-            caged: Vec::new(),
-            depth_t: Vec::new(),
-            max_steps: Vec::new(),
+            caged: Vec::new().into(),
+            depth_t: Vec::new().into(),
+            max_steps: Vec::new().into(),
             drank_heal: false,
             melee_used: false,
             boss_seen_t: None,
+            bosses_met: Vec::new().into(),
+            scars: crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| (k.to_string(), self.lineage.pkg.scar(k, &self.lineage.kills))).filter(|(_, p)| *p > 0).collect(),
             hurt_since_boss: false,
             row_fired: vec![0; ROWS_TOTAL],
             renderable_events: 0,
             ended: false,
             max_depth: start,
-            trophies_run: Vec::new(),
+            secured: 0,
+            record0: self.lineage.best_depth,
+            record_mark: self.lineage.best_depth,
+            best_at_send: Some(self.lineage.best_depth),
+            trophies_run: Vec::new().into(),
             companions: Vec::new(),
             recalled: Vec::new(),
             tamed: Vec::new(),
@@ -3559,7 +3943,7 @@ impl Game {
             pickup_dry: 0,
             drain_on: None,
             blows: Vec::new(),
-            hp_lost: Vec::new(),
+            hp_lost: Vec::new().into(),
             hp_lost_from: 0,
             known_foes: BTreeMap::new(),
             loot_raw: 0,
@@ -3581,7 +3965,7 @@ impl Game {
             rows_rested: (Vec::new(), 0),
             rests: 0,
             aimed: false,
-            bones: self.lineage.bones.clone(),
+            bones: self.lineage.bones.clone().into(),
             bones_found: Vec::new(),
             kills_counted: 0,
             timed_out: false,
@@ -3595,16 +3979,17 @@ impl Game {
             swap_left: Vec::new(),
             mirrors: Vec::new(),
             arc: Arc::default(),
-            episodes: Vec::new(),
+            episodes: Vec::new().into(),
             voice_t: None,
             fight_t: None,
-            situations: Vec::new(),
+            situations: Vec::new().into(),
             vault_cage: Vec::new(),
             vault_choice: None,
             prayed: false,
             lent_row: None,
             stray_placed: false,
-            first_stray: self.lineage.first_stray().filter(|(_, n)| !self.lineage.named_resting(n, id)),
+            // The same untamed stray waits at the entrance when a waystone skips its original floor.
+            first_stray: self.lineage.first_stray().map(|(d, n)| (d.max(start), n)).filter(|(_, n)| !self.lineage.named_resting(n, id)),
             strays_tamed: Vec::new(),
             bail: false,
             dens: Vec::new(),
@@ -3618,26 +4003,26 @@ impl Game {
             den_bolted: false,
             bounty: self.lineage.bounty,
             bounty_gold: 0,
-            avenged: Vec::new(),
+            avenged: Vec::new().into(),
             named_rest: self.lineage.named_met.keys().filter(|n| self.lineage.named_resting(n, id)).cloned().collect(),
             named_placed: Vec::new(),
             event_recent: self.lineage.event_recent.iter().map(|(k, v)| (k.clone(), v.iter().filter(|(r, _)| r + 2 >= id).map(|(_, i)| *i).collect::<Vec<u8>>())).filter(|(_, v)| !v.is_empty()).collect(),
-            event_used: Vec::new(),
+            event_used: Vec::new().into(),
             learned: Vec::new(),
             gas_dmg_floor: 0,
             lock_last_pop: 0,
             lit: false,
-            passed: Vec::new(),
+            passed: Vec::new().into(),
             lock_tiles: Vec::new(),
             raiding: false,
             acting_row: -1,
-            floor_twist: None,
-            last_twist: None,
+            floor_twist: None.into(),
+            last_twist: None.into(),
             seed,
             next_twist: None,
             sleepers: Vec::new(),
-            thin: self.lineage.thin_map(),
-            packed: Vec::new(),
+            thin: self.lineage.thin_map().into(),
+            packed: Vec::new().into(),
             bought_leashes: Vec::new(),
         };
         // Cut 30 §1: the heir's traits go on the run (`frail` takes its max hp here).
@@ -3697,6 +4082,28 @@ impl Game {
         if d > 1 {
             crate::facts::learn(run, &mut cx.1, format!("biome:{}", biome.name()));
         }
+        // RUNS_UI: the send kept to replay (real sends; not a harness's literal lineage, nor a
+        // thread or process that keeps no history / no capsules)
+        if !self.sim {
+            let id = self.run.as_ref().map_or(0, |r| r.id);
+            let pre: Vec<Ev> = self.events[ev0.min(self.events.len())..].to_vec();
+            if let Some(tap) = self.tap.as_mut() {
+                tap.insert(id, pre.clone());
+            }
+            if !self.lineage.pkg.literal && !NO_HISTORY.with(|c| c.get()) && !CAPSULES_OFF.load(std::sync::atomic::Ordering::Relaxed) {
+                let mut g = self.sim_clone();
+                g.sim = false;
+                g.watched = self.watched;
+                g.offline = self.offline;
+                g.prov = self.prov.clone();
+                g.row_tally = self.row_tally.clone();
+                g.facts_at_run_start = self.facts_at_run_start;
+                self.capsules.0.push_back(Capsule { id, game: Box::new(g), pre, inputs: Vec::new() });
+                while self.capsules.0.len() > CAPSULES {
+                    self.capsules.0.pop_front();
+                }
+            }
+        }
     }
 
     /// Cut 21 §1: the floor this send starts on, the toll paid for it (a gold line
@@ -3720,7 +4127,7 @@ impl Game {
         if self.lineage.night_passes.contains(&want) {
             return (want, None, 0);
         }
-        let toll = LineageState::start_toll(want);
+        let toll = crate::tree::toll_scaled(&self.lineage, LineageState::start_toll(want));
         let short = toll > 0 && (self.lineage.gold < toll || (self.offline && self.lineage.night_short == Some(want)));
         if short {
             if self.offline {
@@ -3745,7 +4152,6 @@ impl Game {
         let Game { run, lineage, events, sim, prov, row_tally, .. } = self;
         let run = run.as_mut().expect("no live run");
         let set = lineage.active_set.min(lineage.sets.len() - 1);
-        let max_rows = lineage.max_rows();
         let cx = Ctx {
             vault_pref: &lineage.vault_pref,
             lost: &lineage.lost,
@@ -3759,7 +4165,7 @@ impl Game {
             unlocks: &lineage.unlocks,
             grudges: &lineage.grudges,
             forge: &lineage.forge,
-            max_rows,
+            max_rows: std::cell::Cell::new(None),
             events,
             sim: *sim,
             prov,
@@ -3775,6 +4181,16 @@ impl Game {
         let mut events = Vec::new();
         let mut run_over = false;
         self.watched = true;
+        self.lineage.in_absence = false;
+        // Cut 30.5: before the scout the hero home waits for a send (no run begins by itself)
+        if !self.may_go() && self.run.as_ref().is_none_or(|r| r.turn == 0) {
+            let snapshot = match self.last_snapshot.clone() {
+                Some(s) => s,
+                None => self.ensure_run(),
+            };
+            let exit_pending = self.exit_pending_wire();
+            return StepResult { calm: Vec::new(), events, snapshot, run_over: true, exit_pending };
+        }
         // Camp rest runs on the same clock online (Cut 2 §1); `send` skips it.
         if self.lineage.rest_left > 0 && self.run.as_ref().is_none_or(|r| r.turn == 0) {
             let used = self.rest_tick(turns);
@@ -3842,13 +4258,26 @@ impl Game {
             tier: p.tier.name().into(),
             worth: salvage_coins(&p.items, p.pct, self.lineage.gold_carry),
             auto_keep: auto_keep_plan(p, &self.lineage.vault, self.lineage.vault_slots(), &self.lineage.keep_pref, true).0,
-            decide: keep_is_a_decision(p, &self.lineage.vault, self.lineage.vault_slots()),
+            decide: keep_is_a_decision(p, &self.lineage.vault, self.lineage.vault_slots()) && !crate::tree::on(&self.lineage, "keeper"),
             note: keep_note(p, &self.lineage, &auto_keep_plan(p, &self.lineage.vault, self.lineage.vault_slots(), &self.lineage.keep_pref, true).0),
         })
     }
 
     /// One turn of the live run. Records history for verdicts when not simulating.
     pub fn tick(&mut self) {
+        if self.tap.is_none() {
+            return self.tick_inner();
+        }
+        // RUNS_UI (tests): the tick's events, by run
+        let (n0, id) = (self.events.len(), self.run.as_ref().map_or(0, |r| r.id));
+        self.tick_inner();
+        let evs: Vec<Ev> = self.events[n0.min(self.events.len())..].to_vec();
+        if let Some(tap) = self.tap.as_mut() {
+            tap.entry(id).or_default().extend(evs);
+        }
+    }
+
+    fn tick_inner(&mut self) {
         if self.run.as_ref().is_none_or(|r| r.over.is_some()) {
             return;
         }
@@ -3891,6 +4320,13 @@ impl Game {
         // Cut 24 §1: a floor stalled before a boss met there (his fight could not progress: a
         // corridor of his goblins, a dance before him, his stairs sealed) is his win — driven
         // off, not a stall.
+        // Cut 30 §1: on the idle floor (a set of packages — ours, not the player's) a floor the guard has
+        // stopped twice is given up: the hero walks home with what he carries (a queued return, `bail`)
+        // instead of pacing to the stall — a foe across a gap or a mirror he will not strike is no reason
+        // to lose the send
+        if run.stuck_fires + 1 >= STALL_FIRES && run.over.is_none() && !run.bail && cx.rules.rows.iter().any(|r| r.is_pkg()) && run.boss_still.is_none() {
+            run.bail = true;
+        }
         if run.stuck_fires >= STALL_FIRES && run.over.is_none() {
             // (met on this floor — `boss_still` is the floor's — and alive: his stairs are sealed)
             let met = run.boss_still.map(|b| b.0);
@@ -4008,7 +4444,7 @@ impl Game {
         // Cut 6 §1: what that row would bring home now (the kept number, not the carried one).
         let kept = return_row.map(|i| {
             let tier = if l.rules().rows[i].verb.v == "bank" { ExitTier::Bank } else { ExitTier::Return };
-            run.loot.max(0) * tier.pct() / 100
+            run.secured + run.loot.max(0) * tier.pct() / 100
         });
         Snapshot {
             depth: run.depth,
@@ -4024,9 +4460,10 @@ impl Game {
             items,
             alert: run.alert,
             turn: run.turn,
-            loot: run.loot,
+            // (Cut 30.5: the gold carried — the checkpoints' secured gold with the carry since; the stake reads the carry at risk)
+            loot: run.carried(),
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn, start: run.start.max(1), passage: run.passage },
-            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.loot.max(0) * ExitTier::Death.pct() / 100, swapped: run.swapped, swap_left: run.swap_left.last().cloned() },
+            stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.kept(ExitTier::Death), swapped: run.swapped, swap_left: run.swap_left.last().cloned() },
             vision: run.vision(&l.unlocks),
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
                 items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
@@ -4044,7 +4481,7 @@ impl Game {
     /// Cut 24 §2: what was new in `run` (`ExitLine.news`), read against the lineage as it
     /// stood before the run: ≤ 3 lines, most telling first; none new → the one thing that
     /// differed from the last run.
-    pub fn run_news(&self, run: &Run, tier: ExitTier, pct: i32) -> Vec<crate::wire::News> {
+    pub fn run_news(&self, run: &Run, tier: ExitTier, _pct: i32) -> Vec<crate::wire::News> {
         let l = &self.lineage;
         let mut out: Vec<crate::wire::News> = Vec::new();
         let push = |out: &mut Vec<crate::wire::News>, k: &str, text: String| out.push(crate::wire::News { k: k.into(), text });
@@ -4089,7 +4526,7 @@ impl Game {
             return out;
         }
         // Nothing new: the one thing that differed from the last run.
-        let kept = run.loot.max(0) * pct / 100;
+        let kept = run.kept(tier);
         let Some(last) = &l.last_run else { return vec![crate::wire::News { k: "differ".into(), text: format!("D{} · {}", run.max_depth, tier.name()) }] };
         let twists: Vec<String> = run.situations.iter().map(|(_, s)| s.clone()).filter(|s| crate::situations::TWISTS.contains(&s.as_str()) && !last.twists.contains(s)).collect();
         let text = if run.max_depth > last.depth {
@@ -4116,7 +4553,7 @@ impl Game {
 
     /// Cut 24 §2: the lineage takes in what `run` met — the named foes it placed, the floor
     /// events' lines it showed, the item kinds it found, and the run in brief.
-    fn settle_novelty(&mut self, run: &Run, tier: ExitTier, pct: i32) {
+    fn settle_novelty(&mut self, run: &Run, tier: ExitTier, _pct: i32) {
         let l = &mut self.lineage;
         for n in &run.named_placed {
             l.named_met.insert(n.clone(), run.id);
@@ -4140,7 +4577,7 @@ impl Game {
             }
         }
         let twists = run.situations.iter().map(|(_, s)| s.clone()).collect();
-        l.last_run = Some(RunBrief { depth: run.max_depth, tier: tier.name().into(), cause: run.death_cause.clone(), twists, kept: run.loot.max(0) * pct / 100, turns: run.turn, kills: run.kills.len() as u32 });
+        l.last_run = Some(RunBrief { depth: run.max_depth, tier: tier.name().into(), cause: run.death_cause.clone(), twists, kept: run.kept(tier), turns: run.turn, kills: run.kills.len() as u32 });
     }
 
     /// Bank the run's outcome into the lineage: marks, xp, renown, companions, deaths, rest.
@@ -4150,6 +4587,16 @@ impl Game {
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
         let tier = run.over.unwrap_or(ExitTier::Return);
+        // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout); the guide's record of
+        // the stone it started from
+        if !self.sim {
+            self.lineage.tree.sent = false;
+            // Passage was already paid at the send; a checkpoint can pay even on death.
+            // Count actual income, not survival or a carry that rounds down to nothing.
+            crate::tree::note_start(&mut self.lineage, run.start, run.passage > 0 || run.kept(tier) > 0, tier == ExitTier::Death);
+        }
+        // (c30-legible: the record before this run, for the end's reason)
+        let best0 = self.lineage.best_depth;
         // Yield follows the exit (Cut 2 §2); a timed-out run yields nothing.
         let pct: i32 = run.yield_pct(tier);
         // Cut 13 §1: a stall (the guard fired `STALL_FIRES` times on one floor) is a run the
@@ -4289,7 +4736,7 @@ impl Game {
         self.batch.band_runs.push(BandRun {
             depth: run.max_depth,
             met: run.situations.iter().map(|(_, s)| s.clone()).filter(|s| band.contains(&s.as_str())).collect(),
-            passed: run.passed.clone(),
+            passed: (*run.passed).clone(),
         });
         self.lineage.heir_best = self.lineage.heir_best.max(run.max_depth);
         if !run.ally_freed.is_empty() {
@@ -4595,7 +5042,7 @@ impl Game {
         // Loot, gold and the vault (Addendum B/D; Cut 2 §2 death keeps nothing).
         // Cut 4: `run.loot` is already gold (÷ 4 at pickup); the same number the exit note
         // and `Ev::Exit.loot_kept` carried.
-        let loot_kept = run.loot.max(0) * pct / 100;
+        let loot_kept = run.kept(tier);
         let gold_before = self.lineage.gold;
         let exit_why = match tier {
             _ if run.timed_out && run.stuck_fires >= STALL_FIRES => format!("stalled D{}", run.max_depth),
@@ -4610,19 +5057,19 @@ impl Game {
         self.lineage.gold_move(loot_kept, &exit_why);
         // QA on 912e135 (qaW): the exit's ledger line names what it did not keep.
         if let Some(g) = self.lineage.gold_ledger.last_mut().filter(|g| g.why == exit_why) {
-            g.lost = (run.loot.max(0) - loot_kept).max(0);
+            g.lost = (run.carried() - loot_kept).max(0);
         }
-        self.batch.gold_lost += (run.loot.max(0) - loot_kept).max(0);
+        self.batch.gold_lost += (run.carried() - loot_kept).max(0);
         if loot_kept > 0 {
-            self.batch.gold_unkept += (run.loot.max(0) - loot_kept).max(0);
+            self.batch.gold_unkept += (run.carried() - loot_kept).max(0);
         }
         self.batch.heirs = Some(self.batch.heirs.map_or((run.heir, run.heir), |(lo, hi)| (lo.min(run.heir), hi.max(run.heir))));
         self.batch.gold_earned += loot_kept;
-        let mut all: Vec<Item> = run.hero.inv.clone();
-        if let Some(w) = &run.hero.weapon {
+        let mut all: Vec<Item> = (*run.hero.inv).clone();
+        if let Some(w) = &*run.hero.weapon {
             all.push(w.clone());
         }
-        if let Some(a) = &run.hero.armour {
+        if let Some(a) = &*run.hero.armour {
             all.push(a.clone());
         }
         // QA on 778fa1b (qaV): the melee weapon parked while the bow is up comes home too.
@@ -4636,6 +5083,8 @@ impl Game {
         for i in &all {
             *pack.entry((i.id, i.kind.clone())).or_insert(0) += i.amount.max(1);
         }
+        // Run-clear: the pack's finds as they came home (before the shelf, the sheet or the bones take them)
+        let found_items: Vec<Item> = if self.sim { Vec::new() } else { all.iter().filter(|i| run.found_units.iter().any(|(id, k)| *id == i.id && *k == i.kind)).cloned().collect() };
         let mut exit_fate: BTreeMap<(u32, String), &'static str> = BTreeMap::new();
         let mut shelved: Vec<String> = Vec::new();
         let mut leash_back = 0usize;
@@ -4899,7 +5348,12 @@ impl Game {
         let pile = if tier == ExitTier::Death { self.lineage.bones.last().filter(|b| b.heir == run.heir).map(|b| b.items.clone()).unwrap_or_default() } else { Vec::new() };
         let bones_n = pile.len();
         let unused = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").count() + leash_back;
-        let mut line = exit_line_of(run.loot.max(0), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
+        let mut line = exit_line_of(run.carried(), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
+        // Cut 30.5: what the checkpoints secured leads the arithmetic (`banked $120 · $80 secured + 100% of $40`)
+        if run.secured > 0 {
+            line.secured = run.secured;
+            line.text = secured_text(&line.text, loot_kept, run.secured, run.loot.max(0), pct);
+        }
         // QA on 0c6e126 (qaZ: `1 supply back` never named which — read beside `sold … invisibility $1` as the bought potion sold): the
         // supplies that came back unused, named when they are of one kind (`1 supply back: invisibility`)
         let mut back: BTreeSet<String> = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").map(|i| self.lineage.wire_name(&i.kind).replace('_', " ")).collect();
@@ -4930,7 +5384,7 @@ impl Game {
             let row = crate::facts::counter_row(kind);
             // Cut 27 §5: the counter already in the set (a row of its verb, or a card carrying one) is
             // an `order` drive-off — the rows above it that acted in the fight kept it from its turn.
-            let (held, over) = crate::trace::driven_order(self.lineage.rules(), &row, &run.trace);
+            let (held, over) = crate::trace::driven_order_in(self.lineage.rules(), &row, &run.trace);
             let verdict = if held.is_some() { "order" } else { "no counter" };
             let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: verdict.into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row, run_id: run.id, hp: run.hero.hp, max_hp: run.hero.max_hp, lost: line.carried - line.kept, held, over };
             if !self.sim {
@@ -4976,6 +5430,7 @@ impl Game {
         if tier == ExitTier::Death {
             line.cause = run.death_cause.as_deref().map(crate::sifter::cause_phrase);
         }
+        line.reason = Some(exit_reason(&run, tier, best0, self.lineage.rules()));
         for l in &run.swap_left {
             match line.swap_left.iter_mut().find(|c| c.kind == *l) {
                 Some(c) => c.n += 1,
@@ -5004,6 +5459,16 @@ impl Game {
         // ring: nothing more per tick).
         line.found = found_rows(&run, &pack, &exit_fate, |k| self.lineage.wire_name(k).replace('_', " "));
         line.found_n = run.found_units.len() as u32;
+        // Run-clear: the end's kind, its floor, a record, and what the run found and kept (or left), rarest first
+        line.end = match tier {
+            ExitTier::Bank => "bank",
+            ExitTier::Return => "return",
+            ExitTier::Death => "death",
+        }
+        .into();
+        line.reached = run.max_depth.max(run.depth);
+        line.new_best = run.max_depth > run.best_at_send.unwrap_or(best0);
+        line.finds = exit_finds(&found_items, &exit_fate, &self.lineage.facts, &self.lineage.flavours);
         line.trace = Some(exit_trace(&run, &self.prov));
         line.salvaged = cut_rows;
         line.run_id = run.id;
@@ -5030,6 +5495,30 @@ impl Game {
         while self.batch.exits.len() > EXITS_CAP {
             self.batch.exits.remove(0);
         }
+        // RUNS_UI: the runs log
+        if !self.sim {
+            let rec = crate::wire::RunRec {
+                id: run.id,
+                heir: run.heir,
+                via: if self.offline { "away" } else if self.watched { "watched" } else { "town" }.into(),
+                absence: self.offline.then_some(self.lineage.absences),
+                clock_s: self.clock_at.unwrap_or(self.lineage.clock_s),
+                start: run.start.max(1),
+                depth: run.depth,
+                tier: tier.name().into(),
+                reason: line.reason.clone(),
+                gold: line.kept,
+                found: line.found_n,
+                kept: line.found.iter().filter(|f| f.fate == "kept").map(|f| f.kind.clone()).collect(),
+                turns: run.turn,
+                best: outcome.new_best,
+                death_id: (matches!(tier, ExitTier::Death) || stalled).then_some(run.id).filter(|id| self.deaths.contains_key(id)),
+                sampled: None,
+                finds: line.finds.clone(),
+                secured: line.secured,
+            };
+            self.lineage.push_run(rec);
+        }
         self.last_exit = Some(line);
         // Cut 24 §3: the forge's prices are fixed the first time it is shown.
         crate::kit::lock_unit(&mut self.lineage);
@@ -5037,6 +5526,19 @@ impl Game {
         // the best depth, the night's income)
         if !self.sim {
             crate::oath::refresh(&mut self.lineage);
+            // Cut 30 §1–2: the run's meetings (drills, scars), its packages' runs (levels), the stages
+            // that came, the pen — the set recompiled for the next send.
+            let set = self.lineage.rules().clone();
+            let lines = crate::packages::on_run_end(&mut self.lineage, &run.bosses_met, run.max_depth, &run.row_fired, &set);
+            self.batch.pkg_lines.extend(lines);
+            // Cut 30 §3, §5: the town builds what its triggers brought; the quest board reads the run.
+            for b in crate::town::update(&mut self.lineage) {
+                self.batch.pkg_lines.push(format!("built {b}"));
+            }
+            let slew: Vec<String> = run.boss_kills.iter().map(|(_, k)| k.clone()).collect();
+            if let Some(line) = crate::town::on_run(&mut self.lineage, run.max_depth, tier, run.home_return, run.depth, &slew) {
+                self.batch.pkg_lines.push(line);
+            }
         }
         Some(outcome)
     }
@@ -5162,6 +5664,14 @@ impl Game {
 
     /// Finalise the exit's vault choice: chosen ids go to the vault, the rest are salvaged.
     pub fn keep(&mut self, ids: Vec<u32>) -> Result<(), String> {
+        // Cut 30.5: a keep sheet answered by hand counts toward the keeper
+        if self.pending_exit.as_ref().is_some_and(|p| keep_is_a_decision(p, &self.lineage.vault, self.lineage.vault_slots())) {
+            crate::tree::did(&mut self.lineage, "keep");
+        }
+        self.keep_settle(ids)
+    }
+
+    fn keep_settle(&mut self, ids: Vec<u32>) -> Result<(), String> {
         let Some(p) = self.pending_exit.take() else { return Err("nothing to keep".into()) };
         let slots = self.lineage.vault_slots();
         // QA on 92eb880 (qaM: the sheet's `aggravate $2`, the report's `aggravate ×1 · $1`): an
@@ -5270,7 +5780,7 @@ impl Game {
                 p.items.extend(out);
             }
         }
-        let _ = self.keep(ids);
+        let _ = self.keep_settle(ids);
     }
 
     pub fn vocabulary(&self) -> Vocabulary {
@@ -5308,6 +5818,14 @@ impl Game {
 
     /// Choose which owned companions go on the next expedition.
     pub fn set_party(&mut self, ids: Vec<u32>) -> Result<(), String> {
+        self.set_party_by(ids, true)
+    }
+
+    /// `set_party`; `by_hand` counts toward the kennel-hand (a worker's fielding does not).
+    pub fn set_party_by(&mut self, ids: Vec<u32>, by_hand: bool) -> Result<(), String> {
+        if by_hand && !ids.is_empty() {
+            crate::tree::did(&mut self.lineage, "field");
+        }
         let slots = self.lineage.party_slots() as usize;
         let mut all: Vec<Companion> = std::mem::take(&mut self.lineage.party);
         all.append(&mut self.lineage.kennel);
@@ -5389,6 +5907,7 @@ impl Game {
             return Err("50 gold needed".into());
         }
         self.lineage.gold_move(-50, "hatch");
+        crate::tree::did(&mut self.lineage, "field");
         let e = self.lineage.eggs.remove(i);
         self.hatch_egg(e);
         Ok(())
@@ -5530,6 +6049,7 @@ impl Game {
         self.lineage.insured.retain(|x| *x != id);
         self.loadout.retain(|x| *x != id);
         let coins = self.salvage(std::slice::from_ref(&it), 100);
+        crate::tree::did(&mut self.lineage, "keep");
         Ok(coins.iter().sum())
     }
 
@@ -5550,8 +6070,11 @@ impl Game {
                 let why = format!("refund {}", s.kind.replace('_', " "));
                 self.lineage.gold_move_n(price, &why, 1);
             }
-            if let Some(k) = self.lineage.last_supplies.iter().position(|k| *k == s.kind) {
+            let slot = self.lineage.last_supplies.iter().enumerate().find(|(i, k)| **k == s.kind && self.lineage.last_supply_origins.get(*i).is_some_and(|(kind, auto)| kind == *k && *auto == s.auto_packed)).map(|(i, _)| i)
+                .or_else(|| self.lineage.last_supplies.iter().position(|k| *k == s.kind));
+            if let Some(k) = slot {
                 self.lineage.last_supplies.remove(k);
+                if k < self.lineage.last_supply_origins.len() { self.lineage.last_supply_origins.remove(k); }
             }
         }
         Ok(())
@@ -5574,6 +6097,7 @@ impl Game {
         }
         // Cut 4: clearing the shelf is an order; the automation does not undo it.
         self.lineage.last_supplies.clear();
+        self.lineage.last_supply_origins.clear();
     }
 
     /// The loadout repeats (Cut 19 §3; was the `auto_supply` automation, Cut 2 §3): an empty
@@ -5598,11 +6122,65 @@ impl Game {
     /// (`LineageState::repeat_quote`: the badge the camp showed; QA on 778fa1b), else at the
     /// shelf's price today (the send's own re-pack, the camp's `set_restock(true)`).
     pub fn restock_at(&mut self, quoted: bool) -> Vec<String> {
-        if self.lineage.restock_off {
-            return Vec::new();
-        }
-        let mut on_shelf: Vec<String> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| s.kind.clone()).collect();
         let mut bought = Vec::new();
+        // Cut 30 §1: the quartermaster packs a drill's item first (`throw fire` at the Mother, the
+        // silence scroll at the Queen) — its slot is reserved before any other supply, the repeat on
+        // or off.
+        let qm = crate::packages::quartermaster(&self.lineage);
+        let cap = self.lineage.supply_cap();
+        let want = automatic_pack_plan(&self.lineage);
+        for (i, kind) in want.iter().enumerate() {
+            let drill = i < qm.len();
+            if drill && self.lineage.supplies.iter().any(|s| s.kind == *kind) {
+                continue;
+            }
+            if !drill && self.lineage.supplies.iter().filter(|s| s.kind == *kind).count() >= want[qm.len()..].iter().filter(|k| *k == kind).count() {
+                continue;
+            }
+            // (an absence's fill spends no more than the absence brought home, as the repeat)
+            if !drill && self.offline {
+                let price = self.supply_catalogue().iter().find(|e| e.kind == *kind).map(|e| e.price).unwrap_or(0);
+                if price > self.batch.income() - self.batch.spent_total() {
+                    continue;
+                }
+            }
+            if !drill && self.lineage.supplies.len() >= cap {
+                // A former package's unused automatic supplies must not crowd out the current
+                // stance's sustain. Player purchases and found supplies retain their places.
+                // Check the replacement can be bought before giving up an existing supply.
+                let Some(price) = self.supply_catalogue().iter().find(|e| e.kind == *kind).map(|e| e.price) else { continue };
+                if self.lineage.gold < price { continue; }
+                let surplus = self.lineage.supplies.iter().rposition(|s| {
+                    s.auto_packed && !s.free && !s.found
+                        && self.lineage.supplies.iter().filter(|t| t.kind == s.kind).count()
+                            > want.iter().filter(|k| **k == s.kind).count()
+                });
+                let Some(i) = surplus else { continue };
+                self.lineage.supplies.remove(i);
+            }
+            if self.lineage.supplies.len() >= self.lineage.supply_cap() {
+                if let Some(i) = self.lineage.supplies.iter().rposition(|s| !qm.contains(&s.kind)) {
+                    self.lineage.supplies.remove(i);
+                }
+            }
+            let gold = self.lineage.gold;
+            let why = format!("{} {}", if drill { "drill" } else { "pack" }, kind.replace('_', " "));
+            if self.buy_supply_as(kind, &why).is_ok() {
+                if let Some(item) = self.lineage.supplies.last_mut() { item.auto_packed = true; }
+                bought.push(kind.replace('_', " "));
+                let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
+                e.0 += 1;
+                e.1 += gold - self.lineage.gold;
+                self.batch.drill_packs += drill as u32;
+            }
+        }
+        if self.lineage.restock_off {
+            return bought;
+        }
+        let plan: Vec<(String, bool)> = self.lineage.last_supplies.iter().enumerate().map(|(i, kind)| (kind.clone(), self.lineage.last_supply_origins.get(i).is_some_and(|(k, auto)| k == kind && *auto))).collect();
+        let plan = current_repeat_plan(&self.lineage, plan);
+        let on_shelf: Vec<(String, bool)> = self.lineage.supplies.iter().filter(|s| !s.free).map(|s| (s.kind.clone(), s.auto_packed)).collect();
+        let supplied = supplied_slots(&plan, &on_shelf);
         let mut short = Vec::new();
         // Cut 13 §3: a kind the last run used to no effect is not rebought (rater R: "the
         // strength potion the trait drinks at full HP is rebought sixteen times").
@@ -5611,11 +6189,8 @@ impl Game {
         // kinds a row of the active set can use are re-bought (`LineageState::row_kinds`).
         let used = self.lineage.row_kinds();
         let mut skip = self.lineage.theft_skip.clone();
-        for kind in self.lineage.last_supplies.clone() {
-            if let Some(i) = on_shelf.iter().position(|k| *k == kind) {
-                on_shelf.remove(i);
-                continue;
-            }
+        for (slot, (kind, automatic)) in plan.iter().cloned().enumerate() {
+            if supplied[slot] { continue; }
             if wasted.contains(&kind) || !used.contains(&kind) {
                 continue;
             }
@@ -5636,6 +6211,7 @@ impl Game {
             let gold = self.lineage.gold;
             match self.buy_supply_priced(&kind, &format!("repeat {}", kind.replace('_', " ")), quote) {
                 Ok(()) => {
+                    if let Some(item) = self.lineage.supplies.last_mut() { item.auto_packed = automatic; }
                     bought.push(kind.replace('_', " "));
                     let e = self.batch.spent.entry(kind.clone()).or_insert((0, 0));
                     e.0 += 1;
@@ -5660,6 +6236,21 @@ impl Game {
 /// (`Run.found_gone`: used, left, stolen), then its item's place at the exit (`fate`, by id:
 /// kept on the sheet, salvaged, shelved, bones); a stack's units not in it at the exit were
 /// spent (`used`: a leash on a tame, chalk on a floor); any other unit is `lost` (none should be).
+/// Run-clear: the finds an exit line shows — kept, on the keep sheet or shelved on a bank or a return, left
+/// in the bones on a death (never what was salvaged) — rarest first, then dearest, ≤ `wire::FINDS_SHOWN`.
+pub fn exit_finds(found: &[Item], fate: &BTreeMap<(u32, String), &'static str>, facts: &BTreeSet<String>, flavours: &Flavours) -> Vec<InvItem> {
+    let mut out: Vec<(crate::item::Rarity, i32, InvItem)> = found
+        .iter()
+        .filter(|i| matches!(fate.get(&(i.id, i.kind.clone())).copied(), Some("sheet" | "shelved" | "bones")))
+        .map(|i| {
+            let w = to_inv(i, facts, flavours);
+            (w.rarity, i.value(), w)
+        })
+        .collect();
+    out.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)).then(a.2.id.cmp(&b.2.id)));
+    out.into_iter().take(crate::wire::FINDS_SHOWN).map(|x| x.2).collect()
+}
+
 pub fn found_rows(run: &Run, pack: &BTreeMap<(u32, String), i32>, fate: &BTreeMap<(u32, String), &'static str>, wire: impl Fn(&str) -> String) -> Vec<crate::wire::FoundRow> {
     let mut rows: Vec<crate::wire::FoundRow> = Vec::new();
     let mut add = |kind: &str, fate: &str, n: u32| {
@@ -5720,7 +6311,7 @@ pub fn found_in_pack(run: &Run, pack: &BTreeMap<(u32, String), i32>, key: &(u32,
 /// Cut 9 §5: the last `EXIT_TRACE_LEN` hero turns of a run, from its trace ring. Cut 11 §3:
 /// plus the run's provenance log (every `because` event), when it has one.
 pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
-    let turns: Vec<crate::wire::TraceTurn> = run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().cloned().collect();
+    let turns: Vec<crate::wire::TraceTurn> = run.trace.iter().rev().take(EXIT_TRACE_LEN).rev().map(|t| (**t).clone()).collect();
     Trace { max_steps: max_steps_in(run, &turns), turns, provenance: crate::provenance::all(prov), blow: death_blow(run), blows: death_blows(run), hp_lost: hp_lost(run), hp_healed: hp_healed(run) }
 }
 
@@ -5729,7 +6320,7 @@ pub fn exit_trace(run: &Run, prov: &[crate::provenance::Prov]) -> Trace {
 /// floors ago still reads (`44 → 29`).
 pub fn max_steps_in(run: &Run, turns: &[crate::wire::TraceTurn]) -> Vec<crate::wire::MaxStep> {
     if run.max_steps.len() <= 6 {
-        return run.max_steps.clone();
+        return (*run.max_steps).clone();
     }
     let from = turns.first().map_or(0, |t| t.t);
     let mut out: Vec<crate::wire::MaxStep> = run.max_steps.iter().filter(|s| s.t >= from).cloned().collect();
@@ -5792,6 +6383,63 @@ pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: V
     exit_line_of(carried, keep_pct, kept, spent, spent_on, tier, timed_out, false, 0, bones, depth)
 }
 
+/// c30-legible: why a run ended, ≤ 3 words (`ExitLine.reason`) — the committing row's reason, not its
+/// words: a bank at the record (Steady's `depth ≥ best → bank`, which ends a fresh lineage's first runs
+/// at D2, D3, D4 …) reads `banks every record`; a hurt row `hurt · went home`; a death `slain · jackal`.
+pub fn exit_reason(run: &Run, tier: ExitTier, best0: u32, rules: &RuleSet) -> String {
+    let bare = |s: String| -> String { s.trim_start_matches("the ").trim_start_matches("a ").trim_start_matches("an ").to_string() };
+    if tier == ExitTier::Death {
+        let c = run.death_cause.as_deref().unwrap_or("");
+        if c == "hunger" {
+            return "starved".into();
+        }
+        let who = bare(crate::sifter::cause_phrase(c));
+        return if who.is_empty() { "slain".into() } else { format!("slain · {who}") };
+    }
+    if run.timed_out && run.stuck_fires >= STALL_FIRES {
+        return "stuck · gave up".into();
+    }
+    if run.timed_out {
+        return "lost thread".into();
+    }
+    if let Some(k) = &run.driven_off {
+        return format!("repelled · {}", crate::sifter::boss_short(k));
+    }
+    let row = run.exit_row.and_then(|i| usize::try_from(i).ok()).and_then(|i| rules.rows.get(i));
+    let Some(row) = row else {
+        return match tier {
+            ExitTier::Bank => "recalled".into(),
+            _ if run.stuck_fires > 0 => "stuck · went home".into(),
+            _ => "bailed".into(),
+        };
+    };
+    let has = |k: &str| row.conds.iter().any(|c| c.k == k);
+    let bank = tier == ExitTier::Bank;
+    // (Cut 30.5: out of supplies — the heals spent — is its own reason)
+    if has("lacks") {
+        return if bank { "no heals · banked".into() } else { "no heals · went home".into() };
+    }
+    if has("hp<") || has("party_hp<") {
+        return if bank { "hurt · banked".into() } else { "hurt · went home".into() };
+    }
+    if has("depth>=") {
+        // (a stance's row banks at the record: `depth ≥ best + 1`, a floor further when whole)
+        let at = row.conds.iter().find(|c| c.k == "depth>=").and_then(|c| c.n).unwrap_or(0);
+        // (Cut 30.5: a row a floor further than the record's next — the whole hero's — reads `new best · banked`)
+        return if run.max_depth > best0 && at as u32 <= (best0 + 1).max(2) { "banks every record".into() } else if run.max_depth > best0 { "new best · banked".into() } else { format!("reached D{}", run.max_depth) };
+    }
+    if has("foes>=") || has("adj>=") {
+        return "outnumbered".into();
+    }
+    if has("loot>=") {
+        return "loot full".into();
+    }
+    if has("turns>") {
+        return "long run".into();
+    }
+    format!("{} rule", if bank { "bank" } else { "return" })
+}
+
 /// A ledger line an exit wrote (`returned D5`, `banked D8`, `died D3`, `lost thread D3`,
 /// `stalled D2`, `driven D8`): the word it leads with.
 pub fn is_exit_why(why: &str) -> bool {
@@ -5820,13 +6468,23 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
         ExitTier::Death => "died",
     };
     let mut text = if kept <= 0 && keep_pct <= 0 { format!("{verb} $0 · ${carried} lost") } else { format!("{verb} ${kept} · ${carried} carried · keeps {keep_pct}%") };
+    // (Cut 30.5: the checkpoints' secured gold — the caller re-words the line: `secured_text`)
     if bones > 0 {
         text.push_str(&format!(" · bones: {bones} items on D{depth}"));
     }
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None }
+    ExitLine { secured: 0, carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None, end: String::new(), reached: 0, new_best: false, finds: Vec::new() }
+}
+
+/// Cut 30.5: an exit line's head re-worded with the secured gold — `banked $120 · $80 secured + 100% of $40`, `died
+/// $80 · $41 lost` (a death keeps the secured gold alone) — its tail (bones, supplies back) kept.
+pub fn secured_text(text: &str, kept: i32, secured: i32, rest: i32, pct: i32) -> String {
+    let verb = ["stalled", "lost thread", "banked", "returned", "died"].iter().find(|w| text.starts_with(**w)).copied().unwrap_or("returned");
+    let tail: Vec<&str> = text.split(" · ").filter(|s| s.starts_with("bones: ") || s.ends_with(" back")).collect();
+    let head = if pct <= 0 { format!("{verb} ${kept} · ${rest} lost") } else { format!("{verb} ${kept} · ${secured} secured + {pct}% of ${rest}") };
+    std::iter::once(head).chain(tail.into_iter().map(String::from)).collect::<Vec<_>>().join(" · ")
 }
 
 /// A trophy's id as the report reads it (QA on 952e306: "`trophy: home:10`, `trophy:
@@ -6014,7 +6672,13 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             .collect();
         let pos = if near.is_empty() { take(&mut run.rng, &open, &mut cursor) } else { *run.rng.pick(&near) };
         let id = run.new_id();
-        run.monsters.push(Monster::spawn(id, boss, pos, depth));
+        let mut m = Monster::spawn(id, boss, pos, depth);
+        // Cut 30 §1: the lineage's scars on him (every meeting −5 %, cap −30 %, gone once slain).
+        if let Some((_, pct)) = run.scars.iter().find(|(k, _)| k == boss) {
+            m.max_hp = (m.max_hp * (100 - *pct as i32) / 100).max(1);
+            m.hp = m.max_hp;
+        }
+        run.monsters.push(m);
         let escort = boss_escort(boss);
         // The Captain keeps a thinner guard than a boss.
         let guard = if crate::defs::monster_def(boss).boss { 40 } else { 15 };
@@ -6196,7 +6860,10 @@ pub fn spawn_party(run: &mut Run, party: &[Companion]) {
         let free = hp.neighbours8().into_iter().find(|q| run.floor.map.passable(*q) && !run.occupied(*q));
         let Some(q) = free else { continue };
         let id = run.new_id();
-        let m = companion_monster(id, c, q);
+        let mut m = companion_monster(id, c, q);
+        // A waystone enters this floor directly; match the health normal descent gives here.
+        m.max_hp = pet_max_hp(c, run.depth);
+        m.hp = m.max_hp;
         run.monsters.push(m);
         let mut rec = c.clone();
         rec.hp = rec.max_hp;
@@ -6275,7 +6942,7 @@ pub fn place_bones(run: &mut Run) {
 /// den, lock, captive, nest, shrine, vault, stray, hunger), never the previous floor's kind;
 /// `Run.floor_twist` names it for the interstitial and the reel.
 pub fn place_situations(run: &mut Run, lost: &[Lost]) {
-    run.last_twist = run.floor_twist.take();
+    run.last_twist = run.floor_twist.take().into();
     // Cut 24 §2: a lost companion met in the last two runs rests (`Run.named_rest`).
     let lost: Vec<Lost> = lost.iter().filter(|l| !run.named_rest.contains(&l.name)).cloned().collect();
     let lost = &lost[..];
@@ -6608,4 +7275,46 @@ pub fn auto_keep_plan(p: &PendingExit, vault: &[Item], slots: usize, keep_pref: 
 
 fn is_zero_u32(n: &u32) -> bool {
     *n == 0
+}
+
+/// The automatic pack reserves each active counter once, then fills sustain slots with other kinds.
+fn automatic_pack_plan(l: &LineageState) -> Vec<String> {
+    let qm = crate::packages::quartermaster(l);
+    let fill: Vec<String> = crate::packages::pack_kinds(l).into_iter().filter(|k| !qm.contains(k)).collect();
+    let mut want = qm;
+    want.extend(fill.iter().cycle().take(if fill.is_empty() { 0 } else { l.supply_cap().min(crate::packages::PACK_FILL) }).cloned());
+    want
+}
+
+/// Old automatic slots track the current package pack; authored and unknown-origin repeats stay exact.
+fn current_repeat_plan(l: &LineageState, plan: Vec<(String, bool)>) -> Vec<(String, bool)> {
+    if l.pkg.literal || l.pkg.stance == crate::packages::CUSTOM { return plan; }
+    let want = automatic_pack_plan(l);
+    let mut kept: BTreeMap<String, usize> = BTreeMap::new();
+    plan.into_iter().filter(|(kind, automatic)| {
+        if !automatic { return true; }
+        let n = kept.entry(kind.clone()).or_default();
+        *n += 1;
+        *n <= want.iter().filter(|k| *k == kind).count()
+    }).collect()
+}
+
+/// Assign surviving supplies to their repeat slots. Reserve exact origins across the whole
+/// plan before matching kinds alone, so a manual duplicate cannot consume an automatic slot.
+fn supplied_slots(plan: &[(String, bool)], supplies: &[(String, bool)]) -> Vec<bool> {
+    supplied_slot_assignments(plan, supplies).into_iter().map(|i| i.is_some()).collect()
+}
+
+fn supplied_slot_assignments(plan: &[(String, bool)], supplies: &[(String, bool)]) -> Vec<Option<usize>> {
+    let mut available: Vec<(usize, &(String, bool))> = supplies.iter().enumerate().collect();
+    let mut supplied = vec![None; plan.len()];
+    for exact in [true, false] {
+        for (slot, (kind, automatic)) in plan.iter().enumerate() {
+            if supplied[slot].is_some() { continue; }
+            if let Some(i) = available.iter().position(|(_, (k, a))| k == kind && (!exact || a == automatic)) {
+                supplied[slot] = Some(available.remove(i).0);
+            }
+        }
+    }
+    supplied
 }

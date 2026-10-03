@@ -18,7 +18,7 @@ export function renderEnding(app: App): Mounted {
     void app.ascend(v);
   } }, VARIANT_LABEL[v] ?? v.replace(/_/g, " "))));
   const el = h("main", { class: "ending" },
-    h("img", { class: "title-art", src: "/art/title.png", alt: "" }),
+    h("img", { class: "title-art", src: `${import.meta.env.BASE_URL}art/title.png`, alt: "" }),
     h("div", { class: "ending-body" },
       h("div", { class: "ending-heir num" }, heirOrd(L.heir), " ", h("span", { class: "dim" }, `D${L.best_depth}`)),
       h("div", { class: "tiles" },

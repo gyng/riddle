@@ -1,0 +1,123 @@
+You are painting CHARACTER SPRITE masters for the game "Riddle" (a gothic dark-fantasy roguelike on a phone, seen
+top-down at a high three-quarter angle). FIRST look at these approved STYLE TARGETS (you may open these images and nothing
+else in the repository): /home/g/p/riddle/art/ui/targets/style/town.png, /home/g/p/riddle/art/ui/targets/style/hero_sheet.png, /home/g/p/riddle/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/art/ui/targets/style/watch_fens.png, /home/g/p/riddle/art/ui/targets/style/boss.png. They show the target look: moonlit ink and wash on a visible pixel grid, one BLOOD accent.
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix; do NOT
+touch anything outside /home/g/p/riddle/art/generated/. Do not leave _inspection_*.png or any other scratch file behind. OVERWRITE existing files.
+
+For each asset: generate at the stated size and save the final PNG (sRGB) to the exact path. BACKGROUND: a TRANSPARENT
+background (PNG alpha) is best; if the tool returns an opaque image, the background must be ONE flat uniform pure MAGENTA
+#FF00FF (255,0,255) edge to edge (the pipeline keys it) — never paper, never a floor, never a gradient. Self-check each
+output: the four corners transparent or magenta, no magenta/pink-violet inside the subject, the subject not cropped;
+regenerate that asset once if not.
+
+=== STYLE (docs/ART_DIRECTION.md, approved — the FIRST and loudest rule) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== SPRITE RULES (on top of the style) ===
+- ONE object or figure, seen from the high three-quarter town camera (people face RIGHT), centred with ~10 % margin, nothing cropped.
+- Proportions (these override "tall" in the style above): the object's own shape as briefed; townsfolk are readable little people (head about one fifth of the height, a pale BONE face patch, walking right); buildings and landmarks fill the canvas width with ~8 % margin.
+- INK: one closed blue-black INK #0d0c14 contour around the whole silhouette, 12-16 px thick at 1024 px (it must survive a
+  downscale to 40-96 px tall), thicker on the lower/right shadow side; a few interior ink lines on the big forms only.
+- LIGHT: cold MOONLIGHT from ABOVE: MIST #a4bcd6 rims on the top edges (head, shoulders, weapon), the lower half falling
+  into DUSK/UMBRA. The lit side must stay clearly lighter than a dark stone floor; keep one pale element (BONE face,
+  MIST blade edge, bone) high on the figure so it pops at game size.
+- WASH on the GRID at sprite scale: chunky clusters (~12 px at 1024), washes with granulation inside them; no hairline
+  detail, no smooth airbrushed gradients, no noisy speckle. Paper grain only faintly inside the lightest washes.
+- COLOUR: only the palette above (+ the monster's one local hue when the brief names it). BLOOD only where the brief puts it.
+- NOTHING but the figure: NO floor, NO contact shadow, NO cast-shadow pool, NO scenery, NO paper sheet, NO frame, NO glow
+  halo, NO text or letters.
+
+=== READABILITY (the sprites are shown TINY: buildings ~64 px tall, people ~40 px, props 12-24 px) ===
+One bold readable mass, one clear gesture, 3-4 signature details. The defining feature (the "tag" in each brief) must
+be visible in the SILHOUETTE alone. Judge each output shrunk to that size before accepting it.
+
+=== ASSETS ===
+--- 1. id: town_smith
+Output path: /home/g/p/riddle/art/generated/town_smith.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Brief: a TOWNSFOLK smith walking right: a burly figure in a heavy UMBRA leather apron, a hammer on the shoulder, a pale BONE face; the town's people wear no BLOOD.
+
+--- 2. id: town_merchant
+Output path: /home/g/p/riddle/art/generated/town_merchant.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Brief: a TOWNSFOLK merchant walking right: a stout figure in a long DUSK coat and a wide hat, a GILT-buckled satchel, a pale BONE face.
+
+--- 3. id: town_child
+Output path: /home/g/p/riddle/art/generated/town_child.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 28 px tall; judge readability at that size.
+Brief: a TOWNSFOLK child running right: a small figure in a DUSK tunic, a wooden toy sword raised, a pale BONE face.
+
+--- 4. id: town_carter
+Output path: /home/g/p/riddle/art/generated/town_carter.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Brief: a TOWNSFOLK carter walking right leading by a rope: a lean figure in a hooded MOON-grey cloak with a staff, a pale BONE face.
+
+--- 5. id: town_cart
+Output path: /home/g/p/riddle/art/generated/town_cart.png
+Size: exactly 1536x1024 px (width x height), PNG.
+Shown in game at about 32 px tall; judge readability at that size.
+Brief: a MULE CART going right: a grey mule pulling a small two-wheeled wooden cart loaded with sacks and a barrel.
+
+--- 6. id: town_dog
+Output path: /home/g/p/riddle/art/generated/town_dog.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 20 px tall; judge readability at that size.
+Brief: a town DOG trotting right: a shaggy DUSK-grey dog with a curled tail, MIST rims, a BLOOD neckerchief.
+
+--- 7. id: town_sack_small
+Output path: /home/g/p/riddle/art/generated/town_sack_small.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 12 px tall; judge readability at that size.
+Brief: a small loot SACK of BONE canvas tied with a cord, a GILT coin peeking out.
+
+--- 8. id: town_sack_large
+Output path: /home/g/p/riddle/art/generated/town_sack_large.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 16 px tall; judge readability at that size.
+Brief: a large bulging loot SACK of BONE canvas, tied, GILT coins spilling at its mouth.
+
+--- 9. id: town_chest_glow
+Output path: /home/g/p/riddle/art/generated/town_chest_glow.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 16 px tall; judge readability at that size.
+Brief: a small iron-bound treasure CHEST, the lid cracked open, a cold MIST glow spilling out (a found treasure).
+
+--- 10. id: town_flag_0
+Output path: /home/g/p/riddle/art/generated/town_flag_0.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Brief: a tall wooden pole with a swallow-tailed BLOOD flag streaming right, frame 1 of 2.
+
+--- 11. id: town_flag_1
+Output path: /home/g/p/riddle/art/generated/town_flag_1.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 24 px tall; judge readability at that size.
+Brief: the same flag pole, frame 2 of 2: the BLOOD flag's ripple shifted.
+
+When all assets are saved, list the final paths and sizes. Do nothing else.

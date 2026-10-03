@@ -7,41 +7,54 @@ use crate::wire::Ev;
 /// wire lists every system with its trigger and the new ones glint once; a bot's `open_all` opens all.
 #[test]
 fn systems_open_one_at_a_time() {
+    // (Cut 30 Reveal: day 0 is the camp; the pen's group — the editor, the dial, the order — waits
+    // for the Mother met or a 3-day stall)
     let mut g = Game::new(3);
+    g.lineage.clock_s = 2 * 3600;
     let open = |g: &Game| g.lineage().systems.iter().filter(|s| s.open).map(|s| s.id.clone()).collect::<Vec<_>>();
-    assert_eq!(open(&g), vec!["send", "dial", "headline"]);
+    assert_eq!(open(&g), vec!["send", "headline"]);
     let w = g.lineage();
     assert_eq!(w.systems.len(), crate::systems::SYSTEMS.len());
     assert!(w.systems.iter().all(|s| s.open || !s.trigger.is_empty()), "every closed system says what opens it");
     assert!(w.systems.iter().all(|s| !s.new), "day 0 does not glint");
-    // the first death opens the editor and the death screen
+    // the first death opens the death screen, not the editor
     g.lineage.graveyard.push(crate::wire::Grave { heir: 1, depth: 3, cause: "rat".into(), deeds: Vec::new(), death_id: None });
+    g.lineage.reveal_left = 1;
     let opened = crate::systems::update(&mut g.lineage, false);
-    assert_eq!(opened, vec!["edit", "death"]);
-    assert!(g.lineage().systems.iter().any(|s| s.id == "edit" && s.open && s.new));
+    assert_eq!(opened, vec!["death"]);
+    assert!(g.lineage().systems.iter().any(|s| s.id == "death" && s.open && s.new));
     g.seen_systems();
     assert!(g.lineage().systems.iter().all(|s| !s.new));
-    // the first plateau opens the order and the vs line (and the oaths); the Warlord met, the walls
-    let opened = crate::systems::update(&mut g.lineage, true);
-    assert!(opened.contains(&"reorder".to_string()) && opened.contains(&"vs".to_string()) && opened.contains(&"oaths".to_string()), "{opened:?}");
+    // the Warlord met: the stances; the pen still closed
     g.lineage.best_depth = 8;
+    g.lineage.facts.insert("foe:goblin_warlord".into());
+    g.lineage.clock_s = 2 * 3600;
+    g.lineage.reveal_left = 1;
+    let opened = crate::systems::update(&mut g.lineage, true);
+    assert!(opened.contains(&"stances".to_string()) && !opened.contains(&"edit".to_string()) && !opened.contains(&"reorder".to_string()), "{opened:?}");
+    // the pen opens its group
+    g.lineage.pkg.pen_open = true;
+    g.lineage.reveal_left = 1;
     let opened = crate::systems::update(&mut g.lineage, false);
-    assert!(opened.contains(&"walls".to_string()) && opened.contains(&"divergence".to_string()) && !opened.contains(&"forge".to_string()), "{opened:?}");
+    for id in ["pen", "edit", "dial", "reorder", "walls"] {
+        assert!(opened.contains(&id.to_string()), "{id}: {opened:?}");
+    }
     // sticky: a system stays open
     g.lineage.best_depth = 2;
     crate::systems::update(&mut g.lineage, false);
     assert!(crate::systems::is_open(&g.lineage, "walls"));
     // the bots: every system
-    let mut b = Game::new(4);
+    let mut b = Game::new_literal(4);
     crate::systems::open_all(&mut b.lineage);
     assert!(b.lineage().systems.iter().all(|s| s.open && !s.new));
-    // an old save (no system recorded) opens what it has used
-    let mut old = Game::new(5);
+    // an old save (no system recorded) opens what it has used — its set is the pen's
+    let mut old = Game::new_literal(5);
     old.lineage.systems.clear();
     old.lineage.kills.insert("goblin_warlord".into());
     old.lineage.best_depth = 9;
+    old.lineage.pkg_v = 0;
     let back = Game::load(&old.save()).unwrap();
-    assert!(crate::systems::is_open(&back.lineage, "forge") && crate::systems::is_open(&back.lineage, "walls"));
+    assert!(crate::systems::is_open(&back.lineage, "tactics") && crate::systems::is_open(&back.lineage, "walls"));
     assert!(back.lineage.systems_new.is_empty(), "an old save does not glint what it already used");
 }
 
@@ -49,7 +62,7 @@ fn systems_open_one_at_a_time() {
 /// supplies, gold — and its time split covers its ticks; the death screen carries the fight.
 #[test]
 fn meters_are_the_event_streams_sums() {
-    let mut g = Game::new(8);
+    let mut g = Game::new_literal(8);
     g.max_deaths = 100;
     g.send();
     let mut evs: Vec<Ev> = Vec::new();
@@ -93,7 +106,7 @@ fn meters_are_the_event_streams_sums() {
 /// (◆2, from T2) replaces an unsworn standing oath, a new day lapses the sworn ones unkept.
 #[test]
 fn oath_slots_draws_and_the_days_lapse() {
-    let mut g = Game::new(9);
+    let mut g = Game::new_literal(9);
     g.lineage.best_depth = 9;
     g.lineage.banked_depths.insert(9);
     g.lineage.oath_open = true;
@@ -125,7 +138,7 @@ fn oath_slots_draws_and_the_days_lapse() {
     assert!(crate::oath::sworn_ids(&g.lineage).is_empty());
     assert_eq!(g.lineage.gold, gold);
     // a lineage short of T2 draws nothing
-    let mut f = Game::new(10);
+    let mut f = Game::new_literal(10);
     f.lineage.marks = 9;
     assert_eq!(f.draw_oath().unwrap_err(), "needs meet Warlord");
 }
@@ -135,7 +148,7 @@ fn oath_slots_draws_and_the_days_lapse() {
 /// gives a title. The price is a quarter of the last day's net once a day has closed.
 #[test]
 fn the_oath_pool_is_its_own() {
-    let mut g = Game::new(11);
+    let mut g = Game::new_literal(11);
     g.lineage.best_depth = 9;
     g.lineage.banked_depths.insert(9);
     let bold = crate::oath::draw_kind(&g.lineage, "bold", 1).unwrap();
@@ -183,7 +196,7 @@ fn a_tap_is_a_decision() {
     let plan = crate::engine::auto_keep_plan(&p, &[], 1, "best_armour", true).0;
     assert_eq!(crate::engine::keep_note(&p, &l, &plan).as_deref(), Some("kept leather +1"));
     // the standing orders: one struct, each order through its own rules; insure on by default
-    let mut g = Game::new(12);
+    let mut g = Game::new_literal(12);
     let mut o = g.lineage().orders;
     assert!(o.insure && o.repeat);
     o.keep = "best_weapon".into();
@@ -193,7 +206,7 @@ fn a_tap_is_a_decision() {
     o.keep = "junk".into();
     assert!(g.set_orders(&o).is_err());
     // the repeat adds a kind a player's row names (`throw fire`), once it is sold
-    let mut g = Game::new(13);
+    let mut g = Game::new_literal(13);
     if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, "fire") {
         g.lineage.facts.insert(f);
     }
@@ -206,7 +219,7 @@ fn a_tap_is_a_decision() {
     let adds = g.lineage().repeat_added;
     assert_eq!(adds.iter().map(|a| (a.kind.as_str(), a.row.as_str())).collect::<Vec<_>>(), vec![("fire", "throw fire")]);
     // a preset row adds nothing (the bots' sets pack what they pack)
-    let g = Game::new(14);
+    let g = Game::new_literal(14);
     assert!(g.lineage().repeat_added.is_empty());
 }
 
@@ -214,15 +227,15 @@ fn a_tap_is_a_decision() {
 /// gold splits out the passage; the shelf's cap is the core's.
 #[test]
 fn seams_of_cohort_24() {
-    let g = Game::new(15);
+    let g = Game::new_literal(15);
     assert_eq!(g.lineage().supply_cap, 3);
-    let mut g = Game::new(15);
+    let mut g = Game::new_literal(15);
     g.lineage.kit.insert("pack".into(), 1);
     assert_eq!(g.lineage().supply_cap, 4, "pack 4 bought → 4 slots (AX saw 3/3)");
     let f = g.forecast();
     assert_eq!(f.ends.as_ref().map(|e| e.passage), Some(0.0), "no passage from D1");
     // a grudge tamed closes as tamed (never avenged; it lives on no floor)
-    let mut g = Game::new(16);
+    let mut g = Game::new_literal(16);
     g.lineage.grudges.push(crate::descent::Grudge { kind: "rat".into(), name: "Greth".into(), depth: 1, heir: 1, avenged: false, tamed: false, biome: None });
     g.start_run(Some(3));
     g.run.as_mut().unwrap().tamed_grudges.push("Greth".into());
@@ -239,7 +252,7 @@ fn seams_of_cohort_24() {
 /// after; off a wall it answers nothing.
 #[test]
 fn wall_edit_is_lazy_and_cached() {
-    let mut g = Game::new(21);
+    let mut g = Game::new_literal(21);
     assert_eq!(g.wall_edit(), None, "no best depth: no wall");
     g.lineage.best_depth = 9;
     g.lineage.best_day = 3;
@@ -265,7 +278,7 @@ fn wall_edit_is_lazy_and_cached() {
 /// replaced its bank) — while a second exit may go; an offer saved before `start` reads none.
 #[test]
 fn the_wall_keeps_the_last_way_home() {
-    let g = Game::new(5);
+    let g = Game::new_literal(5);
     let bank = Row::new(vec![Cond::n("hp<", 30)], Verb::new("bank"));
     let push = Row::new(vec![Cond::n("depth>=", 6)], Verb::new("bank"));
     let heal = Row::new(vec![Cond::n("hp<", 40)], Verb::arg("drink", "heal"));
@@ -289,7 +302,7 @@ fn the_wall_keeps_the_last_way_home() {
 /// above half a day's net, never under `COMMISSION_FLOOR` units.
 #[test]
 fn a_commission_costs_at_most_a_days_net() {
-    let mut g = Game::new(5);
+    let mut g = Game::new_literal(5);
     g.lineage.kit_unit = Some(100);
     let price = |g: &Game| crate::kit::commission_price(&g.lineage);
     g.lineage.last_day_net = 5000;
@@ -307,7 +320,7 @@ fn a_commission_costs_at_most_a_days_net() {
 /// is a sink that never dries; a numbered title stands on the board until it is owned.
 #[test]
 fn titles_come_again_numbered_so_draws_never_dry() {
-    let mut g = Game::new(11);
+    let mut g = Game::new_literal(11);
     g.lineage.best_depth = 33;
     g.lineage.banked_depths.insert(33);
     for (boss, _) in crate::descent::BOSS_DEPTHS {

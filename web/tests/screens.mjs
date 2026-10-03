@@ -162,7 +162,7 @@ try {
   await settle();
   await lintScreen("camp");
   // 2. the camp's sheets
-  for (const [sel, label, has] of [[".cmd .tile[data-tile=chronicle]", "chronicle"], [".cmd .tile[data-tile=ledger]", "ledger"], [".cmd .tile[data-tile=forge]", "forge"], ["button.gear", "settings"], ["button.cls", "class"], [".strip button.gold", "gold"], [".editor .row .chip.cond", "cond picker"], [".editor .row .chip.verb", "verb picker"], [".unlocks .card", "unlock card"], [".tabs .tab.edit", "rename"]]) {
+  for (const [sel, label, has] of [[".lanes .lanes-log", "log"], [".cmd .tile[data-tile=ledger]", "ledger"], [".cmd .tile[data-tile=forge]", "forge"], ["button.gear", "settings"], ["button.cls", "class"], [".strip button.gold", "gold"], [".editor .row .chip.cond", "cond picker"], [".editor .row .chip.verb", "verb picker"], [".unlocks .card", "unlock card"], [".tabs .tab.edit", "rename"]]) {
     if (label === "gold") {
       await openAndLint(sel, label, has);
       const g = await page.evaluate(() => ({ header: document.querySelector(".strip button.gold")?.textContent, sheet: document.querySelector(".sheet-wrap .label .gold")?.textContent, lineage: `$${window.__riddle.lineage.gold}` }));

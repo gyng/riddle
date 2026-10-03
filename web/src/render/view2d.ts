@@ -9,7 +9,7 @@ import { heroBase } from "./look";
 type Frame = { x: number; y: number; w: number; h: number };
 type Sheet = { img: HTMLImageElement; frames: Record<string, Frame>; texelH: Record<string, number> };
 let sheet: Sheet | null = null, loading: Promise<void> | null = null;
-function loadSheet(url = "/art/atlas.json"): void {
+function loadSheet(url = `${import.meta.env.BASE_URL}art/atlas.json`): void {
   if (loading || typeof fetch === "undefined") return;
   loading = fetch(url).then((r) => r.json()).then((j: { frames?: Record<string, Frame>; meta?: { sprites?: Record<string, { texel_h?: number }> } }) => new Promise<void>((res) => {
     const img = new Image();
@@ -163,4 +163,48 @@ export class View2D {
   }
 
   dispose(): void { if (this.host) this.canvas.remove(); this.ctx = null; }
+}
+
+// ---- Cut 30 §3: the town (render/town.ts) — the same frame the GL view draws, on a 2D canvas ----------------------------------
+import type { TownFrame, Quad } from "./town";
+const byZ = (a: Quad, b: Quad): number => a.z - b.z || a.y - b.y;
+let townSorted: Quad[] = [];
+/** Draws a town frame (`render/town.ts`): the ground, the sprites by depth, then the light — the ambient multiplied over the scene
+ *  and each light's pool added (the GL view's light pass, without its dither bands). `atlas`: the town's own sprite sheet. */
+export function drawTown2D(c: HTMLCanvasElement, F: TownFrame, atlas: HTMLCanvasElement): void {
+  if (c.width !== F.W || c.height !== F.H) { c.width = F.W; c.height = F.H; }
+  const g = c.getContext("2d"); if (!g) return;
+  const k = F.k;
+  g.imageSmoothingEnabled = false;
+  g.globalCompositeOperation = "source-over"; g.globalAlpha = 1;
+  g.fillStyle = "#1b2412"; g.fillRect(0, 0, F.W, F.H);
+  const draw = (q: Quad): void => {
+    const dx = Math.round((q.x - q.w / 2 - F.x0) * k), dy = Math.round((q.y - q.h - F.y0) * k), dw = q.w * k, dh = q.h * k;
+    if (dx > F.W || dy > F.H || dx + dw < 0 || dy + dh < 0) return;
+    g.globalAlpha = q.fade > 0 ? Math.max(0, 1 - q.fade) : 1;
+    if (q.flip) { g.save(); g.translate(dx + dw, dy); g.scale(-1, 1); g.drawImage(atlas, q.s.x, q.s.y, q.s.w, q.s.h, 0, 0, dw, dh); g.restore(); }
+    else g.drawImage(atlas, q.s.x, q.s.y, q.s.w, q.s.h, dx, dy, dw, dh);
+  };
+  for (const q of F.ground) { draw(q); if (q.dim < 1) { g.globalAlpha = 1 - q.dim; g.fillStyle = "#0d0c14"; g.fillRect(Math.round((q.x - q.w / 2 - F.x0) * k), Math.round((q.y - q.h - F.y0) * k), q.w * k, q.h * k); g.globalAlpha = 1; } }
+  townSorted.length = 0;
+  for (let i = 0; i < F.n; i++) townSorted.push(F.quads[i]!);
+  townSorted.sort(byZ);
+  for (const q of townSorted) draw(q);
+  townSorted = townSorted.slice(0, 0);
+  g.globalAlpha = 1;
+  const [r, gg, b] = F.amb;
+  if (r < 0.99 || gg < 0.99 || b < 0.99) {
+    g.globalCompositeOperation = "multiply";
+    g.fillStyle = `rgb(${Math.round(Math.min(1, r) * 255)},${Math.round(Math.min(1, gg) * 255)},${Math.round(Math.min(1, b) * 255)})`;
+    g.fillRect(0, 0, F.W, F.H);
+  }
+  g.globalCompositeOperation = "lighter";
+  for (const l of F.lights) {
+    const x = (l.x - F.x0) * k, y = (l.y - F.y0) * k, rr = l.r * k;
+    const grad = g.createRadialGradient(x, y, 0, x, y, rr);
+    const col = (a: number): string => `rgba(${Math.round(Math.min(1, l.c[0]) * 255)},${Math.round(Math.min(1, l.c[1]) * 255)},${Math.round(Math.min(1, l.c[2]) * 255)},${a})`;
+    grad.addColorStop(0, col(0.32 + 0.3 * F.night)); grad.addColorStop(1, col(0));
+    g.fillStyle = grad; g.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+  }
+  g.globalCompositeOperation = "source-over";
 }

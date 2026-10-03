@@ -18,6 +18,20 @@ mod lanes;
 mod exits;
 #[path = "progression_lib/mod.rs"]
 mod prog;
+#[path = "idle_lib/mod.rs"]
+mod idle;
+#[path = "jobcache_lib/mod.rs"]
+mod jobcache;
+
+/// The panel width of the pool's long chains (the progression lineages): one while
+/// the pool is full, the idle threads shared among the chains as the short jobs run out
+/// (`forecast::with_sim_width`; the results are the same at any width).
+static CHAIN_WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
+/// IDLE's snapshots of `seed` (`idle::snapshots`, as saves), kept across runs (`jobcache`).
+fn idle_snaps(seed: u64) -> Vec<(u32, String)> {
+    jobcache::cached("idle-snaps", &[include_str!("idle_lib/mod.rs")], &format!("snapshots {seed} 14"), || idle::snapshots(seed, 14).into_iter().map(|(w, g)| (w, g.save())).collect())
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Bot {
@@ -253,7 +267,7 @@ fn cohort_stalls(set: &RuleSet, seed: u64, hours: u64, mix: bool) -> (StallCount
 /// first death offers, sending until the hero sees the D5 fork (D4's two stairs): the sends it took
 /// (`None`: not within `cap`).
 fn first_fork(seed: u64, cap: u32) -> Option<u32> {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     let mut patched = false;
     for send in 1..=cap {
         g.lineage.rest_left = 0;
@@ -365,7 +379,8 @@ struct GoldTally {
     ticks: u64,
     way_sends: u32,
     paid_sends: u32,
-    /// The paid sends' own net and ticks (the set cleared the floors above its start then).
+    /// The paid sends' own net and ticks; on the D1 twin, the matched segment after the
+    /// first waystone lights. Both exclude the identical prefix before starts diverge.
     paid_net: i64,
     paid_ticks: u64,
 }
@@ -390,7 +405,8 @@ impl GoldTally {
         self.paid_net += o.paid_net;
         self.paid_ticks += o.paid_ticks;
     }
-    /// Cut 27 §1: net gold per hour over the sends paid a passage.
+    /// Cut 27 §1: net gold per hour over the paid waystone sends, or their D1 reference
+    /// after the twins first diverge. The shared prefix is excluded on both sides.
     fn paid_per_hour(&self) -> f64 {
         self.paid_net as f64 / (self.paid_ticks.max(1) as f64 / (riddle_core::offline::TICKS_PER_SECOND as f64 * 3600.0))
     }
@@ -473,6 +489,9 @@ fn gold_sends(g: &mut Game, t: &mut GoldTally, consumed: &mut u64, budget: u64, 
             g.passage = riddle_core::forecast::sim_passage(g, &rules);
         }
         g.start_run(None);
+        // Compare starts over the same part of the lineage: D1 must exclude the shared
+        // prefix too, since paid waystone sends cannot include its early checkpoint income.
+        let reference = fork.as_deref().is_some_and(|f| f.is_some());
         let paid = g.run.as_ref().is_some_and(|r| r.start > 1 && r.passage > 0);
         if let Some(r) = g.run.as_ref().filter(|r| r.start > 1) {
             t.way_sends += 1;
@@ -525,7 +544,7 @@ fn gold_sends(g: &mut Game, t: &mut GoldTally, consumed: &mut u64, budget: u64, 
             t.ret_sends += 1;
             t.ret_net += t.net() - before;
         }
-        if paid {
+        if paid || reference {
             t.paid_net += t.net() - before;
             t.paid_ticks += turns as u64 + g.rest_after(turns, tier) as u64;
         }
@@ -688,7 +707,7 @@ fn lever_report(sets: &[(String, RuleSet)], levers: &Levers, seeds: u64, rows: &
 /// otherwise) against the set, on a D8 lineage owning every token: (edits, Σ paired ±,
 /// Σ absolute ±) over the shaft's depths whose bar has a ±.
 fn paired_edits(set: &RuleSet) -> (u32, f64, f64) {
-    let mut g = Game::new(7);
+    let mut g = Game::new_literal(7);
     for u in riddle_core::meta::UNLOCKS {
         g.lineage.unlocks.insert(u.id.into());
     }
@@ -791,7 +810,7 @@ fn diverge_edits(set: &RuleSet) -> Diverged {
 }
 
 fn setup(bot: Bot, seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     g.max_deaths = 100_000;
     // Cut 29 §2: the bots play with every system open (the curriculum gates the editor and the camp,
     // never a sim: their play is what it was).
@@ -1260,17 +1279,18 @@ fn gold_report(sets: &[(String, RuleSet)], golds: &Golds, seeds: u64, hours: u64
             pct(ws.home_sends as usize, ws.sends as usize),
         );
         // Cut 27 §1: gold per hour from D1 and from the waystone; the gate reads the sets whose
-        // waystone sends were mostly paid their passage (the set clears the floors above ≥ 95 %)
+        // waystone sends were mostly paid their passage. Compare the D1 twin only after
+        // the first waystone lights, matching the paid sends' exclusion of the shared prefix.
         // (the sends that cleared: the lineage priced the passage and was paid it; a set with at
         // least a fifth of its waystone sends paid, over 10 of them, is read)
         let paid = ws.paid_sends >= 10 && ws.paid_sends * 5 >= ws.way_sends;
-        println!("    $/h: D1 {:+.0} · waystone {:+.0} · its paid sends {:+.0} ({} of {} sends paid a passage){}", d1.per_hour(), ws.per_hour(), ws.paid_per_hour(), ws.paid_sends, ws.way_sends, if paid && ws.paid_per_hour() < d1.per_hour() { " · FAIL" } else { "" });
+        println!("    $/h: D1 {:+.0} · waystone {:+.0} · after unlock D1 {:+.0} · its paid sends {:+.0} ({} of {} sends paid a passage){}", d1.per_hour(), ws.per_hour(), d1.paid_per_hour(), ws.paid_per_hour(), ws.paid_sends, ws.way_sends, if paid && ws.paid_per_hour() < d1.paid_per_hour() { " · FAIL" } else { "" });
         if paid {
             w_n += 1;
-            if ws.paid_per_hour() >= d1.per_hour() {
+            if ws.paid_per_hour() >= d1.paid_per_hour() {
                 w_ok += 1;
             }
-            let r = ws.paid_per_hour() / d1.per_hour().max(1e-9);
+            let r = ws.paid_per_hour() / d1.paid_per_hour().max(1e-9);
             if r < w_worst.0 {
                 w_worst = (r, name.clone());
             }
@@ -1330,6 +1350,56 @@ fn vacuous(name: &str) -> bool {
     false
 }
 
+/// Cut 30 §6 (docs/CUT30.md, the owner's decision in docs/HANDOFF.md §0): the rows the idle gates
+/// replace — "not engaging fails" — printed and not counted. Exactly the contract's list: DEFAULT dies by
+/// ≤ D8; EDITED − DEFAULT ≥ 15 pts; LEARNED ≤ DEFAULT + 2; PETS ≤ D8; LEVELLED ≤ D9; TRIVIAL never passes
+/// D8; KITTED ≤ D8 and its `Kitted:` twins; `{set} never passes D{boss}` (FULL−D23/28/33) and its kitted
+/// twin; DEFAULT passes the den/lock/captive/hunger ≤ 20 %; DEFAULT yields 0 xp/gold over 8 h; the
+/// `Routes:` DEFAULT/EDITED/LEARNED rows and the PASSIVE/RANDOM twins; PASSIVE loses; the whole forge <
+/// the best row (the lever) and its oath twin; DEFAULT/EDITED never swear; the oath best set ≠
+/// bank-optimal; the progression rows (unlock days, stall ≤ 3 on 13/18, marks unspent ≤ 8, purse ≤ 1.5
+/// days' net). (The oath board left play in §5: its completable row is the quests' now.)
+const RETIRED: &[&str] = &[
+    "DEFAULT dies by ≤ D8",
+    "EDITED − DEFAULT (≥ D10) ≥ 15 pts",
+    "LEARNED mean depth ≤ DEFAULT + 2",
+    "PETS dies by ≤ D8",
+    "LEVELLED dies by ≤ D9",
+    "TRIVIAL never passes D8",
+    "KITTED (DEFAULT + every step) dies by ≤ D8",
+    "Kitted: ",
+    "FULL−D23 never passes",
+    "FULL−D28 never passes",
+    "FULL−D33 never passes",
+    "DEFAULT passes the ",
+    "DEFAULT yields 0 xp/gold",
+    "Routes: DEFAULT",
+    "Routes: EDITED − DEFAULT",
+    "Routes: LEARNED",
+    "Routes: PASSIVE",
+    "Routes: RANDOM",
+    "PASSIVE loses by ≤ D3",
+    "Whole forge's bank move < best row's",
+    "Lever holds with every oath reward",
+    "DEFAULT/EDITED never swear an oath",
+    "Oath best set ≠ bank-optimal",
+    "Oath completable ≥ 20%/night",
+    "Progression: days with an unlock",
+    "Progression: marks unspent",
+    "Progression: longest stall",
+    "Progression: purse",
+    // (moved by the pivot — the heirs' temperaments no longer act for the bots, `docs/CUT30.md` deviations;
+    // re-derived on the new bots: content reach and stalls in the dayplayer, the lanes in `cut30_rows`)
+    "COUNTERED reaches ≥ D14",
+    "Lanes D5: no set dominates",
+    "Lanes D9: no set dominates",
+    "Stalls ≤ 1% of sends on every cohort set",
+];
+
+fn retired(name: &str) -> bool {
+    RETIRED.iter().any(|p| name.starts_with(p)) || (name.starts_with("FULL") && name.contains(" never passes D"))
+}
+
 /// Every row that measured nothing fails (`vacuous`), its value marked.
 fn seal(rows: &mut [(String, String, bool)]) {
     for (name, value, ok) in rows.iter_mut() {
@@ -1338,6 +1408,157 @@ fn seal(rows: &mut [(String, String, bool)]) {
             value.push_str(" · n=0");
         }
     }
+}
+
+/// A stance wins a wall when it passes it this much more often than the next one (shares of sends).
+const STANCE_MARGIN: f64 = 0.02;
+
+/// Run `f` over `items` on `threads` threads, the results in the items' order.
+fn pool<T: Sync, R: Send>(items: &[T], threads: usize, f: impl Fn(&T) -> R + Sync) -> Vec<R> {
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    let out: Mutex<Vec<(usize, R)>> = Mutex::new(Vec::new());
+    std::thread::scope(|sc| {
+        for _ in 0..threads.max(1) {
+            sc.spawn(|| loop {
+                let i = next.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let Some(it) = items.get(i) else { break };
+                let r = f(it);
+                out.lock().unwrap().push((i, r));
+            });
+        }
+    });
+    let mut v = out.into_inner().unwrap();
+    v.sort_by_key(|(i, _)| *i);
+    v.into_iter().map(|(_, r)| r).collect()
+}
+
+/// Cut 30 §6 (docs/CUT30.md): the idle floor's table rows (`examples/idle_lib`): a 20-minute absence
+/// pays, a drill's item is packed at its wall, every stance is best at some wall and none at all, each
+/// quest is keepable with the pen closed. The fortnight's own rows are the dayplayer's (`--idle`,
+/// `--picked`, `--tuned`).
+fn cut30_rows(rows: &mut Vec<(String, String, bool)>, seeds: u64, threads: usize) {
+    let lineages: Vec<u64> = (1..=seeds.min(8)).collect();
+    // (the snapshots travel between threads as saves: a game's caches are not `Sync`)
+    let snaps: Vec<Vec<(u32, String)>> = pool(&lineages, threads, |s| idle_snaps(*s));
+    let load = |t: &String| Game::load(t).expect("a snapshot loads");
+    // a 20-minute absence: 30 fresh lineages and every IDLE lineage standing at D13
+    let fresh: Vec<u64> = (1..=30).collect();
+    let fresh_runs: Vec<u32> = pool(&fresh, threads, |s| idle::twenty_minutes(&idle::fresh(*s)));
+    let d13: Vec<&String> = snaps.iter().flat_map(|v| v.iter().filter(|(w, _)| *w == 13).map(|(_, g)| g)).collect();
+    let d13_runs: Vec<u32> = pool(&d13, threads, |g| idle::twenty_minutes(&load(g)));
+    // expeditions per 8 h on the idle floor (fresh lineages' first 8 h, and at D13): at least 6, at most one
+    // send and its rest per 20 minutes (`engine::REST_MIN_TICKS` — the band's own reason: no sortie farm)
+    let e8: Vec<u32> = pool(&fresh[..8], threads, |s| {
+        let mut g = idle::fresh(*s);
+        riddle_core::offline::run_offline_counts(&mut g, 8 * 3600).runs
+    });
+    let e8_d13: Vec<u32> = pool(&d13, threads, |g| riddle_core::offline::run_offline_counts(&mut load(g), 8 * 3600).runs);
+    let cap = (8 * 3600 * riddle_core::offline::TICKS_PER_SECOND) as f64 / riddle_core::engine::REST_MIN_TICKS as f64;
+    let mean = |v: &[u32]| v.iter().sum::<u32>() as f64 / v.len().max(1) as f64;
+    let (a, b) = (mean(&e8), mean(&e8_d13));
+    rows.push((format!("Expeditions per 8 h, IDLE (fresh · D13) in 6–{cap:.0}"), format!("{a:.1} · {b:.1}"), [a, b].iter().all(|x| (6.0..=cap).contains(x)) && !e8_d13.is_empty()));
+    // (Cut 30.5: the fresh lineage's first absence once the scout is hired — by IDLE's own first session)
+    let session_runs: Vec<u32> = pool(&fresh, threads, |s| idle::twenty_minutes(&idle::after_session(*s)));
+    let sp = session_runs.iter().filter(|r| **r >= 1).count();
+    rows.push(("A fresh lineage's first 20-min absence after the scout's hire returns ≥ 1 run ≥ 95%".to_string(), format!("{:.0}% ({sp}/{})", pct(sp, session_runs.len()), session_runs.len()), pct(sp, session_runs.len()) >= 95.0));
+    let paid = fresh_runs.iter().chain(&d13_runs).filter(|r| **r >= 1).count();
+    let n20 = fresh_runs.len() + d13_runs.len();
+    rows.push((format!("A 20-min absence returns ≥ 1 run ≥ 95% (fresh 30 + D13 {})", d13_runs.len()), format!("{:.0}%", pct(paid, n20)), pct(paid, n20) >= 95.0 && !d13_runs.is_empty()));
+    // the D5 lanes on the idle floor (re-derived from `Lanes D5: no set dominates`, whose written sets
+    // the pivot's bots no longer write): IDLE's own set at its D8 snapshot, the near stair and the far —
+    // both lanes viable (the weaker reaches D8 at least half as often as the stronger, over the seeds)
+    let d8: Vec<&String> = snaps.iter().flat_map(|v| v.iter().filter(|(w, _)| *w == 8).map(|(_, g)| g)).collect();
+    let lanes: Vec<(f64, f64)> = pool(&d8, threads, |t| {
+        let mut g = load(t);
+        g.lineage.facts.insert("fork:5".into());
+        let pass = |g: &Game, route: &[u32]| {
+            let set = g.lineage.rules().clone().with_route(riddle_core::descent::Route::from_forks(route).unwrap_or_default());
+            let rs = riddle_core::forecast::camp_panel(g, &set, 48);
+            // (Cut 30.5, owner-approved row change: each lane reaching D8, the band's end — under the record rule no sim
+            // from IDLE's D7 record passes the Warlord on either lane, so passing him compared two zeros)
+            rs.iter().filter(|r| r.max_depth >= 8).count() as f64 / rs.len().max(1) as f64
+        };
+        (pass(&g, &[]), pass(&g, &[5]))
+    });
+    let (near, far) = lanes.iter().fold((0.0, 0.0), |a, x| (a.0 + x.0, a.1 + x.1));
+    let ratio = near.min(far) / near.max(far).max(1e-9);
+    rows.push((format!("Lanes D5 (IDLE): both reach D8, weaker ≥ ½ the stronger (n={})", lanes.len()), format!("near {:.2} · far {:.2}", near / lanes.len().max(1) as f64, far / lanes.len().max(1) as f64), ratio >= 0.5 && !lanes.is_empty()));
+    // the quartermaster: a drill's item in the pack at its wall
+    let packs: Vec<(u32, u32)> = pool(&lineages, threads, |s| idle::drill_packed(*s, 12));
+    let (c, n) = packs.iter().fold((0, 0), |a, p| (a.0 + p.0, a.1 + p.1));
+    rows.push((format!("A drill-needed item is in the pack at its wall ≥ 90% (n={n})"), format!("{:.0}%", pct(c as usize, n as usize)), pct(c as usize, n as usize) >= 90.0));
+    // every stance best at ≥ 1 wall, none at all: per wall, the stance whose sends from the IDLE lineages
+    // under it pass it most — read twice, from the wall's stone (the wall alone) and from D1 (the walk
+    // and the wall: the generalist's ground); a win is a margin over the next stance (`STANCE_MARGIN`,
+    // ~2 ± of a 96-send panel over the seeds), else the contest is a tie and counts for no one
+    let mut jobs: Vec<(u32, bool, &'static str, &String)> = Vec::new();
+    for v in &snaps {
+        for (w, g) in v {
+            for from_stone in [true, false] {
+                for s in idle::STANCES {
+                    jobs.push((*w, from_stone, s, g));
+                }
+            }
+        }
+    }
+    let panels: Vec<(f64, f64)> = pool(&jobs, threads, |(w, st, s, g)| idle::stance_past(&load(g), s, *w, 96, *st));
+    let past: Vec<f64> = panels.iter().map(|p| p.0).collect();
+    // Steady, the idle default, is exempt from a wall (the owner, 2026-10-01): it is the safest default —
+    // the fewest deaths a send from D1 across the walls, against every other stance
+    let mut died: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
+    for (k, (_, st, s, _)) in jobs.iter().enumerate() {
+        if !*st {
+            let e = died.entry(*s).or_insert((0.0, 0));
+            e.0 += panels[k].1;
+            e.1 += 1;
+        }
+    }
+    let rate = |s: &str| died.get(s).map_or(1.0, |(t, n)| t / (*n).max(1) as f64);
+    let others = idle::STANCES.iter().filter(|s| **s != "steady").map(|s| rate(s)).fold(f64::MAX, f64::min);
+    rows.push(("Steady is the safest default: fewest deaths a send from D1".into(), idle::STANCES.iter().map(|s| format!("{s} {:.0}%", 100.0 * rate(s))).collect::<Vec<_>>().join(" "), rate("steady") < others));
+    let mut wins: BTreeMap<&str, u32> = BTreeMap::new();
+    let mut contests = 0;
+    for w in idle::WALLS {
+        for from_stone in [true, false] {
+            let mut score: BTreeMap<&str, (f64, u32)> = BTreeMap::new();
+            for (k, (jw, st, s, _)) in jobs.iter().enumerate() {
+                if *jw == w && *st == from_stone && *s != "steady" {
+                    let e = score.entry(*s).or_insert((0.0, 0));
+                    e.0 += past[k];
+                    e.1 += 1;
+                }
+            }
+            if score.is_empty() {
+                continue;
+            }
+            let mut ranked: Vec<(&str, f64)> = score.iter().map(|(s, (t, n))| (*s, t / (*n).max(1) as f64)).collect();
+            ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+            eprintln!("stances D{w} {}: {}", if from_stone { "stone" } else { "D1" }, ranked.iter().map(|(s, v)| format!("{s} {v:.3}")).collect::<Vec<_>>().join(" "));
+            if ranked[0].1 - ranked.get(1).map_or(0.0, |x| x.1) < STANCE_MARGIN {
+                continue;
+            }
+            contests += 1;
+            *wins.entry(ranked[0].0).or_insert(0) += 1;
+        }
+    }
+    let each = idle::STANCES.iter().filter(|s| **s != "steady").all(|s| wins.get(s).is_some_and(|n| *n > 0));
+    let none_all = wins.values().all(|n| *n < contests);
+    rows.push((format!("Guarded, Bold, Hunter each best at ≥ 1 wall by ≥ {STANCE_MARGIN}, none at all ({contests} won)"), wins.iter().map(|(s, n)| format!("{s} {n}")).collect::<Vec<_>>().join(" "), each && none_all && contests > 0));
+    // each quest keepable ≥ 20 % a night by some package set, the pen closed (the board opens with the
+    // Warlord slain: the lineages at D13, D18 and D23)
+    let mut qjobs: Vec<(&String, &'static str)> = Vec::new();
+    for v in &snaps {
+        for (w, g) in v {
+            if [13, 18, 23].contains(w) {
+                for k in ["reach", "reach_no_return", "bank", "slay"] {
+                    qjobs.push((g, k));
+                }
+            }
+        }
+    }
+    let q: Vec<(String, f64)> = pool(&qjobs, threads, |(g, k)| idle::quest_night(&load(g), k, 24));
+    let worst = q.iter().fold(("-".to_string(), 1.0f64), |a, b| if b.1 < a.1 { b.clone() } else { a });
+    rows.push((format!("Quests keepable ≥ 20%/night by a package set, pen closed (n={})", q.len()), format!("worst {:.0}% {}", 100.0 * worst.1, worst.0), worst.1 >= 0.2 && !q.is_empty()));
 }
 
 fn pct(n: usize, d: usize) -> f64 {
@@ -1376,13 +1597,27 @@ impl Clock {
 }
 
 fn main() {
+    // RUNS_UI: real games at scale keep no replay capsules (a lineage clone per send never read)
+    riddle_core::engine::set_capsules(false);
     // The table fills the machine seed by seed; a panel's sims stay sequential inside a job.
     riddle_core::forecast::set_parallel_sims(false);
     let args: Vec<String> = std::env::args().collect();
     let get = |k: &str, d: u64| args.iter().position(|a| a == k).and_then(|i| args.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     // --quick: 8 seeds × 8 h × 3 verdicts (≈ 30 s; depth gates are 8 h tail gates, so hours stay).
     // Full: 30 × 8 h × 8 (≈ 2 min) is the number that counts. Never weaken bars.
-    let quick = args.iter().any(|a| a == "--quick");
+    let quick = args.iter().any(|a| a == "--quick") || args.iter().any(|a| a == "--fast");
+    // `--fast` (`tools/gates.mjs --fast`): the quick table less the jobs whose rows are all retired (the
+    // progression lineages; the lever and the oaths are the full table's already) — the gated rows only
+    let fast = args.iter().any(|a| a == "--fast");
+    // `--cut30`: the idle floor's rows alone (`cut30_rows`, a few minutes)
+    if args.iter().any(|a| a == "--cut30") {
+        let mut rows = Vec::new();
+        cut30_rows(&mut rows, get("--seeds", 8), get("--threads", 24) as usize);
+        for (name, value, ok) in &rows {
+            println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
+        }
+        return;
+    }
     let seeds = get("--seeds", if quick { 8 } else { 30 });
     let hours = get("--hours", 8);
     let verdicts_per_seed = get("--verdicts", if quick { 3 } else { 8 }) as usize;
@@ -1420,6 +1655,19 @@ fn main() {
     if std::env::var("METRICS_QUIET_SIGNAL").is_ok() {
         eprintln!("metrics: quiet ticks measured");
     }
+    // Cut 30 §6: the idle floor's rows (`cut30_rows`: IDLE's fourteen-day snapshot chains, then their panels)
+    // read nothing of the pool's jobs — they play beside it from the start (they ran after it, the table's
+    // tail: ~25 min of a quick table under load). The whole table only (a `--gold`-style subset returns
+    // before its rows).
+    let subset = ["--gold", "--deaths", "--forge", "--lever", "--oaths", "--progression", "--forks", "--bots", "--exits", "--diverge"];
+    let cut30 = (!args.iter().any(|a| subset.contains(&a.as_str()))).then(|| {
+        let threads = get("--threads", std::thread::available_parallelism().map(|n| n.get() as u64).unwrap_or(4).min(32)) as usize;
+        std::thread::spawn(move || {
+            let mut rows = Vec::new();
+            cut30_rows(&mut rows, seeds, threads);
+            rows
+        })
+    });
     let results: Arc<Mutex<BTreeMap<(usize, u64), SeedResult>>> = Arc::new(Mutex::new(BTreeMap::new()));
     // One pool, one queue, longest first (`pop` takes from the end): the counter trials, then the
     // cohort sets' stalls (one job per (set, seed), 4 h each ≈ 12 sends), then the bots with the FULL
@@ -1499,7 +1747,10 @@ fn main() {
     let psets = Arc::new(prog::rater_sets());
     let prog_seeds = get("--prog-seeds", if quick { 1 } else { 2 });
     let prog_days = get("--prog-days", 14) as usize;
-    jobs.extend((0..psets.len()).flat_map(|si| (1..=prog_seeds).map(move |s| Job::Prog(si, s))));
+    if !fast {
+        jobs.extend((0..psets.len()).flat_map(|si| (1..=prog_seeds).map(move |s| Job::Prog(si, s))));
+    }
+
     jobs.extend((1..=seeds).map(Job::FirstFork));
     let found = Arc::new(lane_found());
     // (one job per (fork, seed, candidate): `lanes::gate_one`; `gate_seed`'s vector is reassembled in candidate order)
@@ -1601,6 +1852,8 @@ fn main() {
     let oreads: Arc<Mutex<OathReads>> = Arc::new(Mutex::new(BTreeMap::new()));
     let olevers: Arc<Mutex<OathLevers>> = Arc::new(Mutex::new(BTreeMap::new()));
     let pouts: Arc<Mutex<BTreeMap<(usize, u64), prog::Out>>> = Arc::new(Mutex::new(BTreeMap::new()));
+    // (jobs running, chains among them: `CHAIN_WIDTH`)
+    let busy: Arc<Mutex<(usize, usize)>> = Arc::new(Mutex::new((0, 0)));
     let mut handles = Vec::new();
     for _ in 0..threads {
         let exit_tallies = Arc::clone(&exit_tallies);
@@ -1610,9 +1863,18 @@ fn main() {
         let diverged = Arc::clone(&diverged);
         let (obanks, oreads, olevers) = (Arc::clone(&obanks), Arc::clone(&oreads), Arc::clone(&olevers));
         let (pouts, psets) = (Arc::clone(&pouts), Arc::clone(&psets));
+        let busy = Arc::clone(&busy);
         handles.push(std::thread::spawn(move || loop {
             let job = jobs.lock().unwrap().pop();
             let Some(job) = job else { break };
+            let chain = matches!(job, Job::Prog(..));
+            let widen = |d: isize, c: isize| {
+                let mut b = busy.lock().unwrap();
+                b.0 = (b.0 as isize + d) as usize;
+                b.1 = (b.1 as isize + c) as usize;
+                CHAIN_WIDTH.store(1 + threads.saturating_sub(b.0) / b.1.max(1), std::sync::atomic::Ordering::Relaxed);
+            };
+            widen(1, chain as isize);
             let tj = Instant::now();
             let cj = thread_cpu();
             let kind: String = match job {
@@ -1644,12 +1906,19 @@ fn main() {
                     let r = without_history(|| cohort_forge(&sets[si].1, seed, hours));
                     forges.lock().unwrap().insert((si, seed), r);
                 }
+                // (the retired rows' jobs — the lever, the oaths, the lanes, the progression lineages — are kept
+                // across runs by the harness file they run and every argument, named in `params`: change the
+                // call and its `params` together)
                 Job::Lever(si, seed) => {
-                    let r = without_history(|| lever::gate(&sets[si].1, seed, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN));
+                    let params = format!("without_history gate {} s{seed} h{LEVER_HOURS} n{LEVER_SIMS} m{LEVER_MARGIN}", serde_json::to_string(&sets[si].1).unwrap_or_default());
+                    let r = jobcache::cached("lever", &[include_str!("lever_lib/mod.rs")], &params, || without_history(|| lever::gate(&sets[si].1, seed, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN)));
                     levers.lock().unwrap().insert((si, seed), r);
                 }
                 Job::Lane(fork, seed, i) => {
-                    let r = lanes::gate_one(&found, fork, seed, LANE_SIMS, i);
+                    // (`lanes_lib` reads `LANE_*` switches)
+                    let env: Vec<(String, String)> = std::env::vars().filter(|(k, _)| k.starts_with("LANE_")).collect();
+                    let params = format!("gate_one {} D{fork} s{seed} n{LANE_SIMS} #{i} {env:?}", serde_json::to_string(&*found).unwrap_or_default());
+                    let r = jobcache::cached("lane", &[include_str!("lanes_lib/mod.rs")], &params, || lanes::gate_one(&found, fork, seed, LANE_SIMS, i));
                     if std::env::var("METRICS_PHASES").is_ok() {
                         eprintln!("job LANE D{fork} {seed} #{i} {:.1}s", tj.elapsed().as_secs_f64());
                     }
@@ -1722,31 +1991,40 @@ fn main() {
                 }
                 Job::OathBank(si) => {
                     let set = &sets[si].1;
-                    let r = without_history(|| {
-                        let g = oath_lib::lineage(set, 1);
-                        oath_lib::bank_best(&g, set)
+                    let params = format!("without_history bank_best(lineage(set, 1)) {}", serde_json::to_string(set).unwrap_or_default());
+                    let r = jobcache::cached("oath", &[include_str!("oath_lib/mod.rs"), include_str!("lever_lib/mod.rs")], &params, || {
+                        without_history(|| {
+                            let g = oath_lib::lineage(set, 1);
+                            oath_lib::bank_best(&g, set)
+                        })
                     });
                     obanks.lock().unwrap().insert(si, r);
                 }
                 Job::Oath(si, ki) => {
                     let set = &sets[si].1;
                     // (the bank-optimal set is its own job on the same deterministic lineage; the rows between are read at the report)
-                    let r = without_history(|| {
-                        let g = oath_lib::lineage(set, 1);
-                        oath_lib::measure(&g, set, riddle_core::oath::KINDS[ki], None)
+                    let params = format!("without_history measure(lineage(set, 1), {}, None) {}", riddle_core::oath::KINDS[ki], serde_json::to_string(set).unwrap_or_default());
+                    let r = jobcache::cached("oath", &[include_str!("oath_lib/mod.rs"), include_str!("lever_lib/mod.rs")], &params, || {
+                        without_history(|| {
+                            let g = oath_lib::lineage(set, 1);
+                            oath_lib::measure(&g, set, riddle_core::oath::KINDS[ki], None)
+                        })
                     });
                     oreads.lock().unwrap().insert((si, ki), r);
                 }
                 Job::OathLever(si) => {
-                    let r = without_history(|| lever::gate_with(&sets[si].1, 1, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN, |g| riddle_core::oath::grant_all(&mut g.lineage)));
+                    let params = format!("without_history gate_with oath::grant_all {} s1 h{LEVER_HOURS} n{LEVER_SIMS} m{LEVER_MARGIN}", serde_json::to_string(&sets[si].1).unwrap_or_default());
+                    let r = jobcache::cached("lever", &[include_str!("lever_lib/mod.rs")], &params, || without_history(|| lever::gate_with(&sets[si].1, 1, LEVER_HOURS, LEVER_SIMS, LEVER_MARGIN, |g| riddle_core::oath::grant_all(&mut g.lineage))));
                     olevers.lock().unwrap().insert(si, r);
                 }
                 Job::Prog(si, seed) => {
                     let (name, set) = psets[si].clone();
-                    let o = prog::play(name, prog::Mode::Rater(set), seed, prog_days, &prog::three_absence(), false, false);
+                    let params = format!("play(name, Rater(set), seed, days, three_absence, false, false) {name} {} s{seed} d{prog_days} {:?}", serde_json::to_string(&set).unwrap_or_default(), prog::three_absence());
+                    let o = jobcache::cached("prog", &[include_str!("progression_lib/mod.rs")], &params, || riddle_core::forecast::with_sim_width(&CHAIN_WIDTH, || prog::play(name, prog::Mode::Rater(set), seed, prog_days, &prog::three_absence(), false, false)));
                     pouts.lock().unwrap().insert((si, seed), o);
                 }
             }
+            widen(-1, -(chain as isize));
             if std::env::var("METRICS_JOBCPU").is_ok() {
                 eprintln!("jobcpu {kind} {:.3} {:.3}", thread_cpu() - cj, tj.elapsed().as_secs_f64());
             }
@@ -2133,7 +2411,7 @@ fn main() {
                 g.send();
             }
         }
-        let mut g2 = Game::new(g.lineage.seed);
+        let mut g2 = Game::new_literal(g.lineage.seed);
         g2.set_rules_raw(good()).unwrap();
         let rep = g2.run_offline(1800);
         let s = serde_json::to_string(&rep).unwrap() + &g2.save();
@@ -2143,9 +2421,9 @@ fn main() {
         }
         h
     };
-    let mut ga = Game::new(7);
+    let mut ga = Game::new_literal(7);
     ga.set_rules_raw(good()).unwrap();
-    let mut gb = Game::new(7);
+    let mut gb = Game::new_literal(7);
     gb.set_rules_raw(good()).unwrap();
     let (ha, hb) = (hash_of(&mut ga), hash_of(&mut gb));
     rows.push(("Replay hash identical (seed+rules+elapsed)".into(), format!("{ha:016x}"), ha == hb));
@@ -2154,7 +2432,9 @@ fn main() {
     // Cut 2 gates (docs/CUT2.md).
     let runs8 = |rs: &[&SeedResult]| rs.iter().map(|r| r.runs as f64 * 8.0 / hours as f64).sum::<f64>() / ns as f64;
     let (d8, e8) = (runs8(&default), runs8(&edited));
-    rows.push(("Expeditions per 8 h (DEFAULT, EDITED) in 6–16".into(), format!("{d8:.1} · {e8:.1}"), (6.0..=16.0).contains(&d8) && (6.0..=16.0).contains(&e8)));
+    // (Cut 30 §6: DEFAULT's sends were the two-row fighter's, dead every send and waking 20 minutes; the
+    // idle floor's own count is `cut30_rows`' IDLE row — printed here for the record, EDITED still gated)
+    rows.push(("Expeditions per 8 h (EDITED) in 6–16".into(), format!("{e8:.1} · DEFAULT {d8:.1}"), (6.0..=16.0).contains(&e8)));
     let d_yield = default.iter().map(|r| r.xp as u64 + r.gold.max(0) as u64).sum::<u64>();
     rows.push(("DEFAULT yields 0 xp/gold over 8 h".into(), format!("{d_yield}"), d_yield == 0));
     // Cut 15 §1: marks per 8 h (printed, not gated) and the frontier banks' share of them.
@@ -2440,17 +2720,34 @@ fn main() {
     println!("paired edit delta (Cut 22 §3): {pe} one-notch edits over {} sets · paired ± / absolute ± {:.2} (worst set {} {:.2})", sets.len(), pp / pa.max(1e-9), worst.1, worst.0);
     rows.push((format!("Paired edit ± ≤ ½ absolute ± ({pe} cohort edits)"), format!("{:.2}", pp / pa.max(1e-9)), pp <= 0.5 * pa));
     diverge_rows(&mut rows);
-    prog_rows(&mut rows);
+    if !fast {
+        prog_rows(&mut rows);
+    }
     let (sv_n, sv_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_verdicts.0, a.1 + r.stall_verdicts.1));
     rows.push((format!("Stall verdicts: ≥ 1 patch fired ≥ 50% (n={sv_n})"), format!("{sv_ok}/{sv_n}"), sv_ok == sv_n));
     let (sr_n, sr_ok): (u32, u32) = all.iter().fold((0, 0), |a, r| (a.0 + r.stall_reel.0, a.1 + r.stall_reel.1));
     rows.push((format!("Stall reel line's cause == the trace's (n={sr_n})"), format!("{sr_ok}/{sr_n}"), sr_ok == sr_n));
     phase("rest");
+    rows.extend(cut30.map_or_else(
+        || {
+            let mut r = Vec::new();
+            cut30_rows(&mut r, seeds, threads);
+            r
+        },
+        |h| h.join().unwrap(),
+    ));
+    phase("cut30");
     println!();
     println!("{:<52} {:>18}  result", "gate", "value");
     let mut fails = 0;
     seal(&mut rows);
     for (name, value, ok) in &rows {
+        // Cut 30 §6: the "not engaging fails" rows are replaced by the idle gates (dayplayer `--idle`,
+        // `--picked`, `--tuned`); they print for the record and no longer gate
+        if retired(name) {
+            println!("{:<52} {:>18}  retired ({})", name, value, if *ok { "pass" } else { "fail" });
+            continue;
+        }
         println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
         if !ok {
             fails += 1;

@@ -30,7 +30,7 @@ import { mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser, launchGpu } from "../../tools/browser.mjs";
-import { editRows, openPanel } from "./lib/frame.mjs";
+import { editRows, openPanel, deathDetails } from "./lib/frame.mjs";
 import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -44,6 +44,7 @@ const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!
 
 const browser = shots ? await launchGpu() : await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: shots ? 3 : 2 });
+await deathDetails(page);   // death v2: this suite reads the trace, the ledger and the tablets under `details`
 page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
@@ -341,12 +342,16 @@ try {
   await sleep(100); d = await deathScreen();
   // Cut 17: the verdict screen's buttons are its console — the command card (morgue · camp, docs/CUT17.md §1) and the gem (edit,
   // with no patch to apply)
+  // death v2: the morgue is under `details`; `no rule for it` is the why line under the banner
   const btns = await page.evaluate(() => [...document.querySelectorAll("main.death .console button")].map((b) => b.textContent.trim()));
-  check(d.line === "goblin archer · D3 · no rule for it · you died", `the headline drops the hp margin: "${d.line}"`);
-  check(btns.join() === "morgue,camp,edit", `the verdict screen's buttons are morgue · camp and the edit gem only: [${btns.join(", ")}]`);
+  let why = await page.evaluate(() => document.querySelector(".death .death-why")?.textContent);
+  const morgue = await page.evaluate(() => !!document.querySelector("main.death .death-details .death-morgue"));
+  check(d.line === "goblin archer · D3 · you died" && why === "no rule for it", `the headline drops the hp margin: "${d.line}" · "${why}"`);
+  check(btns.join() === "camp,edit" && morgue, `the verdict screen's buttons are camp and the edit gem only, the morgue under details: [${btns.join(", ")}] · ${morgue}`);
   await fakeDeath({ margin: "3 over" });
   await sleep(100); d = await deathScreen();
-  check(d.line === "goblin archer · D3 · no rule for it · you died", `the core's \`3 over\` is dropped too: "${d.line}"`);
+  why = await page.evaluate(() => document.querySelector(".death .death-why")?.textContent);
+  check(d.line === "goblin archer · D3 · you died" && why === "no rule for it", `the core's \`3 over\` is dropped too: "${d.line}" · "${why}"`);
   await fakeDeath({ cause: "stalled", margin: "archer, no path", verdict: "stall" });
   await sleep(100); d = await deathScreen();
   check(d.line === "stalled · D3 · archer, no path · stall", `a stall keeps the guard's reason: "${d.line}"`);

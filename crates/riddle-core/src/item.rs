@@ -39,6 +39,9 @@ pub struct Item {
     /// before the price moved; the refund then pays today's price).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub paid: i32,
+    /// Packed by the quartermaster: surplus automatic supplies may make room for the active package.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_packed: bool,
     /// QA on 524827b (qaAA: KEPT `axe +7 → vault` after the cage's `took axe +1`): how many of
     /// its `enchant` came from enchant scrolls the heirs read on it (`InvItem.enchanted`).
     #[serde(default, skip_serializing_if = "is_zero")]
@@ -51,7 +54,7 @@ fn is_zero(x: &i32) -> bool {
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, enchanted: 0 }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, auto_packed: false, enchanted: 0 }
     }
     /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
     pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {
@@ -76,8 +79,10 @@ impl Item {
     pub fn atk(&self) -> (i32, i32) {
         let a = self.def().a;
         // Cut 25 §1: the forged arm's steps are aim (`Hero::hit_pct`), not a harder blow.
+        // Cut 30: the forge's steps past its aim are a harder blow.
         if crate::kit::is_kit_id(self.id) {
-            return a;
+            let more = crate::kit::DMG_PER_STEP * (self.enchant - crate::kit::AIM_STEPS).max(0);
+            return (a.0 + more, a.1 + more);
         }
         (a.0 + self.enchant, a.1 + self.enchant)
     }
@@ -118,9 +123,94 @@ pub fn ident_fact(flavours: &Flavours, kind: &str) -> Option<String> {
 }
 
 pub fn is_identified(facts: &BTreeSet<String>, flavours: &Flavours, kind: &str) -> bool {
-    match ident_fact(flavours, kind) {
-        Some(f) => facts.contains(&f),
+    // (`ident_fact`'s text, written into a reused buffer: this is read on the tick's hot paths)
+    thread_local! {
+        static BUF: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+    }
+    match flavours.flavour_of(kind) {
+        Some(f) => BUF.with(|b| {
+            let mut b = b.borrow_mut();
+            b.clear();
+            b.push_str("item:");
+            b.push_str(f);
+            b.push('=');
+            b.push_str(kind);
+            facts.contains(b.as_str())
+        }),
         None => true,
+    }
+}
+
+/// Run-clear (the owner, 2026-10-02: "include item rarity colours + icons"): an item's rarity, read off what
+/// it already is — never a roll of its own, so it changes nothing in play. Gear: its kind's depth band
+/// (`gear_band`: the floors it is found from) plus its `+N` (the forge's tier, a bounty's or a cage's step,
+/// enchant scrolls read on it); `power` 0 common · 1–2 uncommon · 3–4 rare · 5–7 epic · ≥ 8 legendary (a
+/// mace +5, an axe the scrolls stacked to +7: the few things that truly are). Consumables and trinkets: their
+/// worth and depth — value ≥ 20 or found only from D18 is rare (strength, enchant, recall, the mirror shard),
+/// value ≥ 14 or found from D6 uncommon, the rest common; never above rare. An unidentified flavour reads
+/// common: its rarity would name its kind (facts are learned, never leaked by a rim colour).
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum Rarity {
+    #[default]
+    Common,
+    Uncommon,
+    Rare,
+    Epic,
+    Legendary,
+}
+
+impl Rarity {
+    pub fn is_common(&self) -> bool {
+        *self == Rarity::Common
+    }
+    pub fn name(&self) -> &'static str {
+        match self {
+            Rarity::Common => "common",
+            Rarity::Uncommon => "uncommon",
+            Rarity::Rare => "rare",
+            Rarity::Epic => "epic",
+            Rarity::Legendary => "legendary",
+        }
+    }
+}
+
+/// Run-clear: a weapon or armour kind's depth band — 0 from D1 (dagger, sword, leather), 1 from D4
+/// (axe, bow, mail), 2 from D8–D10 (plate, spear), 3 from D12 (mace, scale) — `defs::item_min_depth`.
+pub fn gear_band(kind: &str) -> i32 {
+    match crate::defs::item_min_depth(kind) {
+        0 => 0,
+        1..=4 => 1,
+        5..=10 => 2,
+        _ => 3,
+    }
+}
+
+/// Run-clear: the rarity of `item` as the player knows it (`known`: its kind identified).
+pub fn rarity(item: &Item, known: bool) -> Rarity {
+    let d = item.def();
+    match d.cat {
+        Cat::Gold => Rarity::Common,
+        Cat::Weapon | Cat::Armour => match gear_band(&item.kind) + item.enchant.max(0) {
+            ..=0 => Rarity::Common,
+            1..=2 => Rarity::Uncommon,
+            3..=4 => Rarity::Rare,
+            5..=7 => Rarity::Epic,
+            _ => Rarity::Legendary,
+        },
+        Cat::Potion | Cat::Scroll | Cat::Misc => {
+            if !known || matches!(item.kind.as_str(), "bones" | "trap") {
+                return Rarity::Common;
+            }
+            let depth = crate::defs::item_min_depth(&item.kind);
+            if d.value >= 20 || depth >= 18 {
+                Rarity::Rare
+            } else if d.value >= 14 || depth >= 6 {
+                Rarity::Uncommon
+            } else {
+                Rarity::Common
+            }
+        }
     }
 }
 
@@ -144,6 +234,9 @@ pub struct InvItem {
     /// (`axe +7 → vault · enchanted ×6`); absent when none.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub enchanted: i32,
+    /// Run-clear: the item's rarity (`rarity`); absent = common.
+    #[serde(default, skip_serializing_if = "Rarity::is_common")]
+    pub rarity: Rarity,
 }
 
 /// Wire: item on the floor.
@@ -181,7 +274,8 @@ pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (
 
 pub fn to_inv(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> InvItem {
     let (known, kind, label) = describe(item, facts, flavours);
-    InvItem { id: item.id, kind, known, label, hint: if known { None } else { item.hint }, free: item.free, found: item.found, enchanted: item.enchanted }
+    let rarity = rarity(item, known);
+    InvItem { id: item.id, kind, known, label, hint: if known { None } else { item.hint }, free: item.free, found: item.found, enchanted: item.enchanted, rarity }
 }
 
 #[cfg(test)]

@@ -4,11 +4,11 @@
 .sys-opened { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
 .sys-opened > .label { margin-right: 2px; }
 .sys-plaque { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 4px; border-radius: 6px;
-  border: 1px solid rgba(255, 210, 120, .45); background: rgba(40, 28, 12, .55); color: var(--acc); font-size: 13px; }
+  border: 1px solid rgba(246, 212, 149, .45); background: rgba(28, 27, 43, .55); color: var(--acc); font-size: 13px; }
 .sys-plaque .ico { width: 20px; height: 20px; }
 .sys-plaque .ico.glyph::before { font-size: 15px; line-height: 20px; }
 .sys-plaque.reveal { animation: carve .7s ease-out both; }
-.sys-plaque.reveal::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 230, 160, .7) 50%, transparent 70%);
+.sys-plaque.reveal::before { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255, 227, 163, .7) 50%, transparent 70%);
   transform: translateX(-120%); animation: glint 1.1s .35s ease-out both; pointer-events: none; }
 /* Cut 29 §3: the meters — a label column and its figures; units always; the time split as one bar with a 2 px gap between parts */
 .meters { display: grid; gap: 3px; font-size: 13px; line-height: 1.3; }
@@ -20,7 +20,7 @@
 .meters .msplit { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; min-width: 120px; }
 .meters .msplit .seg { min-width: 3px; }
 .meters .seg.fight, .meters .k.fight .sw { background: var(--hp); }
-.meters .seg.travel, .meters .k.travel .sw { background: #8a7a5e; }
+.meters .seg.travel, .meters .k.travel .sw { background: #617ea7; }
 .meters .seg.chores, .meters .k.chores .sw { background: var(--info); }
 .meters .seg.rest, .meters .k.rest .sw { background: var(--ok); }
 .meters .msplit-key { display: flex; flex-wrap: wrap; gap: 2px 10px; margin-top: 3px; font-size: 12px; }
@@ -28,18 +28,18 @@
 .meters .mrule { white-space: nowrap; }
 .mcmp .mcmp-row { display: grid; grid-template-columns: 64px auto auto auto 1fr auto; gap: 5px; align-items: baseline; }
 .mcmp .dlt.up { color: var(--ok); } .mcmp .dlt.down { color: var(--hp); }
-.parchment .mcmp .dlt.up { color: #2f7a45; } .parchment .mcmp .dlt.down { color: #a0302e; }
+.parchment .mcmp .dlt.up { color: #576e86; } .parchment .mcmp .dlt.down { color: var(--blood); }
 .forecast .mcmp { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
 .fight-meters { margin-top: 10px; padding: 10px 12px; }
 .meters-slot.filled { padding: 10px 12px; overflow: auto; color: var(--fg); }
 .meters-slot.filled::before { content: none; }
 /* the watch's compact meter: one line over the stage, under the HUD */
 .watch .meter-box { position: absolute; left: 8px; top: 46px; z-index: 3; pointer-events: none; }
-.watch .meter-line { display: flex; gap: 10px; align-items: baseline; padding: 3px 8px; border-radius: 6px; background: rgba(10, 7, 5, .72);
-  box-shadow: inset 0 0 0 1px rgba(110, 85, 55, .5); color: var(--fg); font-size: 13px; }
+.watch .meter-line { display: flex; gap: 10px; align-items: baseline; padding: 3px 8px; border-radius: 6px; background: rgba(13, 12, 20, .72);
+  box-shadow: inset 0 0 0 1px rgba(66, 90, 130, .5); color: var(--fg); font-size: 13px; }
 .watch .meter-line .m-scope { font: 600 10px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase; }
 .watch .meter-line[data-scope="fight"] .m-scope { color: var(--hp); }
-.watch .meter-line .dealt b { color: var(--acc); } .watch .meter-line .taken b { color: #ff8a7a; } .watch .meter-line .healed b { color: var(--ok); }
+.watch .meter-line .dealt b { color: var(--acc); } .watch .meter-line .taken b { color: #e49792; } .watch .meter-line .healed b { color: var(--ok); }
 /* Cut 29 §4: the standing orders — one tablet, one sheet */
 .row.tablet.compact.orders-tab[hidden], .repeat-add[hidden], .wall-host[hidden] { display: none; }
 .orders-tab .orders-head { font-weight: 600; margin-right: 4px; }
@@ -48,7 +48,7 @@
 .orders-sheet .order-row { display: grid; grid-template-columns: 104px 1fr; gap: 8px; align-items: center; }
 .orders-sheet .olab { font: 600 12px/1.2 var(--sans); letter-spacing: .05em; text-transform: uppercase; opacity: .8; }
 /* Cut 29 §1/§5: the oath board's late sinks — slots, the draw, the works */
-.oath-sinks { display: grid; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--ink-line, rgba(80, 55, 30, .35)); }
+.oath-sinks { display: grid; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--ink-line, rgba(48, 59, 91, .35)); }
 .oath-sinks .why { margin-left: 4px; }
 .oath-works .works-built { font-size: 13px; }
 .oath-kept-extra { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
@@ -70,22 +70,22 @@
 .forecast .bar { grid-template-columns: 62px 1fr 64px; }
 .forecast .bar .d { display: inline-flex; align-items: center; gap: 5px; }
 .forecast .bar .hex { flex: none; width: 18px; height: 20px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); --reach: 0;
-  background: radial-gradient(circle at 42% 36%, rgb(255 226 150 / calc(var(--reach) * .95)), rgb(226 132 32 / calc(.12 + var(--reach) * .85)) 58%, rgb(58 36 18 / .95) 100%), #1e1510; }
-.forecast .bar.unknown .hex { background: #15100c; box-shadow: inset 0 0 0 1px #3a2e22; }
+  background: radial-gradient(circle at 42% 36%, rgb(220 230 242 / calc(var(--reach) * .95)), rgb(120 152 196 / calc(.12 + var(--reach) * .85)) 58%, rgb(28 27 43 / .95) 100%), #171621; }
+.forecast .bar.unknown .hex { background: #111019; box-shadow: inset 0 0 0 1px #292f4a; }
 .forecast .bar .track { height: 4px; border-radius: 2px; }
-.forecast .bar .track .fill { background: linear-gradient(90deg, #a8601a, #f0b44a); }
+.forecast .bar .track .fill { background: linear-gradient(90deg, var(--blood), var(--ember)); }   /* phase 2 r28: hot, not pale blue */
 /* Cut 29 §4: a tablet lifted by a long press */
-.editor .row.tablet.lifted { box-shadow: 0 8px 18px rgba(0, 0, 0, .7), 0 0 0 2px var(--acc); z-index: 5; position: relative; }
+.editor .row.tablet.lifted { box-shadow: 0 8px 18px rgba(13, 12, 20, .7), 0 0 0 2px var(--acc); z-index: 5; position: relative; }
 /* Cut 29 (owner): the forecast's ± as a noise band (a blurred bar as wide as the spread; the `±7` text stays for readers and tools, unseen),
    the move as a signed chip — a tinted pill, `+6` / `−4` */
 .pm.band { display: inline-block; vertical-align: middle; width: calc(var(--pmw, 8) * 1px); height: 4px; margin: 0 3px; border-radius: 2px;
   font-size: 0 !important; color: transparent; overflow: hidden; opacity: .75;
-  background: linear-gradient(90deg, transparent, rgba(240, 180, 74, .7) 30%, rgba(240, 180, 74, .7) 70%, transparent); }
-:is(.sheet, .panel, .parchment) .pm.band { background: linear-gradient(90deg, transparent, rgba(110, 72, 30, .65) 30%, rgba(110, 72, 30, .65) 70%, transparent); }
+  background: linear-gradient(90deg, transparent, rgba(219, 186, 124, .7) 30%, rgba(219, 186, 124, .7) 70%, transparent); }
+:is(.sheet, .panel, .parchment) .pm.band { background: linear-gradient(90deg, transparent, rgba(61, 80, 117, .65) 30%, rgba(61, 80, 117, .65) 70%, transparent); }
 .vsm.dlt { display: inline-block; padding: 0 4px; border-radius: 7px; font-style: normal; font-weight: 700; line-height: 1.35; }
-.vsm.dlt.up { background: rgba(95, 191, 122, .2); color: #7fdc98; box-shadow: inset 0 0 0 1px rgba(95, 191, 122, .45); }
-.vsm.dlt.down { background: rgba(217, 72, 74, .2); color: #ff8a7a; box-shadow: inset 0 0 0 1px rgba(217, 72, 74, .45); }
-:is(.sheet, .panel, .parchment) .vsm.dlt.up { color: #2f7a45; } :is(.sheet, .panel, .parchment) .vsm.dlt.down { color: #a0302e; }
+.vsm.dlt.up { background: rgba(150, 174, 200, .2); color: #b3cbe5; box-shadow: inset 0 0 0 1px rgba(150, 174, 200, .45); }
+.vsm.dlt.down { background: rgba(225, 61, 72, .2); color: #e49792; box-shadow: inset 0 0 0 1px rgba(225, 61, 72, .45); }
+:is(.sheet, .panel, .parchment) .vsm.dlt.up { color: #576e86; } :is(.sheet, .panel, .parchment) .vsm.dlt.down { color: var(--blood); }
 /* Cut 29 (owner: `12/12` beside its fix): the death gem says `apply`; the count stays on the lit fix tablet (`survives 12/12`) */
 .gem.patch-gem .gem-in:has(.gem-w) .gem-n { display: none; }
 .gem.patch-gem .gem-in:has(.gem-w) .gem-w { font-size: 17px; }
@@ -97,8 +97,8 @@
 .ico.glyph.concept-ico::before { font-size: 14px; line-height: 18px; }
 .row.tablet .rn .ico.concept-ico { width: 26px; height: 26px; }
 .concept-cap { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 8px; font: italic 500 11px/1.5 var(--sans); letter-spacing: .02em;
-  color: #f3d9a6; background: rgba(240, 180, 74, .16); box-shadow: inset 0 0 0 1px rgba(240, 180, 74, .4); white-space: nowrap; vertical-align: middle; text-transform: none; }
-:is(.sheet, .panel, .parchment) .concept-cap { color: #6a4516; background: rgba(160, 110, 40, .14); box-shadow: inset 0 0 0 1px rgba(120, 80, 30, .35); }
+  color: #fad798; background: rgba(174, 192, 212, .16); box-shadow: inset 0 0 0 1px rgba(174, 192, 212, .4); white-space: nowrap; vertical-align: middle; text-transform: none; }
+:is(.sheet, .panel, .parchment) .concept-cap { color: #a5001e; background: rgba(129, 119, 96, .14); box-shadow: inset 0 0 0 1px rgba(164, 188, 214, .35); }
 .stat .concept-cap { margin-left: 4px; font-size: 10px; }
 .topbar .stat { position: relative; }
 .topbar .stat .concept-cap { position: absolute; top: calc(100% + 3px); left: 50%; transform: translateX(-50%); margin: 0; z-index: 6; pointer-events: none; }

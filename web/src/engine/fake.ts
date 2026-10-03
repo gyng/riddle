@@ -4,6 +4,8 @@ import type {
   BonesPile, CageOption, Divergence, DivergenceBranch, DivergenceEnd, FoldBeat, FoldFloor, FoldLine, RowFires, StartOption, ForkOption, Combo, Companion, Cond, Counter, Death, Engine, Entity, Ev, ExitLine, FloorItem, Forecast, ForecastVs, VsMove, Highlight, InvItem, LedgerRow, Lineage, Overlay,
   Patch, ReturnReport, Row, RuleSet, Snapshot, StepResult, Stall, SupplyEntry, Tile, Trace, UnlockInfo, Verb, Vocabulary, Because, KitLadder, RowWhy,
   Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders, WallEdit,
+  Packages, Package, PkgOption, Town, Track, GrewLine, Quest, RowOrigin,
+  WorkNode, Works, NextPill, WorkerPost, WorkerAct, Rarity,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -783,6 +785,17 @@ function exec(run: Run, v: Verb, ctx: SimCtx, ev: Ev[]): boolean {
     default: return false;
   }
 }
+/** Run-clear stand-in for the core's `item::rarity`: a gear kind's depth band + its `+N`; consumables by worth and depth; an unknown
+ *  flavour common. (The fake's own kinds; the core's table is the truth.) */
+const RARITY_ORDER: Rarity[] = ["common", "uncommon", "rare", "epic", "legendary"];
+const GEAR_BAND: Record<string, number> = { dagger: 0, sword: 0, leather: 0, axe: 1, bow: 1, mail: 1, plate: 2, spear: 2, mace: 3, scale: 3 };
+const RARE_KINDS = ["strength", "enchant", "recall", "mirror_shard"], UNCOMMON_KINDS = ["poison", "fire", "summon_ally", "regen", "resist_fire", "clarity", "silence", "earthquake", "mirror", "lantern", "bell", "salt", "chalk"];
+export function fakeRarity(it: Pick<InvItem, "kind" | "label" | "known">): Rarity {
+  if (it.kind in GEAR_BAND) { const p = GEAR_BAND[it.kind] + Number(/\+(\d+)/.exec(it.label)?.[1] ?? 0); return p <= 0 ? "common" : p <= 2 ? "uncommon" : p <= 4 ? "rare" : p <= 7 ? "epic" : "legendary"; }
+  if (!it.known) return "common";
+  return RARE_KINDS.includes(it.kind) ? "rare" : UNCOMMON_KINDS.includes(it.kind) ? "uncommon" : "common";
+}
+const withRarity = <T extends InvItem>(it: T): T => { const r = fakeRarity(it); const o = { ...it }; if (r === "common") delete o.rarity; else o.rarity = r; return o; };
 function pickUp(run: Run, it: FloorItem, ev: Ev[]): void {
   run.floor.items = run.floor.items.filter((x) => x !== it);
   ev.push({ t: run.turn, k: "pickup", id: it.id, item: it.label });
@@ -821,6 +834,8 @@ function endRun(run: Run, tier: "bank" | "return" | "death", ev: Ev[]): void {
   // Cut 11 §3: every exit trace carries the run's provenance (the `because` events) beside its turns; ticks ×10 as on the events
   const trace: Trace = { turns: scaleTrace(run.trace), provenance: Object.values(run.prov).sort((a, b) => a.t - b.t).map((p) => ({ text: p.text, t: p.t * 10, depth: p.depth })) };
   run.line = { carried: run.loot, keep_pct, kept: run.loot_kept, spent, spent_on: run.spent.map((x) => x.label), text: parts.join(" · "), trace,
+    // c30-legible stand-in: the core's `reason` (`engine::exit_reason`), in miniature
+    reason: run.stalled ? "stuck · gave up" : tier === "death" ? "slain" : tier === "bank" ? "hurt · banked" : "hurt · went home",   // (Cut 30.5: a record is a beat, never an end)
     news: [{ k: "differ", text: `reached D${run.depth}` }] };   // Cut 24 §2 stand-in: the core's `news` (what was new; else the one thing that differed)
   ev.push({ t: run.turn, k: "exit", tier, loot_kept: run.loot_kept, line: run.line, trace });
   // Cut 2 §1: camp rest as long as the expedition (one turn ≈ 1 s), capped; a death is a fixed wake
@@ -1184,6 +1199,7 @@ export class FakeEngine implements Engine {
   }
   save(): string { return JSON.stringify(this.s); }
   lineage(): Lineage {
+    this.s.lineage.vault = this.s.lineage.vault.map(withRarity); this.s.lineage.supplies = (this.s.lineage.supplies ?? []).map(withRarity);   // run-clear stand-in
     for (const c of Object.values(this.s.lineage.classes ?? {})) c.next = c.level < XP_LEVEL_CAP ? xpToNext(c.level) : 0;   // QA 92eb880: the ladder is the engine's (`ClassProg.next`)
     this.s.lineage.ledger = this.ledger();
     this.s.lineage.look = (this.s as { look?: string }).look ?? (["rogue", "ranger"].includes(this.s.lineage.class) ? "female" : "male");   // hero looks
@@ -1431,6 +1447,7 @@ export class FakeEngine implements Engine {
     return run;
   }
   send(): Snapshot {
+    this.inAbsence = false;   // RUNS_UI: a send ends the absence's fold
     // Cut 27 §1 stand-in: the send's fold, from the camp's panel as it stands (the core's `fold_plan`)
     if (!this.live || this.live.over) { const f = this.forecastN(20); this.foldPlan = f.fold_to !== undefined ? { to: f.fold_to, clears: new Map(f.depths.filter((d) => d.clear !== undefined).map((d) => [d.depth, d.clear as number])) } : null; }
     this.s.lineage.rest_left_s = 0; delete this.s.lineage.trait_offer; return this.peek();   // Cut 13 §2: the send settles the heir's trait
@@ -1558,6 +1575,12 @@ export class FakeEngine implements Engine {
       const row = spent.find((x) => x.kind === p.kind) ?? (spent.push({ kind: p.kind, n: 0, gold: 0 }), spent[spent.length - 1]); row.n++; row.gold += p.price;
     }
     L.rest_left_s = run.rest_s;                                             // Cut 2 §1: camp rest after every expedition (send skips it)
+    // RUNS_UI: the runs log, as the fake can tell it (the core's `run_log`: via, the absence's fold, the clock at the end)
+    { const runs = (L.runs ??= []); const away = this.offlineVia;
+      runs.push({ id: run.id, heir: run.heir, via: away ? "away" : "watched", ...(away ? { absence: L.absences ?? 0 } : {}), clock_s: L.clock_s ?? 0, start: 1, depth: run.depth,
+        tier: run.exit ?? "return", ...(run.line?.reason ? { reason: run.line.reason } : {}), gold: run.loot_kept, found: run.picked.length, turns: run.turn,
+        ...(run.depth > L.best_depth ? { best: true } : {}), ...(run.exit === "death" ? { death_id: run.id } : {}) });
+      while (runs.length > 60) runs.shift(); }
     // Cut 2 §2: bones recovered this run leave the lineage; a death leaves a new pile (max 3, oldest expires)
     L.bones = (L.bones ?? []).filter((b) => !run.bonesFound.some((f) => f.heir === b.heir && f.depth === b.depth));
     if (run.exit === "death") {
@@ -1582,6 +1605,9 @@ export class FakeEngine implements Engine {
     const cl = (L.classes[run.cls] ??= { level: 1, xp: 0 }); cl.xp += xp; const levels: number[] = [];
     while (cl.level < XP_LEVEL_CAP && cl.xp >= xpToNext(cl.level)) { cl.xp -= xpToNext(cl.level); cl.level++; levels.push(cl.level); for (const v of verbsAt(run.cls, cl.level)) facts.push(`verb:${v}`); }
     if (run.line) { run.line.xp = xp; run.line.level_ups = levels.length; }   // QA 92eb880: the exit line carries the run's XP (the wire's)
+    // run-clear stand-in: the core's card fields — the end, the floor, a record, the finds (rarest first, with `item::rarity`'s table)
+    if (run.line) { run.line.end = run.exit; run.line.reached = run.depth; run.line.new_best = run.depth > L.best_depth;
+      run.line.finds = run.picked.filter((it) => it.kind !== "gold").map(withRarity).sort((a, b) => RARITY_ORDER.indexOf(b.rarity ?? "common") - RARITY_ORDER.indexOf(a.rarity ?? "common")).slice(0, 6); }
     if (cl.level >= XP_LEVEL_CAP && !L.trophies.includes(`master:${run.cls}`)) { L.trophies.push(`master:${run.cls}`); marks += 2; bests.push(`master ${run.cls}`); }
     for (const f of run.facts) if (!L.facts.includes(f)) { L.facts.push(f); facts.push(f); }
     for (let d = L.best_depth + 1; d <= run.depth; d++) { marks += 1; bests.push(`D${d}`); }
@@ -1702,7 +1728,17 @@ export class FakeEngine implements Engine {
   }
   runOfflineQuick(elapsedS: number): ReturnReport { const r = this.runOffline(elapsedS); return { ...r, worst_death_id: r.worst_death?.run_id, worst_death: undefined }; }
   runOfflineSlice(elapsedS: number, _last: boolean): ReturnReport { return this.runOfflineQuick(elapsedS); }
+  /** RUNS_UI: an absence's runs are `away` in the log; the first slice after anything else opens a new absence */
+  private offlineVia = false;
+  private inAbsence = false;
   runOffline(elapsedS: number): ReturnReport {
+    const L = this.s.lineage;
+    if (!this.inAbsence) { L.absences = (L.absences ?? 0) + 1; this.inAbsence = true; }
+    L.clock_s = (L.clock_s ?? 0) + Math.floor(elapsedS);
+    this.offlineVia = true;
+    try { return this.runOfflineInner(elapsedS); } finally { this.offlineVia = false; }
+  }
+  private runOfflineInner(elapsedS: number): ReturnReport {
     const L = this.s.lineage;
     const bountyD = L.best_depth >= 1 ? L.best_depth + 2 : 0;   // Cut 20 §5 stand-in: the night's bounty floor as the absence began (none before a best)
     let budget = Math.max(0, Math.floor(elapsedS)); let runs = 0, stall = 0, sampled = false, turnsTotal = 0;
@@ -2085,8 +2121,13 @@ function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: stri
 const SYSTEMS29: [string, string][] = [["send", ""], ["dial", ""], ["headline", ""], ["edit", "first death"], ["death", "first death"],
   ["exits", "first gold home"], ["loadout", "first gold home"], ["unlocks", "first mark"], ["reorder", "first plateau"], ["vs", "first plateau"],
   ["tags", "first foe fact"], ["party", "first stray"], ["cage", "first cage"], ["walls", "meet Warlord"], ["divergence", "meet Warlord"],
-  ["forge", "slay Warlord"], ["start", "slay Warlord"], ["route", "D5 fork twice"], ["oaths", "plateau or Warlord"], ["automations", "meet Lich"],
-  ["route2", "an oath kept"], ["heir_pick", "an oath kept"], ["class", "second class"]];
+  ["forge", "slay Warlord"], ["start", "slay Warlord"], ["route", "D5 fork twice"], ["automations", "meet Lich"],   // (Cut 30: the oath board left the curriculum — the quest board is its successor)
+  ["route2", "an oath kept"], ["heir_pick", "an oath kept"], ["class", "second class"],
+  // Cut 30 (core `systems.rs`): the packages' arrivals, the buildings, the quest board, the pen (the editor's group waits for it)
+  ["storehouse", "first find kept"], ["kennel", "first tame"], ["stances", "meet Captain"], ["tactics", "slay Warlord"], ["bank", "a night's purse"],
+  ["quests", "slay Warlord"], ["temperament", "heir 3"], ["tactic2", "meet Lich"], ["pen", "meet Mother"]];
+/** Cut 30: the systems the pen brings (the core's `systems::PEN`) — they open with it, not before. */
+const PEN30 = ["pen", "edit", "dial", "unlocks", "reorder", "vs", "tags", "walls", "divergence", "route"];
 type Fk29 = { s: { lineage: Lineage; rules: RuleSet; sys29?: { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean } };
               lineage(): Lineage; gold(delta: number, why: string): void };
 const emptyMeter = (): MeterWire => ({ seconds: 0, dealt: { hero: 0, pets: 0, foes: 0 }, taken: { hero: 0, pets: 0, foes: 0 }, dps_dealt: { hero: 0, pets: 0, foes: 0 }, dps_taken: { hero: 0, pets: 0, foes: 0 },
@@ -2119,14 +2160,18 @@ const DEV_ALL_SYSTEMS = typeof location !== "undefined" && new URLSearchParams(l
 /** `?systems=none`: no curriculum on the wire (an older core's lineage) — the client's own reveal ladder alone, as before Cut 29. */
 const DEV_NO_SYSTEMS = typeof location !== "undefined" && new URLSearchParams(location.search).get("systems") === "none";
 function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean } {
-  const st = (e.s.sys29 ??= { open: DEV_ALL_SYSTEMS ? SYSTEMS29.map(([id]) => id) : ["send", "dial", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true });
+  const st = (e.s.sys29 ??= { open: DEV_ALL_SYSTEMS ? SYSTEMS29.map(([id]) => id) : ["send", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true });   // Cut 30: the dial comes with the pen
   const L = e.s.lineage; const met = (d: number): boolean => L.best_depth >= d;
   const hit: Record<string, boolean> = {
     edit: L.graveyard.length > 0 || L.heir > 1, death: L.graveyard.length > 0 || L.heir > 1, exits: L.gold > 0 || (L.gold_ledger ?? []).some((g) => g.delta > 0), loadout: L.gold > 0,
     unlocks: L.marks > 0, reorder: st.plateau, vs: st.plateau, tags: L.facts.some((f) => f.split(":").length === 3 && f.startsWith("foe:")), party: L.facts.includes("stray") || L.party.length + L.kennel.length > 0,
     cage: L.facts.includes("vault"), walls: met(8), divergence: met(8), forge: met(9), start: met(9), route: (L.forks ?? []).length > 0, oaths: st.plateau || met(8),
     automations: met(18), route2: L.unlocks.includes("route2"), heir_pick: L.unlocks.includes("heir_pick"), class: L.unlocks.includes("ranger") || L.unlocks.includes("caster"),
+    storehouse: L.vault.length > 0, kennel: L.party.length + L.kennel.length > 0, stances: met(5), tactics: met(9), bank: L.gold >= 500, quests: met(9),
+    temperament: L.heir >= 3, tactic2: met(18), pen: met(13),
   };
+  // Cut 30: the pen's group opens with the pen (the Mother met), whatever its Cut 29 trigger said
+  for (const id of PEN30) hit[id] = hit.pen;
   for (const [id] of SYSTEMS29) if (!st.open.includes(id) && hit[id]) { st.open.push(id); st.fresh.push(id); }
   return st;
 }
@@ -2191,4 +2236,281 @@ function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; wo
     const L = this.lineage(); const c = L.commission!; if (!c.available) throw new Error("not enough gold");
     this.gold(-c.price, `forge commission ${c.label}`); sys29(this).works.push(c.label); return this.lineage();
   };
+}
+
+// ---- Cut 30 stand-ins (the core's `packages.rs`, `town.rs`): the packages, the town, the tracks, `grew`. Shapes only — the fake's
+// rows stay its own; a package move changes the chips, the stance's name and level, never the fake's sims.
+const PKGS30: [string, string, string, string][] = [
+  ["steady", "Steady", "stance", ""], ["guarded", "Guarded", "stance", "meet Captain"], ["bold", "Bold", "stance", "slay Warlord"], ["hunter", "Hunter", "stance", "meet Warlord"],
+  ["boss_focus", "boss focus", "tactic", "slay Warlord"], ["corridor_fighting", "corridor fighting", "tactic", "slay Warlord"], ["kite_archers", "kite archers", "tactic", "slay Warlord"],
+  ["thief_guard", "thief guard", "tactic", "slay Warlord"], ["gas_step", "gas step", "tactic", "slay Warlord"], ["pack_break", "pack break", "tactic", "slay Warlord"],
+  ["skittish", "skittish", "temperament", "heir 3"], ["unbowed", "unbowed", "temperament", "heir 3"], ["light_hands", "light hands", "temperament", "heir 3"], ["iron_gut", "iron gut", "temperament", "heir 3"]];
+const LEVEL_RUNS30 = [10, 40, 120, 300];
+type St30 = { stance: string; tactics: string[]; temperament?: string; runs: Record<string, number>; revoked: string[]; bank: number; interest: number; swapped: number; quest: number; qd?: number; qdone?: boolean; qbest?: number };
+type Fk30 = Fk29 & { s: Fk29["s"] & { st30?: St30 } };
+const st30 = (e: Fk30): St30 => (e.s.st30 ??= { stance: "steady", tactics: [], runs: {}, revoked: [], bank: 0, interest: 0, swapped: -1, quest: 0 });
+const lv30 = (runs: number): number => 1 + LEVEL_RUNS30.filter((n) => runs >= n).length;
+function packages30(e: Fk30, L: Lineage): Packages {
+  const st = st30(e); const met = (d: number): boolean => L.best_depth >= d;
+  const owned = (kind: string, trig: string): boolean => trig === "" || (kind === "temperament" ? L.heir >= 3 : trig === "meet Captain" ? met(5) : trig.startsWith("meet") ? met(8) : met(9));
+  const all: Package[] = PKGS30.filter(([, , kind]) => kind !== "temperament" || L.heir >= 3).map(([id, name, kind, trig]) => {
+    const runs = st.runs[id] ?? 0; const lv = lv30(runs); const own = owned(kind, trig);
+    const slot = st.stance === id || st.temperament === id ? 0 : st.tactics.indexOf(id) >= 0 ? st.tactics.indexOf(id) : undefined;
+    return { id, name, kind, level: lv, runs, next_at: LEVEL_RUNS30.find((n) => runs < n), ...(slot !== undefined ? { slot } : {}), owned: own, ...(own ? {} : { trigger: trig }), ...(own && lv < 5 ? { level_price: lv + 1 } : {}) };
+  });
+  const drills = [["goblin_warlord", 9], ["bloat_mother", 14], ["lich", 19]].filter(([, d]) => met(d as number)).map(([boss]) => ({ boss: boss as string, rows: [{ conds: [{ k: "foe_tag", t: "boss" }, { k: "hp>", n: 30 }], verb: { v: "attack", a: "tag:boss" } }], revoked: st.revoked.includes(boss as string), scar: 0 }));
+  return { all, stance: st.stance, tactics: st.tactics, tactic_slots: met(9) ? (met(18) ? 2 : 1) : 0, ...(st.temperament ? { temperament: st.temperament } : {}), temperament_open: L.heir >= 3,
+    ...(L.heir >= 3 ? { offer: ["skittish", "unbowed", "iron_gut"] } : {}), drills, scars: met(8) && !met(9) ? [["goblin_warlord", 15]] : [], pen_open: DEV_ALL_SYSTEMS || met(13),
+    // (a row an earlier one of the same conditions and role always pre-empts is shadowed by it — the core's `shadowed_by`, in miniature)
+    // (the core's `row_label`: a package row is named by its package — `stance:steady` → `Steady`; a pen row has none)
+    rows: e.s.rules.rows.map((r, j, all) => { const i = all.findIndex((x, k) => k < j && x.verb.v === r.verb.v && JSON.stringify(x.conds) === JSON.stringify(r.conds));
+      const o = /^(stance|tactic|temper):(\w+)$/.exec((r.origin as string | undefined) ?? "");
+      const pid = o?.[1] === "stance" ? st.stance : o?.[2];   // (the fake's rows stay Steady's whatever the stance: they are named by the one worn)
+      return { label: o ? PKGS30.find(([id]) => id === pid)?.[1] ?? pid ?? "" : "", ...(i >= 0 ? { shadowed_by: i } : {}) }; }) };
+}
+function town30(e: Fk30, L: Lineage): Town {
+  const st = st30(e); const order: [string, string, boolean][] = [["blacksmith", "first gold home", L.gold > 0 || L.best_depth > 2], ["storehouse", "first find kept", L.vault.length > 0], ["kennel", "first tame", L.party.length + L.kennel.length > 0], ["bank", "a night's purse", L.gold >= 500]];
+  const built = order.filter(([, , b]) => b); const next = order.find(([, , b]) => !b);
+  return { buildings: built.map(([id, trigger]) => ({ id, level: 1, day: 0, trigger })), ...(next ? { next: next[0], next_trigger: next[1] } : {}), bank: st.bank, bank_cap: 3000, interest: st.interest,
+    ...(L.best_depth >= 9 ? { quest: quest30(st, L) } : {}), quests_done: st.quest };
+}
+/** The fake's quest: `reach D<n>` drawn one past the record, its progress the deepest floor a run reached since (the record's floor
+ *  under it until a run goes), kept once a run reaches it. */
+function quest30(st: St30, L: Lineage): Quest {
+  st.qd ??= L.best_depth + 1;
+  const done = (st.qbest ?? 0) >= st.qd;
+  return { goal: `reach D${st.qd}`, reward: ["title", "row", "slot", "card"][st.quest % 4], progress: Math.min(1, (st.qbest ?? Math.max(0, L.best_depth - 1)) / st.qd), done, swap: st.swapped < 0 };
+}
+function tracks30(e: Fk30, L: Lineage): Track[] {
+  const P = packages30(e, L); const T = town30(e, L);
+  const tr = (id: string, stages: [string, string, boolean][]): Track => {
+    const done = stages.filter(([, , d]) => d); const next = stages.find(([, , d]) => !d);
+    // (a numeric trigger carries its progress: the bank's purse against a night's — the core reads the last night's net, the fake $500)
+    return { id, stage: done[done.length - 1]?.[0] ?? stages[0][0], stages: done.length, ...(next ? { next: next[0], trigger: next[1] } : {}), ...(next?.[0] === "bank" ? { progress: Math.min(1, L.gold / 500) } : {}) };
+  };
+  return [
+    tr("character", [["Steady", "", true], ["second stance", "meet Captain", L.best_depth >= 5], ["a tactic", "slay Warlord", L.best_depth >= 9], ["pets", "first stray", L.facts.includes("stray")], ["a temperament", "heir 3", L.heir >= 3], ["the pen", "meet Mother", P.pen_open]]),
+    tr("items", [["pack of 3", "", true], ["storehouse", "first find kept", T.buildings.some((b) => b.id === "storehouse")], ["blacksmith steps", "first gold home", T.buildings.some((b) => b.id === "blacksmith")], ["a counter packed", "a drill's item", L.best_depth >= 14]]),
+    tr("scale", [["one hero", "", true], ["party slot 2", "a second slot", L.unlocks.includes("party_slot_2")], ["waystones", "slay Warlord", L.best_depth >= 9], ["party slots 3–4", "a fourth slot", L.unlocks.includes("party_slot_4")]]),
+    tr("town", [["camp", "", true], ...BUILD30.map(([id, trig]): [string, string, boolean] => [id, trig, T.buildings.some((b) => b.id === id)])]),
+  ];
+}
+const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storehouse", "first find kept"], ["kennel", "first tame"], ["bank", "a night's purse"]];
+{
+  const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
+  const lin = P.lineage; P.lineage = function (this: Fk30): Lineage {
+    const L = lin.call(this) as Lineage;
+    if (DEV_NO_SYSTEMS) return L;   // an older core's wire: no packages, no town, no tracks (the pen open, as before Cut 30)
+    L.packages = packages30(this, L); L.town = town30(this, L); L.tracks = tracks30(this, L);
+    return L;
+  };
+  const off = P.runOffline; P.runOffline = function (this: Fk30, s: unknown): ReturnReport {
+    if (DEV_NO_SYSTEMS) return off.call(this, s) as ReturnReport;
+    const b = this.s.lineage.best_depth; const g0 = this.s.lineage.gold; const st = st30(this);
+    const before = this.lineage(); const owned0 = before.packages!.all.filter((p) => p.owned).map((p) => p.id); const lv0 = lv30(st.runs[st.stance] ?? 0);
+    const stages0 = (before.tracks ?? []).map((t) => `${t.id}:${t.stage}`); const q0 = before.town?.quest;
+    if (st.qdone) { st.qd = undefined; st.qdone = false; st.qbest = undefined; st.quest++; }   // a new quest the day after one was kept
+    const r = off.call(this, s) as ReturnReport;
+    st.runs[st.stance] = (st.runs[st.stance] ?? 0) + r.runs; st.interest += Math.floor(st.bank * 0.02); st.bank += Math.floor(st.bank * 0.02); st.swapped = -1;
+    if (q0 && r.deepest !== undefined) st.qbest = Math.max(st.qbest ?? 0, r.deepest);
+    const after = this.lineage();
+    const grew: GrewLine[] = [];
+    if (this.s.lineage.gold > g0) grew.push({ track: "items", what: `+$${this.s.lineage.gold - g0}` });
+    if (this.s.lineage.best_depth > b) grew.push({ track: "scale", what: `best D${this.s.lineage.best_depth}` });
+    grew.push({ track: "character", what: "xp" });
+    for (const t of after.tracks ?? []) if (!stages0.includes(`${t.id}:${t.stage}`)) grew.push({ track: t.id, what: t.stage });
+    const beats: string[] = [];
+    const lv1 = lv30(st.runs[st.stance]); if (lv1 > lv0) { beats.push(`${st.stance.toUpperCase()} L${lv1}`); grew.push({ track: "character", what: `${st.stance[0].toUpperCase()}${st.stance.slice(1)} L${lv1}` }); }
+    for (const p of after.packages!.all) if (p.owned && !owned0.includes(p.id)) beats.push(`+${p.name}`);
+    const q = after.town?.quest;
+    if (q?.done && (!q0 || !q0.done)) { beats.push(`QUEST DONE · ${q.goal}`); st.qdone = true; }
+    return { ...r, grew, packages: beats };
+  };
+  const has = (L: Lineage, id: string): Package => { const p = L.packages!.all.find((x) => x.id === id); if (!p) throw new Error("unknown package"); if (!p.owned) throw new Error("not yet"); return p; };
+  P.equipPackage = function (this: Fk30, id: unknown, slot: unknown): Lineage {
+    const L = this.lineage(); const p = has(L, id as string); const st = st30(this);
+    if (p.kind === "stance") st.stance = p.id; else if (p.kind === "temperament") st.temperament = p.id;
+    else { if (!L.packages!.tactic_slots) throw new Error("slot closed"); st.tactics = st.tactics.filter((t) => t !== p.id); st.tactics[Math.min(slot as number, L.packages!.tactic_slots - 1)] = p.id; st.tactics = st.tactics.filter(Boolean); }
+    return this.lineage();
+  };
+  P.unequipPackage = function (this: Fk30, id: unknown): Lineage {
+    const st = st30(this); if (st.stance === id) throw new Error("stance never empty");
+    st.tactics = st.tactics.filter((t) => t !== id); if (st.temperament === id) st.temperament = undefined; return this.lineage();
+  };
+  P.pickTemperament = function (this: Fk30, id: unknown): Lineage { if (!(this.lineage().packages!.offer ?? []).includes(id as string)) throw new Error("not on offer"); st30(this).temperament = id as string; return this.lineage(); };
+  P.spendLevel = function (this: Fk30, id: unknown): Lineage {
+    const L = this.lineage(); const p = has(L, id as string); if (!p.level_price) throw new Error("top level"); if (L.marks < p.level_price) throw new Error("not enough marks");
+    this.s.lineage.marks -= p.level_price; st30(this).runs[p.id] = p.next_at ?? p.runs; return this.lineage();
+  };
+  P.revokeDrill = function (this: Fk30, boss: unknown, revoked: unknown): Lineage {
+    const st = st30(this); st.revoked = st.revoked.filter((b) => b !== boss); if (revoked) st.revoked.push(boss as string); return this.lineage();
+  };
+  P.packageOptions = function (this: Fk30): PkgOption[] {
+    const L = this.lineage();
+    // (plausible moves on 24 paired sims: most inside the noise, one or two clear — a stance that passes more, a tactic that dies less)
+    const h = (id: string): number => [...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 1000 / 1000;
+    return L.packages!.all.filter((p) => p.owned && p.slot === undefined).map((p): PkgOption => {
+      const x = h(p.id), big = p.id === "guarded" || p.id === "boss_focus", bold = p.id === "bold";
+      const d_past = big ? 0.26 + x * 0.1 : bold ? 0.06 : (x - 0.5) * 0.06, d_death = bold ? 0.3 : big ? -0.08 : (x - 0.4) * 0.05;
+      return { id: p.id, action: "equip", slot: 0, past: 0.3 + d_past, bank: 0.5 + d_past / 2, death: 0.15 + d_death, d_past, d_bank: d_past / 2, d_death };
+    });
+  };
+  P.bankDeposit = function (this: Fk30, amount: unknown): Lineage {
+    const L = this.lineage(); if (!L.town!.buildings.some((b) => b.id === "bank")) throw new Error("no bank yet");
+    const n = Math.min(amount as number, this.s.lineage.gold, L.town!.bank_cap - L.town!.bank); if (n <= 0) throw new Error("bank full");
+    this.gold(-n, "bank deposit"); st30(this).bank += n; return this.lineage();
+  };
+  P.bankWithdraw = function (this: Fk30, amount: unknown): Lineage {
+    const st = st30(this); const n = Math.min(amount as number, st.bank); if (n <= 0) throw new Error("bank empty"); st.bank -= n; this.gold(n, "bank withdraw"); return this.lineage();
+  };
+  const isPkg = (r: Row): boolean => /^(stance|tactic|temper|drill):/.test((r.origin as string | undefined) ?? "");
+  const STEADY_ROWS = (): Row[] => [
+    { conds: [{ k: "hp<", n: 30 }], verb: { v: "drink", a: "heal" } }, { conds: [{ k: "hp<", n: 20 }], verb: { v: "return" } },
+    { conds: [{ k: "depth>=", n: 2 }], verb: { v: "bank" } }, { conds: [{ k: "foes>=", n: 1 }], verb: { v: "attack", a: "nearest" } }].map((r) => ({ ...r, origin: "stance:steady" as RowOrigin }));
+  const newL = P.newLineage; P.newLineage = function (this: Fk30, seed: unknown): Lineage {
+    // (`?systems=all`: the pen open from the start, the set the player's own — an old save's `custom` stance, edited in place)
+    newL.call(this, seed); if (DEV_NO_SYSTEMS || DEV_ALL_SYSTEMS) return this.lineage();
+    // a new lineage climbs on Steady's compiled rows (the core's `packages::init`); the other sets start as it
+    this.s.rules = { rows: STEADY_ROWS(), name: "fighter" }; this.s.lineage.sets = [0, 1, 2].map(() => ({ rows: STEADY_ROWS(), name: "fighter" }));
+    return this.lineage();
+  };
+  const setR = P.setRules; P.setRules = function (this: Fk30, set: unknown): void {
+    const S = set as RuleSet; if (DEV_NO_SYSTEMS) { setR.call(this, S); return; }
+    // the pen's rows are checked against the cap alone and sit above every package row, which keep their place among themselves
+    const pen = S.rows.filter((r) => !isPkg(r)), pkg = this.s.rules.rows.filter(isPkg);
+    setR.call(this, { ...S, rows: pen });
+    const rows = [...this.s.rules.rows.map((r) => ({ ...r, origin: "player" as RowOrigin })), ...pkg.map((r) => ({ ...r, conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } }))];
+    this.s.rules = { ...this.s.rules, rows }; this.s.lineage.sets[this.s.lineage.active_set] = JSON.parse(JSON.stringify(this.s.rules)) as RuleSet;
+  };
+  P.swapQuest = function (this: Fk30): Lineage { const st = st30(this); if (st.swapped >= 0) throw new Error("swapped today"); st.swapped = 1; st.quest++; st.qd = undefined; st.qbest = undefined; return this.lineage(); };
+  const death = P.death; P.death = function (this: Fk30, id: unknown): Death {
+    const d = death.call(this, id) as Death; if (DEV_NO_SYSTEMS) return d;
+    const L = this.lineage(), Pk = L.packages!; if (Pk.pen_open) return d;
+    const step = (L.kit ?? []).map((k) => k.next).filter((n): n is NonNullable<typeof n> => !!n && !!n.affordable).sort((a, b) => a.price - b.price)[0];
+    const st = Pk.all.find((p) => p.id === Pk.stance)!;
+    const boss = /warlord|mother|lich|master|queen|king/.test(d.cause);
+    const hunter = Pk.all.find((p) => p.id === "hunter" && p.owned);
+    const lever = step ? { kind: "spend", text: step.label } : boss && hunter && Pk.stance !== "hunter" ? { kind: "package", text: "Hunter" }
+      : boss ? { kind: "wait", text: "drill next" } : { kind: "wait", text: `${st.name} L${Math.min(5, st.level + 1)}` };
+    return { ...d, lever, package: `${st.name} · ${d.cause === "stall" ? "explore" : "attack nearest"}` };
+  };
+}
+
+// ---- Cut 30.5 stand-ins (the core's `tree.rs`): the works tree — workers that retire chores done by hand, the four tracks as branches,
+// the haul chest, the `next` pill, manual sends before the scout. Shapes only: the fake's sims are its own (a send before the scout is one
+// run: an absence then yields only the run in flight).
+// (id, name, branch, chore, need, price in tenths of a forge unit, fallback age h, post, beat, tip, the chore's system)
+const NODES305: [string, string, string, string, number, number, number, string, string, string, string][] = [
+  ["quartermaster", "quartermaster", "trunk", "", 0, 0, 0, "crate", "", "packs heal · drill item", ""],
+  ["porter", "porter", "trunk", "chest", 3, 0, 0, "mouth", "AUTO HAUL", "hauls home · while away", ""],
+  ["scout", "scout", "trunk", "send", 3, 5, 0, "fire", "AUTO SEND", "sends him · each rest", ""],
+  ["armourer", "armourer", "trunk", "wear", 2, 10, 24, "storehouse", "AUTO EQUIP", "wears better finds", "storehouse"],
+  ["apprentice", "apprentice", "trunk", "forge", 3, 30, 30, "blacksmith", "AUTO FORGE", "buys forge steps", "forge"],
+  ["keeper", "keeper", "items", "keep", 2, 20, 30, "storehouse", "AUTO KEEP", "sorts finds · never asks", "storehouse"],
+  ["clerk", "clerk", "town", "deposit", 3, 40, 36, "bank", "AUTO BANK", "banks spare gold", "bank"],
+  ["drillmaster", "drillmaster", "character", "level", 2, 30, 36, "tent", "AUTO LEVEL", "levels the stance", ""],
+  ["kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "AUTO PETS", "fields best pets", "kennel"],
+  ["herald", "herald", "town", "swap", 2, 20, 40, "board", "AUTO QUEST", "swaps stale quests", "quests"],
+  ["guide", "guide", "scale", "start", 3, 40, 44, "mouth", "AUTO START", "starts deeper", "start"],
+];
+type St305 = { hired: string[]; counts: Record<string, number>; chest: number; sent: boolean; paused: string[]; acted: string[]; ranks?: Record<string, number> };
+type Fk305 = Fk30 & { s: Fk30["s"] & { st305?: St305 } };
+// (client half: the fake's demo lineage — a 7th heir with a chronicle — is an old save: the quartermaster, porter and scout pre-hired, as the
+// core maps a save without a tree (docs/CUT30_5.md §2); a heir-1 lineage starts the tree from the quartermaster)
+const st305 = (e: Fk305): St305 => (e.s.st305 ??= { hired: (e.s.lineage?.heir ?? 1) > 1 ? ["quartermaster", "porter", "scout"] : ["quartermaster"], counts: {}, chest: 0, sent: false, paused: [], acted: [] });
+const on305 = (st: St305, id: string): boolean => st.hired.includes(id) && !st.paused.includes(id);
+function works305(e: Fk305, L: Lineage, purse: number): Works {
+  const st = st305(e); const age = L.age_h ?? 0; const unit = kitUnit(L.best_depth);
+  const sysOpen = (id: string): boolean => !id || (L.systems ?? []).some((x) => x.id === id && x.open) || (id === "storehouse" && L.vault.length > 0) || (id === "forge" && L.best_depth > 1);
+  const nodes: WorkNode[] = []; let lit: string | undefined;
+  for (const [id, name, branch, chore, need, tenths, fb, post, beat, tip, gate] of NODES305) {
+    const count = st.counts[id] ?? 0; const price = Math.round(unit * tenths / 10); const open = sysOpen(gate);
+    const ready = open && (count >= need || (fb > 0 && age >= fb));
+    const done = st.hired.includes(id);
+    let state = done ? "done" : !open ? "shut" : ready ? (lit ? "ready" : "lit") : "open";
+    if (state === "lit") lit = id;
+    const rank = done && chore ? (st.ranks?.[id] ?? 1) : undefined;
+    // (week 2 stand-in: a rank on offer once the scout is hired, a forge unit × the rank less one — the core waits 5 / 9 days of service)
+    const edge = (r: number): string | undefined => r < 2 ? undefined : ({ porter: `+${2 * (r - 1)}% hauls`, scout: `−${5 * (r - 1)}% rest`, apprentice: `−${5 * (r - 1)}% steps`, clerk: `${20 + 2.5 * (r - 1)}‰ interest`, guide: r === 2 ? "half toll" : "no toll", drillmaster: "levels −◆1", armourer: "insures its finds" } as Record<string, string>)[id];
+    // (the core waits days of service between a worker's ranks; the stand-in offers the lowest-ranked worker first, in the tree's order)
+    const low = Math.min(...NODES305.filter(([w, , , c]) => c && st.hired.includes(w)).map(([w]) => st.ranks?.[w] ?? 1));
+    const rankNext = rank && rank < 4 && st.hired.includes("scout") ? { rank_price: unit * rank, rank_wait_d: rank === low ? 0 : 1, ...(edge(rank + 1) ? { rank_adds: edge(rank + 1) } : {}) } : {};
+    const bonusNow = rank && edge(rank) ? { bonus: edge(rank) } : {};
+    nodes.push({ id, kind: "worker", branch, name, state, ...(rank ? { rank, ...rankNext, ...bonusNow } : {}), ...(chore ? { chore, count, need } : {}), price, affordable: purse + st.chest >= price, ...(fb ? { fallback_h: fb } : {}),
+      ...(!open && gate ? { trigger: `${gate} built` } : {}), tip, ...(beat ? { beat } : {}), post, ...(st.paused.includes(id) ? { paused: true } : {}) });
+  }
+  for (const t of L.tracks ?? []) {
+    nodes.push({ id: `${t.id}:${t.stage}`, kind: "stage", branch: t.id, name: t.stage, state: "done" });
+    if (t.next) nodes.push({ id: `${t.id}:${t.next}`, kind: "stage", branch: t.id, name: t.next, state: "next", ...(t.trigger ? { trigger: t.trigger } : {}) });
+  }
+  const auto = on305(st, "scout"); const waits = !auto && !st.sent;
+  const litN = nodes.find((n) => n.id === lit);
+  const counting = nodes.find((n) => n.kind === "worker" && n.state === "open" && n.need);
+  const next: NextPill = litN && litN.affordable ? { kind: "buy", node: lit, text: `${litN.name} · ${litN.price ? `$${litN.price}` : "free"}` }
+    : st.chest > 0 && !on305(st, "porter") ? { kind: "chest", node: "porter", text: "open chest", have: st.chest }
+    : waits ? { kind: "send", node: "scout", text: "send" }
+    : litN ? { kind: "gold", node: lit, text: `${litN.name} · $${purse + st.chest}/$${litN.price}`, have: purse + st.chest, need: litN.price }
+    : counting ? { kind: "count", node: counting.id, text: `${counting.name} · ${counting.count}/${counting.need}`, have: counting.count, need: counting.need }
+    : { kind: "none", text: "" };
+  // (the core gates each next rank by days of service, so a worker just promoted waits; the stand-in offers the lowest rank first)
+  const litRank = lit ? undefined : nodes.filter((n) => n.rank_wait_d === 0).sort((a, b) => (a.rank ?? 1) - (b.rank ?? 1))[0]?.id;
+  return { nodes, ...(lit ? { lit } : {}), ...(litRank ? { lit_rank: litRank } : {}), next, chest: st.chest, waits, sent: st.sent, auto_send: auto, ledger: purse + st.chest + (L.town?.bank ?? 0) };
+}
+{
+  const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
+  const count = (e: Fk305, id: string): void => { const st = st305(e); if (!st.hired.includes(id)) st.counts[id] = (st.counts[id] ?? 0) + 1; };
+  const lin = P.lineage; P.lineage = function (this: Fk305): Lineage {
+    const L = lin.call(this) as Lineage; if (DEV_NO_SYSTEMS) return L;
+    const st = st305(this); const purse = Math.max(0, L.gold - st.chest); L.gold = purse;
+    L.tree = works305(this, L, purse);
+    const posts: WorkerPost[] = NODES305.filter(([id]) => st.hired.includes(id)).map(([id, , , , , , , post]) => ({ id, post, rank: st.ranks?.[id] ?? 1, ...(st.paused.includes(id) ? { paused: true } : {}) }));
+    const litN = L.tree.nodes.find((n) => n.id === L.tree!.lit); if (litN) posts.push({ id: litN.id, post: litN.post ?? "mouth", lit: true, price: litN.price });
+    if (L.town) L.town.workers = posts;
+    return L;
+  };
+  const off = P.runOffline; P.runOffline = function (this: Fk305, s: unknown): ReturnReport {
+    if (DEV_NO_SYSTEMS) return off.call(this, s) as ReturnReport;
+    const st = st305(this); const auto = on305(st, "scout");
+    // (before the scout: a send is one run — an absence yields the run in flight, if any)
+    const g0 = this.s.lineage.gold, c0 = st.chest; const r = off.call(this, auto ? s : st.sent ? 1 : 0) as ReturnReport; st.sent = false;
+    // (the exits' haul went to the chest in `settle`, below, before the porter)
+    const gain = Math.max(0, this.s.lineage.gold - g0), toChest = Math.max(0, st.chest - c0); const workers: WorkerAct[] = [];
+    if (on305(st, "porter") && gain > 0) { workers.push({ id: "porter", what: `hauled $${gain}`, n: gain, first: !st.acted.includes("porter") }); st.acted.push("porter"); }
+    return { ...r, ...(toChest ? { chest: toChest } : {}), ...(workers.length ? { workers } : {}) };
+  };
+  // client half (c305-client): a real run's exit — watched or offline — lands its haul in the chest until the porter, and the hero is home
+  // (before the scout he waits for the next SEND)
+  const settle = P.settle; P.settle = function (this: Fk305, run: unknown, real: unknown, ...a: unknown[]): unknown {
+    if (DEV_NO_SYSTEMS || !real) return settle.call(this, run, real, ...a);
+    const st = st305(this), g0 = this.s.lineage.gold; const r = settle.call(this, run, real, ...a);
+    const gain = this.s.lineage.gold - g0; if (gain > 0 && !on305(st, "porter")) st.chest += gain;
+    st.sent = false; return r;
+  };
+  const send = P.send; P.send = function (this: Fk305): Snapshot { const st = st305(this); if (!on305(st, "scout") && !st.sent) { count(this, "scout"); st.sent = true; } return send.call(this) as Snapshot; };
+  P.openChest = function (this: Fk305): Lineage { const st = st305(this); if (st.chest <= 0) throw new Error("chest empty"); count(this, "porter"); st.chest = 0; return this.lineage(); };
+  P.hire = function (this: Fk305, id: unknown): Lineage {
+    const st = st305(this); const L = this.lineage(); const n = L.tree!.nodes.find((x) => x.id === id);
+    if (!n || n.kind !== "worker") throw new Error("unknown worker"); if (n.state === "done") throw new Error("hired already"); if (L.tree!.lit !== id) throw new Error("not lit");
+    const price = n.price ?? 0; if (L.gold + st.chest < price) throw new Error("not enough gold");
+    const fromPurse = Math.min(price, L.gold); this.s.lineage.gold -= price; st.chest -= price - fromPurse; st.hired.push(id as string);
+    if (id === "porter") st.chest = 0;
+    return this.lineage();
+  };
+  P.promote = function (this: Fk305, id: unknown): Lineage {
+    const st = st305(this); const L = this.lineage(); const n = L.tree!.nodes.find((x) => x.id === id);
+    if (!n || L.tree!.lit_rank !== id) throw new Error("not on offer"); const price = n.rank_price ?? 0; if (L.gold + st.chest < price) throw new Error("not enough gold");
+    const fromPurse = Math.min(price, L.gold); this.s.lineage.gold -= price; st.chest -= price - fromPurse; (st.ranks ??= {})[id as string] = (n.rank ?? 1) + 1;
+    return this.lineage();
+  };
+  P.setWorker = function (this: Fk305, id: unknown, on: unknown): Lineage {
+    const st = st305(this); if (!st.hired.includes(id as string)) throw new Error("not hired");
+    st.paused = st.paused.filter((x) => x !== id); if (!on) st.paused.push(id as string); return this.lineage();
+  };
+  // the chores by hand fill their nodes' counts
+  for (const [m, id] of [["buyKit", "apprentice"], ["bankDeposit", "clerk"], ["spendLevel", "drillmaster"], ["swapQuest", "herald"], ["setStart", "guide"], ["setParty", "kennel_hand"], ["hatch", "kennel_hand"], ["sellVault", "keeper"]] as const) {
+    const f = P[m]; if (!f) continue;
+    P[m] = function (this: Fk305, ...a: unknown[]): unknown { const r = f.apply(this, a); count(this, id); return r; };
+  }
+  const keep = P.keep; P.keep = function (this: Fk305, ...a: unknown[]): unknown { const r = keep.apply(this, a); count(this, "keeper"); return r; };
+  const lo = P.loadout; P.loadout = function (this: Fk305, ids: unknown): unknown { const r = lo.call(this, ids); if ((ids as number[]).length) count(this, "armourer"); return r; };
 }

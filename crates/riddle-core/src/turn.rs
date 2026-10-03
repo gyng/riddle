@@ -9,7 +9,6 @@ use crate::sifter::{self, Moment, Resolution};
 use crate::facts::{learn, learn_tag, tag_known};
 use crate::gen::generate;
 use crate::geom::{Pos, DIRS8};
-use crate::hero::Trait;
 use crate::item::Item;
 use crate::monster::Monster;
 use crate::rules::{Cond, Verb};
@@ -95,9 +94,11 @@ fn trace_seen(run: &mut Run, sight: Option<i32>) {
     let rose = run.trace.last().is_some_and(|t| n > t.foes);
     // A thief running now is counted apart from one that stepped into view (QA on 1a2a4a9).
     let running = if rose { (n - view(run).foes.len() as i32).max(0) } else { 0 };
-    if let Some(t) = run.trace.last_mut() {
-        t.foes = t.foes.max(n);
-        if rose {
+    // Only a rise writes the row (`foes` is already the max otherwise): the trace's rows are
+    // shared with the history ring's copies (`shared.rs`), and a write copies the row.
+    if rose {
+        if let Some(t) = run.trace.last_mut() {
+            t.foes = t.foes.max(n);
             foe_reasons(t, running);
         }
     }
@@ -463,7 +464,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     let before: Vec<crate::wire::TraceBlow> = run.blows.drain(..blows_before.min(run.blows.len())).collect();
     let mut turn = TraceTurn { max_hp: run.hero.max_hp, t: run.turn, row, verb, hp: hp_before, foes: seen_before.max(v.foes.len() as i32), rule_foes: v.foes.len() as i32, telegraphs, blocked, rows, blows: before, gift: run.gift.mark.take() };
     foe_reasons(&mut turn, (seen_before - v.foes.len() as i32).max(0));
-    run.trace.push(turn);
+    run.trace.push(turn.into());
     if run.trace.len() > 16 {
         run.trace.remove(0);
     }
@@ -498,66 +499,12 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         all_rows_why(run, cx, "bail", None);
         return (-2, verb);
     }
-    let foes = v.foes.len() as i32;
     let hp_pct = run.hero.hp_pct();
     let hp_now = run.hero.hp;
     let was_low = run.low20_t.is_some() || run.low10_t.is_some();
-    let tr = run.trait_;
-    // Trait deviations, announced: at most one per 5 actions, and never below 25% HP
-    // (cowardice excepted, since fleeing at low HP is its point). Cut 13 §2: and at most
-    // one per floor (`trait_floor`) — both cohort-9 raters: "R4 retreat — brave held",
-    // "curious drank heal at 24/36 hp", "two losses I could not own".
-    let trait_ready = run.trait_last.is_none_or(|t| run.actions >= t + 5) && run.trait_floor == 0;
-    if tr == Trait::Cowardly && hp_pct < 50 && foes >= 1 && run.cowardly_streak < 3 && run.trait_floor == 0 {
-        let verb = Verb::new("retreat");
-        if ai::try_verb(run, cx, &verb, v) {
-            run.cowardly_streak += 1;
-            run.trait_last = Some(run.actions);
-            run.trait_floor += 1;
-            emit_rule(run, cx, -1, &verb, "cowardly → retreat");
-            all_rows_why(run, cx, "trait first", Some(trait_because(run, "cowardly ran first")));
-            return (-1, verb);
-        }
-    }
-    // The streak resets once the coward has been clear of foes for the trait's five actions,
-    // not on every clear action: retreat → foe out of view → chore walks back → retreat …
-    // reset the count every other action and looped to a stall (cohort 9).
-    if foes == 0 && trait_ready {
-        run.cowardly_streak = 0;
-    }
-    let trait_ok = trait_ready && hp_pct >= 25;
-    // Cut 5 §4: a den's gold in view tempts a greedy heir — from here on the chores walk in.
-    if tr == Trait::Greedy && trait_ok && !run.tempted && !run.dens.is_empty() {
-        let map = &run.floor.map;
-        let gold_seen = run.items.iter().any(|fi| fi.item.kind == "gold" && map.is_visible(fi.pos) && run.dens.iter().any(|d| d.cheb(fi.pos) <= 2));
-        if gold_seen {
-            run.tempted = true;
-            if ai::den_gold_step(run, cx) {
-                run.trait_last = Some(run.actions);
-                run.trait_floor += 1;
-                let verb = Verb::new("pick_up");
-                emit_rule(run, cx, -1, &verb, "greedy → the den");
-                all_rows_why(run, cx, "trait first", Some(trait_because(run, "greedy went first")));
-                return (-1, verb);
-            }
-        }
-    }
-    if tr == Trait::Greedy && trait_ok && !run.items_ignored() {
-        let hp = run.hero.pos;
-        let target = DIRS8
-            .iter()
-            .map(|d| hp.step(*d))
-            .find(|q| run.item_at(*q).is_some_and(|ii| would_take(run, cx, &run.items[ii].item)) && !run.occupied(*q) && run.floor.map.can_step(hp, *q));
-        if let Some(q) = target {
-            ai::move_hero(run, cx, q);
-            run.trait_last = Some(run.actions);
-            run.trait_floor += 1;
-            let verb = Verb::new("pick_up");
-            emit_rule(run, cx, -1, &verb, "greedy → pick up");
-            all_rows_why(run, cx, "trait first", Some(trait_because(run, "greedy went first")));
-            return (-1, verb);
-        }
-    }
+    // Cut 30 §2: a temperament acts only through its rows (`packages::temperament_rows`); the old
+    // per-floor overrides (the coward's retreat, the greedy grab, the brave hold, the curious use)
+    // are gone — no action is chosen by a trait.
     // Sanity: nobody stands in gas or fire with no foe adjacent.
     let hz = {
         let hp = run.hero.pos;
@@ -583,19 +530,21 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     }
     // Cut 12 §1: the rows in play — every card row and the first `max_rows` own rows, each
     // with its index in the set (`R3` is the set's third row wherever the cards sit).
-    let mut rows: Vec<(usize, crate::rules::Row)> = cx.rules.active(cx.max_rows).map(|(i, r)| (i, r.clone())).collect();
+    // (borrowed from the set, which nothing here changes; the lent row is the run's, copied out)
+    let set: &crate::rules::RuleSet = cx.rules;
+    let lent = run.lent_row.clone();
+    let mut rows: Vec<(usize, &crate::rules::Row)> = set.active(cx.max_rows()).collect();
     // Cut 5 §4: the row a shrine lent for this run (last, lowest priority; index past the set).
-    if let Some(r) = &run.lent_row {
-        rows.push((cx.rules.rows.len(), r.clone()));
+    if let Some(r) = &lent {
+        rows.push((set.rows.len(), r));
     }
-    let mut brave_said = false;
     // Cut 23 §2: the committed walk home gave way to a row under it that answers (`answers_on_walk`).
     let mut walk_only = false;
     let stuck = run.stuck_until > run.actions;
     let suppressed = if run.row_suppressed.1 > run.actions { run.row_suppressed.0 } else { -9 };
     run.last_target = None;
     run.blocked_now = None;
-    for (k, (i, row)) in rows.iter().map(|(i, r)| (*i, r)).enumerate() {
+    for (k, (i, row)) in rows.iter().map(|(i, r)| (*i, *r)).enumerate() {
         // QA on a946e04 (qaS: a row the editor marks dead — `hp < 50% → attack nearest` under
         // `foes ≥ 1 → attack nearest`, `↑ R3` — moved the forecast): a row an earlier row
         // shadows (`rules::shadows`, the editor's own test) never acts. It fired whenever the
@@ -603,7 +552,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         // foe ignored, so the same `attack nearest` one row down picked another) or the row
         // guard held the earlier row alone.
         if let Some((j, _)) = rows[..k].iter().find(|(_, a)| (a.verb == row.verb || a.verb.v == "hold") && crate::rules::shadows(a, row, &|c: &Cond| row_usable(cx, c))) {
-            row_why(run, cx, i, &format!("same as R{}", j + 1), None, None);
+            // (a reason is the trace's: a sim keeps none — `row_why` — so none is written)
+            if !cx.sim {
+                row_why(run, cx, i, &format!("same as R{}", j + 1), None, None);
+            }
             continue;
         }
         // The guard ignores the foes at range it paced in front of; one at the hero's elbow
@@ -644,18 +596,6 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         }
         if let Some(c) = failing.filter(|_| !cx.sim) {
             row_why(run, cx, i, &cond_reason(run, cx, c), Some(row), Some(c));
-        }
-        // Cut 13 §2: bravery holds a retreat once per floor, and the held row says so
-        // (`brave held` ← `brave held it, D4 · t3120`).
-        if holds && tr == Trait::Brave && foes == 1 && matches!(row.verb.v.as_str(), "retreat" | "back_corridor") && (brave_said || run.trait_floor == 0) {
-            if !brave_said {
-                run.trait_floor += 1;
-                run.trait_last = Some(run.actions);
-                emit_rule(run, cx, -1, &Verb::new("attack"), "brave → hold");
-                brave_said = true;
-            }
-            row_why(run, cx, i, "brave held", None, None);
-            continue;
         }
         let scope = row.conds.iter().find(|c| c.k == "party").and_then(|c| c.t.clone());
         run.raiding = row.conds.iter().any(|c| (c.k == "on_see" && c.t.as_deref() == Some("den")) || (c.k == "foe_tag" && c.t.as_deref() == Some("thief")));
@@ -750,17 +690,6 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     if run.blocked_now.is_none() {
         run.blocked_last = None;
     }
-    if tr == Trait::Curious && trait_ok && foes == 0 && hp_pct >= 50 {
-        run.acting_row = -3; // a trait's use names the trait in the log (`curious drank heal at …`)
-        let used = ai::curious_use(run, cx);
-        run.acting_row = -1;
-        if let Some(verb) = used {
-            run.trait_last = Some(run.actions);
-            run.trait_floor += 1;
-            emit_rule(run, cx, -1, &verb, &format!("curious → {}", verb.short()));
-            return (-1, verb);
-        }
-    }
     let verb = ai::chore(run, cx, v);
     let text = if verb.v == "cornered" { "cornered, no orders".to_string() } else { format!("chore → {}", verb.short()) };
     emit_rule(run, cx, -2, &verb, &text);
@@ -818,7 +747,7 @@ fn answers_on_walk(run: &Run, cx: &Ctx, v: &View, r: &crate::rules::Row) -> bool
 /// decision, and else its first failing cond's key (`unmet_key`).
 fn rows_held(run: &Run, cx: &Ctx, v: &View) -> Vec<(usize, bool, Option<String>)> {
     cx.rules
-        .active(cx.max_rows)
+        .active(cx.max_rows())
         .map(|(i, r)| {
             let failing = r.conds.iter().find(|c| !cond_holds(run, cx, v, c));
             (i, failing.is_none(), failing.map(unmet_key))
@@ -1006,6 +935,7 @@ fn cond_reason(run: &Run, cx: &Ctx, c: &Cond) -> String {
         "foe_tag" => "not in view".into(),
         "foe_hp<" => "no weak foe".into(),
         "item" => "none held".into(),
+        "lacks" => format!("has {t}"),
         "unknown_item" => "no unknown".into(),
         "floor_seen>=" => format!("seen not ≥{n}%"),
         "depth>=" => format!("depth not ≥{n}"),
@@ -1047,7 +977,7 @@ fn all_rows_why(run: &mut Run, cx: &Ctx, why: &str, because: Option<Because>) {
     if cx.sim {
         return;
     }
-    let mut idx: Vec<usize> = cx.rules.active(cx.max_rows).map(|(i, _)| i).collect();
+    let mut idx: Vec<usize> = cx.rules.active(cx.max_rows()).map(|(i, _)| i).collect();
     if run.lent_row.is_some() {
         idx.push(cx.rules.rows.len());
     }
@@ -1062,13 +992,7 @@ fn once_rows_why(run: &mut Run, cx: &Ctx, why: &str) {
     if cx.sim {
         return;
     }
-    run.rows_why = cx.rules.active(cx.max_rows).map(|(i, _)| i).next().map(|i| RowWhy { row: i, why: why.into(), because: None }).into_iter().collect();
-}
-
-/// Cut 13 §2: the because a trait deviation leaves on the rows it held, ≤ 8 words, at the
-/// tick it happened.
-fn trait_because(run: &Run, text: &str) -> Because {
-    Because { text: text.into(), t: run.turn, depth: run.depth }
+    run.rows_why = cx.rules.active(cx.max_rows()).map(|(i, _)| i).next().map(|i| RowWhy { row: i, why: why.into(), because: None }).into_iter().collect();
 }
 
 /// Policy retreats in one engagement (a foe in view throughout, no blow on the hero) before the
@@ -1216,7 +1140,7 @@ pub fn driven_off(run: &mut Run, cx: &mut Ctx, bi: usize) {
     let kind = run.monsters[bi].kind.clone();
     run.driven_off = Some(kind.clone());
     // (the player's own way home carries the pack out; with none written, it is dropped)
-    run.driven_lost = !cx.rules.active(cx.max_rows).any(|(_, r)| matches!(r.verb.v.as_str(), "return" | "bank")) && run.lent_row.as_ref().is_none_or(|r| !matches!(r.verb.v.as_str(), "return" | "bank"));
+    run.driven_lost = !cx.rules.active(cx.max_rows()).any(|(_, r)| matches!(r.verb.v.as_str(), "return" | "bank")) && run.lent_row.as_ref().is_none_or(|r| !matches!(r.verb.v.as_str(), "return" | "bank"));
     crate::facts::learn_boss_counter(run, cx, &kind);
     callout(run, cx, "driven off");
     emit_rule(run, cx, -2, &Verb::new("return"), "driven off");
@@ -1231,10 +1155,11 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
     if run.stuck_until > run.actions || run.recent_pos.len() < 12 {
         return;
     }
-    let mut tiles: Vec<Pos> = run.recent_pos.clone();
-    tiles.sort();
-    tiles.dedup();
-    if tiles.len() > 2 || run.actions.saturating_sub(run.last_damage_action) < 12 {
+    // (more than two distinct tiles in the window: not pacing — counted in place, every action)
+    let p = &run.recent_pos;
+    let other = p.iter().find(|q| **q != p[0]);
+    let paced = other.is_none_or(|o| p.iter().all(|q| *q == p[0] || q == o));
+    if !paced || run.actions.saturating_sub(run.last_damage_action) < 12 {
         return;
     }
     // Engaged in melee is not stuck: adjacent foes are always worth a row.
@@ -1262,6 +1187,17 @@ fn oscillation_guard(run: &mut Run, cx: &mut Ctx) {
         let chore = run.trace.iter().rev().take(LOOP_WINDOW).any(|t| t.row == -2 && t.verb.v != "stuck");
         run.card_loops += (card && chore) as u32;
         run.loop_causes.push(cause.clone());
+        // Cut 30 §2: a package's row in the loop (its rows are ours, not the player's) rests for the
+        // floor's next 300 actions and the chores go on — no stall is counted against the send
+        if cx.rules.rows.get(row as usize).is_some_and(|r| r.is_pkg()) {
+            run.rows_rested = (vec![row], run.actions + 300);
+            run.row_streak = (-9, 0);
+            run.stuck_until = run.actions + 30;
+            run.recent_pos.clear();
+            run.chase = None;
+            emit_rule(run, cx, -2, &Verb::new("stuck"), "stuck → chores");
+            return;
+        }
         run.stuck_cause = Some(cause);
         run.stuck_row = Some(row);
     } else if run.stuck_row.is_none() {
@@ -1305,8 +1241,8 @@ pub const PICKUP_DRY_MAX: u32 = 40;
 /// explore`, `R5 corridor ↔ R8 attack`), or one moving row alone (`R1 retreat paced`) — ≤ 4
 /// words.
 /// Returns the cause and the row it names (the moving row of two, else the higher one).
-pub fn row_loop(trace: &[TraceTurn]) -> Option<(String, i32)> {
-    let win: Vec<&TraceTurn> = trace.iter().rev().take(LOOP_WINDOW).filter(|t| t.verb.v != "stuck").collect();
+pub fn row_loop<T: std::borrow::Borrow<TraceTurn>>(trace: &[T]) -> Option<(String, i32)> {
+    let win: Vec<&TraceTurn> = trace.iter().rev().take(LOOP_WINDOW).map(|t| t.borrow()).filter(|t| t.verb.v != "stuck").collect();
     if win.len() < LOOP_WINDOW - 2 {
         return None;
     }
@@ -1432,6 +1368,7 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
         }),
         "item" => h.inv.iter().chain(h.weapon.iter()).chain(h.armour.iter()).any(|i| i.kind == t && i.is_known(cx.facts, cx.flavours)),
         "unknown_item" => h.inv.iter().any(|i| i.is_consumable() && !i.is_known(cx.facts, cx.flavours)),
+        "lacks" => !h.inv.iter().any(|i| i.kind == t),
         "floor_seen>=" => run.floor.map.seen_pct() >= n,
         "depth>=" => run.depth as i32 >= n,
         "alert>=" => run.alert >= n,
@@ -2149,18 +2086,18 @@ fn tick_statuses(run: &mut Run, cx: &mut Ctx) {
     if run.taunt_t > 0 {
         run.taunt_t -= 1;
     }
-    for mi in 0..run.monsters.len() {
-        if run.monsters[mi].poison.1 > 0 {
-            run.monsters[mi].poison.1 -= 1;
+    let t = run.turn;
+    for m in run.monsters.iter_mut() {
+        if m.poison.1 > 0 {
+            m.poison.1 -= 1;
         }
-        run.monsters[mi].tick_statuses();
-        if run.monsters[mi].ttl.is_some_and(|t| t <= 0) && run.monsters[mi].hp > 0 {
-            run.monsters[mi].hp = 0;
-            let id = run.monsters[mi].id;
-            if run.monsters[mi].ally {
-                cx.events.push(Ev::Ally { t: run.turn, id, state: "lost".into() });
+        m.tick_statuses();
+        if m.ttl.is_some_and(|t| t <= 0) && m.hp > 0 {
+            m.hp = 0;
+            if m.ally {
+                cx.events.push(Ev::Ally { t, id: m.id, state: "lost".into() });
             }
-            cx.events.push(Ev::Die { t: run.turn, id, cause: "faded".into() });
+            cx.events.push(Ev::Die { t, id: m.id, cause: "faded".into() });
         }
     }
 }
@@ -2346,6 +2283,13 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         run.depth_t.push((next, run.turn));
     }
     run.max_depth = run.max_depth.max(next);
+    // Cut 30.5 (the owner, 2026-10-02): a new record is a checkpoint, not an exit — the carry so far is secured
+    // (safe whatever the exit) and the hero carries on (the watch stamps its `NEW BEST D5` from `Run.best_at_send`)
+    if next > run.record_mark {
+        run.record_mark = next;
+        run.secured += run.loot.max(0);
+        run.loot = 0;
+    }
     run.floor = floor;
     run.hero.pos = run.floor.stairs_up;
     run.hero_dist_pos = None;
@@ -2505,7 +2449,7 @@ pub fn end_run(run: &mut Run, cx: &mut Ctx, tier: ExitTier) {
     // Cut 28b: the oath's fate, if the run has not said it yet — before the exit's own event
     let row = if run.acting_row >= 0 { run.acting_row } else { run.exit_row.or(run.homeward).unwrap_or(-1) };
     crate::oath::beat(run, cx, row);
-    let loot_kept = run.loot * run.yield_pct(tier) / 100;
+    let loot_kept = run.kept(tier);
     // Cut 5 §1: the exit resolves every open episode.
     let res = match tier {
         ExitTier::Bank => Resolution::Banked { gold: loot_kept },
@@ -2545,23 +2489,38 @@ fn situations_seen(run: &mut Run, cx: &mut Ctx) {
     }
     let map = &run.floor.map;
     let mut seen: Vec<&str> = Vec::new();
-    // The visible tiles in index order, 32 at a time: a block with none in view (most of the
-    // map) is one branch-free OR, not 32 tests.
-    const BLOCK: usize = 32;
-    for (b, block) in map.visible.chunks(BLOCK).enumerate() {
-        if !block.iter().fold(false, |a, v| a | v) {
-            continue;
+    let mut look = |i: usize| {
+        let k = match map.tiles[i] {
+            Tile::Shrine => "shrine",
+            Tile::Vault | Tile::VaultOpen => "vault",
+            Tile::Nest => "nest",
+            _ => return,
+        };
+        if !seen.contains(&k) {
+            seen.push(k);
         }
-        for (j, _) in block.iter().enumerate().filter(|(_, v)| **v) {
-            let t = &map.tiles[b * BLOCK + j];
-            let k = match t {
-                Tile::Shrine => "shrine",
-                Tile::Vault | Tile::VaultOpen => "vault",
-                Tile::Nest => "nest",
-                _ => continue,
-            };
-            if !seen.contains(&k) {
-                seen.push(k);
+    };
+    match map.visible_rows() {
+        // The visible tiles in index order: those of the square the vision last ran on, row by row
+        // (none outside it is visible).
+        Some(rows) => {
+            for i in rows.flatten() {
+                if map.visible[i] {
+                    look(i);
+                }
+            }
+        }
+        None => {
+            // … else 32 at a time: a block with none in view (most of the map) is one branch-free
+            // OR, not 32 tests.
+            const BLOCK: usize = 32;
+            for (b, block) in map.visible.chunks(BLOCK).enumerate() {
+                if !block.iter().fold(false, |a, v| a | v) {
+                    continue;
+                }
+                for (j, _) in block.iter().enumerate().filter(|(_, v)| **v) {
+                    look(b * BLOCK + j);
+                }
             }
         }
     }
@@ -3039,7 +2998,7 @@ pub fn row_needs(run: &Run, cx: &Ctx, it: &Item) -> bool {
         return true;
     }
     let names = |r: &crate::rules::Row| matches!(r.verb.v.as_str(), "drink" | "read" | "throw") && r.verb.a.as_deref().and_then(|a| a.split(',').next()) == Some(kind);
-    cx.rules.active(cx.max_rows).map(|(_, r)| r).chain(run.lent_row.iter()).any(|r| names(r) || r.card().and_then(crate::meta::unlock_rows).is_some_and(|rows| rows.iter().any(names)))
+    cx.rules.active(cx.max_rows()).map(|(_, r)| r).chain(run.lent_row.iter()).any(|r| names(r) || r.card().is_some_and(|c| crate::meta::unlock_rows_any(c, names)))
 }
 
 fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {
@@ -3066,46 +3025,110 @@ fn duplicate_slot(h: &crate::hero::Hero, item: &Item) -> Option<usize> {
 /// `pick up` every action until the stall guard ended the run (cohort 9, both raters' first
 /// gripe: "the most expensive outcome in the game").
 pub fn would_take(run: &Run, cx: &Ctx, item: &Item) -> bool {
+    would_take_in(run, cx, item, &PackRead::default())
+}
+
+/// What `would_take` and `can_take` read of the pack alone — the same for every item one look
+/// weighs (`ai::nearest_item_step` weighs each seen item against an unchanged pack, run and rules) —
+/// worked out once, on first read.
+#[derive(Default)]
+pub struct PackRead {
+    /// `row_needs` of each pack slot.
+    needs: std::cell::OnceCell<Vec<bool>>,
+    /// A ranged item in the pack.
+    ranged: std::cell::OnceCell<bool>,
+    /// The weapon and armour spares `can_take` counts (not ranged, not the forged kit).
+    spares: std::cell::OnceCell<[usize; 2]>,
+    /// … and those `would_take` counts (no row needs them either).
+    free_spares: std::cell::OnceCell<[usize; 2]>,
+    /// The cheapest consumable's value.
+    cheapest: std::cell::OnceCell<Option<i32>>,
+    /// The swap a full pack makes for a dearer consumable when no duplicate gives way.
+    swap: std::cell::OnceCell<Option<usize>>,
+    /// `queen_slot`.
+    queen: std::cell::OnceCell<Option<usize>>,
+}
+
+impl PackRead {
+    fn needs(&self, run: &Run, cx: &Ctx) -> &[bool] {
+        self.needs.get_or_init(|| run.hero.inv.iter().map(|i| row_needs(run, cx, i)).collect())
+    }
+    fn ranged(&self, h: &crate::hero::Hero) -> bool {
+        *self.ranged.get_or_init(|| h.inv.iter().any(|i| i.def().ranged))
+    }
+    fn queen(&self, run: &Run, cx: &Ctx) -> Option<usize> {
+        *self.queen.get_or_init(|| queen_slot(run, cx))
+    }
+}
+
+/// The weapon and armour items of `h`'s pack `keep` passes, by category.
+fn spare_counts(h: &crate::hero::Hero, keep: impl Fn(usize, &Item) -> bool) -> [usize; 2] {
+    let mut n = [0, 0];
+    for (k, i) in h.inv.iter().enumerate() {
+        let c = match i.cat() {
+            Cat::Weapon => 0,
+            Cat::Armour => 1,
+            _ => continue,
+        };
+        if keep(k, i) {
+            n[c] += 1;
+        }
+    }
+    n
+}
+
+/// `would_take`, the pack read through `pk` (`PackRead`: one per unchanged pack, run and rules).
+pub fn would_take_in(run: &Run, cx: &Ctx, item: &Item, pk: &PackRead) -> bool {
     let h = &run.hero;
-    if !(can_take(h, item) || (queen_wants(run, item) && queen_slot(run, cx).is_some())) {
+    if !(can_take_in(h, item, pk) || (queen_wants(run, item) && pk.queen(run, cx).is_some())) {
         return false;
     }
     if !h.inv_full() || item.kind == "bones" || item.cat() == Cat::Gold || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash")) || item_replaces_gear(h, item) {
         return true;
     }
-    if queen_wants(run, item) && queen_slot(run, cx).is_some() {
+    if queen_wants(run, item) && pk.queen(run, cx).is_some() {
         return true;
     }
     if item.is_consumable() || item.def().ranged {
-        let need = if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
+        let need = if item.def().ranged && !pk.ranged(h) { 1 } else { 2 };
         // Cut 25 §3: the forged kit is never put down (`pickup_here`'s own spares skip it) — counted here as a
         // spare it made a full pack walk onto a scroll it could not take, step off, walk back: `pick up ×441`.
-        let spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !row_needs(run, cx, i) && !crate::kit::is_kit_id(i.id)).count() >= need;
-        if spare(Cat::Weapon) || spare(Cat::Armour) {
+        let spare = pk.free_spares.get_or_init(|| {
+            let needs = pk.needs(run, cx);
+            spare_counts(h, |k, i| !i.def().ranged && !needs[k] && !crate::kit::is_kit_id(i.id))
+        });
+        if spare[0] >= need || spare[1] >= need {
             return true;
         }
     }
-    let dup = duplicate_slot(h, item).filter(|&k| !row_needs(run, cx, &h.inv[k]) && !queen_keeps(run, &h.inv[k]));
-    let swap = dup.or_else(|| h.inv.iter().enumerate().filter(|(_, i)| i.is_consumable() && !row_needs(run, cx, i) && !queen_keeps(run, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k));
+    let needs = pk.needs(run, cx);
+    let dup = duplicate_slot(h, item).filter(|&k| !needs[k] && !queen_keeps(run, &h.inv[k]));
+    let swap = dup.or_else(|| *pk.swap.get_or_init(|| h.inv.iter().enumerate().filter(|(k, i)| i.is_consumable() && !needs[*k] && !queen_keeps(run, i)).min_by_key(|(_, i)| (i.value(), i.id)).map(|(k, _)| k)));
     let swap = swap.map(|k| if dup.is_some() { i32::MIN } else { h.inv[k].value() });
     matches!(swap, Some(v) if item.is_consumable() && item.value() > v)
 }
 
 pub fn can_take(h: &crate::hero::Hero, item: &Item) -> bool {
+    can_take_in(h, item, &PackRead::default())
+}
+
+/// `can_take`, the pack read through `pk`.
+fn can_take_in(h: &crate::hero::Hero, item: &Item, pk: &PackRead) -> bool {
     if item.kind == "trap" {
         return false;
     }
     if item.kind == "bones" {
         return true;
     }
-    let need = if item.def().ranged && !h.inv.iter().any(|i| i.def().ranged) { 1 } else { 2 };
-    let second_spare = |cat: Cat| h.inv.iter().filter(|i| i.cat() == cat && !i.def().ranged && !crate::kit::is_kit_id(i.id)).count() >= need;
+    // (read only when the spares are: a pack with room takes it before)
+    let need = || if item.def().ranged && !pk.ranged(h) { 1 } else { 2 };
+    let second_spare = |c: usize| pk.spares.get_or_init(|| spare_counts(h, |_, i| !i.def().ranged && !crate::kit::is_kit_id(i.id)))[c] >= need();
     matches!(item.cat(), Cat::Gold)
         || (item.kind == "leash" && h.inv.iter().any(|i| i.kind == "leash"))
         || !h.inv_full()
         || item_replaces_gear(h, item)
-        || (item.is_consumable() && h.inv.iter().filter(|i| i.is_consumable()).map(|i| i.value()).min().is_some_and(|v| item.value() > v))
-        || ((item.is_consumable() || item.def().ranged) && (second_spare(Cat::Weapon) || second_spare(Cat::Armour)))
+        || (item.is_consumable() && pk.cheapest.get_or_init(|| h.inv.iter().filter(|i| i.is_consumable()).map(|i| i.value()).min()).is_some_and(|v| item.value() > v))
+        || ((item.is_consumable() || item.def().ranged) && (second_spare(0) || second_spare(1)))
         || duplicate_slot(h, item).is_some()
 }
 

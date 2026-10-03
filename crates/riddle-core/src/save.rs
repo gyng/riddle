@@ -25,6 +25,14 @@ pub fn load(text: &str) -> Result<Game, String> {
     g.bounty_seen = g.lineage.bounty;
     // Cut 28 §1: a lineage from before the oaths draws its board.
     crate::oath::refresh(&mut g.lineage);
+    // Cut 30 §2: a save from before the packages: its set becomes the `custom` stance, the pen open
+    // (its rules keep working; drills come above them) — before the curriculum reads the pen.
+    if g.lineage.pkg_v == 0 {
+        crate::packages::migrate(&mut g.lineage);
+        g.lineage.pkg_v = 1;
+        crate::systems::update_with(&mut g.lineage, false, false);
+        g.lineage.systems_new.clear();
+    }
     // Cut 29: a save from before the curriculum (no system open) owns the free vocabulary its gates
     // opened and opens the systems it has used (a later save keeps what it holds: a load is no event).
     if g.lineage.systems.is_empty() {
@@ -39,5 +47,12 @@ pub fn load(text: &str) -> Result<Game, String> {
     }
     // Cut 30 §1: a save from before the traits maps its temperament onto a shape.
     crate::traits::upgrade(&mut g.lineage);
+    // Cut 30.5: a save from before the works tree: its workers up to the scout hired (no player regresses)
+    crate::tree::upgrade(&mut g.lineage);
+    // Refresh generated camp rows before the editor can absorb a legacy compiled row as authored.
+    // A live replay keeps its row indices until the normal run-end recompile. Literal sets are unchanged.
+    if g.run.is_none() {
+        crate::packages::recompile(&mut g.lineage);
+    }
     Ok(g)
 }

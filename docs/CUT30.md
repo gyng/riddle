@@ -287,6 +287,318 @@ update HANDOFF with the cohort and owner answers, then stop for the owner.
 
 *(To fill: date, build, per system the owner's three answers, pass/simplify/defer.)*
 
-## Deviations
+## Status (core half, branch `cut30`)
 
-*(To record.)*
+**Checkpoint 1 — the idle floor and packages v1 in the core** (`crates/riddle-core/src/packages.rs`, `town.rs`,
+`tests_cut30_pkg.rs`; wire in `web/src/engine/{types,fake,wasm,proxy}.ts`):
+- Every new lineage (`Game::new`) climbs on the compiled `Steady` stance; harnesses that write their own sets use
+  `Game::new_literal` (the pre-Cut 30 behaviour: `PkgState.literal`). Package rows carry their origin (`stance:steady`,
+  `drill:lich`, `tactic:boss_focus`, `temper:skittish`) and sit outside the row cap (`Row::is_pkg`); `ROWS_TOTAL` grew by
+  `MAX_PKG_ROWS` 24. The pen's rows (`set_rules` on a lineage on packages) sit above every package and compile only once
+  the pen is open (the Mother met or a 3-day stall).
+- Drills at a band boss's second meeting (a meeting = a day of the lineage's clock that saw him), the counter fact's row
+  with `hp > heal` (a drill above the guard rows never stops the hero drinking); the Foundry's wall drill comes from its
+  golems (`reflect_melee` known, D19+ reached) — cheap, deterministic, no wall search. Scars −5 %/meeting, cap −30 %, gone
+  once slain (`Run.scars`, applied at the boss's spawn). The quartermaster packs a drill's item first and keeps the
+  stance's heal in the free slots (the idle floor's pack of 3).
+- Packages v1: 4 stances, the 6 cards as tactics, 4 temperaments (the old overrides are gone from `turn::choose_and_act`:
+  a temperament acts only through its rows; the heir wears the mapped shape's gift and cost). Levels from runs (offline
+  included) at 10 · 40 · 120 · 300; a mark spend buys the next level (`spend_level`: ◆ = the level's number). The camp's
+  price (`packageOptions`): each move on the paired panel (past / reach / bank / death).
+- Town core: buildings on their triggers, the bank (2 %/night, capped at 3 nights' net), the four tracks, `ReturnReport.grew`
+  and `.packages` (the beats); the quest board (one goal ≤ 5 words, a reward picture, progress, one free swap a day, no stake).
+- The forge's ladders grew (weapon +4 … +6 are damage, armour to plate +1) — the "not engaging fails" caps that held them
+  are the rows this cut retires; the blacksmith is the multiplier the idle floor lacks.
+- Save migration: an old save's set becomes the `custom` stance (as written; the pen open, the editor edits it in place);
+  `saves_from_307dbed_send_identically` re-recorded (`3754cfc8…` → `9baed175…`: the temperaments no longer act, scars,
+  drills).
+
+**Checkpoint 2** (`cabf89d`): the Reveal's curriculum in `systems.rs`, drills at the second *run* that meets a boss
+(scars by day), the tracks' stages, the IDLE/PICKED/TUNED/RANDOM dayplayer with leave-one-outs, the metrics' Cut 30 rows
+(`examples/idle_lib`: 20-min absence, drill item packed, stances best at a wall, quests keepable) and the §6 retired rows
+printed ungated (`metrics.rs` `RETIRED`, the contract's list plus the progression rows).
+
+**Checkpoint 3** (`09e145d`): `forecastMove` gains a `package` part (the parts still sum to the whole); `Death.package`
+names `package · row`; `Death.lever` (spend · package · wait) before the pen; the lineage key carries the scars; the wall
+search edits the pen alone on a lineage on packages; qa legs (`check_packages`: all PASS on 6 seeds).
+
+**Checkpoint 4 — PROGRESSION_V2 folded in** (owner-approved, `cut29-wip:docs/PROGRESSION_V2.md` §4): every system has a
+minimum lineage age and a fallback age (`SystemDef.min_age_h`, `fallback_h`; `LineageState::age_h` = the absences' clock
+or the ticks lived); one new system a report (`reveal_left`; a unit is the systems sharing a trigger — the pen's group is
+one), the rest in `Lineage.reveal_queue` with `reveal_next` (id, trigger, hours still to wait); the pen = the Mother met
+AND age ≥ 72 h, or 5 days whatever the climb (the 3-day stall is gone); tactics drip one per band boss slain or per day,
+`Bold` a day after `Guarded`, `Hunter` a day after `Bold`; ≤ 5 beats a report (`+N more`; a system's reveal is one of
+them); stance levels at 10 · 40 · 150 · 400 runs; reserved save fields `glory`, `expeditions`, `era_gate` (and the wire's
+`age_h`, `reveal_queue`); the dayplayer reports (not gated) day-1 systems, systems and beats a report, days with
+something new and the longest gap. The TUNED harness takes the wall's edit at most every other day and reads its worst
+death once a day (the search was > 40 CPU-min a seed).
+
+**Measured** (dayplayer, 8 seeds × 14 days × 3 check-ins, checkpoint 4 tree):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE D8 by day 1 · D13 by day 4 (median) · D23 by day 12 | 8/8 · 1.7 · 8/8, median 7.7 | PASS |
+| IDLE stall before D23 ≤ 4 d · gold every day · no King in 14 d | 2 · 14/14 · 0/8 | PASS |
+| Stance L3 by day 2 / L5 by day 7 (IDLE median) · every IDLE check-in grows a track | 1 · 7 · 336/336 | PASS |
+| Days with a stage opened: IDLE ≥ 8 · PICKED ≥ 10 (median) | 8 · 7 | FAIL (IDLE at the bar) |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.50 · 1.09 · 1.32 | FAIL |
+| IDLE never out-paces PICKED | 92 % | PASS |
+| PROGRESSION_V2 (info): day-1 systems · most units a report · most beats · days with something new · longest gap | 7 · 3→1 (units fixed after the run) · 8→≤ 5 · 14/14 · 1 d | reported |
+| TUNED (one seed, checkpoint 3): D28 day 7, D33 day 9 — far ahead of PICKED (D28 day 9–12) | | not yet gated over 8 seeds |
+
+**Checkpoint 5** (`6d4defd`) and the first `node tools/gates.mjs --full` (2026-10-01, 48 min: metrics 30 seeds 2896 s,
+qa 30 seeds 538 s — all PASS, dayplayer 8 seeds, TUNED and the leave-one-outs on 4):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE: D8 day 1 · D13 by day 4 · D23 by day 12 · stall · gold daily · no King · L3/L5 · a track every check-in | 8/8 · 1.7 · 8/8 med 8.2 · 2 · 14/14 · 0/8 · 1/5 · 336/336 | PASS |
+| IDLE never out-paces PICKED · none > 60 % of the gap | 95 % · 27 % | PASS |
+| Days with a stage opened: IDLE ≥ 8 · PICKED ≥ 10 | 7 · 9 | FAIL |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.50 · 1.42 · 1.23 | FAIL |
+| TUNED ≥ 1.5× PICKED at D18 · D23 · D28 | 1.00 · 1.12 · 1.19 | FAIL |
+| RANDOM slower than IDLE to D13 | 12 % | FAIL (any package pick helps: RANDOM's random picks are good picks) |
+| Nothing required (TUNED − S ≥ IDLE ± a check-in) | forge s3 D18 | FAIL |
+| Each system moves TUNED's D23 | packages +0 h · pen +16 · forge +0 · pets +4 · bank +0 · quests −8 | FAIL |
+| metrics: COUNTERED ≥ D14 · lanes D5 · stalls on every cohort set · stances by wall · quests | 40 % · +12/+20 · worst 1.4 % · guarded 4 hunter 2 steady 4 · worst 0 % | FAIL |
+| metrics: the forge lever on raterAU (a Cut 25 row the contract keeps? — its `whole forge < best row` twin is retired) | forge +26 vs row +20.8 | FAIL (the longer ladders) |
+
+**Bisect of the older rows** (8 → 30 seeds, `metrics --bots`, the pre-Cut 30 tree with and without the temperament
+overrides): removing the overrides alone reproduces the moves exactly (COUNTERED mean best 15.47 → 13.73, DEFAULT 7.75 →
+6.62, the same run counts), and no single temperament's removal does (curious 15.13, cowardly 15.90, brave 15.93, greedy
+16.47 — within the seeds' noise of the base). The rows were balanced with the heirs' random temperaments acting for
+them; the contract removes that policy. Identifying what comes home at camp (a candidate fix) moved nothing: these bots
+die every send.
+
+**Checkpoint 6** (`a0a524c`, the owner's decision 2026-10-01: wall answers + slower idle, the 1.5× bars kept; the old
+rows re-derived on the new bots) and the second `node tools/gates.mjs --full` (metrics 2891 s; qa all PASS on 30 seeds):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days ≥ 8) | 8/8 · 1.5 · 8/8 med 6.7 · 3 · 14/14 · 0/8 · 1/6 · 336/336 · 8 | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.50 · 1.75 · 1.43 (the run before: 1.50 · 1.60 · 1.63) | FAIL at D23 (noise around the bar) |
+| IDLE never out-paces PICKED · RANDOM (re-expressed) · content reach (re-derived) | 100 % · 88 %/88 % · 7/8 | PASS |
+| Stalls ≤ 1 % of sends (re-derived per bot): IDLE · PICKED · TUNED | 0.34 % · 2.16 % · 4.98 % | FAIL (PICKED, TUNED) |
+| Days with a stage opened: PICKED ≥ 10 | 9 | FAIL |
+| TUNED ≥ 1.5× PICKED at D18 · D23 · D28 | 1.00 · 1.00 · 0.94 | FAIL — the pen adds nothing over PICKED |
+| Leave-one-outs: nothing required · each system moves D23 · none > 60 % | forge s1 D28 · packages +28 h, pen +4, forge +4, pets/bank/quests 0 · packages 88 % | FAIL |
+| metrics: Lanes D5 on IDLE (re-derived) · expeditions on IDLE · 20-min absence · drill item packed | near 0.09 · far 0.05 · 16.6/11.0 · 100 % · 100 % | PASS |
+| metrics: every stance best at a wall · quests keepable | bold 7 guarded 3 · worst `bank D22` 0 % | FAIL |
+
+What moved them: the PICKED picker reads the wall (a second panel from the deepest lit stone, `PkgOption.d_wall`) and
+takes no swap that costs the walk; later bosses are drilled at the third day met (the Foundry the fourth); Hunter plays
+the Foundry card first and goes for archers; Bold strikes the boss through its heal and dives when hurt; the pack carries
+what a tactic throws; RANDOM picks blind; a package row that loops rests for the floor (IDLE's stalls 1.66 → 0.34 %).
+
+**Checkpoint 7** (`16ebe82`, the owner 2026-10-01: the pen re-scoped as optional late fine-tuning; each system measured
+by its own output) and the third `node tools/gates.mjs --full` (metrics 3069 s; qa all PASS on 30 seeds; TUNED on the
+bots' 8 seeds, the leave-one-outs on 4):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days) | 8/8 · 1.5 · 8/8 med 6.7 · 3 · 14/14 · 0/8 · 1/6 · 336/336 · 9 | PASS |
+| PICKED: stage days ≥ 10 · never out-paced · content reach | 10 · 100 % · 7/8 | PASS |
+| Stalls ≤ 1 % of sends: IDLE · PICKED · TUNED | 0.00 % · 0.00 % · 0.00 % | PASS |
+| Each system by its own output (TUNED / TUNED − S) | packages 124/152 h→D23 · pen 27.6/27.2 mean best · forge 27.6/24.6 · pets 45.1/46.5 % deaths · bank $1559/$1311 a day · quests 12.8/0 kept | PASS |
+| metrics: quests keepable · lanes on IDLE · 20-min · drill item · expeditions | worst 93 % · 0.09/0.05 · 100 % · 100 % · in band | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.50 · 1.75 · 1.28 (runs before: 1.43, 1.63) | FAIL at D23 — swings ±0.2 between runs at 8 seeds |
+| TUNED beats PICKED by ≥ 15 % at D28 · D33 | 1.00 · 1.04 | FAIL — the pen adds no depth at the deepest walls |
+| RANDOM never faster to D13 · slower to D23 | 88 % · 75 % | FAIL (6/8 at D23) |
+| Nothing required (TUNED − S ≥ IDLE ± a check-in) | TUNED − forge, seed 1, D18 | FAIL (one seed × milestone) |
+| Every stance best at a wall by ≥ 0.02 | bold 2 · guarded 1 · hunter 3 — Steady never | FAIL |
+
+Steady's wall: weighed from each wall's stone and from D1, at one level, drills revoked, with a death free (time) or a
+quarter (the walk's carry), Steady is never first: Guarded is the safer of the two careful stances, Bold passes more,
+Hunter answers the Foundry. Rows tried on Steady (a fire throw at a boss in gas, a step out of gas) moved nothing; they
+are out. Steady's identity — the school, the generalist — has no wall of its own in this row's terms.
+
+**Checkpoint 8** (the owner's round 5, 2026-10-01). `metrics` (30 seeds, 4386 s) and `qa` (30 seeds, 905 s) all PASS
+on `1ddf1ed`, including the new rows: *Steady is the safest default* (deaths a send from D1 across the walls: steady 7 %
+· guarded 9 % · bold 87 % · hunter 21 %) and *Guarded, Bold, Hunter each best at a wall by ≥ 0.02* (bold 3 · guarded
+1 · hunter 3 of 7). The 16-seed full dayplayer leg was stopped (the coordinator: the full gate only once everything
+passes; at 24 threads a TUNED or leave-one-out fortnight takes 35–40 min, so 7 × 16 of them ≈ 3 h). Deep drills now
+read the boss's depth on the lineage's own route (the forks move a boss a band: seed 2's Queen sits at D23), and TUNED
+writes the Foundry's counter from its golems' fact. Fast tier, `dayplayer --seeds 6` on the committed core:
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days) | 6/6 · 2.0 · 6/6 med 7.8 · 3 · 14 · 0/6 · 1/5 · 252/252 · 8.0 | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.75 · 2.12 · 1.74 (4 seeds: 1.70 · 2.12 · 1.50) | PASS |
+| Never out-paced · content reach · stalls IDLE/PICKED/TUNED | 97 % · 6/6 · 0 / 0.43 / 0 % | PASS |
+| Days with a stage opened: PICKED ≥ 10/14 | 9.5 (10 on 4 and 8 seeds) | FAIL at 6 seeds — PICKED reaches the bottom by day 10 |
+| TUNED beats PICKED by ≥ 15 % at D28 · D33 | 0.95 · 1.13 (static-depth deep drills: 0.95 · 1.22) | FAIL |
+| RANDOM never faster than IDLE to D13 · slower to D23 | 67 % · 67 % | FAIL |
+
+Why D28 does not move: `h→D28` is reaching the D28 boss's floor, so it is gated by the walls at or above D23, which
+drill at 3–4 days; PICKED crosses D23→D28 in a day (8–56 h). The pen opens at 72 h and TUNED's D23 times equal
+PICKED's (104–144 h): its counters do not break the D18/D23 walls sooner than the drills and the picker's stances do.
+Tried: deep drills from D23 (`DEEP_FROM = 23`, 4 seeds) — PICKED slows to D23 (152–176 h) and TUNED at D28/D33 reads
+0.98 · 0.95; reverted. RANDOM: a random package is mostly a good package — on 2 of 6 seeds an early random stance
+(Guarded) passes the Warlord before IDLE's drill; RANDOM is slower than PICKED on every seed at D23.
+
+**Checkpoint 9 — round 6 (owner) and round 7 (tuning)**, 2026-10-02, on `0213315` (cut30 + gate-speed + hotpath).
+The round-6 full gate on `b51dd30` (4 h 37 min on a shared box): metrics and qa all PASS; dayplayer 16 seeds FAIL on
+IDLE D8 day 1 (15/16), PICKED stage days (9.0), TUNED vs PICKED at D29 · D33 (1.16 · 1.13), RANDOM vs PICKED at D13
+(14/16), nothing required (forge s4 D29). Round 7 tuned content and bots (Deviations). Fast tier since, `dayplayer
+--gate --seeds 8 --loo-seeds 8 --tuned-seeds 8` (r18):
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days) | 8/8 · 1.7 · 8/8 med 7.2 · 2 · 14 · 0/8 · 1/5 · 336/336 · 8.0 | PASS (16 seeds: D8 16/16) |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.67 · 2.12 · 1.80 | PASS |
+| Never out-paced · stage days ≥ 10 · content reach · stalls | 100 % · 10.0 · 8/8 · ≤ 0.17 % | PASS |
+| RANDOM never beats PICKED at D13 · D23 | 8/8 · 8/8 (2-day probe on 16 seeds: 16/16 at D13) | PASS |
+| Each system by its own output | packages 96/144 h→D23 · pen 28.2/27.3 · forge 28.2/26.2 · pets 38.0/43.8 % · bank $2468/$2281 · quests 12.2/0 | PASS |
+| TUNED beats PICKED by ≥ 15 % at D29 · D33 | 1.02 · 1.26 (the run before the picker's wall answer: 1.17 · 1.27) | FAIL at D29 |
+| Nothing required (TUNED − S never slower than IDLE ± a check-in, every seed × milestone) | packages s8 D18 (also s1, s4 at D13) | FAIL |
+
+`gates.mjs --fast` (metrics quick table, qa 10 seeds): one kept row FAIL on the quick sample — *Return row: 0 < death
+share* — raterAG died on none of its 60 sends at 8 seeds × 8 h (the bar wants > 0; at 30 seeds it has passed).
+
+*Why D29 holds at ~1.0–1.2*: the pen's edge is a deep wall that holds PICKED until its drill. It does not: the scars
+(−5 % a day met) let PICKED through the Queen in 16–104 h, and where the route puts the Foundry at D28 a package
+(Hunter's reflect read) answers it — the pen adds nothing there. TUNED crosses the Queen in 16–56 h with its counter
+(now packed and readable), PICKED in 16–104 h; per seed the D29 ratio runs 0.87–1.65, median ~1.0–1.2.
+*Why nothing required fails*: before the pen opens (day 5) TUNED − packages is IDLE plus the forge and the bank; the
+forge's steps re-roll the runs (a 2-day probe without the forge: identical to IDLE, seed for seed), ±16–32 h at D13/D18
+either way on 3 of 8 seeds — a per-seed bar against a chaotic twin.
+
+**Checkpoint 10 — the full gate on `961a01a`** (round 8 rows; cut30 + gate-speed + hotpath; `GATES_THREADS=20`,
+cold, 1 h 44 min on a shared box: metrics 2021 s, qa 577 s, dayplayer 6214 s — 16 seeds of every bot and leave-one-out):
+metrics **all PASS** (30 seeds; the return row 22/22 at full size; Steady safest 7 % vs 9/87/23 %; Guarded, Bold,
+Hunter best at 1, 2, 3 walls); qa **all PASS** (30 seeds). Dayplayer:
+
+| Bar | Value | |
+|---|---|---|
+| IDLE floor (D8 day 1 · D13 by 4 · D23 by 12 · stall · gold · no King · L3/L5 · tracks · stage days) | 16/16 · 1.7 · 16/16 med 7.3 · 3 · 14 · 0/16 · 1/5 · 672/672 · 8.0 | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.67 · 2.25 · 1.74 | PASS |
+| Never out-paced · stage days ≥ 10 · content reach · stalls IDLE/PICKED/TUNED | 100 % · 10.0 · 16/16 · 0 / 0.17 / 0 % | PASS |
+| TUNED beats PICKED by ≥ 15 % at D33 (D29 info 1.11) | 1.26 | PASS |
+| RANDOM never beats PICKED at D13 · D23 | 16/16 · 16/16 | PASS |
+| Each system by its own output | packages 96/152 h→D23 · pen 28.3/27.5 · forge 28.3/26.2 · pets 36.2/43.9 % · bank $2772/$2557 · quests 12.5/0 | PASS |
+| Nothing required (median ± a check-in; no seed > 24 h behind) | every system ok but packages: median lag D13 0 · D18 −8 · D23 −28 h; worst seed +32 · +72 · +40 h | FAIL (worst-seed clause) |
+
+The one fail is the chaotic twin again: until the pen opens (day 5) TUNED − packages is IDLE with the forge and the
+bank, and the forge's steps re-roll the runs. Four forge orders measured side by side on 16 seeds × 4 days (as bought,
+no armour, weapon first, no pack): the lags at D13 spread −16 … +24/+40 h around a median of 0 in every one; no
+order gives TUNED − packages a lead over IDLE before D23, where the pen's 28 h shows.
+
+**Checkpoint 11 — CORE READY** (round 10, 2026-10-02): `gates.mjs --full` reprinted from checkpoint 10's kept jobs
+with the round 9–10 nothing-required row: metrics all PASS (30 seeds), qa all PASS (30 seeds), dayplayer all PASS (16
+seeds of every bot and leave-one-out; nothing required ok; TUNED vs PICKED at D33 1.26, D29 info 1.11). The AGENTS.md
+and PLAN.md invariant edits (§6) are made, re-expressed for the owner's rounds (the pen ≥ 15 % at D33, RANDOM vs
+PICKED, nothing required on the median seed with a 48 h cap from day 5, `none > 60 %` retired).
+
+**Integration — `cut30-client` (core = `cut30` 58e7a96 + art phase 2, fonts, death v2, town sprites, panels, town), 2026-10-02.**
+Workspace tests 461 pass, clippy, tsc, copy-lint clean; client suite 39/39 (four runs: `fights` *names on two rows*, `ui`,
+`screens`, `qa9` each failed once or twice inside a loaded suite and passed alone and in the next suite — load flakes);
+`town-gpu.mjs` headed 60.2 fps of the display's 60.1 with 25 walkers, idle 20 fps, hidden 0; art-qc and `--style` PASS.
+`gates.mjs --fast`: one row FAIL, *Return row* 21/22 at 8 seeds (known: raterAG never dies at 8 × 8 h; 22/22 at 30 seeds, the
+full table). `gates.mjs` (quick): metrics the same row; qa PASS; dayplayer one row FAIL — *Nothing required* on the quick tier's
+single leave-one-out seed (TUNED − packages, D13, +32 h; the median of one seed is that seed; from day 5 +0 h). The core is
+`cut30`'s byte for byte; its full gate (16 seeds) passes that row (round 10). Not tuned (no core change here).
+Fixes: looks.mjs earns the stud by a best depth (camp.ts already revealed it from the first run on packages: no reveal change);
+the report before the pen shows the plateau line alone and no unlock cards/lines until the unlocks open; marks' caption `levels
+packages` before the unlocks; the bar's `more` tile past eight; the second-row `repeat` plate; the report's empty portrait-mini;
+the top bar's stats never under the gear. Town: a dark wooded hillside behind the mouth, a moonlit night against warm lights,
+a calmer path. Owner-check pack: `scratchpad/ownercheck/` (real engine, seed 3101: 8 h report; day 0; 48 h town, packages,
+tracks, quest).
+
+## Deviations
+- **Round 6, owner-approved 2026-10-01.** (1) *TUNED beats PICKED by ≥ 15 %* is measured at **D29** (past D28) and
+  D33, not D28 and D33: the D28 floor is gated by the walls above it, which drill before the pen opens.
+  (2) The RANDOM row is **RANDOM never beats PICKED at D13 and D23, every seed**; *RANDOM never faster than IDLE to
+  D13, slower to D23* is retired (it prints as retired): a random package is mostly a good package.
+  (3) **TUNED and the leave-one-outs run on 8 seeds** (`--tuned-seeds 8 --loo-seeds 8`) until the gate speed-up lands,
+  then 16; IDLE, PICKED and RANDOM stay at 16 (the PICKED-vs-IDLE and RANDOM rows: affordable, ~16 CPU-min a bot).
+  The speed-up landed 2026-10-02 (branch `gate-speed` merged): TUNED and the leave-one-outs are back on 16.
+- **Round 10, owner-approved 2026-10-02.** The worst-seed cap is **48 h**, counted from day 5 as in round 9; the
+  median clause is unchanged. Seed 15 (TUNED − packages, +40 h after day 5 at D18 and D23) is the case: its lag came
+  from the forge before day 5 — the steps re-rolled the runs, it was still under D18 when the pen opened while IDLE
+  had passed D18 at 64 h — not from the system's absence. Reprinted from the kept jobs: **dayplayer all PASS**
+  (nothing required ok); metrics and qa all PASS; CORE READY (checkpoint 11).
+- **Round 9, owner-approved 2026-10-02 (option b).** *Nothing required*'s worst-seed cap (24 h) counts from the pen's
+  opening, the start of day 5 (96 h): the lag accrued after it — each side's hours to the milestone clamped up to 96 h,
+  so a milestone both reach before day 5 adds nothing. Before day 5 the median clause alone applies. Reprinted from
+  the kept jobs (checkpoint 10's): still FAIL on one seed — TUNED − packages seed 15, D18 136 h vs IDLE 64 h and D23
+  200 h vs 160 h, +40 h after day 5 at both (every other seed × system × milestone ≤ 24 h). Not tuned further (the
+  coordinator's instruction).
+- **Round 8, owner-approved 2026-10-02.** (1) *TUNED beats PICKED by ≥ 15 %* is judged at **D33 alone**; D29 prints as
+  info. Where the route puts the Foundry at D28 a package (Hunter's reflect read) answers it and the pen adds nothing,
+  and the scars let PICKED through the Queen in 16–104 h: D29 read 0.87–1.65 by seed, median 1.0–1.2 by seed set
+  (checkpoint 9). (2) *Nothing required* reads: for every system S and milestone, TUNED − S is **never slower than
+  IDLE on the median seed (± a check-in), and no seed is more than 24 h behind IDLE** — was every seed × milestone ±
+  a check-in. Before the pen opens TUNED − packages is IDLE with the forge and the bank: the forge's steps re-roll
+  the runs (a 2-day probe without the forge was IDLE seed for seed), a chaotic twin ±16–32 h either way on 3 of 8
+  seeds. A deep-wall scar candidate (no scars, or 2 % a day, at D28+) was measured and dropped: it moved D33 to 1.16
+  and 1.33 but cost PICKED's stage days (9.0); the scars stay as §1 has them.
+- **Round 7 content (2026-10-02; ours to tune — the owner: "tune content, not the bar"):**
+  - *Guarded arrives at the Captain* (the Burrows' lieutenant, D5 on the base route), not the Warlord met: the picker's
+    first real choice comes before the first wall. It moved PICKED's D13 from 16–40 h to 16–24 h on 16 seeds (2-day
+    probe): PICKED/IDLE at D13 1.50 → 1.67, RANDOM never ahead of PICKED at D13 on 16/16 (was 14–15), IDLE never
+    out-paces PICKED 96 → 100 %. The `second stance` stage and the `stances` reveal read `meet Captain`.
+  - *Steady walks home at 20 % until the record passes D8* (25 % from L3 after): one seed (15) of the sixteen reached
+    D8 only on day 2; the Warrens' attrition sent it home every send. The safety row is read from D8 walls: unchanged.
+  - *A boss's item counter is learned with the item*: learning the Queen's counter (`read silence`) identifies the
+    silence scroll, the Mother's (`throw fire`) the fire flask — the fact named a row the shelf could not hold (the
+    silence scroll stayed unread into the second week; the drill could not pack it either). *The quartermaster packs
+    the pen's counter rows' items* while the boss is in reach, as a drill's.
+  - *`the bottom` (reach D33) is a scale stage* (the King's floor): PICKED reaches it on days 8–12.
+- **Bots (round 7):** the picker takes a swap whose death costs at most half its gain in passes (was ≤ 0.05), and a
+  wall's clear answer whatever the walk reads (score ≥ 0.4: Hunter at the Foundry's golems read +0.3 to +1.1 for two
+  days and lost to a tactic each time); TUNED writes no situation rows (on every floor at the pen's top they slowed the
+  Deep's walk), takes a death's patch only at a wall and never a `return` patch, and writes the Foundry's counter only
+  where the route puts it deep (above that Hunter answers it and a pen row hid that from the picker).
+- **The pen re-scoped** (the owner, 2026-10-01: rules are an optional late fine-tuning layer): `TUNED ≥ 1.5× PICKED at
+  D18, D23, D28` → *TUNED beats PICKED by ≥ 15 % at the deepest walls (D28, D33), and is never required* (TUNED on the
+  bots' 8 seeds). **Systems by their own output** (the owner): `each system moves TUNED's D23 time` → per-system rows —
+  bank: gold a day; pets: deaths a send; quests: rewards kept; forge and pen: the climb's mean best depth; packages: hours to
+  D23 — each better with the system than without; `nothing required` kept. **`None > 60 % of TUNED − IDLE` retired**: the
+  systems are no longer measured on one depth scale, so a share of a depth gap does not fit them.
+- **A floor given up**: on the idle floor a floor the stall guard stops twice is given up home (a queued return keeping
+  60 %), not paced to a stall (the old stall kept nothing); a harness's literal set stalls as before.
+- **Quests drawn where a night keeps them**: `reach` the record's band (three under it), `reach · no return` five under,
+  `home from` a cleared floor (the deepest lit stone at or under the record) — a bank or a return that reached it.
+- **Old rows re-derived on the new bots** (the owner's decision): `COUNTERED reaches ≥ D14 ≥ 50 %` (a written counter
+  set on a literal lineage, 70 → 40 % with the temperaments gone) → *content reach: PICKED ≥ D14 by day 2 on ≥ 50 %* (7/8);
+  `Lanes D5: no set dominates` (EDITED's written lane sets; +12/+20 vs 15) → *the D5 lanes on IDLE: both viable, the
+  weaker passes D8 at least half as often as the stronger* (near 0.09 · far 0.05); `Stalls ≤ 1 % on every cohort set`
+  (worst 1.4 %) → *stalls ≤ 1 % of every bot's sends* (the bar kept, measured on IDLE/PICKED/TUNED). The originals print
+  as retired. Bisect in checkpoint 5's notes: the temperaments' removal alone moved them.
+- **RANDOM** is IDLE's twin until its first pick (the Warlord met, D8), which is a check-in or two before D13: the row
+  reads *never faster than IDLE to D13, slower to D23* (each ≥ 80 % of seeds; 88 % · 88 %).
+- **Guarded meets a telegraph with a drink**, not the contract's step back: `telegraph → retreat` looped retreat ↔
+  explore on ~3 % of PICKED's sends. **Light hands** grabs the kill's drop (`on_kill → pick up`), not loose loot (the
+  loose row looped pick up ↔ explore).
+- **The Cut 25 forge lever** (`Whole forge's bank move < best row's`, raterAU +26 vs +20.8) is retired (the contract's
+  list); it prints for the record.
+- **The expeditions-per-8 h row** is gated on IDLE (fresh and at D13) in 6 – one send and its rest per 20 minutes
+  (`REST_MIN_TICKS`: the band's own reason, no sortie farm), EDITED still 6–16: DEFAULT, the two-row fighter dead every
+  send, is gone.
+- **Every stance best at a wall** weighs each stance at the worn stance's level, from the deepest lit stone at or above
+  the wall, the record at the wall (every bank row then asks for the floor past it), a death a quarter of a pass.
+- **PROGRESSION_V2 over the contract's reveal**: the pen opens at the Mother met *and* 72 h (fallback 5 days), not "the
+  Mother met or a 3-day stall"; Bold/Hunter/tactics drip by day (owner-approved refinement, 2026-10-01).
+- **The full dayplayer table runs 16 seeds** (the owner, round 5: PICKED vs IDLE, RANDOM, the leave-one-outs and their
+  TUNED base were noisy at 8 and 4): each job cached under `target/gates/dp/` by the binary's hash, an interrupted
+  gate resumes; at 24 threads a fresh full gate grows past an hour (measured below). The picker re-reads its panels
+  once a day and when a package arrives (a PICKED fortnight 1651 → 867 CPU-s).
+- **Steady is exempt from the wall contest** (the owner, round 5: it is the idle default): its part is *Steady is the
+  safest default* — the fewest deaths a send from D1 across the walls, against each other stance. Guarded, Bold and
+  Hunter must each be best at a wall by the margin. Steady returns at 25 % from L3 (20 % before).
+- **Deep drills arrive later** (the owner, round 5): a boss at D28 or deeper drills after 6 days met (3 for the
+  others, the Foundry 4), so a player who writes the counter breaks the wall days earlier — the pen's ≥ 15 % at D28/D33.
+  TUNED writes the counter row for a boss at its record or one past it (its card or throw bought).
+
+- **Steady's bank row reads `depth ≥ record + 1`** (the contract's `depth ≥ best`): a bank at the record itself never
+  passes it; the first floor past the record is banked (one new floor a successful send; L4 pushes one further when whole).
+- **Stances by level** (ours to write): Steady L2 heals at 35 % and rests under 40 %, L3 rests under 50 %, L4 banks a
+  floor further when whole, L5 steps off a telegraph when hurt — Steady never rests at full length (that is `Guarded`'s:
+  rest under 80 %); `Hunter` arrives with the Warlord met (the contract left its stage open; it is the Warlord's counter).
+- **A scar is a day**: runs of one day that see a boss scar him once (per run, a night's 20 sends scarred him to
+  −30 % in one absence); the drill still comes at the second run that meets him.
+- **The Foundry's drill** comes from its golems (the contract's "the wall search supplies a wall's drill when no
+  fact-counter exists"): the search costs seconds natively and minutes in wasm per offer; the golems' `reflect_melee` fact
+  names the same counter (`reflect read`).
+- **Tests**: seven temperament-override tests replaced by `no_temperament_chooses_an_action`; four seed-specific repros
+  (a dice death whose replays all survive, a chased death, a patch with its purchase, the fork tablet's reading floor)
+  search for their case again, the temperaments having moved the nights.

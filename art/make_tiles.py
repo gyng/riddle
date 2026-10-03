@@ -38,24 +38,37 @@ OUT = ROOT / "tiles"
 T = 8  # texels per tile
 
 # 8-colour ramps, index 0 darkest -> 7 lightest (art/ART.md "Register 2").
-PALETTES: dict[str, list[str]] = {
-    "warrens": ["#14120d", "#2e2a1c", "#4a4326", "#6b6a2f", "#8c7a3c", "#b09a5a", "#d4c58a", "#efe6c0"],
-    "fens": ["#0c1416", "#1a2b2e", "#24443f", "#2f6a5a", "#4d8a72", "#6f9f8a", "#9dbfa8", "#d6e6da"],
-    "crypt": ["#0b0a14", "#1c1a30", "#33304f", "#4f4d6d", "#77738c", "#a39fae", "#d3cfc9", "#f1ede0"],
-    # Cut 3 (docs/CUT3.md). Ramps stay monotone in luminance so the tint pass can index by value.
-    # foundry: rust / ember / iron - warm dark oranges, two iron greys (4, 6), one hot yellow (7).
-    "foundry": ["#120b08", "#2c1a12", "#4e2a18", "#8a3f1c", "#5b5a5e", "#c2622a", "#9a9598", "#f4c040"],
-    # deep: black / ink-blue / bone - near-black floor (2), blue-black walls (3, 4), bone highlights (6, 7).
-    "deep": ["#030306", "#0c0e1a", "#181b30", "#1e2340", "#2c3560", "#5a5f78", "#b8b09a", "#ece4cc"],
-    # sanctum: white / gold / slate - slate shadows (0-3), one gold (4), pale stone (5-7).
-    "sanctum": ["#1a1c24", "#3c404e", "#666a78", "#9a9aa0", "#c9a84a", "#d9d4c6", "#ebe6d8", "#fbf7ee"],
-}
+# Art direction phase 2 (docs/ART_DIRECTION.md §2): every ramp is the named palette with the place's tint — INK, UMBRA, then DUSK and
+# MOON leaning toward the tint (DUSK 60 %, MOON 40 % toward tint x 1.7, as web/src/render/wash.ts), MIST, BONE; the steps between are
+# even mixes. Monotone in luminance, so the ramp classes (make_env.py) and the runtime tint index by value as before. The v1/v2 ramps
+# (olive, teal, rust and gold) are in git history at 7253bb9.
+STYLE = {"ink": "#0d0c14", "umbra": "#1c1b2b", "dusk": "#2b3350", "moon": "#4d6c99", "mist": "#a4bcd6", "bone": "#eadfc5"}
+STYLE_TINT = {"warrens": "#4a3b2c", "burrows": "#5a4527", "fens": "#2d5752", "crypt": "#2f2c4f", "foundry": "#5a2a1e", "deep": "#1f2e4f",
+              "sanctum": "#6b6048", "town": "#3a4a3a"}
 
-# One-shot palette flash (CUT2 §7, boss sighted): the viewer swaps the biome ramp for this
-# ramp for a frame or two. Same shape as a biome ramp (index 0 darkest .. 7 lightest) so the
-# tint pass needs no special case; crimson-to-white-hot so every biome flashes "alarm".
-# Shipped in atlas.json meta.palettes["boss_flash"]; no tiles are authored in it.
-BOSS_FLASH = ["#1a0608", "#4a0d12", "#8c1a1e", "#c8321a", "#f08a1e", "#ffd85a", "#fff3b0", "#ffffff"]
+
+def _rgb(h: str) -> list[float]:
+    return [int(h[i:i + 2], 16) for i in (1, 3, 5)]
+
+
+def _hex(c) -> str:
+    return "#%02x%02x%02x" % tuple(max(0, min(255, round(v))) for v in c)
+
+
+def style_ramp(biome: str) -> list[str]:
+    t = _rgb(STYLE_TINT[biome])
+    ink, umbra, mist, bone = (_rgb(STYLE[k]) for k in ("ink", "umbra", "mist", "bone"))
+    dusk = [d + (c - d) * 0.6 for d, c in zip(_rgb(STYLE["dusk"]), t)]
+    moon = [m + (min(255, c * 1.7) - m) * 0.4 for m, c in zip(_rgb(STYLE["moon"]), t)]
+    mix = lambda a, b: [(x + y) / 2 for x, y in zip(a, b)]  # noqa: E731
+    return [_hex(c) for c in (ink, umbra, dusk, mix(dusk, moon), moon, mix(moon, mist), mist, bone)]
+
+
+PALETTES: dict[str, list[str]] = {b: style_ramp(b) for b in ("warrens", "fens", "crypt", "foundry", "deep", "sanctum")}
+
+# One-shot palette flash (CUT2 §7, boss sighted): the viewer swaps the biome ramp for this ramp for a frame or two. Same shape as a
+# biome ramp; phase 2: INK → CLOT → BLOOD → EMBER → BONE (the one time the world goes red). No tiles are authored in it.
+BOSS_FLASH = ["#0d0c14", "#2a0710", "#5c0b1c", "#8e1025", "#c01530", "#d8553a", "#e8923a", "#eadfc5"]
 
 BAYER4 = [
     [0, 8, 2, 10],

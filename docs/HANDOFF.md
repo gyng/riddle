@@ -1,4 +1,39 @@
-# Handoff — where Riddle stands and how to resume
+# Handoff — Riddle
+
+**2026-10-03: Cut 30.5 complete; hold before Cut 31.** Read `PLAN.md`,
+`docs/CUT30_5.md`, then `AGENTS.md`. The works tree, worker art, manual first
+sends, run-clear/runs UI and Pages release are integrated. The first porter is
+free; sends stay manual until the scout. Record checkpoints secure carried
+gold without ending the run. Offline is uncapped after the scout.
+
+The canonical `tools/verify.sh --full` is green (437s): 517 tests, one ignored,
+TypeScript/copy lint, all-target Clippy, shipping WASM/web build, 30-seed engine
+and trace/wire checks, all 272 fortnight cases. Focused client 88/88 and
+real-WASM/SW/offline/headed 400/1440 release checks pass. Existing full client,
+headed send/scout/8-hour walkthrough and 493-frame art QC passed earlier;
+frontend/art inputs stayed unchanged.
+
+Final core source `2822afe224cb289b`, content commit `5386ab4`: Guarded L5 dry
+exit 44%, heal45/hurt25 unchanged. Queen-scope fix `7fe1229` narrows generated
+silence to learned brood; explicit rows/raw templates/counter facts stay intact.
+Quartermaster requests stop only once the chosen start passes the boss.
+Actual income/upfront guide pricing and checkpoint accounting repairs remain.
+
+All 16 no-forge pairs meet48h, and companions add value:10.58349% deaths/send
+with vs10.98394% without. Away workers27.26 vs27.14 mean best; daily27.52 vs27.41.
+Shipping WASM3929188bytes SHA256
+`2210c7a151a1887817ccc349cc04b006f9377d43317b0c623fcd8298c8a47a3b`.
+Private evidence: `scratchpad/cut30_5-check-pack`; final log
+`/tmp/riddle-final-verify-full.log`. Rejected probes and bounded causal audits
+are retained there; no fabricated caches or weakened gates were used.
+
+Next: owner fun review, then cohort25 when approved. **Do not begin Cut31.**
+The alpha entry point is `https://gyng.github.io/riddle/`; deployment status
+and final merge are recorded in the local check pack after publication.
+
+The dated sections below preserve earlier decisions and implementation history; this resume note supersedes
+older "next" and branch-status statements.
+
 
 > **Status, 2026-09-30.** **Cut 29 is merged to `main`** (merge `dc285a1` + the client fix `2f1bc77`):
 > `node tools/gates.mjs --full` passes, 225 rows — progression unlock days 10.5, marks 8, stall ≤ 3 on
@@ -39,6 +74,18 @@
   progress bar; no stake mechanic; arriving late on the ladder, or cut if it doesn't fit the four tracks.
   Validate with the owner, not only blind agent readers.
 - Death screen: the `gap` seal reads **YOU DIED** (score screen only; `no rule for it` stays under it).
+
+## Latest live gate finding (2026-10-03)
+
+Integration `d1fef1d`, raw core `5f72af3420faf66d`, combines the Master sustain/canonical copied-counter order repair with automatic pack-plan deduplication, remembered automatic-slot refresh and protected manual-slot provenance. All **502 native tests pass (one ignored)**, the two self-contained dayplayer example tests pass, and all-target clippy passes. Shipping WASM remains the older 759c build and must be rebuilt after the final core freeze.
+
+The isolated combined no-forge seed 1 reaches D23/D28 at 104 h and D29/D33 at 256 h. Its exact same-source IDLE control reaches D23 at 160 h and D28 at 176 h, but never reaches D29 in 14 days. Earlier 759c IDLE numbers are not a valid control for this new source. The exact 16-seed IDLE-only subset passes bounded D13 delta (−4 h) and other idle bars but fails the pre-D23 stall cap: seed 7 holds D20 for five days (allowed four). Master-only d0 reproduces that trajectory exactly; pack-only 243f has a three-day stall. A scope-restoration prototype keeps the current heal guard plus the original D19+ restriction, with `attack tag:buffer` supplying target filtering within two conditions. It remains isolated pending behavioral tests and a bounded seed-7 pair.
+
+A controlled proof exposes prospective edit forecasts simulating raw row placement while public `set_rules` compiles authored pen rows before packages. A suggested generated-row move can also compile back to its original position. The scoped prospective repair (`af9dc52e419cbbbd`) passes five behavioral tests, all-target clippy and an actual saved-camp proof: every measured candidate equals public application, with archived fights unchanged. The example consumer repair passes six tests and clippy: landed non-harming gems, positive report-stall measures and faithful move/remove/replace/drop operations. Both are applied to integration (uncommitted); **507 native tests pass (one ignored)**. Example/integration lint checks are pending.
+
+The retained complete gate session 87510 remains the **759c comparison**, not the current integration source. It completed all 272 jobs with exit 1. Metrics and QA (30 seeds) pass; TUNED/PICKED D33 ratio 1.67, workers and IDLE bounded delta −4 h pass. Its two remaining balance failures are no-forge seed 1 D23 (192 h versus 136 h, +56 h against a 48 h cap) and the complete 16 pet pairs (20.9534% deaths with pets versus 17.8967% without). Evidence is `pet-waystone-final-*` in the check pack. Do not merge or publish before current-source verification is green.
+
+The retained older `f3b0f27564074581` comparison unexpectedly exited with SIGTERM 143; no owned comparison process remains. Its 233 completed job caches and partial log are retained as `supply-interrupted-*`, without a full verdict. Avoid non-TTY ETX stops during parallel checks. Rejected trace sustain and owned-counter maintenance prototypes remain unapplied.
 
 ## 1. The goal and the honest target
 
@@ -228,6 +275,63 @@ move ±2 lineages, so compare two runs before believing a move):
 5. Unlock days (item 5 of the old list) and the dayplayer bars were not worked on directly this session.
 Also done earlier: `noise_discipline` is earnable (a blind foe in view teaches `foe:<kind>:blind`); the repeat offers a
 `throw` row's kind as one tap (`Lineage.repeat_added`).
+
+### Art direction phase 2 (2026-09-30, the owner approved docs/ART_DIRECTION.md: regenerate the library to the guide)
+Owner decisions: the primary/SEND gem is BLOOD; "the hero must be readable" — the proportion is picked by a blind read at game size.
+Pipeline (all under `art/`): `make_prompts.py` `header3()` puts the guide's STYLE PREAMBLE (read verbatim from `prompts/style_targets.txt`)
+first in every sprite prompt and points Codex at the style targets; briefs are `brief3` in `manifest.json` (heroes; `phase2_briefs.py`
+the bestiary; `phase2_ui.py` UI/portraits/items/town; `painted.py p2` the tiles, `BRIEF3` for the places that are not masonry).
+Sprites come back on alpha or a MAGENTA key (`pack.key_source` reads the key off the corners; blue still works). `art/p2sheet.py`
+makes the before/after sheets (`scratchpad/style/phase2/`) and `qc` composites every sprite with the hero into its biome's dressed room
+and runs `art-qc.py --style`. Codex batches: `art/prompts/p2_*.txt`, logs `art/logs/p2_*.log`, ~8 concurrent, ~10 min a batch.
+
+1. **Heroes** (4 classes × man/woman/cat + the 4 default-look aliases, 16 portraits). Blind read test (`scratchpad/style/phase2/readtest/`:
+   fighter-man, rogue-woman, ranger-cat at 1/4, 1/5 and 1/6.5 head, 18 panels at true device size on two floors, random facing and
+   hurt; two fresh screenshot-only readers): class 12/12 at every proportion, look **5/12 · 7/12 · 11/12**, facing 10 · 12 · 12, hurt
+   12 · 12 · 12 — overall **81 % · 90 % · 98 %**, so the long 1/6.5 figure ships (its BONE face patch and MIST blade rim carry the
+   read; the chunky 1/4 figure's face and ears drowned in the dark kit). The three tested sprites are the shipped ones; the other nine
+   were drawn against them. Every hero wears the BLOOD cloak (the rogue's retried once: 0.1 % blood in a frame). Style QC: every hero
+   frame passes in the Warrens.
+2. **Foes and bosses** (29 monsters, 2 summons, 6 bosses + their 6 death poses, the captive and the goblin bosses' portraits; the
+   killer portraits re-cut by `tools/foe-portraits.py`). One pass, no retries: goblins INK-and-DUSK skin with BONE eyes (the old
+   bright green gone), ghosts (wraith, spectral blade/hound, echo) in MIST and BONE, the Warlord a gaunt king in a BLOOD-and-INK
+   mantle. Known weak: the bell sentinel's bell reads dark (not GILT), the acolyte bows less than briefed, the Foundry Master carries
+   a lot of bronze. Style QC: every foe frame (with the hero, in the Warrens room) passes.
+3. **The painted tile register** (7 places × 20 pieces + the Fens' own 7): `painted.py p2` with the place's tinted DUSK/MOON hexes
+   in every prompt and `BRIEF3` for the places that are not masonry — the **Fens** a boardwalk of long planks over black water with a
+   log palisade (its first pass came back as teal flagstones: the shared "flagstone" briefs had won), the **Burrows** packed ochre
+   earth with timber shoring, the **Deep** unworked cave rock; the Warrens, Crypt, Foundry and Sanctum keep masonry. The D5 fork's
+   two lanes read apart (earth vs planks over water). The 8-colour ramps (`make_tiles.style_ramp`, the fallback register, the decals,
+   `atlas.json meta.palettes`, `palette.ts`) are now the palette with each place's tint; the foundry's orange remap is gone. Style QC:
+   the Fens, the Burrows, the Deep and the Foundry never reached a moonlit highlight in a room frame (p99 L* 48–59), so
+   `painted.convert` lifts their lit edges toward MIST (`MOON_LIFT`; the Burrows' earth floors kept calm, its ledges carry the moon)
+   after one Codex retry each for the Fens and the Burrows. Every room passes, and all **413 sprite frames** (every hero and foe with
+   the hero, in all 7 rooms) pass `art-qc.py --style`.
+4. **UI**: 16 frames (bar, console, panel, tablets, tiles, well, the **BLOOD SEND gem** and a darker cracked CLOT danger gem,
+   the death banner, gauge, stud, seal, the carved button, the scroll), 35 BONE ink icons, the death/report backdrops, pillar/brazier/
+   candle, the boss shield + shards, the title key art (the camp's vista: the hero on the stair down, a moon shaft). CSS on the palette
+   (a fork's pass: tokens `--ink … --gilt` in `:root`; `--acc` GILT for trim/text, the primary action BLOOD, `--hp` BLOOD, ok/info MIST,
+   warn EMBER; ~900 literals moved by role; EMBER kept only where a flame is; the old `--ink` text token is `--ink-text`). Style QC
+   on the walked screens: death, report and the second camp pass; the first camp sits at p99 L* 60 (bar 62).
+5. **Pets, items, effects**: the pet portraits (rat, jackal, monkey, goblin; the pet sprites are the bestiary's), the item glyphs
+   (potion, scroll, sword, breastplate, coins), the torch (EMBER, retried once: its flame read as a red stick), the BLOOD banner and
+   blood decals, shrine, vault / open vault, nest, bones, moss, crack, rubble — the shared hue assets and ramp decals (`p2_items*`).
+6. **The town** (docs/TOWN.md §7, enough for Cut 30's town v1): the dungeon mouth ×3 (cave · timber · gatehouse), campfire ×2
+   frames, tent, supply crate, staked plot, scaffold; blacksmith, storehouse, kennel and bank × 3 looks (built · improved · grand);
+   townsfolk (smith, merchant, child, carter), the mule cart, a dog, loot sacks ×2, a glowing chest, a BLOOD flag ×2 frames; a walk
+   frame per class (`walk_<class>`, the default look); the town terrain as painted tiles (`envp_town_*` → `town_env_*`: grass ×4,
+   dirt ×3 + edge, plaza ×2, water, cliff, fence, low wall, gate, bridge, two trees); the `!` rune marker (`icons/alert`) and the
+   minimap / roster plaques (`frames/plaque_*`, 9-slice 64). All keyed sprites are `kind: "town"` in the manifest (art-qc treats an
+   undrawn one as optional: the town scene draws a block + its icon). Nothing renders them yet — Cut 30 wires the scene.
+7. **The look is the default** (`web/src/render/wash.ts`, `blit.ts`, `index.ts`, `tags.ts`): the wash pass on for FX > 0 (`?look=off`),
+   reworked for on-palette art; moonlit grades, EMBER torches everywhere, a MIST hero light, moon pools; in-world plates on the palette.
+   **Blind round 27** (JUICE §10.15, raters BG and BI against the style targets): **6.60** vs round 26's 6.84 (−0.24). Camp +0.35,
+   desktop camp +0.30, bosses held; the dungeon watches fell (Warrens 5.80 → 5.30, Fens 6.00 → 5.10, scene 6.35 → 5.30): darker frame,
+   the long hero reads small, the Fens' planks shimmer under the grain. Next, in order: calm the Fens floor (fewer stripes; no grain on
+   world texels under motion), lift the watch's ambient a step and the hero's MIST light, lighten the scene insets, bevel the navy
+   plaques, forecast bars back to a hot fill; then the camera-on-the-exchange blocker (needs the rule's target on the wire).
+   Before/after sheets: `scratchpad/style/phase2/` (`batch1_heroes_sprites`, `batch2_foes`, `batch3_tiles`, `rooms7`,
+   `phase2_before_after_phone`, `phase2_before_after_desktop`, `readtest/`).
 
 ### Gfx/UI eval (stopped on the rule again after round 26: 6.84, the best on the motion-aware harness — JUICE §10.14 has the blockers)
 Rounds 24–26 since the resume: 6.74 · 6.75 · 6.84. Kept: carved EDIT + candle + desktop sheet (edit 7.45), two-pane scene, plaque slams,

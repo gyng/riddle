@@ -16,15 +16,22 @@ pub const KIT_SLOTS: [&str; 3] = ["weapon", "armour", "pack"];
 /// Weapon steps: the class's starting arm, +1 per step, to +3. (Deviation from the contract's
 /// 4–5 steps: a fourth, +4, doubled the fighter's blow at depth and broke the D33 wall without
 /// its counter — the kitted FULL−D33 passed on 3–5 of 30 seeds, bar 3.)
-pub const WEAPON_MULT: [u32; 3] = [1, 4, 9];
+/// Cut 30 (the idle-first pivot retired the "not engaging fails" rows that capped it: the blacksmith
+/// is a multiplier the idle floor lacks): three more steps, each a harder blow (+1 damage).
+pub const WEAPON_MULT: [u32; 6] = [1, 4, 9, 16, 25, 36];
+/// Weapon steps past this many are damage, not aim.
+pub const AIM_STEPS: i32 = 3;
+/// Each weapon step past the aim adds this much to the blow.
+pub const DMG_PER_STEP: i32 = 2;
 /// Cut 25 §1 (AN: the forge moved bank more than any row): a weapon step is aim — this many
 /// points on the 80 % to hit — not damage (`Hero::hit_pct`; the arm's blow is the class's own).
 pub const AIM_PER_STEP: u32 = 4;
 /// Armour steps: (kind, enchant) and their multiples. The top is mail +1 (4 armour): armour
 /// subtracts from every blow, and a fifth point (mail +2) made the Deep's lurkers harmless —
 /// the kitted FULL−D28 passed the Queen's wall on 11 of 30 seeds without her counter.
-pub const ARMOUR_STEPS: [(&str, i32); 4] = [("leather", 0), ("leather", 1), ("mail", 0), ("mail", 1)];
-pub const ARMOUR_MULT: [u32; 4] = [1, 4, 8, 14];
+/// Cut 30: three more steps (mail +2, plate, plate +1), the forge a multiplier the idle floor lacks.
+pub const ARMOUR_STEPS: [(&str, i32); 7] = [("leather", 0), ("leather", 1), ("mail", 0), ("mail", 1), ("mail", 2), ("plate", 0), ("plate", 1)];
+pub const ARMOUR_MULT: [u32; 7] = [1, 4, 8, 14, 22, 32, 45];
 /// Pack steps: one more supply on the shelf each (`LineageState::supply_cap`).
 pub const PACK_MULT: [u32; 4] = [2, 5, 10, 16];
 /// The shelf never holds more than this many supplies (the pack's ten slots less the kit and
@@ -104,6 +111,22 @@ pub fn step_label(l: &LineageState, slot: &str, i: usize) -> String {
     }
 }
 
+/// Run-clear: a step's item and its rarity (`item::rarity` of the kit piece it forges: `sword +3`, `mail +1`);
+/// `None` for the pack's steps (no item).
+pub fn step_item(l: &LineageState, slot: &str, i: usize) -> Option<(String, crate::item::Rarity)> {
+    let (kind, e) = match slot {
+        "weapon" => (l.class.starting_weapon().to_string(), i as i32 + 1),
+        "armour" => {
+            let (k, e) = ARMOUR_STEPS[i.min(ARMOUR_STEPS.len() - 1)];
+            (k.to_string(), e)
+        }
+        _ => return None,
+    };
+    let mut it = Item::new(0, &kind);
+    it.enchant = e;
+    Some((kind, crate::item::rarity(&it, true)))
+}
+
 /// The price of step `i` of a ladder (fixed once the forge is shown: `unit_of`).
 pub fn price(l: &LineageState, slot: &str, i: usize) -> u32 {
     unit_of(l) * mults(slot).get(i).copied().unwrap_or(0)
@@ -120,7 +143,7 @@ pub fn per_night(l: &LineageState) -> i32 {
 }
 
 fn s_short(l: &LineageState, price: u32) -> i64 {
-    price as i64 - l.gold as i64
+    price as i64 - crate::tree::purse(l) as i64
 }
 
 /// The shelf's cap before the pack steps (3, or 5 with `supply_cap_5`).
@@ -148,27 +171,44 @@ pub fn ladders(l: &LineageState) -> Vec<KitLadder> {
         .iter()
         .map(|slot| {
             let n = owned(l, slot) as usize;
-            let steps: Vec<KitStep> = (0..mults(slot).len()).map(|i| KitStep { label: step_label(l, slot, i), price: price(l, slot, i), owned: i < n }).collect();
+            let steps: Vec<KitStep> = (0..mults(slot).len()).map(|i| {
+                let item = step_item(l, slot, i);
+                KitStep { label: step_label(l, slot, i), price: price(l, slot, i), owned: i < n, kind: item.as_ref().map(|x| x.0.clone()), rarity: item.map(|x| x.1).unwrap_or_default() }
+            }).collect();
             let short = s_short(l, steps.get(n).map(|s| s.price).unwrap_or(0));
-            let next = steps.get(n).map(|s| KitNext { label: s.label.clone(), price: s.price, affordable: l.gold >= s.price as i32, nights: nights(l, s.price as i64 - l.gold as i64), per_night: (short > 0 && per_night(l) > 0).then(|| per_night(l)), ..Default::default() });
+            let purse = crate::tree::purse(l);
+            let next = steps.get(n).map(|s| KitNext { label: s.label.clone(), price: s.price, affordable: purse >= s.price as i32, nights: nights(l, s.price as i64 - purse as i64), per_night: (short > 0 && per_night(l) > 0).then(|| per_night(l)), ..Default::default() });
             KitLadder { slot: (*slot).into(), owned: n as u32, steps, next }
         })
         .collect()
 }
 
-/// Buy the next step of `slot` (the ledger reads `forge <label>`).
+/// Buy the next step of `slot` by hand (the ledger reads `forge <label>`; Cut 30.5: it counts toward the
+/// apprentice).
 pub fn buy(game: &mut Game, slot: &str) -> Result<(), String> {
+    buy_step(&mut game.lineage, slot)?;
+    crate::tree::did(&mut game.lineage, "forge");
+    Ok(())
+}
+
+/// Buy the next step of `slot` from the purse (the apprentice's, and `buy`'s).
+pub fn buy_step(l: &mut LineageState, slot: &str) -> Result<(), String> {
+    buy_step_off(l, slot, 0)
+}
+
+/// `buy_step` at `off` percent off the price (Cut 30.5: the apprentice's rank).
+pub fn buy_step_off(l: &mut LineageState, slot: &str, off: u32) -> Result<(), String> {
     if !KIT_SLOTS.contains(&slot) {
         return Err("unknown slot".into());
     }
-    let l = &mut game.lineage;
     lock_unit(l);
     let n = owned(l, slot) as usize;
     if n >= mults(slot).len() {
         return Err("top of the ladder".into());
     }
     let p = price(l, slot, n) as i32;
-    if l.gold < p {
+    let p = p - p * off.min(100) as i32 / 100;
+    if crate::tree::purse(l) < p {
         return Err("not enough gold".into());
     }
     let label = step_label(l, slot, n);
@@ -291,7 +331,7 @@ fn work_label(n: usize) -> String {
 
 pub fn commission_wire(l: &LineageState) -> crate::wire::Commission {
     let price = commission_price(l);
-    crate::wire::Commission { price, label: work_label(l.works.len()), available: l.gold >= price }
+    crate::wire::Commission { price, label: work_label(l.works.len()), available: crate::tree::purse(l) >= price }
 }
 
 /// Cut 29 §5: commission the next work (policy-neutral: the gold's sink, the chronicle's line).
@@ -299,7 +339,7 @@ pub fn commission(game: &mut Game) -> Result<String, String> {
     let l = &mut game.lineage;
     lock_unit(l);
     let price = commission_price(l);
-    if l.gold < price {
+    if crate::tree::purse(l) < price {
         return Err("not enough gold".into());
     }
     let label = work_label(l.works.len());

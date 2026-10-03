@@ -170,9 +170,9 @@ pub struct Hero {
     pub base_atk: (i32, i32),
     pub str_bonus: i32,
     pub class: Class,
-    pub inv: Vec<Item>,
-    pub weapon: Option<Item>,
-    pub armour: Option<Item>,
+    pub inv: crate::shared::Shared<Vec<Item>>,
+    pub weapon: crate::shared::Shared<Option<Item>>,
+    pub armour: crate::shared::Shared<Option<Item>>,
     pub energy: i32,
     pub speed_t: i32,
     pub invis_t: i32,
@@ -245,9 +245,9 @@ impl Hero {
             base_atk: (1, 2),
             str_bonus: 0,
             class,
-            inv: Vec::new(),
-            weapon: None,
-            armour: None,
+            inv: Vec::new().into(),
+            weapon: None.into(),
+            armour: None.into(),
             energy: 0,
             speed_t: 0,
             invis_t: 0,
@@ -308,14 +308,14 @@ impl Hero {
     /// Cut 25 §1: the chance a blow lands — the forged weapon's steps are aim (`kit::AIM_PER_STEP`
     /// a step), not damage; any other arm hits 80 %.
     pub fn hit_pct(&self) -> u32 {
-        match &self.weapon {
-            Some(w) if crate::kit::is_kit_id(w.id) => 80 + crate::kit::AIM_PER_STEP * w.enchant.max(0) as u32,
+        match &*self.weapon {
+            Some(w) if crate::kit::is_kit_id(w.id) => 80 + crate::kit::AIM_PER_STEP * w.enchant.clamp(0, crate::kit::AIM_STEPS) as u32,
             _ => 80,
         }
     }
     pub fn speed(&self) -> i32 {
         let mut s = 10;
-        if let Some(w) = &self.weapon {
+        if let Some(w) = &*self.weapon {
             s += w.def().speed;
         }
         // Cut 25 §1: the forged piece is fitted to the heir — no mail's drag (its blows blunt instead).

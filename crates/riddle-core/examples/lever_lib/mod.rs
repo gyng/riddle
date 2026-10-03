@@ -30,7 +30,7 @@ pub struct Lever {
 const TAG: u64 = 0x001E_7E25;
 
 pub fn cohort_game(set: &RuleSet, seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_literal(seed);
     g.max_deaths = 100_000;
     for u in ["row5", "row6", "row7", "row8", "throw", "cond_alert", "cond_turns", "cond_loot", "cond_on_kill", "cond_on_see"] {
         g.lineage.unlocks.insert(u.into());

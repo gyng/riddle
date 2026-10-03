@@ -49,3 +49,6 @@ Finish the card with a three-sentence retelling of your best run in `criterion.d
 prefixed "same-day: ". Then run `eval/score.sh eval/cards/{BUILD}.{RATER}.json` and paste the
 total in your report, plus your three biggest gripes as a player and the three things you would
 tell a friend. Do not discuss with anyone else. Do not edit any other file. Do not git commit.
+
+
+**Budget (hard):** at most 200 tool calls and 120 screenshot/image reads for the whole session. Look at each screenshot once; prefer the driver's text op over screenshots. When you reach the budget, stop and file what you have.

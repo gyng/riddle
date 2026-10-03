@@ -6,7 +6,8 @@ export type Cond = { k: string; n?: number; t?: string };          // {k:"hp<",n
 export type Verb = { v: string; a?: string };                      // {v:"drink",a:"heal"} {v:"attack",a:"tag:caster"}
 /** Cut 7 §2 — where a row came from (optional; the core may tag, else the client infers: the shipped rows at boot are
  *  `preset`, `applyPatch` rows `patch`, bought card rows `card`, anything the player adds or edits a token of `player`). */
-export type RowOrigin = "preset" | "patch" | "card" | "player";
+export type RowOrigin = "preset" | "patch" | "card" | "player"
+  | `${"stance" | "tactic" | "temper" | "drill"}:${string}`;   // Cut 30 §2 (core): a package's compiled row (`stance:steady`, `drill:lich`), outside the row cap
 export type Row  = { conds: Cond[]; verb: Verb; origin?: RowOrigin };
 export type RuleSet = { rows: Row[]; name?: string;
                         /** Cut 26 §2 (core): the set's route — the fork depths (5 · 9 · 14 · 19 · 24) whose FAR stair the hero takes; absent/[] = the
@@ -104,6 +105,7 @@ export type Stake = { loot: number; brought: { label: string; insured: boolean }
 /** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
  *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */
 export type ExitLine = { carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
+                         secured?: number;                                                                  // Cut 30.5 (core; the owner: a new record is a checkpoint, never an exit): of `carried`, the gold the run's checkpoints secured — kept whole at any exit (a death keeps it alone); `keep_pct` is the share of the rest (`banked $120 · $80 secured + 100% of $40`)
                          trace?: Trace;                                                                     // Cut 9 §5: the exit's last-5 trace (every tier)
                          salvaged?: { kind: string; n: number; gold: number }[];                           // what the exit salvaged before the keep sheet (a return's 40 % cut), per kind in coins; `kind` is a display name — an unidentified kind reads as its flavour (`brittle scroll?`, QA 1a2a4a9)
                          run_id?: number;                                                                   // the run, so a report's trace links can open its replay (QA on e0f87e7: the return sheet's had `watch`, the report's did not)
@@ -111,6 +113,7 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          stolen?: string[];                                                                 // QA e75ec29 (qaR): what thieves took this run and it never got back (`· stolen heal`; flavour-named while unidentified)
                          purse_full?: boolean;
                          cause?: string;                                                                    // QA 0c6e126 (qaY; core): a death's killer as it reads after `died to` (`a goblin archer`) — the report's line leads with it
+                         reason?: string;                                                                   // c30-legible (core): why the run ended, ≤ 3 words (`hurt · banked`, `hurt · went home`, `slain · jackal`)
                          swap_left?: { kind: string; n: number }[];                                        // QA 0c6e126 (qaY; core): what the costly swaps left on the floor, per label — `−$5 swapped` names it (`−$5 left axe`)
                          swapped?: number;                                                                  // QA 778fa1b (core): the carried gold this run's pack swaps took off (a find taken in the place of a dearer carried item — the strip's `−$37 swapped`, summed); `carried` is after it
                          wake?: number;                                                                     // QA 778fa1b (core): the heir purse's top-up this death paid (the text's `+$N wake`); `purse_full` now only when the purse was under $80 (just over the $40 line) — a richer death has no purse word
@@ -123,7 +126,10 @@ export type ExitLine = { carried: number; keep_pct: number; kept: number; spent:
                          shelved?: { kind: string; n: number }[];
                          driven?: DrivenOff;
                          meters?: MeterWire;                                                                // Cut 29 §3 (core): the run metered (dps dealt/taken by side, hps by source, time split, row shares, supplies, gold/min, hits); absent on an old wire
-                         news?: News[] };                                                                  // Cut 24 §2 (core): what was new this run, most telling first, ≤ 3 (`first: Warlord slain` · `record: D10` · `avenged Ulak` · `new find: mail` · `first: the captive` · `driven off: Warlord` · `learned 3`); a run with nothing new has one `differ` line (`deeper: D9, last D8` · `banked, last returned` · `+$23 on last`) — the report leads with these, before the counts                                                              // Cut 24 §1 (core): a boss whose HP did not move for 60 of the hero's actions drove him off — a return-tier exit (keeps 60%), verdict `no counter`; the text reads `returned $N · … · no counter`                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
+                         news?: News[];
+                         end?: "bank" | "return" | "death";                                                 // run-clear (core): the end's kind (the exit event's tier)
+                         reached?: number; new_best?: boolean;                                              // run-clear (core): the deepest floor the run reached; it went past the lineage's record
+                         finds?: InvItem[] };                                                               // run-clear (core): what the run found and brought home (a death: left in its bones), rarest first, ≤ 6                                                                  // Cut 24 §2 (core): what was new this run, most telling first, ≤ 3 (`first: Warlord slain` · `record: D10` · `avenged Ulak` · `new find: mail` · `first: the captive` · `driven off: Warlord` · `learned 3`); a run with nothing new has one `differ` line (`deeper: D9, last D8` · `banked, last returned` · `+$23 on last`) — the report leads with these, before the counts                                                              // Cut 24 §1 (core): a boss whose HP did not move for 60 of the hero's actions drove him off — a return-tier exit (keeps 60%), verdict `no counter`; the text reads `returned $N · … · no counter`                                        // Cut 21 §2: found supplies of a kind the shelf sells, put on the shelf at this exit (not salvaged) — `found heal → shelf`                                                            // QA e75ec29 (qaR): a death whose heir purse was already at the top-up line ($40) — no `+$N wake`; the line reads `purse full`
 /** Cut 24 §1 (core) — the `no counter` exit: the boss kind + short title (`goblin_warlord`, `Warlord`), the floor, the verdict word
  *  (`no counter`), the defence that shrugged every blow (`shield wall`, ≤ 3 words), the counter in words (`attack boss`) and as a row
  *  the editor can insert (like a patch's). Render `Warlord · no counter · shield wall · try: attack boss`. */
@@ -140,7 +146,10 @@ export type Counter = { boss: string; row?: Row | string; text: string };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
                         free?: boolean;                                    // Cut 12 §6: a supply the camp gave (the kennel's leash) reads `leash · kennel`; the core always sends it
                         found?: boolean;                                   // Cut 21 §2: a shelf line an exit put there (found in the dungeon, packed free) — `heal · found`
-                        enchanted?: number };                              // QA 524827b (core): the `+N` enchant scrolls read on it added (KEPT `axe +7 → vault · enchanted ×6`)
+                        enchanted?: number;                                // QA 524827b (core): the `+N` enchant scrolls read on it added (KEPT `axe +7 → vault · enchanted ×6`)
+                        rarity?: Rarity };                                 // run-clear (core `item::rarity`): read off its kind's depth band and its +N; absent = common
+/** Run-clear (core `item::Rarity`): an item's rarity, rising — common · uncommon · rare · epic · legendary. */
+export type Rarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
 
 export type Ev =
   | { t: number; k: "move"; id: number; x: number; y: number }
@@ -298,7 +307,10 @@ export type PatchWhole = { reach: number; reach_pm: number; death: number; death
                            reach_from?: number; reach_to?: number;
                            depth?: number;        // QA 308f045 (core; qaAC: `reach D9 ≈ ±1`, then the camp's `vs sent · D6 −21`): the floor the reach is read at — the camp's `vs sent` head (the frontier when it moves, else the floor that moves most); `Patch.forecast_depth` is the same
                            death_from?: number };  // QA 308f045 (core; qaAC: `death −100 ±1`): the death share before the patch (0..1) — print `death 100→0%`   // Cut 26 §6 (core; AP: `reach D5 −76`): the bar's reach before/after the patch (0..1) — print the move as from→to (`reach D5 90→14%`), never a signed delta                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
-export type Death = { run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order"|"route";   // route: Cut 26 (core) — the far stair the set's route took killed him (`route_cause`)
+/** Cut 30 §2 (core) — a death's one cheapest lever before the pen opens: `kind` spend · package · wait, `text` ≤ 3 words (`sword +2`, `Hunter`, `scarred ×3`). */
+export type Lever = { kind: string; text: string };
+export type Death = { package?: string; lever?: Lever;   // Cut 30 §2 (core): the package row that acted last (`Steady · HP<20% → return`); the cheapest lever (absent once the pen is open)
+  run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order"|"route";   // route: Cut 26 (core) — the far stair the set's route took killed him (`route_cause`)
                       fight?: MeterWire;                                                    // Cut 29 §3 (core): the fight he died in, metered — the death screen's breakdown; absent for a stall
                       lean?: "dice";                                                        // Cut 26 §6 (core; AO: `GAP` beside `unpatched 10/12`): a gap/row/order most of whose unpatched replays survive (> 6/12) — stamp it beside the counts (`GAP · dice-leaning`)
                       route_cause?: RouteCause;                                             // Cut 26 risks (core): on `route`, the fork, the stair taken and the other; its lead patch is a route edit (`route_cause.route`)   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
@@ -336,7 +348,109 @@ export type ReportLead = { k: string; text: string };
  *  granted, the price spent into it), `reward` what it gave. */
 export type OathReport = { id: string; chips: string[]; text: string; runs: number; kept: number; done: boolean; reward?: OathReward; price?: number;
   broken?: number; cause?: string };   // Cut 28b (core): the sends that broke it and the cause most share (`R2 return`)
+/** Cut 30 §4 (core) — one thing that grew on a track over an absence (`character` · `L7`, `items` · `+$2400`, `scale` · `best D14`,
+ *  `town` · `a building`, `<track>` · `opened <stage>`); the report leads with them. */
+export type GrewLine = { track: string; what: string };
+/** Cut 30 §4 (core) — a track on the tracks panel (`character` · `items` · `scale` · `town`): its stage (≤ 2 words), stages reached,
+ *  the next stage and its trigger (`next · kennel · first tame`), progress toward a numeric trigger (0..1). */
+export type Track = { id: string; stage: string; stages: number; next?: string; trigger?: string; progress?: number };
+/** Cut 30 §3 (core) — a building on the town scene (`blacksmith` · `storehouse` · `kennel` · `bank`), its look 1–3, the day built. */
+export type Building = { id: string; level: number; day: number; trigger?: string };   // trigger: c30-legible (core) — what raised it (`first gold home`)
+/** Cut 30 §5 (core) — the quest on the board: one plain goal (≤ 5 words: `reach D10 · no return`), the reward's picture
+ *  (`title` · `row` · `slot` · `card` — `art/ui/oath/`), progress 0..1, kept, a free swap left today (`swapQuest()`). No stake. */
+export type Quest = { goal: string; reward: string; progress: number; done: boolean; swap: boolean };
+/** Cut 30 §3 (core) — the town: its buildings (built in order), the next plot staked and its trigger, the bank (`bankDeposit` /
+ *  `bankWithdraw`; ~2 % a night, capped at `bank_cap`), the interest it paid in all, the quest board (from the Warlord slain). */
+export type Town = { buildings: Building[]; next?: string; next_trigger?: string; bank: number; bank_cap: number; interest: number; quest?: Quest; quests_done?: number;
+  workers?: WorkerPost[] };   // Cut 30.5 (core): the workers at their posts (hired; the lit node's greyed with its price)
+/** Cut 30 §2 (core) — a package (`Guarded L3`): `kind` stance · tactic · temperament; `level` 1–5 from `runs` (the runs one of its rows
+ *  fired in; `next_at` the runs the next level wants); `slot` when equipped; `owned` once its stage came (`trigger` until then);
+ *  `level_price` the marks a level spend costs (`spendLevel`). */
+export type Package = { id: string; name: string; kind: string; level: number; runs: number; next_at?: number; slot?: number; owned: boolean; trigger?: string; level_price?: number };
+/** Cut 30 §1 (core) — a drilled counter (`drill · attack boss`, named, announced once as `DRILLED · Warlord`), revocable (`revokeDrill`);
+ *  `scar` the boss's scar now in % (`scarred ×3` = 15). */
+export type Drill = { boss: string; rows: Row[]; revoked: boolean; scar: number };
+/** Cut 30 §2 (core) — a row of the compiled set: its package label (`Steady`, `drill · Warlord`, `boss focus`; empty for a pen row) and
+ *  the row above that always wins it (`Guarded wins`), by index. */
+export type RowSource = { label: string; shadowed_by?: number };
+/** Cut 30 §2 (core) — the lineage's packages: every package (owned or its trigger), the stance (never empty; `custom` on an old save), the
+ *  tactics in their slots, the temperament (from heir 3; `offer` the wake's three cards, card 1 worn until `pickTemperament`), the drills,
+ *  the scars (boss → %), the pen (open at the Mother met or a 3-day stall; the editor's rows sit above the packages), and per compiled
+ *  row its source. `literal` a harness's lineage (no packages). */
+export type Packages = { all: Package[]; stance: string; tactics?: string[]; tactic_slots?: number; temperament?: string; temperament_open?: boolean;
+  offer?: string[]; drills?: Drill[]; scars?: [string, number][]; pen_open: boolean; rows?: RowSource[]; literal?: boolean };
+/** Cut 30 §2 (core) — a package move priced on the paired panel (`packageOptions(sims)`, best first): `action` equip · level, the shares
+ *  of the sends that pass the record / reach it / bank / die, and each move against the set as it stands (`Guarded · death −8`). */
+export type PkgOption = { id: string; action: string; slot?: number; price?: number; past: number; bank: number; death: number; reach?: number;
+  d_past: number; d_bank: number; d_death: number; d_reach?: number };
+/** Cut 30.5 (core; docs/CUT30_5.md, docs/AUTOMATION_TREE.md §2) — a node of the works tree. A **worker** retires a chore done by hand a few
+ *  times (`count`/`need`, or `fallback_h` of lineage age once its chore exists); a **stage** is one of the four tracks' stages (the tracks
+ *  panel's rows, now the tree's branches). ids — workers: quartermaster · porter · scout · armourer · apprentice · keeper · clerk · drillmaster ·
+ *  kennel_hand · herald · guide (in the tree's order); stages: `<track>:<stage>` (`town:bank`, `character:second stance`).
+ *  `state` — a worker: `done` (hired) · `lit` (the one node to buy: trigger met, its turn; ≤ 1 at a time) · `ready` (trigger met, waits its
+ *  turn behind the lit one) · `open` (its chore exists; counting) · `shut` (its chore not yet: `trigger` names the gate); a stage: `done` ·
+ *  `next` (the track's next) · `later`. Draw done dimmed, the lit one full with its price, the next two as silhouettes; never the whole tree. */
+export type WorkNode = {
+  id: string; kind: "worker" | "stage"; branch: string;   // branch: trunk · character · items · scale · town
+  name: string;                                         // ≤ 2 words (`porter`, `kennel-hand`, `second stance`)
+  state: string;
+  chore?: string;                                       // worker: the act by hand — chest · send · wear · forge · keep · deposit · level · field · swap · start (none: the quartermaster, given)
+  count?: number; need?: number;                        // worker: chores done by hand / the trigger (`2/3`); a hired worker keeps its last count
+  price?: number; affordable?: boolean;                 // worker: the hire's gold (0 = free; forge units, fixed with the forge's), paid from the purse then the chest
+  fallback_h?: number;                                  // worker: the lineage age (h) that lights it without the count, once its chore exists
+  trigger?: string;                                     // ≤ 3 words: a stage's trigger, a shut worker's gate (`bank built`)
+  tip?: string;                                         // worker: ≤ 4 words, the works sheet's fragment (`hauls home · while away`)
+  beat?: string;                                        // worker: the hire's beat, ≤ 2 words, caps (`AUTO HAUL`)
+  post?: string;                                        // worker: where it stands — crate · mouth · storehouse · blacksmith · bank · tent · kennel · board
+  paused?: boolean;                                     // worker: hired and switched off (`setWorker(id, false)`): its chore is by hand again
+  rank?: number;                                        // week 2 (the owner: later worker upgrades): a hired worker's rank 1–3 — its look (and its post's)
+  rank_price?: number; rank_wait_d?: number;            // week 2: the next rank's gold and the days of service it still waits (0: on offer, `Works.lit_rank`); absent at IV
+  bonus?: string; rank_adds?: string;                   // week 2: the rank's small real edge now (`bonus`) and what the next rank adds (`rank_adds`), ≤ 4 words (`+4% hauls`, `−10% steps`, `25‰ interest`, `−5% rest`, `half toll`, `levels −◆1`, `insures its finds`); keeper, kennel-hand and herald ranks are looks (none)
+};
+/** Cut 30.5 (core) — the `next` pill: the single next goal. `kind` buy (the lit node, affordable) · chest (a haul waits, before the porter) ·
+ *  send (the hero waits for a SEND, before the scout) · gold (the lit node, short: `have`/`need` in gold) · count (a node's chores by hand:
+ *  `have`/`need`) · system (the next system's wait: `need` hours) · none. `text` ≤ 3 words + the number (`open chest`, `porter · 2/3`,
+ *  `apprentice · $96/$120`, `bank · in 3h`); tapping it opens the tree on `node`. */
+export type NextPill = { kind: string; node?: string; text: string; have?: number; need?: number };
+/** Cut 30.5 (core) — the works tree (`Lineage.tree`; the tracks panel's successor). `chest` the haul waiting uncollected (gold not in
+ *  `Lineage.gold`, which is the purse: collected gold, what a tap can spend) — `openChest()`; it never caps or decays, and the engine's own
+ *  needs (the restock, insurance, a waystone's toll) draw on it after the purse. `waits` the hero is home and waits for a SEND (before the
+ *  scout: a send is one run; the gem/mouth sends him); `sent` a send by hand is under way; `auto_send` the scout is hired (offline uncapped).
+ *  `ledger` = purse + chest + bank: every gold movement summed (the conservation audit). */
+export type Works = { nodes: WorkNode[]; lit?: string; lit_rank?: string; next?: NextPill; chest: number; waits: boolean; sent: boolean; auto_send: boolean; ledger: number };
+/** Cut 30.5 (core) — a worker at its post on the town scene (`Town.workers`): hired ones, and the lit node's worker greyed (`lit`, `price`). */
+export type WorkerPost = { id: string; post: string; lit?: boolean; price?: number; paused?: boolean; rank?: number };   // rank 1–3 (week 2): the worker's look
+/** Cut 30.5 (core) — what a worker did over an absence (`ReturnReport.workers`): `apprentice` · `+2 steps` (n 2); `first` the first time it
+ *  ever acted (name it once: `apprentice · +1 step`; later fold into the report's lines). */
+export type WorkerAct = { id: string; what: string; n: number; first: boolean };
+/** RUNS_UI (core; docs/RUNS_UI.md) — one run in the runs log (`Lineage.runs`, oldest first, cap 60). `via`: how it ran — `away` (an absence's
+ *  batch, `runOffline*`), `town` (unwatched while the app was open: `advance`), `watched` (live in the watch). `absence`: the absence an `away`
+ *  run belongs to (the log folds by it). `clock_s`: the lineage clock at its end (the stamp: `Lineage.clock_s` − it). `gold` what came home,
+ *  `found` the units found, `kept` what went to the vault, `turns` its ticks (10 a second), `best` a new best depth, `death_id` a death whose
+ *  verdict the core still holds (`death(id)`). A record with `sampled` is no run: the absence's runs extrapolated past its stall (`+N`). */
+export type RunRec = { id: number; heir: number; via: "away" | "town" | "watched"; absence?: number; clock_s: number;
+  start: number; depth: number; tier: "bank" | "return" | "death"; reason?: string; gold: number; found: number; kept?: string[];
+  turns: number; best?: boolean; death_id?: number; sampled?: number;
+  finds?: InvItem[];     // RUNS_UI × run-clear (core): the run's finds, rarest first, ≤ 6 — the entry's rarity mark and its card
+  secured?: number };    // RUNS_UI × Cut 30.5 (core): of `gold`, the checkpoints' (kept whole at any exit) — `$212 · $80 safe`
+/** RUNS_UI (core) — the run under way right now (`Lineage.live`; absent at home): the hero's floor, hp, and the run's tick. */
+export type LiveRun = { run_id: number; heir: number; depth: number; start: number; hp: number; max_hp: number; turn: number };
+/** RUNS_UI (core) — `advance(ms)`: the open app's clock run on the lineage (rest, then the next run, unwatched; a run in flight stays in
+ *  flight at the budget's end). `ended` the runs it finished (refresh the lineage then), `live` the run under way after it. */
+export type Advance = { ended: number[]; live?: LiveRun };
+/** RUNS_UI (core) — a past run re-simulated from its send (`replay(id)`): each floor's first snapshot (later entities, items and seen tiles
+ *  folded in, as the watch's run log does) and its events; `hash` the FNV-1a of its events (an exit's line and trace left out), `ticks` its
+ *  length. Identical to the run as it was played (same seed, state and inputs). */
+export type ReplayFloor = { snapshot: Snapshot; events: Ev[] };
+export type Replay = { run_id: number; floors: ReplayFloor[]; hash: string; ticks: number };
+/** RUNS_UI (client; Cut 31's heroes on the wire later) — one lane: a hero's run state. `state` live · rests · waits. */
+export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
+  rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
+  workers?: WorkerAct[];                                                       // Cut 30.5 (core): the workers' acts this absence (porter's hauls, apprentice's steps, clerk's deposits, …)
+  chest?: number;                                                              // Cut 30.5 (core): the haul gold this absence left in the chest (before the porter; the chest's badge)
+  grew?: GrewLine[];                                                          // Cut 30 §4 (core): what grew on each track over the absence — the report leads with it
+  packages?: string[];                                                         // Cut 30 §1–2 (core): the packages' beats (`STEADY L3`, `DRILLED · Warlord`, `+Guarded`, `the pen`, `built bank`, `QUEST DONE · reach D10`)
   lead?: ReportLead[];                                                         // Cut 28 §2 (core): the report's first screen, ≤ 4, decisions first; salvage, bones and spent fold under `details`
   oath?: OathReport;                                                           // Cut 28 §1 (core): the sworn oath's absence; absent with none sworn
   elapsed_s: number; runs: number; sampled: boolean;
@@ -375,7 +489,15 @@ export type ReturnReport = {
   meters?: MeterWire;                                                         // Cut 29 §3 (core): the absence's real runs metered, summed (the report's per-night meter)
   fallen?: Fallen[];                                                          // Cut 29 §6 (core; AX: Greth gone with only `party −1 ogre`): each companion that fell, named — `Greth · ogre L5 · fell D12 to lurker`
 };
-export type Lineage = { systems?: SystemInfo[];                                                                    // Cut 29 §2 (core): the curriculum — every system in order, `open` or not, its `trigger` (≤ 3 words), `new` since the camp last looked (`seenSystems()` clears); gate the editor's vocabulary and the camp's tiles by `open`
+export type Lineage = { runs?: RunRec[]; live?: LiveRun | null; replays?: number[]; clock_s?: number; absences?: number;   // RUNS_UI (core): the runs log, the run under way, the run ids a replay is held for, the lineage clock (s), the absences counted
+                        heroes?: HeroLane[];                                                                     // RUNS_UI: reserved for Cut 31 (a lane per hero); the client derives the one hero's lane until then
+                        age_h?: number; reveal_queue?: string[]; reveal_next?: { id: string; trigger: string; triggered: boolean; wait_h: number };   // Cut 30 (core; PROGRESSION_V2 §4): the lineage's age in hours (offline included); systems ready and waiting their turn (one opens a report); the next to come and the hours it still waits (`next · tactics · 3 h`)
+                        glory?: number; expeditions?: number; era_gate?: number;                                   // PROGRESSION_V2 §2 (core, reserved for Cut 31)
+                        packages?: Packages;                                                                        // Cut 30 §2 (core): stances, tactics, temperaments, levels, drills, scars, the pen
+                        town?: Town;                                                                                // Cut 30 §3 (core): the buildings, the next plot, the bank, the quest board
+                        tracks?: Track[];                                                                           // Cut 30 §4 (core): character · items · scale · town — stage, next stage and trigger. Cut 30.5: superseded by `tree` (its stage nodes); kept until the client moves, then dropped
+                        tree?: Works;                                                                               // Cut 30.5 (core): the works tree — workers, the four tracks as branches, the chest, the `next` pill. NB `gold` is the purse (collected); the chest is `tree.chest`
+                        systems?: SystemInfo[];                                                                    // Cut 29 §2 (core): the curriculum — every system in order, `open` or not, its `trigger` (≤ 3 words), `new` since the camp last looked (`seenSystems()` clears); gate the editor's vocabulary and the camp's tiles by `open`
                         tier?: number;                                                                             // Cut 29 §1 (core): the catalogue's tier now (0–6: T1 the first bank, T2 the Warlord met … T6 the Lurker Queen met)
                         oath_slots?: number; sworn?: string[];                                                     // Cut 29 §1 (core): oaths that may be sworn at once (1–3, `oath_slot_2/3`); every sworn oath's id (first slot's first; `oath` is that one). An oath lapses unkept at its day's end
                         oath_draw?: OathDraw;                                                                      // Cut 29 §1 (core): ◆2 for a fresh standing oath (`drawOath()`), from T2
@@ -440,7 +562,7 @@ export type ClassChip = { class: string; signature: string; level: number; opens
  *  core's estimate of nights of income until it is (0 = now; absent when there is no income to go on). With `kitDeltas()`:
  *  `delta` = the paired forecast move of buying it at `depth` (0..1, signed; the same paired panel as edits), `pm` its ±, and
  *  `bank`/`death` the ends' moves — the chip reads `mail +1 · D9 +7 · $340`. */
-export type KitStep = { label: string; price: number; owned: boolean };
+export type KitStep = { label: string; price: number; owned: boolean; kind?: string; rarity?: Rarity };   // run-clear (core): the piece the step forges and its rarity
 export type KitLadder = { slot: "weapon" | "armour" | "pack"; owned: number; steps: KitStep[];
                           next?: { label: string; price: number; affordable: boolean; nights?: number; per_night?: number;   // QA 912e135 (core): the night's net `nights` divides by
                                    depth?: number; delta?: number; pm?: number; bank?: number; death?: number } };
@@ -521,6 +643,26 @@ export type MeterWire = { seconds: number; dealt: MeterSides; taken: MeterSides;
                           gold: number; gold_per_min: number; hits_hero: number; hits_pets: number; fights: number };
 export type SnapMeters = { run: MeterWire; fight?: MeterWire; fighting?: boolean };
 export interface Engine {
+  // Cut 30.5 (core): the works tree — each returns the Lineage (throws with a ≤ 3-word reason). The chores by hand are the existing calls:
+  // send (before the scout) · loadout (wear a find) · buyKit · keep (a keep sheet) / sellVault · bankDeposit · spendLevel · setParty / hatch ·
+  // swapQuest · setStart — each fills its node's count (`WorkNode.count`) until its worker is hired.
+  hire?(id: string): Lineage;                           // hire the lit node's worker (`Works.lit`; its price from the purse, then the chest)
+  openChest?(): Lineage;                                // the haul chest into the purse (`Works.chest` → `gold`); the porter's chore
+  setWorker?(id: string, on: boolean): Lineage;         // switch a hired worker off (its chore by hand again) or back on
+  promote?(id: string): Lineage;                        // week 2: the worker rank on offer (`Works.lit_rank`; II 5 days after the hire, III 9; a forge unit × the rank less one)
+  // RUNS_UI (core; docs/RUNS_UI.md): runs go on while the app is open, and any held run replays
+  advance?(elapsedMs: number): Advance;                 // the open app's clock: rest, then runs, unwatched; a run in flight stays in flight
+  replay?(runId: number): Replay | null;                // a past run re-simulated from its send (null: no capsule held for it)
+  // Cut 30 (core): packages, drills, the bank, the quest board — each returns the Lineage (throws with a ≤ 3-word reason)
+  equipPackage?(id: string, slot: number): Lineage;     // §2: a stance, a tactic in `slot` 0/1, a temperament — free, instant
+  unequipPackage?(id: string): Lineage;                 // §2: empty a tactic or temperament slot (the stance is never empty)
+  pickTemperament?(id: string): Lineage;                // §2: take a wake card (`packages.offer`)
+  spendLevel?(id: string): Lineage;                     // §2: marks for a package's next level (`Package.level_price`)
+  revokeDrill?(boss: string, revoked: boolean): Lineage;   // §1: revoke (or restore) a drill — one tap, it stays
+  packageOptions?(sims: number): PkgOption[];           // §2: every package move priced on the paired panel (slow: background lane)
+  bankDeposit?(amount: number): Lineage;                // §3: deposit (capped at `town.bank_cap`)
+  bankWithdraw?(amount: number): Lineage;               // §3
+  swapQuest?(): Lineage;                                // §5: the day's free swap
   drawOath?(): Lineage;                // Cut 29 §1: ◆2 — a fresh standing oath (`Lineage.oath_draw`)
   forswearOathId?(id: string): Lineage;   // Cut 29 §1: forswear the sworn oath `id` (either slot; half back)
   commission?(): Lineage;              // Cut 29 §5: the next work, for gold (`Lineage.commission`)

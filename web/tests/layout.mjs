@@ -88,6 +88,14 @@ try {
   await toRunEnd(page);
   const after = (await state(page))?.screen;
   if (after === "death") await gemClear(page, "phone death (the first run)");
+  // The absence's layout belongs to the scout phase; manual sends wait at home before he is hired (Cut 30.5).
+  await page.evaluate(async () => {
+    const r = window.__riddle, blob = JSON.parse(r.exportSave()), save = JSON.parse(blob.engine);
+    for (const id of ["porter", "scout"]) if (!save.lineage.tree.hired.some(([worker]) => worker === id)) save.lineage.tree.hired.push([id, save.lineage.day ?? 0]);
+    blob.engine = JSON.stringify(save);
+    if (!await r.importSave(JSON.stringify(blob))) throw new Error("Could not load the scout-phase layout fixture");
+    if (!r.lineage.tree.auto_send) throw new Error("The absence layout fixture requires the scout");
+  });
   // the absence: the report, its worst death
   await page.goto(`${url}?dev=1&absent=8h`);
   await waitFor(page, (s) => s?.booted && (s.screen === "report" || s.screen === "ending"), "report", 240_000); await settle(page);
@@ -140,7 +148,7 @@ try {
     check(!!c.con && c.con.w >= 0.9 * c.W && c.con.b >= c.H - 2, `${what}: the console spans the bottom (${Math.round(c.con?.w ?? 0)} of ${c.W})`);
     check(c.over === 0 && c.scroll <= 1, `${what}: nothing wider than the viewport`);
   };
-  await three("desktop camp", { left: "main.camp .tablets", well: "main.camp .vista", right: "main.camp .shaft" });
+  await three("desktop camp", { left: "main.camp .tablets", well: "main.camp .town", right: "main.camp .shaft" });   // Cut 30 §3: the town stands where the vista stood
   await gemClear(d, "desktop camp");
   // a sheet from a tablet stands beside it
   const tab = d.locator("main.camp .row.tablet:not(.oath-tab)").first();

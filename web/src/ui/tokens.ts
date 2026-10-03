@@ -101,7 +101,10 @@ export function isFreeSupply(L: Lineage, it: InvItem): boolean {
 }
 /** Cut 12 §1: a tactic card's row (`{v:"tactic"}`) — outside `max_rows`, one per owned card. */
 export const isCardRow = (r: Row): boolean => r.verb.v === "tactic";
-export const ownRowCount = (rows: Row[]): number => rows.filter((r) => !isCardRow(r)).length;
+/** Cut 30 §2: a package's compiled row (`stance:steady`, `tactic:boss_focus`, `temper:skittish`, `drill:lich`) — outside the row cap
+ *  (the core's `Row::is_pkg`); the pen's rows are the player's own. */
+export const isPkgRow = (r: Row): boolean => /^(stance|tactic|temper|drill):/.test((r.origin as string | undefined) ?? "");
+export const ownRowCount = (rows: Row[]): number => rows.filter((r) => !isCardRow(r) && !isPkgRow(r)).length;
 export function rowLabel(r: Row): string { return `${r.conds.map(condLabel).join(" · ")} → ${verbLabel(r.verb)}`; }
 /** docs/COPY.md §2 (owner: "R1/R2 labels don't make sense to humans, can't remember"): a rule is named by what it says — its action,
  *  and the one condition that places it (`return at 20%`, `drink heal at 30%`, `attack nearest`) — never by a number. Two rules

@@ -5,7 +5,7 @@ fn main() {
     let limit: u32 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(20000);
     let good = args.get(2).map(|p| riddle_core::RuleSet::parse(&std::fs::read_to_string(p).unwrap()).unwrap());
     for seed in 1..=30u64 {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_literal(seed);
         if let Some(set) = &good {
             for u in ["row5", "row6", "row7", "row8"] {
                 g.lineage.unlocks.insert(u.into());

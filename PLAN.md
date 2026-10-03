@@ -1,18 +1,18 @@
 # Riddle — PLAN.md
 
-*Working title. Canonical plan, v3. **Status 2026-09-16: Cut 1 (v1 playable) is BUILT and verified**; see `docs/CUT1.md` (contract + addenda A–E), `docs/INTEGRATION.md`, `eval/cards/cut1.tier1.json` (61.6, promising, gated on tension + expression). Review log at the end. Research:
+*Working title. Canonical plan, v3. **2026-09-30: the idle-first pivot (`docs/IDLE_FIRST.md`, `docs/CUT30.md`) supersedes the rules-first spine; sections below that contradict it are history (pre-pivot); Cut 30.5 (`docs/CUT30_5.md`) is the current contract: manual first sends, then hired workers; works replaces tracks. Later conflicting sections describe the older design.** Status 2026-09-16: Cut 1 (v1 playable) is BUILT and verified**; see `docs/CUT1.md` (contract + addenda A–E), `docs/INTEGRATION.md`, `eval/cards/cut1.tier1.json` (61.6, promising, gated on tension + expression). Review log at the end. Research:
 `research/*.md`. Fun eval: `docs/FUN_EVAL_IDLE.md` + `eval/`. Sibling conventions:
 `../tacticalswap/AGENTS.md` (cut contracts, gates, WebMCP), `../tacticalswap/docs/ART.md`
 (watercolour register), `../cyty/PLAN.md` (Rust sim → WASM, custom renderer).*
 
 ## One-liner
 
-A real roguelike whose hero you never drive. You write its policy as a short rule list; the
-hero learns the dungeon's facts on its own. Send it down and it comes back, or doesn't, with
-what it learned, what it found, and a death that names the rule you got wrong. Runs happen
-while you are away. The dungeon has a bottom.
+A real roguelike whose hero you never drive. Equip packages, build the town, and hire workers
+for chores first done by hand. Tap the first few sends, then hire the scout and the hero
+climbs while you are away, uncapped. Late on, open the pen for optional rule edits. The hero
+learns facts on its own; every death names its cause. The dungeon has a bottom.
 
-**Contract on the store page:** *you write the hero's rules; you never steer.* Present as an
+**Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an
 automation/idle game first, never as an action roguelike (`research/idle-attraction.md` §1.1).
 
 ## The division of intelligence (the design in one table)
@@ -20,8 +20,9 @@ automation/idle game first, never as an action roguelike (`research/idle-attract
 | | Who | What | Where it shows |
 |---|---|---|---|
 | **Facts** | the hero, autonomously | bestiary (what a bloat does), item identity (blue potion = heal), biome traits, boss counters, map of the descent | learned by encounter, mostly offline; each fact unlocks a condition or verb token |
-| **Policy** | the player, explicitly | ordered rule rows: when to retreat, drink, flee, dive, whom to hit, what to risk | the editor; the trace; the death verdict |
-| **Chores** | the engine, silently | pathing, rest, pickup, auto-equip by preference, corridor use when told | never shown unless a rule overrides it |
+| **Policy** | the player, explicitly | chosen packages and revocable drills; optional late rule edits | package panels; the editor; the trace; the death verdict |
+| **In-run chores** | the engine, silently | pathing, rest, pickup, auto-equip by preference, corridor use when told | shown when a rule overrides them |
+| **Town chores** | the player, then hired workers | send, pack, forge, train, bank, party, quests and start floor | works tree; named town posts; first act and report |
 
 "Smart AI" therefore means: the hero gets *knowledgeable* by itself and gets *wise* only
 through the player. Nothing learns implicitly; every learned fact is a named token, every
@@ -36,7 +37,7 @@ core" held. Riddle inverts each:
 
 | Shape Gacha | Riddle |
 |---|---|
-| Calm collector spine, optimisation optional | Rule authoring **is** the spine; there is no auto-arrange |
+| Calm collector spine, optimisation optional | The idle climb is the spine; packages and the pen multiply it |
 | Growth measured in Flux | Growth measured in facts learned, depth, bosses; numbers are the scoreboard |
 | Nothing at stake | Three-tier exit, brought items at risk, the rule set's reputation |
 | No story | A roguelike built for interaction density plus a chronicle and highlight sifter |
@@ -48,10 +49,10 @@ The risk is execution and content cadence, not concept (`research/comparables.md
 
 ## Pillars
 
-1. **Every death names a rule.** The cause is a row the player wrote or failed to write,
+1. **Every death names its cause** — and its cheapest lever (spend · package · row · wait),
    never "the AI".
-2. **Automate no-brainers silently; surface trade-offs.** DCSS's rule is the engine/policy
-   split.
+2. **Do town chores by hand, then hire workers; surface trade-offs.** The first sends are
+   manual until the scout arrives. In-run chores stay silent; chosen policy stays visible.
 3. **The return is the hero screen.** Every absence hands over facts learned, the tail of
    the run distribution, and at least one decision. Offline is uncapped; the wall caps yield.
 4. **Unlocks add vocabulary, not multipliers.** A new token, slot, class or zone roughly
@@ -62,10 +63,10 @@ The risk is execution and content cadence, not concept (`research/comparables.md
 
 ## Anti-pillars
 
-- No calm mode, no auto-arrange, no "the policy is optional".
+- No "the policy is required": idling progresses; choosing and writing multiply it.
 - No presence rewards. Active play is rewarded only through decisions, 1.5–3× over idle.
 - No timers as walls, no offline cap, no absence decay, no monetised waits. Free or buy-once.
-- No implicit learning of *policy*. Facts are learned; policy is written.
+- No silent policy: drilled rows are named, shown, revocable; facts are learned; policy is chosen or written.
 - No HP-inflation difficulty. Depth scales by traits that break the current program.
 - No infinite treadmill. The bottom is an ending that says "you can stop"; ascension is opt-in.
 
@@ -85,8 +86,9 @@ skip-to-event, key-highlights. Callouts name the firing rule (`HP 31% → Potion
 monsters telegraph one turn ahead; near-misses are visible.
 
 **Day to day (two weeks).** Unlock cadence turns the rule set over. Wall bosses every five
-floors cannot be passed until the policy is rewritten; the counter is a *fact* the hero can
-learn (the boss telegraphs it, the bestiary records it), so the wall diagnoses itself. A
+floors are speed bumps: the counter is a *fact* the hero learns and drills (the Warlord at the
+second meeting, later walls after days met, the deep walls later still); scars wear the boss
+down; a package or a written row gets there sooner. A
 parallel lane (side branch, trophies) progresses while stuck.
 
 **Weeks to months.** Reach the bottom (depth 30 proposed). Ending. Ascension variants, each
@@ -157,8 +159,9 @@ is deferred; this is the taste of it.
   level per floor drives dive-vs-explore. **Allies with state.**
 - **Vault "choose one of N"** as the only direct interrupt, only while watching: presence
   earns a decision, never a click.
-- **Three-tier exit**: camp stairs 100% of run loot; retreat rule mid-floor 60%; death 30%.
-  Meta never lost. Brought vault items are lost on death (the loadout is a bet).
+- **Record checkpoints** secure the carried gold immediately and never end a healthy run.
+  On the carry since the checkpoint: bank 100%, return 60%, death 0%. Secured gold comes home
+  whole on every exit; the separate heir purse floor is 30%. Meta never lost. Brought vault items are lost on death (the loadout is a bet).
 - **Death screen**: cause, margin, last five firings, telegraphs, `gap`/`dice`, candidate
   patches with forecast deltas, free edit. Morgue text export with seed and rules.
 - **Chronicle and sifter**: auto-notes during the run; a sifter picks comeback, first-kill,
@@ -205,8 +208,7 @@ rewards varied policies (you must *not* kill the monkey to tame it).
 nothing (no offline farms); the only idle producer is the expedition, so the party is
 always the bet. A companion's own death has a trace and a verdict too.
 
-**Gate.** PETS bot = DEFAULT rules + the two strongest bred companions with their default
-rows: must still die by D8. Party is not policy.
+**Gate.** *(retired in Cut 30; see the idle gates: pets are measured by their own output, deaths a send.)*
 
 ## Equipment and skills
 
@@ -217,6 +219,9 @@ rows: must still die by D8. Party is not policy.
 
 ## Idle model
 
+- **Before the scout**, a send is one run, then the hero waits; hire him within the first
+  session (≤ 15 min and ≤ 5 manual sends on every seed). Works replaces tracks; hired workers
+  act between sends and during an absence. Chest gold never decays and pays for restocking.
 - **Unit = expedition.** The hero runs at 1 turn/s at 1×, so a run's duration is its turn
   count (target 3–8 min to a natural exit); dive rules shorten runs, explore rules lengthen
   them. Offline, the sim runs `elapsed / mean_run` expeditions, uncapped. When runs become
@@ -224,8 +229,8 @@ rows: must still die by D8. Party is not policy.
   report says so honestly.
 - **Yield of absence**, in order: facts learned → new bests → vault candidates → chronicle.
   Facts are the continuous lane (Pecorella's "present"); bests are the bumpy lane.
-- **Active bonus** through decisions only: a patched policy is worth 1.5–3× over the next
-  absence. Presence is worth zero.
+- **Active bonus** through decisions only: packages ≥ 1.5× over idle; the pen beats packages
+  by ≥ 15 % at the deepest wall. Presence is worth zero.
 - **Cadence targets**: a policy stays productive 8–24 h before it stalls; something to decide
   every 1–4 h; a new token or slot roughly daily for two weeks.
 
@@ -240,7 +245,7 @@ rows: must still die by D8. Party is not policy.
   (a new class skill every other level, each a new row to write) with a small bounded stat
   lane (+2 HP per level, +1 attack every third). Level 10 is mastery: a class-unique tactic
   card and a trophy. New classes are new verb ladders, which is the expansion axis.
-  Gate: default rules at level 10 must still die by D9.
+  *(The level-10 gate retired in Cut 30; see the idle gates.)*
 - **Every run converts.** Unkept items are salvaged into gold and the forge ledger; score
   becomes renown and ranks. Nothing carried out is wasted, and a walled idle day still
   returns something that spends.
@@ -291,13 +296,16 @@ From `research/art-tech.md`:
 
 ## Bots and gates (30 seeds, `examples/metrics.rs`, never weakened)
 
-| Bot | Rule set | Must |
+*(Cut 30: the idle bots, `examples/dayplayer.rs`, 16 seeds × 14 days × 3 check-ins; DEFAULT, EDITED,
+PASSIVE and LEARNED retired with the pivot — their rows print as retired.)*
+
+| Bot | Play | Must |
 |---|---|---|
-| DEFAULT | shipped preset | die by depth ≤ 6 on ≥ 80% of seeds |
-| EDITED | preset + 1 h of agent edits | depth ≥ 10 on ≥ 50%; gap vs DEFAULT ≥ 15 pts |
-| RANDOM | random rows | lose every seed |
-| PASSIVE | no rows | lose every seed by depth ≤ 3 |
-| LEARNED | DEFAULT after 200 offline runs (facts only, no edits) | ≤ 2 floors deeper than DEFAULT: facts alone must not solve the game |
+| IDLE | sends each check-in; never picks, edits, buys or deposits; wake card 1 | D8 day 1; D23 by day 12; gold every day; stall ≤ 4 d; no King in 14 days |
+| PICKED | + the forecast's top package swap / level, a forge step, a deposit | ≥ 1.5× sooner than IDLE at D13/D18/D23; never out-paced; ≥ 10 days with a stage |
+| TUNED | + the pen (counter rows, wall edits, patches) | beats PICKED by ≥ 15 % at D33; never required |
+| TUNED − S | TUNED less one system | ≤ IDLE on the median seed (± a check-in), no seed > 48 h behind from day 5; S adds value by its own output |
+| RANDOM | random package picks and rows | never beats PICKED (D13, D23), every seed |
 
 Eval proxies (`docs/FUN_EVAL_IDLE.md` §5): unfair deaths ≤ 5%; top death cause < 35%; deaths
 tracing to a player row ≥ 70%; events/min at 1× ≥ 6; offline ÷ active 0.25–0.5; pending
@@ -345,7 +353,7 @@ caster ladders, companion breeding depth, shareable set gallery). Then a blind s
 
 ## Risks
 
-- **"Plays itself" backlash** → store contract, DEFAULT-must-die gate, decision density.
+- **"Plays itself" backlash** → packages and the pen as visible multipliers; every death's lever.
 - **Editor on a phone** → chips + candidate patches; desktop K1 first, phone pass before M2.
 - **Style clash** → K2 decides; option A fallback.
 - **Content faucet** → data-driven monsters/items/traits from M1; cadence gate in M3.

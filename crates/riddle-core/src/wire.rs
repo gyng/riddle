@@ -213,6 +213,10 @@ pub struct Stake {
 /// on coming home (`auto_supply`); salvage is its own ledger movement (`Lineage.gold_ledger`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ExitLine {
+    /// Cut 30.5 (the owner: a new record is a checkpoint): of `carried`, the gold this run's checkpoints secured
+    /// (kept whole at any exit, a death's included); `keep_pct` is the share of the rest.
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub secured: i32,
     pub carried: i32,
     pub keep_pct: i32,
     pub kept: i32,
@@ -269,6 +273,12 @@ pub struct ExitLine {
     /// lines lead with it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cause: Option<String>,
+    /// c30-legible (the owner, a new player: "I didn't understand … why the run ended early at like D3"):
+    /// why the run ended, ≤ 3 words, for the watch's end beat, the report and the town's returning party
+    /// (`banks every record`, `hurt · went home`, `slain · jackal`, `stuck · went home`, `repelled · Warlord`;
+    /// `engine::exit_reason`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
     /// QA on 0c6e126 (qaY: `−$5 swapped` naming no item): what the costly swaps left on the
     /// floor, per label (`axe`) — the line's `−$5 swapped` names them (`−$5 left axe`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -315,7 +325,24 @@ pub struct ExitLine {
     /// Cut 29 §3: the run metered (`meters::MeterWire`); absent on a sim's line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub meters: Option<Box<crate::meters::MeterWire>>,
+    /// Run-clear (the owner, 2026-10-02: "each run should have the clear screen"): the end's kind — `bank`,
+    /// `return` or `death` (the exit event's `tier`, on the line so a report's last run can be stamped).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub end: String,
+    /// Run-clear: the deepest floor the run reached.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub reached: u32,
+    /// Run-clear: the run went past the lineage's record (a `new best` badge on the card).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub new_best: bool,
+    /// Run-clear: the items this run found that it brought home (or, on a death, left in its bones),
+    /// rarest first, ≤ `FINDS_SHOWN` — each with its rarity (`item::rarity`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finds: Vec<InvItem>,
 }
+
+/// Run-clear: how many finds an exit line carries (the card shows them all, a row of six).
+pub const FINDS_SHOWN: usize = 6;
 
 /// Cut 24 §2: one line of `ExitLine.news` — its kind (`first` · `record` · `named` · `find`
 /// · `situation` · `driven` · `learned` · `differ`) and its text (≤ 6 words, lower case).
@@ -1077,6 +1104,16 @@ pub struct Stall {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Death {
+    /// Cut 30 §2: the package row that last acted (the verdict's row when it names one), as
+    /// `package · row` (`Steady · HP<20% → return`, `drill · Warlord · boss → hit boss`); absent when the
+    /// last row to act was the pen's or a chore.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
+    /// Cut 30 §2: before the pen opens, the death screen's one cheapest lever — `spend` (a blacksmith
+    /// step the purse pays: `sword +2`), `package` (a stance that answers the killer: `Hunter`) or `wait`
+    /// (the drill or the scars will come: `Warlord · scarred ×3`). Absent once the pen is open.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lever: Option<Lever>,
     pub run_id: u32,
     pub depth: u32,
     pub cause: String,
@@ -1347,6 +1384,162 @@ pub struct ReturnReport {
     /// Cut 28 §1: the sworn oath over the absence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oath: Option<OathReport>,
+    /// Cut 30 §4: what grew on each track over the absence (the report leads with it): xp, a
+    /// level, a package level, gold, a building, a best, a stage opened.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grew: Vec<GrewLine>,
+    /// Cut 30 §1–2: the packages' beats over the absence — `STEADY L3`, `DRILLED · Warlord`,
+    /// `+Guarded`, `the pen`, `QUEST DONE · reach D10`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub packages: Vec<String>,
+    /// Cut 30.5: the workers' acts over the absence (`apprentice · +2 steps`; `first` the first ever).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub workers: Vec<crate::tree::WorkerAct>,
+    /// Cut 30.5: the haul gold this absence left in the chest (before the porter).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub chest: i32,
+}
+
+/// Cut 30 §2: a death's cheapest lever (`kind` spend · package · wait; `text` ≤ 3 words).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Lever {
+    pub kind: String,
+    pub text: String,
+}
+
+/// Cut 30 §4: one thing that grew on a track (`character` · `L7`, `scale` · `best D14`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct GrewLine {
+    pub track: String,
+    pub what: String,
+}
+
+/// Cut 30 §4: a track on the tracks panel — its stage (≤ 2 words), stages reached, the next stage
+/// and its trigger (`next · kennel · first tame`), progress toward a numeric trigger (0..1).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct TrackWire {
+    pub id: String,
+    pub stage: String,
+    pub stages: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<f64>,
+}
+
+/// Cut 30 §3: a building (`blacksmith`, look 1–3, the day it was built).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct BuildingWire {
+    pub id: String,
+    pub level: u32,
+    pub day: u32,
+    /// c30-legible: what raised it (`first gold home`, `town::BUILDINGS`) — its arrival's beat names it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub trigger: String,
+}
+
+/// Cut 30 §3: the town — its buildings, the next plot and its trigger, the bank.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct TownWire {
+    pub buildings: Vec<BuildingWire>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_trigger: Option<String>,
+    pub bank: i32,
+    pub bank_cap: i32,
+    pub interest: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quest: Option<QuestWire>,
+    #[serde(default)]
+    pub quests_done: u32,
+    /// Cut 30.5: the workers at their posts (hired; the lit node's greyed with its price).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub workers: Vec<crate::tree::WorkerPost>,
+}
+
+/// Cut 30 §5: the quest on the board — one plain goal (≤ 5 words), the reward's picture, progress
+/// (0..1), kept or not, a free swap left today.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct QuestWire {
+    pub goal: String,
+    pub reward: String,
+    pub progress: f64,
+    pub done: bool,
+    pub swap: bool,
+}
+
+/// Cut 30 §2: a package on the wire (`Guarded L3`): its kind, level, runs toward the next level,
+/// equipped (the slot) or not, and its rows at its level (tagged as compiled).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct PackageWire {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub level: u32,
+    pub runs: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_at: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slot: Option<u32>,
+    pub owned: bool,
+    /// The stage that brings it (≤ 3 words) while it has not arrived.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub trigger: String,
+    /// Marks the next level costs (a level spend), when there is one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level_price: Option<u32>,
+}
+
+/// Cut 30 §1: a drilled counter on the stance (`drill · attack boss`), revocable.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct DrillWire {
+    pub boss: String,
+    pub rows: Vec<Row>,
+    pub revoked: bool,
+    /// The boss's scar for the lineage now, in percent (`scarred ×3` = 15).
+    pub scar: u32,
+}
+
+/// Cut 30 §2: the lineage's packages — every package (owned or its trigger), the slots, the drills,
+/// the scars, the pen, the wake's temperament cards, the rows each compiled row shadows behind.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct PackagesWire {
+    pub all: Vec<PackageWire>,
+    pub stance: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tactics: Vec<String>,
+    #[serde(default)]
+    pub tactic_slots: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperament: Option<String>,
+    #[serde(default)]
+    pub temperament_open: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub offer: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub drills: Vec<DrillWire>,
+    /// Band boss → meetings (the scars: 5 % each, 30 % at most, gone once slain).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scars: Vec<(String, u32)>,
+    pub pen_open: bool,
+    /// Per row of the compiled set: its package label (`Steady`, `drill · Warlord`, empty for a pen
+    /// row) and the row that always pre-empts it when one does (`Guarded wins`), by index.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rows: Vec<RowSource>,
+    /// Literal: a harness's lineage (no packages).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub literal: bool,
+}
+
+/// Cut 30 §2: where a compiled row came from and whether a same-role row above always wins.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RowSource {
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shadowed_by: Option<u32>,
 }
 
 /// Cut 28 §2: one line of a report's first screen (`ReturnReport.lead`): `k` oath · plateau ·
@@ -1568,8 +1761,90 @@ pub struct Grave {
     pub death_id: Option<u32>,
 }
 
+/// RUNS_UI: one run in the runs log (`LineageState::run_log`, oldest first, cap `RUN_LOG_CAP`). `via`
+/// `away` (an absence's batch) · `town` (unwatched while the app was open: `Game::advance`) ·
+/// `watched`. A record with `sampled` is no run: the absence's runs extrapolated past its stall.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RunRec {
+    pub id: u32,
+    pub heir: u32,
+    pub via: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub absence: Option<u32>,
+    pub clock_s: u64,
+    pub start: u32,
+    pub depth: u32,
+    pub tier: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    pub gold: i32,
+    pub found: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kept: Vec<String>,
+    pub turns: u32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub best: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_id: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sampled: Option<u32>,
+    /// RUNS_UI × run-clear: the run's finds (its exit line's, rarest first, ≤ 6) — the log's rarity marks and the entry's card.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finds: Vec<InvItem>,
+    /// RUNS_UI × Cut 30.5: of `gold`, what the run's checkpoints secured (kept whole at any exit; a death keeps it alone).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub secured: i32,
+}
+
+/// RUNS_UI: the run under way (`Lineage.live`; absent at home).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LiveRun {
+    pub run_id: u32,
+    pub heir: u32,
+    pub depth: u32,
+    pub start: u32,
+    pub hp: i32,
+    pub max_hp: i32,
+    pub turn: u32,
+}
+
+/// RUNS_UI: `Game::advance` — the runs it finished and the run under way after it.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct Advance {
+    pub ended: Vec<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live: Option<LiveRun>,
+}
+
+/// RUNS_UI: a past run re-simulated from its send (`Game::replay`): each floor's first snapshot
+/// (later entities, items and seen tiles folded in) and its events; `hash` = `events_hash`.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ReplayFloor {
+    pub snapshot: Snapshot,
+    pub events: Vec<Ev>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Replay {
+    pub run_id: u32,
+    pub floors: Vec<ReplayFloor>,
+    pub hash: String,
+    pub ticks: u32,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
+    /// RUNS_UI: the runs log, the run under way, the run ids a replay is held for, the lineage
+    /// clock and the absences counted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<RunRec>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live: Option<LiveRun>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub replays: Vec<u32>,
+    #[serde(default)]
+    pub clock_s: u64,
+    #[serde(default)]
+    pub absences: u32,
     /// Cut 29 §1 (E1): the wall's edit on offer (`Game::wall_edit`, cached a day) while the best depth holds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wall: Option<WallEdit>,
@@ -1792,6 +2067,45 @@ pub struct Lineage {
     /// each counter as a fact the lineage knows or can learn (`mother: fire` / `mother: ?`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub walls: Vec<BossWall>,
+    /// Cut 30 §2: the packages (slots, levels, drills, scars, the pen).
+    #[serde(default)]
+    pub packages: PackagesWire,
+    /// Cut 30 §3: the town (buildings, the next plot, the bank, the quest board).
+    #[serde(default)]
+    pub town: TownWire,
+    /// Cut 30 §4: the four tracks.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tracks: Vec<TrackWire>,
+    /// Cut 30.5: the works tree (workers, the tracks' stages as its branches, the chest, the pill);
+    /// `gold` is the purse (collected), the chest beside it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tree: Option<crate::tree::WorksWire>,
+    /// Cut 30 (PROGRESSION_V2 §4): the lineage's age (hours, offline included); the systems ready and
+    /// waiting their turn (one opens a report), in order; the next system to come — its trigger, and the
+    /// hours of age it still waits once triggered (`next · tactics · 3 h`).
+    #[serde(default)]
+    pub age_h: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reveal_queue: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reveal_next: Option<RevealNext>,
+    /// PROGRESSION_V2 §2, reserved (Cut 31: the expedition and the era): glory, expeditions, the era's gate.
+    #[serde(default)]
+    pub glory: u32,
+    #[serde(default)]
+    pub expeditions: u32,
+    #[serde(default)]
+    pub era_gate: u32,
+}
+
+/// Cut 30: the next system to open — its id, its trigger (≤ 3 words), whether the trigger has come,
+/// and the hours of age it still waits.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct RevealNext {
+    pub id: String,
+    pub trigger: String,
+    pub triggered: bool,
+    pub wait_h: u32,
 }
 
 /// Cut 28 §1: an oath's reward — never a stat: `card` · `slot` · `row` · `title` · `waystone` ·
@@ -2105,6 +2419,12 @@ pub struct KitStep {
     pub label: String,
     pub price: u32,
     pub owned: bool,
+    /// Run-clear: the item kind the step forges (`sword`, `mail`); absent on the pack's steps.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    /// Run-clear: the forged piece's rarity (`item::rarity`); absent = common.
+    #[serde(default, skip_serializing_if = "crate::item::Rarity::is_common")]
+    pub rarity: crate::item::Rarity,
 }
 
 /// Cut 23 §1: a ladder's next step — its price, whether the purse pays it now, the nights of

@@ -51,6 +51,22 @@ pub struct SimResult {
     pub oath_steps: u8,
     /// Cut 29 §6: the waystone passage paid at the send (in `loot_kept`).
     pub passage: i32,
+    /// Each new deepest floor as the sim reached it — (max depth, ticks, loot carried) after the
+    /// tick that took it there (the start floor at tick 0): the sim stopped at any shallower
+    /// `stop_depth` is this one cut there (`cut_at`), so a passage priced from D1 to a floor reads
+    /// a deeper run's sims instead of running them again (`passage_from`).
+    pub arrive: Vec<(u32, u32, i32)>,
+}
+
+impl SimResult {
+    /// This sim as the same sim stopped on arriving at `stop` would have ended — the fields a
+    /// passage reads (`max_depth`, `loot`, `ticks`); a sim that ended above `stop` is itself.
+    fn cut_at(&self, stop: u32) -> SimResult {
+        match self.arrive.iter().find(|a| a.0 >= stop) {
+            Some(&(depth, ticks, loot)) if self.max_depth >= stop => SimResult { max_depth: depth, tier: ExitTier::Return, cause: None, loot_kept: 0, timed_out: false, ticks, loot, fires: Vec::new(), oath: false, oath_progress: 0.0, oath_steps: 0, passage: 0, arrive: Vec::new() },
+            _ => self.clone(),
+        }
+    }
 }
 
 /// Simulate `sims` fresh expeditions from the current lineage with `rules`, each stopping once
@@ -80,7 +96,7 @@ pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, s
     let passage = if done { None } else { sim_passage(game, rules) };
     if done {
     } else if parallel_sims() && sims > from + 1 {
-        ran.extend(par_map(game, (from..sims).collect(), |base, &i| simulate_one(base, rules, tag, stop_depth, i, passage)));
+        ran.extend(par_sims(game, from, sims, spent0, budget, |base, i| simulate_one(base, rules, tag, stop_depth, i, passage)));
     } else {
         let mut spent: u64 = spent0;
         for i in from..sims {
@@ -102,6 +118,17 @@ pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, s
         out.push(r);
     }
     out
+}
+
+/// A prospective camp edit, composed as the public editor composes it before any sims.
+/// Raw panels also compare historical sets, so projection belongs at edit callers only.
+pub fn edited_game(game: &Game, rules: &RuleSet) -> Game {
+    let mut g = game.sim_clone();
+    g.lineage = crate::packages::project_edit(&game.lineage, rules);
+    g.panel_cache = game.panel_cache.clone();
+    g.forecast_cache = game.forecast_cache.clone();
+    g.refined_panels = game.refined_panels.clone();
+    g
 }
 
 /// The `i`-th sim of a panel under `rules`, at its first tick (the run started on its seed,
@@ -129,11 +156,18 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
     let mut g = sim_game(game, rules, tag, i, passage);
     let mut n = 0;
     let mut fires = vec![0u32; rules.rows.len()];
+    let mut arrive: Vec<(u32, u32, i32)> = g.run.as_ref().map(|r| vec![(r.max_depth, 0, r.carried())]).unwrap_or_default();
     while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.max_depth < stop_depth) && n < SIM_MAX_TICKS {
         g.tick();
         count_fires(&mut fires, &g.events);
         g.events.clear();
         n += 1;
+        if let Some(r) = g.run.as_ref() {
+            if arrive.last().is_none_or(|a| r.max_depth > a.0) {
+                // (Cut 30.5: the gold carried — what the checkpoints secured with the carry since)
+                arrive.push((r.max_depth, n, r.carried()));
+            }
+        }
     }
     let run = g.run.as_ref().unwrap();
     let mut keyed: Vec<(u64, u32)> = Vec::new();
@@ -149,7 +183,7 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
     let oath = sworn.is_some_and(|o| crate::oath::kept(o, run));
     let oath_progress = sworn.map_or(0.0, |o| crate::oath::progress(o, run));
     let oath_steps = sworn.map_or(0, |o| crate::oath::steps(o, run));
-    (n, SimResult { oath, oath_progress, oath_steps, ..sim_result(run, n, keyed) })
+    (n, SimResult { oath, oath_progress, oath_steps, arrive, ..sim_result(run, n, keyed) })
 }
 
 /// Cut 27 §2: a row's key in `SimResult.fires` — its conditions and verb (not its origin).
@@ -177,8 +211,52 @@ fn count_fires(fires: &mut [u32], events: &[crate::wire::Ev]) {
 fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> SimResult {
     let tier = run.over.unwrap_or(ExitTier::Return);
     // (Cut 27 §1: a waystone start's passage is the send's gold too — paid at the send)
-    let loot_kept = run.loot.max(0) * run.yield_pct(tier) / 100 + run.passage;
-    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.loot.max(0), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage }
+    let loot_kept = run.kept(tier) + run.passage;
+    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.carried(), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage, arrive: Vec::new() }
+}
+
+/// The sims `from..sims` of a panel on the cores, in index order: a worker takes the next index
+/// unless the finished prefix already spends the budget before it (the sequential loop's stop, which
+/// the caller applies to the ordered results) — so the sims past the budget are not run, but for the
+/// few already started. The results are a contiguous run of indices from `from`, each the sim the
+/// sequential loop runs.
+fn par_sims(game: &Game, from: u32, sims: u32, spent0: u64, budget: u64, run: impl Fn(&Game, u32) -> (u32, SimResult) + Sync) -> Vec<(u32, SimResult)> {
+    let n = (sims - from) as usize;
+    let threads = sim_threads().min(n);
+    let next = std::sync::atomic::AtomicUsize::new(0);
+    // (the slots, the finished prefix's length, its ticks, the first index not needed)
+    let st = std::sync::Mutex::new((Vec::<Option<(u32, SimResult)>>::from_iter((0..n).map(|_| None)), 0usize, spent0, n));
+    let bases: Vec<Game> = (0..threads).map(|_| game.sim_clone()).collect();
+    let (next_r, st_r, run) = (&next, &st, &run);
+    std::thread::scope(|sc| {
+        for base in bases {
+            let (next, st) = (next_r, st_r);
+            sc.spawn(move || {
+                IN_WORKER.with(|w| w.set(true));
+                loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if i >= n || i >= st.lock().unwrap().3 {
+                        break;
+                    }
+                    let r = run(&base, from + i as u32);
+                    let mut g = st.lock().unwrap();
+                    g.0[i] = Some(r);
+                    while g.1 < g.3 {
+                        let k = g.1;
+                        let Some(t) = g.0[k].as_ref().map(|r| r.0 as u64) else { break };
+                        if from + k as u32 >= MIN_SIMS && g.2 >= budget {
+                            g.3 = k;
+                            break;
+                        }
+                        g.2 += t;
+                        g.1 += 1;
+                    }
+                }
+            });
+        }
+    });
+    let (slots, ..) = st.into_inner().unwrap();
+    slots.into_iter().map_while(|r| r).collect()
 }
 
 /// `f` over every job, results in job order. Natively (and unless `set_parallel_sims(false)`)
@@ -199,7 +277,7 @@ thread_local! {
 }
 
 fn par_map_threads<T: Send + Sync, R: Send>(game: &Game, jobs: Vec<T>, f: impl Fn(&Game, &T) -> R + Sync) -> Vec<R> {
-    let threads = max_threads().min(jobs.len());
+    let threads = sim_threads().min(jobs.len());
     let next = std::sync::atomic::AtomicUsize::new(0);
     let mut slots: Vec<Option<R>> = (0..jobs.len()).map(|_| None).collect();
     let slots_ref = std::sync::Mutex::new(&mut slots);
@@ -233,7 +311,45 @@ pub fn max_threads() -> usize {
 static PARALLEL_SIMS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(!cfg!(target_arch = "wasm32"));
 
 pub fn parallel_sims() -> bool {
-    PARALLEL_SIMS.load(std::sync::atomic::Ordering::Relaxed) && !IN_WORKER.with(|w| w.get())
+    !IN_WORKER.with(|w| w.get())
+        && match width() {
+            Some(n) => n > 1 && !cfg!(target_arch = "wasm32"),
+            None => PARALLEL_SIMS.load(std::sync::atomic::Ordering::Relaxed),
+        }
+}
+
+thread_local! {
+    /// `with_sim_width`: this thread's panel width, read at each panel (`None`: the process-wide
+    /// switch and `max_threads`).
+    static WIDTH: std::cell::Cell<Option<&'static std::sync::atomic::AtomicUsize>> = const { std::cell::Cell::new(None) };
+}
+
+/// `f` with this thread's panels (`par_map`) on `width` threads, read at each panel — a harness that
+/// fills the machine job by job (the gate table) widens a long chain's panels as its other jobs end,
+/// whatever `set_parallel_sims` says (1: one after another). The results are the same at any width.
+pub fn with_sim_width<R>(width: &'static std::sync::atomic::AtomicUsize, f: impl FnOnce() -> R) -> R {
+    let was = WIDTH.with(|w| w.replace(Some(width)));
+    let r = f();
+    WIDTH.with(|w| w.set(was));
+    r
+}
+
+fn width() -> Option<usize> {
+    WIDTH.with(|w| w.get()).map(|a| a.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+/// The worker count of a panel now: this thread's width, else `max_threads`.
+fn sim_threads() -> usize {
+    width().unwrap_or_else(max_threads).max(1)
+}
+
+/// The threads a panel read now would run on (1 when its sims run one after another).
+pub fn sim_width() -> usize {
+    if parallel_sims() {
+        sim_threads()
+    } else {
+        1
+    }
 }
 
 pub fn set_parallel_sims(on: bool) {
@@ -594,10 +710,20 @@ pub fn sim_passage(game: &Game, rules: &RuleSet) -> Option<(u32, i32)> {
 
 /// Cut 27 §1 (P2: "a lit waystone start is never dominated on gold/hr by D1 for a set that clears
 /// the band ≥ 95 %"): the gold the floors above `start` would have brought a send on `rules` —
-/// `PASSAGE_SIMS` sends from D1 on the camp's seeds, each stopped on arriving at `start`: when
-/// every floor above it clears ≥ `FOLD_CLEAR`, the mean loot carried on arrival (coins), else 0
-/// (a set that would not have cleared them is paid nothing). Memoised per (lineage, rules).
+/// `PASSAGE_SIMS` sends from D1 on the camp's seeds, each stopped on arriving at `start`: the mean gold
+/// they bring from the floors above (an arrival's carry, an earlier end's kept gold — Cut 30.5). Memoised
+/// per (lineage, rules).
 pub fn passage_for(game: &Game, rules: &RuleSet, start: u32) -> i32 {
+    passage_from(game, rules, start, &[])
+}
+
+/// `passage_for` reading `have` for its first sims: sims `0..k` of a panel from D1 on this
+/// lineage (its start at 1, no passage) and `rules`, on the camp's seeds, each run at least to
+/// `start` or its end — a camp panel of the lineage at D1, or the sims of a deeper passage.
+/// Each is cut where it arrived at `start` (`SimResult::cut_at`): the sim the passage runs
+/// stops there and has played the same ticks, so the panel is the one `passage_for` runs —
+/// the sims past `have` run as before, the budget applied to the whole in order.
+pub fn passage_from(game: &Game, rules: &RuleSet, start: u32, have: &[SimResult]) -> i32 {
     if start <= 1 {
         return 0;
     }
@@ -608,17 +734,37 @@ pub fn passage_for(game: &Game, rules: &RuleSet, start: u32) -> i32 {
     if let Some(v) = game.forecast_cache.borrow().get(&key) {
         return v.0 as i32;
     }
-    let tag = forecast_tag(game, game.lineage.best_depth + 1);
-    let ended = simulate_budget(&g, rules, PASSAGE_SIMS, tag, start, DELTA_TICK_BUDGET);
-    let clears = (1..start).all(|d| floor_clear(&ended, d).is_some_and(|c| c >= FOLD_CLEAR - 1e-9));
-    let arrived: Vec<&SimResult> = ended.iter().filter(|r| r.max_depth >= start).collect();
-    let coins = if clears && !arrived.is_empty() { (arrived.iter().map(|r| r.loot as f64).sum::<f64>() / arrived.len() as f64).round() as i32 } else { 0 };
+    let ended = passage_sims(&g, rules, start, have);
+    // Cut 30.5 (the owner, 2026-10-02: a stone's passage counts as a checkpoint): the gold a send from D1 brings
+    // home from the floors above — the carry of each sim that arrived (secured at the stone), and what each one
+    // that ended above it kept — whatever share clears them (was: the arrivals' mean carry, and nothing unless every
+    // floor above cleared ≥ `FOLD_CLEAR`: under the record rule a run goes home hurt in the D5 band and few sets
+    // cleared, so a stone paid nothing on four sends in five and fell under D1's gold an hour)
+    let coins = if ended.is_empty() { 0 } else { (ended.iter().map(|r| if r.max_depth >= start { r.loot } else { r.loot_kept } as f64).sum::<f64>() / ended.len() as f64).round() as i32 };
     let mut cache = game.forecast_cache.borrow_mut();
     if cache.len() + 1 >= FORECAST_CACHE_MAX {
         cache.clear();
     }
     cache.insert(key, (coins as f64, ended.len() as u32));
     coins
+}
+
+/// The sims a passage to `start` is priced on, for `g` already at D1 with no passage
+/// (`passage_from`'s clone), `have` read first.
+fn passage_sims(g: &Game, rules: &RuleSet, start: u32, have: &[SimResult]) -> Vec<SimResult> {
+    let tag = forecast_tag(g, g.lineage.best_depth + 1);
+    let prefix: Vec<SimResult> = have.iter().take(PASSAGE_SIMS as usize).map(|r| r.cut_at(start)).collect();
+    simulate_budget_from(g, rules, PASSAGE_SIMS, tag, start, DELTA_TICK_BUDGET, prefix)
+}
+
+/// The sims of `game`'s passage to `start` on `rules` (`passage_for`'s, not memoised): for a
+/// caller that prices passages to shallower floors of the same lineage and set from them
+/// (`passage_from`).
+pub fn passage_run(game: &Game, rules: &RuleSet, start: u32) -> Vec<SimResult> {
+    let mut g = game.sim_clone();
+    g.lineage.start = 1;
+    g.passage = None;
+    passage_sims(&g, rules, start, &[])
 }
 
 /// Cut 23 §2: the smallest share one of `sims` sims makes, in whole percent (`⌈100 / sims⌉`;
@@ -901,6 +1047,7 @@ fn take_part(kind: &str, l: &mut crate::engine::LineageState, now: &crate::engin
             l.vault = now.vault.clone();
             l.supplies = now.supplies.clone();
             l.last_supplies = now.last_supplies.clone();
+            l.last_supply_origins = now.last_supply_origins.clone();
             l.forge = now.forge.clone();
             l.kit = now.kit.clone();
             l.insured = now.insured.clone();
@@ -987,7 +1134,7 @@ fn part_text(kind: &str, was: &crate::engine::LineageState, now: &crate::engine:
             if was.vault != now.vault {
                 w.push("vault");
             }
-            if was.supplies != now.supplies || was.last_supplies != now.last_supplies {
+            if was.supplies != now.supplies || was.last_supplies != now.last_supplies || was.last_supply_origins != now.last_supply_origins {
                 w.push("pack");
             }
             if was.unlocks != now.unlocks {
@@ -1116,7 +1263,22 @@ pub fn forecast_move(game: &Game, prev: &RuleSet) -> Option<crate::wire::Forecas
         last = next;
     }
     if rows {
-        parts.push(crate::wire::MovePart { kind: "rows".into(), text: "rows".into(), move_: vs_between(game, &a, &last, refined) });
+        // Cut 30 §2: the packages' rows first (a swap, a level, a drill: today's package rows under the
+        // sent set's own rows), then the pen's — the parts still sum to the whole
+        let pkg_of = |s: &RuleSet| rules_key(&RuleSet { rows: s.rows.iter().filter(|r| r.is_pkg()).cloned().collect(), name: None, route: Vec::new() });
+        if pkg_of(&rules) != pkg_of(prev) {
+            let mut mid = prev.clone().with_route(rules.route());
+            mid.rows.retain(|r| !r.is_pkg());
+            mid.rows.extend(rules.rows.iter().filter(|r| r.is_pkg()).cloned());
+            let pen_same = rules_key(&RuleSet { rows: mid.rows.clone(), name: None, route: Vec::new() }) == rules_key(&RuleSet { rows: rules.rows.clone(), name: None, route: Vec::new() });
+            let next = if pen_same { a.clone() } else { panel_of(game, &mid) };
+            let name = rules.rows.iter().find(|r| r.origin.as_deref().is_some_and(|o| o.starts_with("stance:"))).and_then(crate::packages::row_label).unwrap_or_else(|| "package".into());
+            parts.push(crate::wire::MovePart { kind: "package".into(), text: name, move_: vs_between(game, &next, &last, refined) });
+            last = next;
+        }
+        if last != a {
+            parts.push(crate::wire::MovePart { kind: "rows".into(), text: "rows".into(), move_: vs_between(game, &a, &last, refined) });
+        }
     }
     let whole = vs_between(game, &a, &base, refined);
     let lead = parts.iter().max_by(|x, y| headline(&x.move_).total_cmp(&headline(&y.move_))).map(|p| p.kind.clone()).unwrap_or_else(|| "rows".into());
@@ -1262,6 +1424,8 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&l.class_level().to_string());
     feed(&format!("{:?}", l.facts));
     feed(&format!("{:?}", l.unlocks));
+    // Cut 30 §1: the scars the sends carry (a boss met is weaker until he falls)
+    feed(&format!("{:?}", crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| l.pkg.scar(k, &l.kills)).collect::<Vec<_>>()));
     feed(&serde_json::to_string(&l.vault).unwrap_or_default());
     // (the send sorts and de-duplicates the loadout: `[5, 3]` and `[3, 5]` pack the same)
     let mut loadout = game.loadout.clone();
@@ -1270,7 +1434,11 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&format!("{loadout:?}"));
     feed(&serde_json::to_string(&l.party).unwrap_or_default());
     feed(&serde_json::to_string(&l.supplies).unwrap_or_default());
+    // Automatic supplies read the effective package and pen as well as the compiled rows.
+    feed(&format!("{:?}", crate::packages::quartermaster(l)));
+    feed(&format!("{:?}", crate::packages::pack_kinds(l)));
     feed(&format!("{:?}", l.last_supplies));
+    if !l.last_supply_origins.is_empty() { feed(&format!("{:?}", l.last_supply_origins)); }
     feed(&l.gold.to_string());
     feed(&serde_json::to_string(&l.forge).unwrap_or_default());
     feed(&serde_json::to_string(&l.grudges).unwrap_or_default());

@@ -7,10 +7,10 @@
 import { spawn } from "node:child_process";
 import { readdirSync } from "node:fs";
 import net from "node:net";
-// Every tests/*.mjs but this runner and screen-time.mjs (a timing gate the coordinator runs on the GPU).
+// Every tests/*.mjs but this runner, screen-time.mjs and town-gpu.mjs (timing gates the coordinator runs on the GPU).
 const PARTS = { clarity: ["clarity:core,watch", "clarity:hold", "clarity:card", "clarity:paint", "clarity:deep"] };
 const expand = (n) => PARTS[n] ?? [n];
-const ALL = readdirSync("tests").filter((f) => f.endsWith(".mjs") && !["run.mjs", "screen-time.mjs"].includes(f)).map((f) => f.slice(0, -4)).sort().flatMap(expand);
+const ALL = readdirSync("tests").filter((f) => f.endsWith(".mjs") && !["run.mjs", "screen-time.mjs", "town-gpu.mjs"].includes(f)).map((f) => f.slice(0, -4)).sort().flatMap(expand);
 const names = process.argv.slice(2).length ? process.argv.slice(2).flatMap(expand) : ALL;
 const t0 = Date.now();
 // The suite's own dev server (tests/vite.test.config.ts: no watcher, no HMR) on a free port, for this run only — the shared

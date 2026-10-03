@@ -239,7 +239,7 @@ void main() {
     float g01 = fract(sin(dot(ni + vec2(0.0, 1.0), vec2(269.5, 183.3))) * 43758.5), g11 = fract(sin(dot(ni + vec2(1.0, 1.0), vec2(269.5, 183.3))) * 43758.5);
     float n2 = mix(mix(g00, g10, nf.x), mix(g01, g11, nf.x), nf.y);
     float m = smoothstep(0.35, 0.85, n1 * 0.65 + n2 * 0.35) * uMist * step(0.25, s.a);
-    o = mix(o, vec3(0.55, 0.68, 0.66) * (0.35 + 0.65 * min(1.0, lfl + 0.3)), m);
+    o = mix(o, vec3(0.64, 0.74, 0.84) * (0.35 + 0.65 * min(1.0, lfl + 0.3)), m);   // phase 2: MIST
   }
   o += texture2D(uBloom, tuv).rgb * uBloomK * fog;
   float vr = length((vUv - 0.5) * vec2(0.9, 1.0));
@@ -259,15 +259,18 @@ void main() {
 // light away from a torch, the torch pools' strength and the saturation. The Warrens' olive ramp is pulled toward the target's warm brown
 // stone (watch.png's floor averages (63, 50, 27)); the pale Sanctum gets a low ambient and a weak lift so a torch never blooms.
 const GRADES: Record<string, [number, number, number, number, number, number]> = {
-  default: [1, 1, 1, 0.84, 0.65, 1],
-  warrens: [1.05, 0.98, 0.9, 0.78, 1.05, 0.95],   // round 26: a darker room (ambient 0.86 → 0.78), stronger pools (0.95 → 1.05)   // gfx round 18: the painted register is authored in the target's colours (was 1.14/0.96/0.78, sat 0.78: a grade for the 8-colour ramp)
-  // juice pass 3: the fork's two lanes apart at a glance — the Burrows warm ochre (full saturation), the Fens cool teal
-  burrows: [1, 0.92, 0.8, 0.78, 0.72, 1],
-  fens: [0.9, 1, 1.04, 0.52, 1.0, 0.9],   // round 22: a darker room (0.62 → 0.52), a stronger pool (lift 0.78 → 1.0), a touch more colour   // round 16: a darker room, a stronger pool (the hero's warm light reads)   // gfx round 7 (raters Q, R: "teal-on-teal floor swamps the sprites"): a darker room, the light pools read, a little less saturation
-  crypt: [1, 1, 1.02, 0.82, 0.65, 0.9],
-  foundry: [1, 0.94, 0.88, 0.82, 0.6, 0.9],
-  deep: [1, 1, 1, 0.9, 0.7, 1],
-  sanctum: [0.92, 0.9, 0.88, 0.78, 0.3, 0.8],
+  // art direction phase 2 (docs/ART_DIRECTION.md §2, §6): the art carries the palette and the place's tint itself, so the grade is a cold
+  // moonlit night over it — rgb a touch toward MOON, a low ambient (~60 % of the frame in INK/UMBRA), the EMBER pools (lift) the warm
+  // counterpoint. The v2 grades (warm brown Warrens, ochre Burrows) are in git history at 7253bb9.
+  default: [0.96, 0.99, 1.05, 0.84, 0.95, 1],
+  warrens: [0.96, 0.98, 1.04, 0.84, 1.0, 1],   // round 28: ambient a step up (0.74; r27 "half the screen near-black")
+  burrows: [1, 0.98, 0.97, 0.84, 0.95, 1],
+  fens: [0.94, 1, 1.05, 0.72, 1.0, 0.9],
+  crypt: [0.95, 0.97, 1.06, 0.84, 0.85, 0.95],
+  foundry: [1, 0.97, 0.97, 0.86, 0.8, 1],
+  deep: [0.94, 0.98, 1.08, 0.8, 0.85, 1],
+  sanctum: [0.96, 0.97, 1.0, 0.84, 0.45, 0.9],
+  town: [0.95, 1, 1.04, 0.84, 1.0, 1],
   boss_flash: [1, 1, 1, 1, 0.3, 1],
 };
 
@@ -303,11 +306,11 @@ export class Blit {
         uLights: { value: Array.from({ length: 12 }, () => new THREE.Vector2()) },
         uLightN: { value: 0 },
         uLightK: { value: 1 },
-        uWarm: { value: new THREE.Vector3(0.16, 0.07, -0.02) },
+        uWarm: { value: new THREE.Vector3(0.04, 0.07, 0.12) },   // phase 2: a lit sprite takes a cold MIST edge, not amber
         uGrade: { value: new THREE.Vector3(1, 1, 1) },
         uAmbient: { value: 0.86 },
         uLiftK: { value: 0.6 },
-        uLightCol: { value: new THREE.Vector3(1.0, 0.72, 0.4) },
+        uLightCol: { value: new THREE.Vector3(1.0, 0.62, 0.26) },   // phase 2: EMBER
         uSat: { value: 1 }, uCon: { value: 1 }, uMist: { value: 0 }, uSprHue: { value: 0.5 },
         // juice (docs/JUICE.md): read only when FX > 0
         uLightMap: { value: null }, uMap: { value: new THREE.Vector2(1, 1) }, uBloom: { value: null }, uBloomK: { value: 0 },

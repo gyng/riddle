@@ -65,8 +65,18 @@
    "h": 128
   },
   "button": {
-   "w": 508,
-   "h": 121
+   "w": 512,
+   "h": 128
+  },
+  "plaque_minimap": {
+   "w": 256,
+   "h": 256,
+   "slice": 32
+  },
+  "plaque_roster": {
+   "w": 512,
+   "h": 128,
+   "slice": 32
   },
   "scroll": {
    "w": 384,
@@ -74,6 +84,7 @@
   }
  },
  "icons": [
+  "alert",
   "bail",
   "camp",
   "chronicle",
@@ -83,12 +94,49 @@
   "fights",
   "forge",
   "gold",
+  "it_axe",
+  "it_bell",
+  "it_bow",
+  "it_chalk",
+  "it_dagger",
+  "it_lantern",
+  "it_leash",
+  "it_leather",
+  "it_mace",
+  "it_mail",
+  "it_mirror_shard",
+  "it_plate",
+  "it_potion",
+  "it_salt",
+  "it_scale",
+  "it_scroll",
+  "it_spear",
+  "it_sword",
   "ledger",
   "loadout",
   "mark",
   "morgue",
+  "node_apprentice",
+  "node_armourer",
+  "node_clerk",
+  "node_drillmaster",
+  "node_guide",
+  "node_herald",
+  "node_keeper",
+  "node_kennel_hand",
+  "node_porter",
+  "node_quartermaster",
+  "node_scout",
   "party",
   "pause",
+  "pkg_bold",
+  "pkg_guarded",
+  "pkg_hunter",
+  "pkg_iron_gut",
+  "pkg_light_hands",
+  "pkg_skittish",
+  "pkg_steady",
+  "pkg_unbowed",
   "play",
   "renown",
   "settings",
@@ -194,5 +242,15 @@
   "shard_3_px",
   "shield",
   "shield_px"
+ ],
+ "quest": [
+  "card",
+  "heir",
+  "route",
+  "row",
+  "slot",
+  "title",
+  "verb",
+  "waystone"
  ]
 }

@@ -5,14 +5,20 @@
 // as before, and a wash frame costs ~9 texture reads per device pixel, no extra pass). Chrome: one SVG filter (the same palette
 // map) on the DOM chrome and a paper-grain overlay (`installWashChrome`). Render-only: no game truth, nothing read back.
 
-/** the flag: `?look=wash` (sticky in localStorage), `?look=off` clears it */
+/** the look (art direction phase 2: ON by default — the art now carries the palette, the pass keeps the ink, the wash, the grain and
+ *  the halftone); `?look=off` turns it off (sticky in localStorage), `?look=wash` turns it back on */
 export function lookWash(): boolean {
   try {
     const q = new URLSearchParams(location.search).get("look");
-    if (q === "wash") { try { localStorage.setItem("riddle.look", "wash"); } catch { /* storage blocked */ } return true; }
-    if (q === "off" || q === "none") { try { localStorage.removeItem("riddle.look"); } catch { /* storage blocked */ } return false; }
-    return localStorage.getItem("riddle.look") === "wash";
-  } catch { return false; }
+    if (q === "wash" || q === "grade") { try { localStorage.removeItem("riddle.look"); } catch { /* storage blocked */ } return true; }
+    if (q === "off" || q === "none") { try { localStorage.setItem("riddle.look", "off"); } catch { /* storage blocked */ } return false; }
+    return localStorage.getItem("riddle.look") !== "off";
+  } catch { return true; }
+}
+
+/** phase 1's DOM palette map (an SVG filter over the chrome) — the CSS is on the palette now, so only on request (`?look=grade`) */
+function lookGrade(): boolean {
+  try { return new URLSearchParams(location.search).get("look") === "grade"; } catch { return false; }
 }
 
 // The named palette (docs/ART_DIRECTION.md §2) — the one source the shader, the chrome filter and art-qc.py share by value.
@@ -60,47 +66,46 @@ vec3 wRamp(float l) {
   return mix(W_MIST, W_BONE, smoothstep(0.62, 0.85, l));
 }
 vec3 washLook(vec3 o, vec2 tuv, vec2 world, float sa) {
+  // Art direction phase 2: the art itself is on the palette now (sprites, tiles, props painted in moonlit ink and wash), so the pass
+  // no longer maps the frame onto the ramp (phase 1's night curve + gradient map sank the new art to mush); it keeps what paint alone
+  // cannot give a frame — a light pull toward the ramp's value bands, the ink on hard edges, pigment pooling, granulation on the grid,
+  // screen paper grain and the halftone in the shadow band. BLOOD and flame keep their hue as before.
   float l = wLum(o);
-  // 1 · the palette: the frame onto the ramp, a fifth of the painted hue kept; saturated reds (blood, the cloak, danger) and flame
-  //     keep their own hue — the accent is the one colour the map never takes
-  float rel = (o.r - max(o.g, o.b)) / max(o.r, 0.04);              // red's share of the colour, so a cloak in shadow still counts
-  float orange = smoothstep(0.04, 0.14, o.g - o.b);                // ochre/amber ground (green well over blue) is not the accent…
+  float rel = (o.r - max(o.g, o.b)) / max(o.r, 0.04);
+  float orange = smoothstep(0.04, 0.14, o.g - o.b);
   float red = max(smoothstep(0.42, 0.62, rel) * smoothstep(0.05, 0.14, o.r) * (1.0 - orange),
-                  smoothstep(0.3, 0.45, rel) * smoothstep(0.55, 0.8, l));   // …but a bright flame keeps its hue (EMBER)
-  float lm = pow(l, 1.3) * 1.1;                                    // night: the mid-tones sink, so ~60 % of the frame sits in shadow
-  vec3 ramp = wRamp(lm);
-  float band = floor(lm * 6.0 + 0.5) / 6.0;                       // a stark read: a third of the way to six value bands
-  ramp = mix(ramp, wRamp(band), 0.3);
-  vec3 c = mix(ramp, o * (lm / max(l, 0.01)), 0.2);
-  c = mix(c, mix(o, W_BLOOD * (0.55 + 0.9 * l), 0.35), red);
-  // 2 · the ink line: a luminance edge in the SOURCE (unlit) target, two texels wide, darkens toward INK — every silhouette
-  //     and wall edge gets a hand-inked contour; the floor's small texel noise stays under the threshold
+                  smoothstep(0.3, 0.45, rel) * smoothstep(0.55, 0.8, l));
+  // 1 · a light pull toward the place's ramp (a fifth), a tenth of the way to six value bands
+  vec3 ramp = mix(wRamp(l), wRamp(floor(l * 6.0 + 0.5) / 6.0), 0.1);
+  vec3 c = mix(o, ramp * (0.6 + 0.4 * o / max(vec3(l), vec3(0.01))), 0.2 * (1.0 - red));
+  // 2 · the ink line on hard luminance edges of the source (silhouettes, wall lips), lighter than phase 1's
   vec2 t = uTexel;
   float lr = wLum(texture2D(tex, tuv + vec2(t.x, 0.0)).rgb), ll = wLum(texture2D(tex, tuv - vec2(t.x, 0.0)).rgb);
   float lu = wLum(texture2D(tex, tuv + vec2(0.0, t.y)).rgb), ld_ = wLum(texture2D(tex, tuv - vec2(0.0, t.y)).rgb);
   float e = max(abs(lr - ll), abs(lu - ld_));
-  float ink = smoothstep(0.16, 0.38, e) * step(0.25, sa);
-  // 3 · the wash: a 3-texel neighbourhood; darker than it → the pigment pools (edge darkening), lighter → the wash blooms toward paper
+  float ink = smoothstep(0.22, 0.45, e) * step(0.25, sa);
+  // 3 · the wash: pigment pools at a darker edge, blooms a little where lighter (3-texel neighbourhood)
   float lb = 0.25 * (wLum(texture2D(tex, tuv + vec2(3.0 * t.x, 0.0)).rgb) + wLum(texture2D(tex, tuv - vec2(3.0 * t.x, 0.0)).rgb)
                    + wLum(texture2D(tex, tuv + vec2(0.0, 3.0 * t.y)).rgb) + wLum(texture2D(tex, tuv - vec2(0.0, 3.0 * t.y)).rgb));
-  float ls = wLum(texture2D(tex, tuv).rgb);
-  float dv = ls - lb;
-  c *= 1.0 + clamp(dv * 1.1, -0.2, 0.1);
-  //     granulation on the pixel grid (world-anchored at the sprite texel, so it never swims when the camera moves)
+  float dv = wLum(texture2D(tex, tuv).rgb) - lb;
+  c *= 1.0 + clamp(dv * 0.8, -0.14, 0.08);
+  //     granulation on the pixel grid (world-anchored at the sprite texel)
   vec2 wp = floor(world * 2.0) / 2.0;
   float gran = wNoise(wp / 5.0) * 0.6 + wNoise(wp / 1.7) * 0.4;
-  c *= 0.9 + 0.2 * gran * smoothstep(0.03, 0.2, l);
-  c = mix(c, W_INK, ink * 0.7);
-  // 4 · paper: grain and fibre in CSS px (screen-anchored, like the print), and the lights warm to BONE (the paper showing through)
-  vec2 sp = gl_FragCoord.xy / uWashDpr;
+  c *= 0.94 + 0.12 * gran * smoothstep(0.03, 0.2, l);
+  c = mix(c, W_INK, ink * 0.4);
+  // 4 · paper: grain and fibre in CSS px (screen-anchored, like print); the brightest lights lean to BONE
+  //    (blind round 27: screen-fixed grain and dots on the ground made the whole floor "shimmer" in motion as the camera glided — on
+  //    world texels they are anchored to the world instead, ~4 CSS px per env texel, so the ground carries its grain with it)
+  vec2 sp = mix(gl_FragCoord.xy / uWashDpr, world * 4.0, step(0.95, sa));
   float grain = wHash(floor(sp)) * 0.55 + wNoise(sp * vec2(0.08, 0.5)) * 0.45;
-  c *= 0.95 + 0.09 * grain;
-  c = mix(c, W_BONE * (0.9 + 0.1 * grain), smoothstep(0.62, 0.95, l) * 0.35 * (1.0 - red));
-  // 5 · halftone: a 45° dot screen (3.2 CSS px pitch) inside the shadow band only — the deepest INK and the lit ground stay clean
+  c *= 0.96 + 0.07 * grain;
+  c = mix(c, W_BONE * (0.9 + 0.1 * grain), smoothstep(0.7, 0.98, l) * 0.2 * (1.0 - red));
+  // 5 · halftone: a 45° dot screen (3.2 CSS px pitch) inside the shadow band only
   vec2 hp = mat2(0.7071, -0.7071, 0.7071, 0.7071) * sp / 3.2;
   float dot_ = length(fract(hp) - 0.5);
-  float shadow = smoothstep(0.2, 0.08, l) * smoothstep(0.015, 0.05, l);
-  c = mix(c, W_INK, step(dot_, 0.36) * shadow * 0.55);
+  float shadow = smoothstep(0.16, 0.06, l) * smoothstep(0.012, 0.04, l);
+  c = mix(c, W_INK, step(dot_, 0.34) * shadow * 0.45);
   return c;
 }`;
 
@@ -127,9 +132,9 @@ export function installWashChrome(): void {
   // the paper grain (multiply) and a faint wash bloom over the whole screen, clicks pass through
   style.textContent = `
 html.look-wash body { background: ${WASH_PALETTE.ink}; }
-html.look-wash :is(main.frame > :not(:has(canvas)), main.frame > :has(canvas) > :not(:has(canvas)):not(canvas), .sheet-wrap) { filter: url(#wash-grade); }
+${lookGrade() ? "html.look-wash :is(main.frame > :not(:has(canvas)), main.frame > :has(canvas) > :not(:has(canvas)):not(canvas), .sheet-wrap) { filter: url(#wash-grade); }" : ""}
 html.look-wash::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 2147483000;
-  background-image: ${grain}, ${blot}; background-size: 220px 220px, 640px 640px; mix-blend-mode: multiply; opacity: 0.55; }`;
+  background-image: ${grain}, ${blot}; background-size: 220px 220px, 640px 640px; mix-blend-mode: multiply; opacity: 0.4; }`;
   const host = document.createElement("div");
   host.innerHTML = svg;
   const ready = (): void => { document.head.appendChild(style); document.body.appendChild(host.firstElementChild!); };

@@ -1,0 +1,75 @@
+You are painting CHARACTER SPRITE masters for the game "Riddle" (a gothic dark-fantasy roguelike on a phone, seen
+top-down at a high three-quarter angle). FIRST look at these approved STYLE TARGETS (you may open these images and nothing
+else in the repository): /home/g/p/riddle/art/ui/targets/style/hero_sheet.png, /home/g/p/riddle/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/art/ui/targets/style/watch_fens.png, /home/g/p/riddle/art/ui/targets/style/boss.png. They show the target look: moonlit ink and wash on a visible pixel grid, one BLOOD accent.
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix; do NOT
+touch anything outside /home/g/p/riddle/scratchpad/style/phase2/proportion/. Do not leave _inspection_*.png or any other scratch file behind. OVERWRITE existing files.
+
+For each asset: generate at the stated size and save the final PNG (sRGB) to the exact path. BACKGROUND: a TRANSPARENT
+background (PNG alpha) is best; if the tool returns an opaque image, the background must be ONE flat uniform pure MAGENTA
+#FF00FF (255,0,255) edge to edge (the pipeline keys it) — never paper, never a floor, never a gradient. Self-check each
+output: the four corners transparent or magenta, no magenta/pink-violet inside the subject, the subject not cropped;
+regenerate that asset once if not.
+
+=== STYLE (docs/ART_DIRECTION.md, approved — the FIRST and loudest rule) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== SPRITE RULES (on top of the style) ===
+- ONE full-body figure, a three-quarter view from slightly above, facing RIGHT, centred with ~10 % margin, nothing cropped.
+- Proportions (these override "tall" in the style above): HEROIC but READABLE: the head about ONE FIFTH of the full height, broad shoulders, the legs a little long, the hands and the weapon drawn LARGE.
+- INK: one closed blue-black INK #0d0c14 contour around the whole silhouette, 12-16 px thick at 1024 px (it must survive a
+  downscale to 40-96 px tall), thicker on the lower/right shadow side; a few interior ink lines on the big forms only.
+- LIGHT: cold MOONLIGHT from ABOVE: MIST #a4bcd6 rims on the top edges (head, shoulders, weapon), the lower half falling
+  into DUSK/UMBRA. The lit side must stay clearly lighter than a dark stone floor; keep one pale element (BONE face,
+  MIST blade edge, bone) high on the figure so it pops at game size.
+- WASH on the GRID at sprite scale: chunky clusters (~12 px at 1024), washes with granulation inside them; no hairline
+  detail, no smooth airbrushed gradients, no noisy speckle. Paper grain only faintly inside the lightest washes.
+- COLOUR: only the palette above (+ the monster's one local hue when the brief names it). BLOOD only where the brief puts it.
+- NOTHING but the figure: NO floor, NO contact shadow, NO cast-shadow pool, NO scenery, NO paper sheet, NO frame, NO glow
+  halo, NO text or letters.
+
+=== READABILITY (the sprites are shown TINY: heroes ~48 px tall) ===
+One bold readable mass, one clear gesture, 3-4 signature details. The defining feature (the "tag" in each brief) must
+be visible in the SILHOUETTE alone. Judge each output shrunk to that size before accepting it.
+
+=== ASSETS ===
+--- 1. id: hero_fighter_male
+Output path: /home/g/p/riddle/scratchpad/style/phase2/proportion/p5_hero_fighter_male.png
+Size: exactly 1024x1536 px (width x height), PNG.
+Shown in game at about 48 px tall; judge readability at that size.
+Brief: The hero, the WARRIOR (fighter class). Upright ready stance. Dull steel pauldrons and cuirass in MOON/MIST washes with INK shadow and a thin GILT trim; a straight LONGSWORD held low and forward in the right hand, its blade with a bright MIST edge rim (the pale sword rim must read at game size); a ROUND dark iron-rimmed shield on the left arm; tall dark boots; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: sword + round shield, upright. LOOK = MAN: a young man, SHORT dark hair (nothing past the collar), broad shoulders; a clear pale BONE FACE patch in three-quarter view (narrow gothic-anime eyes, a few ink strokes). At game size he reads as a man by the short hair and square frame.
+
+--- 2. id: hero_rogue_female
+Output path: /home/g/p/riddle/scratchpad/style/phase2/proportion/p5_hero_rogue_female.png
+Size: exactly 1024x1536 px (width x height), PNG.
+Shown in game at about 48 px tall; judge readability at that size.
+Brief: The hero, the ROGUE class. A LOW forward CROUCH, one knee bent, the body a diagonal leaning right; a reversed DAGGER held low (MIST edge rim) and a small throwing knife raised in the other hand; dark UMBRA/DUSK leathers with a BONE sash; the hood pushed BACK so the face shows; a short tattered BLOOD half-cloak flaring behind (CLOT folds). TAG: low diagonal crouch with two blades — clearly not upright. LOOK = WOMAN: a young woman, a LONG dark BRAID swinging out BEHIND her head and past her shoulder as its own clear shape in the silhouette, slimmer frame, same kit (practical, not revealing); a clear pale BONE FACE patch in three-quarter view. At game size she reads as a woman by the braid shape.
+
+--- 3. id: hero_ranger_cat
+Output path: /home/g/p/riddle/scratchpad/style/phase2/proportion/p5_hero_ranger_cat.png
+Size: exactly 1024x1536 px (width x height), PNG.
+Shown in game at about 48 px tall; judge readability at that size.
+Brief: The hero, the RANGER class. Standing tall; a LONGBOW held out in front in the left hand, its arc TALLER than the torso, the string a thin MIST line, an arrow nocked and half drawn by the right hand; a quiver of BONE-fletched arrows angled up over the right shoulder; DUSK/UMBRA leathers; hood DOWN so the face shows; a LONG tattered BLOOD #c01530 cloak (CLOT #5c0b1c in its folds) trailing and flaring behind — every hero wears it, it is the hero's signature shape. TAG: the tall bow arc in front, the quiver bump above the shoulder. LOOK = CAT-FOLK: a human face (clear pale BONE face patch, yellow eyes) under wild dark hair with two LARGE upright triangular black CAT EARS on top of the head, and a long black CAT TAIL curling up behind, clear of the body and cloak. At game size the ears and the tail are both visible in the silhouette.
+
+When all assets are saved, list the final paths and their pixel sizes. Do nothing else.

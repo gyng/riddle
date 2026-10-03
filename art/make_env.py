@@ -77,13 +77,15 @@ BIOME_REMAP: dict[str, dict[int, int]] = {
     # pale dressed stone: slate mortar, pale field (the old sanctum floor's field was 5)
     "sanctum": {1: 3, 2: 5, 3: 6, 4: 7, 0: 1},
     # 3 and 5 are oranges: stone uses the iron greys (4, 6) for its lit values, rust for the field
-    "foundry": {3: 4, 4: 6, 5: 6},
+    # (phase 2: the foundry's ramp is the monotone style ramp — its oranges are gone, so no remap)
 }
 BIOME_REMAP_KEEP = {"moss_0", "moss_1"}   # moss stays in the biome's own hue steps
 # juice pass 2 (2026-09-26): the Burrows gets its own tile art (it was the Warrens' recoloured at runtime, atlas.ts TILE_ALIAS);
 # its ramp is web/src/render/palette.ts's (warm ochre earth since juice pass 3, on the Warrens' luminance steps). Env-only: the 8x8 register
 # (make_tiles.py) keeps six biomes and the Burrows keeps the runtime alias as its fallback there.
-ENV_PALETTES: dict[str, list[str]] = {**PALETTES, "burrows": ["#140b05", "#2b190b", "#43280f", "#5e3f18", "#7a5724", "#a57d3a", "#c9a25a", "#ecd6a0"]}
+from make_tiles import style_ramp  # noqa: E402  (phase 2: the style ramps)
+ENV_PALETTES: dict[str, list[str]] = {**PALETTES, "burrows": style_ramp("burrows"), "town": style_ramp("town")}
+DUNGEON = [b for b in ENV_PALETTES if b != "town"]   # the shared drawings go to the dungeon's places; the town has only its own pieces
 
 
 # juice pass 3 (2026-09-26): the Burrows and the Fens meet at the D5 fork and must tell apart at a glance. A luminance ramp maps
@@ -330,7 +332,7 @@ def main() -> int:
             if name == "shrine":
                 f0, f1 = shrine_frames(px)
                 del written["env_shrine"]
-                for biome in ENV_PALETTES:   # per-biome ids, so the renderer's `<biome>_env_shrine_<f>` lookup finds it everywhere
+                for biome in DUNGEON:   # per-biome ids, so the renderer's `<biome>_env_shrine_<f>` lookup finds it everywhere
                     written[f"{biome}_env_shrine_0"] = Image.fromarray(np.clip(f0, 0, 255).astype(np.uint8), "RGBA")
                     written[f"{biome}_env_shrine_1"] = Image.fromarray(np.clip(f1, 0, 255).astype(np.uint8), "RGBA")
                 continue
@@ -345,7 +347,7 @@ def main() -> int:
         elif name == "nest":
             frames = {"nest_0": index, "nest_1": nest_frame1(index)}
         for fname, findex in frames.items():
-            for biome, ramp in ENV_PALETTES.items():
+            for biome, ramp in ((b, ENV_PALETTES[b]) for b in DUNGEON):
                 if (biome, name) in own:
                     continue
                 idx = findex
@@ -379,6 +381,18 @@ def main() -> int:
         written[tid] = Image.open(OUT / f"{tid}.png")
     if painted:
         print(f"painted: {len(painted)} tiles over the ramp register")
+    # art direction phase 2, the owner's call: the round-26 register's readability, repainted in the guide (art/refine.py)
+    from refine import refine_all  # noqa: E402
+    refined = refine_all(OUT)
+    for tid in refined:
+        written[tid] = Image.open(OUT / f"{tid}.png")
+    print(f"refined: {len(refined)} tiles from the round-26 register")
+    # Cut 30 town v1: the town's ground banded and painted like the dungeon's, and the path's edges (art/town_tiles.py)
+    from town_tiles import build as town_build  # noqa: E402
+    town = town_build(OUT)
+    for tid in town:
+        written[tid] = Image.open(OUT / f"{tid}.png")
+    print(f"town ground: {len(town)} tiles")
     sheet(written).save(OUT / "_env_sheet.png")
     print(f"wrote {len(written)} env tiles -> {OUT}")
     if missing:

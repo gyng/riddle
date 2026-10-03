@@ -40,7 +40,7 @@ fn main() {
     if let Some(dir) = make {
         // Two lineages in one fixture would double it; one deep one: every unlock and fact,
         // the FULL set (as `fingerprint`), an hour away — it walls past D8.
-        let mut g = Game::new(307);
+        let mut g = Game::new_literal(307);
         for u in riddle_core::meta::UNLOCKS {
             g.lineage.unlocks.insert(u.id.into());
         }

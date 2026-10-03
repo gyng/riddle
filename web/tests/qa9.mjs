@@ -27,7 +27,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
-import { editRows, openPanel } from "./lib/frame.mjs";
+import { editRows, openPanel, deathDetails } from "./lib/frame.mjs";
 import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -39,6 +39,7 @@ const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 2 });
+await deathDetails(page);   // death v2: this suite reads the trace, the ledger and the tablets under `details`
 page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); });
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
@@ -66,6 +67,15 @@ const setLineage = (chronicle, grave) => page.evaluate(async ({ chronicle, grave
   b.engine = JSON.stringify(e);
   return r.importSave(JSON.stringify(b));
 }, { chronicle, grave });
+/** RUNS_UI: the chronicle is the runs log's `heirs` — the lane's log stud, then the tab (a camp repainting under the first tap closes
+ *  the sheet it opened: the tap again) */
+const openLogHeirs = async () => {
+  for (let i = 0; i < 3; i++) {
+    await page.locator(".lanes .lanes-log").first().click({ timeout: 5000 });
+    if (await page.waitForSelector(".runs-sheet", { timeout: 1500 }).then(() => true, () => false)) break;
+  }
+  await page.locator(".runs-sheet .log-tab[data-tab=heirs]").click({ timeout: 5000 }); await sleep(150);
+};
 const fakeDeath = (kept) => page.evaluate((kept) => {
   const r = window.__riddle;
   r.go({ kind: "death", death: { run_id: 0, depth: 3, cause: "goblin_archer", margin: "3 hp short", verdict: "gap", baseline: 0.25, trace: { turns: [] }, patches: [], morgue: "t10 a line" }, kept });
@@ -83,9 +93,10 @@ try {
   await sleep(600);
 
   // 4 · 5 · 6: sheet titles, the empty chronicle, the seed, the empty vault slot
-  await page.locator(".cmd .tile[data-tile=chronicle]").first().click({ timeout: 5000 }); await sleep(200);
+  // RUNS_UI: the chronicle is the runs log's `heirs` (the lane's log stud; its console tile folded in)
+  await openLogHeirs();
   let s = await sheet();
-  check(s?.label === "chronicle" && !/·/.test(s.text.replace("chronicle", "")) && s.buttons.length === 0, `an empty chronicle shows its label and nothing else: "${s?.text}"`);
+  check(/heirs/.test(s?.label ?? "") && !/·/.test(s.text.replace(/runs|heirs/g, "")) && s.buttons.filter((b) => !/^(runs|heirs)$/.test(b)).length === 0, `an empty chronicle (the log's heirs) shows its label and nothing else: "${s?.text}"`);
   await page.keyboard.press("Escape"); await sleep(150);
   await page.locator(".cmd .tile[data-tile=ledger]").first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
@@ -170,9 +181,10 @@ try {
   check(await setLineage(["♟1 the curious fighter · D3 · fell to a jackal · left bones on D3."], true), "the lineage took a chronicle line whose heir keeps its death");
   await waitFor((s) => s?.screen === "camp", "camp again");
   await sleep(400);
-  await page.locator(".cmd .tile[data-tile=chronicle]").first().click({ timeout: 5000 }); await sleep(200);
+  await openLogHeirs();
   s = await sheet();
-  check(s?.label === "chronicle" && s.buttons.length === 1 && /▸/.test(s.buttons[0]), `the chronicle line is a button: [${s?.buttons.join(", ")}]`);
+  const lines = s?.buttons.filter((b) => !/^(runs|heirs)$/.test(b)) ?? [];
+  check(/heirs/.test(s?.label ?? "") && lines.length === 1 && /▸/.test(lines[0]), `the chronicle line (the log's heirs) is a button: [${lines.join(", ")}]`);
   await page.locator(".sheet-wrap button.cline.kept").first().click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "death", "the kept death");
   await sleep(200);

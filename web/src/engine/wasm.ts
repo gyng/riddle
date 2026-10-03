@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit } from "./types";
+  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption, Advance, Replay } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
 type GameCtor = (new (seed: number) => GameObj) & { fromSave?: (save: string) => GameObj };
@@ -114,6 +114,24 @@ export class WasmEngine implements Engine {
   seenSystems(): Lineage { return this.call("seenSystems"); }
   wallEdit(): WallEdit | null { return this.call("wallEdit"); }
   setOrders(orders: StandingOrders): Lineage { return this.call("setOrders", JSON.stringify(orders)); }
+  // Cut 30: throw `wasm: <name>` on a build without them
+  equipPackage(id: string, slot: number): Lineage { return this.call("equipPackage", id, slot); }
+  unequipPackage(id: string): Lineage { return this.call("unequipPackage", id); }
+  pickTemperament(id: string): Lineage { return this.call("pickTemperament", id); }
+  spendLevel(id: string): Lineage { return this.call("spendLevel", id); }
+  revokeDrill(boss: string, revoked: boolean): Lineage { return this.call("revokeDrill", boss, revoked); }
+  packageOptions(sims: number): PkgOption[] { return this.call("packageOptions", sims); }
+  bankDeposit(amount: number): Lineage { return this.call("bankDeposit", amount); }
+  bankWithdraw(amount: number): Lineage { return this.call("bankWithdraw", amount); }
+  swapQuest(): Lineage { return this.call("swapQuest"); }
+  // Cut 30.5: throw `wasm: <name>` on a build without them
+  hire(id: string): Lineage { return this.call("hire", id); }
+  openChest(): Lineage { return this.call("openChest"); }
+  setWorker(id: string, on: boolean): Lineage { return this.call("setWorker", id, on); }
+  promote(id: string): Lineage { return this.call("promote", id); }
+  // RUNS_UI: throw `wasm: <name>` on a build without them
+  advance(elapsedMs: number): Advance { return this.call("advance", elapsedMs); }
+  replay(runId: number): Replay | null { return this.call("replay", runId); }
 }
 
 /** Resolves to a WasmEngine, or null when pkg/ is not built. Works on the main thread and in a worker. */

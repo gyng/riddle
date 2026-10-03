@@ -1,0 +1,60 @@
+You are painting UI ICONS for the game "Riddle" (a gothic dark-fantasy roguelike on a phone held in portrait). FIRST look
+at these approved STYLE TARGETS (you may open these images and nothing else in the repository): /home/g/p/riddle/art/ui/targets/style/ui_sheet.png, /home/g/p/riddle/art/ui/targets/style/death.png, /home/g/p/riddle/art/ui/targets/style/watch_warrens.png. They are the target look.
+
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix. Do NOT modify
+anything outside /home/g/p/riddle/art/ui/icons/. Save each final PNG (sRGB) to the exact path at the exact size; resample with PIL (Lanczos) if needed,
+keeping the aspect (crop the long side, never stretch). Delete any scratch or _inspection_ files you create. OVERWRITE existing
+files. When done, look at each output once and regenerate it once if it breaks a rule below.
+
+=== STYLE (docs/ART_DIRECTION.md, approved) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== ICON RULES (ui_sheet.png's resource icons and command-tile icons) ===
+Each icon is ONE object drawn as a BONE ink drawing: a confident INK contour, one line weight, BONE and MIST washes inside with
+granulation, a hint of the pixel grid in its stepped edges, cold light from above. No gradients, no glossy metal, no warm amber,
+no tile or frame behind it, no text, no letters, no numbers. It must read at 32-40 px: a strong simple silhouette filling ~75 % of
+the canvas, centred. Only where the subject says so, one small accent: BLOOD, EMBER, GILT or MIST.
+ALPHA: every asset marked RGBA has a TRUE TRANSPARENT background outside the object (the four canvas corners alpha 0, no
+checkerboard, no key colour, no black or paper fill). OPAQUE assets fill the canvas edge to edge.
+
+=== ASSETS ===
+1) /home/g/p/riddle/art/ui/icons/mark.png — 256x256 RGBA — a faceted diamond (MIST washes, the one cold jewel).
+2) /home/g/p/riddle/art/ui/icons/renown.png — 256x256 RGBA — a five-point star.
+3) /home/g/p/riddle/art/ui/icons/depth.png — 256x256 RGBA — a stairway descending into darkness.
+4) /home/g/p/riddle/art/ui/icons/settings.png — 256x256 RGBA — a gear cog.
+5) /home/g/p/riddle/art/ui/icons/v_attack.png — 256x256 RGBA — a single broad sword, point up, slightly diagonal.
+6) /home/g/p/riddle/art/ui/icons/v_drink.png — 256x256 RGBA — a round glass potion flask with a cork (the liquid a small BLOOD fill).
+7) /home/g/p/riddle/art/ui/icons/v_read.png — 256x256 RGBA — a partly unrolled parchment scroll with a wax seal (no writing).
+8) /home/g/p/riddle/art/ui/icons/v_throw.png — 256x256 RGBA — a small clay flask with a burning rag in its neck (a small EMBER flame).
+9) /home/g/p/riddle/art/ui/icons/v_retreat.png — 256x256 RGBA — a heavy curved arrow bending back to the left, like a U-turn.
+10) /home/g/p/riddle/art/ui/icons/v_corridor.png — 256x256 RGBA — a narrow stone archway seen from the front.
+11) /home/g/p/riddle/art/ui/icons/v_descend.png — 256x256 RGBA — a short flight of stone stairs going down into a dark opening.
+12) /home/g/p/riddle/art/ui/icons/v_rest.png — 256x256 RGBA — a small campfire of crossed logs with a low EMBER flame.
+13) /home/g/p/riddle/art/ui/icons/v_shoot.png — 256x256 RGBA — a recurve bow with a nocked arrow.
+14) /home/g/p/riddle/art/ui/icons/v_magic.png — 256x256 RGBA — a jagged lightning bolt inside a thin rune circle (MIST).
+15) /home/g/p/riddle/art/ui/icons/v_shadow.png — 256x256 RGBA — a hooded mask half dissolving into smoke.
+16) /home/g/p/riddle/art/ui/icons/v_shield.png — 256x256 RGBA — a round iron-rimmed shield with a central boss.
+17) /home/g/p/riddle/art/ui/icons/v_explore.png — 256x256 RGBA — an old hanging lantern with a small EMBER flame.
+When all assets are saved, list the final paths and sizes. Do nothing else.

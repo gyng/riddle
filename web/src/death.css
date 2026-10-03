@@ -1,0 +1,47 @@
+/* Death screen v2 (owner, 2026-10-01: "too wordy and incomprehensible"): three answers at rest — what killed him (the banner: killer ·
+   floor · hp), why (one line), what now (the lit fix and one other, each its short name and effect; `send again` for luck) — and one
+   `details` tap for everything else. `.death.full` is the old screen, whole. */
+.death-why { width: 100%; margin: 2px 0 0; text-align: center; font: 700 20px/1.2 var(--display); letter-spacing: .02em; color: #ebc98a;
+  text-shadow: 0 2px 4px var(--ink), 0 0 10px rgba(13, 12, 20, .7); }
+.death-why:empty { display: none; }
+.death-now { display: flex; flex-direction: column; align-items: stretch; gap: 8px; width: 100%; }
+.death-now .patches { margin: 0; }
+.death-send { align-self: center; min-height: 40px; padding: 0 22px; font: 600 16px/1 var(--display); letter-spacing: .04em; }
+.death-send[hidden] { display: none; }
+.death-lever { display: flex; justify-content: center; align-items: baseline; gap: 4px; min-height: 52px; padding: 8px 14px; font: 600 18px/1.2 var(--display); }
+.death .death-more { align-self: center; margin: 0 auto; min-height: 36px; padding: 0 18px; background: none; border: 0; color: var(--mist); font: 600 13px/1 var(--display);
+  letter-spacing: .12em; text-transform: uppercase; text-decoration: underline dotted rgba(164, 188, 214, .5); text-underline-offset: 4px; }
+.death .death-more:hover { color: var(--bone); }
+.death-margin { width: 100%; margin: 0; text-align: center; font-size: 13px; }
+.death-details { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100%; }
+.death-details[hidden] { display: none; }
+.death-morgue { align-self: center; }
+
+/* at rest: the lean count and the luck lead live under details (the why line says `bad luck · 1 in 6`) */
+.death:not(.full) .death-line .lean, .death:not(.full) .luck-lead { display: none; }
+/* at rest the fixes block shows its tablets compact: no head, no fold, no ranks or numbers — the short name and one effect */
+.death:not(.full) .death-now :is(.patches-moment, .patches-head, .patches-more, .patches-fold) { display: none; }
+.death:not(.full) .death-now button.patch.rest-off { display: none; }
+.death:not(.full) .death-now button.patch[data-short] { justify-content: space-between; align-items: center; min-height: 52px; padding: 8px 16px; gap: 12px; }
+.death:not(.full) .death-now button.patch[data-short] > :not(.vplaque) { display: none; }
+.death:not(.full) .death-now button.patch[data-short] > .vplaque { order: -1; }
+.death:not(.full) .death-now button.patch[data-short]::before { content: attr(data-short); flex: 1; min-width: 0; font: 600 18px/1.2 var(--display); color: var(--bone); text-align: left; }
+.death:not(.full) .death-now button.patch[data-short]::after { content: attr(data-eff); flex: none; font: 600 14px/1.2 var(--label, inherit); color: var(--mist); font-variant-numeric: tabular-nums; }
+.death:not(.full) .death-now button.patch.top[data-short] { min-height: 62px; }
+.death:not(.full) .death-now button.patch.top[data-short]::before { font-size: 21px; }
+.death:not(.full) .death-now button.patch.top[data-short]::after { color: #cfe3c0; font-size: 15px; }
+.death:not(.full) .death-now button.patch:not(.top)[data-short] { min-height: 44px; opacity: .88; }
+.death:not(.full) .death-now button.patch:not(.top)[data-short]::before { font-size: 16px; color: var(--mist); }
+/* desktop at rest: the side columns (his rules, the reach shaft) stand empty — the frame stays, the words wait for details */
+.death:not(.full) > :is(.rules-col, .side-col) > * { visibility: hidden; }
+@media (min-width: 1024px) and (min-height: 560px) {
+  .death-why { font-size: 26px; }
+  .death .death-more { font-size: 14px; min-height: 40px; color: var(--bone); }
+  .death:not(.full) .death-now button.patch.top[data-short] { min-height: 70px; }
+  .death:not(.full) .death-now button.patch.top[data-short]::before { font-size: 24px; }
+  .death:not(.full) .death-now button.patch.top[data-short]::after { font-size: 17px; }
+}
+.death .death-more.on .fold-mark { display: inline-block; transform: rotate(90deg); }
+/* blind check: the top bar's first-time `buys unlocks` caption read as clutter here — it belongs where marks are spent */
+.death .topbar .concept-cap { display: none; }
+.death .death-more .fold-hint { font: 500 12px/1 var(--display); letter-spacing: .04em; text-transform: none; opacity: .8; }
