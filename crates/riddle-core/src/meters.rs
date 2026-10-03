@@ -229,7 +229,7 @@ impl RunMeters {
 /// Cut 29 §3: the healing of one tick as `Ev::Heal` events — each of the hero's side whose hp rose
 /// past the tick's harm to it (`hp0`: the hp before the tick), by the tick's own evidence: a heal
 /// or regen drunk (`potion`), a rest (`rest`), a second wind or a drain (`skill`), else `regen`.
-pub fn heals(run: &crate::engine::Run, cx: &mut crate::engine::Ctx, from: usize, hp0: &[(u32, i32)]) {
+pub fn heals(run: &crate::engine::Run, cx: &mut crate::engine::Ctx, from: usize, hp0: impl Iterator<Item = (u32, i32)>) {
     let evs = &cx.events[from..];
     let hurt = |id: u32| evs.iter().filter_map(|e| if let Ev::Hurt { id: i, dmg, .. } = e { (*i == id).then_some((*dmg).max(0)) } else { None }).sum::<i32>();
     let src_hero = if evs.iter().any(|e| matches!(e, Ev::Use { item, .. } if item == "heal" || item == "regen")) {
@@ -242,7 +242,7 @@ pub fn heals(run: &crate::engine::Run, cx: &mut crate::engine::Ctx, from: usize,
         "regen"
     };
     let mut out = Vec::new();
-    for &(id, before) in hp0 {
+    for (id, before) in hp0 {
         let now = if id == HERO_ID { Some(run.hero.hp) } else { run.monsters.iter().find(|m| m.id == id).map(|m| m.hp) };
         let Some(now) = now.filter(|n| *n > 0) else { continue };
         let gained = now - before + hurt(id);

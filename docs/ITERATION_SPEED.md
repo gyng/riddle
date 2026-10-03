@@ -11,6 +11,14 @@ acceptance remains `tools/verify.sh --full`. New shipping packaging reuse took
 1.88 s after a genuine build, with compiled-input/tool/output hash checks. Completed
 gate legs are now persisted independently, so an interrupted long dayplayer does
 not discard completed metrics/QA. Measurements and limits: `docs/PERF_LOCAL.md`.
+The healing-allocation candidate passed a genuinely fresh full verification in
+4679s and a subsequent canonical verification in 111s (including test-artifact
+rebuilds; all three simulation legs cached). Current source `d84ba387fbdb62da`.
+This does not make a fresh full gate cheap: 272 fortnight cases still take about
+78 minutes in this run. Worker/test-thread screens and the private package-panel
+cache prototype did not justify promotion. Next runtime work should target the
+picker's BFS/vision/rule hot loops; history container sharing was not the measured
+first bottleneck. Preserve output hashes and distinguish native from WASM gains.
 These are queued engineering tasks, not Cut 31 or a new fun cohort. Existing numeric gates,
 samples, player behavior and public wire/save semantics remain the acceptance criteria.
 Earlier rounds below are historical; shared history, primitive job caches, targeted dayplayer

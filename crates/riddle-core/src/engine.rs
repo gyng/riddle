@@ -4297,12 +4297,12 @@ impl Game {
         let (run, mut cx) = self.ctx();
         let before = cx.events.len();
         // Cut 29 §3: the hero's and the pets' hp before the tick (the meters' healing).
-        let hp0: Vec<(u32, i32)> = if cx.sim { Vec::new() } else { std::iter::once((HERO_ID, run.hero.hp)).chain(run.monsters.iter().filter(|m| m.ally && m.hp > 0).map(|m| (m.id, m.hp))).collect() };
+        let hero_hp0 = run.hero.hp;
+        let pets_hp0: Vec<(u32, i32)> = if cx.sim { Vec::new() } else { run.monsters.iter().filter(|m| m.ally && m.hp > 0).map(|m| (m.id, m.hp)).collect() };
         crate::turn::tick(run, &mut cx);
         if !cx.sim {
-            crate::meters::heals(run, &mut cx, before, &hp0);
-            let allies: Vec<u32> = run.monsters.iter().filter(|m| m.ally).map(|m| m.id).collect();
-            run.meters.tick(&cx.events[before..], allies.into_iter());
+            crate::meters::heals(run, &mut cx, before, std::iter::once((HERO_ID, hero_hp0)).chain(pets_hp0));
+            run.meters.tick(&cx.events[before..], run.monsters.iter().filter(|m| m.ally).map(|m| m.id));
         }
         let n = cx.events[before..].iter().filter(|e| e.renderable()).count() as u32;
         run.renderable_events += n;

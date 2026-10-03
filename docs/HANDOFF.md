@@ -45,9 +45,16 @@ Local tooling now provides `tools/tune.sh <rows>` (full seed counts and fail-fas
 `--list` for row IDs), independent completed-leg persistence/progress, checked
 shipping-WASM packaging reuse, and direct-URL screenshot manifests. Fresh
 `idle-d8` passed 16/16 in 6.12s; a checked no-edit shipping build took 1.88s.
-The small healing-allocation core optimization remains under full verification;
-its native gain is 2–5%, with no measured WASM gain. Do not describe that pending
-core change as deployed or the fresh full gate as complete.
+The small healing-allocation core optimization is fully verified: fresh full
+verification passed in 4679s (all 272 fortnight cases), then canonical verification
+with all three genuine cached legs passed in 111s, including rebuilding affected
+test artifacts. Current core source is `d84ba387fbdb62da`; shipping WASM SHA256
+`5c1b05d077df71c0d166e1ed46df051b68e20afb260611d4907eb2e7222dde5d`.
+Reports/saves and eight-seed fingerprint `35cb82317410f64e` are unchanged.
+Native catch-up gain is 2–5%, with no measured WASM gain. A quiet native tuning
+repeat is pending. Core publication follows verification; do not assume the public
+site has this source until its deployment check is recorded. Tooling commits
+`cfed378` and `be1283f` passed public CI and deployed successfully.
 This engineering queue does not start Cut 31 or a new cohort.
 
 The dated sections below preserve earlier decisions and implementation history; this resume note supersedes

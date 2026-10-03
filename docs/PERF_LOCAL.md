@@ -124,3 +124,50 @@ source and runtime-input keys, samples, assertions and pass criteria are unchang
 Completed-leg and targeted printout writes use atomic rename; corrupt older
 printouts are misses. `node tools/gates-cache-test.mjs` repeats the interruption,
 restart/reuse and corrupt-cache checks in an isolated temporary fixture.
+
+Additional screens (both under concurrent full-dayplayer load):
+
+- All workspace fast tests, three alternating pairs at 24 versus 8 test threads:
+  517 passed/one ignored each run; median wall 82.961 versus 83.351 s, CPU 952.988
+  versus 954.401 s. No default was changed.
+- Actual TUNED seed 1 first day, fresh, one simulation thread, unchanged retained
+  baseline versus healing-allocation candidate: three alternating pairs, median
+  CPU 38.730 versus 35.967 s (7.13% lower); all three candidate CPU samples lower.
+  Printed outcomes are identical after removing the duration. Median wall 44.337
+  versus 37.707 s is affected by the concurrent test screen finishing, so it is
+  not a quiet full-gate speedup claim. This native forecast-heavy sample complements
+  the saved-camp benchmark; it does not establish a browser/WASM gain.
+
+The shipped tooling commit `cfed378` passed public CI run `37125173952`; real
+public-app WASM/layout/service-worker/offline checks passed. A second headed walk
+verified eight screenshot/text checkpoints and the harness SHA256 field. It took
+81.5 s under active full-gate load versus the earlier 32.6 s walk; these QA walks
+are functional checks, not paired performance measurements. The core candidate
+still awaits its complete fresh 272-case verification before landing.
+
+The isolated TUNED profile produced 7643 filtered samples. `each_step` appeared
+under BFS/flood paths in 1157 samples; vision and rule evaluation were also hot.
+Library allocations are blocklisted by this profiler, so these are not complete
+process CPU percentages. The first-day picker used 25–30 CPU s versus 2–3 s offline.
+A private core copy tested retaining package candidates' panel caches, borrowing
+the cage picker's pattern. Three paired runs preserved printed outcomes but had
+no repeatable gain: median CPU 43.446 versus 44.528 s, with one candidate pair
+about 19% slower. Rejected; no package-cache code entered production. The patch,
+input/binary hashes and samples remain private. Only that probe package's build
+artifacts were intended for cleanup after measurements. Cargo's package cleanup
+matched the shared `riddle_core` artifact family more broadly than intended,
+removing 30.6 GiB of fast-profile artifacts. Source, gate-result caches, existing
+example executables and shipping WASM remained intact; the running gate continued.
+Rebuild the affected workspace fast library before final verification. Do not use
+package cleanup for renamed probes sharing a production library target name.
+
+Final acceptance: fresh `tools/verify.sh --full` passed in **4679 s**, all 272
+fortnight cases and every existing bar. `cargo test --profile fast --example
+dayplayer` passed 11 tests. After rebuilding affected local artifacts, canonical
+full verification passed again in **111 s**, with all three genuine leg printouts
+cached, 517 tests/one ignored, TypeScript/copy lint and all-target Clippy. Current
+core source key is `d84ba387fbdb62da`; shipping WASM hash remains the candidate
+hash above. The 111 s includes rebuilding test artifacts and is not a fully warm
+unit-test build measurement. Full-gate cold cost remains about 78 minutes in this
+run; the iteration gains are targeted checks and correct unchanged-work reuse,
+not a claim that all fresh simulations now finish in seconds.
