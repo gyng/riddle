@@ -3691,7 +3691,15 @@ impl Game {
         let ev0 = self.events.len();
         self.auto_keep();
         // Cut 30.5: the workers' standing orders, between real runs
+        let previous_start = self.lineage.start.max(1);
         crate::tree::at_send(self);
+        // The guide may pick a different stone during an absence. Its send needs that
+        // stone's passage on the camp now, rather than the tuple priced before the workers.
+        // Unchanged starts keep their quote; sims never run workers or recursively price it.
+        if !self.sim && self.lineage.start.max(1) != previous_start {
+            let rules = self.lineage.rules().clone();
+            self.passage = crate::forecast::sim_passage(self, &rules);
+        }
         // Cut 28 §2: the camp this send left (a sim's send is no send).
         if !self.sim {
             self.sent_state = Some(Box::new(SentState::of(self)));
@@ -4578,13 +4586,15 @@ impl Game {
     /// class XP and renown; a dead heir's kit stays on the floor as bones.
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
+        let tier = run.over.unwrap_or(ExitTier::Return);
         // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout); the guide's record of
         // the stone it started from
         if !self.sim {
             self.lineage.tree.sent = false;
-            crate::tree::note_start(&mut self.lineage, run.start, run.over != Some(ExitTier::Death) && run.carried() > 0, run.over == Some(ExitTier::Death));
+            // Passage was already paid at the send; a checkpoint can pay even on death.
+            // Count actual income, not survival or a carry that rounds down to nothing.
+            crate::tree::note_start(&mut self.lineage, run.start, run.passage > 0 || run.kept(tier) > 0, tier == ExitTier::Death);
         }
-        let tier = run.over.unwrap_or(ExitTier::Return);
         // (c30-legible: the record before this run, for the end's reason)
         let best0 = self.lineage.best_depth;
         // Yield follows the exit (Cut 2 §2); a timed-out run yields nothing.

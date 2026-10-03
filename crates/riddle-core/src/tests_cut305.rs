@@ -348,3 +348,91 @@ fn guarded_recovers_the_last_wounds_before_exploring_again() {
     assert_eq!(r.hero.pos, pos, "rest comes before exploring another room");
     assert!(r.homeward.is_none() && r.over.is_none());
 }
+
+
+#[test]
+fn guide_income_counts_actual_checkpoint_passage_and_rounded_exit_payment() {
+    use crate::engine::ExitTier;
+    for (tier, secured, loot, passage, timed_out, paid) in [
+        (ExitTier::Death, 1221, 1452, 0, false, true),
+        (ExitTier::Death, 0, 0, 533, false, true),
+        (ExitTier::Death, 0, 0, 0, false, false),
+        (ExitTier::Return, 0, 1, 0, false, false),
+        (ExitTier::Return, 1221, 1452, 0, true, true),
+        (ExitTier::Return, 0, 1452, 0, true, false),
+    ] {
+        let mut g = crate::tests::arena();
+        g.lineage.gold_move(100_000, "test reserve");
+        g.lineage.best_depth = 28;
+        g.lineage.tree.stones_best = 28;
+        let run = g.run.as_mut().unwrap();
+        run.start = 19;
+        run.depth = 28;
+        run.max_depth = 28;
+        run.secured = secured;
+        run.loot = loot;
+        run.passage = passage;
+        run.timed_out = timed_out;
+        run.over = Some(tier);
+        if tier == ExitTier::Death { run.hero.hp = 0; run.death_cause = Some("lurker".into()); }
+        let expected_kept = run.kept(tier);
+        let gold = g.lineage.gold;
+        g.finish_run().unwrap();
+        assert_eq!(g.lineage.gold - gold, expected_kept, "passage was paid at send, not twice at exit");
+        assert_eq!(g.last_exit.as_ref().unwrap().kept, expected_kept);
+        assert_eq!(g.lineage.tree.stones.get(&19), Some(&(1, u32::from(paid))), "{tier:?}, secured={secured}, loot={loot}, passage={passage}, timeout={timed_out}");
+    }
+}
+
+fn guide_quote_camp() -> Game {
+    use crate::rules::{Cond, Row, Verb};
+    let mut g = Game::new(11);
+    g.lineage.best_depth = 28;
+    g.lineage.light_waystones(28);
+    g.lineage.gold_move(100_000, "test reserve");
+    crate::kit::buy_all(&mut g.lineage);
+    tree::grant(&mut g.lineage, &["porter", "guide"]);
+    g.lineage.pkg.pen_open = true;
+    g.lineage.pkg.pen = vec![Row::new(vec![Cond::n("depth>=", 2)], Verb::new("bank")).from("player")];
+    crate::packages::recompile(&mut g.lineage);
+    g
+}
+
+#[test]
+fn guide_changed_start_prices_current_camp_before_its_send_snapshot() {
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(2);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        let mut g = guide_quote_camp();
+        g.lineage.start = 14;
+        g.passage = Some((14, 1));
+        let mut priced = g.clone();
+        tree::at_send(&mut priced);
+        assert_eq!(priced.lineage.start, 24);
+        let expected = crate::forecast::sim_passage(&priced, priced.lineage.rules());
+        assert!(expected.is_some_and(|(floor, coins)| floor == 24 && coins > 0));
+        g.start_run(Some(42));
+        assert_eq!(g.passage, expected);
+        assert_eq!(g.run.as_ref().unwrap().start, 24);
+        assert_eq!(g.run.as_ref().unwrap().passage, expected.unwrap().1);
+        assert_eq!(g.sent_state.as_ref().unwrap().lineage.start, 24);
+    });
+}
+
+#[test]
+fn guide_unchanged_start_keeps_existing_quote_and_none_without_repricing() {
+    for quote in [Some((24, 7777)), None] {
+        let mut g = guide_quote_camp();
+        g.lineage.start = 24;
+        g.passage = quote;
+        g.start_run(Some(42));
+        assert_eq!(g.lineage.start, 24);
+        assert_eq!(g.passage, quote, "an unchanged start must not launch a passage panel");
+        assert_eq!(g.run.as_ref().unwrap().passage, quote.map_or(0, |q| q.1));
+    }
+    let mut g = guide_quote_camp().sim_clone();
+    g.lineage.start = 14;
+    g.passage = Some((14, 7777));
+    g.start_run(Some(42));
+    assert_eq!(g.lineage.start, 14, "sims do not run the guide");
+    assert_eq!(g.passage, Some((14, 7777)), "sims must not recursively price passage");
+}
