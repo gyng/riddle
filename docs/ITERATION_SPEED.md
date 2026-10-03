@@ -1,5 +1,31 @@
 # Iteration speed — where a cut's time goes, and what to cut next
 
+## Active queue — 2026-10-03, after Cut 30.5
+
+Owner requested performance and iteration-speed follow-up after the release checkpoint.
+These are queued engineering tasks, not Cut 31 or a new fun cohort. Existing numeric gates,
+samples, player behavior and public wire/save semantics remain the acceptance criteria.
+Earlier rounds below are historical; shared history, primitive job caches, targeted dayplayer
+and compound driver operations already exist and should not be rebuilt as new work.
+
+Verified baseline: main `9d49b19`, core `2822afe224cb289b`; canonical full verification
+437 s, native tests 30.96 s, metrics 263 s, QA 151.7 s, all 272 dayplayer cases pass.
+Metrics and QA overlap; these timings do not add to the total. Primitive dayplayer caches
+were warm, so 437 s is not a fresh full-simulation baseline. Focused client 88/88 took 19.3 s.
+
+| Order | Queued work | Deliverable and acceptance |
+|---|---|---|
+| 1 | Measure today's critical paths | Record warm/no-edit, representative core-edit and cold-cache costs separately; wall and CPU time, thread widths, cache hits, source/build keys and host contention. Profile native 8 h catch-up, deep verdicts/package panels and actual shipping WASM. Reuse saved camps and timing/fingerprint tools. This becomes the baseline for each following task. |
+| 2 | Make QA checkpoints cheaper | Extend existing driver/walk operations only where current walks still repeat setup or fixed waits. Produce a labeled camp → watch → exit/death → report → works screenshot bundle plus text in one invocation, with build provenance and deterministic readiness. Show screenshots inline to the owner at checkpoints. Target at least 25% fewer browser tool turns on the same walk, with the same screens and decisions. Keep blind-rater access and speed unchanged. |
+| 3 | Reduce gate contention and repeated work | Benchmark current metrics/QA/dayplayer widths and job ordering on the same exact inputs. Audit cache-key coverage and cold/warm reporting before extending reuse. Target at least 15% lower median wall time over three paired runs, without increasing total CPU by more than 5%; keep every seed, case, assertion and bar. Preserve genuine per-job evidence and ordered results. |
+| 4 | Optimize the remaining history snapshot cost | Re-profile per-stride allocations before choosing a change. Candidates left by round 6 include meter maps, monster kind strings and map storage; shared facts/trace are already done. Target at least 10% faster representative offline catch-up. Require identical fingerprint, save/load continuation, verdict/trace and dayplayer outputs before full gates; include WASM results and allocation measurements. |
+| 5 | Shorten shipping-WASM catch-up and UI stalls | Use measured phase costs to choose the next bottleneck: catch-up slices, final death/forecast reads, serialization or frame scheduling. Record 8 h and longer-absence wall time plus input latency/frame time on headed GPU. Target at least 20% lower measured catch-up or worst interaction stall, with identical game results, uncapped absence and unchanged report accounting. |
+
+Each item starts with a small contract and baseline; retain an optimization only when paired
+measurements support it. Use focused checks during iteration, then required full verification
+for a landed core change. Publication was separately approved on 2026-10-03; owner fun review
+and the hold before Cut 31 remain in effect.
+
 *Analysis, 2026-09-21, on 4145acc (after 3977696). Measured on this machine (5950X 16C/32T,
 RTX 3080 via WSLg). Nothing here weakens a gate; raters stay blind; feel keeps a real browser.*
 

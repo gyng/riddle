@@ -28,8 +28,17 @@ Private evidence: `scratchpad/cut30_5-check-pack`; final log
 are retained there; no fabricated caches or weakened gates were used.
 
 Next: owner fun review, then cohort25 when approved. **Do not begin Cut31.**
-The alpha entry point is `https://gyng.github.io/riddle/`; deployment status
-and final merge are recorded in the local check pack after publication.
+The planned alpha entry point is `https://gyng.github.io/riddle/`; public repository
+creation and deployment were explicitly approved in the current chat on 2026-10-03;
+publication is in progress. The
+verified local preview is `http://localhost:38329/riddle/`; final merge and release
+evidence are recorded in the local check pack.
+
+Owner requested inline screenshots at milestones and queued performance/iteration
+work after this checkpoint. The prioritized follow-up is at the top of
+`docs/ITERATION_SPEED.md`: current measurements, QA checkpoint automation, gate
+scheduling/reuse, remaining history allocations, then shipping-WASM catch-up.
+This engineering queue does not start Cut 31 or a new cohort.
 
 The dated sections below preserve earlier decisions and implementation history; this resume note supersedes
 older "next" and branch-status statements.
