@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # Build the wasm engine into web/src/engine/pkg.
 #   tools/wasm.sh          fast: cargo `fast` profile (no debug info) + wasm-bindgen, no wasm-opt (~8 s after a core edit)
-#   tools/wasm.sh --ship   wasm-pack --release (fat LTO + wasm-opt, ~40 s) for the shipping build
+#   tools/wasm.sh --ship   checked reuse, or wasm-pack --release (fat LTO + wasm-opt)
+#   tools/wasm.sh --ship --fresh   force packaging even when compiled input/output match
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ "${1:-}" = "--ship" ]; then
-  exec wasm-pack build crates/riddle-wasm --target web --out-dir ../../web/src/engine/pkg --release
+  # Cargo remains authoritative for source/toolchain/flag changes. Packaging is reusable only
+  # for the same compiled wasm, tools and recipe, with every generated file checked.
+  cargo build -q --lib --release --target wasm32-unknown-unknown -p riddle-wasm
+  if [ "${2:-}" != "--fresh" ] && node tools/wasm-cache.mjs check; then exit 0; fi
+  wasm-pack build crates/riddle-wasm --target web --out-dir ../../web/src/engine/pkg --release
+  node tools/wasm-cache.mjs record
+  exit 0
 fi
 # wasm-bindgen CLI must match the crate version; wasm-pack caches matching binaries.
 want=$(grep -A1 'name = "wasm-bindgen"' Cargo.lock | grep version | head -1 | sed 's/.*"\(.*\)"/\1/')

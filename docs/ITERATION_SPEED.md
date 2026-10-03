@@ -3,6 +3,14 @@
 ## Active queue — 2026-10-03, after Cut 30.5
 
 Owner requested performance and iteration-speed follow-up after the release checkpoint.
+Owner clarified the main tuning pain is developer simulation gates, alongside local
+build timings. Use `tools/tune.sh --list` and `tools/tune.sh <rows>` during content
+iteration: full seed counts, targeted requirements and fail-fast. A fresh 16-seed
+`idle-d8` check took 6.12 s; complex ratio/fortnight rows still cost more. Final
+acceptance remains `tools/verify.sh --full`. New shipping packaging reuse took
+1.88 s after a genuine build, with compiled-input/tool/output hash checks. Completed
+gate legs are now persisted independently, so an interrupted long dayplayer does
+not discard completed metrics/QA. Measurements and limits: `docs/PERF_LOCAL.md`.
 These are queued engineering tasks, not Cut 31 or a new fun cohort. Existing numeric gates,
 samples, player behavior and public wire/save semantics remain the acceptance criteria.
 Earlier rounds below are historical; shared history, primitive job caches, targeted dayplayer

@@ -28,16 +28,26 @@ Private evidence: `scratchpad/cut30_5-check-pack`; final log
 are retained there; no fabricated caches or weakened gates were used.
 
 Next: owner fun review, then cohort25 when approved. **Do not begin Cut31.**
-The planned alpha entry point is `https://gyng.github.io/riddle/`; public repository
-creation and deployment were explicitly approved in the current chat on 2026-10-03;
-publication is in progress. The
-verified local preview is `http://localhost:38329/riddle/`; final merge and release
-evidence are recorded in the local check pack.
+The public alpha is live at `https://gyng.github.io/riddle/`, repository
+`https://github.com/gyng/riddle`, deployed `df30c53`. CI run `37120657683` passed;
+headed public-site checks passed real WASM, scoped assets/service worker, dated
+alpha banner, phone/desktop layout and offline reload. Public screenshots and
+CI evidence are under `scratchpad/perf-20261003/`. Publication was explicitly
+approved in the current chat on 2026-10-03.
 
 Owner requested inline screenshots at milestones and queued performance/iteration
 work after this checkpoint. The prioritized follow-up is at the top of
 `docs/ITERATION_SPEED.md`: current measurements, QA checkpoint automation, gate
 scheduling/reuse, remaining history allocations, then shipping-WASM catch-up.
+Owner then requested continuing optimization, with local work ahead of CI.
+The active measured runtime contract is `docs/PERF_LOCAL.md`.
+Local tooling now provides `tools/tune.sh <rows>` (full seed counts and fail-fast;
+`--list` for row IDs), independent completed-leg persistence/progress, checked
+shipping-WASM packaging reuse, and direct-URL screenshot manifests. Fresh
+`idle-d8` passed 16/16 in 6.12s; a checked no-edit shipping build took 1.88s.
+The small healing-allocation core optimization remains under full verification;
+its native gain is 2–5%, with no measured WASM gain. Do not describe that pending
+core change as deployed or the fresh full gate as complete.
 This engineering queue does not start Cut 31 or a new cohort.
 
 The dated sections below preserve earlier decisions and implementation history; this resume note supersedes

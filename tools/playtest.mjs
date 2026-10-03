@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 // Scripted walk of the whole loop through the browser harness (tools/browser.mjs; headless by default,
 // `--headed` for the GPU window when the walk is about how it looks or feels) against the dev server
-// (tools/dev.sh, port 5219). Every screen is dumped as <out>/NN-<screen>.txt (innerText) + .png, one summary
+// (tools/dev.sh, port 5219), or --url for an existing preview/public build. Every screen is dumped as <out>/NN-<screen>.txt (innerText) + .png, one summary
 // line per dump, total wall time at the end (also in <out>/summary.txt). Exit 1 on any console error, page
 // error or unexpected reload. A Vite full reload from a parallel edit (pkg/, engine/, ui/) kills a walk: it is
 // reported, and the walk is retried once from scratch.
 //
-//   node tools/playtest.mjs [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide] [--headed] [--dpr N]
+//   node tools/playtest.mjs [--url URL] [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide] [--headed] [--dpr N]
+// checkpoints.json labels the captures and records fetched WASM hashes; harnessCommit identifies
+// this tool's checkout, not the source revision of a remote site.
 //
 // Cut 14 §3: every watch dump's summary line carries the entity-rect measure — the tallest foe on screen in CSS px, the frame
 // and its k (`foe goblin 50 px · map k5`, `__viewer.debugRects`) — the gate is a foe ≥ 24 CSS px in the map frame at 400×800.
@@ -16,23 +18,25 @@
 // → camp → reload ?absent → report (offline wait timed) → open the worst death → done.
 // Dev URL params and window.__riddle are documented in web/src/main.ts and web/src/app.ts.
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./browser.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const USAGE = "usage: node tools/playtest.mjs [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide] [--headed] [--dpr N]";
+const USAGE = "usage: node tools/playtest.mjs [--url URL] [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide] [--headed] [--dpr N]";
 const MID_SHOTS_MS = [2500, 6000];   // two mid-run dumps at 4×, then ▶▶| to the exit
 const SKIP_EVERY_MS = 40;            // ▶▶| cadence (a press while the pump is in flight is a no-op)
 const FINAL_EVERY_MS = 1500;         // rolling "final frame" of the run
 const WATCH_MAX_MS = 120_000, OFFLINE_MAX_MS = 180_000, STEP_MAX_MS = 30_000, SETTLE_MAX_MS = 10_000;
 const ATTEMPTS = 2;                  // one retry, only after an unexpected reload
 
-const opt = { seed: 1, absent: "8h", rules: null, out: null, wide: false, headed: undefined, dpr: undefined };
+const opt = { url: null, seed: 1, absent: "8h", rules: null, out: null, wide: false, headed: undefined, dpr: undefined };
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i], v = process.argv[i + 1];
   if (a === "--seed") { opt.seed = Number(v); i++; }
+  else if (a === "--url") { opt.url = new URL(v).href; i++; }
   else if (a === "--absent") { opt.absent = v; i++; }
   else if (a === "--rules") { opt.rules = readFileSync(resolve(v), "utf8"); i++; }
   else if (a === "--out") { opt.out = resolve(v); i++; }
@@ -50,7 +54,13 @@ mkdirSync(out, { recursive: true });
 const t0 = Date.now();
 const secs = (ms) => `${(ms / 1000).toFixed(1)}s`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const url = execFileSync("bash", [join(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
+// An explicit preview/public URL avoids starting or trusting a stale local Vite server.
+const url = opt.url ?? execFileSync("bash", [join(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
+const harnessSha256 = createHash("sha256").update(readFileSync(fileURLToPath(import.meta.url))).digest("hex");
+let harnessCommit = null;
+try { harnessCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim(); } catch { /* a source export has no git metadata */ }
+const checkpoints = new Map(), wasmReads = [];
+const record = (screen, base, note, page) => checkpoints.set(base, { screen, image: `${base}.png`, text: `${base}.txt`, note, viewport: page.viewportSize() });
 
 const errors = [], warnings = [], summary = [];
 let n = 0, walkStart = 0, offlineWait = 0;
@@ -68,6 +78,9 @@ async function attempt() {
   const page = await browser.newPage(opt.wide ? { viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 } : { viewport: { width: 400, height: 800 }, deviceScaleFactor: dpr });
   page.on("console", (m) => { if (m.type() === "error") errors.push(`console.error: ${m.text()}`); else if (m.type() === "warning") warnings.push(m.text()); });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  page.on("response", (r) => {
+    if (new URL(r.url()).pathname.endsWith(".wasm")) wasmReads.push(r.body().then((body) => ({ url: r.url(), status: r.status(), sha256: createHash("sha256").update(body).digest("hex") }), (e) => ({ url: r.url(), error: e.message })));
+  });
   page.on("framenavigated", (f) => { if (f === page.mainFrame() && !navigating) errors.push(`unexpected reload at ${secs(Date.now() - walkStart)} (a Vite full reload from a parallel edit?) → ${f.url()}`); });
 
   const state = () => page.evaluate(() => { const r = window.__riddle; return r ? { screen: r.screen, booted: r.booted, busy: r.engineBusy } : null; });
@@ -85,7 +98,10 @@ async function attempt() {
   }
   async function goto(q) {
     navigating = true;
-    try { await page.goto(`${url}?dev=1&${q}`, { waitUntil: "domcontentloaded" }); } finally { await sleep(50); navigating = false; }
+    const target = new URL(url);
+    target.searchParams.set("dev", "1");
+    for (const [key, value] of new URLSearchParams(q)) target.searchParams.set(key, value);
+    try { await page.goto(target.href, { waitUntil: "domcontentloaded" }); } finally { await sleep(50); navigating = false; }
   }
   /** Write NN-<screen>.txt + .png and print the summary line. Full-page unless it is the run or a sheet. */
   async function dump(screen, { base = name(screen), full = screen !== "watch" && screen !== "exit", note = "" } = {}) {
@@ -93,6 +109,7 @@ async function attempt() {
     if (screen === "watch") { const m = await foeRect(); if (m) note = note ? `${note} · ${m}` : m; }   // Cut 14 §3: the frame's tallest foe, in CSS px
     writeFileSync(`${base}.txt`, tx);
     await page.screenshot({ path: `${base}.png`, fullPage: full });
+    record(screen, base, note, page);
     log(`${base.slice(out.length + 1).padEnd(14)} +${secs(Date.now() - walkStart).padStart(6)}  ${String(tx.length).padStart(5)} ch  ${first(tx)}${note ? `  [${note}]` : ""}`);
     return base;
   }
@@ -139,7 +156,7 @@ async function attempt() {
         // QA 912e135 (qaW: `04-watch.png` was the death screen): the capture is kept only when the watch is still up after it — the
         // screen can change between the state read and the shot
         const tx = await text(), png = await page.screenshot();
-        if ((await state())?.screen === "watch") { finalBase ??= name("watch"); writeFileSync(`${finalBase}.txt`, tx); writeFileSync(`${finalBase}.png`, png); }
+        if ((await state())?.screen === "watch") { finalBase ??= name("watch"); writeFileSync(`${finalBase}.txt`, tx); writeFileSync(`${finalBase}.png`, png); record("watch", finalBase, "final frame", page); }
       }
       await sleep(SKIP_EVERY_MS / 2);
     }
@@ -219,6 +236,7 @@ async function attempt() {
 
 for (let a = 1; a <= ATTEMPTS; a++) {
   errors.length = 0; warnings.length = 0; summary.length = 0; n = 0; offlineWait = 0;
+  checkpoints.clear(); wasmReads.length = 0;
   await attempt();
   const reload = errors.find((e) => e.startsWith("unexpected reload"));
   if (reload && a < ATTEMPTS) { console.log(`retrying once after: ${reload}\n`); continue; }
@@ -231,4 +249,5 @@ let code = 0;
 if (errors.length) { code = 1; console.error(`FAIL: ${errors.length} error(s)`); for (const e of errors) console.error("  " + e); summary.push("FAIL", ...errors); }
 else console.log("ok: no console errors, no page errors");
 writeFileSync(join(out, "summary.txt"), summary.join("\n") + "\n");
+writeFileSync(join(out, "checkpoints.json"), JSON.stringify({ target: url, harnessCommit, harnessSha256, seed: opt.seed, absent: opt.absent, wallSeconds: (Date.now() - t0) / 1000, result: code ? "FAIL" : "PASS", wasm: await Promise.all(wasmReads), checkpoints: [...checkpoints.values()] }, null, 2) + "\n");
 process.exit(code);

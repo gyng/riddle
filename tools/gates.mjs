@@ -99,6 +99,19 @@ const legs = {
 };
 const cached = (leg) => (!fresh && !extra.length && existsSync(legs[leg]) ? JSON.parse(readFileSync(legs[leg], "utf8")) : null);
 const keep = (leg, r) => { if (!extra.length) { mkdirSync("target/gates", { recursive: true }); writeFileSync(legs[leg], JSON.stringify({ status: r.status, stdout: r.stdout })); } };
+const pendingLegs = new Map();
+// Keep each completed leg immediately: a long dayplayer or an interrupted tuning session
+// must not discard the already completed table and wire checks. Keys and checks are unchanged.
+const finishLeg = (leg, promise) => {
+  const started = Date.now();
+  if (!hit[leg]) pendingLegs.set(leg, started);
+  return promise.then((result) => {
+    if (!hit[leg]) keep(leg, result);
+    pendingLegs.delete(leg);
+    console.error(`gates: ${leg} ${hit[leg] ? "cached" : `finished in ${((Date.now() - started) / 1000).toFixed(1)}s`} (exit ${result.status})`);
+    return result;
+  });
+};
 // The table fills every core seed by seed for ~40 s; the fourteen-day probe is a few long
 // sequential chains (one per seed) that would otherwise run alone afterwards — they overlap.
 // `signal`: a stderr line that resolves `started` (forwarded stderr otherwise untouched).
@@ -143,8 +156,13 @@ const table = hit.metrics ? done(hit.metrics) : run("target/fast/examples/metric
 // (a cached table leaves qa every core)
 const qaThreads = hit.metrics ? cores : Math.max(4, Math.round(cores * QA_SHARE));
 const qa = hit.qa ? Promise.resolve(hit.qa) : table.ready.then(() => run("target/fast/examples/qa", ["--seeds", String(qaSeeds), "--threads", String(qaThreads)]).done);
-const [r, p, q] = await Promise.all([table.done, dayplayer, qa]);
-for (const [leg, res] of [["metrics", r], ["qa", q], ["dayplayer", p]]) if (!hit[leg]) keep(leg, res);
+console.error(`gates: source ${srcKey}; threads metrics=${Math.max(4, cores - 1)} qa=${qaThreads} dayplayer=${dpThreads}; cache hits=${Object.entries(hit).filter(([, v]) => v).map(([k]) => k).join(",") || "none"}`);
+const progress = setInterval(() => {
+  if (pendingLegs.size) console.error(`gates: still running ${[...pendingLegs].map(([leg, start]) => `${leg} ${Math.round((Date.now() - start) / 1000)}s`).join(", ")}; completed legs already saved`);
+}, 30000);
+progress.unref();
+const [r, p, q] = await Promise.all([finishLeg("metrics", table.done), finishLeg("dayplayer", dayplayer), finishLeg("qa", qa)]);
+clearInterval(progress);
 const say = (t) => process.stdout.write(t);
 say(r.stdout ?? "");
 if (r.status !== 0 || !/gates: all PASS/.test(r.stdout ?? "")) { console.error("gates: FAIL"); process.exit(1); }
