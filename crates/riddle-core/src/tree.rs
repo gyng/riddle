@@ -470,7 +470,14 @@ fn blow_worth(w: &crate::item::Item) -> i64 {
 /// The workers act continuously (the owner, 2026-10-02): at each hour of an absence, between the sends, as at
 /// a send — the armourer's pack is a send's alone.
 pub fn at_hour(game: &mut Game) {
+    let previous_start = game.lineage.start.max(1);
     workers_act(game, false);
+    // An hourly guide move precedes start_run's worker pass. Refresh its quote here
+    // so that the next send cannot retain the preceding stone's passage.
+    if game.lineage.start.max(1) != previous_start {
+        let rules = game.lineage.rules().clone();
+        game.passage = crate::forecast::sim_passage(game, &rules);
+    }
 }
 
 /// The workers' standing orders, at a real send (before the run begins; never in a sim, never on a

@@ -436,3 +436,22 @@ fn guide_unchanged_start_keeps_existing_quote_and_none_without_repricing() {
     assert_eq!(g.lineage.start, 14, "sims do not run the guide");
     assert_eq!(g.passage, Some((14, 7777)), "sims must not recursively price passage");
 }
+
+#[test]
+fn guide_hourly_start_change_prices_passage_before_the_next_send() {
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(2);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        for quote in [Some((14, 1)), None] {
+            let mut g = guide_quote_camp();
+            g.lineage.start = 14;
+            g.passage = quote;
+            tree::at_hour(&mut g);
+            assert_eq!(g.lineage.start, 24);
+            let expected = crate::forecast::sim_passage(&g, g.lineage.rules());
+            assert!(expected.is_some_and(|(floor, coins)| floor == 24 && coins > 0));
+            g.start_run(Some(42));
+            assert_eq!(g.passage, expected, "hourly changes happen before start_run captures its old floor");
+            assert_eq!(g.run.as_ref().unwrap().passage, expected.unwrap().1);
+        }
+    });
+}
