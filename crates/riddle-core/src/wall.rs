@@ -29,11 +29,17 @@ pub const STEPS: usize = 2;
 
 /// (the share of the sends past floor `at`, the share reaching it) on the camp's panel.
 fn shares(g: &Game, set: &RuleSet, n: u32, at: u32) -> (f64, f64) {
+    proportions(&panel(g, set, n, Vec::new()), at)
+}
+fn panel(g: &Game, set: &RuleSet, n: u32, prefix: Vec<SimResult>) -> Vec<SimResult> {
     let edited = crate::forecast::edited_game(g, set);
-    let rs: Vec<SimResult> = camp_panel(&edited, edited.lineage.rules(), n);
+    let rs = crate::forecast::camp_panel_from(&edited, edited.lineage.rules(), n, prefix);
     for (k, v) in edited.panel_cache.into_inner() {
         crate::forecast::panel_insert(g, k, v);
     }
+    rs
+}
+fn proportions(rs: &[SimResult], at: u32) -> (f64, f64) {
     let k = rs.len().max(1) as f64;
     (rs.iter().filter(|r| r.max_depth > at).count() as f64 / k, rs.iter().filter(|r| r.max_depth >= at).count() as f64 / k)
 }
@@ -222,11 +228,18 @@ pub fn search(g: &Game) -> Option<crate::wire::WallEdit> {
     let mut taken: Vec<String> = deep.map(|d| format!("start D{d}")).into_iter().collect();
     for _ in 0..STEPS {
         let cands = edits(from, &cur, at);
-        let mut scr: Vec<(f64, usize)> = cands.iter().enumerate().map(|(i, (_, s))| (score(shares(from, s, SCREEN, at)), i)).collect();
-        scr.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
+        // Keep only the best TOP prefixes alive through the complete screening
+        // pass, with exactly the original score/index ordering and tie handling.
+        let mut scr: Vec<(f64, usize, Vec<SimResult>)> = Vec::new();
+        for (i, (_, s)) in cands.iter().enumerate() {
+            let rs = panel(from, s, SCREEN, Vec::new());
+            scr.push((score(proportions(&rs, at)), i, rs));
+            scr.sort_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
+            scr.truncate(TOP);
+        }
         let mut top: Option<((f64, f64), usize)> = None;
-        for &(_, i) in scr.iter().take(TOP) {
-            let v = shares(from, &cands[i].1, FULL, at);
+        for (_, i, prefix) in scr {
+            let v = proportions(&panel(from, &cands[i].1, FULL, prefix), at);
             if top.is_none_or(|t| score(v) > score(t.0) + 1e-9) {
                 top = Some((v, i));
             }

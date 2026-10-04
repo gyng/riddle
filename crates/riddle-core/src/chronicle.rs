@@ -3,7 +3,7 @@ use crate::engine::{Ctx, Run};
 use crate::wire::Ev;
 
 pub fn note(run: &mut Run, cx: &mut Ctx, text: String) {
-    let text = clamp_words(&text, 8);
+    let text = clamp_words_owned(text, 8);
     cx.events.push(Ev::Note { t: run.turn, text: text.clone() });
     run.notes.push((run.turn, text));
     if run.notes.len() > 48 {
@@ -80,10 +80,10 @@ pub fn callout_why(run: &Run, cx: &mut Ctx, text: &str, why: Option<&str>) {
 }
 
 pub fn clamp_words(s: &str, max: usize) -> String {
-    let words: Vec<&str> = s.split_whitespace().collect();
     if crate::rules::word_count(s) <= max {
         return s.to_string();
     }
+    let words: Vec<&str> = s.split_whitespace().collect();
     let mut out: Vec<&str> = Vec::new();
     let mut n = 0;
     for w in words {
@@ -96,6 +96,11 @@ pub fn clamp_words(s: &str, max: usize) -> String {
         out.push(w);
     }
     out.join(" ")
+}
+
+/// Keep an already-owned short line without allocating a second string.
+pub fn clamp_words_owned(s: String, max: usize) -> String {
+    if crate::rules::word_count(&s) <= max { s } else { clamp_words(&s, max) }
 }
 
 #[cfg(test)]
@@ -115,5 +120,18 @@ mod tests {
         let s = "one two three four five six seven eight nine ten";
         assert_eq!(clamp_words(s, 8), "one two three four five six seven eight");
         assert_eq!(clamp_words("HP 31% → drink", 3), "HP 31% → drink");
+    }
+    #[test]
+    fn clamping_preserves_short_spacing_and_counts_unicode_words() {
+        for (input, max, expected) in [
+            ("  α  → β \t", 2, "  α  → β \t"),
+            ("  α  → β γ \t", 2, "α → β"),
+            ("→ α β", 0, "→"),
+            ("  → ! \t", 0, "  → ! \t"),
+            ("HP 40% → drink heal", 3, "HP 40% → drink"),
+        ] {
+            assert_eq!(clamp_words(input, max), expected);
+            assert_eq!(clamp_words_owned(input.to_owned(), max), expected);
+        }
     }
 }

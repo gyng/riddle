@@ -6,6 +6,32 @@ use crate::wire::{Forecast, ForecastCause, ForecastDepth, ForecastEnds, Forecast
 use std::collections::BTreeMap;
 
 pub const FORECAST_SIMS: u32 = 50;
+
+/// Optional single-thread diagnostic accounting; not game state or saved data.
+#[derive(Clone, Debug, Default, serde::Serialize)]
+pub struct SimulationWork {
+    pub simulations: u64,
+    pub ticks: u64,
+    pub prefix_simulations: u64,
+    pub panel_hits: u64,
+    pub panel_misses: u64,
+    pub evicted_panels: u64,
+}
+thread_local! {
+    static WORK: std::cell::RefCell<Option<SimulationWork>> = const { std::cell::RefCell::new(None) };
+}
+fn work(f: impl FnOnce(&mut SimulationWork)) {
+    WORK.with(|w| { if let Some(w) = w.borrow_mut().as_mut() { f(w); } });
+}
+/// Counts this thread only: disable parallel sims for complete diagnostic jobs.
+pub fn measure_work<R>(f: impl FnOnce() -> R) -> (R, SimulationWork) {
+    struct Restore(Option<SimulationWork>);
+    impl Drop for Restore { fn drop(&mut self) { WORK.with(|w| *w.borrow_mut() = self.0.take()); } }
+    let _restore = Restore(WORK.with(|w| w.replace(Some(SimulationWork::default()))));
+    let r = f();
+    let counts = WORK.with(|w| w.borrow_mut().take().unwrap());
+    (r, counts)
+}
 /// Sims per candidate when computing patch forecast deltas (paired seeds; base and patched
 /// runs share them). Cut 4: 12, the replay count — a delta of `DELTA_BAR` is "one seed
 /// improved net" at 12 as it was at 20, and the verdict now waits on these (up to three
@@ -85,6 +111,7 @@ pub fn simulate_budget(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_d
 /// §4, the refine pass reuses the first pass's sims instead of running them again).
 pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_depth: u32, budget: u64, prefix: Vec<SimResult>) -> Vec<SimResult> {
     let from = (prefix.len() as u32).min(sims);
+    work(|w| w.prefix_simulations += u64::from(from));
     let spent0: u64 = prefix.iter().map(|r| r.ticks as u64).sum();
     let mut ran: Vec<(u32, SimResult)> = prefix.into_iter().take(sims as usize).map(|r| (r.ticks, r)).collect();
     // (the prefix already ends the panel: nothing more to run)
@@ -171,6 +198,7 @@ fn simulate_one(game: &Game, rules: &RuleSet, tag: u64, stop_depth: u32, i: u32,
         }
     }
     let run = g.run.as_ref().unwrap();
+    work(|w| { w.simulations += 1; w.ticks += u64::from(n); });
     let mut keyed: Vec<(u64, u32)> = Vec::new();
     for (r, f) in rules.rows.iter().zip(&fires).filter(|(_, f)| **f > 0) {
         let k = row_key(r);
@@ -392,9 +420,11 @@ pub fn option_sims(_game: &Game, _rules: &RuleSet) -> u32 {
 pub fn panel_insert(game: &Game, key: String, v: Vec<SimResult>) {
     let full = game.panel_cache.borrow().len() >= PANEL_CACHE_MAX;
     if full {
+        let before = game.panel_cache.borrow().len();
         let rules = game.lineage.rules();
         let keep = [panel_key(game, rules, FORECAST_SIMS), panel_key(game, rules, REFINE_SIMS)];
         game.panel_cache.borrow_mut().retain(|k, _| keep.contains(k));
+        work(|w| w.evicted_panels += (before - game.panel_cache.borrow().len()) as u64);
     }
     game.panel_cache.borrow_mut().insert(key, v);
 }
@@ -430,16 +460,39 @@ pub const CAMP_TICK_BUDGET: u64 = 450_000;
 /// game by (lineage, rules): the death screen's patch deltas and the camp that follows read
 /// the same panels.
 pub fn camp_panel(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
+    camp_panel_from(game, rules, sims, Vec::new())
+}
+
+/// Continue a screening panel for exactly this game/rules/tag, in index order.
+/// The wall search owns its prefix so cache eviction cannot discard its work.
+pub(crate) fn camp_panel_from(game: &Game, rules: &RuleSet, sims: u32, mut prefix: Vec<SimResult>) -> Vec<SimResult> {
     let known_to = game.lineage.best_depth + 1;
     let tag = forecast_tag(game, known_to);
     let budget = panel_budget(sims);
     let key = panel_key(game, rules, sims);
     if let Some(v) = game.panel_cache.borrow().get(&key) {
+        work(|w| w.panel_hits += 1);
         return v.clone();
     }
-    // Cut 24 §4 (AK: "edits wait 3–7 s to settle"): the refine's first sims are the first
-    // pass's own — continued from its panel when it is cached, not run again.
-    let prefix = if sims > FORECAST_SIMS { game.panel_cache.borrow().get(&panel_key(game, rules, FORECAST_SIMS)).cloned().unwrap_or_default() } else { Vec::new() };
+    work(|w| w.panel_misses += 1);
+    // Every size/budget runs the same indexed sends. Reuse any exact-input prefix,
+    // including wall12→48, and truncate it under this request's ordered budget.
+    let parts: Vec<_> = key.splitn(5, ':').collect();
+    for (k, v) in game.panel_cache.borrow().iter() {
+        let p: Vec<_> = k.splitn(5, ':').collect();
+        if p.len() == 5 && p[0] == parts[0] && p[2] == parts[2] && p[4] == parts[4] && v.len().min(sims as usize) > prefix.len().min(sims as usize) {
+            prefix = v.clone();
+        }
+    }
+    prefix.truncate(sims as usize);
+    let mut spent = 0u64;
+    let mut used = 0;
+    for r in &prefix {
+        if used >= MIN_SIMS as usize && spent >= budget { break; }
+        spent += u64::from(r.ticks);
+        used += 1;
+    }
+    prefix.truncate(used);
     let ended = simulate_budget_from(game, rules, sims, tag, u32::MAX, budget, prefix);
     if sims >= REFINE_SIMS {
         let mut r = game.refined_panels.borrow_mut();

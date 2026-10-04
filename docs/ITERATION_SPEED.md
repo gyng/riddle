@@ -77,14 +77,21 @@ even ideal scheduling on 32 logical threads allows only 9600 CPU-s in five minut
 Evidence: `scratchpad/tick-batch-20261004/gate-cpu-target.json`. Extra workers alone
 cannot close this gap, and more SMT threads are not more physical cores.
 
-First safe iteration-speed candidate: split runtime simulation dependencies from
-test-only sources. `tools/gates.mjs` currently hashes every core source file,
-including modules imported solely under `#[cfg(test)]` in `lib.rs`. Adding a unit
-test unnecessarily invalidates every primitive simulation job. Design a versioned
-runtime key with verified dependency coverage; keep test execution independent.
-Prove test-only edits preserve runtime inputs and runtime/content/toolchain edits
-invalidate their dependent jobs. Never rekey old simulation evidence without proof.
-Do this after the active full verification, not halfway through its provenance.
+Test-only dependency split implemented and accepted with the sim-work follow-up: `tools/runtime-key.mjs` uses Cargo's actual compiled production
+core library plus profile/features, manifests/lock and compiler identity. A real
+compiler test proves runtime/include/flag/manifest invalidation and test-only
+stability while failing unit tests still execute. Scheme versioned; old primitive
+records are not rekeyed. This avoids targeted simulation invalidation by standalone
+unit-test edits; it does not reduce genuinely fresh simulation CPU.
+
+All four runtime candidates assessed in `docs/PERF_SIM_WORK.md`: arbitrary
+prefixes and retained screening panels reduce heavy tuning-search work; owned
+short text saves allocations. BFS buffers and common-policy execution prototype
+rejected after paired exact-output checks. The latter saves only0.0043% of tuned
+trial ticks before policies diverge. Whole immutable-input reuse and allocation/
+clone costs in package picking are the next profiling targets, with per-phase
+CPU evidence before choosing an implementation. No more heavy probes during
+a full acceptance run.
 
 For a genuinely fresh full run, refresh per-phase and per-candidate work counts;
 measure panel-cache eviction/recomputation (current bound32) and clone/allocation
@@ -1014,3 +1021,11 @@ bit-identical and fingerprinted: the `known_to` forecast, the `Arc` facts and in
 in the history ring, the `seen_pct` counters, the table's thread split; land the binary-hash
 cache and the seed-loop split with them. Leave the transcript *rater* and the fun-eval harness
 for the next cut, and only after calibrating them against the eight cohorts on record.
+
+Sim-work acceptance3870s, all272 fortnight records identical; complete warm
+table0.43s (all three leg hits). Heavy search gains8–14% native and8–10%
+shipping-WASM, early/catch-up measurements neutral or noisy. Fresh all-case
+completion within minutes remains unmet. Details and rejected architecture
+probes in `docs/PERF_SIM_WORK.md`. Next queue: refresh package-picking phase
+CPU/allocation evidence, then test immutable map/policy preparation and clone
+cost reduction against the same exact-output requirements.

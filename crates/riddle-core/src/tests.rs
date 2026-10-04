@@ -11847,3 +11847,29 @@ fn quiet_batches_preserve_periodic_effects_and_floor_boundaries() {
         }
     }
 }
+
+#[test]
+fn arbitrary_camp_prefixes_match_fresh_ordered_panels() {
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        for seed in [1, 15] {
+            let g = Game::new(seed);
+            let rules = g.lineage.rules();
+            for sims in [12, 48, 5, 50, 100, 12] {
+                let fresh = Game::load(&g.save()).unwrap();
+                let expected = crate::forecast::camp_panel(&fresh, rules, sims);
+                let actual = crate::forecast::camp_panel(&g, rules, sims);
+                assert_eq!(actual, expected);
+            }
+            let fresh = Game::load(&g.save()).unwrap();
+            let prefix = crate::forecast::camp_panel(&fresh, rules, 12);
+            fresh.panel_cache.borrow_mut().clear();
+            let (actual, work) = crate::forecast::measure_work(|| crate::forecast::camp_panel_from(&fresh, rules, 48, prefix.clone()));
+            let reference = Game::load(&g.save()).unwrap();
+            let (expected, original) = crate::forecast::measure_work(|| crate::forecast::camp_panel(&reference, rules, 48));
+            assert_eq!(actual, expected);
+            assert_eq!(work.simulations + work.prefix_simulations, original.simulations);
+            assert_eq!(work.prefix_simulations, prefix.len() as u64);
+        }
+    });
+}

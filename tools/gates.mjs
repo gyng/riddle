@@ -13,7 +13,7 @@
 //                                 lineages (`metrics --fast`), qa on 10 seeds, the dayplayer's IDLE rows on 2 seeds — an
 //                                 inner-loop check, never the gate (docs/ITERATION_SPEED.md, round 4)
 // Round 4: the long jobs inside the legs are kept too (target/gates/{dp,prog,idle-snaps}/), keyed by the core's
-// sources (`RIDDLE_SRC_KEY`: crates/riddle-core/src, the manifests, the lockfile, rustc) and the harness file each
+// compiled native core (`RIDDLE_SRC_KEY`: production rlib, manifests, lockfile, rustc) and the harness file each
 // job runs — an edit to a bar or a row reprints the leg from its jobs, a core edit replays them. `--fresh` replays
 // them all (and keeps the new ones). `GATES_THREADS=N` (the cores unless set): each leg's threads.
 //   node tools/gates.mjs [--full] --rows <ids or substrings> [--fail-fast] [dayplayer args]
@@ -23,8 +23,9 @@
 //                                 16) unless `--seeds N` etc. follow. Cached like the legs; never a gate pass.
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import os from "node:os";
+import { runtimeKey } from "./runtime-key.mjs";
 const full = process.argv.includes("--full");
 const fast = process.argv.includes("--fast");
 const fresh = process.argv.includes("--fresh");
@@ -33,7 +34,14 @@ const rows = rowsAt >= 0 ? process.argv[rowsAt + 1] : null;
 const failFast = process.argv.includes("--fail-fast");
 const extra = process.argv.slice(2).filter((a, i) => a !== "--full" && a !== "--fresh" && a !== "--fast" && a !== "--fail-fast" && !(rowsAt >= 0 && (i + 2 === rowsAt || i + 2 === rowsAt + 1)));
 if (rowsAt >= 0 && !rows) { console.error("gates --rows: name the rows (ids or substrings; `target/fast/examples/dayplayer --rows ?` lists them)"); process.exit(2); }
-const b = spawnSync("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", ...(rows ? [] : ["--example", "metrics", "--example", "qa"]), "--example", "dayplayer"], { stdio: "inherit" });
+const b = spawnSync("cargo", ["build", "-q", "--message-format=json", "--profile", "fast", "-p", "riddle-core", ...(rows ? [] : ["--example", "metrics", "--example", "qa"]), "--example", "dayplayer"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+if (b.stderr) process.stderr.write(b.stderr);
+let coreArtifact;
+for (const line of (b.stdout ?? "").split("\n").filter(Boolean)) {
+  const message = JSON.parse(line);
+  if (message.reason === "compiler-message" && message.message.rendered) process.stderr.write(message.message.rendered);
+  if (message.reason === "compiler-artifact" && message.target.name === "riddle_core" && message.target.kind.includes("lib") && !message.profile.test) coreArtifact = message;
+}
 if (b.status !== 0) process.exit(b.status ?? 1);
 // The binaries hash every input exactly (sources, deps, rustc); the presets and the cohort cards are read at run time
 // (metrics.rs `cohort_sets`: every eval/cards/*.rules.json — a new card changes the table without changing a binary).
@@ -43,15 +51,12 @@ const keyOf = (bin, parts) => {
   for (const [name, text] of parts) h.update(name).update(text);
   return h.digest("hex").slice(0, 16);
 };
-// The core's semantics: its sources, the manifests and the lockfile, the toolchain (the job caches' key; a binary's
-// bytes also move with an example's edit, which a job of another file does not read).
-const srcKey = (() => {
-  const h = createHash("sha1");
-  const walk = (d) => readdirSync(d).sort().flatMap((f) => (statSync(`${d}/${f}`).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]));
-  for (const f of [...walk("crates/riddle-core/src"), "crates/riddle-core/Cargo.toml", "Cargo.toml", "Cargo.lock"]) h.update(f).update("\0").update(readFileSync(f)).update("\0");
-  h.update(spawnSync("rustc", ["-vV"], { encoding: "utf8" }).stdout ?? "");
-  return h.digest("hex").slice(0, 16);
-})();
+// Cargo's production library contains the actual native code and dependency metadata.
+// Test-only modules do not change it; runtime inputs, flags and compiler changes do.
+// New scheme: existing job records are not renamed or accepted under the new key.
+const compiler = spawnSync("rustc", ["-vV"], { encoding: "utf8" });
+if (compiler.status !== 0) throw new Error("cannot identify simulation compiler");
+const srcKey = runtimeKey(coreArtifact, process.cwd(), compiler.stdout);
 const jobEnv = { RIDDLE_SRC_KEY: srcKey, ...(fresh ? { RIDDLE_CACHE_FRESH: "1" } : {}) };
 const readResult = (file) => {
   try { return JSON.parse(readFileSync(file, "utf8")); }

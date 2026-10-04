@@ -604,7 +604,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         run.acting_row = -1;
         if acted {
             let text = rule_text(run, row, hp_pct);
-            emit_rule(run, cx, i as i32, &row.verb, &text);
+            emit_rule_owned(run, cx, i as i32, &row.verb, text);
             if i < run.row_fired.len() {
                 run.row_fired[i] += 1;
             }
@@ -1321,6 +1321,10 @@ pub fn hero_max_hp(run: &mut Run, cx: &mut Ctx, delta: i32, cause: &str) {
 
 pub fn emit_rule(run: &Run, cx: &mut Ctx, row: i32, verb: &Verb, text: &str) {
     cx.events.push(Ev::Rule { t: run.turn, row, verb: verb.clone(), text: crate::chronicle::clamp_words(text, 3) });
+}
+
+fn emit_rule_owned(run: &Run, cx: &mut Ctx, row: i32, verb: &Verb, text: String) {
+    cx.events.push(Ev::Rule { t: run.turn, row, verb: verb.clone(), text: crate::chronicle::clamp_words_owned(text, 3) });
 }
 
 /// Verbs that act on the visible foes (suppressed while the oscillation guard is up).

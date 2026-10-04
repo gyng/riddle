@@ -1,3 +1,42 @@
+**Sim-work accepted, pending approved publication, 2026-10-04:** contract
+`docs/PERF_SIM_WORK.md`. Retained arbitrary exact panel prefixes; TOP3 wall
+screening panels survive cache eviction; owned short event text and borrowed
+short clamp avoid allocations. New diagnostic examples/sim_perf.rs. BFS scratch
+and private shared-policy-prefix prototype rejected after exact-output pairs:
+the latter saves54/1250232 tuned ticks and is slower on real camps. All four
+requested candidates assessed. Native heavy search +13.79%/+8.64%; shipping
+heavy search +10.17%/+8.51%. Early/catch-up neutral or noisy, no general gain.
+Targets15%/10% missed on some workloads; low-risk exact gains retained by recorded
+deviation. No fresh-five-minute claim. No Cut31.
+
+Continuing local-iteration work: native primitive cache identity is actual
+production rlib/profile/features/manifests/lock/compiler (native-core-rlib-v1);
+no old records relabeled. Real compiler proof2.91s: standalone tests/harness edits
+preserve key; runtime/include/flags/manifests/compiler invalidate; broken unit
+tests still execute. Proof now runs in verify.sh alongside tsc/copy lint.
+Frozen full verification PASS3870s:522 engine tests/one ignored,tooling,clippy,
+shipping/web,QA225.8s,metrics1455.7s,all dayplayer bars. Source8eb5723c2442502e,
+primitive prefixsrc4fd4d0e184912ad3; compare-cases.py verifies all272 decoded
+records exact vs accepted src7b74699adc230110. Cached full table PASS0.43s,
+genuine three-leg hits. All proof under scratchpad/sim-work-20261004.
+
+Shipping WASM9fd7f12a53f5b645cec1c21d34afab8506b0042111b6d21c6ff83965eb30b1ca.
+Local real-WASM/SW/offline/400/1440 pages check and eight-capture headed seed1
+send/scout/8h walk PASS,no errors,two existing WebGL warnings.82.4s under gate
+load is functional only. Captured module hash matches; camp/report images inline.
+Static candidate on OS-assigned localhost:36655, private site/serve.py; first
+attempted5369 was occupied and its failed check kept separately. Do not use5369.
+
+Next NOW: commit intended13 files, push main (publication explicitly approved),
+watch Pages CI, verify fetched public WASM equals exact CI artifact, public
+real-WASM/SW/offline/400/1440 and headed walk, show inline public screenshots.
+No new release committed/pushed yet. Remote mainf65aa1e,last prior Pages run
+37143883486 success/9292f49. After public proof update docs [skip ci] if useful.
+Private mine.bars/scratchpad never stage. No Rust changes since frozen validation.
+Next queued profiling: immutable forecast inputs/clone costs in package picking,
+per-phase CPU first. Existing default sandbox ps cannot see escalated detached
+processes; full log heartbeat/host ps is authoritative, no duplicate run.
+
 # Handoff — Riddle
 
 **Verified quiet-tick fix, 2026-10-04:** exact batching in offline, advance,
