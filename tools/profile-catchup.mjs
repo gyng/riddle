@@ -7,17 +7,19 @@ import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
 
 const [savePath, ...flags] = process.argv.slice(2);
-if (!savePath) throw new Error('usage: node tools/profile-catchup.mjs SAVE --out DIR [--pkg DIR] [--hours N] [--runs N]');
-let out, pkg = 'web/src/engine/pkg', hours = 8, runs = 3;
+if (!savePath) throw new Error('usage: node tools/profile-catchup.mjs SAVE --out DIR [--pkg DIR] [--hours N] [--runs N] [--mode offline|packages|wall]');
+let out, pkg = 'web/src/engine/pkg', hours = 8, runs = 3, mode = 'offline';
 for (let i = 0; i < flags.length; i += 2) {
   const value = flags[i + 1];
   if (flags[i] === '--out' && value) out = resolve(value);
   else if (flags[i] === '--pkg' && value) pkg = value;
   else if (flags[i] === '--hours') hours = Number(value);
   else if (flags[i] === '--runs') runs = Number(value);
+  else if (flags[i] === '--mode') mode = value;
   else throw new Error(`unknown or incomplete option: ${flags[i]}`);
 }
 assert.ok(out && Number.isSafeInteger(hours) && hours > 0 && Number.isSafeInteger(runs) && runs > 0);
+assert.ok(['offline', 'packages', 'wall'].includes(mode), 'unknown workload');
 const input = readFileSync(savePath, 'utf8');
 const wasm = readFileSync(join(pkg, 'riddle_wasm_bg.wasm'));
 const bridge = readFileSync(join(pkg, 'riddle_wasm.js'));
@@ -34,25 +36,26 @@ try {
     return route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Riddle catch-up profile</title>' });
   });
   await page.goto('http://riddle.perf.invalid/');
-  await page.evaluate(async ({ input, seconds }) => {
+  await page.evaluate(async ({ input, seconds, mode }) => {
     const mod = await import('/engine.mjs');
     await mod.default({ module_or_path: '/engine.wasm' });
-    window.catchupProfile = { mod, input };
+    const run = game => mode === 'packages' ? game.packageOptions(50) : mode === 'wall' ? game.wallEdit() : game.runOfflineQuick(seconds);
+    window.catchupProfile = { mod, input, run };
     // Module compilation and one warm-up expedition batch are outside the profile.
     const game = new mod.Game(1);
-    try { game.load(input); game.runOfflineQuick(seconds); } finally { game.free(); }
-  }, { input, seconds: hours * 3600 });
+    try { game.load(input); run(game); } finally { game.free(); }
+  }, { input, seconds: hours * 3600, mode });
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('Profiler.enable');
   await cdp.send('Profiler.setSamplingInterval', { interval: 1000 });
   await cdp.send('Profiler.start');
   const results = await page.evaluate(({ runs, seconds }) => {
-    const rows = [], { mod, input } = window.catchupProfile;
+    const rows = [], { mod, input, run } = window.catchupProfile;
     for (let i = 0; i < runs; i++) {
       const game = new mod.Game(1);
       try {
         game.load(input);
-        const start = performance.now(), report = game.runOfflineQuick(seconds);
+        const start = performance.now(), report = run(game);
         const wallSeconds = (performance.now() - start) / 1000;
         rows.push({ wallSeconds, report, save: game.save() });
       } finally { game.free(); }
@@ -60,7 +63,7 @@ try {
     return rows;
   }, { runs, seconds: hours * 3600 });
   const { profile } = await cdp.send('Profiler.stop');
-  writeFileSync(join(out, 'catchup.cpuprofile'), JSON.stringify(profile));
+  writeFileSync(join(out, mode === 'offline' ? 'catchup.cpuprofile' : `${mode}.cpuprofile`), JSON.stringify(profile));
   const nodes = new Map(profile.nodes.map(node => [node.id, node]));
   const totals = new Map();
   for (let i = 0; i < (profile.samples ?? []).length; i++) {
@@ -78,8 +81,8 @@ try {
   const summary = {
     fixture: resolve(savePath), fixtureSha256: hash(input), pkg: resolve(pkg),
     wasmSha256: hash(wasm), bridgeSha256: hash(bridge), harnessSha256: hash(readFileSync(new URL(import.meta.url))),
-    browserVersion: browser.version(), hours, runs, samples: profile.samples?.length, intervalMicros: 1000,
-    scope: 'Profile includes save loading, catch-up and save serialization; timings cover runOfflineQuick only. Compilation and warm-up excluded. Inlined work is attributed to the containing function. Shipping builds may show only WASM function numbers. This profiles the engine, not the app catch-up UI or chunk scheduler.',
+    browserVersion: browser.version(), mode, hours, runs, samples: profile.samples?.length, intervalMicros: 1000,
+    scope: 'Profile includes save loading, the selected workload and save serialization; timings cover the workload only. Every repetition loads a fresh game/cache. Compilation and warm-up excluded. Inlined work is attributed to the containing function. Shipping builds may show only WASM function numbers. This profiles engine calls, not app scheduling or FPS.',
     outcomes, leaf,
   };
   writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2) + '\n');

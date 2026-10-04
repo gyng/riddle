@@ -1,3 +1,39 @@
+**LATEST FOLLOW-THROUGH — 2026-10-04:** owner's "keep going" and transparent
+colored combat-log refinement implemented; publication pending. Read
+docs/PERF_PICKER.md. Production simulation code is unchanged. CPU sampling:
+43,147 named fast-WASM package samples; vision/pathfinding/hero decisions lead.
+Native gprofng timer warning invalidates its partial samples. Separate allocation
+probe50.2M allocations/8.6M reallocations; requested bytes are cumulative traffic,
+not peak memory. Stack-rule-list probe reduces churn but seven quiet exact-output
+pairs give late+0.35%, tuned+2.45%: rejected for inconsistent gain. Private patch
+and complete evidence kept; no production budget/seed change.
+
+Native Rust edits now rebuild automatically after250ms debounce, one build at
+a time; edits during builds queue one follow-up. Dev page exposes build errors
+and retains old executable; Cargo JSON diagnostics are forwarded. Client bridge
+metadata publishes only after successful atomic executable replacement. Actual
+GPU browser failure/recovery/replacement checks preserve an isolated real lane's
+complete save; adapter example edit-to-ready2.24s, not cold/arbitrary core timing.
+Default5367 has the watcher; temporary5373 validated and closed to avoid
+duplicate rebuilds. Launcher rejects
+another watcher configuration; RIDDLE_NATIVE_WATCH=0 disables watching.
+
+Combat log: plain transparent text over map, no box/header, small font/shadow,
+three visible lines and80-entry ordered history. Hero damage red, outgoing
+damage/coins gold, healing green, items blue; pickups included. Real31 UI checks
+at400/1440 PASS; explicit CSS check backgroundtransparent,border0,noheader,
+height54px PASS. Local real-WASM8screenwalk PASS33.6s; no console/page errors.
+Final canonical verify --full PASS149s:524engine tests/1ignored,10tooling tests,
+tsc/copy/clippy, shipping/web and all genuine routine gate cache hits.
+
+Fresh shipping mobile/desktop/offline checks PASS;8screenwalk PASS33.8s,
+all7 fetched WASM responses match the exact local artifact.
+
+Remaining: exact-stage intended files (never
+mine.bars/scratchpad), approved main commit/push, Pages success +exact new CI
+artifact public checks and screenshot. Existing publication authorization persists.
+Do not spawnagents. Next local work is ranked in docs/ITERATION_SPEED.md.
+
 **LATEST STATE — 2026-10-04:** manual construction and simplified UI implemented;
 published at https://gyng.github.io/riddle/. Read docs/UX_SIMPLE.md, docs/NATIVE_DEV.md and
 docs/PERF_IMPACT.md. Routine --full selects18 current-player14-day cases

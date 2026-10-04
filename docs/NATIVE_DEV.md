@@ -15,8 +15,15 @@ Production builds remove the native client and transport. The shipping engine
 and explicit exhaustive balance audit remain the reference; routine --full now
 checks18 selected current-player cases (docs/UX_SIMPLE.md).
 
-After a Rust edit, rerun `node tools/native-build.mjs`. The next call restarts
-native processes and restores their saves. There is no WASM packaging step.
+Rust edits now rebuild automatically after a250ms debounce, with one build at
+a time. Edits during compilation queue one follow-up build. The next engine
+call restarts native processes and restores their saves; no WASM packaging.
+The dev page shows rebuilding/errors, retaining the previous engine on failure.
+`/__native/health` includes build state and edit-to-ready milliseconds.
+Set `RIDDLE_NATIVE_WATCH=0` before launch to disable watching, then use
+`node tools/native-build.mjs` manually. Existing servers started before this
+watcher need one restart (or a fresh port) to load it. Balance-file edits already
+reload at call boundaries and do not trigger compilation.
 The bridge is generated directly from shipping bindings; unknown signatures
 fail closed. Run `node tools/native-codegen.mjs` after bridge edits. The client
 checks the compiled bridge hash at boot and requests a rebuild when it is stale.

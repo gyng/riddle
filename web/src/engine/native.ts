@@ -1,7 +1,24 @@
 // Development only: the same Rust bindings over an ordered loopback transport.
 import type { AsyncEngine } from "./types";
 import api from "./native-api.json";
+let buildStatusAttached = false;
+function attachBuildStatus(): void {
+  if (buildStatusAttached || !import.meta.hot) return;
+  buildStatusAttached = true;
+  const status = document.createElement('div');
+  status.id = 'native-build-status'; status.role = 'status'; status.hidden = true;
+  Object.assign(status.style, { position: 'fixed', zIndex: '10000', left: '8px', right: '8px', bottom: '8px', maxHeight: '25vh', overflow: 'auto', padding: '8px', background: '#181820', color: '#eee', border: '1px solid #aa8', font: '12px monospace', whiteSpace: 'pre-wrap' });
+  document.body.append(status);
+  const show = (state: { phase: string; error?: string }) => {
+    status.hidden = state.phase === 'ready';
+    status.textContent = state.phase === 'error' ? `Native build failed · previous engine retained\n${state.error ?? ''}` : 'Native rebuilding…';
+  };
+  import.meta.hot.on('riddle:native-build', show);
+  void fetch('/__native/health').then(r => r.json()).then(h => { if (h.build) show(h.build); }).catch(() => {});
+  import.meta.hot.dispose(() => { import.meta.hot?.off('riddle:native-build', show); status.remove(); buildStatusAttached = false; });
+}
 export async function nativeEngine(): Promise<{ engine: AsyncEngine; version: string }> {
+  attachBuildStatus();
   const session = crypto.randomUUID();
   let tail: Promise<unknown> = Promise.resolve();
   const call = (method: string, args: unknown[] = []): Promise<unknown> => {

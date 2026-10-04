@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 task_native_bin=$(node tools/native-build.mjs)
 task_native_port=${RIDDLE_NATIVE_PORT:-5367}
 native_up() {
-  curl --noproxy "*" --max-time 1 -sf "http://localhost:$task_native_port/__native/health" | RIDDLE_NATIVE_EXPECT_BIN="$task_native_bin" node -e 'let s="";process.stdin.on("data",b=>s+=b).on("end",()=>{try{const h=JSON.parse(s);if(h.native!==true)process.exit(1);const p=process.env.RIDDLE_BALANCE_FILE?require("node:path").resolve(process.env.RIDDLE_BALANCE_FILE):null;process.exit(h.binary===process.env.RIDDLE_NATIVE_EXPECT_BIN&&h.balanceFile===p&&h.threads===Number(process.env.RIDDLE_NATIVE_THREADS??8)?0:2)}catch{process.exit(1)}})'
+  curl --noproxy "*" --max-time 1 -sf "http://localhost:$task_native_port/__native/health" | RIDDLE_NATIVE_EXPECT_BIN="$task_native_bin" node -e 'let s="";process.stdin.on("data",b=>s+=b).on("end",()=>{try{const h=JSON.parse(s);if(h.native!==true)process.exit(1);const p=process.env.RIDDLE_BALANCE_FILE?require("node:path").resolve(process.env.RIDDLE_BALANCE_FILE):null;const watch=process.env.RIDDLE_NATIVE_WATCH!=="0";process.exit(h.binary===process.env.RIDDLE_NATIVE_EXPECT_BIN&&h.balanceFile===p&&h.threads===Number(process.env.RIDDLE_NATIVE_THREADS??8)&&Boolean(h.build)===watch?0:2)}catch{process.exit(1)}})'
 }
 if native_up; then
   echo "http://localhost:$task_native_port/?engine=native"

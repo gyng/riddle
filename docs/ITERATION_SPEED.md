@@ -51,24 +51,33 @@ Earlier exact-outputpartially completed are not relabeled or claimed
 as a complete audit. The previous fresh full suite took64.5minutes.
 Further large CPU reductions need profiling and exact-output experiments.
 
+## Follow-through — package sampling and rebuild watcher
+
+Current package profiling is recorded in docs/PERF_PICKER.md. Named fast-WASM
+CPU sampling finds vision/pathfinding and hero decisions ahead of standalone
+condition evaluation. A stack rule-list probe reduced allocation churn but
+failed consistent latency improvement across expensive camps and was removed.
+Do not spend further work on that layout without new evidence.
+
+Rust edits now rebuild automatically on the native dev server, debounced250ms,
+one compiler at a time. Errors remain visible while the old engine continues;
+client bridge metadata is published only with a successful executable. Actual
+browser error/recovery/replacement checks preserve an isolated lane's complete
+save. A changed adapter example rebuilt in2.24s including debounce; this is not
+a cold-build or arbitrary core-edit timing. Disable with RIDDLE_NATIVE_WATCH=0.
+
 ## Next work, by expected impact
 
-1. Refresh one uncached expensive package-picker case with phase CPU, trial/tick
-   counts and allocation samples. Use the existing profiler and saved camps;
-   test improvements to compiled rule evaluation and repeated map searches only
-   where those samples justify them. Keep exact outputs and full trial budgets.
-   Initial cloning and the rejected common-policy prefix are low-priority based
-   on their measured contribution.
-2. Automate native rebuilding after Rust edits with a debounced watcher and one
-   build at a time. Reuse the existing atomic executable replacement and save
-   restoration; report build errors in the dev page. Measure edit-to-ready time
-   separately from simulation latency. Balance-only changes already avoid builds.
-3. Measure checkpoint serialization, bytes written and recovery cost on long
+1. Probe lower vision/pathfinding work using the current package profile and
+   complete-output controls. Keep seeds, ticks, simulation budgets and ordering;
+   previous BFS scratch and common-policy-prefix experiments were rejected.
+2. Measure checkpoint serialization, bytes written and recovery cost on long
    cases. Reduce snapshot cost only while preserving complete state and exact
-   recovery; do not weaken the check-in boundary or runtime/profile binding.
+   outputs. Keep restore/integrity checks separate from fortnight acceptance.
+3. Measure representative core edit-to-ready latency with automatic rebuilding,
+   distinguishing compilation from engine execution. Change build settings only
+   with measured compile-time and runtime tradeoffs.
 
-These are queued investigations after release acceptance, not claims of gains
-or a new game-design cut. Avoid competing profiling jobs during full gates.
 
 ## Active queue — 2026-10-03, after Cut 30.5
 

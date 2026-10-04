@@ -143,12 +143,19 @@ button.re-body { cursor: pointer; }
 
 /* Owner follow-up: a quiet viewer with a persistent, bounded event history. */
 .watch .combat-log { position: absolute; left: 12px; right: 12px; bottom: 8px; z-index: 8;
-  padding: 7px 10px; background: rgba(13, 12, 20, .92); border: 1px solid var(--line); color: var(--bone); font-size: 12px; }
-.watch .combat-log summary { cursor: pointer; color: var(--mist); font-size: 13px; }
-.watch .combat-lines { list-style: none; margin: 5px 0 0; padding: 0; max-height: 64px; overflow-y: auto; }
-.watch .combat-lines li { padding: 2px 0; line-height: 1.35; }
-.watch .ticker { bottom: 112px; }
-.watch .why-line, .watch .why-tip { bottom: 144px; }
+  padding: 0; background: none; border: 0; color: #eee7db; font: 12px/1.5 var(--sans); text-shadow: 0 1px 2px #000, 1px 0 2px #000; }
+.watch .combat-lines { list-style: none; margin: 0; padding: 0; max-height: 54px; overflow-y: auto; scrollbar-width: none; }
+.watch .combat-lines::-webkit-scrollbar { display: none; }
+.watch .combat-lines li { padding: 0; min-height: 18px; line-height: 18px; }
+.watch .log-depth { font: inherit; color: #ada99f; }
+.watch .log-hurt { color: #ff9292; }
+.watch .log-damage, .watch .log-gold { color: #f5cf79; }
+.watch .log-heal { color: #94d9a1; }
+.watch .log-item { color: #a9cfff; }
+.watch .log-fell { color: #c5b9b0; }
+.watch .log-floor { color: #bdd7bb; }
+.watch .ticker { bottom: 74px; }
+.watch .why-line, .watch .why-tip { bottom: 106px; }
 .watch .hud .live-badge { font-size: 13px; border-radius: 3px; }
 .watch-options .chips { margin: 12px 0 20px; }
 .report-summary h2 { margin: 0 0 18px; color: var(--bone); font-size: 25px; font-weight: 400; }

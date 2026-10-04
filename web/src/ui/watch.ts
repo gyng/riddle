@@ -405,21 +405,23 @@ export function renderWatch(app: App): Mounted {
   } });
   const cons = renderConsole({ portrait: face.el, tiles: [speedBtn, toTown], gem: pause, top: scrub });
   const combatRows = h("ol", { class: "combat-lines", "aria-live": "off" });
-  const combatLog = h("details", { class: "combat-log", open: true },
-    h("summary", null, /* copy:label */ "Combat log"), combatRows);
+  const combatLog = h("div", { class: "combat-log", "aria-label": /* copy:label */ "Combat log" }, combatRows);
   let logDepth = app.lineage.live?.depth ?? 1;
   function logEvent(ev: Ev, heroId: number): void {
-    let text: string | undefined;
+    let text: (string | HTMLElement)[] | undefined;
     const who = (id: number): string => id === heroId ? /* copy:label */ "Hero" : victims.get(id) ?? /* copy:label */ "Foe";
-    if (ev.k === "attack") text = ev.hit ? `${who(ev.src)} → ${who(ev.dst)} · −${ev.dmg} hp` : `${who(ev.src)} → ${who(ev.dst)} · miss`;
-    else if (ev.k === "hurt") text = `${who(ev.id)} · ${ev.cause.replace(/_/g, " ")} −${ev.dmg} hp`;
-    else if (ev.k === "die") text = `${who(ev.id)} · fell`;
-    else if (ev.k === "use") text = `${ev.item} · ${ev.outcome}`;
-    else if (ev.k === "rule" && ev.row >= 0) text = ev.text;
-    else if (ev.k === "descend") { logDepth = ev.depth; text = /* copy:callout */ `Floor ${ev.depth}`; }
-    else if (ev.k === "exit") text = ev.line?.text ?? `${ev.tier} · $${ev.loot_kept}`;
+    const damage = (amount: number, id: number): HTMLElement => h("span", { class: amount < 0 ? "log-heal" : id === heroId ? "log-hurt" : "log-damage" }, `${amount < 0 ? "+" : "−"}${Math.abs(amount)} hp`);
+    const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, name);
+    if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · `, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
+    else if (ev.k === "hurt") text = [`${who(ev.id)} · ${ev.cause.replace(/_/g, " ")} `, damage(ev.dmg, ev.id)];
+    else if (ev.k === "die") text = [h("span", { class: "log-fell" }, `${who(ev.id)} · fell`)];
+    else if (ev.k === "use") text = [item(ev.item), ` · ${ev.outcome}`];
+    else if (ev.k === "pickup") text = [`${who(ev.id)} · `, item(ev.item)];
+    else if (ev.k === "rule" && ev.row >= 0) text = [ev.text];
+    else if (ev.k === "descend") { logDepth = ev.depth; text = [h("span", { class: "log-floor" }, /* copy:callout */ `Floor ${ev.depth}`)]; }
+    else if (ev.k === "exit") text = [ev.line?.text ?? `${ev.tier} · $${ev.loot_kept}`];
     if (!text) return;
-    combatRows.appendChild(h("li", { "data-tick": String(ev.t) }, h("small", { class: "dim num" }, `D${logDepth} · `), text));
+    combatRows.appendChild(h("li", { "data-tick": String(ev.t) }, h("small", { class: "log-depth" }, `D${logDepth} · `), ...text));
     while (combatRows.childElementCount > 80) combatRows.firstElementChild?.remove();
     combatRows.scrollTop = combatRows.scrollHeight;
   }

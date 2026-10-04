@@ -5,6 +5,7 @@ import { statSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { watchNative } from './native-watch.mjs';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 class Session {
   constructor(binary, threads, balanceFile) { this.binary = binary; this.threads = threads; this.balanceFile = balanceFile; this.tail = Promise.resolve(); this.last = Date.now(); this.active = 0; this.start(); }
@@ -84,13 +85,15 @@ export class NativeHost {
 export function nativePlugin() {
   return { name: "riddle-native-dev", apply: "serve", configureServer(server) {
     if (process.env.RIDDLE_NATIVE_DEV !== "1") return;
-    const host = new NativeHost(); server.httpServer?.once("close", () => host.close());
+    const host = new NativeHost();
+    const rebuilder = server.watcher && process.env.RIDDLE_NATIVE_WATCH !== '0' ? watchNative(server) : null;
+    server.httpServer?.once("close", () => { rebuilder?.close(); host.close(); });
     server.middlewares.use("/__native", async (req, res) => {
       res.setHeader("Content-Type", "application/json"); res.setHeader("Cache-Control", "no-store");
       const reply = (status, value) => { res.statusCode = status; res.end(JSON.stringify(value)); };
       if (!["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress)) return reply(403, { error: "native development requires a loopback connection" });
       if (!/^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host ?? "")) return reply(403, { error: "native development is loopback only" });
-      if (req.method === "GET" && req.url === "/health") return reply(200, host.health());
+      if (req.method === "GET" && req.url === "/health") return reply(200, { ...host.health(), build: rebuilder?.state ?? null });
       if (req.method !== "POST" || !['/rpc', '/close'].includes(req.url) || req.headers.origin !== `http://${req.headers.host}`) return reply(403, { error: "same-origin native POST required" });
       try {
         const chunks = []; let size = 0;

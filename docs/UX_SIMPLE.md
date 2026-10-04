@@ -29,7 +29,8 @@ UI acceptance:
 - Fresh camp has one primary Send action; defer secondary systems and forecasts.
 - Watch identifies itself as Live delve. A visible Town/menu action exits the
   viewer while the run continues. Show at most one speed selector plus Pause.
-- A readable bounded combat log contains real released engine events in order;
+- A readable bounded combat log overlays the map as plain text with basic
+  damage/healing/item colors, no panel or header. It contains real released engine events in order;
   no fabricated outcomes, no future events revealed ahead of the viewer.
 - End report leads with outcome, gold and deepest floor. Detailed news, workers,
   counters, ledger and patches are available under Details.
