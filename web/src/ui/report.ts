@@ -35,7 +35,7 @@ import { grewBlock, heroFace } from "./tracks";
 import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
-import { kw, kwHost, kwText } from "./tips";
+import { kwHost, kwText } from "./tips";
 import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
 import { mountClear } from "./runclear";   // run-clear: the run's card before the town
 import { itemIcon, itemName } from "./items";
@@ -214,7 +214,9 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
   const shown2 = (t: string): boolean => shop || !/^unlock\b/.test(t);
   const leadT = lead.map((l) => ({ l, t: said3(l.text) })).filter((x) => shown2(x.t) && once(x.t)), nsT = ns.map((n) => ({ n, t: said3(n.text) })).filter((x) => shown2(x.t) && once(x.t));
   return h("div", { class: `news${lead.length ? " with-lead" : ""}` },
-    ...leadT.map(({ l, t }, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k }, t)),
+    ...leadT.map(({ l, t }, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k },
+      l.k === "plateau" ? h("div", { class: "plateau-title" }, /* copy:label */ "Progress stopped", h("span", { class: "plateau-floor" }, t.replace(/^plateau: none past D(\d+)$/, /* copy:label */ "floor $1"))) : t,
+      l.k === "plateau" ? h("div", { class: "plateau-summary" }, /* copy:callout */ "Returned home", " · ", /* copy:callout */ "no deeper runs") : null)),
     ...nsT.slice(0, lead.length ? 2 : 4).map(({ n, t }, i) => h("div", { class: `news-line k-${n.k}${i === 0 && !lead.length ? " lead" : ""}` }, t)));
 }
 
@@ -432,8 +434,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 30 integration: before the pen the plateau is its line alone, as the death screen before the pen (no trace, no row patches)
   const prePen = !penOpen(L), shopOpen = !prePen || revealed(app).has("unlocks");
   const stall = r.stall ? h("section", { class: "rsec stall" },
-    h("div", { class: "label" }, kw("plateau")),   // every run came home, none deeper — not a stalled run (QA on 56f2a1d: `STALL` over `14 RETURNED`)
-    h("div", { class: "stall-line num" }, r.stall.text, " ", prePen ? "" : traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),   // Cut 9 §5: the trace of the last run the row ended; its rows labelled like the exits' (QA: "R1 · no item" lacked the verb); its run: the exit whose trace it is (QA on e0f87e7: no `watch` from a report)
+    h("div", { class: "label" }, /* copy:label */ "Runs ended"),
+    h("div", { class: "stall-line num" }, r.stall.text.replace(/^R(\d+) /, "Rule $1: ").replace(/none past D(\d+)/, "none reached beyond floor $1").replace(/(\d+) before;/, "$1 earlier;"), " ", prePen ? "" : traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),
+    r.stall.patches.length && !prePen ? h("div", { class: "label stall-next" }, /* copy:label */ "Suggested changes") : null,
     r.stall.patches.length && !prePen ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
   // Cut 2 §2: one line per pile recovered this send (the core sends `heir 3 · D7 · 4 items`, `bones:7:4` too; the watch
   // `D5 · 7 items`). Every line says it was found — `found ♟3's bones · D7 · 4 items` — since `bones D8 · 11 items · ♟3` read

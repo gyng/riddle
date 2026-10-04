@@ -1608,8 +1608,10 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 /* gfx round 18 (raters, every round: "the title wraps 'ATTACK / BOSS'", "four grey sub-lines before any stat"): the headline fits its width
    (balanced, a size down on a phone), the lines under it run on as one paragraph separated by dots */
 .report .news-line.lead { font-size: clamp(15px, 4.4vw, 21px); text-wrap: balance; }
-.report .news-line:not(.lead) { display: inline; }
-.report .news-line:not(.lead) + .news-line:not(.lead)::before { content: " · "; opacity: .6; }
+.report .news-line:not(.lead) { display: block; margin-top: 5px; }
+.report .plateau-summary { margin: 5px 0 9px; font: 400 14px/1.45 var(--sans); color: #364567; letter-spacing: 0; text-shadow: none; }
+.report .plateau-floor { margin-left: .6em; color: #755922; white-space: nowrap; }
+.report .stall-next { margin-top: 14px; }
 /* (raters: "the OPENED chips are cut off at the fold"): the opened systems as a compact row of small plaques */
 .report .sys-opened { gap: 4px; margin: 4px 0; }
 .report .sys-opened .sys-plaque { padding: 1px 6px 1px 3px; font-size: 11px; min-height: 0; }

@@ -239,6 +239,7 @@ try {
     pending: ["R3 fired 0 of 16 runs: hp < 30% → drink heal · shadowed by R1"],
     exits: [{ carried: 100, keep_pct: 100, kept: 100, spent: 0, spent_on: [], text: "banked $100 · $100 carried" }, { carried: 50, keep_pct: 60, kept: 30, spent: 0, spent_on: [], text: "returned $30 · $50 carried · keeps 60%" }],
     gold: { home: 130, salvage: 5, wake: 0, spent: 0 },
+    lead: [{ k: "plateau", text: "plateau: none past D6" }, { k: "record", text: "record D6" }, { k: "counter", text: "warlord: aim learned" }],
     stall: { row: 2, fired: 13, text: "R3 bank ended 13 runs, none past D6", patches: [{ row: { conds: [{ k: "depth>=", n: 7 }], verb: { v: "bank" } }, insert_at: 2, replace: true, survive: 0.17, forecast_delta: 0.17 }] } };
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows.splice(0, r.rules.rows.length, { conds: [{ k: "hp<", n: 30 }], verb: { v: "return" } }, { conds: [{ k: "foes>=", n: 1 }], verb: { v: "attack", a: "nearest" } }, { conds: [{ k: "hp<", n: 30 }], verb: { v: "drink", a: "heal" } }); });
   const tileOrder = [];
@@ -256,6 +257,14 @@ try {
   check(rep.items.join(" | ") === "blink (ashen) | speed (amber)" && rep.foes.includes("stray · lock") && rep.foes.includes("alert rises · cond alert ≥"), `LEARNED: identities on their own row, a foe's tags after \` · \` (${rep.items.join(" | ")} · ${rep.foes.join(" | ")})`);
   check(/^\+\$100 banked · \+\$30 returned · \+\$5 salvage$/.test(rep.gold ?? "") && !/home/.test(rep.gold ?? ""), `the gold line says banked / returned, never \`home\` ("${rep.gold}")`);
   check(/^reach D7 17% · was 0%$/.test(rep.stall ?? ""), `a plateau patch names its floor ("${rep.stall}")`);
+  const plateau = await page.evaluate(() => {
+    const news = [...document.querySelectorAll(".report .news-line")];
+    return { title: document.querySelector(".plateau-title")?.textContent, summary: document.querySelector(".plateau-summary")?.textContent,
+      explanation: document.querySelector(".stall-line")?.textContent,
+      separate: news.every((n, i) => !i || n.getBoundingClientRect().top >= news[i - 1].getBoundingClientRect().bottom) };
+  });
+  check(/Progress stopped.*floor 6/.test(plateau.title ?? "") && /Returned home.*no deeper runs/.test(plateau.summary ?? ""), "the plateau spells out stopped progress, the floor and returned runs");
+  check(/Rule 3: bank ended 13 runs, none reached beyond floor 6/.test(plateau.explanation ?? "") && plateau.separate, "the ending rule is readable and unrelated news stays on separate rows");
   await shot("qa92-report");
 
   // ---- the watch's helpers
