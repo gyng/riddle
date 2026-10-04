@@ -152,6 +152,7 @@ button.re-body { cursor: pointer; }
 .watch .log-damage, .watch .log-gold { color: #f5cf79; }
 .watch .log-heal { color: #94d9a1; }
 .watch .log-item { color: #a9cfff; }
+.watch .log-warning { color: #edb978; }
 .watch .log-fell { color: #c5b9b0; }
 .watch .log-floor { color: #bdd7bb; }
 .watch .ticker { bottom: 74px; }
