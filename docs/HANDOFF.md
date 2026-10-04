@@ -1,3 +1,13 @@
+**Warlord news clarification, 2026-10-04:** owner meant the report's
+`warlord counter: attack boss` line. Client-only3483692 changes it to
+`Warlord weakness learned` / `Target the boss · bypass shields`, preserving other known counter
+verbs. No engine/wire/policy changes. Copy/tsc/build, qa92(40)/cut24(20), real
+shipping headed eight-capture local walk PASS29.3s, no errors. Local screenshot
+inline. Pages run37181476197 succeeded. Public real-WASM/SW/offline400/1440
+check and eight-capture headed walk PASS32.1s, no errors. Public Warlord words
+verified and every fetched WASM response equals the exact CI artifact
+a940f439eee3… (same unchanged engine). Fresh public report screenshot captured.
+
 **Sim-work accepted and published, 2026-10-04:** contract
 `docs/PERF_SIM_WORK.md`. Retained arbitrary exact panel prefixes; TOP3 wall
 screening panels survive cache eviction; owned short event text and borrowed
