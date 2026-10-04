@@ -1611,6 +1611,9 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .report .news-line:not(.lead) { display: block; margin-top: 5px; }
 .report .plateau-summary { margin: 5px 0 9px; font: 400 14px/1.45 var(--sans); color: #364567; letter-spacing: 0; text-shadow: none; }
 .report .plateau-floor { margin-left: .6em; color: #755922; white-space: nowrap; }
+.report .counter-news { margin: 9px 0; }
+.report .counter-learned { color: #202134; }
+.report .counter-action { display: block; margin-top: 3px; font-weight: 400; color: #364567; }
 .report .stall-next { margin-top: 14px; }
 /* (raters: "the OPENED chips are cut off at the fold"): the opened systems as a compact row of small plaques */
 .report .sys-opened { gap: 4px; margin: 4px 0; }

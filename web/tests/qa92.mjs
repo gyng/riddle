@@ -232,6 +232,7 @@ try {
   await shot("qa92-rerank");
 
   // ---- the report: one tile order; the shadowed pending line; LEARNED; the gold words; the plateau's floor
+  await page.evaluate(() => { window.__riddle.lineage.counters = [{ boss: "goblin_warlord", text: "attack boss", row: { conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "attack", a: "tag:boss" } } }]; });
   const L = await page.evaluate(() => window.__riddle.lineage);
   const base = { elapsed_s: 3600, runs: 16, sampled: false, bests: [], found: [], deaths: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [],
     xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 },
@@ -265,6 +266,7 @@ try {
   });
   check(/Progress stopped.*floor 6/.test(plateau.title ?? "") && /Returned home.*no deeper runs/.test(plateau.summary ?? ""), "the plateau spells out stopped progress, the floor and returned runs");
   check(/Rule 3: bank ended 13 runs, none reached beyond floor 6/.test(plateau.explanation ?? "") && plateau.separate, "the ending rule is readable and unrelated news stays on separate rows");
+  check((await text(".counter-learned")).join() === "Warlord weakness learned" && (await text(".counter-action")).join() === "Target the boss", "the learned Warlord weakness explains the action without counter jargon");
   await shot("qa92-report");
 
   // ---- the watch's helpers

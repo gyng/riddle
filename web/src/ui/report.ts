@@ -213,9 +213,17 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
   // Cut 30 integration: before the unlocks open (the pen's catalogue) no line names one (`unlock throw (3)` read as a shop nowhere on screen)
   const shown2 = (t: string): boolean => shop || !/^unlock\b/.test(t);
   const leadT = lead.map((l) => ({ l, t: said3(l.text) })).filter((x) => shown2(x.t) && once(x.t)), nsT = ns.map((n) => ({ n, t: said3(n.text) })).filter((x) => shown2(x.t) && once(x.t));
+  const learnedCounter = (t: string): HTMLElement | string => {
+    const m = /^(\w+) counter: (.+)$/.exec(t);
+    if (!m) return t;
+    const boss = m[1][0].toUpperCase() + m[1].slice(1);
+    return h("div", { class: "counter-news" },
+      h("b", { class: "counter-learned" }, /* copy:callout */ `${boss} weakness learned`),
+      h("span", { class: "counter-action" }, m[2] === "attack boss" ? /* copy:callout */ "Target the boss" : m[2]));
+  };
   return h("div", { class: `news${lead.length ? " with-lead" : ""}` },
     ...leadT.map(({ l, t }, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k },
-      l.k === "plateau" ? h("div", { class: "plateau-title" }, /* copy:label */ "Progress stopped", h("span", { class: "plateau-floor" }, t.replace(/^plateau: none past D(\d+)$/, /* copy:label */ "floor $1"))) : t,
+      l.k === "plateau" ? h("div", { class: "plateau-title" }, /* copy:label */ "Progress stopped", h("span", { class: "plateau-floor" }, t.replace(/^plateau: none past D(\d+)$/, /* copy:label */ "floor $1"))) : l.k === "counter" ? learnedCounter(t) : t,
       l.k === "plateau" ? h("div", { class: "plateau-summary" }, /* copy:callout */ "Returned home", " · ", /* copy:callout */ "no deeper runs") : null)),
     ...nsT.slice(0, lead.length ? 2 : 4).map(({ n, t }, i) => h("div", { class: `news-line k-${n.k}${i === 0 && !lead.length ? " lead" : ""}` }, t)));
 }
