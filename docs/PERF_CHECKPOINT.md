@@ -72,3 +72,9 @@ Follow-through core rebuild measurement: quiet equivalent vision helper body
 edit28.125s edit-to-ready; exact original source restoration28.859s. Original
 stable native executable SHA restored exactly; no production source change.
 This one pair does not replace the earlier2.24s adapter-only measurement.
+
+Cargo compiler breakdown afterward: core27.04s (frontend2.84s, codegen24.20s),
+adapter0.50s; original source/executable restored again. The watcher requests a
+second build on the edit, so use this for phase attribution, not another quiet
+watcher timing. Next investigate isolated codegen/debug settings with measured
+runtime tradeoffs, preserving the default shared core build.

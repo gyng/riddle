@@ -26,8 +26,10 @@ Quiet auto-native core edit28.125s edit-to-ready, source restoration28.859s;
 original stable executable SHA restored exactly, zero active lanes. One equivalent
 Tile::blocks_sight edit/restore pair; not cold build or general median. The2.24s
 previous result is adapter-only. Next highest-impact iteration investigation:
-per-crate core compile timings/settings tradeoffs, then other vision/pathfinding
-work using exact-output controls. NoCut31/cohort/goal/schedule. Publication already
+core code-generation settings/runtime tradeoffs, then other vision/pathfinding
+work using exact-output controls. Cargo timing confirms core27.04s = frontend2.84s + codegen24.20s; adapter0.50s.
+Original source/executable restored after this second diagnostic as well.
+Main4207fb9 pushed; Pages37219034232 currently running. NoCut31/cohort/goal/schedule. Publication already
 authorized. Never stage mine.bars/scratchpad; no new approval or agents needed.
 
 **LATEST FOLLOW-THROUGH — 2026-10-04:** owner's "keep going" and transparent

@@ -84,6 +84,15 @@ cold-build claim. This confirms core compilation remains separate from the
 2.24s adapter-only result; investigate per-crate compiler timings next.
 Evidence: scratchpad/checkpoint-perf-20261005/core-build-timing.json.
 
+Cargo --timings follow-through on the same equivalent edit: core27.04s,
+frontend2.84s and code generation24.20s; adapter0.50s. Exact original source and
+stable executable restored afterward. Timed manual Cargo wins the build lock;
+the watcher also requests a build, so this is compiler phase attribution rather
+than an independent watcher latency comparison. Per-unit data and HTML remain
+private. Optimize code generation next: screen codegen-unit/debug-info settings
+in isolated artifacts, measure warm core edits and expensive exact-output runtime
+before changing the normal fast profile or giving up its shared core artifact.
+
 1. Measure representative core edit-to-ready latency with automatic rebuilding,
    distinguishing compilation from engine execution. Change build settings only
    with measured compile-time and runtime tradeoffs.
