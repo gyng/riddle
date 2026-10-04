@@ -46,4 +46,7 @@ removal audit). Final cached verification39s. Real-engine UX51 checks at400/1440
 Scoped clients: fights46 checks155.2s, clarity:paint5 checks27.3s; numeric/timing
 bars unchanged. First-time fixtures construct the free home explicitly.
 Shipping GPU walk9 screens54.7s, no page errors. Private evidence is under
-scratchpad/first-home-20261005. Publication tracked in HANDOFF.md.
+scratchpad/first-home-20261005. Published source c515281 (Pages37223080074): public UX51 checks at400/1440,
+settled screenshots,9-screen GPU walk32.5s/no page errors, exact deployed/public
+WASM hash match. Reduced-motion arrival check845.3ms and zero coin particles.
+Publication details tracked in HANDOFF.md.

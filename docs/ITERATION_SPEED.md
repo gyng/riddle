@@ -1,5 +1,29 @@
 # Iteration speed — where a cut's time goes, and what to cut next
 
+## Queue after first-home UX — 2026-10-05
+
+Completed: forge buys/opening require no kit forecast; automatic requests after
+reports and quiet camp refines are removed. Detailed forecasts are explicit.
+The dev speed parameter sets mode before mounting instead of clicking hidden
+controls. Public source c515281 is verified; details in docs/UX_FIRST_HOME.md.
+
+Next, in impact order:
+
+1. **Core compilation.** Re-establish a warm core edit/restore baseline on the
+   new source, then compare fast-profile codegen units32/64 against16. The
+   previous source took27.04s in Cargo (frontend2.84s, codegen24.20s),28.125s
+   edit-to-ready; adapter-only2.24s is a different workload. Keep shipping
+   settings separate. Measure saved-camp simulation/forecast runtimes and
+   compare complete outputs/raw saves before retaining faster compilation;
+   report runtime tradeoffs, no compile-only speedup claim.
+2. **Work inside simulations.** Profile current expensive package/forecast
+   cases again, then reduce repeated vision/pathfinding work with the LOS
+   oracle and exact saved-camp comparisons. Prior clipped-vision and stack
+   row-storage probes were rejected; their patches are not accepted wins.
+3. **Mechanical QA.** Use the existing saved-camp checks for rapid feedback,
+   retaining routine/full acceptance and GPU checks at release checkpoints.
+   Do not reduce seed budgets or weaken gates to claim faster iteration.
+
 ## Saved-camp feedback — 2026-10-04
 
 `node tools/camp-check.mjs SAVE... --record DIR` captures full native workload

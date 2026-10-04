@@ -21,7 +21,13 @@ and zero forge forecasts. 25 complete native/shipping replies match byte-for-byt
 incl refusal, offline, Legacy, reload and missing-field migrations. Shipping GPU
 walk9 dumps54.7s/no page errors. Broad historical/system-removal audit not run.
 Private evidence scratchpad/first-home-20261005; never stage it or mine.bars.
-Publication pending. Next optimisation remains core code-generation settings
+Published source c515281: Pages37223080074 succeeded. Public real-engine UX51
+checks at400/1440, settled screenshots shown inline; public GPU walk9 screens
+32.5s/no page errors. Fetched public WASM matches the exact CI artifact:
+829d168a4da628236b24f5e10aba62b4591439c36ce14c3a1f7dcc4165ecc91b.
+Local reduced-motion check845.3ms to enabled Send (no1.6s arrival wait), zero
+coin particles during a real return; single observation, not a timing median.
+Next optimisation remains core code-generation settings
 (runtime tradeoffs with exact saved-camp outputs); forge no longer queues an
 unrequested expensive simulation. Existing publication approval remains valid.
 
