@@ -219,7 +219,8 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
     const boss = m[1][0].toUpperCase() + m[1].slice(1);
     return h("div", { class: "counter-news" },
       h("b", { class: "counter-learned" }, /* copy:callout */ `${boss} weakness learned`),
-      h("span", { class: "counter-action" }, m[2] === "attack boss" ? /* copy:callout */ "Target the boss" : m[2]));
+      h("span", { class: "counter-action" }, m[2] === "attack boss" ? /* copy:callout */ "Target the boss" : m[2],
+        m[1] === "warlord" && m[2] === "attack boss" ? h("span", {}, " · ", /* copy:callout */ "bypass shields") : null));
   };
   return h("div", { class: `news${lead.length ? " with-lead" : ""}` },
     ...leadT.map(({ l, t }, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k },

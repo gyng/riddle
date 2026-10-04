@@ -266,7 +266,7 @@ try {
   });
   check(/Progress stopped.*floor 6/.test(plateau.title ?? "") && /Returned home.*no deeper runs/.test(plateau.summary ?? ""), "the plateau spells out stopped progress, the floor and returned runs");
   check(/Rule 3: bank ended 13 runs, none reached beyond floor 6/.test(plateau.explanation ?? "") && plateau.separate, "the ending rule is readable and unrelated news stays on separate rows");
-  check((await text(".counter-learned")).join() === "Warlord weakness learned" && (await text(".counter-action")).join() === "Target the boss", "the learned Warlord weakness explains the action without counter jargon");
+  check((await text(".counter-learned")).join() === "Warlord weakness learned" && (await text(".counter-action")).join() === "Target the boss · bypass shields", "the learned Warlord weakness explains the action and what it beats without counter jargon");
   await shot("qa92-report");
 
   // ---- the watch's helpers
