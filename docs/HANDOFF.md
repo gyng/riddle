@@ -1,4 +1,4 @@
-**Sim-work accepted, pending approved publication, 2026-10-04:** contract
+**Sim-work accepted and published, 2026-10-04:** contract
 `docs/PERF_SIM_WORK.md`. Retained arbitrary exact panel prefixes; TOP3 wall
 screening panels survive cache eviction; owned short event text and borrowed
 short clamp avoid allocations. New diagnostic examples/sim_perf.rs. BFS scratch
@@ -27,11 +27,25 @@ load is functional only. Captured module hash matches; camp/report images inline
 Static candidate on OS-assigned localhost:36655, private site/serve.py; first
 attempted5369 was occupied and its failed check kept separately. Do not use5369.
 
-Next NOW: commit intended13 files, push main (publication explicitly approved),
-watch Pages CI, verify fetched public WASM equals exact CI artifact, public
-real-WASM/SW/offline/400/1440 and headed walk, show inline public screenshots.
-No new release committed/pushed yet. Remote mainf65aa1e,last prior Pages run
-37143883486 success/9292f49. After public proof update docs [skip ci] if useful.
+Performance commit dff6b70 published on main; Pages run37175468562 succeeded.
+Public real-WASM/SW/offline/400/1440 check PASS. Exact CI artifact module:
+a940f439eee3b4112c607bce9a3da64e096baa1486edc0031e12eefa90133986.
+Public headed seed1 send/scout/8h walk PASS29.9s, eight captures, no errors;
+all fetched modules match the exact CI artifact. Local and CI compiler outputs differ;
+compare public to CI, never assume the local shipping hash is the public one.
+
+Owner requested a readable plateau section. Client-only commit82c68e0 replaces
+jargon with Progress stopped / floor N and Returned home / no deeper runs;
+news stays on separate rows, ending-rule numbers/floors spelled out, patches
+labelled Suggested changes. Copy/tsc/web build and qa92(39)/cut28(26), layout(35), legible and
+cut24(20) PASS;
+headed real-engine eight-capture local walk PASS30.4s, no errors. Screenshot
+shown inline. Pages run37180585406 succeeded; public real-WASM/SW/offline
+400/1440 check and headed eight-capture walk PASS29.9s, no errors.
+Public wording checked and all fetched modules match the exact CI artifact
+(same a940f439eee3… engine as the performance release). Public screenshot inline.
+Next queue: package-picking phase CPU/allocation profiling, immutable map/policy
+preparation and clone costs; preserve exact outputs and unchanged gate budgets.
 Private mine.bars/scratchpad never stage. No Rust changes since frozen validation.
 Next queued profiling: immutable forecast inputs/clone costs in package picking,
 per-phase CPU first. Existing default sandbox ps cannot see escalated detached

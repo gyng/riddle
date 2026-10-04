@@ -128,4 +128,18 @@ Fresh local shipping real-WASM/service-worker/offline reload and400/1440 layouts
 pass. Headed seed1 send/scout/8h walk:8 captures,no errors,two existing WebGL
 warnings; fetched shipping9fd7f12a… matches the built artifact.82.4s under full
 gate CPU load is functional evidence only. Camp/report screenshots shown inline.
-Public deployment checkpoint follows the approved release.
+Approved main commit dff6b70 and Pages run37175468562 published successfully.
+Public real-WASM/SW/offline/400/1440 check and headed seed1 send/scout/8h walk
+PASS (29.9s, eight captures, no errors). Every fetched WASM response equals the
+exact CI artifact a940f439eee3b4112c607bce9a3da64e096baa1486edc0031e12eefa90133986.
+Local and CI builds differ by compiler environment; public is checked against CI.
+
+
+Owner-requested report clarification (client only): main82c68e0 / Pages37180585406
+succeeded. Plateau headline becomes Progress stopped / floor N, with returned
+runs explained separately. Counters and discoveries each occupy a row; the
+ending rule/floor are spelled out and patches labelled Suggested changes.
+Copy/tsc/build, qa92(39), cut28(26), layout(35), legible and cut24(20) pass.
+Public real-WASM/SW/offline/400/1440 and headed eight-capture walk PASS29.9s,
+no errors; public words verified, fetched module equals this CI artifact (same
+a940f439eee3… engine). Screenshot shown inline. No engine/gate changes.
