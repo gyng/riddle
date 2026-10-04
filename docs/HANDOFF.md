@@ -1,5 +1,5 @@
 **LATEST FOLLOW-THROUGH — 2026-10-04:** owner's "keep going" and transparent
-colored combat-log refinement implemented; publication pending. Read
+colored combat-log refinement published at https://gyng.github.io/riddle/. Read
 docs/PERF_PICKER.md. Production simulation code is unchanged. CPU sampling:
 43,147 named fast-WASM package samples; vision/pathfinding/hero decisions lead.
 Native gprofng timer warning invalidates its partial samples. Separate allocation
@@ -29,10 +29,17 @@ tsc/copy/clippy, shipping/web and all genuine routine gate cache hits.
 Fresh shipping mobile/desktop/offline checks PASS;8screenwalk PASS33.8s,
 all7 fetched WASM responses match the exact local artifact.
 
-Remaining: exact-stage intended files (never
-mine.bars/scratchpad), approved main commit/push, Pages success +exact new CI
-artifact public checks and screenshot. Existing publication authorization persists.
-Do not spawnagents. Next local work is ranked in docs/ITERATION_SPEED.md.
+Release e9c30ef (watcher/plain overlay), completed by frontend correction
+b59a7e9717820f8ccd3d30e59c40fbeeed4dc768 (real Heal and Telegraph events).
+Pages37214761882 SUCCESS. Public mobile/desktop/offline reload PASS; headed
+8screenwalk PASS34.5s, no console/page errors, all7 fetched WASM loads match
+exact CI artifact9dcb97fc6d6c089bbdcc144bc70c7e3bf2b02ec86c225ec384695a04c3ad51d1.
+Actual public colored-damage screenshot validates transparentbackground,border0,
+noheader,height54px; shown inline. Evidence scratchpad/picker-perf-20261004/
+publication.json, public-colors.png, public-walk and public-artifact. Documentation
+follow-up does not change shipping code. Never stage mine.bars/scratchpad.
+No new approvals needed; do not spawnagents. Next local work remains ranked in
+docs/ITERATION_SPEED.md.
 
 **LATEST STATE — 2026-10-04:** manual construction and simplified UI implemented;
 published at https://gyng.github.io/riddle/. Read docs/UX_SIMPLE.md, docs/NATIVE_DEV.md and

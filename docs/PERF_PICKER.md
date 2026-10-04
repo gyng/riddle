@@ -64,6 +64,19 @@ servers with another watcher configuration are rejected by the launcher.
 Owner overlay refinement: combat log is transparent text directly on the map,
 no box/header. Three visible lines,80 ordered entries retained for scrolling,
 small plain font with shadow. Hero damage red, outgoing damage/coins gold,
-healing green, items blue; signs/names remain readable without color. Item
+healing green (real Heal events), items blue, enemy warnings amber; signs/names
+remain readable without color. Item
 pickup events are included. No simulation changes. Real UI31 checks PASS at
 400/1440px; shipping/public results are recorded in HANDOFF after verification.
+
+## Diagnostic commands
+
+```
+cargo run -q --profile fast -p riddle-core --example sim_alloc -- SAVE.json packages
+node tools/profile-catchup.mjs SAVE.json --out scratchpad/profile --mode packages --runs 3
+```
+
+Use --pkg DIR for a named profiling module; shipping may expose only function
+numbers. Ordinary sim_perf/camp-check timings remain uninstrumented. Public
+shipping validation passes on release b59a7e9: mobile/desktop/offline,8screenwalk,
+exact CI WASM identity and transparent colored overlay. See HANDOFF for evidence.
