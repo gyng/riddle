@@ -268,7 +268,7 @@ fn every_exit_names_its_reason() {
         if seed > 1004 && deaths > 0 {
             break;
         }
-        let mut g = crate::Game::new(seed);
+        let mut g = crate::Game::new_resident(seed);
         for k in 0..5 {
             g.send();
             let mut line = None;

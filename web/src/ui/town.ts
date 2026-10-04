@@ -23,6 +23,7 @@ const HIT_TERM: Record<string, Term> = /* copy:none */ { crate: "pack", blacksmi
 
 /** what a target opens (the camp wires each to its panel or sheet) */
 export type TownHooks = {
+  resident?(ms: number): void;
   send(): void;
   hero(anchor: HTMLElement): void;
   open(what: "loadout" | "vault" | "party", anchor: HTMLElement): void;
@@ -30,12 +31,12 @@ export type TownHooks = {
   quest(anchor: HTMLElement): void;
 };
 /* copy:label */
-const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "pack", blacksmith: "blacksmith", storehouse: "storehouse", kennel: "kennel", bank: "bank", staked: "next plot", board: "quest board", chest: "chest", worker: "next worker" };
+const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "pack", blacksmith: "blacksmith", storehouse: "storehouse", kennel: "kennel", bank: "savings", staked: "next plot", board: "quest board", chest: "chest", worker: "next worker" };
 /** a building's tile on the bar: its id (the old console ids, kept: tests and badges key on them), icon and word */
 /* copy:button */
 export const BUILDING_TILE: Record<BuildingId, { id: string; icon: string; label: string; glyph: string }> = {
   blacksmith: { id: "forge", icon: "forge", label: "forge", glyph: "⚒" }, storehouse: { id: "vault", icon: "vault", label: "vault", glyph: "▣" },
-  kennel: { id: "party", icon: "party", label: "kennel", glyph: "🐾" }, bank: { id: "bank", icon: "gold", label: "bank", glyph: "$" },
+  kennel: { id: "party", icon: "party", label: "kennel", glyph: "🐾" }, bank: { id: "bank", icon: "gold", label: "savings", glyph: "$" },
 };
 /** the buildings standing, in build order (null: a lineage with no town on the wire — the old console reveal stands) */
 export const townBuilt = (L: Lineage): BuildingId[] | null => L.town ? L.town.buildings.map((b) => b.id).filter((id): id is BuildingId => (BUILDINGS as readonly string[]).includes(id)) : null;
@@ -83,14 +84,17 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   function paint(): void {
     const L = app.lineage;
     const s0 = load(L) ?? store!;
+    const previousHome = state?.home;
     state = townState(L, absence, { seen: s0.seen, opened: s0.opened, kit: kitInfo(), absenceNew: !!absence, board: questShown(L), chestOpen: performance.now() < chestOpenUntil });
     view.setState(state);
+    if (previousHome === false && state.home) hooks.resident?.(matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1600);
     // seen now (a re-mount does not raise it again)
     const built = state.buildings.map((b) => b.id);
     const fresh = built.filter((b) => !s0.seen.includes(b));
     if (fresh.length) save(L, { ...s0, seen: [...new Set([...s0.seen, ...built])] });
     targets();
     pill.paint();
+    pill.el.hidden = !state.home;
     if (fresh.length) arrive(fresh);
   }
   /** c30-legible: the arrival's beat — `first gold home → blacksmith` (≤ 4 words + the arrow) — and the eye drawn to the building */
@@ -109,7 +113,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   function targets(): void {
     const s = state; if (!s) return;
     const fresh = app.lineage.best_depth === 0 && !(app.lineage.runs?.length);
-    const want: { id: string; plot: PlotId | "staked" | "chest" | "worker" }[] = [{ id: "mouth", plot: "mouth" }, ...(fresh ? [] : [{ id: "tent", plot: "tent" as PlotId }, { id: "crate", plot: "crate" as PlotId }]),
+    const want: { id: string; plot: PlotId | "staked" | "chest" | "worker" }[] = [...(s.home ? [{ id: "mouth", plot: "mouth" as PlotId }, { id: "tent", plot: "house" as PlotId }, ...(fresh ? [] : [{ id: "crate", plot: "crate" as PlotId }])] : []),
       ...s.buildings.map((b) => ({ id: b.id, plot: b.id as PlotId })), ...(s.board ? [{ id: "board", plot: "board" as PlotId }] : [])];
     // Cut 30.5: the chest taps while it holds a haul (drawn, closed and empty, it is no surface); the lit node's greyed worker opens the works
     if (s.chest?.state === "full") want.push({ id: "chest", plot: "chest" });
@@ -139,7 +143,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       const ce = b.querySelector(".town-count"); if (cnt) { if (ce) ce.textContent = cnt; else b.appendChild(h("span", { class: "town-count num" }, cnt)); } else ce?.remove();
     }
     // c30-legible: the staked plot always wears its tag — what it becomes and what raises it (`kennel · first tame`), not only on tap
-    if (s.staked && (s.stage >= 1 || s.staked.ready)) { replace(tag, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " · ") : null, h("b", null, s.staked.id), s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
+    if (s.staked && (s.stage >= 1 || s.staked.ready)) { replace(tag, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, s.staked.id), s.staked.id === "house" ? h("small", { class: "dim" }, /* copy:label */ " · Free") : s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
     else tag.hidden = true;
     tag.disabled = !s.staked?.ready || !app.engine.buildTown;
     layout();
@@ -257,7 +261,7 @@ export function openBank(app: App, anchor?: HTMLElement | null): void {
       const L = app.lineage, T = L.town;
       if (!T) { close(); return; }
       const room = Math.max(0, T.bank_cap - T.bank), put = Math.min(L.gold, room);
-      replace(body, h("div", { class: "label row-label" }, /* copy:label */ "bank"),
+      replace(body, h("div", { class: "label row-label" }, /* copy:label */ "Savings"),
         h("div", { class: "bank-line num" }, h("b", { class: "gold" }, `$${T.bank}`), h("span", { class: "dim" }, ` / $${T.bank_cap}`)),
         h("div", { class: "bank-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(Math.min(1, T.bank / Math.max(1, T.bank_cap)) * 100)}%` })),
         T.interest > 0 ? h("div", { class: "num dim bank-interest" }, /* copy:callout */ `interest $${T.interest}`) : "",
@@ -276,8 +280,13 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
   openSheet(() => {
     const L = app.lineage, lvl = L.classes?.[L.class] ?? { level: 1, xp: 0, next: undefined as number | undefined };
     const p = Math.min(1, lvl.next ? lvl.xp / lvl.next : 0);
+    const legacy = L.hero_legacy?.find((x) => x.heir === L.heir);
     return h("div", { class: "sheet-body hero-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "hero"),
       h("div", { class: "hero-line num" }, h("b", null, L.class), " ", h("span", null, `L${lvl.level}`)),
+      h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${legacy?.points ?? 0}`),
+      h("div", { class: "dim num" }, `${legacy?.runs ?? 0} runs · deepest ${legacy?.best_depth ?? 0}`),
+      h("div", { class: "dim num" }, /* copy:label */ "Class XP", ` ${lvl.xp}${lvl.next ? ` / ${lvl.next}` : ""}`),
+      h("details", { class: "hero-history" }, h("summary", null, /* copy:button */ "Past heroes"), ...(L.hero_legacy ?? []).filter((x) => x.heir !== L.heir).slice(-8).reverse().map((x) => h("div", { class: "num" }, /* copy:tooltip */ `Hero ${x.heir} · Legacy ${x.points} · ${x.runs} runs`))),
       h("div", { class: "bank-bar xp-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(p * 100)}%` })));
   }, { anchor });
 }

@@ -12,7 +12,7 @@ fn origins(g: &Game) -> Vec<String> {
 /// §1: a new lineage's set is the school stance, compiled and tagged — it banks and returns on its own.
 #[test]
 fn a_new_lineage_climbs_on_steady() {
-    let g = Game::new(3);
+    let g = Game::new_resident(3);
     let set = g.lineage.rules();
     assert!(set.rows.iter().all(|r| r.origin.as_deref() == Some("stance:steady")), "{:?}", origins(&g));
     let verbs: Vec<&str> = set.rows.iter().map(|r| r.verb.v.as_str()).collect();
@@ -35,7 +35,7 @@ fn a_new_lineage_climbs_on_steady() {
 /// stance fallback — each row tagged with its package (provenance); a same-verb row above wins.
 #[test]
 fn packages_compile_in_their_fixed_order() {
-    let mut g = Game::new(5);
+    let mut g = Game::new_resident(5);
     let l = &mut g.lineage;
     l.kills.insert("goblin_warlord".into());
     l.heir = 3;
@@ -72,7 +72,7 @@ fn packages_compile_in_their_fixed_order() {
 /// §2: the pen is late — before it opens, a written row waits in the pen, uncompiled.
 #[test]
 fn the_pen_writes_nothing_until_it_opens() {
-    let mut g = Game::new(7);
+    let mut g = Game::new_resident(7);
     let before = g.lineage.rules().clone();
     let mut set = before.clone();
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 60)], Verb::new("rest")));
@@ -92,7 +92,7 @@ fn the_pen_writes_nothing_until_it_opens() {
     }
     assert!(g.lineage.pkg.pen_open, "the Mother met and 72 h");
     assert_eq!(g.lineage.rules().rows[0].verb.v, "rest");
-    let mut h = Game::new(8);
+    let mut h = Game::new_resident(8);
     h.lineage.clock_s = crate::systems::PEN_FALLBACK_H as u64 * 3600;
     for _ in 0..crate::systems::SYSTEMS.len() {
         h.lineage.reveal_left = 1;
@@ -105,7 +105,7 @@ fn the_pen_writes_nothing_until_it_opens() {
 /// a report's beats are ≤ 5 (`+N more`).
 #[test]
 fn one_system_a_report_and_five_beats() {
-    let mut g = Game::new(9);
+    let mut g = Game::new_resident(9);
     g.lineage.clock_s = 10 * 24 * 3600;
     g.lineage.graveyard.push(crate::wire::Grave { heir: 1, depth: 3, cause: "rat".into(), deeds: Vec::new(), death_id: None });
     g.lineage.facts.insert("stray".into());
@@ -127,7 +127,7 @@ fn one_system_a_report_and_five_beats() {
 /// compiled.
 #[test]
 fn a_drill_comes_at_the_second_meeting_and_stays_revoked() {
-    let mut g = Game::new(9);
+    let mut g = Game::new_resident(9);
     g.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
     let met = vec!["goblin_warlord".to_string()];
     let set = g.lineage.rules().clone();
@@ -155,7 +155,7 @@ fn a_drill_comes_at_the_second_meeting_and_stays_revoked() {
 /// send carries the scars into its run, and the boss spawns scarred.
 #[test]
 fn scars_are_capped_cleared_and_carried() {
-    let mut g = Game::new(11);
+    let mut g = Game::new_resident(11);
     for day in 0..9u32 {
         g.lineage.day = day;
         let set = g.lineage.rules().clone();
@@ -179,7 +179,7 @@ fn scars_are_capped_cleared_and_carried() {
 /// §1: the quartermaster packs a drill's item before any other supply (the slot reserved).
 #[test]
 fn the_quartermaster_reserves_a_drills_item() {
-    let mut g = Game::new(13);
+    let mut g = Game::new_resident(13);
     for k in ["heal", "fire"] {
         if let Some(f) = crate::item::ident_fact(&g.lineage.flavours, k) {
             g.lineage.facts.insert(f);
@@ -203,7 +203,7 @@ fn the_quartermaster_reserves_a_drills_item() {
 /// report line; a mark spend buys the next one.
 #[test]
 fn packages_level_from_offline_runs() {
-    let mut g = Game::new(17);
+    let mut g = Game::new_resident(17);
     crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
     let r = g.run_offline(8 * 3600);
     assert!(r.runs >= 10, "{} runs", r.runs);
@@ -241,7 +241,7 @@ fn an_old_save_keeps_its_rules_as_a_custom_stance() {
 #[test]
 fn a_twenty_minute_absence_returns_a_run() {
     for seed in 1..=4u64 {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_resident(seed);
     crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
         let r = g.run_offline(20 * 60);
         assert!(r.runs >= 1, "seed {seed}: {} runs", r.runs);
@@ -251,7 +251,7 @@ fn a_twenty_minute_absence_returns_a_run() {
 /// §3: the bank takes deposits once built, caps them, pays a night's interest (never negative).
 #[test]
 fn the_bank_is_capped_and_pays_interest() {
-    let mut g = Game::new(19);
+    let mut g = Game::new_resident(19);
     g.lineage.gold = 1000;
     assert!(g.bank_deposit(100).is_err(), "no bank yet");
     g.lineage.last_night_net = 200;
@@ -271,7 +271,7 @@ fn the_bank_is_capped_and_pays_interest() {
 /// §5: the quest board — one quest from the Warlord slain, progress, a reward kept once, one free swap a day.
 #[test]
 fn the_quest_board_keeps_one_goal() {
-    let mut g = Game::new(23);
+    let mut g = Game::new_resident(23);
     assert!(g.swap_quest().is_err(), "no board before the Warlord falls");
     g.lineage.kills.insert("goblin_warlord".into());
     g.lineage.best_depth = 9;
@@ -292,7 +292,7 @@ fn the_quest_board_keeps_one_goal() {
 /// §2: equipping is free and instant, only what has arrived, and the stance is never empty.
 #[test]
 fn equipping_is_free_and_gated_by_arrival() {
-    let mut g = Game::new(29);
+    let mut g = Game::new_resident(29);
     assert!(g.equip_package("guarded", 0).is_err(), "not yet");
     g.lineage.facts.insert("foe:goblin_warlord".into());
     packages::arrive(&mut g.lineage);
@@ -315,7 +315,7 @@ fn equipping_is_free_and_gated_by_arrival() {
 /// record as it stands.
 #[test]
 fn a_kept_quest_is_redrawn_each_day_of_an_absence() {
-    let mut g = Game::new(23);
+    let mut g = Game::new_resident(23);
     g.lineage.kills.insert("goblin_warlord".into());
     g.lineage.best_depth = 9;
     // kept on day 0
@@ -342,7 +342,7 @@ fn a_kept_quest_is_redrawn_each_day_of_an_absence() {
     assert_eq!(g.lineage.town.quest.as_ref().unwrap().id, q.id);
 
     // a whole absence in one call: the board at the return holds the return day's quest, from the record then
-    let mut g = Game::new(3101);
+    let mut g = Game::new_resident(3101);
     crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
     let _ = crate::offline::run_offline_counts(&mut g, 72 * 3600);
     let l = &g.lineage;
@@ -359,7 +359,7 @@ fn a_kept_quest_is_redrawn_each_day_of_an_absence() {
 /// +Guarded · …`): what grew names each fact once, without `opened`, the stages first, xp last.
 #[test]
 fn grew_names_each_fact_once_stages_first() {
-    let mut g = Game::new(3101);
+    let mut g = Game::new_resident(3101);
     crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
     let a = crate::town::snap(&g.lineage);
     let _ = crate::offline::run_offline_counts(&mut g, 8 * 3600);
@@ -396,7 +396,7 @@ fn every_package_level_produces_valid_rules() {
 #[test]
 fn automatic_surplus_supplies_make_room_for_sustain_without_touching_owned_items() {
     let setup = || {
-        let mut g = Game::new(13);
+        let mut g = Game::new_resident(13);
         g.lineage.supplies.clear();
         g.lineage.gold_move(10_000 - g.lineage.gold, "test");
         for kind in ["heal", "fire", "silence"] {
@@ -579,7 +579,7 @@ fn newer_trained_reflection_counter_runs_before_old_generic_boss_attacks() {
 
 #[test]
 fn generated_counter_scopes_match_the_wire_and_preserve_explicit_player_priority() {
-    let mut g = Game::new(3);
+    let mut g = Game::new_resident(3);
     g.lineage.pkg.pen_open = true;
     let player = Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("tactic", "cadence")).from("player");
     g.lineage.pkg.pen.push(player.clone());
@@ -602,7 +602,7 @@ fn generated_counter_scopes_match_the_wire_and_preserve_explicit_player_priority
 #[test]
 fn legacy_camp_drills_refresh_before_editing_without_rewriting_live_replay_rows() {
     for custom in [false, true] {
-        let mut g = Game::new(12);
+        let mut g = Game::new_resident(12);
         g.lineage.pkg.pen_open = true;
         let player = Row::new(vec![Cond::t("foe_tag", "boss")], Verb::arg("attack", "tag:boss")).from("player");
         let own = Row::new(vec![Cond::n("hp<", 50)], Verb::new("rest"));
@@ -716,7 +716,7 @@ fn an_authored_legacy_buffer_row_keeps_its_priority_above_the_generated_heal() {
 }
 
 fn shared_fire_counter_pack() -> Game {
-    let mut g = Game::new(13);
+    let mut g = Game::new_resident(13);
     g.lineage.supplies.clear();
     g.lineage.gold_move(10_000 - g.lineage.gold, "test");
     g.lineage.best_depth = 12;
@@ -951,7 +951,7 @@ fn prospective_projection_preserves_literal_and_custom_rules_without_rewriting_a
 
 #[test]
 fn prospective_projection_updates_counter_supply_requests_and_cache_dependencies() {
-    let mut g = Game::new(55);
+    let mut g = Game::new_resident(55);
     g.lineage.best_depth = 28;
     g.lineage.pkg.pen_open = true;
     g.lineage.gold = 10_000;
@@ -1079,7 +1079,7 @@ fn master_secondary_keeps_its_deep_scope_for_new_and_both_legacy_templates() {
 #[test]
 fn quartermaster_keeps_the_queens_counter_on_a_route_below_the_record() {
     for pen in [false, true] {
-        let mut g = Game::new(55);
+        let mut g = Game::new_resident(55);
         g.lineage.best_depth = 33;
         g.lineage.gold = 100_000;
         g.lineage.light_waystones(33);
@@ -1110,7 +1110,7 @@ fn quartermaster_keeps_the_queens_counter_on_a_route_below_the_record() {
 
 #[test]
 fn quartermaster_retires_the_queens_counter_only_when_the_send_skips_her() {
-    let mut g = Game::new(55);
+    let mut g = Game::new_resident(55);
     g.lineage.best_depth = 33;
     g.lineage.light_waystones(33);
     g.set_start(29).unwrap();
@@ -1200,7 +1200,7 @@ fn queens_counter_scope_preserves_an_explicit_blind_pen_row() {
 
 #[test]
 fn buildings_require_a_manual_action_and_survive_save_load() {
-    let mut g = Game::new(21);
+    let mut g = Game::new_resident(21);
     assert!(g.lineage.town.built.is_empty());
     assert!(g.build_town("blacksmith").is_err());
     g.lineage.banked_depths.insert(1);

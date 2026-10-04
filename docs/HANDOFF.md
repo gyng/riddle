@@ -1,3 +1,30 @@
+**LATEST OWNER UX — 2026-10-05:** Empty town → free house → hero arrives →
+Send is implemented. Read docs/UX_FIRST_HOME.md; it supersedes the old fresh-Send
+contract without a Cut31/cohort. House eligibility and per-hero Legacy live in
+Rust. Legacy earns 1/run plus new personal depth floors, archives on death,
+never changes XP/class XP/stats; no spending yet. Old saves retain residents
+and manual chests. New towns automatically collect returned gold; the free
+porter counts three positive returned hauls. Watch shows Gold/Legacy totals and
+Carried/Secured gold; savings labelled separately; actual transfers animate.
+Forge shows three compact next-upgrade cards, one-click buys; forecasts are
+explicit under Details, never requested automatically after a report/refine.
+WASM construction adapter was missing: fixed and included in adapter coverage.
+Dev playback parameters set mode before mounting (no hidden-button dependency).
+
+Acceptance: 528 engine tests/1ignored;14 dayplayer recovery tests;10 tooling;
+tsc/copy/clippy/shipping build. Fresh routine full verification336s: metrics109.7s,
+QA47.1s and18 player-fortnight cases pass; final cached verification39s. Scoped
+client tests: fights46 checks155.2s and clarity:paint5 checks27.3s pass. Updated
+fixtures explicitly construct the free house; timing/numeric bars unchanged.
+Real native/shipping UX51 checks at400/1440 incl one-click forge gold accounting
+and zero forge forecasts. 25 complete native/shipping replies match byte-for-byte
+incl refusal, offline, Legacy, reload and missing-field migrations. Shipping GPU
+walk9 dumps54.7s/no page errors. Broad historical/system-removal audit not run.
+Private evidence scratchpad/first-home-20261005; never stage it or mine.bars.
+Publication pending. Next optimisation remains core code-generation settings
+(runtime tradeoffs with exact saved-camp outputs); forge no longer queues an
+unrequested expensive simulation. Existing publication approval remains valid.
+
 **LATEST FOLLOW-THROUGH — 2026-10-05:** owner "keep going": local checkpoint
 codec improvement, shipping simulation/UI unchanged. Read docs/PERF_CHECKPOINT.md,
 docs/PERF_VISION.md and updated docs/ITERATION_SPEED.md. Clipped vision candidate

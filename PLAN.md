@@ -12,7 +12,7 @@ for chores first done by hand. Tap the first few sends, then hire the scout and 
 climbs while you are away, uncapped. Late on, open the pen for optional rule edits. The hero
 learns facts on its own; every death names its cause. The dungeon has a bottom.
 Buildings become available at milestones and require a manual build action.
-First load centers on Send; the live watch has a combat log and a Town menu exit.
+First load is an empty town: free house → hero arrives → Send. Each hero records separate Legacy points. The live watch labels carried/secured gold, with a combat log and Town menu exit (docs/UX_FIRST_HOME.md).
 The end report leads with runs, deepest floor and gold; extra detail folds away.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an

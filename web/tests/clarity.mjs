@@ -510,7 +510,9 @@ try {
     const kind = await page.evaluate(() => window.__riddle.kind);
     // Cut 30: the editor comes with the pen (the Mother met and 72 h) — the save opens it, the core recompiles on load
     await page.evaluate(async () => {
-      const r = window.__riddle, e = JSON.parse(await r.engine.save());
+      const r = window.__riddle;
+      if (r.lineage.town?.home === false) await r.mutate(() => r.engine.buildTown("house"), "build");
+      const e = JSON.parse(await r.engine.save());
       e.lineage.pkg.pen_open = true;
       for (const id of ["pen", "edit", "dial", "unlocks", "reorder", "vs", "tags", "walls", "divergence", "route"]) if (!e.lineage.systems.includes(id)) e.lineage.systems.push(id);
       await r.importSave(JSON.stringify({ v: 2, engine: JSON.stringify(e), loadout: [], last_seen: Date.now(), runs: 0 }));

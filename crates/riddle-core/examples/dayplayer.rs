@@ -475,7 +475,7 @@ fn camp_taps(g: &mut Game, ask: &Ask, arm: u8, out: &mut SeedOut, h: f64) {
         }
         // (the trunk to the scout is every bot's: a bot that opens the chest lights the free porter first, in
         // the scout's way — HANDS and PICKED − nodes hire him too, and never another)
-        let trunk = n.id == "scout" || (n.id == "porter" && arm != 0 && arm != 1);
+        let trunk = n.id == "scout" || (n.id == "porter" && (g.lineage.town.auto_collect || (arm != 0 && arm != 1)));
         if !trunk && (arm != 2 || !ask.has("nodes")) {
             break;
         }
@@ -783,7 +783,7 @@ impl Play {
     fn new(seed: u64, days: usize, checkins: u64, verbose: bool, ask: &Ask) -> Play {
         let checkins = if ask.q(Q::Cadence) > 0 { 1 } else { checkins };
         let interval = 24 * 3600 / checkins;
-        let mut g = Game::new(seed);
+        let mut g = Game::new_resident(seed);
         if !ask.has("quests") {
             g.lineage.town.off = true;
         }
@@ -1787,7 +1787,7 @@ mod counter_order_tests {
     use riddle_core::{geom::Pos, gen::Floor, item::Item, monster::Monster, tiles::{Map, Tile, VISION}, wire::Ev};
 
     fn counter_fight(boss: &str) -> (Game, u32, u32) {
-        let mut g = Game::new(55);
+        let mut g = Game::new_resident(55);
         g.lineage.best_depth = 23;
         g.lineage.gold = 1_000;
         g.lineage.marks = 100;
@@ -1994,7 +1994,7 @@ mod patch_consumer_tests {
 
     #[test]
     fn patch_consumer_package_recompile_keeps_existing_authored_priority() {
-        let mut g = Game::new(1);
+        let mut g = Game::new_resident(1);
         g.lineage.pkg.pen_open = true;
         g.set_rules(RuleSet { rows: vec![row(10), row(20)], ..Default::default() }).unwrap();
         let generated: Vec<Row> = g.lineage.rules().rows.iter().filter(|r| r.is_pkg()).cloned().collect();
@@ -2019,7 +2019,7 @@ mod counter_copy_tests {
     use riddle_core::{Cond, Verb, geom::Pos, gen::Floor, item::Item, monster::Monster, tiles::{Map, Tile, VISION}, wire::Ev};
 
     fn game() -> Game {
-        let mut g = Game::new(11);
+        let mut g = Game::new_resident(11);
         g.lineage.best_depth = 28;
         g.lineage.gold = 10_000;
         g.lineage.marks = 100;

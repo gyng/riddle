@@ -16,6 +16,89 @@ fn conserved(g: &Game) -> bool {
 }
 
 #[test]
+fn first_home_blocks_runs_and_survives_reload_without_spending() {
+    let mut g = Game::new(17);
+    let original = g.save();
+    assert!(!g.lineage().town.home);
+    assert_eq!(g.lineage().town.next.as_deref(), Some("house"));
+    assert!(g.try_send().is_err());
+    assert_eq!(g.save(), original, "refusal cannot mutate the game");
+    let report = run_offline_counts(&mut g, 8 * 3600);
+    assert_eq!(report.runs, 0);
+    assert!(g.run.is_none());
+    assert!(g.lineage.hero_legacy.iter().all(|h| h.points == 0));
+    let gold = g.lineage.gold;
+    g.build_town("house").unwrap();
+    assert_eq!(g.lineage.gold, gold);
+    assert!(g.build_town("house").is_err());
+    let loaded = Game::load(&g.save()).unwrap();
+    assert!(loaded.lineage().town.home);
+    assert!(g.try_send().is_ok());
+}
+
+#[test]
+fn missing_home_and_legacy_fields_preserve_old_residents_and_chests() {
+    let g = Game::new_resident(17);
+    let mut saved: serde_json::Value = serde_json::from_str(&g.save()).unwrap();
+    saved["lineage"]["town"].as_object_mut().unwrap().remove("home");
+    saved["lineage"]["town"].as_object_mut().unwrap().remove("auto_collect");
+    saved["lineage"].as_object_mut().unwrap().remove("hero_legacy");
+    let mut old = Game::load(&saved.to_string()).unwrap();
+    assert!(old.lineage().town.home);
+    assert!(!old.lineage.town.auto_collect);
+    assert!(old.try_send().is_ok());
+    saved["lineage"].as_object_mut().unwrap().remove("town");
+    assert!(Game::load(&saved.to_string()).unwrap().lineage().town.home);
+}
+
+#[test]
+fn hero_legacy_awards_once_archives_on_death_and_is_not_class_xp() {
+    use crate::engine::ExitTier;
+    let mut g = Game::new_resident(17);
+    for tier in [ExitTier::Bank, ExitTier::Bank, ExitTier::Death] {
+        g.start_run(None);
+        let r = g.run.as_mut().unwrap();
+        r.max_depth = 4;
+        r.over = Some(tier);
+        if tier == ExitTier::Death { r.hero.hp = 0; r.death_cause = Some("rat".into()); }
+        g.finish_run();
+        let before = g.lineage.hero_legacy.clone();
+        assert!(g.finish_run().is_none());
+        assert_eq!(g.lineage.hero_legacy, before);
+    }
+    assert_eq!(g.lineage.hero_legacy[0].points, 7);
+    assert_eq!(g.lineage.hero_legacy[0].runs, 3);
+    assert_eq!(g.lineage.hero_legacy[0].best_depth, 4);
+    assert_eq!(g.lineage.hero_legacy.last().unwrap().heir, 2);
+    assert_eq!(g.lineage.hero_legacy.last().unwrap().points, 0);
+    let saved = g.save();
+    assert_eq!(Game::load(&saved).unwrap().lineage.hero_legacy, g.lineage.hero_legacy);
+    g.lineage.classes.get_mut("fighter").unwrap().xp += 100;
+    assert_eq!(g.lineage.hero_legacy[0].points, 7);
+}
+
+#[test]
+fn automatic_haul_collection_conserves_gold_and_readies_the_porter() {
+    use crate::engine::ExitTier;
+    let mut g = Game::new_resident(17);
+    for _ in 0..3 {
+        g.start_run(None);
+        let r = g.run.as_mut().unwrap();
+        r.loot = 100;
+        r.secured = 20;
+        r.over = Some(ExitTier::Bank);
+        g.finish_run();
+        assert_eq!(g.lineage.tree.chest, 0);
+        assert_eq!(tree::purse(&g.lineage), g.lineage.gold);
+        assert!(conserved(&g));
+    }
+    assert_eq!(tree::count(&g.lineage, "porter"), 3);
+    assert_eq!(tree::lit(&g.lineage).map(|n| n.id), Some("porter"));
+    g.hire("porter").unwrap();
+    assert!(conserved(&g));
+}
+
+#[test]
 fn the_node_table_lights_one_at_a_time_in_order() {
     // the order: the trunk (the quartermaster given, the porter free, the scout) then the branches; every chore names one node
     let ids: Vec<&str> = NODES.iter().map(|n| n.id).collect();
@@ -26,7 +109,8 @@ fn the_node_table_lights_one_at_a_time_in_order() {
         assert_eq!(NODES.iter().filter(|m| m.chore == n.chore).count(), 1, "{}", n.chore);
         assert!(n.name.split_whitespace().count() <= 2 && n.tip.split_whitespace().count() <= 10 && n.beat.split_whitespace().count() <= 2, "{}", n.id);
     }
-    let mut g = Game::new(5);
+    let mut g = Game::new_resident(5);
+    g.lineage.town.auto_collect = false; // Legacy manual collection remains supported.
     assert!(tree::hired(&g.lineage, "quartermaster") && !tree::hired(&g.lineage, "porter"));
     assert_eq!(tree::lit(&g.lineage).map(|n| n.id), None, "nothing lit at 0:00");
     assert_eq!(g.lineage().tree.unwrap().next.unwrap().kind, "send", "the pill says send");
@@ -67,7 +151,7 @@ fn the_node_table_lights_one_at_a_time_in_order() {
     // the stages of the four tracks are the branches' nodes
     assert!(w.nodes.iter().any(|n| n.kind == "stage" && n.id == "town:bank" && n.state != "done"));
     // the fallback: a node's chore open, the lineage old enough, it lights without the count
-    let mut f = Game::new(5);
+    let mut f = Game::new_resident(5);
     crate::tree::grant(&mut f.lineage, &["porter", "scout"]);
     f.lineage.systems.insert("storehouse".into());
     f.lineage.clock_s = 25 * 3600;
@@ -76,7 +160,8 @@ fn the_node_table_lights_one_at_a_time_in_order() {
 
 #[test]
 fn manual_send_before_the_scout_yields_the_run_in_flight() {
-    let mut g = Game::new(11);
+    let mut g = Game::new_resident(11);
+    g.lineage.town.auto_collect = false; // Legacy manual collection remains supported.
     // an absence with no send: the hero waits, nothing runs
     let r = run_offline_counts(&mut g, 8 * 3600);
     assert_eq!(r.runs, 0, "no send, no run");
@@ -126,8 +211,10 @@ fn manual_send_before_the_scout_yields_the_run_in_flight() {
 #[test]
 fn the_chest_conserves_gold_never_caps_and_never_moves_the_sim() {
     // two IDLE lineages with the scout granted, one opens the chest at every check-in: the same game
-    let mut a = Game::new(23);
-    let mut b = Game::new(23);
+    let mut a = Game::new_resident(23);
+    a.lineage.town.auto_collect = false; // Legacy manual collection remains supported.
+    let mut b = Game::new_resident(23);
+    b.lineage.town.auto_collect = false; // Legacy manual collection remains supported.
     for g in [&mut a, &mut b] {
         tree::grant(&mut g.lineage, &["scout"]);
     }
@@ -158,7 +245,7 @@ fn the_chest_conserves_gold_never_caps_and_never_moves_the_sim() {
 
 #[test]
 fn workers_keep_their_standing_orders() {
-    let mut g = Game::new(29);
+    let mut g = Game::new_resident(29);
     tree::grant(&mut g.lineage, &["porter", "scout"]);
     for _ in 0..6 {
         run_offline_counts(&mut g, 8 * 3600);
@@ -234,7 +321,7 @@ fn workers_keep_their_standing_orders() {
 
 #[test]
 fn chores_by_hand_count_toward_their_worker() {
-    let mut g = Game::new(31);
+    let mut g = Game::new_resident(31);
     tree::grant(&mut g.lineage, &["porter", "scout"]);
     for _ in 0..3 {
         run_offline_counts(&mut g, 8 * 3600);
@@ -262,7 +349,7 @@ fn chores_by_hand_count_toward_their_worker() {
 
 #[test]
 fn an_old_save_gets_its_workers_up_to_the_scout() {
-    let mut g = Game::new(37);
+    let mut g = Game::new_resident(37);
     tree::grant(&mut g.lineage, &["scout"]);
     run_offline_counts(&mut g, 8 * 3600);
     let mut v: serde_json::Value = serde_json::from_str(&g.save()).unwrap();
@@ -282,7 +369,7 @@ fn an_old_save_gets_its_workers_up_to_the_scout() {
 
 #[test]
 fn a_worker_ranks_up_with_service() {
-    let mut g = Game::new(41);
+    let mut g = Game::new_resident(41);
     tree::grant(&mut g.lineage, &["porter", "scout"]);
     assert!(tree::lit_rank(&g.lineage).is_none(), "no rank on the first day");
     let porter = tree::def("porter").unwrap();
@@ -312,7 +399,7 @@ fn a_worker_ranks_up_with_service() {
 #[test]
 fn practised_guarded_recovers_in_an_empty_room_without_heals() {
     for (runs, hp) in [(120, 42), (220, 37)] {
-        let mut g = Game::new(7);
+        let mut g = Game::new_resident(7);
         g.lineage.pkg.owned.insert("guarded".into());
         g.lineage.pkg.runs.insert("guarded".into(), runs);
         g.equip_package("guarded", 0).unwrap();
@@ -332,7 +419,7 @@ fn practised_guarded_recovers_in_an_empty_room_without_heals() {
 
 #[test]
 fn guarded_recovers_the_last_wounds_before_exploring_again() {
-    let mut g = Game::new(7);
+    let mut g = Game::new_resident(7);
     g.lineage.pkg.owned.insert("guarded".into());
     g.lineage.pkg.runs.insert("guarded".into(), 220);
     g.equip_package("guarded", 0).unwrap();
@@ -388,7 +475,7 @@ fn guide_income_counts_actual_checkpoint_passage_and_rounded_exit_payment() {
 
 fn guide_quote_camp() -> Game {
     use crate::rules::{Cond, Row, Verb};
-    let mut g = Game::new(11);
+    let mut g = Game::new_resident(11);
     g.lineage.best_depth = 28;
     g.lineage.light_waystones(28);
     g.lineage.gold_move(100_000, "test reserve");

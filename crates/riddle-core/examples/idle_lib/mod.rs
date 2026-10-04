@@ -37,7 +37,7 @@ pub fn snapshots(seed: u64, days: usize) -> Vec<(u32, Game)> {
 /// A fresh lineage with the send worker hired (Cut 30.5: the scout, and the porter before him — an old save's
 /// mapping, so the idle floor's rows read Cut 30's IDLE): a send by hand is one run until he is.
 pub fn fresh(seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_resident(seed);
     riddle_core::tree::grant(&mut g.lineage, &riddle_core::tree::LEGACY);
     g
 }
@@ -45,8 +45,9 @@ pub fn fresh(seed: u64) -> Game {
 /// A fresh lineage after IDLE's first session (Cut 30.5): sends by hand until the scout lights and the
 /// purse and chest pay him, hired; then the absence begins (the last run's rest carried, as the client's).
 pub fn after_session(seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_resident(seed);
     for _ in 0..30 {
+        if riddle_core::tree::lit(&g.lineage).is_some_and(|n| n.id == "porter") { let _ = g.hire("porter"); }
         if let Some(n) = riddle_core::tree::lit(&g.lineage).filter(|n| n.id == "scout") {
             if g.lineage.gold >= riddle_core::tree::price(&g.lineage, n) && g.hire("scout").is_ok() {
                 break;
@@ -102,7 +103,7 @@ pub fn stance_past(g: &Game, stance: &str, wall: u32, sims: u32, from_stone: boo
 /// Of `sends` sends from a lineage whose Mother drill wants fire (fire named, the purse full), the share
 /// that carry it into the run (the quartermaster's reserved slot).
 pub fn drill_packed(seed: u64, sends: u32) -> (u32, u32) {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_resident(seed);
     for k in ["heal", "fire"] {
         if let Some(f) = riddle_core::item::ident_fact(&g.lineage.flavours, k) {
             g.lineage.facts.insert(f);

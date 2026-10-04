@@ -1,12 +1,8 @@
-// Cut 23 §1 — the forge: the heir's starting kit bought with gold (`Lineage.kit`: a ladder per slot — weapon · armour · pack),
-// permanent for the lineage. The `forge` tile's sheet: one carved tablet per slot — its steps as pips (owned lit), the next step
-// a button that reads its kit, its measured move and its price (`mail · D9 +7 · $340`, `kitDeltas()` on the background lane, `…`
-// until it lands), the steps after it dim with their prices (`mail +1 $900`). A buy takes two taps (`ok $340`); nothing on the
-// sheet moves under the finger (each tablet keeps its height: the next step takes the bought one's place). Under the ladders,
-// the salvage ladder (Cut 9 §10) as before.
+// The forge shows the next starting-kit upgrade per slot. Future steps, salvage,
+// and explicitly requested forecasts live under Details; purchases never wait for simulations.
 import type { App } from "../app";
 import type { KitLadder, Lineage } from "../engine/types";
-import { h, replace, twoTap } from "./dom";
+import { h, replace } from "./dom";
 import { openSheet } from "./sheet";
 import { moveOf } from "./forecast";
 import { audio } from "../audio";
@@ -54,64 +50,45 @@ export function kitMove(n: NonNullable<KitLadder["next"]>): string | null {
   return t ? t.map((x) => `${x.label} ${x.text}`).join(" · ") : null;
 }
 /** A term's colour: good or bad, whichever way its sign points (a death that falls is good). */
-const kitTone = (x: { dir: "up" | "down" | "flat"; worse: boolean }): string => x.dir === "flat" ? "flat" : (x.dir === "up") !== x.worse ? "up" : "down";
 
-export function openForge(app: App, anchor?: HTMLElement | null): void {   // Cut 30 §3: `anchor` — the blacksmith it stands over
+
+export function openForge(app: App, anchor?: HTMLElement | null): void {
   openSheet(() => {
-    const kit = h("div", { class: "kit" });
-    const paint = (measured: KitLadder[] | null, pending: boolean): void => {
-      const L = app.lineage, ladders = L.kit ?? [];
+    const kit = h("div", { class: "kit simple-kit" });
+    const advanced = h("details", { class: "forge-details" }, h("summary", null, /* copy:button */ "Details"));
+    const forecasts = h("div", { class: "forge-forecasts" });
+    const forecastButton = h("button", { class: "chip", onclick: () => {
+      forecastButton.disabled = true;
+      forecastButton.textContent = "Measuring…";
+      const ask = measureKit(app);
+      if (!ask) { forecastButton.textContent = "Forecast"; forecastButton.disabled = false; return; }
+      void ask.then((rows) => {
+        if (!forecasts.isConnected) return;
+        replace(forecasts, ...rows.map((row) => h("div", { class: "num" }, `${SLOT_LABEL[row.slot]} · ${row.next ? kitMove(row.next) ?? "No change" : "Complete"}`)));
+        forecastButton.textContent = "Forecast"; forecastButton.disabled = false;
+      }).catch(() => { forecastButton.textContent = /* copy:button */ "Retry forecast"; forecastButton.disabled = false; });
+    } }, /* copy:button */ "Forecast");
+    const paint = (): void => {
+      const ladders = app.lineage.kit ?? [];
       replace(kit, ...ladders.map((lad) => {
-        const m = measured?.find((x) => x.slot === lad.slot)?.next;
-        const n = lad.next ? { ...lad.next, ...(m && m.label === lad.next.label ? { depth: m.depth, delta: m.delta, pm: m.pm, bank: m.bank, death: m.death } : {}) } : undefined;
-        const pips = h("span", { class: "pips", "aria-hidden": "true" }, ...lad.steps.map((s, i) => h("i", { class: `pip${s.owned || i < lad.owned ? " on" : ""}` })));
-        const later = lad.steps.slice(lad.owned + 1);
-        let act: HTMLElement;
-        if (!n) act = h("span", { class: "kit-top num dim" }, /* copy:callout */ "top step");
-        else {
-          const terms = kitTerms(n);
-          // run-clear: the piece the step forges, in its rarity's rim and tint (the core's `KitStep.rarity`)
-          const st = lad.steps[lad.owned];
-          const inner = [h("span", { class: "kit-label" }, ...(st?.kind ? [itemIcon({ kind: st.kind, label: n.label, rarity: st.rarity }, { size: "s" }), itemName({ kind: st.kind, label: n.label, rarity: st.rarity })] : [n.label])),
-            terms ? h("span", { class: "num kit-move" }, ...terms.flatMap((x) => [" · ", h("b", { class: `dlt ${kitTone(x)}` }, `${x.label} ${x.text}`)])) : pending ? h("small", { class: "num dim kit-move" }, /* copy:callout */ " · measuring…") : "",   // docs/COPY.md pass 2: a bare `…` read "no idea" (2/2)
-            h("b", { class: "num gold kit-price" }, ` · $${n.price}`),
-            // QA 912e135 (qaW: `7 nights` at 0 banked, 0 returned — "the income behind it is not on screen"): the net it divides by
-            !n.affordable && n.nights !== undefined && n.nights > 0 ? h("small", { class: "num dim kit-nights" }, /* copy:callout */ ` · ${n.nights === 1 ? "1 night" : `${n.nights} nights`}`,
-              n.per_night ? h("span", { class: "per-night" }, /* copy:callout */ ` at $${n.per_night}`) : "") : ""];
-          if (n.affordable && app.engine.buyKit) {
-            // two taps (`ok $340`); armed, it stays armed through the deltas' repaint (the key) until a tap lands elsewhere
-            // Cut 25 §6 (AN): armed, the line stays as it was and its price turns `ok $340` where it stood (nothing moves: the second tap
-            // lands where the first did)
-            const armedContent = (): Node[] => inner.filter((x): x is HTMLElement => typeof x !== "string").map((x) => x.classList.contains("kit-price") ? h("b", { class: "num kit-price kit-ok" }, /* copy:button */ ` · ok $${n.price}`) : x.cloneNode(true));
-            const b = twoTap(inner.filter((x): x is HTMLElement => typeof x !== "string"), /* copy:button */ `ok $${n.price}`, () => void buyStep(lad.slot), { class: "chip kit-next buyable", key: `kit:${lad.slot}:${n.label}`, armedContent });
-            b.dataset.slot = lad.slot; act = b;
-          } else act = h("button", { class: "chip kit-next off", disabled: true, "data-slot": lad.slot }, ...inner);
-        }
-        return h("div", { class: "kit-slot tablet", "data-slot": lad.slot },
-          h("div", { class: "kit-head" }, h("span", { class: "kit-name" }, SLOT_LABEL[lad.slot] ?? lad.slot), pips, h("small", { class: "num dim" }, `${lad.owned}/${lad.steps.length}`)),
-          act,
-          // every step shows its price: the ones after the next, dim, on one line (always there, so a buy never reflows the sheet)
-          h("div", { class: "kit-later num dim" }, later.length ? later.map((s) => `${s.label} $${s.price}`).join(" · ") : " "));
+        const next = lad.next;
+        const item = lad.steps[lad.owned];
+        const current = lad.owned > 0 ? lad.steps[lad.owned - 1]?.label : null;
+        const button = h("button", { class: "chip forge-buy", disabled: !next?.affordable || !app.engine.buyKit, "data-slot": lad.slot, onclick: () => {
+          if (!app.engine.buyKit || !next) return;
+          button.disabled = true;
+          void app.mutate(() => app.engine.buyKit!(lad.slot), /* copy:callout */ "Forged").then((ok) => { if (ok) audio.cue("unlock"); if (kit.isConnected) paint(); });
+        } }, next ? /* copy:button */ `Forge $${next.price}` : /* copy:button */ "Complete");
+        return h("section", { class: "kit-slot tablet", "data-slot": lad.slot },
+          h("div", { class: "kit-head" }, h("b", null, SLOT_LABEL[lad.slot]), h("small", { class: "dim" }, current ?? /* copy:label */ "Starting kit")),
+          h("div", { class: "forge-action" }, h("div", { class: "forge-item" }, ...(item?.kind ? [itemIcon({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity }, { size: "s" }), itemName({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity })] : [next?.label ?? current ?? "Complete"])), button));
       }));
+      replace(advanced, h("summary", null, /* copy:button */ "Details"),
+        h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => h("p", null, `${SLOT_LABEL[lad.slot]} · ${lad.steps.slice(lad.owned + 1).map((s) => `${s.label} $${s.price}`).join(" · ") || "Complete"}`))),
+        salvage(app), app.engine.kitDeltas ? forecastButton : null, forecasts);
     };
-    async function buyStep(slot: string): Promise<void> {
-      if (!app.engine.buyKit) return;
-      const ok = await app.mutate(() => app.engine.buyKit!(slot), /* copy:callout */ "kit");
-      if (!ok) return;
-      audio.cue("unlock");
-      paint(null, !!app.engine.kitDeltas); measure();
-    }
-    function measure(): void {
-      const k = kitKey(app);
-      if (kitMemo?.key === k) { paint(kitMemo.kit, false); return; }
-      const ask = measureKit(app); if (!ask) return;
-      void ask.then((m) => { if (kit.isConnected && kitKey(app) === k) paint(m, false); }).catch((e) => { console.warn("kitDeltas", e); if (kit.isConnected) paint(null, false); });
-    }
-    const memo = kitMemo?.key === kitKey(app) ? kitMemo.kit : null;
-    paint(memo, !memo && !!app.engine.kitDeltas);
-    if (!memo) measure();
-    const hasKit = (app.lineage.kit?.length ?? 0) > 0;
-    return h("div", { class: "sheet-body forge" }, h("div", { class: "label" }, /* copy:label */ "forge"), hasKit ? kit : "", salvage(app));
+    paint();
+    return h("div", { class: "sheet-body forge" }, h("div", { class: "label" }, /* copy:label */ "Forge"), kit, advanced);
   }, { anchor });
 }
 

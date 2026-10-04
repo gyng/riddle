@@ -13,7 +13,7 @@ import { conceptTag } from "./concepts";
 import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { systemIcon, systemLabel } from "./systems";
-import { measureKit, openForge } from "./forge";
+import { openForge } from "./forge";
 import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, InvItem, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
@@ -243,7 +243,6 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   setRefRows(() => app.rules.rows);
   // Cut 25 §4: after an absence the forge's steps are measured while the report is read (the forge's own lane), so the camp's forge sheet
   // paints them at once
-  if (absence && (revealed(app).has("forge") || revealed(app).has("kit"))) setTimeout(() => void measureKit(app)?.catch(() => undefined), 0);
   const L = app.lineage;
   const named = renamer(L);
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);

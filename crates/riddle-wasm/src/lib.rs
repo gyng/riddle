@@ -83,8 +83,8 @@ impl Game {
         js(&self.inner.forecast_refine())
     }
 
-    pub fn send(&mut self) -> String {
-        js(&self.inner.send())
+    pub fn send(&mut self) -> Result<String, JsError> {
+        self.inner.try_send().map(|s| js(&s)).map_err(err)
     }
 
     pub fn step(&mut self, turns: u32) -> String {

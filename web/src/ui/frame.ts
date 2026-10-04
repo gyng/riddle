@@ -26,12 +26,25 @@ const TILE_TERM: Record<string, Term> = /* copy:none */ { packages: "package", q
 // --- the top bar ---
 
 export type Bar = { el: HTMLElement; paint(): void; dispose(): void; offers: HTMLElement; freeze(): void };
+
+/** Decorative feedback for a real credited amount; never changes resource totals. */
+export function flyCoins(target: HTMLElement, amount: number): void {
+  if (amount <= 0 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const r = target.getBoundingClientRect();
+  for (let i = 0; i < Math.min(6, 2 + Math.floor(Math.log2(amount + 1))); i++) {
+    const coin = h("i", { class: "coin-flight", "aria-hidden": "true", style: `left:${r.left + r.width / 2}px;top:${r.top + r.height / 2}px` });
+    document.body.appendChild(coin);
+    const animation = coin.animate([{ transform: `translate(${(i - 2) * 11}px, 100px) scale(.7)`, opacity: 0 }, { offset: .2, opacity: 1 }, { transform: "translate(0,0) scale(1)", opacity: 0 }], { duration: 650, delay: i * 45, easing: "cubic-bezier(.2,.7,.2,1)" });
+    void animation.finished.catch(() => undefined).finally(() => coin.remove());
+  }
+}
 /** `live`: the camp's bar (the stud the settings; the wake's offers row under it). The `$` opens the gold sheet everywhere but on
  *  the watch (`watch`): a sheet over the run reads as the exit sheet to the tooling. */
 export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait?: string; watch?: boolean } = {}): Bar {
   const offers = h("div", { class: "offers", hidden: true });
   const el = h("header", { class: "strip topbar" });
   const mini = portraitMini(app);
+  let previousGold = app.lineage.gold;
   function paint(): void {
     const L = app.lineage, R = revealed(app), past = opts.heir !== undefined && opts.heir !== L.heir;
     // the glyph (`◆` `★`) stays in the text (the tooling reads `◆7`) but the icon stands for it on screen
@@ -42,7 +55,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
     const stat = (cls: string, ico: string, glyph: string, n: string | number, on = true, term?: Term): HTMLElement | "" => on ? withTip(h("span", { class: `num stat ${cls}` }, icon(ico), glyph ? h("span", { class: "g" }, glyph) : "", String(n)), term) : "";   // docs/TOOLTIPS.md: a stat's tip on tap
     replace(el,
       h("div", { class: "build-banner" }, h("span", null, "alpha"), h("time", { datetime: import.meta.env.VITE_BUILD_DATE }, /* copy:label */ `build ${import.meta.env.VITE_BUILD_DATE}`)),
-      h("span", { class: "num heir" }, mini.el, ...kwText(heirOrd(opts.heir ?? L.heir), ["heir"])),   // a death's bar names the hero who died (QA 92eb880)
+      L.town?.home === false ? h("span", { class: "heir dim" }, /* copy:label */ "Empty town") : h("span", { class: "num heir" }, mini.el, ...kwText(heirOrd(opts.heir ?? L.heir), ["heir"])),   // a death's bar names the hero who died (QA 92eb880)
       // the wake's trait chips stand in for the plain trait while the offer stands (the camp fills `offers`)
       // Cut 30 §2: on packages the bar names the worn temperament (the old trait word maps to it), none before heir 3
       onPackages(L) ? h("span", { class: "trait" }, L.packages!.temperament ? L.packages!.all.find((p) => p.id === L.packages!.temperament)?.name ?? "" : "")
@@ -56,15 +69,18 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
         // docs/COPY.md pass 3: the word over it (`lineage`, then `family`) read "no idea" 11 of 14 times — the purse needs none
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
-        !opts.watch ? kwHost(h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), `$${L.gold}`), "gold") : h("span", { class: "num stat gold" }, icon("gold"), `$${L.gold}`),
-        cap1(stat("marks", "mark", "◆", L.marks, R.has("unlocks") || (packagesShown(L) && L.marks > 0), "marks"), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "levels packages"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
-        cap1(stat("rank", "renown", "★", L.rank ?? 0, R.has("rank") && !past, "renown"), "renown"),
-        stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, R.has("depth") && !past, "best"),   // docs/COPY.md pass 2 (`D8` read as "current depth")
+        !opts.watch ? kwHost(h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), h("small", { class: "resource-label" }, /* copy:label */ "Gold"), `$${L.gold}`), "gold") : h("span", { class: "num stat gold" }, icon("gold"), h("small", { class: "resource-label" }, /* copy:label */ "Gold"), `$${L.gold}`),
+        L.town?.home !== false && L.hero_legacy?.length ? h("span", { class: "num stat legacy", "aria-label": /* copy:label */ `Hero Legacy ${L.hero_legacy.find((x) => x.heir === (opts.heir ?? L.heir))?.points ?? 0}` }, h("small", { class: "resource-label" }, /* copy:label */ "Legacy"), String(L.hero_legacy.find((x) => x.heir === (opts.heir ?? L.heir))?.points ?? 0)) : null,
+        cap1(stat("marks", "mark", "◆", L.marks, !opts.watch && (R.has("unlocks") || (packagesShown(L) && L.marks > 0)), "marks"), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "levels packages"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
+        cap1(stat("rank", "renown", "★", L.rank ?? 0, !opts.watch && R.has("rank") && !past, "renown"), "renown"),
+        stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, !opts.watch && R.has("depth") && !past, "best"),   // docs/COPY.md pass 2 (`D8` read as "current depth")
       ),
       h("button", { class: "gear stud", "aria-label": "settings", onclick: () => openSettings(app) }, icon("settings", "⚙")),
       offers,
     );
     mini.paint();
+    const gain = L.gold - previousGold; previousGold = L.gold;
+    if (gain > 0 && !opts.watch) requestAnimationFrame(() => { const target = el.querySelector<HTMLElement>(".gold"); if (target?.isConnected) flyCoins(target, gain); });
   }
   paint();
   const off = app.onChange(paint);

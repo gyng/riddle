@@ -8,7 +8,7 @@ use crate::Game;
 use std::collections::BTreeMap;
 
 fn with_scout(seed: u64) -> Game {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_resident(seed);
     tree::grant(&mut g.lineage, &["porter", "scout"]);
     g
 }
@@ -153,7 +153,7 @@ fn advance_runs_the_open_apps_clock() {
 
 #[test]
 fn before_the_scout_advance_waits_but_a_send_by_hand_runs_on() {
-    let mut g = Game::new(5);
+    let mut g = Game::new_resident(5);
     let a = g.advance(600_000);
     assert!(a.ended.is_empty() && a.live.is_none());
     assert!(g.lineage().tree.unwrap().waits, "the hero waits at home");
@@ -202,7 +202,7 @@ fn the_log_folds_by_absence_and_keeps_sixty() {
     }
     assert!(found, "a sampled absence carries its `+N`");
     // the cap
-    let mut l = Game::new(1).lineage;
+    let mut l = Game::new_resident(1).lineage;
     for i in 0..(RUN_LOG_CAP as u32 + 10) {
         l.push_run(RunRec { id: i + 1, ..Default::default() });
     }

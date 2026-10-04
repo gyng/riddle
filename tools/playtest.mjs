@@ -136,6 +136,14 @@ async function attempt() {
     await waitFor((s) => s?.booted && s.screen === "camp", "camp");
     await settle();
     await dump("camp");
+    const house = page.locator('.town-tag[data-next="house"]');
+    if (await house.isVisible()) {
+      await house.click();
+      await page.locator("button.send").waitFor({ state: "visible", timeout: STEP_MAX_MS });
+      await page.waitForFunction(() => !document.querySelector("button.send")?.disabled, null, { timeout: STEP_MAX_MS });
+      await settle();
+      await dump("home");
+    }
 
     // 2. send; watch at 4×: two mid-run dumps, then ▶▶| until the exit, keeping the last frame
     await clickBtn("button.send");

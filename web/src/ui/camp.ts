@@ -30,7 +30,7 @@ import { renderScene } from "./divergence";
 import { gem, metersSlot, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
-import { kitAffordable, measureKit, openForge } from "./forge";
+import { kitAffordable, openForge } from "./forge";
 import { afterOf, labelOf, stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
@@ -184,10 +184,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 18 §4 (rater Z: "APPLY also sent the next heir immediately"): the death screen's gem and this one share the console's gem slot —
   // a camp opened on a lit tablet (a patch applied, `highlight`) keeps its send deaf for SEND_ARM_MS, so the tap (or a second one) that
   // applied never lands on `send`; the player sends
+  let residentUntil = 0, residentTimer = 0;
   const armedAt = performance.now() + (highlight !== undefined ? SEND_ARM_MS : 0);
   // Cut 30 §3: the send — the gem or the dungeon's mouth; the hero walks from where he is into the mouth, then the watch opens
   // RUNS_UI: with a run under way the gem watches it (he is already down there: no walk to the mouth)
-  const doSend = (): void => { if (performance.now() < armedAt) return; if (isLive()) { app.go({ kind: "watch" }); return; } if (!app.overBudget && app.rules.rows.length > 0) town.send(() => { if (el.isConnected) app.go({ kind: "watch" }); }); };
+  const doSend = (): void => { if (app.lineage.town?.home === false || performance.now() < Math.max(armedAt, residentUntil)) return; if (isLive()) { app.go({ kind: "watch" }); return; } if (!app.overBudget && app.rules.rows.length > 0) town.send(() => { if (el.isConnected) app.go({ kind: "watch" }); }); };
   const isLive = (): boolean => !!app.lineage.live && app.lineage.live.turn > 0;
   const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => doSend() });
   // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
@@ -222,10 +223,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // Cut 30 §3: the town (the camp, then the buildings as the core raises them) is the well's first screen, where the vista stood;
   // every building opens the panel its tile opens, standing over it
   const town = renderTown(app, {
+    resident: (ms) => { residentUntil = performance.now() + ms; clearTimeout(residentTimer); residentTimer = window.setTimeout(() => { if (el.isConnected) paintSend(); }, ms); },
     send: () => doSend(),
     // RUNS_UI: the hero's tent keeps his log once he has runs (the lane's `log` stud opens the same); his class and look are the
     // portrait's (the console's well), the hero sheet before the first run
-    hero: (a) => { if ((app.lineage.runs ?? []).some((r) => r.id > 0)) { openRuns(app); return; } const R = revealed(app); if (R.has("edit") || R.has("unlocks")) pickClass(); else openHero(app, a); },
+    hero: (a) => openHero(app, a),
     open: (what, a) => { closeAllSheets(); if (open === what) closePanel(); togglePanel(what, a); },
     forge: (a) => { closePanel(); openForge(app, a); },
     quest: (a) => { closePanel(); openQuest(app, a); },
@@ -791,7 +793,6 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     }).catch((e) => console.warn("catalogue", e));
   }
   let supplyGen = 0, unlockGen = 0;
-  const KIT_QUIET_MS = 2000;   // Cut 25 §4
   let cellIds: string[] = [], cellHeights: number[] = [];   // Cut 25 §6: the unlock grid's fixed cells (this camp's)
   let unlockCat: Parameters<typeof classList>[1];
   function paintUnlocks(): void {
@@ -901,12 +902,18 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintSend(): void {
     // QA 308f045 (qaAD: the empty `set 2 · 0` tab tapped, the camp read `death >98% · ~$0` with SEND armed): a set with no rows is no send
     const empty = app.rules.rows.length === 0;
-    send.disabled = app.overBudget || empty;
+    const homeless = app.lineage.town?.home === false;
+    const arriving = performance.now() < residentUntil;
+    el.classList.toggle("awaiting-home", homeless);
+    cons.el.hidden = homeless;
+    restLine.hidden = homeless;
+    const campMain = well.querySelector<HTMLElement>(".camp-main"); if (campMain) campMain.hidden = homeless || (app.lineage.best_depth === 0 && !(app.lineage.runs?.length));
+    send.disabled = homeless || arriving || app.overBudget || empty;
     send.classList.toggle("pulse", !app.overBudget && !empty);
     send.classList.toggle("small", app.overBudget || empty);
     // Speed is chosen once, in the watch. The send gem only sends.
     send.dataset.mode = app.watchMode;
-    replace(send, empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
+    replace(send, arriving ? /* copy:callout */ "Hero arriving" : empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
       : h("span", { class: "send-l" }, isLive() ? /* copy:button */ "watch" : /* copy:button */ "send", sendMark(app.lineage)));   // Cut 12 §1: own rows; RUNS_UI: a run under way is watched
     send.dataset.live = isLive() ? "1" : "0";
     paintTabs();
@@ -923,13 +930,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   paintAll();
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
-  // Cut 25 §4: a quiet camp (the refine landed, then KIT_QUIET_MS with no forecast asked) measures the forge's steps ahead of the tap, on
-  // the forge's own lane — only when a step is affordable (the tile's badge: the tap it invites); a burst of edits never queues a measure
-  let kitTimer = 0;
-  const offShadow = app.onForecast((f) => {
-    editor.paintShadow(); clearTimeout(kitTimer); paintOath();
-    if (f.refined && kitAffordable(app.lineage) > 0 && (revealed(app).has("forge") || revealed(app).has("kit"))) { const seq = app.forecastSeq, rows = JSON.stringify(app.rules.rows); kitTimer = window.setTimeout(() => { if (seq === app.forecastSeq && rows === JSON.stringify(app.rules.rows) && el.isConnected) void measureKit(app)?.catch(() => undefined); }, KIT_QUIET_MS); }
-  });   // QA 92eb880: a shadowed row's mark lands with the forecast of the rules now
+  const offShadow = app.onForecast(() => { editor.paintShadow(); paintOath(); });
   // Cut 29 §2: the systems the core opened since the camp last looked glint on this paint (reveal.ts reads `new`); once shown the core
   // forgets them (`seenSystems`), quietly — the next paint is an ordinary one
   // (asked as the camp is left, never mid-edit: a mutating call re-syncs the forecast lanes, and one landing in a burst of edits cost the
@@ -937,5 +938,5 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
   const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
   const offLive = app.onLive(() => { if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
-  return { el, dispose: () => { offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(kitTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  return { el, dispose: () => { offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

@@ -16,10 +16,17 @@ pub const BANK_PCT: i32 = 2;
 pub const BANK_NIGHTS: i32 = 3;
 
 fn manual_default() -> bool { true }
+pub fn home_default() -> bool { true }
 
 /// The lineage's town (`LineageState::town`).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Town {
+    /// Old towns already have a resident; genuinely new towns start empty.
+    #[serde(default)]
+    pub home: Option<bool>,
+    /// New towns collect each returned haul automatically; old saves keep their chest.
+    #[serde(default)]
+    pub auto_collect: bool,
     /// Buildings require construction by hand, including unbuilt plots in old saves.
     #[serde(default = "manual_default", skip_serializing_if = "std::ops::Not::not")]
     pub manual: bool,
@@ -80,6 +87,12 @@ pub fn update(l: &mut LineageState) -> Vec<String> {
 
 /// Construction is free once its milestone is met; never happens during an absence.
 pub fn construct(l: &mut LineageState, id: &str) -> Result<(), String> {
+    if id == "house" {
+        if l.town.home.unwrap_or(true) { return Err("already built".into()); }
+        l.town.home = Some(true);
+        return Ok(());
+    }
+    if !l.town.home.unwrap_or(true) { return Err("build a house".into()); }
     if !BUILDINGS.iter().any(|(b, _)| *b == id) { return Err("unknown building".into()); }
     if built(l, id) { return Err("already built".into()); }
     if !triggered(l, id) { return Err("not ready".into()); }
@@ -403,11 +416,13 @@ pub fn grew(a: &Snap, b: &Snap) -> Vec<GrewLine> {
 
 /// The town on the wire.
 pub fn wire(l: &LineageState) -> TownWire {
-    let next = BUILDINGS.iter().find(|(id, _)| !built(l, id)).map(|(id, tr)| (id.to_string(), tr.to_string()));
+    let next = if !l.town.home.unwrap_or(true) { Some(("house".into(), String::new())) } else { BUILDINGS.iter().find(|(id, _)| !built(l, id)).map(|(id, tr)| (id.to_string(), tr.to_string())) };
     TownWire {
+        home: l.town.home.unwrap_or(true),
+        auto_collect: l.town.auto_collect,
         buildings: l.town.built.iter().map(|(id, day)| crate::wire::BuildingWire { id: id.clone(), level: level(l, id), day: *day, trigger: BUILDINGS.iter().find(|b| b.0 == id).map(|b| b.1.to_string()).unwrap_or_default() }).collect(),
         next: next.as_ref().map(|n| n.0.clone()),
-        next_ready: next.as_ref().is_some_and(|n| triggered(l, &n.0)),
+        next_ready: next.as_ref().is_some_and(|n| n.0 == "house" || triggered(l, &n.0)),
         next_trigger: next.map(|n| n.1),
         bank: l.town.bank,
         bank_cap: bank_cap(l),

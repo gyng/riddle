@@ -117,9 +117,9 @@
 import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
 import type { App, Mounted } from "../app";
-import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Row, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
+import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
-import { gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
+import { flyCoins, gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
 import { icon } from "./skin";
 import { syncLook } from "./look";
 import { makeViewer, type Viewer } from "./viewer";
@@ -130,7 +130,7 @@ import { mergeFinds } from "./report";
 import { itemIcon, itemName } from "./items";   // run-clear
 import { setBusyHost } from "./progress";
 import { vaultSlots } from "./unlocks";
-import { glossOf, noteText, ruleName, setRefRows, verbLabel } from "./tokens";
+import { glossOf, noteText, setRefRows, verbLabel } from "./tokens";
 import { EXIT_TRACE_ROWS, traceTable } from "./trace";
 import { drivenDeath, exitExtras } from "./death";
 import { laneTitle, seenForks } from "./route";
@@ -671,38 +671,13 @@ export function renderWatch(app: App): Mounted {
       lootWhy = why; }
     lastLoot = st.loot; lastLootRun = s.run.id; lastLootTurn = s.turn; lastSwapped = st.swapped ?? 0;
     // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
-    const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "carrying"), ` $${st.loot}`];
+    const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "Carried"), ` $${st.loot}`];
     if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? `${lootWhy === "left" ? " " : " → "}${lootItem.replace(/_/g, " ")}` : ""}`));
-    // Cut 6 §1: the kept number while a return/bank row exists (`$84 · keeps $50`)
-    // Cut 13 §1: while the guard has fired a stall pays nothing, and the line says so before it is lost (`keeps $0 · stalling`)
-    // QA 92eb880 (N: "`$75 · keeps $0 · stalling` held ~10 s, then the run returned with `keeps 60%`"): while the guard has fired the run
-    // may still come home keeping its share — the line says `stalling` alone; `keeps $0` is the exit's, once it ends stalled
-    // Cut 20 §4 (AC: `carry $78 · keeps $78 · bank R4`, then died with $0): what the exit row keeps names its exit, and what a death
-    // keeps stands beside it — `bank keeps $78 · death $0`; `keeps` never alone while a death would keep less (`Stake.death_keep`,
-    // the death tier's share; an older core without it keeps nothing on a death)
-    const dk = st.death_keep ?? 0;
-    const exitVerb = st.return_row !== undefined ? verbLabel({ v: app.rules.rows[st.return_row]?.verb.v ?? "return" }) : "";
-    // QA 0c6e126 (qaY: `stalling` on the carry line while the hero went down D6 → D7): the guard is the floor's — a snapshot from the floor
-    // the HUD has left no longer stalls (the core resets it on the stairs; the next snapshot agrees)
-    const stalling = !!st.stalling && s.depth >= hud.depth;
-    if (stalling && !overridden) parts.push(" · ", h("span", { class: "kept stalling" }, /* copy:callout */ "stalling"));
-    else if (st.kept !== undefined && !overridden) parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `${exitVerb || "exit"} keeps $${st.kept}`));
-    if (!(stalling && !overridden) && (st.kept !== undefined || st.return_row !== undefined || dk > 0)) parts.push(" · ", h("span", { class: `death-keep${dk > 0 ? "" : " lose"}` }, /* copy:callout */ `death $${dk}`));
-    for (const b of st.brought) parts.push(" · ", h("span", { class: b.insured ? "" : "risk" }, b.label, b.insured ? "" : "⚠"));
-    // QA 1a2a4a9: the core's `Stake.returning` (a return/bank row acted: the run is committed homeward); the client's own guess (the
-    // last row to act was a return) stands in for an older core only
-    // QA 778fa1b (qaV: `returning` while the row that acted was `bank`): the word is the exit's own — `banking` for a bank row
-    const banking = !overridden && st.return_row !== undefined && app.rules.rows[st.return_row]?.verb.v === "bank";
-    if (overridden || (st.returning ?? walkingHome)) parts.push(" · ", h("span", { class: "returning" }, banking ? /* copy:callout */ "banking" : /* copy:callout */ "returning"));
-    else if (st.return_row === undefined) { if (dk <= 0) parts.push(" · ", h("span", { class: "lose" }, /* copy:callout */ "death: lose all")); }
-    else parts.push(" · ", returnAt(app.rules.rows[st.return_row], st.return_row));   // `bank at D9` (the verb again: `death $0 · at D9` read as the death's floor)
+    const secured = st.death_keep ?? 0;
+    parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `Secured $${secured}`));
+    if (st.returning ?? walkingHome) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "Heading home"));
+    if (st.stalling && s.depth >= hud.depth && !overridden) parts.push(" · ", h("span", { class: "stalling" }, /* copy:callout */ "Path blocked"));
     replace(stake, ...parts);
-  }
-  function returnAt(row: Row | undefined, i: number): string {
-    const v = verbLabel({ v: row?.verb.v ?? "return" });
-    const d = row?.conds.find((c) => c.k === "depth>=" && c.n !== undefined); if (d) return /* copy:callout */ `${v} at D${d.n}`;
-    const hp = row?.conds.find((c) => c.k === "hp<" && c.n !== undefined); if (hp) return /* copy:callout */ `${v} at ${hp.n}%`;
-    return ruleName(app.rules.rows, i);
   }
   function showBanner(text: string, ms: number, cls = ""): void {
     replace(banner, text); banner.className = `banner num show ${cls}`;
@@ -2121,6 +2096,11 @@ export function renderWatch(app: App): Mounted {
       if (skipped) await bounded(app.engine.autoKeep ? app.engine.autoKeep() : app.engine.keep([]), 8000, "keep by preference");
       // (`refresh` resolves void, so a sentinel tells a timeout from success)
       if (!(await bounded(app.refresh().then(() => true), 8000, "refresh at exit")) && !disposed) { clearTimeout(guard); app.go({ kind: "camp" }); return; }
+      if (!disposed) {
+        bar.paint();
+        const target = bar.el.querySelector<HTMLElement>(".gold");
+        if (target && app.lineage.town?.auto_collect && (exitLine?.kept ?? 0) > 0) flyCoins(target, exitLine!.kept);
+      }
       // QA a946e04 (T: the vault's dagger became `axe +1` behind a `vault full` flash, no sheet): the preference's swap is named —
       // `axe +1 → vault` — and `vault full` stands alone only when nothing went in
       if (vaultFull) {

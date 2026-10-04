@@ -9,6 +9,8 @@ test('native bridge covers every client method and rejects unsupported bindings'
   const proxy = readFileSync(new URL('../web/src/engine/proxy.ts', import.meta.url), 'utf8');
   const methods = [...proxy.slice(proxy.indexOf('const METHODS'), proxy.indexOf('];')).matchAll(/"(\w+)"/g)].map(m => m[1]);
   assert.deepEqual(api.methods.map(m => m.name).sort(), methods.sort());
+  const wasm = readFileSync(new URL('../web/src/engine/wasm.ts', import.meta.url), 'utf8');
+  for (const name of methods) assert.match(wasm, new RegExp(`\\b${name}\\(`), `missing WASM adapter method ${name}`);
   assert.throws(() => generate(source.replace('turns: u32', 'turns: Vec<u32>')), /unsupported/);
   assert.throws(() => generate(source.replace('pub fn forecast(&self) -> String', 'pub fn forecast(&self) -> u64')), /unsupported/);
   assert.throws(() => generate(source + '\npub fn extra(arg: (u32, u32)) {}'), /unsupported/);

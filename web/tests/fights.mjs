@@ -53,7 +53,14 @@ async function waitFor(pred, label, timeout = 20_000) {
   }
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} frame=${s?.frame} card=${s?.card} speed=${s?.speed})`);
 }
-const press = (label) => page.evaluate((l) => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === l) { b.click(); return true; } return false; }, label);
+// Check menu exposure in simple-ui; avoid actionability waits consuming the brief floor card.
+const press = (label) => page.evaluate(l=>{
+  let button=[...document.querySelectorAll('button.hud-btn')].find(b=>b.textContent===l);
+  if(!button){document.querySelector('[data-tile=speed]')?.click();button=[...document.querySelectorAll('button.hud-btn')].find(b=>b.textContent===l);}
+  if(!button)return false;
+  button.click();document.querySelector('.watch-options')?.closest('.sheet-wrap')?.querySelector('button.sheet-x')?.click();
+  return true;
+},label);
 const inRun = (s) => s?.screen === "watch";
 
 try {
@@ -81,8 +88,8 @@ try {
   // (the fake's D4 kills a hero in his first costly fight: the card's gates run on its gentle D1 with the first floors' mode off, `early=0`)
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch");
-  check(s.mode === "fights" && s.on.join() === "fights only", `fights is the default mode (on: ${s.on.join(", ")})`);
-  check(s.buttons.join(" ") === "fights only fast normal ▶▶| bail town", `the buttons read fights only · fast · normal · ▶▶| · bail · town (Cut 25 §3: the plain 1×, docs/COPY.md: its word \`normal\`; RUNS_UI: back to the town, the run goes on) (${s.buttons.join(" · ")})`);
+  check(s.mode === "fights", `fights is the default mode (${s.mode})`);
+  check(s.buttons.join(" ") === "Speed Town menu", `two primary watch controls: Speed · Town menu (${s.buttons.join(" · ")})`);
   // the card: the ambient line over the map, the clock held; then the first fight at 1×
   // Cut 15 §4: the card is short (≤ 1.2 s; 0.5 s before a beat — seed 5 opens on a situation), so the tap is made in the page the
   // frame the card is seen
@@ -117,10 +124,10 @@ try {
   if (inRun(s)) {
     await press("fast");
     s = await waitFor((x) => !inRun(x) || (x.mode === "fast" && x.card === "0"), "fast mode", 2000);
-    check(s.mode === "fast" && s.on.join() === "fast" && s.card === "0" && (s.speed >= 16 || s.speed === 4 || s.speed === 1 || (s.held && s.speed <= 4)), `fast: the card is gone and the clock runs 16× / 4× (speed ${s.speed}${s.held ? ", a beat held" : ""})`);
+    check(s.mode === "fast" && s.card === "0" && (s.speed >= 16 || s.speed === 4 || s.speed === 1 || (s.held && s.speed <= 4)), `fast: the card is gone and the clock runs 16× / 4× (speed ${s.speed}${s.held ? ", a beat held" : ""})`);
     await press("fights only");
     s = await waitFor((x) => !inRun(x) || x.mode === "fights", "fights mode again", 2000);
-    check(s.mode === "fights" && s.on.join() === "fights only", "fights again");
+    check(s.mode === "fights", "fights again");
   }
   // the run ends on its own within the budget
   s = await waitFor((x) => x && x.screen !== "watch", "the run's end", 120_000);

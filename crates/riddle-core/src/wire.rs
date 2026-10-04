@@ -1443,6 +1443,10 @@ pub struct BuildingWire {
 /// Cut 30 §3: the town — its buildings, the next plot and its trigger, the bank.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct TownWire {
+    #[serde(default = "crate::town::home_default")]
+    pub home: bool,
+    #[serde(default)]
+    pub auto_collect: bool,
     pub buildings: Vec<BuildingWire>,
     #[serde(default)]
     pub next_ready: bool,
@@ -1460,6 +1464,16 @@ pub struct TownWire {
     /// Cut 30.5: the workers at their posts (hired; the lit node's greyed with its price).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub workers: Vec<crate::tree::WorkerPost>,
+}
+
+/// Each hero's lifetime achievements, independent of XP and package marks.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HeroLegacy {
+    pub heir: u32,
+    pub points: u32,
+    pub runs: u32,
+    pub best_depth: u32,
+    pub class: String,
 }
 
 /// Cut 30 §5: the quest on the board — one plain goal (≤ 5 words), the reward's picture, progress
@@ -1835,6 +1849,8 @@ pub struct Replay {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
+    #[serde(default)]
+    pub hero_legacy: Vec<HeroLegacy>,
     /// RUNS_UI: the runs log, the run under way, the run ids a replay is held for, the lineage
     /// clock and the absences counted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

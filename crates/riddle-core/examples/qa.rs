@@ -1326,7 +1326,7 @@ fn check_forecast_move(t: &mut Tally, g: &Game, seed: u64) {
 /// death's verdict names `package · row` exactly when a package's row acted last; no trace turn is a
 /// trait's (`row −1`).
 fn check_packages(t: &mut Tally, seed: u64) {
-    let mut g = Game::new(seed);
+    let mut g = Game::new_resident(seed);
     // (Cut 30.5: the send worker hired — a night of sends, as Cut 30's)
     riddle_core::tree::grant(&mut g.lineage, &riddle_core::tree::LEGACY);
     g.max_deaths = 1000;

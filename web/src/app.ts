@@ -648,6 +648,7 @@ export class App {
   onShelf(fn: () => void): () => void { this.shelfFull = this.rowsFull; this.shelfListeners.add(fn); return () => this.shelfListeners.delete(fn); }
   onForecast(fn: (f: Forecast) => void): () => void { this.fcListeners.add(fn); return () => this.fcListeners.delete(fn); }
   async emitForecast(): Promise<void> {
+    if (this.lineage.town?.home === false) return;
     if (!this.fcListeners.size) return;
     // Cut 25 §4: with lanes that can take it (`parallelForecast`) an edit's forecast starts at once — a stale one in flight is left to finish
     // unpainted (it no longer holds the fresh one behind it: 1.5 s after a burst of edits, where the bar is 1.2)
@@ -907,7 +908,12 @@ export class App {
     if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
     this.view = screen;
     if (screen.kind === "report" && screen.absence && this.lastAbsence?.report !== screen.report) this.lastAbsence = { report: screen.report, played: false };
-    if (screen.kind === "watch") { this.resetVs(); this.markRan(); }   // Cut 22 §3: the set that runs is the next edit's base
+    if (screen.kind === "watch") {
+      this.resetVs(); this.markRan();
+      // Dev playback parameters set the mode before mounting; controls now live in Speed.
+      const sp = this.dev?.speed;
+      if (sp) this.watchMode = typeof sp === "number" ? (sp === 1 || sp === 4 || sp === 8 ? "fast" : "fights") : sp === "fast" ? "fast" : "fights";
+    }   // Cut 22 §3: the set that runs is the next edit's base
     let m: Mounted;
     switch (screen.kind) {
       case "camp": m = renderCamp(this, screen.highlight); break;
@@ -924,13 +930,6 @@ export class App {
     document.body.classList.toggle("framed", screen.kind !== "ending");   // Cut 17: sheets unfold above the console
     window.scrollTo(0, 0);
     this.persist();
-    // dev `?speed=fast|fights|N`: press the matching HUD mode button as the run mounts (the watch owns its clock; Cut 10 §1:
-    // `fights` is the default, `fast` is the old auto; 1 · 4 · 8 map to fast, 16 to fights)
-    if (screen.kind === "watch" && this.dev?.speed) {
-      const sp = this.dev.speed;
-      const want = typeof sp === "number" ? ({ 1: "fast", 4: "fast", 8: "fast", 16: "fights" } as Record<number, string>)[sp] ?? "fights" : sp;
-      for (const b of m.el.querySelectorAll<HTMLButtonElement>("button.hud-btn")) if (b.textContent === want) { b.click(); break; }
-    }
   }
 }
 

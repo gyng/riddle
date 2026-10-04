@@ -24,12 +24,13 @@ export type Pt = { x: number; y: number };
 
 export const BUILDINGS = ["blacksmith", "storehouse", "kennel", "bank"] as const;
 export type BuildingId = (typeof BUILDINGS)[number];
-export type PlotId = "mouth" | "fire" | "tent" | "crate" | "board" | BuildingId;
+export type PlotId = "mouth" | "fire" | "tent" | "house" | "crate" | "board" | BuildingId;
 /** each plot's foot (texels) and its drawn height */
 export const PLOTS: Record<PlotId, Pt & { h: number }> = {
   mouth: { ...T(CX, 6.6), h: 64 },
   fire: { ...T(CX, 14.7), h: 16 },
   tent: { ...T(CX + 3.3, 14.0), h: 32 },
+  house: { ...T(CX + 3.3, 14.0), h: 56 },
   crate: { ...T(CX + 5.0, 14.9), h: 16 },
   board: { ...T(CX - 2.2, 7.6), h: 28 },   // Cut 30 §5: the notice board by the mouth (the quest), from the Warlord slain
   blacksmith: { ...T(CX - 4.6, 10.7), h: 64 },
@@ -89,10 +90,11 @@ export const workerAt = (w: { id: string; post: string }): Pt | null => WORKER_A
 export const workerIds = (id: string, frame = 0): string[] => frame ? [`town_worker_${id}_1`, `town_worker_${id}`] : [`town_worker_${id}`];
 export type Party = { at: number; cls: string; sack?: "small" | "large"; chest?: boolean; pet?: string; to: "tent" | "store" };
 export type TownState = {
+  home: boolean;
   seed: number; day: number;
   stage: number;                                   // buildings standing (0 = the camp)
   buildings: { id: BuildingId; look: number; fresh: boolean }[];
-  staked?: { id: BuildingId; trigger: string; ready?: boolean };
+  staked?: { id: BuildingId | "house"; trigger: string; ready?: boolean };
   hero: { cls: string; look?: string };
   pets: string[];                                  // companions following the hero
   penned: string[];                                // companions lying in the kennel's pen
@@ -115,7 +117,7 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   const seen = new Set(o.seen ?? built.map((b) => b.id));
   const buildings = built.map((b) => ({ id: b.id, look: Math.max(1, Math.min(3, b.level || 1)), fresh: !seen.has(b.id) }));
   const has = (id: string): boolean => buildings.some((b) => b.id === id);
-  const next = town?.next && (BUILDINGS as readonly string[]).includes(town.next) && !has(town.next) ? { id: town.next as BuildingId, trigger: town.next_trigger ?? "", ready: town.next_ready } : undefined;
+  const next = town?.next && (town.next === "house" || (BUILDINGS as readonly string[]).includes(town.next)) && !has(town.next) ? { id: town.next as BuildingId | "house", trigger: town.next_trigger ?? "", ready: town.next_ready } : undefined;
   const day = localDay(o.now);
   const seed = hashN(L.seed ?? 0, day);
   // the absence's parties: one per run that came home (a death walks nobody out), the biggest first, ≤ PARTIES_MAX
@@ -149,9 +151,9 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   const opened = new Set(o.opened ?? []);
   for (const b of buildings) if (markers.length < 3 && !opened.has(b.id) && !markers.some((m) => m.at === b.id)) markers.push({ at: b.id, kind: "rune" });
   return {
-    seed, day, stage: buildings.length, buildings, staked: next, hero: { cls: L.class || "fighter", look: L.look },
+    home: town?.home !== false, seed, day, stage: buildings.length, buildings, staked: next, hero: { cls: L.class || "fighter", look: L.look },
     pets: (L.party ?? []).slice(0, 2).map((c) => c.kind), penned: has("kennel") ? (L.kennel ?? []).slice(0, 2).map((c) => c.kind) : [],
-    parties, markers: markers.slice(0, 3), depth: L.best_depth ?? 0, board: !!o.board, chest, workers,
+    parties, markers: markers.slice(0, 3), depth: L.best_depth ?? 0, board: !!o.board, chest: town?.home === false || town?.auto_collect ? undefined : chest, workers: town?.home === false ? [] : workers,
   };
 }
 
@@ -433,7 +435,7 @@ export function createTownView(host: HTMLElement): TownView {
   const rng = (n: number): number => (hashN(state?.seed ?? 1, n) % 100000) / 100000;
 
   // -- the walkers of a state --
-  function build(): void {
+  function build(homeArrival = false): void {
     const s = state!; walkers = [];
     const cls = s.hero.cls, heroIds = [...(s.hero.look ? [`hero_${cls}_${s.hero.look}`] : []), `hero_${cls}`, "hero_fighter"], walkIds = [`walk_${cls}`, ...heroIds];
     let k = 0;
@@ -446,9 +448,10 @@ export function createTownView(host: HTMLElement): TownView {
       walkers.push(w);
       if (p.pet) walkers.push({ id: `${w.id}pet`, sprite: [p.pet, "town_dog"], walk: [p.pet, "town_dog"], h: 14, legs, from: p.at + 0.7, to: end + 1.1, lag: 0.7, follow: w, emerge: true, vanish: true, pet: true });
     }
+    if (!s.home) { hero = null; addStress(); return; }
     // the hero at home: tent → forge → fire (→ the crate while no forge stands), a pause of 2–6 s at each
     const stops = ["tent", s.buildings.some((b) => b.id === "blacksmith") ? "smith" : "crate", "fireW"];
-    let i = Math.floor(rng(1) * 3), n = 0;
+    let i = homeArrival ? 0 : Math.floor(rng(1) * 3), n = 0;
     hero = { id: "hero", sprite: heroIds, walk: walkIds, h: 24, legs: [], from: partyEnd, to: Infinity, lag: 0,
       extend: (w) => {
         let tt = w.legs.length ? w.legs[w.legs.length - 1]!.t1 : partyEnd;
@@ -598,13 +601,13 @@ export function createTownView(host: HTMLElement): TownView {
     emitters("town_mouth_cave", m, night, 30, 0.5, 0.7);   // the torches a step under the windows and the fire (at 1.5 the mouth read ablaze)
     // the camp: the fire, the tent, the crate
     const f = PLOTS.fire;
-    sprite([`town_campfire_${Math.floor(t * 5) & 1}`, "town_campfire_0"], f.h, f.x, f.y);
+    if (s.home) sprite([`town_campfire_${Math.floor(t * 5) & 1}`, "town_campfire_0"], f.h, f.x, f.y);
     const flick = 0.9 + 0.1 * Math.sin(t * 11) * Math.sin(t * 3.7);
-    F.lights.push({ x: f.x, y: f.y - 8, r: (46 + night * 44) * flick, c: [1.0, 0.6, 0.26].map((v) => v * (0.45 + night * 1.5) * flick) as [number, number, number] });
+    if (s.home) F.lights.push({ x: f.x, y: f.y - 8, r: (46 + night * 44) * flick, c: [1.0, 0.6, 0.26].map((v) => v * (0.45 + night * 1.5) * flick) as [number, number, number] });
     flickNow = flick;
-    sprite("town_tent", PLOTS.tent.h, PLOTS.tent.x, PLOTS.tent.y);
-    if (night > 0.3) F.lights.push({ x: PLOTS.tent.x, y: PLOTS.tent.y - 6, r: 14, c: [0.9, 0.55, 0.25] });
-    sprite("town_crate", PLOTS.crate.h, PLOTS.crate.x, PLOTS.crate.y);
+    if (s.home) sprite(["town_house_1", "town_storehouse_1"], PLOTS.house.h, PLOTS.house.x, PLOTS.house.y);
+    if (s.home && night > 0.3) F.lights.push({ x: PLOTS.tent.x, y: PLOTS.tent.y - 6, r: 14, c: [0.9, 0.55, 0.25] });
+    if (s.home) sprite("town_crate", PLOTS.crate.h, PLOTS.crate.x, PLOTS.crate.y);
     if (s.board) sprite("town_board", PLOTS.board.h, PLOTS.board.x, PLOTS.board.y);
     // the buildings: scaffold → built (dust, a glint)
     for (const b of s.buildings) {
@@ -794,8 +797,13 @@ export function createTownView(host: HTMLElement): TownView {
         const p = workerAt(w); if (!p) continue;
         const legs: Leg[] = []; legsAlong([NODES.tent!, ...route("tent", nearestNode(p)), p], t + 0.2, SPEED * 1.3, legs); arrive.set(w.id, legs);
       }
-      const key = (x: TownState | null): string => x ? JSON.stringify([x.hero, x.pets, x.parties.length, x.buildings.map((b) => b.id), x.seed]) : "";
-      if (!prev || key(prev) !== key(s)) build();
+      const key = (x: TownState | null): string => x ? JSON.stringify([x.home, x.hero, x.pets, x.parties.length, x.buildings.map((b) => b.id), x.seed]) : "";
+      if (!prev || key(prev) !== key(s)) build(prev?.home === false && s.home);
+      if (prev?.home === false && s.home && hero && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        const destination = NODES.tent!;
+        hero.from = t; hero.legs = [];
+        legsAlong([{ x: destination.x + 100, y: destination.y + 70 }, destination], t, 80, hero.legs);
+      }
       fit(); layoutDirty = true; start();
     },
     walkIn(ms = 700) {

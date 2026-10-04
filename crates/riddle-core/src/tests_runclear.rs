@@ -66,7 +66,7 @@ fn rarity_rides_the_wire_and_hides_an_unknown_flavour() {
 
 #[test]
 fn the_forge_steps_carry_their_rarity() {
-    let g = crate::Game::new(7);
+    let g = crate::Game::new_resident(7);
     let lad = crate::kit::ladders(&g.lineage);
     let weapon = lad.iter().find(|l| l.slot == "weapon").unwrap();
     assert!(weapon.steps.iter().all(|s| s.kind.is_some()));
@@ -84,8 +84,8 @@ fn every_exit_line_carries_the_card() {
     let mut seen_finds = 0;
     let mut records = 0;
     for seed in [3u64, 1001, 1004] {
-        let mut g = crate::Game::new(seed);
-        let mut h = crate::Game::new(seed);
+        let mut g = crate::Game::new_resident(seed);
+        let mut h = crate::Game::new_resident(seed);
         for _ in 0..5 {
             let best0 = g.lineage.best_depth;
             g.send();

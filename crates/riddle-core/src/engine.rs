@@ -1188,6 +1188,8 @@ pub struct Lost {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LineageState {
+    #[serde(default)]
+    pub hero_legacy: crate::shared::Shared<Vec<crate::wire::HeroLegacy>>,
     pub seed: u64,
     pub heir: u32,
     pub trait_: Trait,
@@ -1647,6 +1649,7 @@ impl LineageState {
             classes.insert(c.name().to_string(), ClassProg { level: 1, xp: 0, next: 0 });
         }
         let mut l = LineageState {
+            hero_legacy: vec![crate::wire::HeroLegacy { heir: 1, class: "fighter".into(), ..Default::default() }].into(),
             seed,
             heir: 1,
             trait_,
@@ -1758,7 +1761,7 @@ impl LineageState {
             orders: Default::default(),
             pkg: Default::default(),
             pkg_v: 1,
-            town: crate::town::Town { manual: true, ..Default::default() },
+            town: crate::town::Town { manual: true, home: Some(false), auto_collect: true, ..Default::default() },
             reveal_left: 0,
             reveal_queue: Vec::new(),
             glory: 0,
@@ -1995,7 +1998,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { hero_legacy: self.hero_legacy.iter().cloned().collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -2275,6 +2278,7 @@ impl LineageState {
     pub fn new_heir(&mut self) {
         let last = self.trait_;
         self.heir += 1;
+        self.hero_legacy.push(crate::wire::HeroLegacy { heir: self.heir, class: self.class.name().into(), ..Default::default() });
         self.heir_deeds.clear();
         self.heir_best = 0;
         let first = Trait::ALL[self.rng.below(4) as usize];
@@ -3082,8 +3086,15 @@ impl Game {
     /// A harness's lineage (bots, tests): the class preset as written, nothing compiled — the
     /// pre-Cut 30 behaviour (`packages::make_literal`).
     pub fn new_literal(seed: u64) -> Game {
-        let mut g = Game::new(seed);
+        let mut g = Game::new_resident(seed);
         crate::packages::make_literal(&mut g.lineage);
+        g
+    }
+
+    /// Gameplay harnesses explicitly complete the free opening construction.
+    pub fn new_resident(seed: u64) -> Game {
+        let mut g = Game::new(seed);
+        g.build_town("house").expect("free first home");
         g
     }
 
@@ -3619,7 +3630,13 @@ impl Game {
     }
 
     /// Start (or resume) an expedition. The player chose to go: any camp rest left is skipped.
+    pub fn try_send(&mut self) -> Result<Snapshot, String> {
+        if !self.lineage.town.home.unwrap_or(true) { return Err("build a house first".into()); }
+        Ok(self.send())
+    }
+
     pub fn send(&mut self) -> Snapshot {
+        assert!(self.lineage.town.home.unwrap_or(true) || self.sim, "build a house first");
         self.bounty_seen = self.lineage.bounty;
         // Cut 30.5 (the owner: manual send first): before the scout a send by hand is one run — counted
         // toward him when it sends a hero who was home
@@ -3660,7 +3677,7 @@ impl Game {
 
     /// Cut 30.5: a run may begin — the scout sends him, or a send by hand is under way.
     pub fn may_go(&self) -> bool {
-        crate::tree::auto_send(&self.lineage) || self.lineage.tree.sent
+        self.lineage.town.home.unwrap_or(true) && (crate::tree::auto_send(&self.lineage) || self.lineage.tree.sent)
     }
 
     /// Cut 30.5: the hero is home and waits for a send (before the scout, no run under way).
@@ -3688,6 +3705,7 @@ impl Game {
     }
 
     pub fn start_run(&mut self, seed_override: Option<u64>) {
+        assert!(self.lineage.town.home.unwrap_or(true) || self.sim, "build a house first");
         let ev0 = self.events.len();
         self.auto_keep();
         // Cut 30.5: the workers' standing orders, between real runs
@@ -4653,6 +4671,17 @@ impl Game {
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
         let tier = run.over.unwrap_or(ExitTier::Return);
+        if !self.sim {
+            let heir = self.lineage.heir;
+            if self.lineage.hero_legacy.last().is_none_or(|h| h.heir != heir) {
+                self.lineage.hero_legacy.push(crate::wire::HeroLegacy { heir, ..Default::default() });
+            }
+            let legacy = self.lineage.hero_legacy.last_mut().expect("hero legacy");
+            legacy.points += 1 + run.max_depth.saturating_sub(legacy.best_depth);
+            legacy.best_depth = legacy.best_depth.max(run.max_depth);
+            legacy.runs += 1;
+            legacy.class = run.hero.class.name().into();
+        }
         // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout); the guide's record of
         // the stone it started from
         if !self.sim {
@@ -5121,6 +5150,9 @@ impl Game {
             ExitTier::Death => format!("died D{}", run.depth),
         };
         self.lineage.gold_move(loot_kept, &exit_why);
+        if self.lineage.town.auto_collect && loot_kept > 0 && !crate::tree::hired(&self.lineage, "porter") {
+            crate::tree::did(&mut self.lineage, "chest");
+        }
         // QA on 912e135 (qaW): the exit's ledger line names what it did not keep.
         if let Some(g) = self.lineage.gold_ledger.last_mut().filter(|g| g.why == exit_why) {
             g.lost = (run.carried() - loot_kept).max(0);

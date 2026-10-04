@@ -361,7 +361,7 @@ export type Building = { id: string; level: number; day: number; trigger?: strin
 export type Quest = { goal: string; reward: string; progress: number; done: boolean; swap: boolean };
 /** Cut 30 §3 (core) — the town: its buildings (built in order), the next plot staked and its trigger, the bank (`bankDeposit` /
  *  `bankWithdraw`; ~2 % a night, capped at `bank_cap`), the interest it paid in all, the quest board (from the Warlord slain). */
-export type Town = { buildings: Building[]; next?: string; next_trigger?: string; next_ready?: boolean; bank: number; bank_cap: number; interest: number; quest?: Quest; quests_done?: number;
+export type Town = { home?: boolean; auto_collect?: boolean; buildings: Building[]; next?: string; next_trigger?: string; next_ready?: boolean; bank: number; bank_cap: number; interest: number; quest?: Quest; quests_done?: number;
   workers?: WorkerPost[] };   // Cut 30.5 (core): the workers at their posts (hired; the lit node's greyed with its price)
 /** Cut 30 §2 (core) — a package (`Guarded L3`): `kind` stance · tactic · temperament; `level` 1–5 from `runs` (the runs one of its rows
  *  fired in; `next_at` the runs the next level wants); `slot` when equipped; `owned` once its stage came (`trigger` until then);
@@ -489,7 +489,8 @@ export type ReturnReport = {
   meters?: MeterWire;                                                         // Cut 29 §3 (core): the absence's real runs metered, summed (the report's per-night meter)
   fallen?: Fallen[];                                                          // Cut 29 §6 (core; AX: Greth gone with only `party −1 ogre`): each companion that fell, named — `Greth · ogre L5 · fell D12 to lurker`
 };
-export type Lineage = { runs?: RunRec[]; live?: LiveRun | null; replays?: number[]; clock_s?: number; absences?: number;   // RUNS_UI (core): the runs log, the run under way, the run ids a replay is held for, the lineage clock (s), the absences counted
+export type Lineage = { hero_legacy?: { heir: number; points: number; runs: number; best_depth: number; class: string }[];
+                        runs?: RunRec[]; live?: LiveRun | null; replays?: number[]; clock_s?: number; absences?: number;   // RUNS_UI (core): the runs log, the run under way, the run ids a replay is held for, the lineage clock (s), the absences counted
                         heroes?: HeroLane[];                                                                     // RUNS_UI: reserved for Cut 31 (a lane per hero); the client derives the one hero's lane until then
                         age_h?: number; reveal_queue?: string[]; reveal_next?: { id: string; trigger: string; triggered: boolean; wait_h: number };   // Cut 30 (core; PROGRESSION_V2 §4): the lineage's age in hours (offline included); systems ready and waiting their turn (one opens a report); the next to come and the hours it still waits (`next · tactics · 3 h`)
                         glory?: number; expeditions?: number; era_gate?: number;                                   // PROGRESSION_V2 §2 (core, reserved for Cut 31)

@@ -1154,6 +1154,20 @@ body.framed .sheet-wrap:not(.modeless) { bottom: calc(var(--console-h, 0px) - 6p
 .forge .kit-next.armed .kit-ok { color: var(--acc); font-weight: 700; }
 .forge .kit-top { align-self: center; }
 .forge .kit-later { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.forge .simple-kit .kit-slot { grid-template-rows: auto auto; gap: 6px; padding: 10px 12px; }
+.simple-kit .kit-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.simple-kit .kit-head small { font-size: 12px; font-weight: normal; }
+.forge-item, .forge-action { display: flex; align-items: center; gap: 8px; }
+.forge-action { justify-content: space-between; }
+.forge-buy { min-height: 44px; color: var(--acc); }
+.forge-details { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 8px; }
+.forge-details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.forge-ladders { font-size: 12px; line-height: 1.6; }
+.resource-label { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+.topbar .stat.legacy { font-size: 15px; color: #b8c9db; }
+.coin-flight { position: fixed; z-index: 10000; pointer-events: none; width: 8px; height: 8px; border-radius: 50%; background: #edc76d; border: 1px solid #fff1b1; box-shadow: 0 0 5px #edc76d88; }
+.awaiting-home [hidden] { display: none !important; }
+.awaiting-home .town-tag { min-height: 48px; padding: 10px 18px; }
 .forge .salvage { margin-top: 4px; }
 /* Cut 23 §3: a row's why-not */
 .row-why .why-row { font-size: 13px; margin: 2px 0 6px; }
@@ -1699,3 +1713,6 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .build-banner { position: absolute; inset: env(safe-area-inset-top) 2px auto; height: 16px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border-bottom: 1px solid #65523966; color: var(--dim); font: 10px var(--sans); letter-spacing: .08em; line-height: 16px; }
 .build-banner > span { color: #d2b47b; text-transform: uppercase; }
 .build-banner time { font-variant-numeric: tabular-nums; }
+
+/* Resource labels stay readable as an established hero accumulates larger totals. */
+.topbar:has(.legacy) .stats { flex-shrink: 1; flex-wrap: wrap; justify-content: flex-end; }

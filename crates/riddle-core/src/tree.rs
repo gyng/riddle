@@ -257,7 +257,7 @@ pub fn on_gold(l: &mut LineageState, delta: i32, why: &str) {
             if !l.pkg.literal {
                 *l.tree.acts.entry("porter".into()).or_insert(0) += delta as u32;
             }
-        } else {
+        } else if !l.town.auto_collect {
             l.tree.chest += delta;
         }
     }

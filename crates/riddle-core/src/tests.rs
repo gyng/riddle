@@ -3679,7 +3679,7 @@ fn no_mark_for_the_frontier_and_one_a_night() {
     assert_eq!(g.lineage.marks, marks + 2 + 1);
     assert!(exit_text(&g).ends_with(" · ◆+3"), "{}", exit_text(&g));
     // The night's mark: an absence whose sends came home pays ◆1 for its day, once.
-    let mut g = Game::new(5);
+    let mut g = Game::new_resident(5);
     crate::tree::grant(&mut g.lineage, &crate::tree::LEGACY);
     g.max_deaths = 1000;
     let r = crate::offline::run_offline_counts(&mut g, 8 * 3600);
@@ -10595,7 +10595,7 @@ fn an_avenged_grudge_retires() {
 /// a run rests the next two — at most every third run.
 #[test]
 fn a_named_foe_rotates() {
-    let g0 = (1..200).map(Game::new).find(|g| g.lineage.first_stray().is_some()).expect("a lineage with a first stray");
+    let g0 = (1..200).map(Game::new_resident).find(|g| g.lineage.first_stray().is_some()).expect("a lineage with a first stray");
     let mut g = g0;
     let (depth, name) = g.lineage.first_stray().unwrap();
     let mut met = Vec::new();
@@ -11853,7 +11853,7 @@ fn arbitrary_camp_prefixes_match_fresh_ordered_panels() {
     static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
     crate::forecast::with_sim_width(&WIDTH, || {
         for seed in [1, 15] {
-            let g = Game::new(seed);
+            let g = Game::new_resident(seed);
             let rules = g.lineage.rules();
             for sims in [12, 48, 5, 50, 100, 12] {
                 let fresh = Game::load(&g.save()).unwrap();

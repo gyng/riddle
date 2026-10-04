@@ -9,7 +9,7 @@ use crate::wire::Ev;
 fn systems_open_one_at_a_time() {
     // (Cut 30 Reveal: day 0 is the camp; the pen's group — the editor, the dial, the order — waits
     // for the Mother met or a 3-day stall)
-    let mut g = Game::new(3);
+    let mut g = Game::new_resident(3);
     g.lineage.clock_s = 2 * 3600;
     let open = |g: &Game| g.lineage().systems.iter().filter(|s| s.open).map(|s| s.id.clone()).collect::<Vec<_>>();
     assert_eq!(open(&g), vec!["send", "headline"]);
