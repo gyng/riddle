@@ -1,3 +1,25 @@
+**Local iteration follow-up, 2026-10-04:** `docs/PERF_DEV_LOOP.md`;
+new `tools/camp-check.mjs` builds the native diagnostic once, snapshots saved
+camp inputs, and runs fresh processes per workload. `--record DIR` refuses an
+existing reference; `--compare DIR` binds inputs/workloads and checks complete
+raw bytes, including repeat determinism. Default8h offline; optional packages,
+wall, clone/setup modes. Three representative camps: final4.05s total warm,
+build0.04s; three repeats12.08s, all outputs exact. Not a full acceptance gate.
+Four real rejection cases pass (overwrite/missing/input mismatch/corruption).
+Quick validation33s:522 tests/one ignored, tsc/copy and three tooling tests;
+diagnostic clippy passes; full table retains all three genuine accepted leg hits.
+Native/WASM runtime and public UI are unchanged. No fresh full rerun required
+for these diagnostic/tooling edits. Proof under scratchpad/dev-loop-20261004
+and scratchpad/sim-work-20261004/dev-loop-*.log; private saves never stage.
+
+Clone/setup diagnostics in examples/sim_perf.rs:4096 operations ×3 per camp,
+setup107/186/207µs, cloning30/75/83µs. Indicative initial preparation share
+~1–2% of previous heavy searches; not a strict bound or a later-floor profile.
+Next options ranked in docs/ITERATION_SPEED.md: saved failure canaries and seed
+priority, native-backed dev UI, data-driven balance with explicit hashes, and
+same-runtime resumable check-ins. Fresh full suite still64.5min, no claim that
+all fresh cases now finish within minutes. No Cut31/cohort started.
+
 **Warlord news clarification, 2026-10-04:** owner meant the report's
 `warlord counter: attack boss` line. Client-only3483692 changes it to
 `Warlord weakness learned` / `Target the boss · bypass shields`, preserving other known counter

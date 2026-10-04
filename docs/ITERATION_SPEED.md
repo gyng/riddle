@@ -1,5 +1,40 @@
 # Iteration speed — where a cut's time goes, and what to cut next
 
+## Saved-camp feedback — 2026-10-04
+
+`node tools/camp-check.mjs SAVE... --record DIR` captures full native workload
+outputs; `--compare DIR` checks an edit against them without rebuilding the
+fortnight that produced the camp. Three early/late/tuned 8-hour absence checks
+take4.05s total warm (Cargo0.04s), exact bytes on every camp. Three repetitions
+take12.08s. Inputs are snapshotted; every run starts a fresh process/cache.
+References bind input hashes/workloads and cannot be overwritten automatically.
+Use `--mode packages,wall` for expensive policy searches. This is diagnostic
+feedback; `tools/tune.sh` and final full acceptance remain required.
+
+Preparation microbenchmarks show initial clone/setup around1–2% of previous
+heavy-search time under illustrative send-count scaling, not a strict bound.
+Prioritize reducing work inside simulations over expecting a large gain from
+initial preparation alone. Details, limits and proof: `docs/PERF_DEV_LOOP.md`.
+
+Creative options, in order of practical investigation:
+
+1. Keep saved camps for previous failures; replay those before affected rows.
+   Prioritize their seeds in fail-fast scheduling while retaining every seed
+   and the exact final reduction. Cached cases already exist; do not duplicate them.
+2. Prototype a native dev engine behind the existing JSON client interface.
+   Measure native compile and interaction time first; preserve the shipping
+   WASM parity check. This could avoid WASM packaging in the daily browser loop.
+3. Separate balance data from engine code, load it at camp boundaries in Rust,
+   and hash it into simulation/cache identities. This could avoid compilation
+   for numerical tuning; shipping must use the identical data and semantics.
+4. Resume long cases at check-ins after interruption. Bind state, bot decisions,
+   results, runtime and harness exactly. A runtime change invalidates the state;
+   checkpoints do not justify reusing an old prefix across changed behavior.
+
+The fresh full suite is still64.5minutes. These feedback/workflow improvements
+do not reduce its seeds, days, sample counts or numeric requirements. Large fresh
+CPU reductions need further hot-loop profiling and exact-output experiments.
+
 ## Active queue — 2026-10-03, after Cut 30.5
 
 Owner requested performance and iteration-speed follow-up after the release checkpoint.
