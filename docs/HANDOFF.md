@@ -1,5 +1,5 @@
 **LATEST STATE — 2026-10-04:** manual construction and simplified UI implemented;
-publication in progress. Read docs/UX_SIMPLE.md, docs/NATIVE_DEV.md and
+published at https://gyng.github.io/riddle/. Read docs/UX_SIMPLE.md, docs/NATIVE_DEV.md and
 docs/PERF_IMPACT.md. Routine --full selects18 current-player14-day cases
 (2seeds ×9configurations),10QA seeds and current-game metrics; --exhaustive
 retains272 cases and the original broad balance bars. Fresh routine table PASS
@@ -29,11 +29,17 @@ checks and screenshot evidence are in scratchpad/native-dev-20261004.
 Local shipping mobile/desktop/offline checks PASS; headed shipping walk8screens
 PASS32.9s, all7 fetched WASM responses match the exact local shipping artifact.
 
-Remaining before final response: public shipping checks, exact CI
-artifact WASM identity, approved main commit/push and public screenshots. No
-new permission needed. Never stage mine.bars or scratchpad. NoCut31/cohort.
-Next optimization work is ranked in docs/ITERATION_SPEED.md; no automatic
-schedule created. Historic notes below describe superseded intermediate states.
+Release commit8a9419c4db0394bddd01f315b6c8132b56ec397e; Pages workflow
+37205677160 SUCCESS. Public mobile/desktop and scoped-assets/offline reload PASS;
+headed public walk8screens PASS33.9s, no console/page errors. All7 fetched WASM
+responses match the exact CI artifact9dcb97fc6d6c089bbdcc144bc70c7e3bf2b02ec86c225ec384695a04c3ad51d1
+(CI toolchain differs from local). Remote watch/report screenshots shown inline.
+Evidence: scratchpad/native-dev-20261004/publication.json, ux-public-check,
+ux-public-walk and public-artifact. This handoff-only follow-up does not change
+shipping code. Never stage mine.bars or scratchpad. NoCut31/cohort. Next local
+optimization work is ranked in docs/ITERATION_SPEED.md: profile package-picker
+hot phases, debounced native rebuild watcher, checkpoint serialization/recovery.
+No automatic schedule created. Historic notes below describe superseded intermediate states.
 
 **NEW OWNER STEERING, 2026-10-04:** "Compact.and reduce full gate cases60min too long";
 manual buildings (especially start), fewer speed controls, combat log, obvious
