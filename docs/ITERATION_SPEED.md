@@ -16,24 +16,59 @@ heavy-search time under illustrative send-count scaling, not a strict bound.
 Prioritize reducing work inside simulations over expecting a large gain from
 initial preparation alone. Details, limits and proof: `docs/PERF_DEV_LOOP.md`.
 
-Creative options, in order of practical investigation:
+Implemented in impact order (`docs/NATIVE_DEV.md`, `docs/PERF_IMPACT.md`):
 
-1. Keep saved camps for previous failures; replay those before affected rows.
-   Prioritize their seeds in fail-fast scheduling while retaining every seed
-   and the exact final reduction. Cached cases already exist; do not duplicate them.
-2. Prototype a native dev engine behind the existing JSON client interface.
-   Measure native compile and interaction time first; preserve the shipping
-   WASM parity check. This could avoid WASM packaging in the daily browser loop.
-3. Separate balance data from engine code, load it at camp boundaries in Rust,
-   and hash it into simulation/cache identities. This could avoid compilation
-   for numerical tuning; shipping must use the identical data and semantics.
-4. Resume long cases at check-ins after interruption. Bind state, bot decisions,
-   results, runtime and harness exactly. A runtime change invalidates the state;
-   checkpoints do not justify reusing an old prefix across changed behavior.
+1. Real native dev UI on5367, generated shipping bridge, ordered isolated lanes,
+   default builds sharing the ordinary native core artifact. Three quiet rounds
+   with8 native threads and a default native adapter match complete WASM replies
+   and raw saves. Package reads:6.5–7.8×; late wall search7.04→1.72s; forecasts
+   5.1–11.0×. Engine-call timings, not whole-app or shipping improvements.
+2. Rust-owned package balance profiles, validated and immutable per process.
+   Live file edits restart/reload at call boundaries, without compilation.
+   Profile bytes bind tuning caches and diagnostics. Shipping uses Rust DEFAULT;
+   the editable template is checked against it. Promote numbers into the default
+   and rerun full acceptance. Default/tuning native executables are isolated.
+3. Separate previous-failure scheduling hints for targeted fail-fast checks.
+   Rejected home32 candidate: numeric3.81s→failure-first1.26s (seed4), same
+   16-seed demand and verdict. Default passing numeric/priority reductions both
+   retain16/16. Hints are never results or acceptance evidence.
+4. Complete internal check-in snapshots on standard/full tables, or `--resume`
+   for direct/targeted jobs. Bind executable, parameters and behavior inputs;
+   atomic/checksummed, corrupt or changed-runtime state ignored. Four bot tests
+   produce exact final outputs and raw game saves; an actual interrupted run's
+   three complete records equal uninterrupted records byte-for-byte. Resumed
+   configurations may lose some shared-prefix efficiency. Current unfinished
+   check-in still has to be replayed.
 
-The fresh full suite is still64.5minutes. These feedback/workflow improvements
-do not reduce its seeds, days, sample counts or numeric requirements. Large fresh
-CPU reductions need further hot-loop profiling and exact-output experiments.
+Owner budget amendment: routine --full selects18 current-player14-day cases
+(two seeds), current-game metrics and ten wire seeds; --exhaustive retains the
+272-case statistical audit and its original bars. Initial34-case screen took
+637.9s for dayplayer and tripped two small-sample statistical comparisons.
+The bounded18-case canonical full check passes76s warm. A genuinely fresh
+routine table completes in247.5s (4m8s): dayplayer247.5s, current metrics99.6s,
+wire QA43.2s run alongside. This reduces coverage, not simulation work per case.
+Earlier exact-outputpartially completed are not relabeled or claimed
+as a complete audit. The previous fresh full suite took64.5minutes.
+Further large CPU reductions need profiling and exact-output experiments.
+
+## Next work, by expected impact
+
+1. Refresh one uncached expensive package-picker case with phase CPU, trial/tick
+   counts and allocation samples. Use the existing profiler and saved camps;
+   test improvements to compiled rule evaluation and repeated map searches only
+   where those samples justify them. Keep exact outputs and full trial budgets.
+   Initial cloning and the rejected common-policy prefix are low-priority based
+   on their measured contribution.
+2. Automate native rebuilding after Rust edits with a debounced watcher and one
+   build at a time. Reuse the existing atomic executable replacement and save
+   restoration; report build errors in the dev page. Measure edit-to-ready time
+   separately from simulation latency. Balance-only changes already avoid builds.
+3. Measure checkpoint serialization, bytes written and recovery cost on long
+   cases. Reduce snapshot cost only while preserving complete state and exact
+   recovery; do not weaken the check-in boundary or runtime/profile binding.
+
+These are queued investigations after release acceptance, not claims of gains
+or a new game-design cut. Avoid competing profiling jobs during full gates.
 
 ## Active queue — 2026-10-03, after Cut 30.5
 

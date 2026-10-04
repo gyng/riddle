@@ -361,7 +361,7 @@ export type Building = { id: string; level: number; day: number; trigger?: strin
 export type Quest = { goal: string; reward: string; progress: number; done: boolean; swap: boolean };
 /** Cut 30 §3 (core) — the town: its buildings (built in order), the next plot staked and its trigger, the bank (`bankDeposit` /
  *  `bankWithdraw`; ~2 % a night, capped at `bank_cap`), the interest it paid in all, the quest board (from the Warlord slain). */
-export type Town = { buildings: Building[]; next?: string; next_trigger?: string; bank: number; bank_cap: number; interest: number; quest?: Quest; quests_done?: number;
+export type Town = { buildings: Building[]; next?: string; next_trigger?: string; next_ready?: boolean; bank: number; bank_cap: number; interest: number; quest?: Quest; quests_done?: number;
   workers?: WorkerPost[] };   // Cut 30.5 (core): the workers at their posts (hired; the lit node's greyed with its price)
 /** Cut 30 §2 (core) — a package (`Guarded L3`): `kind` stance · tactic · temperament; `level` 1–5 from `runs` (the runs one of its rows
  *  fired in; `next_at` the runs the next level wants); `slot` when equipped; `owned` once its stage came (`trigger` until then);
@@ -646,6 +646,7 @@ export interface Engine {
   // Cut 30.5 (core): the works tree — each returns the Lineage (throws with a ≤ 3-word reason). The chores by hand are the existing calls:
   // send (before the scout) · loadout (wear a find) · buyKit · keep (a keep sheet) / sellVault · bankDeposit · spendLevel · setParty / hatch ·
   // swapQuest · setStart — each fills its node's count (`WorkNode.count`) until its worker is hired.
+  buildTown?(id: string): Lineage;
   hire?(id: string): Lineage;                           // hire the lit node's worker (`Works.lit`; its price from the purse, then the chest)
   openChest?(): Lineage;                                // the haul chest into the purse (`Works.chest` → `gold`); the porter's chore
   setWorker?(id: string, on: boolean): Lineage;         // switch a hired worker off (its chore by hand again) or back on

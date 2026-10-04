@@ -92,7 +92,7 @@ export type TownState = {
   seed: number; day: number;
   stage: number;                                   // buildings standing (0 = the camp)
   buildings: { id: BuildingId; look: number; fresh: boolean }[];
-  staked?: { id: BuildingId; trigger: string };
+  staked?: { id: BuildingId; trigger: string; ready?: boolean };
   hero: { cls: string; look?: string };
   pets: string[];                                  // companions following the hero
   penned: string[];                                // companions lying in the kennel's pen
@@ -115,7 +115,7 @@ export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts
   const seen = new Set(o.seen ?? built.map((b) => b.id));
   const buildings = built.map((b) => ({ id: b.id, look: Math.max(1, Math.min(3, b.level || 1)), fresh: !seen.has(b.id) }));
   const has = (id: string): boolean => buildings.some((b) => b.id === id);
-  const next = town?.next && (BUILDINGS as readonly string[]).includes(town.next) && !has(town.next) ? { id: town.next as BuildingId, trigger: town.next_trigger ?? "" } : undefined;
+  const next = town?.next && (BUILDINGS as readonly string[]).includes(town.next) && !has(town.next) ? { id: town.next as BuildingId, trigger: town.next_trigger ?? "", ready: town.next_ready } : undefined;
   const day = localDay(o.now);
   const seed = hashN(L.seed ?? 0, day);
   // the absence's parties: one per run that came home (a death walks nobody out), the biggest first, ≤ PARTIES_MAX

@@ -11,6 +11,9 @@ A real roguelike whose hero you never drive. Equip packages, build the town, and
 for chores first done by hand. Tap the first few sends, then hire the scout and the hero
 climbs while you are away, uncapped. Late on, open the pen for optional rule edits. The hero
 learns facts on its own; every death names its cause. The dungeon has a bottom.
+Buildings become available at milestones and require a manual build action.
+First load centers on Send; the live watch has a combat log and a Town menu exit.
+The end report leads with runs, deepest floor and gold; extra detail folds away.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an
 automation/idle game first, never as an action roguelike (`research/idle-attraction.md` §1.1).
@@ -294,7 +297,13 @@ From `research/art-tech.md`:
 - `tools/`: `verify.sh`, `gates`, `probes`, copy-lint, WebMCP inspector.
 - PWA, offline-first save with export/import; versioned precache, verify on a fresh port.
 
-## Bots and gates (30 seeds, `examples/metrics.rs`, never weakened)
+## Bots and gates (statistical audit plus bounded routine regression)
+
+Owner amendment2026-10-04: routine --full uses18 current-player fortnight cases,
+current-game metrics and ten wire seeds. --exhaustive retains the original272
+cases/30-seed tables and all numeric audit bars. Smaller routine samples are
+regression coverage, not certification of the omitted balance/migration audit.
+See docs/UX_SIMPLE.md.
 
 *(Cut 30: the idle bots, `examples/dayplayer.rs`, 16 seeds × 14 days × 3 check-ins; DEFAULT, EDITED,
 PASSIVE and LEARNED retired with the pivot — their rows print as retired.)*

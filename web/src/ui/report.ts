@@ -554,15 +554,21 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   };
   const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
+  const summary = h("div", { class: "report-summary" },
+    h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended"),
+    h("div", { class: "tiles report-basics" },
+      toLog(tile(String(r.runs), /* copy:label */ "runs")),
+      tile(`D${r.deepest ?? L.best_depth}`, /* copy:label */ "deepest"),
+      h("div", { class: "tile plaque", "data-k": "gold" }, icon("gold"), h("b", { class: "num" }, `$${r.gold?.home ?? (r.exits ?? []).reduce((n, x) => n + x.kept, 0)}`), h("span", { class: "label" }, /* copy:label */ "Gold home"))));
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    grewBlock(r, heroFace(L)), workersBlock(L, r), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), tiles, opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, pendingSec,
+    summary,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
   const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
   const meterTitle = r.runs > 1 ? /* copy:label */ "this night" : /* copy:label */ "this run";
-  details.append(...[meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null, goldLine(), picked, exitLines, rested,
+  details.append(...[pendingSec, tiles, grewBlock(r, heroFace(L)), workersBlock(L, r), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null, goldLine(), picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
     section(/* copy:label */ "learned", factChips(learnedFacts.filter((f) => !counterFacts.includes(f)), L.counters ?? [], (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),

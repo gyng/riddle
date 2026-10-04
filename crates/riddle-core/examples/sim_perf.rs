@@ -2,6 +2,7 @@
 use riddle_core::{forecast, Game};
 use std::time::Instant;
 fn main() {
+    riddle_core::balance::configure_from_env().expect("valid immutable balance profile");
     let a: Vec<String> = std::env::args().collect();
     let g = Game::load(&std::fs::read_to_string(a.get(1).expect("sim_perf SAVE [wall|packages|offline|clone|setup]")).unwrap()).unwrap();
     let mode = a.get(2).map(String::as_str).unwrap_or("packages");

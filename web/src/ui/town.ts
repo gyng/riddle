@@ -51,7 +51,7 @@ export type TownUi = { el: HTMLElement; view: TownView; paint(): void; send(afte
 export function renderTown(app: App, hooks: TownHooks): TownUi {
   const el = h("div", { class: "town" });
   const hits = h("div", { class: "town-hits" });
-  const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite" });
+  const tag: HTMLButtonElement = h("button", { class: "town-tag num", hidden: true, "aria-live": "polite", onclick: () => { const plot = state?.staked; if (plot?.ready && app.engine.buildTown) void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build"); } });
   // Cut 30.5: the `next` pill rides the scene's top-left (the home screen's one goal); a tap opens the works on its node
   const pill = nextPill(app, (node, at) => openWorks(app, node, at));
   kwHost(pill.el, "next");   // docs/TOOLTIPS.md: its tip on long-press / hover
@@ -108,13 +108,14 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   /** the hit targets: one button per thing one can tap, over its sprite (≥ 44 px), its label hidden */
   function targets(): void {
     const s = state; if (!s) return;
-    const want: { id: string; plot: PlotId | "staked" | "chest" | "worker" }[] = [{ id: "mouth", plot: "mouth" }, { id: "tent", plot: "tent" }, { id: "crate", plot: "crate" },
+    const fresh = app.lineage.best_depth === 0 && !(app.lineage.runs?.length);
+    const want: { id: string; plot: PlotId | "staked" | "chest" | "worker" }[] = [{ id: "mouth", plot: "mouth" }, ...(fresh ? [] : [{ id: "tent", plot: "tent" as PlotId }, { id: "crate", plot: "crate" as PlotId }]),
       ...s.buildings.map((b) => ({ id: b.id, plot: b.id as PlotId })), ...(s.board ? [{ id: "board", plot: "board" as PlotId }] : [])];
     // Cut 30.5: the chest taps while it holds a haul (drawn, closed and empty, it is no surface); the lit node's greyed worker opens the works
     if (s.chest?.state === "full") want.push({ id: "chest", plot: "chest" });
     if (s.workers.some((w) => w.lit)) want.push({ id: "worker", plot: "worker" });
     // the staked plot shows from day 0; it taps (its trigger) once the first building stands — day 0 keeps its four surfaces
-    if (s.staked && s.stage >= 1) want.push({ id: "staked", plot: "staked" });
+    if (s.staked && (s.stage >= 1 || s.staked.ready)) want.push({ id: "staked", plot: "staked" });
     for (const [id, b] of btns) if (!want.some((w) => w.id === id)) { b.remove(); btns.delete(id); }
     for (const w of want) {
       let b = btns.get(w.id);
@@ -138,8 +139,9 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       const ce = b.querySelector(".town-count"); if (cnt) { if (ce) ce.textContent = cnt; else b.appendChild(h("span", { class: "town-count num" }, cnt)); } else ce?.remove();
     }
     // c30-legible: the staked plot always wears its tag — what it becomes and what raises it (`kennel · first tame`), not only on tap
-    if (s.staked) { replace(tag, h("b", null, s.staked.id), s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
+    if (s.staked && (s.stage >= 1 || s.staked.ready)) { replace(tag, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " · ") : null, h("b", null, s.staked.id), s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
     else tag.hidden = true;
+    tag.disabled = !s.staked?.ready || !app.engine.buildTown;
     layout();
   }
   function layout(): void {
@@ -170,6 +172,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     if (id === "worker") { openWorks(app, b.dataset.worker || undefined, b); return; }
     if (id === "staked") {
       const s = state?.staked; if (!s) return;
+      if (s.ready && app.engine.buildTown) { void app.mutate(() => app.engine.buildTown!(s.id), /* copy:callout */ "build"); return; }
       // the next building and what raises it (`kennel · first tame`): always shown (c30-legible); a tap flashes it
       replace(tag, h("b", null, s.id), s.trigger ? h("span", { class: "dim" }, ` · ${s.trigger}`) : "");
       tag.hidden = false; placeTag(); tag.classList.add("flash"); clearTimeout(tagTimer); tagTimer = window.setTimeout(() => { tag.classList.remove("flash"); }, 1200);

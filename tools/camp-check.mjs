@@ -13,12 +13,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const MODES = ["offline", "packages", "wall", "clone", "setup"];
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");
 export function parseArgs(args) {
-  const out = { saves: [], modes: ["offline"], repeat: 1, record: null, compare: null, help: false };
+  const out = { saves: [], modes: ["offline"], repeat: 1, record: null, compare: null, help: false, balance: null };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--help") out.help = true;
     else if (arg === "--") { out.saves.push(...args.slice(i + 1)); break; }
-    else if (["--mode", "--repeat", "--record", "--compare"].includes(arg)) {
+    else if (["--mode", "--repeat", "--record", "--compare", "--balance"].includes(arg)) {
       const value = args[++i];
       if (!value || value.startsWith("--")) throw new Error(`missing value for ${arg}`);
       if (arg === "--mode") out.modes = [...new Set(value.split(","))];
@@ -64,6 +64,9 @@ async function main(args) {
     return;
   }
   const started = performance.now();
+  const balance = opt.balance ? readFileSync(opt.balance, "utf8") : null;
+  if (balance) process.env.RIDDLE_BALANCE_JSON = balance;
+  else delete process.env.RIDDLE_BALANCE_JSON;
   const snapshots = opt.saves.map((path) => readFileSync(path));
   const inputs = opt.saves.map((path, i) => ({ path: resolve(path), sha256: sha(snapshots[i]) }));
   const record = opt.record && resolve(opt.record), reference = opt.compare && resolve(opt.compare);
@@ -72,11 +75,12 @@ async function main(args) {
   if (reference) {
     previous = JSON.parse(readFileSync(join(reference, "manifest.json"), "utf8"));
     checkReference(previous, inputs, opt.modes);
+    if ((previous.balanceSha256 ?? null) !== (balance ? sha(balance) : null)) throw new Error("reference balance profile differs");
     // Reject corrupt references before spending time on any simulation.
     for (const c of previous.cases) if (sha(readFileSync(join(reference, c.file))) !== c.sha256) throw new Error("reference output is corrupt");
   }
   const buildStart = performance.now();
-  const build = execute("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "sim_perf", "--message-format=json"]);
+  const build = execute("cargo", ["build", "-q", "--profile", "fast", "-p", "riddle-core", "--example", "sim_perf", ...(balance ? ["--features", "dev-balance"] : []), "--message-format=json"]);
   const executable = build.split("\n").filter(Boolean).map((s) => JSON.parse(s))
     .find((m) => m.reason === "compiler-artifact" && m.target.name === "sim_perf" && m.executable)?.executable;
   if (!executable) throw new Error("Cargo did not report the diagnostic executable");
@@ -113,7 +117,7 @@ async function main(args) {
       mkdirSync(dirname(record), { recursive: true });
       mkdirSync(record); // Exclusive: never overwrite a reference made by another invocation.
       for (const [file, bytes] of outputs) writeFileSync(join(record, file), bytes);
-      writeFileSync(join(record, "manifest.json"), JSON.stringify({ version: 1, binary, inputs, modes: opt.modes, cases, buildSeconds }, null, 2) + "\n");
+      writeFileSync(join(record, "manifest.json"), JSON.stringify({ version: 1, balanceSha256: balance ? sha(balance) : null, binary, inputs, modes: opt.modes, cases, buildSeconds }, null, 2) + "\n");
     }
     console.log(`camp-check: ${cases.length} workloads · build ${buildSeconds.toFixed(2)}s · total ${((performance.now() - started) / 1000).toFixed(2)}s · diagnostic only`);
   } finally { rmSync(temporary, { recursive: true, force: true }); }

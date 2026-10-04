@@ -53,6 +53,14 @@ pub fn pool(kind: &str) -> &'static [&'static str] {
 /// Cut 24 §2: a floor event's line — never one this run or the last two showed while one is
 /// left (`Run.event_recent`), else the one shown longest ago; the first choice turns with the
 /// run's seed. Recorded for the lineage (`Run.event_used`).
+#[cfg(not(target_arch = "wasm32"))]
+static SHIPPING_WORDS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// The native app adapter mirrors WASM's word choices. Ordinary native gates
+/// keep their established event stream; select once before constructing games.
+pub fn use_shipping_words() {
+    #[cfg(not(target_arch = "wasm32"))]
+    SHIPPING_WORDS.store(true, std::sync::atomic::Ordering::Relaxed);
+}
 pub fn variant(run: &mut Run, kind: &str) -> String {
     let pool = pool(kind);
     if pool.is_empty() {
@@ -60,7 +68,10 @@ pub fn variant(run: &mut Run, kind: &str) -> String {
     }
     let n = pool.len();
     let recent = run.event_recent.get(kind).cloned().unwrap_or_default();
-    let start = (crate::rng::hash_str(kind) ^ run.seed) as usize % n;
+    let hash = crate::rng::hash_str(kind) ^ run.seed;
+    #[cfg(not(target_arch = "wasm32"))]
+    let hash = if SHIPPING_WORDS.load(std::sync::atomic::Ordering::Relaxed) { hash as u32 as u64 } else { hash };
+    let start = hash as usize % n;
     let pick = (0..n).map(|i| (start + i) % n).find(|i| !recent.contains(&(*i as u8))).unwrap_or_else(|| {
         // all shown lately: the one whose last showing is oldest
         (0..n).min_by_key(|i| recent.iter().rposition(|r| *r as usize == *i).map_or(0, |p| p + 1)).unwrap_or(0)

@@ -140,7 +140,7 @@ import { FoldTally, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
 import { kwHost } from "./tips";   // RUNS_UI: the live badge's tip
-import { goesOnCap } from "./runlane";   // RUNS_UI: the town tile's first-watches caption
+   // RUNS_UI: the town tile's first-watches caption
 
 type Tier = "bank" | "return" | "death";
 /** QA 92eb880 (N: the `fights` chip read `1.332247798006322×` over the portrait): a rate as the chip shows it — whole from 2×, one
@@ -370,10 +370,10 @@ export function renderWatch(app: App): Mounted {
   const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
   // RUNS_UI (docs/RUNS_UI.md): back to the town while he goes on — leaving the watch never stops the run (the town's lane shows it live;
   // the open app's clock plays it on, unwatched). The ↻ on the tile is the mark; its tip says the rest
-  const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "⌂", label: /* copy:button */ "town", onclick: () => { if (!done) app.leaveWatch(); } });
+  const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "⌂", label: /* copy:button */ "Town menu", onclick: () => { if (!done) app.leaveWatch(); } });
   // (its ↻ — he keeps going — is drawn on the tile's corner: runs.css `.town-btn::after`; the first watches also carry the one-time caption
   // `he keeps going` over it — the owner's concept rule: an icon and a one-time ≤ 3-word caption; its words are CSS's, not the tile's text)
-  { const cap = goesOnCap(); if (cap) toTown.appendChild(cap); }
+
   // Cut 10 §1: the interstitial — the ambient line over the map while the travel runs underneath; a tap holds the map at 8×
   const card = h("button", { class: "interstitial num", hidden: true, onclick: () => holdMap() });
   // Cut 27 §1: the fold line — the interstitial over a folded stretch (`D1–6 · 100% · +$84` and its chips), docked under the HUD once the
@@ -393,7 +393,36 @@ export function renderWatch(app: App): Mounted {
   const meterTile = tile({ id: "meters", cls: "meter-btn", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
     metersOn = !metersOn; writeMetersOn(metersOn); meterTile.classList.toggle("on", metersOn); meterBox.hidden = !metersOn; paintMeters(true);
   } });
-  const cons = renderConsole({ portrait: face.el, tiles: [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, meterTile, toTown], gem: pause, top: scrub });
+  const speedBtn = tile({ id: "speed", cls: "hud-btn", icon: "fast", label: /* copy:button */ "Speed", onclick: () => {
+    openSheet((close) => {
+      for (const m of Object.keys(modeBtn) as Mode[]) modeBtn[m].onclick = close;
+      return h("div", { class: "sheet-body watch-options" },
+        h("div", { class: "label" }, /* copy:label */ "Watch speed"),
+        h("div", { class: "chips" }, modeBtn.one, modeBtn.fights, modeBtn.fast),
+        h("div", { class: "label" }, /* copy:label */ "Run controls"),
+        h("div", { class: "chips" }, skip, meterTile, bail));
+    });
+  } });
+  const cons = renderConsole({ portrait: face.el, tiles: [speedBtn, toTown], gem: pause, top: scrub });
+  const combatRows = h("ol", { class: "combat-lines", "aria-live": "off" });
+  const combatLog = h("details", { class: "combat-log", open: true },
+    h("summary", null, /* copy:label */ "Combat log"), combatRows);
+  let logDepth = app.lineage.live?.depth ?? 1;
+  function logEvent(ev: Ev, heroId: number): void {
+    let text: string | undefined;
+    const who = (id: number): string => id === heroId ? /* copy:label */ "Hero" : victims.get(id) ?? /* copy:label */ "Foe";
+    if (ev.k === "attack") text = ev.hit ? `${who(ev.src)} → ${who(ev.dst)} · −${ev.dmg} hp` : `${who(ev.src)} → ${who(ev.dst)} · miss`;
+    else if (ev.k === "hurt") text = `${who(ev.id)} · ${ev.cause.replace(/_/g, " ")} −${ev.dmg} hp`;
+    else if (ev.k === "die") text = `${who(ev.id)} · fell`;
+    else if (ev.k === "use") text = `${ev.item} · ${ev.outcome}`;
+    else if (ev.k === "rule" && ev.row >= 0) text = ev.text;
+    else if (ev.k === "descend") { logDepth = ev.depth; text = /* copy:callout */ `Floor ${ev.depth}`; }
+    else if (ev.k === "exit") text = ev.line?.text ?? `${ev.tier} · $${ev.loot_kept}`;
+    if (!text) return;
+    combatRows.appendChild(h("li", { "data-tick": String(ev.t) }, h("small", { class: "dim num" }, `D${logDepth} · `), text));
+    while (combatRows.childElementCount > 80) combatRows.firstElementChild?.remove();
+    combatRows.scrollTop = combatRows.scrollHeight;
+  }
   const wideMeters = h("div", { class: "meters-live" });
   const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
   function paintMeters(now = false): void {
@@ -404,12 +433,12 @@ export function renderWatch(app: App): Mounted {
   }
   // RUNS_UI (the blind read: "is WATCH the live run or a replay? does it go on if I leave?"): the HUD says it is the run going on now,
   // and that it goes on by itself (`↻ auto`, the lane's mark) — the `town` tile's ↻ is the same mark
-  const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), /* copy:label */ "live",
-    app.lineage.tree?.auto_send !== false ? h("span", { class: "lb-auto" }, " · ↻ ", /* copy:label */ "auto") : ""), "live");
+  const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), /* copy:label */ "Live delve",
+    h("span", { class: "lb-auto" }, " · ", /* copy:label */ "continues away")), "live");
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
-      meterBox, banner, ticker, whyLine, whyTip),
+      meterBox, banner, ticker, whyLine, whyTip, combatLog),
     cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
@@ -871,6 +900,7 @@ export function renderWatch(app: App): Mounted {
     const heroId = s.hero.id;
     for (const e of s.entities) { if (e.ally) allies.add(e.id); else if (e.id !== heroId) victims.set(e.id, (e.name ?? e.kind).replace(/_/g, " ")); if (e.tags.includes("boss")) bossIds.add(e.id); }
     for (const ev of evs) {
+      if (["attack", "hurt", "die", "use", "rule", "descend", "exit"].includes(ev.k)) at(ev.t, () => logEvent(ev, s.hero.id));
       if (ev.k === "drain") drainOn = drainWord(ev.cause);
       else if (ev.k === "descend" || ev.k === "exit" || (ev.k === "attack" && ev.dst === heroId)) drainOn = null;   // the stairs, the end, a blow: the stretch is over
       else if (drainOn && (ev.k === "hurt" || ev.k === "max_hp") && ev.id === heroId) drainEvs.add(ev);
@@ -1307,7 +1337,7 @@ export function renderWatch(app: App): Mounted {
     if (!viewer?.setKeepOut || now - keepAt < KEEP_MS) return;
     keepAt = now;
     const c = canvas.getBoundingClientRect();
-    const els: Element[] = [...el.querySelectorAll(".hud.top > *")];
+    const els: Element[] = [...el.querySelectorAll(".hud.top > *"), combatLog];
     if (!foldLine.hidden && foldLine.classList.contains("docked")) els.push(foldHead, ...foldChips.children);
     for (const x of [banner, ticker, whyTip]) if (x.classList.contains("show")) els.push(x);
     const rects: { x: number; y: number; w: number; h: number }[] = [];
@@ -1676,7 +1706,7 @@ export function renderWatch(app: App): Mounted {
     const b = beat && beat.cage && !beat.shown ? beat : null, t = b ? b.from : viewerTick();
     seekTo(t); release(t); letGo(t); cardSince = -Infinity; applyFrame(); applySpeed();
   }
-  function paintPause(): void { pause.classList.toggle("on", paused); pause.classList.toggle("pulse", paused); replace(pause, icon(paused ? "play" : "pause"), h("span", { class: "gem-glyph" }, paused ? "▶" : "⏸")); }
+  function paintPause(): void { pause.setAttribute("aria-label", paused ? /* copy:button */ "Resume watch" : /* copy:button */ "Pause watch"); pause.classList.toggle("on", paused); pause.classList.toggle("pulse", paused); replace(pause, icon(paused ? "play" : "pause"), h("span", { class: "gem-glyph" }, paused ? "▶" : "⏸")); }
   // Cut 27 §1 — solved floors fold: the floors the camp's forecast says the sent set clears ≥ 95 % (`foldFloors`) are stepped flat out
   // under the fold line, never watched; the watch opens at the first floor below the bar. The world stands while the line holds.
   let foldSet = new Set<number>();

@@ -431,6 +431,21 @@ impl Plan {
         self.rows.iter().map(|r| ROWS[*r].id).collect::<Vec<_>>().join(",")
     }
 
+    /// Cross-runtime scheduling hints only. They never supply a game or verdict.
+    pub fn priority_seeds(&self) -> Vec<u64> {
+        let mut seeds = Vec::new();
+        if !self.fail_fast || std::env::var_os("RIDDLE_SEED_ORDER_NUMERIC").is_some() { return seeds; }
+        for &r in &self.rows {
+            let path = format!("target/gates/failure-hints/{}.json", ROWS[r].id);
+            if let Ok(text) = std::fs::read_to_string(path) {
+                if let Ok(s) = serde_json::from_str::<u64>(&text) {
+                    if (1..=1_000_000).contains(&s) && !seeds.contains(&s) { seeds.push(s); }
+                }
+            }
+        }
+        seeds
+    }
+
     /// Whether configuration `c` plays seed `s` at all.
     pub fn wants(&self, c: &Cfg, s: u64) -> bool {
         self.needs.contains_key(&(label(c), s))
@@ -477,6 +492,14 @@ impl Plan {
                     settled.insert(r, Verdict::Pass(s));
                 }
                 Verdict::Fail(s) => {
+                    // Remember the completing seed, independently of acceptance caches.
+                    if let Some(seed) = last.split_whitespace().find_map(|t| t.strip_prefix('s').and_then(|s| s.parse::<u64>().ok())) {
+                        let dir = std::path::Path::new("target/gates/failure-hints");
+                        let _ = std::fs::create_dir_all(dir);
+                        let path = dir.join(format!("{}.json", ROWS[r].id));
+                        let tmp = path.with_extension(format!("tmp{}", std::process::id()));
+                        if std::fs::write(&tmp, seed.to_string()).is_ok() { let _ = std::fs::rename(tmp, path); }
+                    }
                     println!("\nfail-fast: `{}` settled FAIL after {last} ({:.0}s)\n  {}\n  {s}", ROWS[r].id, t0.elapsed().as_secs_f64(), ROWS[r].key);
                     settled.insert(r, Verdict::Fail(s));
                     self.print_settled(&settled, t0);
@@ -554,14 +577,15 @@ impl Plan {
 
 /// The pool's push with the lower seeds first (fail-fast: a seed's verdicts land as early as they can),
 /// then the pool's own order within a seed. Scheduling only: the same games, the same results.
-pub fn push_seed_first(pool: &Pool, g: Group, cfgs: &[Cfg], days: usize, checkins: u64) {
+pub fn push_seed_first(pool: &Pool, g: Group, cfgs: &[Cfg], days: usize, checkins: u64, priority: &[u64]) {
     let weight = g.members.iter().map(|c| match cfgs[*c].bot {
         Bot::Tuned => 3,
         Bot::Picked => 2,
         _ => 1,
     });
     let left = g.state.as_ref().map_or(days as u64 * checkins, |p| (days - p.day.min(days)) as u64 * checkins - p.ci);
-    let prio = ((1u64 << 20) - g.seed.min((1 << 20) - 1)) << 40 | (weight.max().unwrap_or(1) * left).min((1 << 40) - 1);
+    let rank = priority.iter().position(|s| *s == g.seed).map_or(priority.len() as u64 + g.seed, |i| i as u64);
+    let prio = ((1u64 << 20) - rank.min((1 << 20) - 1)) << 40 | (weight.max().unwrap_or(1) * left).min((1 << 40) - 1);
     let mut q = pool.q.lock().unwrap();
     q.1 += 1;
     q.2 += 1;

@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { nativePlugin } from "../tools/native-host.mjs";
 
 // Injects the emitted bundle's file list into public/sw.js as a versioned precache manifest.
 function swPrecache(): Plugin {
@@ -30,6 +31,6 @@ function swPrecache(): Plugin {
 export default defineConfig({
   base: process.env.RIDDLE_BASE ?? "/",
   define: { "import.meta.env.VITE_BUILD_DATE": JSON.stringify(new Date().toISOString().slice(0, 10)) },
-  plugins: [swPrecache()],
+  plugins: [swPrecache(), nativePlugin()],
   build: { target: "es2022", sourcemap: false, chunkSizeWarningLimit: 900 },
 });

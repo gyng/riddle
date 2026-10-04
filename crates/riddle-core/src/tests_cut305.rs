@@ -239,6 +239,8 @@ fn chores_by_hand_count_toward_their_worker() {
     for _ in 0..3 {
         run_offline_counts(&mut g, 8 * 3600);
     }
+    g.build_town("blacksmith").unwrap();
+    if !g.lineage.vault.is_empty() { g.build_town("storehouse").unwrap(); }
     let ids: Vec<u32> = g.lineage.vault.iter().map(|v| v.id).collect();
     if !ids.is_empty() {
         g.loadout(ids.clone());

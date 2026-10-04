@@ -78,11 +78,15 @@ pub fn text<T: Serialize>(v: &T) -> Option<String> {
 /// when it prints back to its own text, i.e. when it was read exactly.)
 pub fn read<T: Serialize + DeserializeOwned>(p: &std::path::Path) -> Option<T> {
     let t = std::fs::read_to_string(p).ok()?;
-    let v: serde_json::Value = serde_json::from_str(&t).ok()?;
+    decode(&t)
+}
+
+pub fn decode<T: Serialize + DeserializeOwned>(t: &str) -> Option<T> {
+    let v: serde_json::Value = serde_json::from_str(t).ok()?;
     match v {
         serde_json::Value::Object(mut o) if o.get("f64bits").is_some() => serde_json::from_value(floats(o.remove("v")?, false)).ok(),
         _ => {
-            let r: T = serde_json::from_str(&t).ok()?;
+            let r: T = serde_json::from_str(t).ok()?;
             (serde_json::to_string(&r).ok()? == t).then_some(r)
         }
     }

@@ -1444,6 +1444,8 @@ pub struct BuildingWire {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct TownWire {
     pub buildings: Vec<BuildingWire>,
+    #[serde(default)]
+    pub next_ready: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

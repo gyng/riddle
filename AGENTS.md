@@ -38,10 +38,14 @@ research/              the four research reports behind the plan
 tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint            ~45 s
 tools/tune.sh <row-ids>        # content iteration: full seed counts, targeted requirements, fail-fast; --list lists rows; never a full gate pass
 node tools/camp-check.mjs SAVE... [--record DIR|--compare DIR] # saved-camp feedback: three 8h native replays ~4 s warm; --mode packages,wall for tuning searches; diagnostic, never the gate
+tools/native-dev.sh                                         # real Rust dev UI on :5367; rebuild native, no wasm packaging; docs/NATIVE_DEV.md
+# RIDDLE_BALANCE_FILE=<profile> RIDDLE_NATIVE_PORT=5368 tools/native-dev.sh: compile-free validated tuning
+# tools/tune.sh <rows> --resume: internal check-in checkpoints, exact runtime/parameters only
 tools/verify.sh                # + clippy → wasm (fast) → web build → quick gates   ~2 min + the quick gate (cached: seconds; fresh after a core edit: ~30–40 min, below)
-tools/verify.sh --full         # + shipping wasm → full gate table                  ~4 min + the full gate (fresh after a core edit: ~1–1.5 h, below)
+tools/verify.sh --full         # shipping + bounded current-game regression suite (18 fortnight cases); docs/UX_SIMPLE.md
+tools/verify.sh --exhaustive   # explicit 272-case balance/migration audit; about an hour fresh
 cargo test -q --workspace --profile fast                     # ~36 s warm (CPU-bound on the cores); never plain `cargo test` (7× slower)
-node tools/gates.mjs [--full|--fast] [--fresh]               # quick: 8 seeds × 8 h × 3 verdicts + the dayplayer (2 seeds, 1 leave-one-out) + the wire invariants (examples/qa.rs) alongside; full: 30 × 8 × 8, dayplayer 16 seeds (TUNED and the leave-one-outs too); --fast: the quick table less the retired progression lineages, qa 10 seeds, IDLE's rows. CPU-bound: fresh, the full gate is ~40–50 min of a quiet box (the dayplayer's PICKED/TUNED fortnights, ~1 k CPU-s each at one thread since the hot-path round, are most of it; docs/ITERATION_SPEED.md round 5) and the quick one ~30–40 min. Each leg's printout cached by its own binary hash (a client-only change reprints in 0.2 s); inside the legs the long jobs (dayplayer fortnights, progression lineages, lever/oath/lane jobs, IDLE snapshots) are kept by the core's sources + their own harness file (`RIDDLE_SRC_KEY`), so a bar or row edit reprints in seconds to minutes and only a core edit replays them (docs/ITERATION_SPEED.md 0e). `GATES_THREADS=N` caps each leg
+node tools/gates.mjs [--full|--fast] [--fresh] # routine: current-game metrics,10 wire seeds,18 current-player fortnight cases (--full); --exhaustive: original272 cases and30-seed statistical audit. --fresh ignores caches; GATES_THREADS=N caps parallelism. Each genuine completed leg and exact runtime/harness job is cached separately.
 node tools/gates.mjs [--full] --rows <ids|substrings> [--fail-fast] [--seeds 8 …]   # TARGETED, a tuning loop's check, never the gate: the dayplayer on the named rows alone — only the bots, seeds and days they read, each game stopped at its row's milestone; --fail-fast plays seeds lowest first and aborts on the first row settled FAIL (an every-seed row's first failing seed, a median the seeds left cannot rescue), naming the seed and value. `target/fast/examples/dayplayer --rows ?` lists the row ids (docs/ITERATION_SPEED.md §0h)
 (cd web && pnpm -s test)                                     # the client gates, headless, on the suite's own no-HMR Vite server (~5 min); `node tests/run.mjs fights clarity:paint` for a few
 tools/wasm.sh [--ship]                                       # fast wasm (~8 s after a core edit) / wasm-pack release (~2 min)
@@ -77,6 +81,11 @@ third of it the chores' floods).
    become the next contract.
 
 ## Hard invariants
+
+Owner amendment2026-10-04: routine full checks use18 current-player cases;
+the16-seed statistical balance/migration invariants below remain in the explicit
+exhaustive audit. Routine success does not certify that omitted audit.
+New towns and unbuilt legacy plots require manual construction.
 
 - All game truth in Rust. TS renders and edits only.
 - Determinism: same seed + rules + elapsed ⇒ identical events. Replay-hash test exists.

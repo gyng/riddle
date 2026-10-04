@@ -15,9 +15,14 @@ pub const BUILDINGS: [(&str, &str); 4] = [("blacksmith", "first gold home"), ("s
 pub const BANK_PCT: i32 = 2;
 pub const BANK_NIGHTS: i32 = 3;
 
+fn manual_default() -> bool { true }
+
 /// The lineage's town (`LineageState::town`).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Town {
+    /// Buildings require construction by hand, including unbuilt plots in old saves.
+    #[serde(default = "manual_default", skip_serializing_if = "std::ops::Not::not")]
+    pub manual: bool,
     /// Buildings built, in the order they were (id, the day built).
     #[serde(default)]
     pub built: Vec<(String, u32)>,
@@ -61,6 +66,7 @@ pub fn built(l: &LineageState, id: &str) -> bool {
 
 /// Build every building whose trigger has happened; the ids built now.
 pub fn update(l: &mut LineageState) -> Vec<String> {
+    if l.town.manual { return Vec::new(); }
     let mut out = Vec::new();
     for (id, _) in BUILDINGS {
         if !built(l, id) && triggered(l, id) {
@@ -70,6 +76,15 @@ pub fn update(l: &mut LineageState) -> Vec<String> {
         }
     }
     out
+}
+
+/// Construction is free once its milestone is met; never happens during an absence.
+pub fn construct(l: &mut LineageState, id: &str) -> Result<(), String> {
+    if !BUILDINGS.iter().any(|(b, _)| *b == id) { return Err("unknown building".into()); }
+    if built(l, id) { return Err("already built".into()); }
+    if !triggered(l, id) { return Err("not ready".into()); }
+    l.town.built.push((id.into(), l.day));
+    Ok(())
 }
 
 /// A building's look (1–3): the blacksmith by its forge steps, the bank by its balance.
@@ -392,6 +407,7 @@ pub fn wire(l: &LineageState) -> TownWire {
     TownWire {
         buildings: l.town.built.iter().map(|(id, day)| crate::wire::BuildingWire { id: id.clone(), level: level(l, id), day: *day, trigger: BUILDINGS.iter().find(|b| b.0 == id).map(|b| b.1.to_string()).unwrap_or_default() }).collect(),
         next: next.as_ref().map(|n| n.0.clone()),
+        next_ready: next.as_ref().is_some_and(|n| triggered(l, &n.0)),
         next_trigger: next.map(|n| n.1),
         bank: l.town.bank,
         bank_cap: bank_cap(l),

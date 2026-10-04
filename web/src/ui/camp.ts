@@ -271,6 +271,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   /** Cut 30 §2: the pen gates the editor (and the forecast's detail: one headline before it). */
   function paintPen(): void {
     const pen = penOpen(app.lineage);
+    const fresh = app.lineage.best_depth === 0 && !(app.lineage.runs?.length);
+    el.dataset.first = fresh ? "1" : "0";
+    const main = well.querySelector<HTMLElement>(".camp-main"); if (main) main.hidden = fresh;
     editor.el.hidden = !pen;
     el.classList.toggle("prepen", !pen);
     pkgStrip.paint();
@@ -901,21 +904,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     send.disabled = app.overBudget || empty;
     send.classList.toggle("pulse", !app.overBudget && !empty);
     send.classList.toggle("small", app.overBudget || empty);
-    // Cut 22 (AG, AH: "the watch stayed on `fast 4×` from the earlier run — I hadn't noticed"): the remembered mode is kept (QA on
-    // e0f87e7 asked for it) and the gem says it — `send` over a small `fast` — so the next run's pace is never a surprise
-    // QA 524827b (qaAA: `SEND / FAST` read as one word pair, or a second button): the pace reads as the watch's own mode — a play mark,
-    // lower case, on a pill (`▸ fast`), never a second word of the gem
-    // Cut 28 §3 (AU: "the watch defaults to `fights` so my first 1× watch was not 1×"): the gem names the mode always — `fights` too —
-    // and the pill is the choice: a tap on it steps `fights → 1× → fast` (remembered, `app.persist`) and never sends
+    // Speed is chosen once, in the watch. The send gem only sends.
     send.dataset.mode = app.watchMode;
-    const MODES = ["fights", "one", "fast"] as const;
-    /* copy:label */
-    const MODE_LABEL: Record<string, string> = { fights: "fights only", one: "normal", fast: "fast" };
-    const pill = h("small", { class: "send-mode", role: "switch", "aria-checked": "true", "data-mode": app.watchMode, title: "watch pace",
-      onclick: (e: Event) => { e.stopPropagation(); e.preventDefault(); app.watchMode = MODES[(MODES.indexOf(app.watchMode) + 1) % MODES.length]; app.persist(); paintSend(); } },
-      /* copy:none */ "▸ ", MODE_LABEL[app.watchMode] ?? app.watchMode);
     replace(send, empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
-      : h("span", { class: "send-l" }, isLive() ? /* copy:button */ "watch" : /* copy:button */ "send", pill, sendMark(app.lineage)));   // Cut 12 §1: own rows; RUNS_UI: a run under way is watched
+      : h("span", { class: "send-l" }, isLive() ? /* copy:button */ "watch" : /* copy:button */ "send", sendMark(app.lineage)));   // Cut 12 §1: own rows; RUNS_UI: a run under way is watched
     send.dataset.live = isLive() ? "1" : "0";
     paintTabs();
     if (unlockCat) paintFrom(unlockCat);   // `+1 row` reads `⊘ fill rows` only while a free own row exists

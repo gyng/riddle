@@ -11,6 +11,8 @@ use riddle_core::rng::Rng;
 use riddle_core::Game;
 #[path = "jobcache_lib/mod.rs"]
 mod jobcache;
+#[path = "dayplayer_checkpoint/mod.rs"]
+mod checkpoint_game;
 
 /// Milestones (Cut 30 §6: time-to-milestone = simulated hours to reach each).
 const MILESTONES: [u32; 7] = [8, 13, 18, 23, 28, 29, 33];
@@ -198,7 +200,7 @@ fn take_patch(g: &mut Game, patch: &riddle_core::Patch) -> bool {
 }
 
 /// Exact fallback rows authored by this bot; cloned together with the game at forks.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 struct CounterCopy { boss: String, rows: Vec<Row> }
 
 fn same_owned_row(a: &Row, b: &Row) -> bool {
@@ -457,6 +459,12 @@ fn camp_taps(g: &mut Game, ask: &Ask, arm: u8, out: &mut SeedOut, h: f64) {
     if arm == 4 {
         return;
     }
+    // Engaged bots make the player's newly manual construction choices at camp.
+    if arm == 2 || arm == 3 {
+        for (id, _) in riddle_core::town::BUILDINGS {
+            if id != "bank" || ask.has("bank") { let _ = g.build_town(id); }
+        }
+    }
     if (arm == 2 || arm == 3) && g.lineage.tree.chest > 0 {
         let _ = g.open_chest();
     }
@@ -672,13 +680,14 @@ impl Ask<'_> {
 
 /// One bot's fortnight as a state that advances a check-in at a time (`step`), cloned where the
 /// configurations sharing it part.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct Play {
     seed: u64,
     days: usize,
     checkins: u64,
     interval: u64,
     verbose: bool,
+    #[serde(with = "checkpoint_game")]
     g: Game,
     out: SeedOut,
     rng: Rng,
@@ -702,6 +711,72 @@ struct Play {
     /// Cut 30.5: the first session's seconds (the first absence is the check-in interval less them)
     session_s: u64,
     counter_copies: Vec<CounterCopy>,
+}
+
+/// Internal check-in snapshot, not a player save: Game::load applies camp
+/// migrations, so restore the complete serde state directly and exactly.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Checkpoint { key: String, body: String, checksum: u64 }
+fn checkpoint_hash(text: &str) -> u64 { riddle_core::rng::hash_str(text) }
+fn checkpoint_read(path: &std::path::Path, key: &str, seed: u64, days: usize) -> Option<Play> {
+    let record: Checkpoint = jobcache::read(path)?;
+    if record.key != key || checkpoint_hash(&record.body) != record.checksum { return None; }
+    let p: Play = jobcache::decode(&record.body)?;
+    (p.seed == seed && p.out.seed == seed && p.days == days && p.day <= days
+        && p.checkins > 0 && p.ci < p.checkins && p.interval == 24 * 3600 / p.checkins
+        && !p.verbose && !p.done()).then_some(p)
+}
+fn checkpoint_keep(path: &std::path::Path, key: &str, p: &Play) {
+    if let Some(body) = jobcache::text(p) {
+        jobcache::keep(path, &Checkpoint { key: key.into(), checksum: checkpoint_hash(&body), body });
+    }
+}
+
+#[cfg(test)]
+mod checkpoint_tests {
+    use super::*;
+    #[test]
+    fn resume_preserves_complete_bot_outputs_and_game() {
+        riddle_core::forecast::set_parallel_sims(false);
+        riddle_core::engine::set_capsules(false);
+        let dir = std::env::temp_dir().join(format!("riddle-dp-checkpoint-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("play.json");
+        for bot in [Bot::Idle, Bot::Random, Bot::Picked, Bot::Away] {
+            let cfg = Cfg { bot, without: None };
+            let mut original = Play::new(5, 2, 3, false, &Ask::new(&cfg));
+            original.step(&Ask::new(&cfg));
+            checkpoint_keep(&path, "exact-runtime-and-parameters", &original);
+            assert!(checkpoint_read(&path, "changed-runtime", 5, 2).is_none());
+            assert!(checkpoint_read(&path, "exact-runtime-and-parameters", 6, 2).is_none());
+            let mut restored = checkpoint_read(&path, "exact-runtime-and-parameters", 5, 2).unwrap();
+            while !original.done() { original.step(&Ask::new(&cfg)); }
+            while !restored.done() { restored.step(&Ask::new(&cfg)); }
+            assert_eq!(jobcache::text(&original.out), jobcache::text(&restored.out), "{} outputs", cfg.label());
+            let a = original.g.save(); let b = restored.g.save();
+            if a != b {
+                std::fs::write(dir.join("original.json"), &a).unwrap();
+                std::fs::write(dir.join("restored.json"), &b).unwrap();
+                panic!("{} game mismatch: {}", cfg.label(), dir.display());
+            }
+            let mut bad: Checkpoint = jobcache::read(&path).unwrap();
+            bad.body.push(' '); jobcache::keep(&path, &bad);
+            assert!(checkpoint_read(&path, "exact-runtime-and-parameters", 5, 2).is_none());
+            std::fs::write(&path, "truncated {").unwrap();
+            assert!(checkpoint_read(&path, "exact-runtime-and-parameters", 5, 2).is_none());
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn failure_priority_changes_only_queue_order() {
+        let pool = Pool::default();
+        let cfgs = [Cfg { bot: Bot::Idle, without: None }];
+        for seed in 1..=6 { rows::push_seed_first(&pool, Group { seed, members: vec![0], state: None }, &cfgs, 2, 3, &[5]); }
+        let mut seen = Vec::new();
+        while let Some(g) = pool.pop() { seen.push(g.seed); pool.done(); }
+        assert_eq!(seen, vec![5,1,2,3,4,6]);
+        seen.sort(); assert_eq!(seen, (1..=6).collect::<Vec<_>>());
+    }
 }
 
 impl Play {
@@ -1098,6 +1173,7 @@ fn ratio(slow: &[SeedOut], fast: &[SeedOut], i: usize) -> f64 {
 static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
 
 fn main() {
+    riddle_core::balance::configure_from_env().expect("valid immutable balance profile");
     // RUNS_UI: real games at scale keep no replay capsules (a lineage clone per send never read)
     riddle_core::engine::set_capsules(false);
     // The groups fill `--threads` (10 unless set) seed by seed; a group's panels take the threads the
@@ -1110,7 +1186,8 @@ fn main() {
     let checkins = get("--checkins", 3);
     let gate = a.iter().any(|x| x == "--gate");
     let verbose = a.iter().any(|x| x == "--verbose");
-    let loo = a.iter().any(|x| x == "--loo") || gate;
+    let routine = a.iter().any(|x| x == "--routine");
+    let loo = a.iter().any(|x| x == "--loo") || (gate && !routine);
     let only = a.iter().position(|x| x == "--only").and_then(|i| a.get(i + 1)).and_then(|s| s.parse::<u64>().ok());
     let bots_arg = a.iter().position(|x| x == "--bots").and_then(|i| a.get(i + 1)).cloned().unwrap_or_else(|| "idle,picked,tuned,random,hands,daily,away".into());
     let mut cfgs: Vec<Cfg> = bots_arg
@@ -1129,7 +1206,7 @@ fn main() {
         .map(|bot| Cfg { bot, without: None })
         .collect();
     // (Cut 30.5: IDLE's bounded delta reads Cut 30's IDLE beside it)
-    if cfgs.iter().any(|c| c.bot == Bot::Idle) && !cfgs.iter().any(|c| c.bot == Bot::Idle30) {
+    if !routine && cfgs.iter().any(|c| c.bot == Bot::Idle) && !cfgs.iter().any(|c| c.bot == Bot::Idle30) {
         cfgs.push(Cfg { bot: Bot::Idle30, without: None });
     }
     // (`--loo-only packages,forge`: a probe's leave-one-outs, the rest left out)
@@ -1178,15 +1255,38 @@ fn main() {
             let src = include_str!("dayplayer.rs");
             let body = src.find("\nfn main() {").map_or(src, |i| &src[..i]);
             let env = std::env::var("RIDDLE_SKIP_TWIST").unwrap_or_default();
-            format!("src{:016x}", fnv(env.as_bytes(), fnv(body.as_bytes(), fnv(k.as_bytes(), 0xcbf2_9ce4_8422_2325))))
+            let checkpoint = include_str!("dayplayer_checkpoint/mod.rs");
+            let cache = include_str!("jobcache_lib/mod.rs");
+            format!("src{:016x}", fnv(cache.as_bytes(), fnv(checkpoint.as_bytes(), fnv(env.as_bytes(), fnv(body.as_bytes(), fnv(k.as_bytes(), 0xcbf2_9ce4_8422_2325))))))
         }
         Err(_) => format!("{:016x}", fnv(&std::fs::read(std::env::current_exe().expect("exe")).unwrap_or_default(), 0xcbf2_9ce4_8422_2325)),
+    };
+    // Direct feature-enabled invocations need the same input binding as the
+    // tooling wrapper. Never let a different profile read another one's jobs.
+    let bin_key = match std::env::var("RIDDLE_BALANCE_JSON") {
+        Ok(profile) => format!("{bin_key}-balance{:016x}", fnv(profile.as_bytes(), 0xcbf2_9ce4_8422_2325)),
+        Err(_) => bin_key,
+    };
+    let bin_key = match std::env::var("RIDDLE_SKIP_TWIST") {
+        Ok(value) => format!("{bin_key}-twist{:016x}", fnv(value.as_bytes(), 0xcbf2_9ce4_8422_2325)),
+        Err(_) => bin_key,
     };
     // (`DP_STALLS` prunes the stall records it prints: a different game, never kept)
     let keep = !verbose && std::env::var("DP_STALLS").is_err() && std::env::var("DP_OFF").is_err();
     let cache_dir = std::path::PathBuf::from("target/gates/dp");
     let _ = std::fs::create_dir_all(&cache_dir);
     let cache_of = |c: &Cfg, s: u64| cache_dir.join(format!("{bin_key}-{}-s{s}-d{days}-c{checkins}.json", c.label()));
+    // Opt in for long local runs. Bind the complete executable (runtime AND
+    // harness), exact CLI parameters, and behavior-affecting environment.
+    let resume = keep && a.iter().any(|x| x == "--resume");
+    let checkpoint_dir = cache_dir.join("checkpoints");
+    if resume { let _ = std::fs::create_dir_all(&checkpoint_dir); }
+    let executable = std::fs::read(std::env::current_exe().expect("exe")).expect("checkpoint executable");
+    let identity = format!("{:016x}", fnv(&executable, 0xcbf2_9ce4_8422_2325));
+    let env = ["RIDDLE_SKIP_TWIST", "RIDDLE_BALANCE_JSON", "DP_OFF", "DP_STALLS"].iter()
+        .map(|k| format!("{k}={}", std::env::var(k).unwrap_or_default())).collect::<Vec<_>>().join("\n");
+    let checkpoint_key = format!("{identity}:{:016x}", fnv(env.as_bytes(), fnv(serde_json::to_string(&a[1..]).unwrap().as_bytes(), 0xcbf2_9ce4_8422_2325)));
+    let checkpoint_of = |c: &Cfg, s: u64| checkpoint_dir.join(format!("{checkpoint_key}-{}-s{s}.json", c.label()));
     let results: std::sync::Mutex<Vec<(usize, SeedOut)>> = std::sync::Mutex::new(Vec::new());
     // Each seed's configurations to play (those not kept), as one group: the group plays as its first
     // member and parts where a member answers a read differently (`Ask`) — the parting members go on as a
@@ -1200,7 +1300,13 @@ fn main() {
             let hit = if keep && std::env::var_os("RIDDLE_CACHE_FRESH").is_none() { jobcache::read::<SeedOut>(&cache_of(&cfgs[c], s)) } else { None };
             match hit {
                 Some(o) => results.lock().unwrap().push((c, o)),
-                None => members.push(c),
+                None => {
+                    let state = (resume && std::env::var_os("RIDDLE_CACHE_FRESH").is_none()).then(|| checkpoint_read(&checkpoint_of(&cfgs[c], s), &checkpoint_key, s, days)).flatten();
+                    if let Some(p) = state {
+                        eprintln!("dayplayer: resume {} s{s} at day {} check-in {}", cfgs[c].label(), p.day + 1, p.ci + 1);
+                        groups.push(Group { seed: s, members: vec![c], state: Some(p) });
+                    } else { members.push(c); }
+                }
             }
         }
         // (the longest bots lead: TUNED first, so a group's first member is the one that parts least)
@@ -1215,8 +1321,10 @@ fn main() {
     }
     let threads = get("--threads", 10) as usize;
     let pool = Pool::default();
+    let priority = plan.as_ref().map(|p| p.priority_seeds()).unwrap_or_default();
+    if !priority.is_empty() { eprintln!("dayplayer: prior failure seeds first {priority:?} (scheduling hints only)"); }
     // (fail-fast: the lower seeds first, so a seed's verdicts land early)
-    let push = |g: Group| if plan.as_ref().is_some_and(|p| p.fail_fast) { rows::push_seed_first(&pool, g, &cfgs, days, checkins) } else { pool.push(g, &cfgs, days, checkins) };
+    let push = |g: Group| if plan.as_ref().is_some_and(|p| p.fail_fast) { rows::push_seed_first(&pool, g, &cfgs, days, checkins, &priority) } else { pool.push(g, &cfgs, days, checkins) };
     for g in groups {
         push(g);
     }
@@ -1263,6 +1371,13 @@ fn main() {
                             if members.len() > 1 {
                                 part(&ask, &mut members, snap);
                             }
+                            if resume && !p.done() {
+                                for &c in &members { checkpoint_keep(&checkpoint_of(&cfgs[c], s), &checkpoint_key, &p); }
+                                if std::env::var("DP_CHECKPOINT_STOP_AFTER").is_ok_and(|v| v.parse::<u64>().ok() == Some(p.day as u64 * p.checkins + p.ci)) {
+                                    eprintln!("dayplayer: diagnostic stop after complete checkpoint (not acceptance)");
+                                    std::process::exit(75);
+                                }
+                            }
                         }
                     });
                     widen(-1);
@@ -1271,6 +1386,7 @@ fn main() {
                         // (a game stopped early for `--rows` is not the job: never kept)
                         if keep && p.done() {
                             jobcache::keep(&cache_of(&cfgs[c], s), &p.out);
+                            if resume { let _ = std::fs::remove_file(checkpoint_of(&cfgs[c], s)); }
                         }
                         results.lock().unwrap().push((c, p.out.clone()));
                     }
@@ -1615,6 +1731,7 @@ fn main() {
         );
     }
     println!();
+    if routine { eprintln!("routine coverage: current player modes and paired daily/away workers; historical migration and TUNED system-removal balance comparisons require --exhaustive"); }
     println!("{:<64} {:>18}  result", "bar", "value");
     let mut fails = 0;
     for (name, value, ok) in &bars {

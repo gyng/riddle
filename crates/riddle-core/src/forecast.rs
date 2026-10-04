@@ -47,7 +47,7 @@ pub const MIN_SIMS: u32 = 5;
 /// `best_depth + 1`, so a deep lineage's sims stay cheap), never past the run cap.
 pub const SIM_MAX_TICKS: u32 = crate::engine::MAX_TURNS_PER_RUN;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SimResult {
     pub max_depth: u32,
     pub tier: ExitTier,

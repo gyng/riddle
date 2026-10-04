@@ -1,6 +1,7 @@
 //! Riddle core: deterministic roguelike sim, rule engine, facts, forecast, offline batch,
 //! chronicle, sifter, meta. All game truth lives here. See docs/CUT1.md.
 pub mod ai;
+pub mod balance;
 pub mod chronicle;
 pub mod defs;
 pub mod descent;
@@ -211,6 +212,9 @@ impl Game {
         Ok(())
     }
     /// Cut 30.5: hire the lit node's worker (its price from the purse, then the chest).
+    pub fn build_town(&mut self, id: &str) -> Result<(), String> {
+        town::construct(&mut self.lineage, id)
+    }
     pub fn hire(&mut self, id: &str) -> Result<(), String> {
         tree::hire(&mut self.lineage, id)
     }

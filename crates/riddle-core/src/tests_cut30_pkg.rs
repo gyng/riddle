@@ -255,7 +255,7 @@ fn the_bank_is_capped_and_pays_interest() {
     g.lineage.gold = 1000;
     assert!(g.bank_deposit(100).is_err(), "no bank yet");
     g.lineage.last_night_net = 200;
-    crate::town::update(&mut g.lineage);
+    g.build_town("bank").unwrap();
     assert!(crate::town::built(&g.lineage, "bank"));
     let moved = g.bank_deposit(5000).unwrap();
     assert_eq!(moved, crate::town::bank_cap(&g.lineage));
@@ -1196,4 +1196,20 @@ fn queens_counter_scope_preserves_an_explicit_blind_pen_row() {
     assert_eq!(g.lineage.rules().rows[0], authored);
     assert!(events.iter().any(|e| matches!(e, crate::wire::Ev::Use { item, .. } if item == "silence scroll")), "the explicit policy still reads at ordinary lurkers");
     assert_eq!(crate::facts::counter_row("lurker_queen").conds[0], Cond::t("foe_tag", "boss"), "learned counter fingerprints remain stable");
+}
+
+#[test]
+fn buildings_require_a_manual_action_and_survive_save_load() {
+    let mut g = Game::new(21);
+    assert!(g.lineage.town.built.is_empty());
+    assert!(g.build_town("blacksmith").is_err());
+    g.lineage.banked_depths.insert(1);
+    assert!(crate::town::update(&mut g.lineage).is_empty());
+    assert!(!crate::town::built(&g.lineage, "blacksmith"));
+    assert!(g.lineage().town.next_ready);
+    g.build_town("blacksmith").unwrap();
+    assert!(g.build_town("blacksmith").is_err());
+    let restored = Game::load(&g.save()).unwrap();
+    assert!(crate::town::built(&restored.lineage, "blacksmith"));
+    assert!(restored.lineage.town.manual);
 }

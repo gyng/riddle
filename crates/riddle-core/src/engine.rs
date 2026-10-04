@@ -1758,7 +1758,7 @@ impl LineageState {
             orders: Default::default(),
             pkg: Default::default(),
             pkg_v: 1,
-            town: Default::default(),
+            town: crate::town::Town { manual: true, ..Default::default() },
             reveal_left: 0,
             reveal_queue: Vec::new(),
             glory: 0,

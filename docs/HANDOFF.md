@@ -1,3 +1,121 @@
+**LATEST STATE — 2026-10-04:** manual construction and simplified UI implemented;
+publication in progress. Read docs/UX_SIMPLE.md, docs/NATIVE_DEV.md and
+docs/PERF_IMPACT.md. Routine --full selects18 current-player14-day cases
+(2seeds ×9configurations),10QA seeds and current-game metrics; --exhaustive
+retains272 cases and the original broad balance bars. Fresh routine table PASS
+247.5s (4m8s), metrics99.6s, QA43.2s alongside. Canonical routine --full PASS76s
+warm:524engine tests/1ignored, tsc/copy, tooling, clippy, shipping/web and gates.
+The original16-seed audit stopped at roughly205 matching records on owner
+instruction, not accepted as complete. Intermediate34-case and legacy-metric
+failures remain documented in UX_SIMPLE; routine success omits those comparisons.
+
+Final native/WASM parity27 complete rawreplies/saves PASS; local shipping WASM
+03c5ec7d7630b4a24a62db8dee88b2dfeffeb73ac07d1f1562f8b25a0baa3ca6.
+Quiet native package calls6.6/7.4/7.5×, latewall4.2×, forecast5.1–11.1×;
+engine-call timings, not shipping/whole-app speed. Final13 harness tests,
+all-feature clippy and current tuning-binary live profile reload/rejection PASS.
+Default and tuning binaries isolated, generated bridge current (buildTown).
+Direct feature-enabled one-day cache probes use distinct actual executable/profile
+namespaces; expected inapplicable fortnight bars fail, no acceptance claim.
+
+UI: fresh/manual Town flag including missing old-save flags; built plots preserved.
+Build action is explicit; engaged test bots construct atcamp, IDLE doesnot.
+Quiet first camp, Live delve/continues away, Town menu and Pause, Speed sheet;
+combat log80 real scheduled events, threevisiblelines; three reportstats and
+Details fold. Real native UI31 checks at400/1440 PASS inclmanualbuild/persistence,
+menu preserving run, reportcontrast/fold and logorder. Shipping local/public
+checks and screenshot evidence are in scratchpad/native-dev-20261004.
+
+Local shipping mobile/desktop/offline checks PASS; headed shipping walk8screens
+PASS32.9s, all7 fetched WASM responses match the exact local shipping artifact.
+
+Remaining before final response: public shipping checks, exact CI
+artifact WASM identity, approved main commit/push and public screenshots. No
+new permission needed. Never stage mine.bars or scratchpad. NoCut31/cohort.
+Next optimization work is ranked in docs/ITERATION_SPEED.md; no automatic
+schedule created. Historic notes below describe superseded intermediate states.
+
+**NEW OWNER STEERING, 2026-10-04:** "Compact.and reduce full gate cases60min too long";
+manual buildings (especially start), fewer speed controls, combat log, obvious
+live-watch/menu exit, quieter first load and simpler report. Original impact
+ordered perf work remains uncommitted; integrate/release it with this refinement.
+Read docs/UX_SIMPLE.md (new owner contract). User expressly authorizes fewer
+full cases, overriding old exhaustive-by-default constraints. New tools/gates
+logic is implemented but untested: --full two seeds all17 configurations34cases,
+--no-share; tenQA seeds; --fast metrics (current game, omits retired progression).
+--exhaustive preserves original272cases/30QA/fullmetrics. Targeted --full --rows
+still16seeds by default. tools/verify --exhaustive added. Need update stale docs.
+
+Original final audit deliberately STOPPED (SIGTERM2421310) on owner instruction,
+about205complete exact baseline matches; preserved all completed/checkpoints.
+Exit143 expected; finish-acceptance.sh stops, no canonical acceptance from it.
+No claim272passed. No active heavy simulations now. Existing metric/QA receipts
+remain valid for old runtime. Final13harness tests PASS189.50s, all-featureclippy
+PASS, livebalance PASS, browser reload3xcleanup PASS, production-profile override
+reject PASS, camp reference-profile mismatch beforecompile PASS.
+
+Next implementation: town.rs update automatically creates buildings; add manual
+construction for fresh games (legacy-save behavior must be intentional), wire
+readiness + Game/building API + wasm/types/proxy/native regeneration and UI plot
+build action. Camp suppress secondary panels until first run; watch one speed
+selector, clear Live delve + Back to town (leaveWatch keeps run live), bounded
+combat log released through existing at(ev.t) scheduler; report move nonessential
+blocks under existing Details. Tests/client layouts/screenshots, routine full
+measure, exhaustive opt-in docs/AGENTS/PLAN contract amendments, exact stage/commit
+all intendedfiles excluding mine.bars/scratchpad, approved main push and public
+CI-artifact hash /realWASM/SW/offline/headed capture. No new approval needed.
+
+**In progress: impact-ordered dev iteration, 2026-10-04.** Read
+`docs/NATIVE_DEV.md` and `docs/PERF_IMPACT.md`. New uncommitted native app adapter,
+Rust-owned dev balance profiles, previous-failure scheduling and complete
+internal check-in snapshots are implemented. Native default/tuning binaries
+are isolated under target/native-dev; ordinary core artifact shared by default.
+Three final quiet native/WASM rounds match all27 replies/saves each; packages
+6.5–7.8×, late wall7.040→1.723s, forecasts5.1–11.0×, warm native build0.19s.
+Live balance reload/reject/recovery test passes without compilation. Known failed
+home32 candidate rejects3.81→1.26s with seed4 first; default numeric/priority
+reductions remain16/16. Four-bot resume test exact outputs/raw games passes;
+three real interrupted/uninterrupted records match. Shipping bundles exclude
+native transport. Native local headed walk34.8s, eight captures/no errors under
+verification load; functional only. New shipping WASM abef660672b9d272daca83c07621e6ea33a9bf5c2c2ed7c5cdd7f8541b1d2a65;
+width-one final shipping parity also passes (under gate load, no timing claim).
+
+Legacy native event fixture remains untouched: adapter processes alone select
+shipping32-bit words, ordinary native gates retain64-bit fingerprint. First
+full test failed on global normalization, corrected;523 engine tests/one ignored,
+copy/tsc/tooling/clippy/shipping/web pass in full-final.log. The first long-case
+leg was interrupted to correct cache binding. No acceptance yet. Default
+production runtime source d9edb7fe128f7fe0, FINAL primitive prefix
+srcd7ce4c265843bde1: checkpoint helper AND cache codec bound, plus exact profiles
+and skip-twist for direct invocations. Old records are not relabeled.
+
+Active final dayplayer: detached PID2421310 (wrapper2421309), log
+scratchpad/native-dev-20261004/dayplayer-complete-binding.log, same directory
+-exit.txt upon completion. Full16-seed17-config272-case table, all bars unchanged,
+--resume,32 threads, explicit RIDDLE_SRC_KEY=d9edb7fe128f7fe0. Rust/harness frozen.
+Earlier full session61072 finished: METRICS PASS1360.6s and QA PASS227.1s saved,
+log full-final.log; its dayplayer was deliberately stopped and overall result
+is FAIL. Preserve its valid completed metrics/QA legs; do not duplicate them.
+Launcher84824 returned143 after175 complete cases; resumed with unchanged binary
+SHA502d002d4ad856f867cf0b4f30e224002862b0cbb84006f441731ef5f6188036
+and identical parameters using resume-final.sh. Log confirms genuine saved
+check-ins loaded. Final13 harness tests pass189.50s under load. Three browser
+reloads release sessions, profile/reference mismatch rejects before compiling.
+After final direct dayplayer finishes, run canonical tools/verify.sh --full:
+new dayplayer leg is derived from genuine final-prefix complete records;
+metrics/QA should hit their accepted completed legs. Never rename old records.
+Then compare all272 final decoded records to accepted src4fd4d0e184912ad3;
+run final harness tests, profile-key rejection proofs, UI/client checks, fresh
+shipping local/public screenshots/provenance, docs and approved commit/push.
+No Cut31/cohort. Earlier 05c65bd Pages run37183119595 succeeded.
+
+Proof under scratchpad/native-dev-20261004. Private scratchpad/mine.bars never
+stage. There have been client/native-host cleanup edits after initial full-side
+tests; final-tooling.log and tsc pass; rerun canonical quick/full side checks.
+Native reload releases lane processes via pagehide; loopback/same-origin enforced.
+Default native URL http://localhost:5367/?engine=native; launch configuration
+mismatches reject, use another port for a different balance profile.
+
 **Local iteration follow-up, 2026-10-04:** `docs/PERF_DEV_LOOP.md`;
 new `tools/camp-check.mjs` builds the native diagnostic once, snapshots saved
 camp inputs, and runs fresh processes per workload. `--record DIR` refuses an

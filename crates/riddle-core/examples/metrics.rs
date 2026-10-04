@@ -1611,11 +1611,16 @@ fn main() {
     let fast = args.iter().any(|a| a == "--fast");
     // `--cut30`: the idle floor's rows alone (`cut30_rows`, a few minutes)
     if args.iter().any(|a| a == "--cut30") {
+        let started = std::time::Instant::now();
+        eprintln!("metrics: current game ready");
         let mut rows = Vec::new();
         cut30_rows(&mut rows, get("--seeds", 8), get("--threads", 24) as usize);
         for (name, value, ok) in &rows {
             println!("{:<52} {:>18}  {}", name, value, if *ok { "PASS" } else { "FAIL" });
         }
+        let fails = rows.iter().filter(|r| !r.2).count();
+        println!("gates: {} (current game, {} rows, {:.1}s; legacy cohorts are --exhaustive)", if fails == 0 { "all PASS" } else { "FAIL" }, rows.len(), started.elapsed().as_secs_f64());
+        if fails > 0 { std::process::exit(1); }
         return;
     }
     let seeds = get("--seeds", if quick { 8 } else { 30 });

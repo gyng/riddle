@@ -121,7 +121,12 @@ async function attempt() {
     const top = foes.reduce((a, r) => (r.h > a.h ? r : a)); const st = v.stats();
     return `foe ${top.kind} ${Math.round(top.h)} px · ${st.frame} k${st.k}`;
   });
-  const press = (label) => page.evaluate((l) => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === l) { b.click(); return true; } return false; }, label);
+  const press = (label) => page.evaluate((l) => {
+    let b = [...document.querySelectorAll("button.hud-btn")].find((b) => b.textContent === l);
+    if (!b) { document.querySelector('button[data-tile="speed"]')?.click(); b = [...document.querySelectorAll("button.hud-btn")].find((b) => b.textContent === l); }
+    if (!b) return false;
+    b.click(); document.querySelector(".watch-options")?.closest(".sheet")?.querySelector("button.stud")?.click(); return true;
+  }, label);
   const clickBtn = async (sel, label) => { const loc = label ? page.locator(sel).filter({ hasText: new RegExp(`^${label}$`) }).first() : page.locator(sel).first(); await loc.click({ timeout: 5000 }); };
 
   try {

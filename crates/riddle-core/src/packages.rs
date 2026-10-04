@@ -108,12 +108,12 @@ pub const LEVEL_RUNS: [u32; 4] = [10, 40, 120, 220];
 pub const MAX_LEVEL: u32 = 5;
 
 pub fn level_of(runs: u32) -> u32 {
-    1 + LEVEL_RUNS.iter().filter(|&&n| runs >= n).count() as u32
+    1 + crate::balance::get().level_runs.iter().filter(|&&n| runs >= n).count() as u32
 }
 
 /// Runs to the next level, if any.
 pub fn next_at(runs: u32) -> Option<u32> {
-    LEVEL_RUNS.iter().copied().find(|&n| runs < n)
+    crate::balance::get().level_runs.iter().copied().find(|&n| runs < n)
 }
 
 /// Each meeting's scar on a band boss, in percent of his max hp, and the cap.
@@ -229,7 +229,7 @@ impl PkgState {
         if kills.contains(boss) {
             return 0;
         }
-        (self.meets.get(boss).copied().unwrap_or(0) * SCAR_PCT).min(SCAR_CAP)
+        (self.meets.get(boss).copied().unwrap_or(0) * crate::balance::get().scar_pct).min(crate::balance::get().scar_cap)
     }
 }
 
@@ -277,29 +277,13 @@ pub const GUARDED_RETURN: i32 = 25;
 
 /// The heal threshold of a stance at a level (a drill above the guard rows yields to it).
 pub fn heal_pct(id: &str, level: u32) -> i32 {
+    let b = crate::balance::get();
+    let upgraded = usize::from(level >= 2);
     match id {
-        "steady" => {
-            if level >= 2 {
-                35
-            } else {
-                30
-            }
-        }
-        "hunter" => {
-            if level >= 2 {
-                35
-            } else {
-                30
-            }
-        }
-        "guarded" => {
-            if level >= 2 {
-                45
-            } else {
-                40
-            }
-        }
-        "bold" => 25,
+        "steady" => b.steady_heal[upgraded],
+        "hunter" => b.hunter_heal[upgraded],
+        "guarded" => b.guarded_heal[upgraded],
+        "bold" => b.bold_heal,
         _ => 30,
     }
 }
@@ -320,13 +304,13 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
         // telegraph when hurt. The long rest is `Guarded`'s.
         "steady" => {
             let mut g = vec![drink];
-            g.extend(home_rows(best, STEADY_HOME, if level >= 4 { 35 } else { STEADY_DRY }));
+            g.extend(home_rows(best, crate::balance::get().steady_home, crate::balance::get().steady_dry[usize::from(level >= 4)]));
             if level >= 5 {
                 g.push(r(vec![tag("telegraph"), n("hp<", 35)], Verb::new("retreat")));
             }
             let mut f = vec![attack];
             if level >= 2 {
-                f.push(r(vec![n("hp<", if level >= 3 { STEADY_REST_L3 } else { STEADY_REST })], Verb::new("rest")));
+                f.push(r(vec![n("hp<", crate::balance::get().steady_rest[usize::from(level >= 3)])], Verb::new("rest")));
             }
             (g, f)
         }
@@ -337,7 +321,7 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             let mut g = vec![drink];
             // Rest succeeds only without foes, poison, or a hazardous tile. Recover before the dry exit;
             // the hurt exits still come first, and a guard unable to rest banks out of supplies.
-            let mut home = home_rows(best, if level >= 5 { 25 } else { GUARDED_HOME }, if level >= 5 { 44 } else { 45 });
+            let mut home = home_rows(best, crate::balance::get().guarded_home[usize::from(level >= 5)], crate::balance::get().guarded_dry[usize::from(level >= 5)]);
             home.insert(2, r(vec![n("hp<", 100)], Verb::new("rest")));
             g.extend(home);
             if level >= 3 {
@@ -907,10 +891,10 @@ pub fn on_run_end(l: &mut LineageState, bosses_met: &[String], max_depth: u32, f
         // the lineage's own route, where the forks may have moved the boss up or down a band)
         let deep = l.rules().route().boss_depth(b).is_some_and(|d| d >= DEEP_FROM);
         let need = match b.as_str() {
-            "goblin_warlord" => DRILL_MEETING,
-            _ if deep => DEEP_DRILL_DAYS,
-            "foundry_master" => DRILL_DAYS + 1,
-            _ => DRILL_DAYS,
+            "goblin_warlord" => crate::balance::get().drill_meeting,
+            _ if deep => crate::balance::get().deep_drill_days,
+            "foundry_master" => crate::balance::get().drill_days + 1,
+            _ => crate::balance::get().drill_days,
         };
         if meets >= need && known && !l.pkg.drills.iter().any(|d| d.boss == *b) {
             let heal = heal_pct(&l.pkg.stance, l.pkg.level(&l.pkg.stance));
@@ -1078,7 +1062,7 @@ pub fn lever(l: &LineageState, cause: &str) -> Option<crate::wire::Lever> {
         if !l.pkg.drills.iter().any(|d| d.boss == b) && l.pkg.owned.contains("hunter") && l.pkg.stance != "hunter" {
             return Some(crate::wire::Lever { kind: "package".into(), text: "Hunter".into() });
         }
-        let scar = l.pkg.scar(b, &l.kills) / SCAR_PCT;
+        let scar = l.pkg.scar(b, &l.kills) / crate::balance::get().scar_pct;
         return Some(crate::wire::Lever { kind: "wait".into(), text: if scar > 0 { format!("scarred ×{scar}") } else { "drill next".into() } });
     }
     Some(crate::wire::Lever { kind: "wait".into(), text: format!("{} L{}", name(&l.pkg.stance), (l.pkg.level(&l.pkg.stance) + 1).min(MAX_LEVEL)) })
