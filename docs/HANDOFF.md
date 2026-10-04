@@ -1,3 +1,35 @@
+**LATEST FOLLOW-THROUGH — 2026-10-05:** owner "keep going": local checkpoint
+codec improvement, shipping simulation/UI unchanged. Read docs/PERF_CHECKPOINT.md,
+docs/PERF_VISION.md and updated docs/ITERATION_SPEED.md. Clipped vision candidate
+REJECTED (tuned screen regression; complete outputs and LOS oracle match), private
+patch/evidence saved. Do not revive it as an accepted speedup.
+
+Retained: JSON float-bit codec traverses containers in place and serializes a
+borrowed envelope instead of cloning the tree. Seven quiet real8.8MB checkpoint
+pairs encode0.422908→0.291354s median (31.11% lower); all complete file bytes match.
+Three fresh14day IDLE/IDLE30 pairs:66.5639→63.9735s median (+3.89%), exact complete
+bot results; individual gains0.81–7.14%, not a general suite guarantee. Frozen
+warm read/decode0.2207s, encodingmedian0.2917s; no recovery speedup comparison.
+New --checkpoint-bench/--repeats/--output diagnostic, explicitly not acceptance;
+DP_PHASES now includes checkpoint CPU. Initial stdout comparison stopped on CLI
+elapsed text, excluded; final proof compares complete serialized results.
+
+Acceptance PASS:14 harness tests100.29s incl complete recovered outputs/raw saves,
+corruption/wrong-key and nested float/marker checks. Canonical verify --full447s:
+524engine tests/1ignored,10toolingtests,tsc/copy/clippy, shipping/web; new metrics
+84.2s and18case dayplayer234.8s; QA genuine cache hit. Broad historical/system
+removal audit not run. Runtime production core and wire unchanged.
+Fresh current-public GPU screenshot/basic overlay check PASS; screenshot shown
+inline. Evidence scratchpad/checkpoint-perf-20261005 (private, do not stage).
+
+Quiet auto-native core edit28.125s edit-to-ready, source restoration28.859s;
+original stable executable SHA restored exactly, zero active lanes. One equivalent
+Tile::blocks_sight edit/restore pair; not cold build or general median. The2.24s
+previous result is adapter-only. Next highest-impact iteration investigation:
+per-crate core compile timings/settings tradeoffs, then other vision/pathfinding
+work using exact-output controls. NoCut31/cohort/goal/schedule. Publication already
+authorized. Never stage mine.bars/scratchpad; no new approval or agents needed.
+
 **LATEST FOLLOW-THROUGH — 2026-10-04:** owner's "keep going" and transparent
 colored combat-log refinement published at https://gyng.github.io/riddle/. Read
 docs/PERF_PICKER.md. Production simulation code is unchanged. CPU sampling:

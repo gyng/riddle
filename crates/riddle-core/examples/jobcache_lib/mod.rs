@@ -54,24 +54,36 @@ pub fn cached<T: Serialize + DeserializeOwned>(dir: &str, srcs: &[&str], params:
 const F64: &str = "\u{1}f64:";
 const ESC: &str = "\u{1}s:";
 
-fn floats(v: serde_json::Value, encode: bool) -> serde_json::Value {
+fn floats(mut v: serde_json::Value, encode: bool) -> serde_json::Value {
+    floats_in_place(&mut v, encode);
+    v
+}
+
+/// Retain the existing containers: large internal checkpoints already built a
+/// complete Value tree, and rebuilding every array/object adds needless churn.
+fn floats_in_place(v: &mut serde_json::Value, encode: bool) {
     use serde_json::Value;
     match v {
-        Value::Number(n) if encode && n.is_f64() => Value::String(format!("{F64}{:016x}", n.as_f64().unwrap_or(0.0).to_bits())),
+        Value::Number(n) if encode && n.is_f64() => *v = Value::String(format!("{F64}{:016x}", n.as_f64().unwrap_or(0.0).to_bits())),
         // (a string of the result's own that begins like a mark is kept escaped)
-        Value::String(t) if encode && t.starts_with('\u{1}') => Value::String(format!("{ESC}{t}")),
-        Value::String(t) if !encode && t.starts_with(ESC) => Value::String(t[ESC.len()..].to_string()),
-        Value::String(t) if !encode && t.starts_with(F64) => u64::from_str_radix(&t[F64.len()..], 16).ok().and_then(|b| serde_json::Number::from_f64(f64::from_bits(b))).map_or(Value::String(t), Value::Number),
-        Value::Array(a) => Value::Array(a.into_iter().map(|x| floats(x, encode)).collect()),
-        Value::Object(o) => Value::Object(o.into_iter().map(|(k, x)| (k, floats(x, encode))).collect()),
-        x => x,
+        Value::String(t) if encode && t.starts_with('\u{1}') => *v = Value::String(format!("{ESC}{t}")),
+        Value::String(t) if !encode && t.starts_with(ESC) => *v = Value::String(t[ESC.len()..].to_string()),
+        Value::String(t) if !encode && t.starts_with(F64) => {
+            if let Some(n) = u64::from_str_radix(&t[F64.len()..], 16).ok().and_then(|b| serde_json::Number::from_f64(f64::from_bits(b))) { *v = Value::Number(n); }
+        }
+        Value::Array(a) => { for x in a { floats_in_place(x, encode); } }
+        Value::Object(o) => { for x in o.values_mut() { floats_in_place(x, encode); } }
+        _ => {}
     }
 }
 
 /// A result as it is kept: `{"f64bits": 1, "v": …}` with every float as its bits — read back exactly.
 pub fn text<T: Serialize>(v: &T) -> Option<String> {
     let v = floats(serde_json::to_value(v).ok()?, true);
-    serde_json::to_string(&serde_json::json!({ "f64bits": 1, "v": v })).ok()
+    // Same sorted envelope fields, without json!'s to_value cloning the tree.
+    #[derive(Serialize)]
+    struct Envelope<'a> { f64bits: u8, v: &'a serde_json::Value }
+    serde_json::to_string(&Envelope { f64bits: 1, v: &v }).ok()
 }
 
 /// A kept result. (A file in the plain form — written before the floats were kept as bits — is read only
@@ -98,5 +110,35 @@ pub fn keep<T: Serialize>(p: &std::path::Path, v: &T) {
     let tmp = p.with_extension(format!("tmp{}", std::process::id()));
     if std::fs::write(&tmp, t).is_ok() {
         let _ = std::fs::rename(&tmp, p);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct Sample { floats: Vec<f64>, strings: Vec<String>, integers: Vec<u64> }
+    #[test]
+    fn codec_keeps_float_bits_and_escaped_markers() {
+        let input = Sample {
+            floats: vec![-0.0, 0.1, f64::from_bits(1), f64::MIN, f64::MAX, f64::from_bits(0x3ff0000000000001)],
+            strings: vec![F64.into(), format!("{F64}3fb999999999999a"), ESC.into(), "\u{1}other".into(), "ordinary".into()],
+            integers: vec![0, u64::MAX],
+        };
+        let encoded = text(&input).unwrap();
+        let restored: Sample = decode(&encoded).unwrap();
+        assert_eq!(restored.floats.iter().map(|f| f.to_bits()).collect::<Vec<_>>(), input.floats.iter().map(|f| f.to_bits()).collect::<Vec<_>>());
+        assert_eq!(restored.strings, input.strings);
+        assert_eq!(restored.integers, input.integers);
+        assert_eq!(text(&restored).unwrap(), encoded);
+        let nested = serde_json::json!({"z": [0.1, {"negative": -0.0, "text": format!("{F64}not-a-number")}], "a": [null, true, u64::MAX]});
+        let encoded = floats(nested.clone(), true);
+        assert_eq!(text(&nested).unwrap(), serde_json::to_string(&serde_json::json!({"f64bits": 1, "v": encoded})).unwrap());
+        assert_eq!(encoded["z"][0], format!("{F64}3fb999999999999a"));
+        assert_eq!(encoded["z"][1]["negative"], format!("{F64}8000000000000000"));
+        assert_eq!(floats(encoded, false), nested);
+        for invalid in [format!("{F64}invalid"), format!("{F64}7ff0000000000000")] {
+            assert_eq!(floats(serde_json::Value::String(invalid.clone()), false), serde_json::Value::String(invalid));
+        }
     }
 }

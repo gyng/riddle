@@ -68,15 +68,32 @@ a cold-build or arbitrary core-edit timing. Disable with RIDDLE_NATIVE_WATCH=0.
 
 ## Next work, by expected impact
 
-1. Probe lower vision/pathfinding work using the current package profile and
-   complete-output controls. Keep seeds, ticks, simulation budgets and ordering;
-   previous BFS scratch and common-policy-prefix experiments were rejected.
-2. Measure checkpoint serialization, bytes written and recovery cost on long
-   cases. Reduce snapshot cost only while preserving complete state and exact
-   outputs. Keep restore/integrity checks separate from fortnight acceptance.
-3. Measure representative core edit-to-ready latency with automatic rebuilding,
+2026-10-05 follow-through: clipped vision endpoints rejected (tuned workload
+regresses in the screen; exact output/LOS oracle pass), docs/PERF_VISION.md.
+Checkpoint profiling finds roughlyone fifth of two long idle jobs in encoding/
+writing. In-place JSON traversal and a borrowed envelope preserve complete file
+bytes; seven pairs improve encoding31.11%. Three full fourteen-day pairs improve
+median3.89%, with individual pairs0.81–7.14%; no general suite guarantee.
+See docs/PERF_CHECKPOINT.md for acceptance. No shipping simulation change.
+
+Quiet native watcher core measurement: an equivalent Tile::blocks_sight body
+edit takes28.125s edit-to-ready (build27.913s); exact-source restoration28.859s
+(build28.680s), original executable SHA restored exactly. Existing server5367,
+eight engine threads,zero active lanes. One edit/restore pair, not a median or
+cold-build claim. This confirms core compilation remains separate from the
+2.24s adapter-only result; investigate per-crate compiler timings next.
+Evidence: scratchpad/checkpoint-perf-20261005/core-build-timing.json.
+
+1. Measure representative core edit-to-ready latency with automatic rebuilding,
    distinguishing compilation from engine execution. Change build settings only
    with measured compile-time and runtime tradeoffs.
+2. Probe lower vision/pathfinding work using the current package profile and
+   complete-output controls. Keep seeds, ticks, simulation budgets and ordering;
+   previous BFS scratch and common-policy-prefix experiments were rejected.
+3. Further checkpoint changes only after measuring remaining serialization,
+   bytes written and recovery cost on long
+   cases. Reduce snapshot cost only while preserving complete state and exact
+   outputs. Keep restore/integrity checks separate from fortnight acceptance.
 
 
 ## Active queue — 2026-10-03, after Cut 30.5

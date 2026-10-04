@@ -1180,6 +1180,31 @@ fn main() {
     // others leave (`WIDTH`) — never threads of threads (a TUNED bot's wall search and verdicts on every
     // core, 32 jobs at once, ran the load past 150).
     let a: Vec<String> = std::env::args().collect();
+    if let Some(i) = a.iter().position(|s| s == "--checkpoint-bench") {
+        eprintln!("checkpoint encoding diagnostic only; not gate acceptance");
+        let input = std::path::Path::new(a.get(i + 1).expect("--checkpoint-bench PATH"));
+        let read_start = std::time::Instant::now();
+        let record: Checkpoint = jobcache::read(input).expect("valid checkpoint envelope");
+        assert_eq!(checkpoint_hash(&record.body), record.checksum, "checkpoint checksum");
+        let p: Play = jobcache::decode(&record.body).expect("complete checkpoint state");
+        let read_seconds = read_start.elapsed().as_secs_f64();
+        let mut times = Vec::new();
+        let mut expected = None;
+        let repeats = a.iter().position(|s| s == "--repeats").and_then(|i| a.get(i + 1)).and_then(|s| s.parse::<usize>().ok()).unwrap_or(7);
+        assert!(repeats > 0, "--repeats must be positive");
+        for _ in 0..repeats {
+            let start = std::time::Instant::now();
+            let body = jobcache::text(&p).expect("encode state");
+            let encoded = jobcache::text(&Checkpoint { key: record.key.clone(), checksum: checkpoint_hash(&body), body }).expect("encode envelope");
+            times.push(start.elapsed().as_secs_f64());
+            if let Some(ref bytes) = expected { assert_eq!(&encoded, bytes, "encoding must be repeatable"); }
+            else { expected = Some(encoded); }
+        }
+        let encoded = expected.expect("at least one repetition");
+        if let Some(i) = a.iter().position(|s| s == "--output") { std::fs::write(a.get(i + 1).expect("--output PATH"), &encoded).unwrap(); }
+        println!("{}", serde_json::json!({"diagnostic": "checkpoint-encode", "read_seconds": read_seconds, "seconds": times, "bytes": encoded.len(), "hash": checkpoint_hash(&encoded)}));
+        return;
+    }
     let get = |k: &str, d: u64| a.iter().position(|x| x == k).and_then(|i| a.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(d);
     let seeds = get("--seeds", 8);
     let days = get("--days", 14) as usize;
@@ -1372,7 +1397,9 @@ fn main() {
                                 part(&ask, &mut members, snap);
                             }
                             if resume && !p.done() {
-                                for &c in &members { checkpoint_keep(&checkpoint_of(&cfgs[c], s), &checkpoint_key, &p); }
+                                ph("checkpoint", || {
+                                    for &c in &members { checkpoint_keep(&checkpoint_of(&cfgs[c], s), &checkpoint_key, &p); }
+                                });
                                 if std::env::var("DP_CHECKPOINT_STOP_AFTER").is_ok_and(|v| v.parse::<u64>().ok() == Some(p.day as u64 * p.checkins + p.ci)) {
                                     eprintln!("dayplayer: diagnostic stop after complete checkpoint (not acceptance)");
                                     std::process::exit(75);
