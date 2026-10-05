@@ -24,13 +24,19 @@ Next, in impact order:
    Fast WASM already used debug0; shipping settings are unchanged. Diagnose
    the missing-rlib race between native auto-rebuild and gate fingerprinting
    before automating overlapping builds; never use a guessed cache key.
-2. **Work inside simulations.** Current named fast-WASM profile confirms
-   vision7.25%, nearest_tile5.86%, flood_resume4.18% leaf shares. Predicate
-   specialization is rejected: late2.03% lower, tuned only0.49%; all36 complete
-   outputs match. See PERF_PATHFIND.md. Quantify repeated floods/allocations
-   before scratch-buffer reuse or cache changes; preserve invalidation and the LOS
-   oracle and exact saved-camp comparisons. Prior clipped-vision and stack
-   row-storage probes were rejected; their patches are not accepted wins.
+2. **Whole forecast work before smaller flood changes.** Named fast-WASM
+   profile:vision7.25%, nearest_tile5.86%, flood_resume4.18% leaf shares.
+   Predicate, parent-only and stack first-step probes are rejected: each misses
+   the2% late/tuned guard despite exact full outputs. Parent-only traffic−18%,
+   first-step−65% cumulative requested bytes do not establish latency gains.
+   See PERF_PATHFIND.md. Retained client fix: same pending package read opened
+   three times starts1 request; hero/Legacy/rules/loadout snapshots invalidate,
+   old replies cannot repaint newer state. See PERF_PACKAGE_REQUESTS.md.
+   Next count duplicate panel keys and sims across package candidates/reads;
+   consider Rust-owned query fingerprints and cache reuse only with complete
+   output/continuation proofs. Current client invalidates conservatively on
+   every new lineage snapshot. Prior clipped-vision and stack-row probes remain
+   rejected. Preserve seeds, budgets, LOS oracle and saved-camp comparisons.
 3. **Mechanical QA.** Use the existing saved-camp checks for rapid feedback,
    retaining routine/full acceptance and GPU checks at release checkpoints.
    Do not reduce seed budgets or weaken gates to claim faster iteration.

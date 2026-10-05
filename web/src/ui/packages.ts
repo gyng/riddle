@@ -60,14 +60,29 @@ export function headline(app: App): string | null {
   return d ? /* copy:callout */ `reach D${d.depth} ${share(d.reach, lowOf(f))}` : null;
 }
 
-/** The options last measured, keyed by the state they were measured on. */
-let optMemo: { key: string; opts: PkgOption[] } | null = null;
-const optKey = (L: Lineage): string => JSON.stringify([L.packages?.stance, L.packages?.tactics, L.packages?.temperament, L.packages?.all.map((p) => [p.id, p.level, p.owned]), L.best_depth, L.gold, L.kit]);
-function measure(app: App): Promise<PkgOption[]> | null {
+/** Cache replies and in-flight requests per app snapshot. A new lineage invalidates
+ * every hero/simulation input, without reproducing Rust's input key in the client. */
+type OptionsRead = { engine: App["engine"]; lineage: Lineage; inputs: string; opts: PkgOption[] | null; promise: Promise<PkgOption[]> };
+const optionReads = new WeakMap<App, OptionsRead>();
+const optionInputs = (app: App): string => JSON.stringify([app.rules, app.loadout]);
+const currentRead = (app: App, read: OptionsRead): boolean => read.engine === app.engine && read.lineage === app.lineage && read.inputs === optionInputs(app);
+function measure(app: App): OptionsRead | null {
   if (!app.engine.packageOptions) return null;
-  const k = optKey(app.lineage);
-  if (optMemo?.key === k) return Promise.resolve(optMemo.opts);
-  return app.engine.packageOptions(PRICE_SIMS).then((o) => { optMemo = { key: k, opts: o }; return o; });
+  const cached = optionReads.get(app);
+  if (cached && currentRead(app, cached)) return cached;
+  const engine = app.engine;
+  let read: OptionsRead;
+  const promise = Promise.resolve().then(() => engine.packageOptions!(PRICE_SIMS)).then((opts) => {
+    read.opts = opts;
+    return opts;
+  }).catch((error: unknown) => {
+    read.opts = [];
+    if (optionReads.get(app) === read) optionReads.delete(app);
+    throw error;
+  });
+  read = { engine, lineage: app.lineage, inputs: optionInputs(app), opts: null, promise };
+  optionReads.set(app, read);
+  return read;
 }
 
 /** A level bar under a chip (no words: the chip says the level). */
@@ -77,10 +92,20 @@ const levelBar = (p: Package): HTMLElement => h("span", { class: "lvl-bar", "ari
 export function openPackages(app: App, anchor?: HTMLElement | null): void {
   openSheet((close) => {
     const body = h("div", { class: "sheet-body pkg-panel" });
-    let opts: PkgOption[] | null = optMemo?.key === optKey(app.lineage) ? optMemo.opts : null;
+    let reading: OptionsRead | null = null;
     const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then(() => paint()); };
     const paint = (): void => {
       const L = app.lineage, P = L.packages; if (!P) { close(); return; }
+      const next = reading && currentRead(app, reading) ? reading : measure(app);
+      if (next !== reading) {
+        reading = next;
+        if (next) void next.promise.then(() => {
+          if (body.isConnected && reading === next) paint();
+        }).catch(() => {
+          if (body.isConnected && reading === next) paint();
+        });
+      }
+      const opts = reading?.opts ?? null;
       const owned = (kind: string): Package[] => P.all.filter((p) => p.kind === kind && p.owned);
       const byId = new Map(P.all.map((p) => [p.id, p]));
       const optOf = new Map((opts ?? []).filter((o) => o.action === "equip").map((o) => [`${o.id}:${o.slot ?? 0}`, o]));
@@ -154,8 +179,6 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
       replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "packages")), head ? h("b", { class: "pkg-headline num" }, ...kwText(head, ["reach"])) : ""), ...secs);
     };
     paint();
-    const m = opts ? null : measure(app);
-    if (m) void m.then((o) => { opts = o; if (body.isConnected) paint(); }).catch(() => { opts = []; if (body.isConnected) paint(); });
     return body;
   }, { anchor });
 }

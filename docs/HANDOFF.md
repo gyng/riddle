@@ -1,3 +1,24 @@
+**PERFORMANCE FOLLOW-THROUGH — 2026-10-05:** Package panel reopens now share
+one pending query per App/engine/lineage/rules/loadout snapshot. The old global
+memo omitted hero class/Legacy/etc and could reuse another hero's prices.
+Three opens:3→1 requests; hero change starts a fresh read. Old async replies
+cannot overwrite/repaint new state; failures retry on reopen, no retry loop;
+mutations while open clear/reprice. Conservative lineage-snapshot invalidation,
+no client imitation of Rust input keys. Read PERF_PACKAGE_REQUESTS.md.
+Acceptance:38 race/retry/isolation checks400/1440+17 existing package checks;
+10 real-native and10 shipping-WASM checks, actual Legacy purchase remeasures.
+Routine FULL38s:536 core/1ignored,11 tooling, tsc/copy/clippy/shipping build;
+compiled metrics/QA/18-case gates unchanged and cached. No core source or WASM
+change; no cold-query/simulation throughput gain claimed. Private evidence:
+scratchpad/flood-perf-20261005. Never stage it or mine.bars.
+Parent-only and stack first-step flood probes rejected: late/tuned1.06/1.32%
+and1.04/3.51% lower, below2% each; all36 complete outputs match per probe.
+Requested allocation bytes−18%/−65% are cumulative traffic, not live memory or
+proven latency wins. Production pathfinding unchanged; PERF_PATHFIND.md.
+Next count duplicate whole forecast panels/sims and derive a Rust-owned query
+fingerprint before reusing results across refreshed snapshots. Publication
+checkpoint is pending; existing publication approval remains valid.
+
 **CURRENT OWNER FOLLOW-UP — 2026-10-05:** Legacy is spendable hero-upgrade
 currency. Read docs/UX_LEGACY_UPGRADES.md (supersedes the no-spending and old
 manual-chest clauses below). Three ranks each: Health +3 HP, Damage +1,
