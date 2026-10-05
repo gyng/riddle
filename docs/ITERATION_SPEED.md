@@ -1,3 +1,20 @@
+**HERO FAMILY IDENTITY — 2026-10-06:** Real two-slot screenshot had
+Niall twice. Preserve pure given-name derivation; append persistent slot family
+Ash/Thorn/Flint (numbered fallback imported ids). Roster/lifetime wire/new deaths
+share full identity; stored nonempty historical names preserved, empty legacy
+records decorate cloned reads/no raw mutation. Families guarantee different
+complete generated names across active slots, independent of heir ordinal;
+given names still cycle24/across towns.554 fast tests38.55s/1ignored, clippy/
+WASM5241995bytes/build/typecheck/copy1511/diff pass; chunk advisory. UI identity30
+checks320/400/1440 incl full menu child bounds4.4s; historical death27 passes.
+Headed real savedseed15camp/legal slot2/two12h79runs reproduces Niall Ash/Thorn,
+exact reload/2→1 stable; legal slot3 Bryn Flint doesn't rename either.400/1440
+roster/menu match core/no warnings/overflow/screens shown. Death naming core/UI
+coverage only, no new real death walk. CONTENT_HERO_FAMILIES.md records scope.
+No stats/balance/RNG/default portraits/deployment change. Next: visible hero
+individuality still limited by identical default portraits; evaluate variety
+using existing looks alongside content/gameplay feedback, not generic layout.
+
 **BLOODLINE TRAINING — 2026-10-06:** Away report discarded unselected
 training. BloodlineReturn now retains each own bounded package beats (explicit
 [] is known empty, old wire optional). Per-id sliced merge retains highest core

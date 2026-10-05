@@ -10,6 +10,14 @@ pub fn hero_name(seed: u64, heir: u32) -> &'static str {
     NAMES[((first + u64::from(heir.saturating_sub(1))) % NAMES.len() as u64) as usize]
 }
 
+/// The family belongs to the persistent slot; given names keep their old derivation.
+/// Distinct complete names across active slots without depending on other heirs.
+pub fn hero_identity(seed: u64, heir: u32, bloodline_id: u32) -> String {
+    let family = match bloodline_id {1 => "Ash".into(), 2 => "Thorn".into(), 3 => "Flint".into(),
+        id => format!("Wayfarer{id}")};
+    format!("{} {family}", hero_name(seed, heir))
+}
+
 pub const CAP: u32 = 3;
 pub const IDS: [&str; 3] = ["health", "damage", "armour"];
 

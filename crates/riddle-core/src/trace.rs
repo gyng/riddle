@@ -86,7 +86,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let vocab = context_vocab(game, run);
     let death = Death {
         hero: Some(crate::wire::DeathHero {
-            name: crate::legacy::hero_name(game.lineage.seed, run.heir).into(),
+            name: crate::legacy::hero_identity(game.lineage.seed, run.heir, game.lineage.bloodline_id),
             bloodline_id: game.lineage.bloodline_id,
             heir: run.heir,
             class: run.hero.class.name().into(),

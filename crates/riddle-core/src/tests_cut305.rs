@@ -675,7 +675,7 @@ fn hero_names_are_read_only_stable_and_follow_heir_history() {
         let wire = g.lineage();
         assert_eq!(wire.hero_legacy[0].name, first);
         assert_ne!(wire.hero_legacy.last().unwrap().name, first);
-        assert_eq!(wire.hero_legacy.last().unwrap().name, crate::legacy::hero_name(seed, 2));
+        assert_eq!(wire.hero_legacy.last().unwrap().name, crate::legacy::hero_identity(seed, 2, 1));
     }
 }
 
@@ -715,7 +715,7 @@ fn recorded_death_hero_is_historical_and_old_wire_is_compatible() {
     let recorded = crate::trace::death_record(&g, run).death;
     assert_eq!(g.save(), before, "recording identity cannot change game or RNG");
     let hero = recorded.hero.as_ref().unwrap();
-    assert_eq!(hero.name, crate::legacy::hero_name(2, run.heir));
+    assert_eq!(hero.name, crate::legacy::hero_identity(2, run.heir, 2));
     assert_eq!(hero.heir, run.heir);
     assert_eq!(hero.class, run.hero.class.name());
     assert_eq!(hero.bloodline_id, 2);
@@ -724,7 +724,7 @@ fn recorded_death_hero_is_historical_and_old_wire_is_compatible() {
     let raw = serde_json::to_value(&recorded).unwrap();
     let restored: crate::wire::Death = serde_json::from_value(raw.clone()).unwrap();
     assert_eq!(restored.hero, recorded.hero);
-    assert_ne!(restored.hero.as_ref().unwrap().name, crate::legacy::hero_name(2, g.lineage.heir));
+    assert_ne!(restored.hero.as_ref().unwrap().name, crate::legacy::hero_identity(2, g.lineage.heir, g.lineage.bloodline_id));
     let mut old = raw;
     old.as_object_mut().unwrap().remove("hero");
     let loaded: crate::wire::Death = serde_json::from_value(old).unwrap();
@@ -766,4 +766,36 @@ fn run_training_beats_reach_every_exit_copy_without_repeating() {
             assert!(serde_json::from_value::<crate::wire::ExitLine>(raw).unwrap().packages.is_empty());
         }
     }
+}
+
+
+#[test]
+fn bloodline_families_distinguish_colliding_given_names_and_preserve_archives() {
+    use crate::legacy::{hero_identity,hero_name};
+    for seed in 0..128 {
+        for heir in 1..=25 {
+            let names:std::collections::BTreeSet<_>=(1..=3).map(|id|hero_identity(seed,heir,id)).collect();
+            assert_eq!(names.len(),3);
+            assert!(names.iter().all(|name|name.starts_with(&format!("{} ",hero_name(seed,heir)))));
+            for id in 1..=3 {assert_ne!(hero_identity(seed,heir,id),hero_identity(seed,heir+1,id));}
+        }
+    }
+    assert_ne!(hero_identity(2,1,4),hero_identity(2,1,5));
+    let mut s=crate::bloodlines::Session::new(2);s.build_town("house").unwrap();
+    s.active.lineage.gold_move(1000,"test income");s.add_bloodline().unwrap();s.add_bloodline().unwrap();
+    // Force the witnessed collision without consuming game RNG.
+    s.others.get_mut(&2).unwrap().lineage.seed=s.active.lineage.seed;
+    s.others.get_mut(&3).unwrap().lineage.seed=s.active.lineage.seed;
+    let before=s.save();let slots=s.lineage().hero_slots;
+    assert_eq!(slots.iter().map(|h|&h.hero_name).collect::<std::collections::BTreeSet<_>>().len(),3);
+    assert_eq!(s.save(),before,"wire names cannot mutate save or RNG");
+    s.select_bloodline(2).unwrap();assert_eq!(s.lineage().hero_slots,slots);
+    assert_eq!(s.lineage().hero_legacy.last().unwrap().name,slots[1].hero_name);
+    let restored=crate::bloodlines::Session::load(&s.save()).unwrap();assert_eq!(restored.lineage().hero_slots,slots);
+    let mut g=Game::new_resident(2);
+    g.lineage.hero_legacy[0].name="Wren".into();
+    let raw=g.save();assert_eq!(g.lineage().hero_legacy[0].name,"Wren");assert_eq!(g.save(),raw);
+    g.start_run(None);let death=crate::trace::death_record(&g,g.run.as_ref().unwrap()).death;
+    let mut old=serde_json::to_value(death).unwrap();old["hero"]["name"]=serde_json::json!("Wren");
+    let kept:crate::wire::Death=serde_json::from_value(old).unwrap();assert_eq!(kept.hero.unwrap().name,"Wren");
 }
