@@ -225,6 +225,9 @@ pub struct ExitLine {
     pub carried: i32,
     pub keep_pct: i32,
     pub kept: i32,
+    /// This run's bounded progression beats, also carried by watched exits.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub packages: Vec<String>,
     pub spent: i32,
     pub spent_on: Vec<String>,
     pub text: String,

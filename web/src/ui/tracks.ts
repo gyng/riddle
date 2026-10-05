@@ -47,12 +47,12 @@ export function grewItems(items: string[], max = 4, chars = 34): string[] {
 /** The report's lead (§4): what grew on each track over the absence — one short line per track (`hero · a class · pets · +2 more`), the
  *  stage first and xp last, and the packages' beats as plaques; a fact a plaque carries is not on a line too. Null when nothing grew (an
  *  old core: no `grew`). */
-export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: string): HTMLElement | null {
+export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: string, highlighted: string[] = []): HTMLElement | null {
   const g: GrewLine[] = r.grew ?? [];
-  const beats = r.packages ?? [];
+  const beats = (r.packages ?? []).filter((b) => !highlighted.includes(b));
   if (!g.length && !beats.length) return null;
   const shown = beats.slice(0, 5);
-  const onPlaque = new Set(shown.map(factKey));
+  const onPlaque = new Set([...shown, ...highlighted].map(factKey));
   const by = new Map<string, string[]>();
   for (const x of g) {
     if (onPlaque.has(factKey(x.what))) continue;
@@ -67,4 +67,14 @@ export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: str
       h("small", { class: "track-name dim" }, trackName(id)), h("span", { class: "grew-what num" }, ...kwText((by.get(id) ?? []).join(" · "))))),
     shown.length ? h("div", { class: "beats" }, ...shown.map((b, i) => h("span", { class: `beat-plaque reveal${/^QUEST DONE/.test(b) ? " quest" : /^DRILLED/.test(b) ? " drill" : ""}`, style: `animation-delay:${0.15 * (i + ids.length)}s` }, b)),
       beats.length > 5 ? h("small", { class: "beat-more dim" }, /* copy:callout */ `+${beats.length - 5} more`) : "") : "");
+}
+
+/** Already-earned core level/drill beats, surfaced without exposing routine details. */
+export const trainingBeats = (beats: string[] | undefined): string[] => (beats ?? []).filter((b) => /^DRILLED\b/.test(b) || / L\d+$/.test(b));
+export function trainingBlock(beats: string[] | undefined): HTMLElement | null {
+  const earned = trainingBeats(beats);
+  return earned.length ? h("section", { class: "run-training" },
+    h("b", { class: "row-label" }, /* copy:label */ "Training"),
+    h("div", { class: "beats" }, ...earned.map((b) => h("span", { class: `beat-plaque${/^DRILLED/.test(b) ? " drill" : ""}`, "data-training": b },
+      b.replace(/^DRILLED · (.+)$/, /* copy:label */ "$1 tactic"))))) : null;
 }

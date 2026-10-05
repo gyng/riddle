@@ -5640,6 +5640,10 @@ impl Game {
             // that came, the pen — the set recompiled for the next send.
             let set = self.lineage.rules().clone();
             let lines = crate::packages::on_run_end(&mut self.lineage, &run.bosses_met, run.max_depth, &run.row_fired, &set);
+            let beats = crate::packages::beats(&lines);
+            if let Some(line) = self.last_exit.as_mut() { line.packages = beats.clone(); }
+            if let Some(line) = self.batch.exits.last_mut() { line.packages = beats.clone(); }
+            if let Some(line) = self.deaths.get_mut(&run.id).and_then(|r| r.death.line.as_mut()) { line.packages = beats; }
             self.batch.pkg_lines.extend(lines);
             // Cut 30 §3, §5: the town builds what its triggers brought; the quest board reads the run.
             for b in crate::town::update(&mut self.lineage) {
@@ -6585,7 +6589,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { bloodline_id:1,secured: 0, carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None, end: String::new(), reached: 0, new_best: false, finds: Vec::new() }
+    ExitLine { packages:Vec::new(),bloodline_id:1,secured: 0, carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None, end: String::new(), reached: 0, new_best: false, finds: Vec::new() }
 }
 
 /// Cut 30.5: an exit line's head re-worded with the secured gold — `banked $120 · $80 secured + 100% of $40`, `died

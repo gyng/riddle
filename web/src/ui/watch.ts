@@ -2191,7 +2191,7 @@ export function renderWatch(app: App): Mounted {
       if (kind) { it.label = `${kind.replace(/_/g, " ")} ${m![2]}`; it.kind = kind; }
     }
     const report: ReturnReport = {
-      elapsed_s: Math.round((engineTick - startTick) / 10), runs: 1, sampled: false, learned, bests, found, pending: [],
+      elapsed_s: Math.round((engineTick - startTick) / 10), runs: 1, sampled: false, learned, bests, found, pending: [], packages: exitLine?.packages,
       deaths: tier === "death" ? [{ cause: heroCause ?? exitLine?.text ?? /* copy:label */ "death", n: 1 }] : [],   // Cut 10 §3: the death it came from
       stolen: exitLine?.stolen?.length ? [...exitLine.stolen.reduce((m, l) => m.set(l, (m.get(l) ?? 0) + 1), new Map<string, number>())].map(([label, n]) => ({ label, n })) : undefined,   // QA e75ec29 (R)
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,

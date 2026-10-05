@@ -11231,6 +11231,9 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
                 let j = strip_object(&j, "meters");
                 // (c30-legible: an exit line's `reason` is a new read of the same run)
                 let j = strip_str(&j, "reason");
+                // Run training: new exit display metadata; the original gameplay hash stays exact.
+                // Per-run payload/copy/old-wire checks live in tests_cut305.
+                let j = strip_array(&j, "packages");
                 // (run-clear: an exit line's card — its end, floor, record and finds — and every item's rarity are new reads of the same run)
                 let j = strip_tail_key(&strip_key(&strip_array(&strip_str(&strip_str(&j, "rarity"), "end"), "finds"), "reached"), "reached").replace(",\"new_best\":true", "");
                 fnv(&mut h, &j);

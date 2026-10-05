@@ -1,3 +1,19 @@
+**RUN TRAINING FEEDBACK — 2026-10-06:** Watched reports dropped core
+style levels/drills. Add bounded per-run ExitLine.packages to last_exit/batch/
+death copies; watch copies into report. Shared Training before Details/death
+actions shows exact levels and boss tactic, remaining package/grew facts stay
+in Details without duplicates. Empty/old wire stays compact.552 fast tests
+36.23s/1 ignored, UI54 +upgrade57/worker60/actions44/deathhero27 pass13.6s;
+clippy/build/typecheck/copy1507/diff pass, chunk advisory. Old gameplay fixture
+hash remains c70ffd182d4080f1 after existing normalizer excludes new display
+metadata; separate payload tests. Rebuilt WASM5,245,585 bytes. Headed400/1440
+freshseed2 nine manual runs+tenth Fast/Skip watch -> report STEADY L2; seed15
+existingcamp24h -> STEADY L3, no warnings/overflow/screens shown.8h sample
+correctly had no level gain. Drill/death feedback Rust/UI coverage, no new real
+drill/death walk. CONTENT_RUN_TRAINING.md records scope. No tuning/full audit/
+deploy. Next: gameplay/content reasons to engage at first walls; avoid further
+generic report polish. Multihero progression attribution deserves own contract.
+
 **HISTORICAL DEATH HERO — 2026-10-06:** Death records now capture optional
 Rust name/heir/class/bloodline identity at creation; screen shows it above
 banner. Uses run heir/class, no current-hero inference/backfill for old records.

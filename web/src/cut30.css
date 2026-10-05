@@ -113,3 +113,8 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .pkg-alts { align-items: stretch; }
 .pkg.alt .pkg-copy > .pkg-price { display: block; margin-left: 0; margin-top: 4px; }
 .pkg.alt .pkg-copy > .pkg-price:empty { display: none; }
+
+.run-training .beats { margin-top: 6px; }
+.run-training .beat-plaque { font-size: 15px; letter-spacing: .02em; }
+.death .run-training { text-align: center; }
+.death .run-training .beats { justify-content: center; }

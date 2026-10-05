@@ -9,6 +9,7 @@
 // the patches like a death's. §4: the run's last two notes (`Death.notes`, engine data verbatim) sit under the headline.
 // §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
 // when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
+import { trainingBlock } from "./tracks";
 import { meterPanel } from "./meters";
 import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
@@ -326,7 +327,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       killerSrc ? h("img", { class: "killer", src: killerSrc, alt: "", draggable: "false", "aria-hidden": "true" }) : null, luckLead, line)),
     // run-clear: the death screen is a death's card — its header carries the floor, a new best, the finds left in the bones
     kept || from ? null : clearStrip(d.line),
-    ...(prePen ? [whyEl, now] : [whyEl, details, now, more, tail]));
+    ...(prePen ? [whyEl, trainingBlock(d.line?.packages), now] : [whyEl, trainingBlock(d.line?.packages), details, now, more, tail]));
   const wide = wideCols(app, null);   // desktop: the rules left, the shaft right (wide.css); the fight is under details
   const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}${prePen ? " prepen" : ""}` }, bar.el, well, cons.el, ...wide.els);
   setWhy(); rest();

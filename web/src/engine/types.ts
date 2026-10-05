@@ -104,7 +104,7 @@ export type Stake = { loot: number; brought: { label: string; insured: boolean }
                                                                                      // Cut 20 §4: what a death now would keep (the death tier's share) — `carry $78 · bank keeps $78 · death $0`
 /** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
  *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */
-export type ExitLine = { bloodline_id?:number; carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
+export type ExitLine = { packages?:string[]; bloodline_id?:number; carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
                          secured?: number;                                                                  // Cut 30.5 (core; the owner: a new record is a checkpoint, never an exit): of `carried`, the gold the run's checkpoints secured — kept whole at any exit (a death keeps it alone); `keep_pct` is the share of the rest (`banked $120 · $80 secured + 100% of $40`)
                          trace?: Trace;                                                                     // Cut 9 §5: the exit's last-5 trace (every tier)
                          salvaged?: { kind: string; n: number; gold: number }[];                           // what the exit salvaged before the keep sheet (a return's 40 % cut), per kind in coins; `kind` is a display name — an unidentified kind reads as its flavour (`brittle scroll?`, QA 1a2a4a9)

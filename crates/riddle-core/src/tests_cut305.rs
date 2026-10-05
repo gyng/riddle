@@ -731,3 +731,39 @@ fn recorded_death_hero_is_historical_and_old_wire_is_compatible() {
     assert!(loaded.hero.is_none());
     assert!(serde_json::to_value(loaded).unwrap().get("hero").is_none());
 }
+
+#[test]
+fn run_training_beats_reach_every_exit_copy_without_repeating() {
+    use crate::engine::ExitTier;
+    for tier in [ExitTier::Bank, ExitTier::Death] {
+        let mut g = Game::new_resident(2);
+        g.lineage.pkg.runs.insert("steady".into(), 9);
+        g.lineage.pkg.met_runs.insert("goblin_warlord".into(), 1);
+        g.lineage.facts.insert("boss:goblin_warlord:counter".into());
+        for round in 0..2 {
+            g.start_run(None);
+            let i = g.lineage.rules().rows.iter().position(|r| r.origin.as_deref() == Some("stance:steady")).unwrap();
+            let r = g.run.as_mut().unwrap();
+            r.row_fired[i] = 1;
+            r.bosses_met.push("goblin_warlord".into());
+            r.over = Some(tier);
+            if tier == ExitTier::Death { r.hero.hp = 0; r.death_cause = Some("rat".into()); }
+            let id = r.id;
+            g.finish_run().unwrap();
+            let line = g.last_exit.as_ref().unwrap();
+            assert_eq!(line.packages, g.batch.exits.last().unwrap().packages);
+            if tier == ExitTier::Death { assert_eq!(line.packages, g.deaths[&id].death.line.as_ref().unwrap().packages); }
+            if round == 0 {
+                assert!(line.packages.contains(&"STEADY L2".into()));
+                assert!(line.packages.contains(&"DRILLED · Warlord".into()));
+            } else {
+                assert!(!line.packages.iter().any(|s| s.starts_with("DRILLED") || s == "STEADY L2"));
+            }
+            let mut raw = serde_json::to_value(line).unwrap();
+            let copy: crate::wire::ExitLine = serde_json::from_value(raw.clone()).unwrap();
+            assert_eq!(copy.packages, line.packages);
+            raw.as_object_mut().unwrap().remove("packages");
+            assert!(serde_json::from_value::<crate::wire::ExitLine>(raw).unwrap().packages.is_empty());
+        }
+    }
+}
