@@ -1,3 +1,17 @@
+**WATCH LOG FLOORS / MISSING EVENTS — 2026-10-06:** Real legal D5
+send previously logged combat as D1 because log initialized from stale camp
+state. Now starts from send snapshot's actual depth; resume/fallback and later
+playback descents covered. Existing log could render warnings/healing/pickups,
+but caller filtered them out; those now reach plain-text overlay, retaining
+colours/item silhouettes/80-line bound. Six400/1440 UI cases pass17.2s;
+real headed WASM D5 desktop/mobile consistent log/HUD, desktop roster Live D5,
+zero console warnings/mobile overflow; screens shown. tsc/build/copy1492/diff
+pass, existing chunk advisory remains. UX_WATCH_LOG_FLOORS.md records scope.
+No simulation changes/full balance audit/deployment. Diagnostic Resting label
+was runs=0 disabling refresh; runs=1 confirms existing roster code works.
+Captain encounter still uncertified. Next: mobile footer label clipping, then
+live boss coverage with actual speed controls; no more unchanged90s waits.
+
 **READABLE DEATH ACTION / RECOMMENDATION ICONS — 2026-10-06:**
 Saved Warlord deaths now name the historical action as `Steady · attack nearest`
 rather than exposing row syntax. Core-selected cause row wins; missing rules

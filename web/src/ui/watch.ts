@@ -881,7 +881,7 @@ export function renderWatch(app: App): Mounted {
     const heroId = s.hero.id;
     for (const e of s.entities) { if (e.ally) allies.add(e.id); else if (e.id !== heroId) victims.set(e.id, (e.name ?? e.kind).replace(/_/g, " ")); if (e.tags.includes("boss")) bossIds.add(e.id); }
     for (const ev of evs) {
-      if (["attack", "hurt", "die", "use", "rule", "descend", "exit"].includes(ev.k)) at(ev.t, () => logEvent(ev, s.hero.id));
+      if (["attack", "hurt", "heal", "telegraph", "die", "use", "pickup", "rule", "descend", "exit"].includes(ev.k)) at(ev.t, () => logEvent(ev, s.hero.id));
       if (ev.k === "drain") drainOn = drainWord(ev.cause);
       else if (ev.k === "descend" || ev.k === "exit" || (ev.k === "attack" && ev.dst === heroId)) drainOn = null;   // the stairs, the end, a blow: the stretch is over
       else if (drainOn && (ev.k === "hurt" || ev.k === "max_hp") && ev.id === heroId) drainEvs.add(ev);
@@ -2279,7 +2279,7 @@ export function renderWatch(app: App): Mounted {
     if (app.seenPending && app.engine.seenSystems) { app.seenPending = false; try { app.lineage = await app.engine.seenSystems(); } catch { /* the glint repeats */ } }   // Cut 29 §2
     try { s = await app.engine.send(); } catch (e) { console.warn("send failed", e); if (!disposed) app.go({ kind: "camp" }); return; }
     if (disposed) return;
-    snap = s; runId = s.run.id; engineTick = startTick = s.turn;
+    snap = s; logDepth = s.depth; runId = s.run.id; engineTick = startTick = s.turn;
     // QA a946e04 (T: `start → D5 · $50` at $32 — the run began on D1, no toll, nothing said so): a waystone start the purse could not pay
     // starts on D1, and the watch says so as it opens (the exit's line carries it on: `· from D1 · toll short`)
     { const want = app.lineage.start ?? 1, from = s.run.start ?? (s.depth === 1 ? 1 : want);   // a resumed run deeper down is no fallback
