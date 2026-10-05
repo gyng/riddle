@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 // Cut 23 client gates (docs/CUT23.md), on the fake engine, headless at 400 × 800 (RIDDLE_BROWSER=headed for the GPU):
-//   §1  the forge: no tile before a kit step is affordable (a fresh purse); the ladder carves it (a badge counts the affordable
-//       steps); the sheet has a tablet per slot — pips, the next step `kit · D6 +3 · $225` (its measured move, `…` until it lands),
-//       every later step's price; an unaffordable next says its nights; a buy takes two taps, the armed chip does not disarm on its
-//       own, and nothing on the sheet moves under the finger (the next step takes the bought one's place); the report's PENDING
-//       `forge sword +1 · $300` opens the forge
+//   §1  current Forge (docs/UX_FIRST_HOME.md, QA_CURRENT_UI.md): item and exact price per slot,
+//       no query on open/buy, one-tap exact purchase, stable step placement, disabled unaffordable upgrades,
+//       future prices under Details, one explicitly requested forecast; report Details opens its pending Forge link.
 //   §2  a share the sims sampled at 0 prints `<N%` (the core's `low`), never `0%` — the ends line, the gems, the notches, the bars
 //   §3  a tablet with a why-not opens it on tap (`0/40 · blocked · no item`, the reason's gloss) beside the tablet, never over it,
 //       with `edit`; a tablet without one edits at once; a grip tap (no drag) opens it while editing; a `✗` callout and a shouted
@@ -72,36 +70,34 @@ try {
   await camp();
   const tile = await page.evaluate(() => { const t = document.querySelector(".cmd .tile[data-tile=forge]"); return t ? { badge: t.querySelector(".kit-n")?.textContent ?? null } : null; });
   check(!!tile && /^\d$/.test(tile.badge ?? ""), `the first affordable kit step carves the forge tile, its badge counts them (${JSON.stringify(tile)})`);
+  await page.evaluate(() => { const a=window.__riddle, f=a.engine.kitDeltas.bind(a.engine); window.kitReads=0; a.engine.kitDeltas=async()=>{window.kitReads++;return f();}; });
   await page.locator(".cmd .tile[data-tile=forge]").click({ timeout: 5000 });
   await until(() => page.evaluate(() => document.querySelectorAll(".sheet-wrap .forge .kit-slot").length === 3), "the forge's three slots");
-  const moves = await until(() => page.evaluate(() => { const t = [...document.querySelectorAll(".sheet-wrap .forge .kit-next")].map((b) => b.textContent.replace(/\s+/g, " ").trim()); return t.every((x) => !/…/.test(x)) ? t : null; }), "the steps' measured moves");
-  check(moves.length === 3 && moves.every((m) => /^[a-z][\w +]* · (reach D\d+ ([+−]\d+|same)|(bank|death) [+−]\d+) · \$\d+( · \d+ nights?)?$/.test(m)), `each next step reads its kit, its move and its price (${moves.join(" | ")})`);
-  const later = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .forge .kit-later")].map((l) => l.textContent.trim()));
-  check(later.every((l) => /\$\d+/.test(l)), `every later step shows its price (${later.join(" | ")})`);
-  await shot("cut23-forge");
-  // a buy: two taps, the armed chip holds, nothing moves
-  const sel = ".sheet-wrap .forge .kit-slot[data-slot=weapon] .kit-next";
-  const gold0 = await page.evaluate(() => window.__riddle.lineage.gold);
-  await sleep(300);   // the sheet's unfold (120 ms) is over
-  const r0 = await rect(sel), price = Number(/\$(\d+)/.exec(moves[0])?.[1] ?? 0);
-  await page.locator(sel).click({ timeout: 5000 });
-  await sleep(3600);
-  const armed = await page.evaluate((s) => { const b = document.querySelector(s); return b ? { armed: b.classList.contains("armed"), text: b.textContent } : null; }, sel);
-  // Cut 25 §6 (AN): armed, the line stays and its price reads `ok $N` where it stood
-  check(armed?.armed && armed.text.endsWith(` · ok $${price}`), `the first tap arms the step and it stays armed (3.6 s later: "${armed?.text}")`);
-  await page.locator(sel).click({ timeout: 5000 });
-  await until(() => page.evaluate((g) => window.__riddle.lineage.gold < g, gold0), "the buy");
-  await sleep(200);
-  const after = await page.evaluate(() => ({ gold: window.__riddle.lineage.gold, pips: document.querySelectorAll(".sheet-wrap .forge .kit-slot[data-slot=weapon] .pip.on").length, kit: window.__riddle.lineage.kit.find((k) => k.slot === "weapon").owned }));
-  const r1 = await rect(sel);
-  check(after.gold === gold0 - price && after.pips === 1 && after.kit === 1, `the second tap buys the step ($${gold0} → $${after.gold}, pips ${after.pips})`);
-  check(!!r0 && !!r1 && Math.abs(r0.top - r1.top) < 1 && Math.abs(r0.h - r1.h) < 1, `the next step takes the bought one's place (top ${r0?.top} → ${r1?.top})`);
-  const armOff = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .forge .kit-next.armed")].length);
-  const offNext = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .forge .kit-next.off")].map((b) => b.textContent.replace(/\s+/g, " ").trim()));
-  check(offNext.length > 0 && offNext.every((t) => /\d+ nights?$/.test(t)), `a step the purse cannot buy is off and says its nights (${offNext.join(" | ")})`);
-  await shot("cut23-forge-bought");
-  await closeSheets();
-  check(armOff === 0, "nothing stays armed after the buy");
+  const next = await page.evaluate(() => [...document.querySelectorAll('.forge .kit-slot')].map(el=>({slot:el.dataset.slot,item:el.querySelector('.forge-item')?.textContent.trim(),button:el.querySelector('.forge-buy')?.textContent.trim(),disabled:el.querySelector('.forge-buy')?.disabled})));
+  const ladders = await page.evaluate(()=>window.__riddle.lineage.kit);
+  check(next.length===3 && next.every(x=>x.item && x.button===`Forge $${ladders.find(k=>k.slot===x.slot).next.price}`), `each next step names its item and exact price (${next.map(x=>x.item+' · '+x.button).join(' | ')})`);
+  check(await page.evaluate(()=>window.kitReads)===0, 'opening the forge starts no kit forecast');
+  await page.locator('.forge-details summary').click();
+  const later = await txt('.forge-ladders');
+  check(ladders.every(k=>k.steps.slice(k.owned+1).every(step=>later.includes(`$${step.price}`))), 'folded future steps show every remaining price');
+  await page.locator('.forge-details summary').click();
+  await shot('cut23-forge');
+  const sel='.sheet-wrap:not(.under) .forge .kit-slot[data-slot=weapon] .forge-buy';
+  const gold0=await page.evaluate(()=>window.__riddle.lineage.gold), price=ladders.find(k=>k.slot==='weapon').next.price;
+  await sleep(300); const r0=await rect(sel);
+  await page.locator(sel).click({timeout:5000});
+  await until(()=>page.evaluate(g=>window.__riddle.lineage.gold<g,gold0),'the buy');await sleep(200);
+  const after=await page.evaluate(()=>({gold:window.__riddle.lineage.gold,kit:window.__riddle.lineage.kit.find(k=>k.slot==='weapon').owned,reads:window.kitReads}));
+  const r1=await rect(sel);
+  check(after.gold===gold0-price && after.kit===ladders.find(k=>k.slot==='weapon').owned+1, `one tap buys exactly one step ($${gold0} → $${after.gold})`);
+  check(after.reads===0,'buying starts no kit forecast');
+  check(r0 && r1 && Math.abs(r0.top-r1.top)<1 && Math.abs(r0.h-r1.h)<1,'the next step takes the bought step’s place');
+  const disabled=await page.evaluate(()=>[...document.querySelectorAll('.forge .forge-buy')].every(b=>b.disabled===!window.__riddle.lineage.kit.find(k=>k.slot===b.dataset.slot).next?.affordable));
+  check(disabled,'unaffordable steps are disabled according to engine prices');
+  await page.locator('.forge-details summary').click();await page.locator('.forge-details button', {hasText:'Forecast'}).click();
+  await until(()=>page.evaluate(()=>document.querySelectorAll('.forge-forecasts > div').length===3),'the requested forecast');
+  check(await page.evaluate(()=>window.kitReads)===1,'explicit Forecast makes one query for all three slots');
+  await shot('cut23-forge-bought');await closeSheets();
 
   // ---- §2 the low end: a set that banks at once never dies — `death <N%`, never `0%`
   await page.evaluate(() => window.__riddle.setRulesText("depth>=1 → bank"));
@@ -206,6 +202,7 @@ try {
   // ---- §1 the report's PENDING `forge sword +1 · $300` opens the forge
   await page.evaluate(async () => { const r = window.__riddle; const rep = await r.engine.runOfflineQuick(1800); rep.pending = [...(rep.pending ?? []), "forge sword +1 · $300"]; r.go({ kind: "report", report: rep }); });
   await waitFor((s) => s?.screen === "report", "the report");
+  await page.locator(".report .details-fold").click();
   const fl = page.locator(".report .forge-pending .forge-line").first();
   const flText = (await fl.count()) ? (await fl.textContent()).trim() : null;
   if (flText) { await fl.click({ timeout: 5000 }); await sleep(250); }

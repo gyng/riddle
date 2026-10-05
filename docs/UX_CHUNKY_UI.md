@@ -53,3 +53,6 @@ Source81873c2 pushed. CI build37322014020 passed; queued Pages deployment
 cancelled at the owner's instruction. No public acceptance claimed. Publish
 only when explicitly requested. Local/shipping screenshots remain in the
 private milestone directory; target art is checked in.
+
+Historical Cut23 deviation resolved by QA_CURRENT_UI.md: full33/33 PASS27.0s,
+including anchored picks and the actual collapsed report link.

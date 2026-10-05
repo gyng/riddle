@@ -1,3 +1,8 @@
+The historical Cut23 interaction gate now runs against the current Forge and
+report folds: `(cd web && node tests/run.mjs cut23)`, 33 checks, 27.0s. It no
+longer aborts before the anchored-picker/supply/reason checks. This is restored
+verification coverage, not a measured runtime/build speedup.
+
 ## UI iteration after shared chrome — 2026-10-05
 
 Window geometry and typography now have a scoped gate: `(cd web && node tests/run.mjs chrome)` (176 checks, 27.2s on this machine). It covers seven

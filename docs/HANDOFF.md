@@ -1,3 +1,12 @@
+**LOCAL QA MAINTENANCE — 2026-10-05:** QA_CURRENT_UI.md updates the historical
+Cut23 Forge phase to owner-approved item/price/direct purchase and explicit
+forecast behavior. Kit queries instrumented before opening: zero on open/buy,
+one for requested Forecast. Exact prices, one rung/one spend, disabled
+unaffordable controls and stable position pass. Report pending link now opens
+its real Details fold. Whole gate33/33 PASS27.0s, including preserved uncertainty,
+why-not, anchored picker, outside-tap, supply confirmation and live/death gloss
+checks. No runtime/Rust change; no rebuild or deployment needed.
+
 **DEPLOYMENT POLICY — 2026-10-05:** Owner: "don't need to deploy until i tell
 you". Push permission remains, publication requires a fresh explicit request.
 Pages now builds on pushes/PRs and deploys only via workflow_dispatch on main.
@@ -17,7 +26,7 @@ openWindow, while token pickers and live loot retain openSheet behavior.
 Layout gates176 PASS across320/400/768/1440, real shipping controls36 PASS,
 shipping first-load/live/report/offline walk PASS. Copy/tsc/build PASS; unchanged
 engine's full numeric table revalidated from caches. Tooltip copy shortened to
-budget; activating a control now closes its preceding tooltip. Tooltip70/70 PASS; publication evidence follows when complete. Private captures:
+budget; activating a control now closes its preceding tooltip. Tooltip70/70 PASS; deployment cancelled per policy above. Private captures:
 scratchpad/chunky-ui-20261005; never stage scratchpad or mine.bars.
 
 **TERMINOLOGY / TACTICS FOLLOW-UP — 2026-10-05:** Read UX_TERMINOLOGY.md,
