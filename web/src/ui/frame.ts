@@ -171,8 +171,8 @@ export function gem(o: { label: Node | string; onclick: (e: Event) => void; cls?
 
 export type Console = { el: HTMLElement; setTiles(tiles: (HTMLElement | null | undefined | false)[]): void };
 const SLOTS = 8;
-export function renderConsole(o: { portrait: HTMLElement; tiles: (HTMLElement | null | undefined | false)[]; gem: HTMLElement; top?: HTMLElement; cls?: string }): Console {
-  const cmd = h("div", { class: "cmd" });
+export function renderConsole(o: { portrait: HTMLElement; tiles: (HTMLElement | null | undefined | false)[]; gem: HTMLElement; top?: HTMLElement; cls?: string; compact?: boolean }): Console {
+  const cmd = h("div", { class: `cmd${o.compact ? " cmd-compact" : ""}` });
   const setTiles = (tiles: (HTMLElement | null | undefined | false)[]): void => {
     const all = tiles.filter((t): t is HTMLElement => !!t);
     // Cut 30 integration: the town's buildings, packages and quest grew the bar past its eight slots, and the last tiles (ledger,
@@ -182,7 +182,7 @@ export function renderConsole(o: { portrait: HTMLElement; tiles: (HTMLElement | 
       const at = e.currentTarget as HTMLElement;
       closeAllSheets(); openSheet(() => h("div", { class: "cmd cmd-more" }, ...rest), { anchor: at });
     } })] : all;
-    replace(cmd, ...live, ...Array.from({ length: SLOTS - live.length }, () => h("span", { class: "tile empty", "aria-hidden": "true" })));
+    replace(cmd, ...live, ...Array.from({ length: o.compact ? 0 : SLOTS - live.length }, () => h("span", { class: "tile empty", "aria-hidden": "true" })));
   };
   setTiles(o.tiles);
   const el: HTMLElement = h("footer", { class: `console${o.cls ? ` ${o.cls}` : ""}` }, o.top ?? "",

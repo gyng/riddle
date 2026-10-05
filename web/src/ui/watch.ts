@@ -405,7 +405,7 @@ export function renderWatch(app: App): Mounted {
         h("div", { class: "chips" }, skip, meterTile, bail));
     });
   } });
-  const cons = renderConsole({ portrait: face.el, tiles: [speedBtn, toTown], gem: pause, top: scrub });
+  const cons = renderConsole({ portrait: face.el, tiles: [speedBtn, toTown], gem: pause, top: scrub, compact: true });
   const combatRows = h("ol", { class: "combat-lines", "aria-live": "off" });
   const combatLog = h("div", { class: "combat-log", "aria-label": /* copy:label */ "Combat log" }, combatRows);
   let logDepth = app.lineage.live?.depth ?? 1;

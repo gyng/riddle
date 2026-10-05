@@ -144,3 +144,13 @@ html.skin-tablet .game-window .pkg-panel .chip.pkg:not(.locked) { border: 8px so
 .town-tag[role="button"]:hover { filter: brightness(1.15); }
 .town-tag[role="button"]:focus-visible { outline: 2px solid var(--gilt); outline-offset: 3px; }
 .town-tag[aria-busy="true"] { cursor: progress; }
+
+/* The live watch has two actions, rather than an eight-slot command card. */
+html .console .cmd-compact { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: minmax(80px, auto); max-width: 260px; }
+html .console .cmd-compact .tile .tl { overflow: visible; text-overflow: clip; }
+@media (max-width: 359px) {
+  html .console .cmd-compact { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(56px, auto); }
+  html .console .cmd-compact .tile { flex-direction: row; gap: 6px; }
+  html .console .cmd-compact .tile .ico { flex: 0 0 24px; width: 24px; height: 24px; }
+  html .console .cmd-compact .tile .tl { min-width: 0; }
+}

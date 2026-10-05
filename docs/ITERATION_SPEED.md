@@ -1,3 +1,18 @@
+**COMPACT WATCH CONSOLE — 2026-10-06:** Shared console now has
+optional compact command card; watch uses two real action tiles without six
+empty slots. Mobile Speed/Town menu labels fit at existing font sizes;320px
+stacks icon/text tiles, wider views use two columns. Chunky frames, portrait,
+round gem, all actions and other screen defaults retained. Five320–1440 walks
+pass labels/touch/geometry/speed/pause/town17.6s; chrome184 checks28.8s;
+tsc/build/copy1492/diff pass. Actual headed WASM400/1440 screens shown,
+zero console warnings. No simulation changes/full balance audit/deployment.
+Captain diagnostic via real Fast control: camp-0 ends before capture;
+stronger saved camp-1 legal D5 shows visible Captain/rally17.2s desktop,
+with strict visible/living/on-screen predicate. Initial fogged-entity capture
+rejected; not full victory/mobile boss coverage. UX_WATCH_CONSOLE.md records
+scope/artifacts. Next: Captain identity/readability, and engine live-floor
+vs delayed watched-picture semantics (one capture Live D6/picture D5).
+
 **WATCH LOG FLOORS / MISSING EVENTS — 2026-10-06:** Real legal D5
 send previously logged combat as D1 because log initialized from stale camp
 state. Now starts from send snapshot's actual depth; resume/fallback and later
