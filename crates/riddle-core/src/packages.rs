@@ -1261,9 +1261,10 @@ fn read_shares(g: &crate::engine::Game, rs: &[crate::forecast::SimResult]) -> (f
 /// wall's sims cut there. Priced from those sims (`forecast::passage_from`), each passage is the one
 /// `passage_for` runs; the shares are `shares`' and the wall's past share `at_wall`'s.
 fn panels(g: &crate::engine::Game, set: &RuleSet, sims: u32, stone: Option<u32>) -> ((f64, f64, f64, f64, f64), Option<f64>) {
-    if sims <= 8 {
-        // Tactics reads depths and exit tiers, never skipped-floor gold. Skip that
+    if sims < crate::forecast::REFINE_SIMS {
+        // Ordinary Tactics reads depths and exit tiers, never skipped-floor gold. Skip that
         // independent ledger forecast and isolate its incomplete panel cache.
+        // Explicit refinement retains its existing serialized camp-quality state.
         let own = read_shares(g, &crate::forecast::camp_panel_outcomes(g, set, sims));
         let wall = stone.map(|s| {
             let mut w = g.sim_clone();

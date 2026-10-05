@@ -486,7 +486,11 @@ fn camp_panel_priced(game: &Game, rules: &RuleSet, sims: u32, mut prefix: Vec<Si
     let tag = forecast_tag(game, known_to);
     let budget = panel_budget(sims);
     let normal_key = panel_key(game, rules, sims);
-    let namespace = if price_passage { "" } else { "outcomes:" };
+    // From D1 there is no skipped-floor gold, so ordinary outcome results
+    // are already complete and may also cover later gold reads. Keep explicit
+    // refinement separate unless its normal quality metadata was requested.
+    let normal_cache = price_passage || (sims < REFINE_SIMS && sim_start(game) <= 1);
+    let namespace = if normal_cache { "" } else { "outcomes:" };
     let key = format!("{namespace}{normal_key}");
     if let Some(v) = game.panel_cache.borrow().get(&key) {
         work(|w| w.panel_hits += 1);
@@ -497,7 +501,9 @@ fn camp_panel_priced(game: &Game, rules: &RuleSet, sims: u32, mut prefix: Vec<Si
     // including wall12→48, and truncate it under this request's ordered budget.
     let parts: Vec<_> = normal_key.splitn(5, ':').collect();
     for (k, v) in game.panel_cache.borrow().iter() {
-        let Some(k) = k.strip_prefix(namespace) else { continue; };
+        // Complete priced results contain every outcome field. Reuse that work
+        // in this direction only; normal reads cannot match outcomes: keys.
+        let k = if price_passage { k.as_str() } else { k.strip_prefix("outcomes:").unwrap_or(k) };
         let p: Vec<_> = k.splitn(5, ':').collect();
         if p.len() == 5 && p[0] == parts[0] && p[2] == parts[2] && p[4] == parts[4] && v.len().min(sims as usize) > prefix.len().min(sims as usize) {
             prefix = v.clone();

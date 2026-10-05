@@ -1,12 +1,15 @@
 //! Single-thread work accounting and exact-output fingerprint for a saved camp.
+//! Optional SIMS overrides package sampling only; work reports actual expeditions.
 use riddle_core::{forecast, Game};
 use std::time::Instant;
 pub fn main() {
     riddle_core::balance::configure_from_env().expect("valid immutable balance profile");
     let a: Vec<String> = std::env::args().collect();
-    let g = Game::load(&std::fs::read_to_string(a.get(1).expect("sim_perf SAVE [wall|packages|offline|clone|setup]")).unwrap()).unwrap();
+    let g = Game::load(&std::fs::read_to_string(a.get(1).expect("sim_perf SAVE [wall|packages|offline|clone|setup] [OUTPUT] [SIMS]")).unwrap()).unwrap();
     let mode = a.get(2).map(String::as_str).unwrap_or("packages");
     forecast::set_parallel_sims(false);
+    let sims = a.get(4).map(|v| v.parse::<u32>().expect("positive simulation count")).unwrap_or(forecast::FORECAST_SIMS);
+    assert!(sims > 0, "positive simulation count");
     let t = Instant::now();
     let (out, counts) = forecast::measure_work(|| match mode {
         "clone" | "setup" => {
@@ -20,12 +23,12 @@ pub fn main() {
             serde_json::json!({ "iterations": iterations, "sample": sample.save() }).to_string()
         }
         "wall" => serde_json::to_string(&riddle_core::wall::search(&g)).unwrap(),
-        "packages" => serde_json::to_string(&riddle_core::packages::options(&g, forecast::FORECAST_SIMS)).unwrap(),
+        "packages" => serde_json::to_string(&riddle_core::packages::options(&g, sims)).unwrap(),
         "offline" => { let mut g = g; let r = g.run_offline(8 * 3600); serde_json::to_string(&(r, g.save())).unwrap() },
         _ => panic!("unknown workload: {mode}"),
     });
     let elapsed = t.elapsed().as_secs_f64();
     if let Some(path) = a.get(3) { std::fs::write(path, &out).unwrap(); }
     let hash = out.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
-    println!("{}", serde_json::json!({"mode": mode, "seconds": elapsed, "output": format!("{hash:016x}"), "work": counts}));
+    println!("{}", serde_json::json!({"mode": mode, "requested_sims": if mode == "packages" { Some(sims) } else { None }, "seconds": elapsed, "output": format!("{hash:016x}"), "work": counts}));
 }

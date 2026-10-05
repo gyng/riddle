@@ -251,3 +251,74 @@ fn passage_estimate_skips_unused_gold_and_matches_parallel_order() {
     });
     assert_eq!(sequential, parallel);
 }
+
+
+#[test]
+fn large_outcome_panels_preserve_refinement_and_actual_progress() {
+    use crate::forecast::{camp_panel, camp_panel_outcomes, forecast_refine};
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        for sims in [32, 50, 100] {
+            let mut g = estimate_camp();
+            let mut control = estimate_camp();
+            let rules = g.lineage.rules().clone();
+            let save = g.save();
+            let outcomes = camp_panel_outcomes(&g, &rules, sims);
+            assert_eq!(crate::forecast::camp_sims(&g, &rules), crate::forecast::FORECAST_SIMS, "outcome samples cannot mark a gold forecast refined");
+            let priced = camp_panel(&control, &rules, sims);
+            assert_eq!(outcomes.len(), priced.len());
+            for (a, b) in outcomes.iter().zip(&priced) {
+                assert_eq!((a.max_depth, a.tier, &a.cause, a.ticks, &a.fires), (b.max_depth, b.tier, &b.cause, b.ticks, &b.fires));
+            }
+            assert_eq!(g.save(), save, "outcome-only reads do not mutate serialized state");
+            assert_eq!(forecast_refine(&g), forecast_refine(&control));
+            assert_eq!(g.save(), control.save(), "explicit refinement records identical quality metadata");
+            g.start_run(Some(99));
+            control.start_run(Some(99));
+            assert_eq!(g.save(), control.save());
+        }
+    });
+}
+
+
+#[test]
+fn outcome_queries_reuse_priced_prefix_without_exposing_incomplete_gold() {
+    use crate::forecast::{camp_panel, camp_panel_outcomes, measure_work};
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        let g = estimate_camp();
+        let rules = g.lineage.rules();
+        let priced = camp_panel(&g, rules, 50);
+        let before = g.save();
+        let (outcomes, work) = measure_work(|| camp_panel_outcomes(&g, rules, 32));
+        assert_eq!(work.simulations, 0, "a complete forecast must cover its smaller outcome query");
+        assert_eq!(outcomes, priced[..outcomes.len()]);
+        assert_eq!(g.save(), before);
+        let fresh = estimate_camp();
+        camp_panel_outcomes(&fresh, fresh.lineage.rules(), 32);
+        let (normal, work) = measure_work(|| camp_panel(&fresh, fresh.lineage.rules(), 50));
+        assert!(work.simulations > 0, "priced forecasts must still compute their own complete gold");
+        assert_eq!(normal, priced);
+    });
+}
+
+
+#[test]
+fn d1_outcomes_are_complete_gold_results_for_later_forecasts() {
+    use crate::forecast::{camp_panel, camp_panel_outcomes, measure_work};
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        let mut g = estimate_camp();
+        g.lineage.start = 1;
+        let control = g.sim_clone();
+        let rules = g.lineage.rules();
+        let save = g.save();
+        let outcomes = camp_panel_outcomes(&g, rules, 32);
+        let (priced, work) = measure_work(|| camp_panel(&g, rules, 32));
+        assert_eq!(work.simulations, 0, "D1 has no omitted gold to recompute");
+        assert_eq!(priced, outcomes);
+        assert_eq!(priced, camp_panel(&control, rules, 32));
+        assert_eq!(camp_panel(&g, rules, 50), camp_panel(&control, rules, 50));
+        assert_eq!(g.save(), save);
+    });
+}

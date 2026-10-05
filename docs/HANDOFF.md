@@ -1,3 +1,19 @@
+**LARGER TACTICS OUTCOMES — 2026-10-06:** Ordinary Tactics queries below100
+samples now omit unused passage-gold work. Complete priced prefixes can feed
+outcome queries; incomplete deep-start outcomes cannot feed gold forecasts.
+D1 outcomes are complete and share the normal cache. Explicit100 refinement
+retains its serialized quality metadata. Final shipping tuned32 query
+10.126→7.242s (28.5% faster),50 query12.328→9.241s (25.0% faster), three
+alternating pairs after warmup. D1 cases essentially neutral; documented
+retention deviation in PERF_TACTICS_OUTCOMES.md, no broad speed claim.
+All15 shipping workload/save pairs exact; full verification passes543 tests,
+one ignored, clippy/build and fresh18 selected fortnight cases (513s total).
+Whole dayplayer printout exact except elapsed line. Real shipping400/1440
+controls/screens pass. Next inspect wall-search outcome projection, then small
+camp/Forge previews and explicit refinement; preserve actual run/gold/offline
+truth. Push authorized, no deployment requested. Private artifacts:
+scratchpad/tactics-outcomes-20261005/.
+
 **OUTCOME-ONLY FORECASTS — 2026-10-05:** Eight-sample Tactics queries now skip
 unused passage-gold pricing, with outcome panels cached under outcomes:.
 Regular gold forecasts, real sends and offline progress retain their prior

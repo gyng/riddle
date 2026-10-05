@@ -1,3 +1,16 @@
+**Larger outcome forecasts — 2026-10-06:** Extend unused passage-gold removal
+to ordinary Tactics queries below100. Explicit refinement preserves existing
+quality state; safe complete-prefix reuse avoids duplicate warm work. Shipping
+deep-start32 query10.126→7.242s,50 query12.328→9.241s; named fast-WASM warm
+forecast+32 options improves24.6% deep-start, D1 essentially neutral.
+PERF_TACTICS_OUTCOMES.md records exact-output checks, the D1 retention deviation
+and measurement limits. Full fresh routine verifier513s,18 selected cases;
+this has not made all gate cases finish within minutes. Next in impact order:
+inspect outcome projection for wall-search depth-only panels, then reduce
+camp/Forge preview work and reserve refinement for explicit requests. Keep
+actual gold/run/offline forecasts fully correct. Shipping rebuilt locally;
+publication still requires an explicit user request.
+
 **Unused forecast work — 2026-10-05:** Eight-sample Tactics queries omit the
 passage-gold forecast they do not consume. Separate outcomes: panels cannot
 feed real gold/folding forecasts. Additional named fast-WASM reductions:
