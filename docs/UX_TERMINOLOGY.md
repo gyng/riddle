@@ -54,3 +54,7 @@ were stale, then updated them to current first-home/bloodline contracts. Numeric
 4/5/12-control gates stay unchanged. An unavailable building caption is passive
 text; when ready it becomes a keyboard-accessible Build control. This also
 removes its duplicate interaction from the town density count.
+
+Published source43c9a09. Local full and scoped gates pass; public36 real
+controls400/1440 pass with no page errors. Public artifact identity and both
+screen widths verified; screenshots shown inline.

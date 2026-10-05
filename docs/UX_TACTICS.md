@@ -30,5 +30,6 @@ background comparison, Legacy invalidation and confirmed level purchase.
 Scoped client: cut30 all41; cut30town all; cut28 all27; request46/lane16.
 Copy-lint1468 literals/51 files:0 violations; final client shipping build PASS.
 Private evidence:scratchpad/package-refresh-20261005/{native-ux,shipping-ux}.
-Automatic review initially rejected publication; no command ran. Owner then
-explicitly approved pushing. Public acceptance remains pending.
+Published source43c9a09, Pages37314788570 SUCCESS. Public36 real control
+checks400/1440 PASS; no page errors. Settled public screenshots shown inline.
+Public HTML/JS/WASM match CI bytes exactly. Owner explicitly approved pushing.

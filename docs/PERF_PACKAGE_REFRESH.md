@@ -41,3 +41,7 @@ first comparison. Every complete price vector matches. No FPS, offline tick
 or whole-app performance claim. The first check timed out because an unscoped
 selector clicked the inert fading clone of a closed sheet; scoped live-panel
 controls pass. Private evidence:scratchpad/package-refresh-20261005.
+
+Published source43c9a09, Pages37314788570 SUCCESS. Public36 real UI checks
+400/1440 PASS, no page errors; complete deployed HTML/entry JS/WASM match CI
+artifact bytes exactly. Both public screenshots shown inline.

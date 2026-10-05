@@ -15,8 +15,11 @@ to their contents; Chronicle/lore names/raw rules/save keys remain. Passive
 building captions become Build buttons only when ready; numeric density gates
 unchanged. Private scratchpad/package-refresh-20261005 and mine.bars never stage.
 Native36 and shipping36 real controls400/1440 PASS, all scoped client gates
-PASS. Automatic approval review initially rejected commit/pushmain; no command ran.
-Owner then explicitly approved pushing. Publication/public verification pending.
+PASS. Owner explicitly approved pushing after automatic review initially rejected
+the combined publication. Published source43c9a09, Pages37314788570 SUCCESS.
+Public HTML/JS/WASM match CI bytes exactly. Public36 real controls400/1440
+PASS; no page errors. Both settled public screenshots shown inline.
+Deployed WASM SHA256:87e47150c4863f18bae924af07de95ab316e2d1ba340d2b6898d3e1dfd062746.
 Prior release described below.
 
 **PERFORMANCE FOLLOW-THROUGH — 2026-10-05:** Published source2b48e00,
