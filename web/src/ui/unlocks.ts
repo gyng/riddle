@@ -18,14 +18,14 @@ import { openWindow as openSheet } from "./sheet";
 const LABEL: Record<string, string> = {
   row5: "+1 rule slot", row6: "+1 rule slot", row7: "+1 rule slot", row8: "+1 rule slot", row9: "+1 rule slot", row10: "+1 rule slot",
   party_slot_2: "+1 party", party_slot_3: "+1 party", party_slot_4: "+1 party",
-  vault2: "+1 vault", vault3: "+1 vault", vault4: "+1 vault", vault5: "+1 vault",
+  vault2: "+1 storage slot", vault3: "+1 storage slot", vault4: "+1 storage slot", vault5: "+1 storage slot",
   rogue: "class: rogue", ranger: "class: ranger", caster: "class: caster",
   tame: "action: tame", throw: "action: throw",
   cond_alert: "condition: alert", cond_turns: "condition: turns", cond_loot: "condition: loot", cond_on_kill: "condition: on kill", cond_on_see: "condition: on see", cond_party_hp: "condition: party hp",
   corridor_fighting: "rule: corridor fighting", kite_archers: "rule: kite archers", stair_dance: "rule: stair dance", gas_step: "rule: gas step",
   pack_break: "rule: pack break", thief_guard: "rule: thief guard", boss_focus: "rule: boss focus", last_stand: "rule: last stand",
-  quartermaster: "auto: keep weapon+armour", auto_supply: "auto: restock", auto_insure: "auto: insure",
-  incubator: "eggs: 1 rest", supply_cap_5: "supplies 3 → 5", bone_sense: "path: bones", third_tag: "breed: 3 tags",
+  quartermaster: "auto: keep weapon+armour", auto_supply: "Restock supplies", auto_insure: "Auto insure gear",
+  incubator: "eggs: 1 rest", supply_cap_5: "Supply slots 3 → 5", bone_sense: "path: bones", third_tag: "breed: 3 tags",
   // Cut 3 tier 2
   cadence: "rule: cadence", noise_discipline: "rule: noise discipline", reflect_read: "rule: reflect read", deep_march: "rule: deep march",
   lantern_rig: "sight: lantern rig", recall_sense: "auto: recall sense",

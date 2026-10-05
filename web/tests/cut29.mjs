@@ -282,7 +282,8 @@ try {
     });
     check(t.painted && !t.wallAtOnce, `the report paints without waiting on the wall search (painted ${t.painted}, tablet at once ${t.wallAtOnce})`);
     const w = await until(() => document.querySelector(".wall-host .wall-edit")?.textContent.replace(/\s+/g, " ").trim() ?? null, "the wall's tablet");
-    check(/^wall D17 · 48 sends/.test(w) && /past D17 12%→38%/.test(w) && !/\bR\d/.test(w), `the wall's edit is a patch tablet, its rule named by its words ("${w}")`);
+    check(/^Reach D18 · 48 samples/.test(w) && /Before 12% → With fix 38%/.test(w) && /Review rules/.test(w) && !/\bR\d/.test(w), `the wall's edit is a patch tablet, its rule named by its words ("${w}")`);
+    await page.locator(".report .details-fold").click();
     await shot("cut29-wall");
     await page.locator(".wall-apply").click();
     await camp();

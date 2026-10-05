@@ -40,7 +40,12 @@ import { kwHost, kwText } from "./tips";
 import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
 import { mountClear } from "./runclear";   // run-clear: the run's card before the town
 import { itemIcon, itemName, itemChip } from "./items";
+import { labelOf as unlockLabel } from "./unlocks";
 
+
+/** Persisted unlock IDs belong to the wire; report text uses catalogue words. */
+const readableUnlock = (text: string, names?: Map<string, string>): string => text.replace(/^unlock ([\w:-]+)(?: \(\d+\))?/, (_all, id: string) =>
+  `Unlock · ${names?.get(id) ?? unlockLabel(id)}`);
 
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
@@ -225,9 +230,9 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
   };
   return h("div", { class: `news${lead.length ? " with-lead" : ""}` },
     ...leadT.map(({ l, t }, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k },
-      l.k === "plateau" ? h("div", { class: "plateau-title" }, /* copy:label */ "Progress stopped", h("span", { class: "plateau-floor" }, t.replace(/^plateau: none past D(\d+)$/, /* copy:label */ "floor $1"))) : l.k === "counter" ? learnedCounter(t) : t,
+      l.k === "plateau" ? h("div", { class: "plateau-title" }, /* copy:label */ "Progress stopped", h("span", { class: "plateau-floor" }, t.replace(/^plateau: none past D(\d+)$/, /* copy:label */ "floor $1"))) : l.k === "counter" ? learnedCounter(t) : readableUnlock(t),
       l.k === "plateau" ? h("div", { class: "plateau-summary" }, /* copy:callout */ "Returned home", " · ", /* copy:callout */ "no deeper runs") : null)),
-    ...nsT.slice(0, lead.length ? 2 : 4).map(({ n, t }, i) => h("div", { class: `news-line k-${n.k}${i === 0 && !lead.length ? " lead" : ""}` }, t)));
+    ...nsT.slice(0, lead.length ? 2 : 4).map(({ n, t }, i) => h("div", { class: `news-line k-${n.k}${i === 0 && !lead.length ? " lead" : ""}` }, readableUnlock(t))));
 }
 
 /** Two rows with the same tokens (conds in order with their numbers, the verb). */
@@ -484,6 +489,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   };
   // pending: the engine's lines, with affordable unlocks shown as cards once the catalogue arrives
   const pendingBody = h("div", null);
+  const unlockNames = new Map<string, string>();
   const pendingSec = section(/* copy:label */ "pending", pendingBody);
   const paintPending = (affordable: ReturnType<typeof visible>): void => {
     // `R1 fired n of m runs` lines come for every row (summed across slices); only the quiet ones are decisions
@@ -494,7 +500,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     pendingBody.replaceChildren();
     // Cut 23 §1: the core's `forge sword +1 · $300` (a kit step the purse buys now) opens the forge
     const forgeLines = pendingLines.filter((p) => /^forge /.test(p));
-    const ul = lines(pendingLines.filter((p) => !/^forge /.test(p))); if (ul) pendingBody.appendChild(ul);
+    const ul = lines(pendingLines.filter((p) => !/^forge /.test(p)).map((text) => readableUnlock(text, unlockNames))); if (ul) pendingBody.appendChild(ul);
     if (forgeLines.length) pendingBody.appendChild(h("div", { class: "chips forge-pending" }, ...forgeLines.map((p) => h("button", { class: "chip mini forge-line num", onclick: () => openForge(app) }, p))));
     // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one
     // QA 1a2a4a9: the core's short list (`UnlockInfo.short`) when sent — the camp's shelf shows the same three
@@ -514,7 +520,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // leaves the watch's own counts
   const usage = r.pending.map((p) => /^R(\d+) fired (\d+) of (\d+) runs/.exec(p)).filter((m): m is RegExpExecArray => !!m);
   if (usage.length) { const fires = app.rules.rows.map(() => 0); for (const m of usage) if (Number(m[1]) - 1 < fires.length) fires[Number(m[1]) - 1] = Number(m[2]); app.rowFires = fires; app.rowFiresOf = Number(usage[0][3]); }
-  void app.engine.unlocks().then((cat) => paintPending(visible(cat, app.lineage).filter((u) => u.available))).catch(() => { /* lines only */ });
+  void app.engine.unlocks().then((cat) => { for (const u of cat) unlockNames.set(u.id, `${unlockLabel(u.id)} · ${priceLabel(u)}`); paintPending(visible(cat, app.lineage).filter((u) => u.available)); }).catch(() => { /* lines only */ });
   // Cut 17 §4: the console — `open` (the worst death's verdict) · `gold` (the ledger of this absence's gold) · `ledger` (the
   // bestiary, from the 5th heir); the gem is `camp`
   const bar = renderBar(app);
@@ -606,7 +612,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // rule: rank n+1 at 100·(n+1)² renown) — `★0 · 91/100`
     section(/* copy:label */ "reputation", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "",
       typeof L.renown === "number" ? h("small", { class: "dim next-rank" }, ` · ${L.renown}/${100 * ((L.rank ?? r.renown.rank) + 1) ** 2}`) : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
-    section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: noteText(x.text), n: x.n })))),
+    section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: readableUnlock(noteText(x.text)), n: x.n })))),
   ].filter((x): x is HTMLElement => !!x));
   detailsBtn.hidden = !details.childElementCount;
   const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null);   // desktop: the rules left, the shaft right (wide.css)

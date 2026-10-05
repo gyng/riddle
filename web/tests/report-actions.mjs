@@ -1,0 +1,35 @@
+import {execFileSync} from 'node:child_process';import {launchBrowser} from '../../tools/browser.mjs';
+const url=execFileSync('bash',['tools/dev.sh'],{cwd:new URL('../../',import.meta.url),encoding:'utf8'}).trim();const b=await launchBrowser();
+try{for(const width of [400,1440]){const p=await b.newPage({viewport:{width,height:900}});await p.goto(`${url}?engine=fake&fresh=1&seed=3002&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);
+const n=await p.evaluate(async()=>{
+ const a=window.__riddle,original=a.engine;let checks=0,release;const check=(ok,name)=>{if(!ok)throw Error(name);checks++;};
+ const report={elapsed_s:0,runs:1,sampled:false,learned:[],bests:[],found:[],deaths:[],pending:['unlock supply_cap_5 (0)','unlock vault2 (3)'],marks_earned:0,tamed:[],hatched:[],lost:[],reel:[{text:'unlock vault2 (3)',t:1,run_id:1}],lead:[{k:'unlock',text:'unlock supply_cap_5 (0)'}]};
+ a.lineage={...a.lineage,packages:undefined,systems:['unlocks'],wall:undefined};
+ a.engine={...original,wallEdit:async()=>null,unlocks:()=>new Promise(r=>release=r)};
+ a.go({kind:'report',report});
+ const pending=()=>document.querySelector('.report .rsec .lines')?.textContent??'';
+ check(pending().includes('Supply slots 3 → 5')&&!pending().includes('supply_cap_5'),'first paint uses readable supply name');
+ check(pending().includes('+1 storage slot')&&!/vault2|\(0\)/.test(pending()),'no raw storage ID or zero cost');
+ check(!/free/.test(pending()),'initial fallback makes no free-price promise');
+ check(!/supply_cap_5|vault2|\(0\)/.test(document.querySelector('.report').textContent),'news and reel also use readable unlock labels');
+ release([{id:'supply_cap_5',cost:0,gold_only:true,gold:450,owned:false,available:false,needs:'$450 more'},{id:'vault2',cost:3,owned:false,available:false,needs:'meet Warlord'}]);
+ await new Promise(r=>setTimeout(r,20));
+ check(pending().includes('$450')&&!/\(0\)/.test(pending()),'catalogue replaces fallback with actual gold price');
+ check(pending().includes('◆3'),'catalogue retains mark currency');
+ const {wallTablet}=await import('/src/ui/wall.ts');const {rowLabel}=await import('/src/ui/tokens.ts');
+ const old=[{conds:[{k:'hp<',n:35}],verb:{v:'drink',a:'heal'}},{conds:[],verb:{v:'attack',a:'nearest'}}];
+ const proposed=[old[1],{conds:[{k:'hp<',n:25}],verb:{v:'drink',a:'heal'}}];a.sets[a.active]={rows:old};a.lineage.start=1;
+ let start,rules,applied=0;a.engine={...a.engine,setStart:async d=>{start=d;return {...a.lineage,start:d};}};a.applyRules=r=>{rules=r;};
+ const w={depth:17,sims:48,before:0.12,after:0.38,start:18,edits:['R2 above R1','R2 hp<25','start D18'],rules:{rows:proposed}};
+ const tablet=wallTablet(a,w,()=>applied++);document.querySelector('.report').append(tablet);
+ check(tablet.textContent.includes('Reach D18'),'target is the next floor');
+ check(tablet.textContent.includes('Before 12%')&&tablet.textContent.includes('With fix 38%'),'chances name before and proposed');
+ check(tablet.textContent.includes('Start floor · D1 → D18'),'start change is explicit');
+ check(!/R\d|hp<25|above R|sends/.test(tablet.textContent),'opaque engine edits stay out of chrome');
+ check([...tablet.querySelectorAll('.wall-current .chips')].map(r=>r.textContent.replace(/\s+/g,'')).join('|')===old.map(r=>rowLabel(r).replace(/^ → /,'').replace(/\s+/g,'')).join('|'),'current rules exact and ordered');
+ check([...tablet.querySelectorAll('.wall-suggested .chips')].map(r=>r.textContent.replace(/\s+/g,'')).join('|')===proposed.map(r=>rowLabel(r).replace(/^ → /,'').replace(/\s+/g,'')).join('|'),'suggested rules exact and ordered');
+ check(tablet.querySelectorAll('.item-ico').length===2,'item rules retain silhouette icons');
+ tablet.querySelector('summary').click();check(tablet.querySelector('details').open,'review opens');
+ tablet.querySelector('.wall-apply').click();await new Promise(r=>setTimeout(r,20));check(start===18&&rules===w.rules&&applied===1,'apply uses offered start and exact rules');
+ check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow');a.engine=original;return checks;
+});console.log(width,n,'report action checks PASS');await p.close();}}finally{await b.close();}

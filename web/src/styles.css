@@ -1729,3 +1729,12 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .topbar button.legacy { min-height: var(--tap); }
 .heir-identity { display: flex; flex-direction: column; align-items: flex-start; }
 .bloodline-label { font: 11px var(--sans); color: var(--dim); }
+
+/* Wall suggestions show the resulting policy in the same chips as the editor. */
+.wall-edit .wall-foot { display: flex; flex-wrap: wrap; gap: 4px; margin-block: 8px; }
+.wall-edit .wall-rules { margin-block: 10px; }
+.wall-edit .wall-compare { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin-top: 10px; }
+.wall-edit .wall-rule { display: flex; align-items: baseline; gap: 5px; margin-top: 6px; }
+.wall-edit .wall-rule > .chips { min-width: 0; }
+.wall-edit .wall-rule .chip { min-height: 28px; padding: 3px 6px; }
+@media (min-width: 1024px) { .wall-edit .wall-compare { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

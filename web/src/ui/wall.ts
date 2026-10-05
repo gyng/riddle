@@ -1,11 +1,9 @@
-// Cut 29 §1 (E1): at a best depth held two days, the core searches the one-row edit that passes the wall (`engine.wallEdit()`, lazy,
-// on a background lane — up to a minute in wasm; `Lineage.wall` once the day's search is cached). The client never waits on it: the
-// report and the camp paint first, and the offer lands as a patch tablet when it comes — the edit's words (the core's `drop R6` named
-// by the rule's words), the share of sends past the record before → after, and `apply`, which takes the whole set it was measured on
-// (and the start it was measured from: `start D24`, a lit waystone at the wall).
+// Cut 29: background wall search returns an exact rule set and starting floor.
+// The report paints first; the offer explains its target, odds and ordered rules.
 import type { App } from "../app";
 import type { WallEdit } from "../engine/types";
 import { h } from "./dom";
+import { rowChips } from "./editor";
 
 /** The day's offer: the lineage's cached one at once, else ask the core (in the background) — null when there is none. */
 export async function wallOffer(app: App): Promise<WallEdit | null> {
@@ -14,11 +12,17 @@ export async function wallOffer(app: App): Promise<WallEdit | null> {
   try { return (await app.engine.wallEdit()) ?? null; } catch (e) { console.warn("wallEdit", e); return null; }
 }
 const pct = (x: number): string => `${Math.round(x * 100)}%`;
-/** The offer as a patch tablet: `wall D17` · the edits · `past D17 12→38%` · apply. */
+/** Review the measured rules before applying the exact Rust offer. */
 export function wallTablet(app: App, w: WallEdit, onApply: () => void): HTMLElement {
+  const review = h("details", { class: "wall-rules" },
+    h("summary", null, /* copy:button */ "Review rules"),
+    h("div", { class: "wall-compare" },
+      h("section", { class: "wall-current" }, h("div", { class: "label" }, /* copy:label */ "Current rules"), ...app.rules.rows.map((r, i) => h("div", { class: "wall-rule" }, h("small", { class: "num dim" }, i + 1), rowChips(r)))),
+      h("section", { class: "wall-suggested" }, h("div", { class: "label" }, /* copy:label */ "Suggested rules"), ...w.rules.rows.map((r, i) => h("div", { class: "wall-rule" }, h("small", { class: "num dim" }, i + 1), rowChips(r))))));
   return h("div", { class: "patch tablet wall-edit", "data-depth": w.depth },
-    h("div", { class: "wall-head num" }, h("b", null, /* copy:label */ `wall D${w.depth}`), h("small", { class: "dim" }, /* copy:callout */ ` · ${w.sims} sends`)),
-    h("div", { class: "chips wall-edits" }, ...w.edits.map((e) => h("span", { class: "chip wall-e" }, e))),
-    h("div", { class: "wall-foot num" }, /* copy:callout */ `past D${w.depth} `, h("span", { class: "dim" }, pct(w.before)), "→", h("b", { class: "up" }, pct(w.after)), " ",
-      h("button", { class: "chip wall-apply", onclick: async () => { if (w.start && w.start !== app.lineage.start && app.engine.setStart) await app.mutate(() => app.engine.setStart!(w.start!)); app.applyRules(w.rules); onApply(); } }, /* copy:button */ "apply fix")));
+    h("div", { class: "wall-head num" }, h("b", null, /* copy:label */ `Reach D${w.depth + 1}`), h("small", { class: "dim" }, /* copy:callout */ ` · ${w.sims} samples`)),
+    w.start && w.start !== app.lineage.start ? h("div", { class: "wall-start num" }, /* copy:label */ "Start floor", /* copy:callout */ ` · D${app.lineage.start ?? 1} → D${w.start}`) : null,
+    h("div", { class: "wall-foot num" }, h("span", { class: "dim" }, /* copy:label */ "Before", ` ${pct(w.before)}`), " → ", h("b", { class: "up" }, /* copy:label */ "With fix", ` ${pct(w.after)}`)),
+    review,
+    h("button", { class: "chip wall-apply", onclick: async () => { if (w.start && w.start !== app.lineage.start && app.engine.setStart) await app.mutate(() => app.engine.setStart!(w.start!)); app.applyRules(w.rules); onApply(); } }, /* copy:button */ "Apply fix"));
 }

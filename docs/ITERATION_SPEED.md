@@ -1,3 +1,18 @@
+**READABLE REPORT ACTIONS — 2026-10-06:** Report news/reel/pending now
+show readable unlock names; pending uses actual catalogue currency/price once
+loaded, with no initial zero/free promise. Wall offers show Reach next floor,
+samples, Before/With fix odds, changed start and a collapsible exact current/
+suggested ordered-rule comparison with item icons. Apply behavior is unchanged.
+Actual shipping400/1440 walks pass with exact offered rules/start. Focused32,
+report20, wall3, geometry176, paint5, tsc/copy1485/build pass. Historical Cut25
+now follows the simpler report, one-tap Forge and single Speed menu; full22
+checks pass in124s with original drain/black-frame limits. Section-level checks
+and explicit mature fixtures reduce local report/Forge checks to9s and Speed
+to8s. UX_REPORT_ACTIONS.md records scope and evidence. No Rust or deployment.
+Round Send remains86×86 mobile/108×108 desktop, proportional art (e2f23a7).
+Next: selected Tactics group query work, then remaining target-screen/design
+consistency audit. All gate cases within minutes remains unfinished.
+
 **ITEM SILHOUETTES / ROUND SEND — 2026-10-06:** Owner requires item icons
 and no boxes around silhouettes. Extended the shared item module to Forge
 salvage/future/current kit, shops/repeat/sell, item rules, report item lists and

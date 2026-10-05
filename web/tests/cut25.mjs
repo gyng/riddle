@@ -11,8 +11,8 @@
 //       (`?fake_lag=1`: 3 s each — both land in ~3 s, not 6); the deep-lineage timings are reported by clarity.mjs / the Cut 25 notes
 //   §6  the unlock grid keeps its cells under a buy (the bought card's cell stays, `✓`; no other card moves); a sheet opened from a sheet
 //       replaces it (the first hidden, a back `‹`; back returns to it, the `×` closes both); the row card at the cap reads `max` and its
-//       gate, never the next price; the forge's armed step keeps its place (`ok $N` where the price stood) and the second tap there buys;
-//       an offline trace shows every blow (`Trace.blows`); the reel's merged line reads `×n`; a watched run's RUNS tile names its heir
+//       gate, never the next price; the forge shows its quoted price and buys exactly one step on one tap;
+//       an offline trace shows every blow (`Trace.blows`); the reel's merged line reads `×n`; the report's main RUNS tile shows its count
 //
 //   node web/tests/cut25.mjs [--shots dir] [--no-wasm]        (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
@@ -25,6 +25,9 @@ import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
+const partArg = process.argv.find((a) => a.startsWith("--part="));
+const parts = partArg ? partArg.slice(7).split(",") : null;
+const part = (name) => !parts || parts.includes(name);
 const shotsArg = process.argv.indexOf("--shots"), shots = shotsArg > 0 ? process.argv[shotsArg + 1] : null;
 if (shots) mkdirSync(shots, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -44,14 +47,14 @@ async function waitFor(pred, label, timeout = 20_000) {
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} booted=${s?.booted})`);
 }
 const camp = async () => { await waitFor((s) => s?.booted && s.screen === "camp", "camp"); await sleep(250); };
-const richSave = (gold, marks) => page.evaluate(async ([gold, marks]) => { const b = JSON.parse(window.__riddle.exportSave()); const e = JSON.parse(b.engine); e.lineage.gold = gold; if (marks !== undefined) e.lineage.marks = marks; e.lineage.best_depth = Math.max(5, e.lineage.best_depth); b.engine = JSON.stringify(e); return window.__riddle.importSave(JSON.stringify(b)); }, [gold, marks]);
+const richSave = async (gold, marks) => { await page.goto(`${url}?dev=1&engine=fake&systems=all&fresh=1&seed=25`, {waitUntil:"domcontentloaded"}); await camp(); return page.evaluate(async ([gold, marks]) => { const b = JSON.parse(window.__riddle.exportSave()); const e = JSON.parse(b.engine); e.lineage.gold = gold; if (marks !== undefined) e.lineage.marks = marks; e.lineage.best_depth = Math.max(5, e.lineage.best_depth); b.engine = JSON.stringify(e); return window.__riddle.importSave(JSON.stringify(b)); }, [gold, marks]); };
 
 try {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
   await camp();
 
   // ---- §2: the `order` verdict
-  {
+  if (part("order")) {
     const rows = [
       { conds: [{ k: "hp<", n: 30 }], verb: { v: "drink", a: "heal" }, origin: "player" }, { conds: [{ k: "foes>=", n: 1 }], verb: { v: "attack", a: "nearest" }, origin: "player" },
       { conds: [{ k: "foe_tag", t: "ranged" }], verb: { v: "attack", a: "tag:ranged" }, origin: "player" }, { conds: [{ k: "depth>=", n: 8 }], verb: { v: "bank" }, origin: "player" },
@@ -77,7 +80,7 @@ try {
   }
 
   // ---- §6: an offline trace shows every blow (`Trace.blows`: 14 → 0 is several rows); the report's reel prints a merged line's `×n`
-  {
+  if (part("report")) {
     const b = await page.evaluate(async () => {
       const { traceTable } = await import("/src/ui/trace.ts");
       const blows = [{ t: 101, by: "goblin", dmg: 5, hp: 9 }, { t: 102, by: "goblin", dmg: 5, hp: 4 }, { t: 103, by: "goblin_archer", dmg: 4, hp: 0 }];
@@ -91,12 +94,12 @@ try {
       reel: [{ pattern: "x", score: 1, t: 1, run_id: 1, text: "Lock bloats took him to 7 HP; R1 drank; reached D8.", n: 5 }] } }));
     await sleep(300);
     const rep = await page.evaluate(() => ({ reel: [...document.querySelectorAll(".report .rsec")].find((x) => x.querySelector(".label")?.textContent === "reel")?.innerText.replace(/\s+/g, " ") ?? "", runs: document.querySelector(".report .tiles .tile")?.innerText.replace(/\s+/g, " ") ?? "" }));
-    check(/×5/.test(rep.reel) && /heir 4/.test(rep.runs), `the reel's merged line reads ×5 ("${rep.reel.slice(-24)}"); a watched run's tile names its heir ("${rep.runs}")`);
+    check(/×5/.test(rep.reel) && /^1 RUNS$/i.test(rep.runs), `the reel's merged line reads ×5 ("${rep.reel.slice(-24)}"); the main runs tile shows the count ("${rep.runs}")`);
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await camp();
   }
 
   // ---- §3: drains — the word, not the numbers
-  {
+  if (part("drains")) {
     const w = await page.evaluate(async () => {
       const { drainOf } = await import("/src/ui/watch.ts");
       return [drainOf({ t: 1, k: "hurt", id: 0, dmg: 0, hp: 9, cause: "hunger" }), drainOf({ t: 1, k: "max_hp", id: 0, max: 30, delta: -1, cause: "hunger" }),
@@ -106,7 +109,7 @@ try {
     check(w.join(",") === "starving,starving,,,drained,", `a drain reads its word (hunger → starving, the core's \`drain\` word); a blow, gas or a bare poison is none (${w.map((x) => x ?? "·").join(",")})`);
   }
   // (a wall-clock reading: `measured` takes the mode's run once more on a loaded machine, the bar unchanged — tests/lib/load.mjs)
-  for (const m of ["fights", "fast", "one"]) {
+  for (const m of part("drains") ? ["fights", "fast", "one"] : []) {
     const drain = await measured(async () => {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=9&fake_drain=1`, { waitUntil: "domcontentloaded" });
     await camp();
@@ -141,26 +144,27 @@ try {
     check(starving >= 1 && bites === 0, `${m}: the drain shows its word (\`starving\` ×${starving} across floors), never a bite's \`hunger −1 max\` (${bites})`);
     await page.evaluate(() => document.querySelectorAll(".sheet-wrap").forEach((x) => x.remove()));
   }
-  // the plain 1×: a tile beside fights/fast; the chip's clock reads 1×; the mode is remembered and the send gem says it
-  {
+  // The Speed menu offers 1× beside fights/fast; the live rate is 1× and the mode persists.
+  if (part("speed")) {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=9`, { waitUntil: "domcontentloaded" });
     await camp();
     await page.evaluate(() => { window.__riddle.watchMode = "fights"; window.__riddle.go({ kind: "watch" }); });
     await sleep(600);
-    const tiles = await page.evaluate(() => [...document.querySelectorAll(".watch .cmd .tile:not(.empty)")].map((t) => t.dataset.tile));
-    await page.locator(".cmd .tile[data-tile=one]").click({ timeout: 5000 });
+    await page.locator(".watch .cmd .tile[data-tile=speed]").click({timeout:5000});
+    const tiles = await page.evaluate(() => { window.testOne = document.querySelector('.sheet-wrap .watch-options .tile[data-tile=one]'); return [...document.querySelectorAll('.sheet-wrap .watch-options .tile')].map(t=>t.dataset.tile); });
+    await page.locator(".sheet-wrap .watch-options .tile[data-tile=one]").click({ timeout: 5000 });
     const rates = new Set(); const t0 = Date.now();
-    while (Date.now() - t0 < 4000) { const r = await page.evaluate(() => { const w = document.querySelector(".watch"); return w?.dataset.dead === "1" ? "dead" : document.querySelector(".cmd .tile[data-tile=one]")?.dataset.rate ?? ""; }); if (r) rates.add(r); await sleep(100); }
+    while (Date.now() - t0 < 4000) { const r = await page.evaluate(() => { const w = document.querySelector(".watch"); return w?.dataset.dead === "1" ? "dead" : window.testOne?.dataset.rate ?? ""; }); if (r) rates.add(r); await sleep(100); }
     const mode = await page.evaluate(() => ({ el: document.querySelector(".watch")?.dataset.mode, app: window.__riddle.watchMode }));
-    check(tiles.slice(0, 3).join(",") === "fights,fast,one" && mode.el === "one" && mode.app === "one", `the mode picker offers \`1×\` beside fights/fast (${tiles.join(",")}; now ${mode.el})`);
+    check(tiles.slice(0, 3).sort().join(",") === "fast,fights,one" && mode.el === "one" && mode.app === "one", `the mode picker offers \`1×\` beside fights/fast (${tiles.join(",")}; now ${mode.el})`);
     check([...rates].every((r) => /^1×?$/.test(r) || r === "dead") && [...rates].some((r) => /^1×?$/.test(r)), `the plain 1× runs its live frames at 1× (${[...rates].join(" ")})`);
     await page.evaluate(() => { document.querySelectorAll(".sheet-wrap").forEach((x) => x.remove()); window.__riddle.go({ kind: "camp" }); }); await camp();
-    const gemTxt = await page.evaluate(() => document.querySelector(".gem[data-mode]")?.textContent ?? document.querySelector("[data-mode]")?.textContent);
-    check(/send\s*▸?\s*normal/i.test(gemTxt ?? ""), `the send gem says the remembered 1× (normal) ("${gemTxt}")`);
+    await page.reload({waitUntil:"domcontentloaded"});await camp();
+    check(await page.evaluate(()=>window.__riddle.watchMode === "one"), "the chosen 1× survives camp navigation and reload");
   }
 
   // ---- §4: the forge's measure never waits behind the unlock shelf's
-  {
+  if (part("lanes")) {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25&fake_lag=1`, { waitUntil: "domcontentloaded" });
     await camp(); await sleep(8000);   // the camp's own measures settle
     const t = await page.evaluate(async () => {
@@ -172,7 +176,7 @@ try {
   }
 
   // ---- §6: sheets — one at a time, with a back
-  {
+  if (part("sheets")) {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=25`, { waitUntil: "domcontentloaded" });
     await camp();
     const s = await page.evaluate(async () => {
@@ -191,7 +195,7 @@ try {
     check(s.two.join() === "second" && s.back && s.afterBack.join() === "first" && s.afterX === 0, `a sheet opened from a sheet replaces it (${s.two.join()} shown, back ${s.back}); back returns (${s.afterBack.join()}); × closes both (${s.afterX} left)`);
   }
   // the row card at the cap: `max` and its gate, not the next price
-  {
+  if (part("caps")) {
     const r = await page.evaluate(async () => {
       const { openUnlockSheet } = await import("/src/ui/unlocks.ts"); const app = window.__riddle;
       const was = app.unlockCat;
@@ -210,7 +214,7 @@ try {
     check(/max · ⊘ 3 boss kinds/.test(r.t) && !/next ◆/.test(r.t) && r.t2 === "max", `the row card at the cap reads \`max\` and its gate, never the next price ("${r.t.slice(-40)}" · last step "${r.t2}")`);
   }
   // the unlock grid keeps its cells under a buy
-  {
+  if (part("unlocks")) {
     await richSave(0, 60); await camp();
     await openPanel(page, "unlocks", { all: true }); await sleep(400);
     const before = await page.evaluate(() => [...document.querySelectorAll(".panel .unlocks .cards > .card")].map((c) => { const r = c.getBoundingClientRect(); return { id: c.dataset.id, x: Math.round(r.x), y: Math.round(r.y), cls: c.className }; }));
@@ -226,25 +230,23 @@ try {
     } else check(false, `a buyable card on the grid (${before.map((b) => `${b.id}:${b.cls}`).join(" ")})`);
     await page.keyboard.press("Escape"); await page.keyboard.press("Escape"); await sleep(150);
   }
-  // the forge's armed step keeps its place; the second tap there buys
-  {
+  // Current simplified Forge: one explicit tap buys one step at the quoted price.
+  if (part("forge")) {
     await richSave(5000); await camp();
     await page.locator(".cmd .tile[data-tile=forge]").click({ timeout: 5000 }); await sleep(400);
-    const btn = page.locator(".sheet-wrap .forge button.kit-next.buyable").first();
-    const r0 = await btn.boundingBox();
-    const lab0 = await page.evaluate(() => { const b = document.querySelector(".sheet-wrap .forge button.kit-next.buyable"); const l = b?.querySelector(".kit-label"); return { slot: b?.dataset.slot, x: Math.round(l?.getBoundingClientRect().x ?? -1), pips: b?.closest(".kit-slot")?.querySelectorAll(".pip.on").length }; });
-    await page.mouse.click(r0.x + r0.width * 0.8, r0.y + r0.height / 2); await sleep(150);
-    const armed = await page.evaluate((slot) => { const b = document.querySelector(`.sheet-wrap .forge button.kit-next[data-slot=${slot}]`); const r = b.getBoundingClientRect(); const l = b.querySelector(".kit-label"); return { armed: b.classList.contains("armed"), ok: b.querySelector(".kit-ok")?.textContent ?? "", x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), lx: Math.round(l?.getBoundingClientRect().x ?? -1) }; }, lab0.slot);
-    check(armed.armed && /ok \$\d+/.test(armed.ok) && armed.x === Math.round(r0.x) && armed.y === Math.round(r0.y) && armed.w === Math.round(r0.width) && armed.lx === lab0.x, `the armed forge step keeps its place (\`${armed.ok.trim()}\` where the price stood; the line did not move)`);
-    await shot("cut25-forge-armed");
-    await page.mouse.click(r0.x + r0.width * 0.8, r0.y + r0.height / 2); await sleep(700);
-    const pips = await page.evaluate((slot) => document.querySelector(`.sheet-wrap .forge .kit-slot[data-slot=${slot}]`)?.querySelectorAll(".pip.on").length, lab0.slot);
-    check(pips === lab0.pips + 1, `the second tap where the first was buys the step (${lab0.pips} → ${pips} steps)`);
+    const btn = page.locator(".sheet-wrap .forge button.forge-buy:not([disabled])").first();
+    const quote = await btn.evaluate((b) => { const L = window.__riddle.lineage, k = L.kit.find((k) => k.slot === b.dataset.slot); return {slot:k.slot, owned:k.owned, price:k.next.price, gold:L.gold, text:b.textContent}; });
+    check(quote.text === `Forge $${quote.price}`, `the forge quotes the actual step price (${quote.text})`);
+    await btn.click();
+    await page.waitForFunction((q) => window.__riddle.lineage.kit.find((k) => k.slot === q.slot).owned === q.owned + 1, quote);
+    const bought = await page.evaluate((slot) => ({ owned:window.__riddle.lineage.kit.find((k) => k.slot === slot).owned, gold:window.__riddle.lineage.gold, icon:!!document.querySelector(`.sheet-wrap .kit-slot[data-slot=${slot}] .item-ico`) }), quote.slot);
+    check(bought.owned === quote.owned + 1 && bought.gold === quote.gold - quote.price && bought.icon, `one tap buys one step at its quote (${quote.owned} → ${bought.owned}, $${quote.gold} → $${bought.gold})`);
+    await shot("cut25-forge-bought");
     await page.keyboard.press("Escape"); await sleep(150);
   }
 
   // ---- §3: the black frame (real wasm): seed 2501's first run, fights — no dark stretch over 6 frames
-  if (!process.argv.includes("--no-wasm")) {
+  if (part("wasm") && !process.argv.includes("--no-wasm")) {
     const black = await measured(async () => {
     await page.goto(`${url}?dev=1&fresh=1&seed=2501`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "the real engine's camp", 120_000);
@@ -270,7 +272,7 @@ try {
     check(black.ok, black.line);
   }
 } catch (e) {
-  errors.push(`walk aborted: ${e.message}`);
+  errors.push(`walk aborted: ${e.stack ?? e.message}`);
 } finally {
   await browser.close().catch(() => {});
 }
