@@ -1716,3 +1716,13 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 
 /* Resource labels stay readable as an established hero accumulates larger totals. */
 .topbar:has(.legacy) .stats { flex-shrink: 1; flex-wrap: wrap; justify-content: flex-end; }
+
+.legacy-upgrades { display: grid; gap: 8px; margin: 12px 0; }
+.legacy-upgrade { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px; border: 1px solid var(--ink-line); border-radius: 4px; }
+.legacy-upgrade b { text-transform: capitalize; }
+.legacy-upgrade small { display: block; font-size: 12px; }
+.legacy-buy { min-height: 44px; white-space: nowrap; }
+.legacy-buy:disabled { opacity: .5; }
+.topbar button.legacy { min-height: var(--tap); }
+.heir-identity { display: flex; flex-direction: column; align-items: flex-start; }
+.bloodline-label { font: 11px var(--sans); color: var(--dim); }

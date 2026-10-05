@@ -69,7 +69,7 @@ try {
       const why = whyShown ?? wl[wl.length - 1] ?? "";
       check(!!why && words(why) <= 3, `run ${k}: its end shows a reason beat ≤ 3 words ("${log[log.length - 1]?.text ?? "death"}" · "${why}"${whyShown ? "" : ", logged, not seen"})`);
       // (Cut 30.5, c305-core 2ec1cb0: a new record is a beat, never an end — runs end hurt, out of heals, at a wall or dead)
-      if (k === 1) check(/^(hurt · banked|hurt · went home|no heals · banked|slain\b.*|starved)$/.test(why), `run 1: a fresh lineage's first end reads as the hero being sensible ("${why}")`);
+      if (k === 1) check(/^(hurt · collected|hurt · went home|no heals · collected|slain\b.*|starved)$/.test(why), `run 1: a fresh lineage's first end reads as the hero being sensible ("${why}")`);
       const s = await until(() => ["report", "death"].includes(window.__riddle.screen) && window.__riddle.screen, "the screen after", 30_000);
       if (s === "report") {
         const tw = await until(() => document.querySelector(".report .tile-why")?.textContent ?? null, "the report's reason", 8000).catch(() => null);

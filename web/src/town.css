@@ -33,3 +33,6 @@
 @media (min-width: 1024px) {
   main.camp .camp-well > .town { grid-area: well; height: auto; min-height: 0; margin: 0; }
 }
+.town-hero-focus { position: absolute; width: 52px; height: 52px; border: 2px solid var(--acc); border-radius: 50%; transform: translate(-50%,-85%); pointer-events: none; z-index: 4; box-shadow: 0 0 14px var(--gilt); animation: hero-focus 1.8s ease-out forwards; }
+@keyframes hero-focus { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .town-hero-focus { animation: none; } }

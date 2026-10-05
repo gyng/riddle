@@ -385,6 +385,7 @@ export type TownView = {
   stats(): TownStats;
   stress(n: number): void;
   setHour(h: number | null): void;
+  focusHero(): void;
   /** input seen (the idle cap lifts) */
   poke(): void;
   dispose(): void;
@@ -805,6 +806,14 @@ export function createTownView(host: HTMLElement): TownView {
         legsAlong([{ x: destination.x + 100, y: destination.y + 70 }, destination], t, 80, hero.legs);
       }
       fit(); layoutDirty = true; start();
+    },
+    focusHero() {
+      if(!hero)return;
+      const at=walkerAt(hero,t);if(!at)return;
+      const p=css(at.x,at.y);
+      const ring=document.createElement("i");ring.className="town-hero-focus";ring.setAttribute("aria-hidden","true");
+      ring.style.left=`${p.x}px`;ring.style.top=`${p.y}px`;el.appendChild(ring);
+      window.setTimeout(()=>ring.remove(),1800);poke();start();
     },
     walkIn(ms = 700) {
       if (!hero || !state) return Promise.resolve();

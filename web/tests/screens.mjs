@@ -284,8 +284,8 @@ try {
     const pairs = await page.evaluate(() => [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => ({ chip: c.textContent.replace(/\s+/g, " ").trim(), line: c.closest(".ledger-line")?.querySelector(".ledger-btn")?.textContent ?? "" })));
     const chips = pairs.map((p) => p.chip);
     const traced = await page.evaluate(() => (window.__riddle.view.report?.exits ?? []).some((x) => x.trace?.turns.length));
-    const labelled = pairs.filter((p) => /^D\d+ · (banked|returned|died) · trace$/.test(p.chip) || /\bD\d+\b/.test(p.line)).length;
-    if (traced || chips.length) check(chips.length > 0 && chips.every((c) => /^(D\d+ · )?(banked|returned|died) · trace$/.test(c)) && labelled * 2 >= chips.length, `the ${chips.length} trace chips carry their exit (${chips.slice(0, 3).join(" · ")}${labelled < chips.length ? ` · ${chips.length - labelled} without a depth` : ""})`);
+    const labelled = pairs.filter((p) => /^D\d+ · (collected|returned|died) · trace$/.test(p.chip) || /\bD\d+\b/.test(p.line)).length;
+    if (traced || chips.length) check(chips.length > 0 && chips.every((c) => /^(D\d+ · )?(collected|returned|died) · trace$/.test(c)) && labelled * 2 >= chips.length, `the ${chips.length} trace chips carry their exit (${chips.slice(0, 3).join(" · ")}${labelled < chips.length ? ` · ${chips.length - labelled} without a depth` : ""})`);
     else note("report (8 h): no traced exit to label (the walk's set returns at once)");
     await lintButtons("report (8 h)", "report");
     if (await page.locator("main.report button", { hasText: /^open$/ }).count()) {

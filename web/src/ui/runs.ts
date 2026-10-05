@@ -1,3 +1,4 @@
+import { goldWords } from "./gold-words";
 // RUNS_UI (docs/RUNS_UI.md §3) — the runs log: every run the core keeps (`Lineage.runs`, the last 60), newest first, folded by absence
 // (`away · 17 runs` is one line until opened; the runs played while the app was open fold as `here`). An entry: the run's number, how
 // it ended (the exit's reason, ≤ 3 words) and when, its floor with a `★` for a new best, the gold home, the finds, its length, and `▶`
@@ -116,7 +117,7 @@ function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () =
     h("span", { class: "dim re-len" }, lenOf(r.turns)),
     r.via === "watched" ? h("span", { class: "dim re-w", "aria-hidden": "true" }, "◉") : "");
   // (Cut 30.5: the checkpoints' gold, kept whole whatever the end — `$80 secured`)
-  const sub = h("small", { class: "re-sub dim" }, why, (r.secured ?? 0) > 0 ? h("span", { class: "num re-sec" }, /* copy:label */ ` · $${r.secured} secured`) : "", " · ", h("span", { class: "num" }, agoOf(L, r.clock_s)));
+  const sub = h("small", { class: "re-sub dim" }, goldWords(why), (r.secured ?? 0) > 0 ? h("span", { class: "num re-sec" }, /* copy:label */ ` · $${r.secured} secured`) : "", " · ", h("span", { class: "num" }, agoOf(L, r.clock_s)));
   const verdict = r.tier === "death" && r.death_id !== undefined && (L.graveyard ?? []).some((g) => g.death_id === r.death_id);
   const body = verdict
     ? h("button", { class: "re-body", "data-verdict": r.death_id, onclick: () => {

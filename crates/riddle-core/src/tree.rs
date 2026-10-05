@@ -738,7 +738,7 @@ pub fn wire(l: &LineageState, waits: bool) -> WorksWire {
                 branch: n.branch.into(),
                 name: n.name.into(),
                 state: state.into(),
-                chore: has_chore.then(|| n.chore.into()),
+                chore: has_chore.then(|| if n.id == "porter" && l.town.auto_collect { "hauls".into() } else { n.chore.into() }),
                 count: has_chore.then(|| count(l, n.id)),
                 need: has_chore.then_some(n.need),
                 price: has_chore.then_some(p),

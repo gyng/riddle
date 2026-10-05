@@ -1,7 +1,7 @@
 //! Thin wasm-bindgen bridge over riddle-core. JSON strings in and out. See docs/CUT1.md:
 //! one method per `Engine` member (camelCased), plus the addenda A–D methods and a few
 //! additions listed in crates/riddle-core/README.md.
-use riddle_core::Game as Core;
+use riddle_core::bloodlines::Session as Core;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -99,7 +99,7 @@ impl Game {
     /// Offline batch without the worst-death verdict (report carries `worst_death_id`).
     #[wasm_bindgen(js_name = runOfflineQuick)]
     pub fn run_offline_quick(&mut self, elapsed_s: f64) -> String {
-        js(&riddle_core::offline::run_offline_quick(&mut self.inner, elapsed_s.max(0.0) as u64))
+        js(&self.inner.run_offline_mode(elapsed_s.max(0.0) as u64, false, true))
     }
 
     /// One slice of a chunked absence (`runOfflineQuick`); a slice before the `last` carries no
@@ -108,7 +108,7 @@ impl Game {
     #[wasm_bindgen(js_name = runOfflineSlice)]
     pub fn run_offline_slice(&mut self, elapsed_s: f64, last: bool) -> String {
         let secs = elapsed_s.max(0.0) as u64;
-        js(&if last { riddle_core::offline::run_offline_quick(&mut self.inner, secs) } else { riddle_core::offline::run_offline_counts(&mut self.inner, secs) })
+        js(&self.inner.run_offline_mode(secs, false, last))
     }
 
     pub fn death(&mut self, run_id: u32) -> Result<String, JsError> {
@@ -519,6 +519,22 @@ impl Game {
     }
 
     /// Cut 30.5: hire the lit node's worker; returns the Lineage.
+    #[wasm_bindgen(js_name = selectBloodline)]
+    pub fn select_bloodline(&mut self, id:u32) -> Result<String, JsError> {
+        self.inner.select_bloodline(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+    #[wasm_bindgen(js_name = addBloodline)]
+    pub fn add_bloodline(&mut self) -> Result<String, JsError> {
+        self.inner.add_bloodline().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    #[wasm_bindgen(js_name = upgradeHero)]
+    pub fn upgrade_hero(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.upgrade_hero(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
     #[wasm_bindgen(js_name = buildTown)]
     pub fn build_town(&mut self, id: &str) -> Result<String, JsError> {
         self.inner.build_town(id).map_err(err)?;

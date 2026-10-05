@@ -144,6 +144,7 @@ pub const VARIANTS: [&str; 4] = ["no_rest", "short_list", "bones_only", "hunted"
 /// Energy needed to act; actors gain `speed` per tick.
 pub const ACT_ENERGY: i32 = 100;
 pub const TICKS_PER_TURN: u32 = 10;
+fn default_bloodline_id()->u32 {1}
 pub const MAX_LEVEL: u32 = 10;
 /// Gold from loot and salvage is divided by this (Addendum B/D economy pass).
 pub const GOLD_DIVISOR: i32 = 4;
@@ -1188,6 +1189,10 @@ pub struct Lost {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LineageState {
+    #[serde(default="default_bloodline_id")]
+    pub bloodline_id:u32,
+    #[serde(default)]
+    pub bloodline: Option<crate::wire::BloodlineLegacy>,
     #[serde(default)]
     pub hero_legacy: crate::shared::Shared<Vec<crate::wire::HeroLegacy>>,
     pub seed: u64,
@@ -1649,6 +1654,7 @@ impl LineageState {
             classes.insert(c.name().to_string(), ClassProg { level: 1, xp: 0, next: 0 });
         }
         let mut l = LineageState {
+            bloodline_id:1, bloodline: Some(Default::default()),
             hero_legacy: vec![crate::wire::HeroLegacy { heir: 1, class: "fighter".into(), ..Default::default() }].into(),
             seed,
             heir: 1,
@@ -1761,7 +1767,7 @@ impl LineageState {
             orders: Default::default(),
             pkg: Default::default(),
             pkg_v: 1,
-            town: crate::town::Town { manual: true, home: Some(false), auto_collect: true, ..Default::default() },
+            town: crate::town::Town { manual: true, home: Some(false), auto_collect: true, gold_v: 1, ..Default::default() },
             reveal_left: 0,
             reveal_queue: Vec::new(),
             glory: 0,
@@ -1855,13 +1861,13 @@ impl LineageState {
         }
         let t = self.total_turns;
         if let Some(last) = self.gold_ledger.last_mut() {
-            if last.t == t && last.why == why && !exit {
+            if last.t == t && last.why == why && last.bloodline_id==self.bloodline_id && !exit {
                 last.delta += delta;
                 last.n += n;
                 return;
             }
         }
-        self.gold_ledger.push(GoldLine { t, delta, why: why.into(), n, lost: 0 });
+        self.gold_ledger.push(GoldLine { bloodline_id:self.bloodline_id,t, delta, why: why.into(), n, lost: 0 });
         while self.gold_ledger.len() > GOLD_LEDGER_CAP {
             self.gold_ledger.remove(0);
         }
@@ -1998,7 +2004,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { hero_legacy: self.hero_legacy.iter().cloned().collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { selected_loadout:vec![], hero_slots:vec![], selected_bloodline:1, bloodline_price:crate::bloodlines::SLOT_PRICE, bloodline_cap:crate::bloodlines::SLOT_CAP as u32, bloodline: self.bloodline.clone().unwrap_or_default(), legacy_upgrades: crate::legacy::offers(self, false), hero_legacy: self.hero_legacy.iter().cloned().collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -2326,6 +2332,10 @@ impl LineageState {
             *p = (*p + 1).min(PICKED_CAP);
         }
         self.night_seen.extend(1..=max_depth);
+        if let Some(n)=&mut self.town.shared_night_runs {
+            *n+=1;
+            if *n>=NIGHT_RUNS { *n=0; crate::town::night(self); }
+        }
         self.night_runs += 1;
         if self.night_runs >= NIGHT_RUNS {
             self.night();
@@ -2347,7 +2357,7 @@ impl LineageState {
         // Cut 29 §3: the night's meters.
         self.last_night_meter = std::mem::take(&mut self.night_meter);
         // Cut 30 §3: the bank pays its night's interest.
-        crate::town::night(self);
+        if self.town.shared_night_runs.is_none() { crate::town::night(self); }
         // QA on a946e04: a new night buys a new waystone pass.
         self.night_passes.clear();
         self.night_short = None;
@@ -3153,6 +3163,7 @@ impl Game {
         }
         // RUNS_UI: the run under way and the runs a replay is held for
         l.live = self.live_run();
+        l.legacy_upgrades = crate::legacy::offers(&self.lineage, self.run.is_some());
         l.replays = self.capsules.0.iter().map(|c| c.id).collect();
         l
     }
@@ -3750,6 +3761,7 @@ impl Game {
         let floor = generate(&mut rng, route.biome(start), start);
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
         hero.apply_level(self.lineage.class_level());
+        crate::legacy::apply(&self.lineage, &mut hero);
         // Starting arms by class, at the forge's steps (Cut 23 §1; the kit's ids are never loot).
         crate::kit::equip(&self.lineage, &mut hero);
         let mut brought = Vec::new();
@@ -4672,12 +4684,11 @@ impl Game {
         let run = self.run.take()?;
         let tier = run.over.unwrap_or(ExitTier::Return);
         if !self.sim {
-            let heir = self.lineage.heir;
-            if self.lineage.hero_legacy.last().is_none_or(|h| h.heir != heir) {
-                self.lineage.hero_legacy.push(crate::wire::HeroLegacy { heir, ..Default::default() });
-            }
+            crate::legacy::ensure(&mut self.lineage);
             let legacy = self.lineage.hero_legacy.last_mut().expect("hero legacy");
-            legacy.points += 1 + run.max_depth.saturating_sub(legacy.best_depth);
+            let earned = 1 + run.max_depth.saturating_sub(legacy.best_depth);
+            legacy.points += earned;
+            self.lineage.bloodline.as_mut().expect("bloodline").points += earned;
             legacy.best_depth = legacy.best_depth.max(run.max_depth);
             legacy.runs += 1;
             legacy.class = run.hero.class.name().into();
@@ -5447,6 +5458,7 @@ impl Game {
         let bones_n = pile.len();
         let unused = run.hero.inv.iter().filter(|i| run.supplies.contains(&i.id) && i.kind != "leash").count() + leash_back;
         let mut line = exit_line_of(run.carried(), pct, loot_kept, spent, spent_on, tier, run.timed_out, run.stuck_fires >= STALL_FIRES, unused, bones_n, run.depth);
+        line.bloodline_id=self.lineage.bloodline_id;
         // Cut 30.5: what the checkpoints secured leads the arithmetic (`banked $120 · $80 secured + 100% of $40`)
         if run.secured > 0 {
             line.secured = run.secured;
@@ -6573,7 +6585,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { secured: 0, carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None, end: String::new(), reached: 0, new_best: false, finds: Vec::new() }
+    ExitLine { bloodline_id:1,secured: 0, carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None, end: String::new(), reached: 0, new_best: false, finds: Vec::new() }
 }
 
 /// Cut 30.5: an exit line's head re-worded with the secured gold — `banked $120 · $80 secured + 100% of $40`, `died

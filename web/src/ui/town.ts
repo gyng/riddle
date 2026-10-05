@@ -16,6 +16,10 @@ import { tile } from "./frame";
 import { audio } from "../audio";
 import { questShown } from "./quest";
 import { nextPill, openWorks } from "./works";   // Cut 30.5: the `next` pill, the works sheet
+import { openChronicle } from "./chronicle";
+import { classList } from "./unlocks";
+import { CLASS_VERBS } from "../engine/classes";
+import { verbLabel } from "./tokens";
 import { kwHost } from "./tips";
 import type { Term } from "./concepts";
 /** docs/TOOLTIPS.md: a building's tip (long-press / hover; its tap stays its panel) */
@@ -278,16 +282,31 @@ export function openBank(app: App, anchor?: HTMLElement | null): void {
 /** The tent: the hero — the class, its level and xp (the class picker once classes can be had: the camp's). */
 export function openHero(app: App, anchor?: HTMLElement | null): void {
   openSheet(() => {
-    const L = app.lineage, lvl = L.classes?.[L.class] ?? { level: 1, xp: 0, next: undefined as number | undefined };
-    const p = Math.min(1, lvl.next ? lvl.xp / lvl.next : 0);
-    const legacy = L.hero_legacy?.find((x) => x.heir === L.heir);
-    return h("div", { class: "sheet-body hero-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "hero"),
-      h("div", { class: "hero-line num" }, h("b", null, L.class), " ", h("span", null, `L${lvl.level}`)),
-      h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${legacy?.points ?? 0}`),
-      h("div", { class: "dim num" }, `${legacy?.runs ?? 0} runs · deepest ${legacy?.best_depth ?? 0}`),
-      h("div", { class: "dim num" }, /* copy:label */ "Class XP", ` ${lvl.xp}${lvl.next ? ` / ${lvl.next}` : ""}`),
-      h("details", { class: "hero-history" }, h("summary", null, /* copy:button */ "Past heroes"), ...(L.hero_legacy ?? []).filter((x) => x.heir !== L.heir).slice(-8).reverse().map((x) => h("div", { class: "num" }, /* copy:tooltip */ `Hero ${x.heir} · Legacy ${x.points} · ${x.runs} runs`))),
-      h("div", { class: "bank-bar xp-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(p * 100)}%` })));
+    const body = h("div", { class: "sheet-body hero-sheet" });
+    const paint = (): void => {
+      const L = app.lineage, lvl = L.classes?.[L.class] ?? { level: 1, xp: 0, next: undefined as number | undefined };
+      const p = Math.min(1, lvl.next ? lvl.xp / lvl.next : 0);
+      const legacy = L.hero_legacy?.find((x) => x.heir === L.heir);
+      replace(body, h("div", { class: "label row-label" }, /* copy:label */ `Bloodline ${L.selected_bloodline??1}`),
+        h("div", { class: "hero-line num" }, h("b", null, L.class), " ", h("span", null, `L${lvl.level}`)),
+        h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${L.bloodline?.points ?? legacy?.points ?? 0}`),
+        L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
+        h("div", { class: "legacy-upgrades" }, ...(L.legacy_upgrades ?? []).map((u) =>
+          h("section", { class: "legacy-upgrade", "data-upgrade": u.id },
+            h("div", null, h("b", null, u.id), h("small", { class: "dim num" }, ` ${u.rank}/${u.cap} · ${u.effect}`)),
+            h("button", { class: "chip legacy-buy", disabled: !u.affordable || !app.engine.upgradeHero, "data-upgrade": u.id,
+              onclick: (e: Event) => {
+                (e.currentTarget as HTMLButtonElement).disabled = true;
+                if (app.engine.upgradeHero) void app.mutate(() => app.engine.upgradeHero!(u.id), /* copy:callout */ "Upgraded").then(() => { if (body.isConnected) paint(); });
+              } }, u.rank >= u.cap ? /* copy:button */ "Complete" : /* copy:button */ `Upgrade ${u.price}`, h("small", null, /* copy:label */ "Legacy"))))),
+        h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, /* copy:button */ "Change class"),
+        h("details", { class: "hero-history" }, h("summary", null, /* copy:button */ "Details"),
+          h("div", { class: "dim num" }, `${legacy?.runs ?? 0} runs · deepest ${legacy?.best_depth ?? 0}`),
+          h("div", { class: "dim num" }, /* copy:label */ "Class XP", ` ${lvl.xp}${lvl.next ? ` / ${lvl.next}` : ""}`),
+          h("div", { class: "bank-bar xp-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(p * 100)}%` })),
+          h("button", { class: "chip hero-chronicle", onclick: () => openChronicle(app) }, /* copy:button */ "Chronicle")));
+    };
+    paint(); return body;
   }, { anchor });
 }
 
@@ -307,4 +326,21 @@ export function exposeTown(ui: TownUi | null): void {
   const w = window as unknown as { __town?: unknown };
   if (!ui) { delete w.__town; return; }
   w.__town = { stats: () => ui.view.stats(), stress: (n: number) => ui.view.stress(n), setHour: (x: number | null) => ui.view.setHour(x), targets: () => [...ui.el.querySelectorAll<HTMLElement>(".town-hit")].filter((b) => !b.hidden).map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.building, x: r.x, y: r.y, w: r.width, h: r.height, markers: b.dataset.markers ?? "" }; }) };
+}
+
+/** Class controls belong to the selected hero's menu. */
+export function openHeroClass(app: App): void {
+  openSheet((close) => {
+    const grid=h("div",{class:"classes"});
+    const paint=(cat?:Awaited<ReturnType<typeof app.engine.unlocks>>):void=>{
+      replace(grid,...classList(app.lineage,cat).map(({cls,owned,level})=>{
+        const u=owned?undefined:cat?.find(x=>x.id===cls);
+        return h("div",{class:"class-row"},h("button",{class:`chip${cls===app.lineage.class?" on":""}`,disabled:!(owned||u?.available)||!!app.lineage.live,
+          onclick:()=>void(async()=>{if(u&&!(await app.buy(cls)))return;await app.setClass(cls);close();})()},cls,` L${level}`,u?.cost?` ◆${u.cost}`:""),
+          h("div",{class:"chips ladder"},...Object.entries(CLASS_VERBS[cls]??{}).flatMap(([l,verbs])=>verbs.map(v=>h("span",{class:`chip rung${Number(l)<=level&&owned?" on":""}`},`L${l} `,verbLabel({v}))))));
+      }));
+    };
+    paint();void app.engine.unlocks().then(paint);
+    return h("div",{class:"sheet-body"},h("div",{class:"label row-label"},/* copy:label */"Class"),grid);
+  });
 }

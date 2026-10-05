@@ -47,7 +47,7 @@
 // release, no frame cut, no travel under the card, the ticker's timer stopped; the batches wait (`frozenFeed`) for the thaw. The
 // card names the HUD's floor and the stake's loot (`paintCardText`), never the engine's latest snapshot.
 //
-// Cut 14 §3 — a bank or a return is a beat: the exit event opens the fight frame on the stairs for SCENE_MS with `BANKED $N` /
+// Cut 14 §3 — a bank or a return is a beat: the exit event opens the fight frame on the stairs for SCENE_MS with `COLLECTED $N` /
 // `RETURNED $N` as its callout (`beatAt`, the exit flow waits `exitBeatUntil`), in `fights` and `fast` alike. §4: a repeated chore
 // callout coalesces on its line (`pick up ×8`, `choreCallout`); the `rest 20m` banner sits low (`.banner.rest`) so it never covers
 // the death frame's callout; the run's row-fire counts go to `app.rowFires` for the death screen's drop sheet (Cut 15 §3).
@@ -140,6 +140,7 @@ import { FoldTally, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
 import { kwHost } from "./tips";   // RUNS_UI: the live badge's tip
+import { goldWords } from "./gold-words";
    // RUNS_UI: the town tile's first-watches caption
 
 type Tier = "bank" | "return" | "death";
@@ -347,6 +348,7 @@ export function renderWatch(app: App): Mounted {
   const whyLine = h("div", { class: "beat-why num", "aria-live": "polite" });
   let whyTimer2 = 0;
   function showWhy(text: string, ms: number): void {
+    text = goldWords(text);
     replace(whyLine, text); whyLine.classList.add("show"); el.classList.add("has-why");
     clearTimeout(whyTimer2); whyTimer2 = window.setTimeout(() => { whyLine.classList.remove("show"); el.classList.remove("has-why"); }, ms);
     if ("__riddle" in window) ((window as unknown as { __whyLog?: string[] }).__whyLog ??= []).push(text);   // dev
@@ -708,7 +710,7 @@ export function renderWatch(app: App): Mounted {
   }
   function callout(text: string, cls = "", ms: number = Math.max(CALLOUT_MIN_MS, 1800 / Math.max(1, speed))): void {
     if (cardUp || folding) return;                                                         // Cut 10 §1: nothing under the card is watched (Cut 27 §1: nor under the fold)
-    if (performance.now() < exitBeatUntil || performance.now() < holdLineUntil) return;     // Cut 14 §3: `BANKED $N` keeps the line (Cut 15 §4: `WARLORD DOWN` too)
+    if (performance.now() < exitBeatUntil || performance.now() < holdLineUntil) return;     // Cut 14 §3: `COLLECTED $N` keeps the line (Cut 15 §4: `WARLORD DOWN` too)
     if (cls !== "ambient" && cls !== "hurt" && cls !== "beat" && performance.now() < ambientUntil) return;   // Cut 7 §4: an ambient keeps the ticker for its 1.5 s
     // Cut 13 §4: a second callout on the same tick (one pump pass) waits its turn instead of replacing the first before it was
     // read (rater Q: two labels on one line); while a queue is pending later ones join it in order (the oldest drops past the
@@ -762,7 +764,7 @@ export function renderWatch(app: App): Mounted {
     else if (Number.isFinite(fightUntil)) fightUntil = Math.max(fightUntil, t + SCENE_TICKS);
     if (exit) fightUntil = Infinity;   // Cut 14 §3: the run is over — the frame holds; the exit flow's own clock (SCENE_MS, real time) lets go
     // an earlier beat the playhead has yet to reach keeps its place; this one takes over at its own tick (QA on 3d71c33: a den's
-    // release showed the later `BANKED $13`, which had overwritten it, on D2 ~15 s before the bank)
+    // release showed the later `COLLECTED $13`, which had overwritten it, on D2 ~15 s before the bank)
     const b: Beat = { from: t, until: t + SCENE_TICKS, text, shown: false, exit, hold, cage: isCage, why };
     if (!(beat && !beat.shown && beat.from < t)) beat = b;
     el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
@@ -771,7 +773,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** The beat's line, once the frame is up and the PLAYHEAD has reached the beat's tick (`reached`: released at the viewer's clock).
    *  A fight cut before it (a kept span the viewer replays behind the frontier) never carries a later beat's line (QA on 3d71c33:
-   *  `BANKED $13` over a D2 fight in `fast`, ~15 s before the bank at D5). */
+   *  `COLLECTED $13` over a D2 fight in `fast`, ~15 s before the bank at D5). */
   function showBeat(reached = false): void {
     if (!beat || beat.shown || frame !== "fight") return;
     if (!reached && viewerTick() < beat.from - 1) return;
@@ -1037,12 +1039,12 @@ export function renderWatch(app: App): Mounted {
           const why = ev.line?.reason;
           // (a death's reason rides its last frame, no beat: the death screen comes as it did)
           if (tier === "death") { if (why) at(ev.t, () => showWhy(why, SCENE_MS)); }
-          else beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `BANKED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true, false, false, why);
+          else beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `COLLECTED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true, false, false, why);
           break;
         }
         // Cut 28b (owner: "it's not clear what oaths do"): the sworn oath's fate is a beat as it happens — `OATH KEPT`, or `OATH BROKEN · R2 return`
         // (the row that used the tool it forbade); a miss (the run ended short of it) is the exit line's, not a beat
-        // (decided by the run's end — a depth oath kept by a bank — it rides the exit's own beat: `BANKED $120 · OATH KEPT`)
+        // (decided by the run's end — a depth oath kept by a bank — it rides the exit's own beat: `COLLECTED $120 · OATH KEPT`)
         case "oath": if (ev.kept || ev.cause) { if (evs.some((x) => x.k === "exit" && x.t === ev.t)) exitOath = ev.kept ? /* copy:callout */ "OATH KEPT" : /* copy:callout */ "OATH BROKEN"; else beatAt(ev.t, oathBeat(ev, app.rules.rows), false, true); } break;
         case "ending": endingCue = ev.t; break;                                                                                       // Cut 7 §4: the core's marker (see `exit`)
         case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); allies.add(ev.id); victims.delete(ev.id); const id = ev.id; at(ev.t, () => petLine(/* copy:callout */ `tamed ${compLabel(id).replace(" · ", " ").replace(/_/g, " ")}`)); } break;
@@ -1127,6 +1129,8 @@ export function renderWatch(app: App): Mounted {
   function drainLoads(): void { if (!viewer) return; for (let p = takeLoad(); p; p = takeLoad()) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); } }
   /** Cut 14 §6: the viewer lands on the frontier (live) — every queued floor loaded, the clock at the engine's tick (the ending's
    *  start at most when the run is over, so the walk-out plays). */
+  const focusHero=():void=>{goLive();canvas.scrollIntoView({block:"nearest"});};
+  window.addEventListener("riddle:focus-hero",focusHero);
   function goLive(): void {
     releaseBeat();   // Cut 18 §1: landing live lets a held beat go
     drainLoads();
@@ -1380,12 +1384,12 @@ export function renderWatch(app: App): Mounted {
     }
     else if (exitTier) {
       if (!(viewerIdle() || performance.now() > exitAt)) return;
-      // Cut 28 (a loaded machine: the 1× walk-out outlasted the grace and `BANKED $N` took the line at t791 of an exit at t800): the grace
+      // Cut 28 (a loaded machine: the 1× walk-out outlasted the grace and `COLLECTED $N` took the line at t791 of an exit at t800): the grace
       // seeks the picture to the frontier first — the exit's line is released with the picture on the exit, never before it
       if (!viewerIdle() && viewerTick() < engineTick) { seekTo(engineTick); applyFrame(); }
       release(Infinity);
       nextGem();   // QA 92eb880: the walk-out has played — now the gem says what comes next
-      if (performance.now() < exitBeatUntil) return;   // Cut 14 §3: `BANKED $N` has its SCENE_MS first
+      if (performance.now() < exitBeatUntil) return;   // Cut 14 §3: `COLLECTED $N` has its SCENE_MS first
       // Cut 2 §1: `rest 12m` for a beat, then the exit flow continues. Cut 14 §4: the banner sits low (`.rest`), under the frame's
       // callout line, and the ticker yields to it (rater S: `rest 20m` over `OGRE WINDS UP` on the death frame)
       // QA 92eb880 (N: "`rest 20m` … after `0/36` reads as the hero resting instead of dying"): after a death the rest is the next heir's (`♟2 · rest 20m`)
@@ -2304,7 +2308,7 @@ export function renderWatch(app: App): Mounted {
   const onVisibility = (): void => { freeze(paused, document.hidden); if (!hidden) goLiveOwed = true; applySpeed(); };
   document.addEventListener("visibilitychange", onVisibility);
   return { el, dispose: () => {
-    disposed = true; audio.bed(null); clearTimeout(dockTimer); bar.dispose(); wide.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
+    disposed = true; audio.bed(null); clearTimeout(dockTimer); bar.dispose(); window.removeEventListener("riddle:focus-hero",focusHero); wide.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
     if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
     if (prepended && !done) void app.engine.setRules(app.rules);
   } };

@@ -21,12 +21,17 @@ pub fn home_default() -> bool { true }
 /// The lineage's town (`LineageState::town`).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Town {
+    /// Multi-bloodline Savings pays per shared night of completed expeditions.
+    #[serde(default, skip_serializing_if="Option::is_none")]
+    pub shared_night_runs: Option<u32>,
     /// Old towns already have a resident; genuinely new towns start empty.
     #[serde(default)]
     pub home: Option<bool>,
     /// New towns collect each returned haul automatically; old saves keep their chest.
     #[serde(default)]
     pub auto_collect: bool,
+    #[serde(default)]
+    pub gold_v: u32,
     /// Buildings require construction by hand, including unbuilt plots in old saves.
     #[serde(default = "manual_default", skip_serializing_if = "std::ops::Not::not")]
     pub manual: bool,

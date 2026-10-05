@@ -15,6 +15,7 @@ import type { App } from "../app";
 import type { ExitLine, GoldLine } from "../engine/types";
 import { h } from "./dom";
 import { openSheet } from "./sheet";
+import { goldWords } from "./gold-words";
 
 /** The ledger word of the exit `x` ended with: read off the line's own lead (`returned $0 · … · stalled` is a return that
  *  kept nothing — its keep share alone would say `died`); a timed-out return's ledger line is `lost thread D3` or
@@ -26,7 +27,7 @@ const tierWord = (x: ExitLine): RegExp => {
 };
 const isExit = (g: GoldLine): boolean => /^(returned|banked|died|lost|stalled|driven)\b/.test(g.why);
 /** An exit's tail: its salvage and a death's wake pay, at the exit's tick (a supply bought in camp at that tick is the next run's). */
-const isTail = (g: GoldLine, exit: GoldLine): boolean => g.t === exit.t && /^(salvage|wake pay)\b/.test(g.why);
+const isTail = (g: GoldLine, exit: GoldLine): boolean => g.t === exit.t && ((g.bloodline_id||1)===(exit.bloodline_id||1)) && /^(salvage|wake pay)\b/.test(g.why);
 
 /** The ledger index range `[from, to]` of the run that ended with `x`; `skip` = how many newer matching exits to pass over
  *  (the report's i-th exit from the end). Undefined when the ledger no longer holds the exit. */
@@ -35,23 +36,24 @@ export function runRange(ledger: GoldLine[], x: ExitLine, skip = 0): [number, nu
   let seen = 0;
   for (let i = ledger.length - 1; i >= 0; i--) {
     const g = ledger[i];
-    if (!isExit(g) || !word.test(g.why) || g.delta !== x.kept) continue;
+    if (((x.bloodline_id||1)!==(g.bloodline_id||1)) || !isExit(g) || !word.test(g.why) || g.delta !== x.kept) continue;
     if (seen++ < skip) continue;
     // back to the previous exit, then past that exit's own tail (its salvage, a death's wake pay: same tick, after it)
-    let from = i; while (from > 0 && !isExit(ledger[from - 1])) from--;
+    const ownedExit=(g:GoldLine):boolean=>isExit(g)&&((x.bloodline_id||1)===(g.bloodline_id||1));
+    let from = i; while (from > 0 && !ownedExit(ledger[from - 1])) from--;
     if (from > 0) { const prev = ledger[from - 1]; while (from < i && isTail(ledger[from], prev)) from++; }
     // this exit's tail lands after its line
     let to = i; while (to + 1 < ledger.length && isTail(ledger[to + 1], g)) to++;
     // QA 23ed91f (L: the death's sheet read `died D6 $0 · … −$30 leash` under a bar that had already paid the restock's `−$80`): the
     // newest exit's run runs on to now — what the camp charged since (a restock, a refund) — so the sheet explains the bar it opens from
-    if (!ledger.slice(to + 1).some(isExit)) to = ledger.length - 1;
+    if (!ledger.slice(to + 1).some(ownedExit)) to = ledger.length - 1;
     return [from, to];
   }
   return undefined;
 }
 
 /** Two exits that would match the same ledger line (tier and kept sum). */
-const sameExit = (a: ExitLine, b: ExitLine): boolean => tierWord(a).source === tierWord(b).source && a.kept === b.kept;
+const sameExit = (a: ExitLine, b: ExitLine): boolean => (a.bloodline_id||1)===(b.bloodline_id||1) && tierWord(a).source === tierWord(b).source && a.kept === b.kept;
 
 /** Open the gold sheet; with `only`, filtered to that exit's run (`newer` = the exits after it in the same report, so a
  *  repeated `returned $0` claims its own line). The filter is named: two chips, the run's own ledger word (`died D4`, the exit
@@ -60,7 +62,7 @@ const sameExit = (a: ExitLine, b: ExitLine): boolean => tierWord(a).source === t
 export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = []): void {
   const L = app.lineage; const ledger = L.gold_ledger ?? [];
   const range = only ? runRange(ledger, only, newer.filter((y) => sameExit(y, only)).length) : undefined;
-  const runWord = range ? ledger.slice(range[0], range[1] + 1).filter(isExit).at(-1)?.why.replace(/_/g, " ") : undefined;
+  const runWord = range ? ledger.slice(range[0], range[1] + 1).filter(g=>isExit(g)&&(g.bloodline_id||1)===(only?.bloodline_id||1)).at(-1)?.why.replace(/_/g, " ") : undefined;
   openSheet(() => {
     const fmt = (d: number): string => `${d < 0 ? "−" : d > 0 ? "+" : ""}$${Math.abs(d)}`;
     const list = h("div", { class: "gold-lines" });
@@ -69,7 +71,7 @@ export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = [])
       const lines = (filtered && range ? ledger.slice(range[0], range[1] + 1) : ledger).slice().reverse();
       body.dataset.filter = filtered && range ? `${range[0]}-${range[1]}` : "";
       const chips = range ? [
-        h("button", { class: `chip mini run${filtered ? " on" : ""}`, onclick: () => paint(true) }, runWord ?? /* copy:label */ "run"),
+        h("button", { class: `chip mini run${filtered ? " on" : ""}`, onclick: () => paint(true) }, runWord ? goldWords(runWord) : /* copy:label */ "run"),
         h("button", { class: `chip mini${filtered ? "" : " on"}`, onclick: () => paint(false) }, /* copy:button */ "all"),
       ] : [];
       body.replaceChildren(
@@ -84,7 +86,7 @@ export function openGoldSheet(app: App, only?: ExitLine, newer: ExitLine[] = [])
       const bal = (n: number, word: string, cls: string): HTMLElement => h("div", { class: `lrow num bal ${cls}` }, h("span", { class: "k" }, `$${n}`), h("span", { class: "why dim" }, word));
       list.replaceChildren(
         run && range[1] < ledger.length - 1 ? bal(endBal, /* copy:label */ "end", "end") : "",
-        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, wakeShown(g.why.replace(/_/g, " ")), g.n && g.n > 1 ? ` ×${g.n}` : "",
+        ...lines.map((g) => h("div", { class: `lrow num${g.delta < 0 ? " down" : g.delta > 0 ? " up" : ""}`, "data-t": g.t }, h("span", { class: "k" }, fmt(g.delta)), h("span", { class: "why" }, goldWords(wakeShown(g.why.replace(/_/g, " "))), (g.bloodline_id||1)!==(L.selected_bloodline||1)?h("small",{class:"dim"},` · Bloodline ${g.bloodline_id||1}`):"", g.n && g.n > 1 ? ` ×${g.n}` : "",
           // QA 912e135 (qaW: sixteen `$0 died D6` rows, none of the $224 a stall carried): an exit's row names what it did not keep —
           // QA 524827b (qaAA: `returned D8 · $77 lost`): an exit that kept some says `not kept`, `lost` is a whole carry gone
           g.lost && g.lost > 0 ? h("span", { class: "lost dim" }, g.delta > 0 ? /* copy:callout */ ` · $${g.lost} not kept` : /* copy:callout */ ` · $${g.lost} lost`) : ""))),

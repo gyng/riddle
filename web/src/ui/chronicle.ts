@@ -20,8 +20,9 @@ export function keptDeath(L: Lineage, line: string): number | undefined {
 export function openChronicle(app: App): void {
   openSheet(() => {
     const L = app.lineage;
+    const others=(L.hero_slots??[]).filter(s=>s.id!==L.selected_bloodline&&(s.chronicle?.length??0)>0);
     const lines = [...(L.chronicle ?? [])].reverse();
-    return h("div", { class: "sheet-body" }, h("div", { class: "label" }, /* copy:label */ "chronicle"), h("div", { class: "chronicle" }, ...lines.map((line) => {
+    return h("div", { class: "sheet-body" }, h("div", { class: "label" }, /* copy:label */ "chronicle"), h("div", { class: "chronicle" }, ...others.map(s=>h("section",null,h("b",null,s.name),...(s.chronicle??[]).slice().reverse().map(line=>h("button",{class:"cline",onclick:()=>void app.selectBloodline(s.id).then(ok=>{if(ok)openChronicle(app);})},line)))), ...lines.map((line) => {
       const id = keptDeath(L, line);
       if (id === undefined) return h("div", { class: "cline" }, line);
       return h("button", { class: "cline kept", onclick: () => {

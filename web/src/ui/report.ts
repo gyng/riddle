@@ -1,3 +1,4 @@
+import { goldWords } from "./gold-words";
 // Return report: learned · bests · found · deaths · pending · reel · marks. Delta, not totals.
 // Cut 10 §3: the exit tiles read `banked · returned · deaths`, `returned` first when it is the larger; each exit line leads
 // with its tier and the kept sum (`returned $61`) before the engine's arithmetic; a lost companion reads `jackal Ashar fell`;
@@ -90,7 +91,7 @@ export function traceLabel(app: App, x: ExitLine, newer: ExitLine[] = []): strin
   // QA 778fa1b (qaU: `died · trace` beside every `D8 · returned · trace`): the chip sits in its own column now (Cut 20), so it names the
   // floor always, even when the line beside it says `on D6`
   const d = exitDepth(app, x, newer);
-  return /* copy:callout */ `${d !== undefined ? `D${d} · ` : ""}${tier} · trace`;
+  return /* copy:callout */ `${d !== undefined ? `D${d} · ` : ""}${goldWords(tier)} · trace`;
 }
 
 /** Cut 10 §3: an exit line's lead — the tier from its keep share and the sum kept: `returned $61` · `banked $84` · `died $0`. */
@@ -106,8 +107,8 @@ export function ledgerText(x: ExitLine, name?: (label: string) => string): (stri
   // QA 0c6e126 (qaY: 16 death lines of 10–20 item names each, the killer and the floor buried): a report line is brief — what was left
   // and the pile are counts (`left 3`, the core's `bones: 12 items on D6`); the death screen and the gold sheet name them
   const killer = x.cause ? [" · ", h("b", { class: "killer" }, /* copy:callout */ `to ${x.cause}`)] : [];
-  if (m) return [h("b", { class: "lead" }, m[1] === "driven" ? /* copy:callout */ "repelled" : m[1]), ...killer, m[2] ? " · " : "", wakeShown(m[2]), exitExtras(x, name, { brief: true })];
-  return [h("b", { class: "lead" }, exitLead(x)), " · ", wakeShown(x.text), exitExtras(x, name, { brief: true })];
+  if (m) return [h("b", { class: "lead" }, m[1] === "driven" ? /* copy:callout */ "repelled" : goldWords(m[1])), ...killer, m[2] ? " · " : "", goldWords(wakeShown(m[2])), exitExtras(x, name, { brief: true })];
+  return [h("b", { class: "lead" }, goldWords(exitLead(x))), " · ", goldWords(wakeShown(x.text)), exitExtras(x, name, { brief: true })];
 }
 
 /** Cut 16 §1: the depths picked clean as one line — consecutive depths collapse (`D1–4 · thinned`, `D3 · D5 · thinned`).
@@ -250,7 +251,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const PLAQUE: Record<string, string> = { runs: "fast", deaths: "morgue", deepest: "depth", best: "depth", marks: "mark", banked: "gold", returned: "bail", stalled: "pause", driven: "bail" };
   // Cut 29 (owner: labels may be 2 words; docs/COPY.md §4 blocker 2 — `0/16 BANKED` still read as "some exit type"): an exit tile says
   // what it counts, `runs banked` (the key stays the one word, `data-k`)
-  const SAYS: Record<string, string> = /* copy:label */ { banked: "runs banked", returned: "runs returned", stalled: "runs stalled" };
+  const SAYS: Record<string, string> = /* copy:label */ { banked: "full hauls", returned: "runs returned", stalled: "runs stalled" };
   const tile = (n: string, label: string): HTMLElement => h("div", { class: "tile plaque", "data-k": label }, icon(PLAQUE[label] ?? "depth"),
     h("b", { class: "num" }, ...(n.startsWith("◆") ? [h("span", { class: "g" }, "◆"), n.slice(1)] : [n])), h("span", { class: "label" }, ...kwText(SAYS[label] ?? label, ["banked", "returned", "marks", "death"])));   // docs/TOOLTIPS.md
   // Cut 2 §1: `banked · returned · deaths` as a second row of three when the core reports exits; else the Cut 1 four
@@ -272,7 +273,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   };
   for (const [t, lead, n] of [[banked, /^banked\b/, bankedN], [returned, /^returned\b/, returnedN]] as const) {
     const w = n > 0 ? why(lead) : undefined;
-    if (w) t.appendChild(h("span", { class: "tile-why num", "data-why": w }, w));
+    if (w) t.appendChild(h("span", { class: "tile-why num", "data-why": w }, goldWords(w)));
   }
   // Cut 14 §4: the stalls' cost — what the stalled runs carried home for nothing (their lines' `carried`; lines the slices
   // dropped are not counted, so the sum is a floor) — `2 STALLED · $161 lost` (rater T: "`2 STALLED` says nothing about what the
@@ -323,7 +324,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const bankedG = ex.filter((x) => x.keep_pct >= 100).reduce((a, x) => a + x.kept, 0), returnedG = ex.filter((x) => x.keep_pct > 0 && x.keep_pct < 100).reduce((a, x) => a + x.kept, 0);
     const salvageG = (r.salvaged ?? []).reduce((a, x) => a + x.gold, 0), spentG = (r.spent ?? []).reduce((a, x) => a + x.gold, 0);
     const pieces: (string | HTMLElement)[] = [];
-    const WORD = /* copy:callout */ { banked: "banked", returned: "returned", salvage: "salvage", wake: "next heir", spent: "spent" };
+    const WORD = /* copy:callout */ { banked: "collected", returned: "returned", salvage: "salvage", wake: "next heir", spent: "spent" };
     const piece = (n: number, sign: string, word: string, cls: string): void => { if (n > 0) pieces.push(h("span", { class: cls }, `${sign}$${n} ${word}`)); };
     // the core's summary is to the coin over every run of the absence (the exit lines are capped per slice): it wins
     // QA 92eb880 (M, N: "`+$892 home` where the gold sheet and rows say `returned`"): the exits' coins by the rows' own words — `banked` /
@@ -539,6 +540,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const wallHost = h("div", { class: "wall-host" });
   if (penOpen(L)) void wallOffer(app).then((w) => { if (w && wallHost.isConnected) replace(wallHost, h("div", { class: "label" }, /* copy:label */ "wall fix"), wallTablet(app, w, () => app.go({ kind: "camp" }))); });
   const details = h("div", { class: "report-details", hidden: true });
+  if(r.bloodlines?.length)details.append(h("section",{class:"bloodline-report"},h("div",{class:"label"},/* copy:label */"Bloodlines"),...r.bloodlines.map(s=>h("div",{class:"num"},s.name,/* copy:label */` · ${s.runs} runs · D${s.deepest} · $${s.gold}`))));
   const detailsBtn: HTMLButtonElement = h("button", { class: "details-fold num", "aria-expanded": "false", onclick: () => {
     details.hidden = !details.hidden; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details");

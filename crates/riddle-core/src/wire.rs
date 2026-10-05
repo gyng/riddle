@@ -211,8 +211,13 @@ pub struct Stake {
 /// `text` ≤ 14 words: `$84 carried · return keeps 60% → $50` (death: `$144 carried · death
 /// keeps 0% → $0 · bones: 7 items on D5`). `spent` / `spent_on` are the automations' purchases
 /// on coming home (`auto_supply`); salvage is its own ledger movement (`Lineage.gold_ledger`).
+fn first_bloodline()->u32 {1}
+fn solo_bloodline(id:&u32)->bool{*id<=1}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ExitLine {
+    #[serde(default="first_bloodline", skip_serializing_if="solo_bloodline")]
+    pub bloodline_id:u32,
     /// Cut 30.5 (the owner: a new record is a checkpoint): of `carried`, the gold this run's checkpoints secured
     /// (kept whole at any exit, a death's included); `keep_pct` is the share of the rest.
     #[serde(default, skip_serializing_if = "is_zero_i32")]
@@ -417,6 +422,8 @@ fn is_zero(n: &u32) -> bool {
 /// salvage`, `−50 hatch`); `why` ≤ 3 words; `t` is the lineage tick.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct GoldLine {
+    #[serde(default="first_bloodline", skip_serializing_if="solo_bloodline")]
+    pub bloodline_id:u32,
     pub t: u64,
     pub delta: i32,
     pub why: String,
@@ -1243,8 +1250,13 @@ pub struct DeathCount {
     pub n: u32,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct BloodlineReturn { pub id:u32, pub name:String, pub runs:u32, pub deepest:u32, pub gold:i32 }
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ReturnReport {
+    #[serde(default, skip_serializing_if="Vec::is_empty")]
+    pub bloodlines: Vec<BloodlineReturn>,
     pub elapsed_s: u64,
     pub runs: u32,
     pub sampled: bool,
@@ -1469,11 +1481,40 @@ pub struct TownWire {
 /// Each hero's lifetime achievements, independent of XP and package marks.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HeroLegacy {
+    #[serde(default)]
+    pub spent: u32,
+    #[serde(default)]
+    pub upgrades: std::collections::BTreeMap<String, u32>,
     pub heir: u32,
     pub points: u32,
     pub runs: u32,
     pub best_depth: u32,
     pub class: String,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BloodlineLegacy {
+    pub points: u32,
+    pub spent: u32,
+    pub upgrades: std::collections::BTreeMap<String, u32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct HeroSlot {
+    pub id:u32, pub name:String, pub heir:u32, pub class:String,
+    pub level:u32, pub xp:u32, pub next:Option<u32>,
+    pub state:String, pub live:Option<LiveRun>, pub rest_s:f64,
+    pub legacy:BloodlineLegacy, pub notice:bool, pub chronicle:Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct LegacyUpgrade {
+    pub id: String,
+    pub rank: u32,
+    pub cap: u32,
+    pub price: u32,
+    pub effect: String,
+    pub affordable: bool,
 }
 
 /// Cut 30 §5: the quest on the board — one plain goal (≤ 5 words), the reward's picture, progress
@@ -1850,7 +1891,21 @@ pub struct Replay {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
     #[serde(default)]
+    pub selected_loadout: Vec<u32>,
+    #[serde(default)]
+    pub hero_slots: Vec<HeroSlot>,
+    #[serde(default)]
+    pub selected_bloodline:u32,
+    #[serde(default)]
+    pub bloodline_price:i32,
+    #[serde(default)]
+    pub bloodline_cap:u32,
+    #[serde(default)]
+    pub bloodline: BloodlineLegacy,
+    #[serde(default)]
     pub hero_legacy: Vec<HeroLegacy>,
+    #[serde(default)]
+    pub legacy_upgrades: Vec<LegacyUpgrade>,
     /// RUNS_UI: the runs log, the run under way, the run ids a replay is held for, the lineage
     /// clock and the absences counted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -174,3 +174,56 @@ button.re-body { cursor: pointer; }
 .report .report-basics .tile.plaque { grid-template-columns: minmax(0, 1fr); justify-items: center; padding: 12px 7px; text-align: center; }
 .report .report-basics .tile.plaque .ico { display: none; }
 .report .report-basics .tile.plaque b { font-size: 25px; }
+
+/* A bloodline row owns the hero summary; class controls live in Details. */
+.hero-roster { min-width: 0; }
+.hero-roster-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.hero-roster-head h2 { margin: 0; font: 25px var(--display); }
+.hero-list { display: flex; flex-direction: column; gap: 12px; }
+.hero-row { --dim: #8a9ab4; display: flex; align-items: center; min-width: 0; padding: 10px; gap: 6px; background: linear-gradient(120deg,var(--panel2),var(--ink)); border: 1px solid var(--line); border-radius: 5px; }
+.hero-row.selected { border-color: var(--gilt); box-shadow: inset 3px 0 var(--gilt); }
+.hero-jump { display: flex; align-items: flex-start; flex: 1; gap: 10px; min-width: 0; text-align: left; min-height: 44px; color: var(--bone); }
+.hero-thumb { width: 44px; height: 52px; flex: none; background: center / cover no-repeat; border: 1px solid var(--moon); border-radius: 4px; }
+.hero-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hero-info b { font: 21px var(--display); }
+.hero-class-name { font-size: 15px; color: var(--mist); text-transform: capitalize; }
+.hero-xp { font-size: 13px; color: var(--dim); }
+.hero-action { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.hero-action .lane-beat { width: 7px; height: 7px; border-radius: 50%; background: var(--acc); }
+.hero-action .lane-beat.live { background: var(--ember); }
+.hero-notice { color: var(--acc); font-size: 12px; }
+.hero-details, .hero-expand { min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--mist); font-size: 14px; }
+.hero-add { display: flex; justify-content: space-between; min-height: 44px; }
+.hero-add:disabled { opacity: .5; }
+.hero-rules { margin-top: 20px; }
+.hero-rules summary { min-height: 44px; padding: 10px 0; cursor: pointer; color: var(--dim); }
+.hero-mobile { display: flex; gap: 6px; align-items: stretch; }
+.hero-mobile .hero-row { flex: 1; padding: 6px; gap: 4px; }
+.hero-mobile .hero-thumb { width: 32px; height: 40px; }
+.hero-mobile .hero-info { gap: 1px; }
+.hero-mobile .hero-info b, .hero-mobile .hero-action { font-size: 14px; }
+.hero-mobile .hero-class-name, .hero-mobile .hero-xp { font-size: 11px; }
+.hero-mobile .hero-notice { display: none; }
+.hero-desktop, .hero-roster-head { display: none; }
+.heroes-col .hero-roster { width: 100%; }
+.camp .console .well-slot { display: none; }
+.camp .console-row { grid-template-columns: minmax(0,1fr) 96px; }
+.camp .console-row > .gem-slot { grid-column: 2; }
+.camp[data-first="1"] .console .cmd { display: none; }
+.hero-list > .hero-history { display: flex; justify-content: space-between; }
+.hero-history:disabled { opacity: .5; }
+@media (min-width: 1024px) {
+  .hero-mobile { display: none; }
+  .hero-roster-head { display: flex; }
+  .hero-desktop { display: block; }
+  main.camp.frame { grid-template-areas: "bar bar bar" "rules well side" "rules well side" "rules well meters" "rules vs meters" "rules sline meters" "rules rest meters" "con con con"; }
+  main.camp .well-wrap > .heroes-col { grid-area: rules; align-self: stretch; padding: 20px 16px; background: var(--umbra); overflow: auto; border: 1px solid var(--line); }
+  main.camp .camp-main > .tablets, main.camp .camp-well > .tabs { display: none; }
+  main.camp.hero-editing .well-wrap > .heroes-col { display: none; }
+  main.camp.hero-editing .camp-main > .tablets { display: flex; padding-top: 64px; }
+  main.camp.hero-editing .camp-well > .tabs { display: flex; grid-area: rules; align-self: start; z-index: 2; }
+  .camp .console-row { grid-template-columns: minmax(0,1fr) 124px; }
+  main.frame.watch { grid-template-columns: clamp(290px,22vw,340px) minmax(0,1fr) clamp(190px,14vw,240px); }
+  .hero-row { flex-wrap: wrap; }
+  .hero-details { margin-left: auto; }
+}

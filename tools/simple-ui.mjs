@@ -22,6 +22,10 @@ try {
   await page.waitForFunction(()=>!document.querySelector('button.send')?.disabled);
   check(`${width}: free home has resident and zero Legacy`,await page.evaluate(()=>window.__riddle.lineage.town.home&&window.__riddle.lineage.gold===0&&window.__riddle.lineage.hero_legacy[0].points===0));
   await page.screenshot({path:`${out}/${width}-home.png`});
+  await page.locator('.topbar button.legacy').click();
+  check(`${width}: three hero upgrade choices`,await page.locator('.legacy-upgrade').count()===3);
+  check(`${width}: poor hero cannot buy upgrades`,await page.locator('.legacy-buy:disabled').count()===3);
+  await page.locator('.sheet-wrap button.stud').click();
   await page.locator('button.send').click();
   await page.waitForSelector('main.watch');
   check(`${width}: explicit live label`,await page.locator('.live-badge').isVisible()&&(await page.locator('.live-badge').innerText()).includes('Live delve'));
@@ -41,6 +45,9 @@ try {
   await page.waitForSelector('main.camp');
   await page.waitForFunction(()=>!!window.__riddle.lineage.live);
   check(`${width}: leaving watch keeps same run`,await page.evaluate(id=>window.__riddle.lineage.live.run_id===id,live));
+  await page.locator('.topbar button.legacy').click();
+  check(`${width}: upgrades disabled while hero away`,await page.locator('.legacy-buy:disabled').count()===3&&(await page.locator('.hero-sheet').innerText()).includes('Hero away'));
+  await page.locator('.sheet-wrap button.stud').click();
   await page.evaluate(()=>window.__riddle.absence(3600));
   await page.waitForSelector('main.report');
   check(`${width}: concise report`,await page.locator('.report-basics .tile').count()===3&&!await page.locator('.report-details').isVisible());
@@ -52,6 +59,16 @@ try {
   await page.waitForSelector('main.camp');
   check(`${width}: automatic haul and per-hero Legacy`,await page.evaluate(()=>window.__riddle.lineage.tree.chest===0&&window.__riddle.lineage.hero_legacy.some(x=>x.runs>0&&x.points>0)));
   check(`${width}: milestone did not auto-build`,await page.evaluate(()=>window.__riddle.lineage.town.buildings.length===0&&window.__riddle.lineage.town.next_ready));
+  await page.locator('.topbar button.legacy').click();
+  const legacyBefore=await page.evaluate(()=>{const L=window.__riddle.lineage;return {gold:L.gold,classes:JSON.stringify(L.classes),points:L.bloodline.points};});
+  check(`${width}: earned Legacy buys health`,legacyBefore.points>=3&&await page.locator('.legacy-buy[data-upgrade=health]:not(:disabled)').count()===1);
+  await page.locator('.legacy-buy[data-upgrade=health]').click();
+  await page.waitForFunction(()=>window.__riddle.lineage.legacy_upgrades.find(x=>x.id==='health').rank===1);
+  await page.waitForFunction(()=>document.querySelector('.legacy-buy[data-upgrade=health]')?.textContent.includes('6'));
+  check(`${width}: Legacy purchase debits only Legacy`,await page.evaluate(b=>{const L=window.__riddle.lineage,h=L.bloodline;return h.points===b.points-3&&h.spent===3&&L.gold===b.gold&&JSON.stringify(L.classes)===b.classes;},legacyBefore));
+  check(`${width}: next health rank costs six`,await page.locator('.legacy-buy[data-upgrade=health]').innerText().then(x=>x.includes('6')));
+  await page.screenshot({path:`${out}/${width}-legacy.png`});
+  await page.locator('.sheet-wrap button.stud').click();
   await page.locator('button.town-tag').click();
   await page.waitForFunction(()=>window.__riddle.lineage.town.buildings.some(b=>b.id==='blacksmith'));
   check(`${width}: explicit build works`,await page.locator('.town-hit[data-building=blacksmith]').isVisible());
@@ -76,6 +93,7 @@ try {
   u.searchParams.delete("fresh"); await page.goto(u.href);
   await page.waitForFunction(()=>window.__riddle?.booted);
   check(`${width}: construction persisted`,await page.evaluate(()=>window.__riddle.lineage.town.buildings.some(b=>b.id==='blacksmith')));
+  check(`${width}: Legacy purchase persisted`,await page.evaluate(()=>window.__riddle.lineage.legacy_upgrades.find(x=>x.id==='health').rank===1&&window.__riddle.lineage.bloodline.spent===3));
   await page.close();
  }
  check('no page errors',errors.length===0);

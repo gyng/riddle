@@ -126,6 +126,9 @@ export class WasmEngine implements Engine {
   swapQuest(): Lineage { return this.call("swapQuest"); }
   // Cut 30.5: throw `wasm: <name>` on a build without them
   hire(id: string): Lineage { return this.call("hire", id); }
+  selectBloodline(id: number): Lineage { return this.call("selectBloodline", id); }
+  addBloodline(): Lineage { return this.call("addBloodline"); }
+  upgradeHero(id: string): Lineage { return this.call("upgradeHero", id); }
   buildTown(id: string): Lineage { return this.call("buildTown", id); }
   openChest(): Lineage { return this.call("openChest"); }
   setWorker(id: string, on: boolean): Lineage { return this.call("setWorker", id, on); }

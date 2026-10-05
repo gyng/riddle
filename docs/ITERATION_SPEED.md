@@ -1,11 +1,15 @@
 # Iteration speed — where a cut's time goes, and what to cut next
 
-## Queue after first-home UX — 2026-10-05
+## Queue after bloodlines UX — 2026-10-05
 
 Completed: forge buys/opening require no kit forecast; automatic requests after
 reports and quiet camp refines are removed. Detailed forecasts are explicit.
 The dev speed parameter sets mode before mounting instead of clicking hidden
-controls. Public source c515281 is verified; details in docs/UX_FIRST_HOME.md.
+controls. Bloodline forecasts clone only the selected Game, never the whole
+multihero Session. Early auto-send fixture, one native observation under compiler
+load: eight-hour catch-up1 hero365ms/16 runs,2 heroes1010ms/32 runs,3 heroes1281ms/49
+runs. These are engine-call measurements, not shipping WASM or frame-rate claims.
+Evidence: scratchpad/legacy-upgrades-20261005/multi-timing.*.
 
 Next, in impact order:
 
@@ -16,6 +20,11 @@ Next, in impact order:
    settings separate. Measure saved-camp simulation/forecast runtimes and
    compare complete outputs/raw saves before retaining faster compilation;
    report runtime tradeoffs, no compile-only speedup claim.
+   Include one/two/three bloodline catch-up and exact shared-wallet/selection
+   comparisons. Measure on a quiet machine; do not overlap GPU timing gates
+   with compiler experiments. Diagnose the observed missing-rlib race between
+   native auto-rebuild and gate fingerprinting before automating overlapping
+   rebuilds; never fall back to a guessed cache key.
 2. **Work inside simulations.** Profile current expensive package/forecast
    cases again, then reduce repeated vision/pathfinding work with the LOS
    oracle and exact saved-camp comparisons. Prior clipped-vision and stack

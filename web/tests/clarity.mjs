@@ -165,15 +165,15 @@ try {
       exits: [...document.querySelectorAll(".report .exit-lines .ledger-line")].map((l) => l.textContent.replace(/\s+/g, " ").trim()),
       lost: document.querySelector(".report .chip.egg")?.textContent.replace(/\s+/g, " ").trim(),
     }));
-    check(rep.labels.join(" ") === "runs best marks runs banked runs returned deaths", `tiles in one order whatever leads (QA 92eb880): ${rep.labels.join(" · ")}`);
+    check(rep.labels.join(" ") === "runs best marks full hauls runs returned deaths", `tiles in one order whatever leads (QA 92eb880): ${rep.labels.join(" · ")}`);
     // QA 23ed91f: the run rows read newest first (the gold sheet's order), so the later bank leads
-    check(rep.exits[1]?.startsWith("returned $61 · $102 carried") && rep.exits[0]?.startsWith("banked $84 · "), `exit lines lead with the tier and the sum, newest first: "${rep.exits[0]}" · "${rep.exits[1]}"`);
+    check(rep.exits[1]?.startsWith("returned $61 · $102 carried") && rep.exits[0]?.startsWith("collected $84 · "), `exit lines lead with the tier and the sum, newest first: "${rep.exits[0]}" · "${rep.exits[1]}"`);
     check(rep.lost === "◯ jackal Ashar fell", `the report's lost chip reads "${rep.lost}"`);
     check(rep.fade === true, "after an absence the tiles fade in");
     await page.evaluate((b) => { const r = window.__riddle; b.live = r.lineage.live ?? null; r.go({ kind: "report", report: { ...b, banked: 3, returned: 1 } }); }, base);
     await sleep(200);
     const rep2 = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".report .tiles .tile .label")].map((l) => l.textContent.trim()), fade: document.querySelector(".report .tiles")?.classList.contains("fade-in") }));
-    check(rep2.labels.join(" ") === "runs best marks runs banked runs returned deaths" && rep2.fade === false, `the same order when banks lead; a watched run's tiles do not fade (${rep2.labels.slice(3).join(" · ")})`);
+    check(rep2.labels.join(" ") === "runs best marks full hauls runs returned deaths" && rep2.fade === false, `the same order when banks lead; a watched run's tiles do not fade (${rep2.labels.slice(3).join(" · ")})`);
   }
   // Cut 14 §4: a repeated chore callout coalesces on its line — `pick up ×8` — instead of eight `pick up` reads (the fake emits
   // no chore rows, so every engine batch gets one appended; the ticker is sampled every 40 ms through the run)

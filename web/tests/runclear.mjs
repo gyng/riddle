@@ -23,7 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const errors = [], out = [];
 let failed = 0;
 const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
-const STAMPS = ["banked", "returned", "stalled", "repelled", "died"];
+const STAMPS = ["collected", "returned", "stalled", "repelled", "died"];
 const MAX_WORDS = 20;
 
 const browser = await launchBrowser();

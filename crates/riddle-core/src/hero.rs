@@ -169,6 +169,8 @@ pub struct Hero {
     pub max_hp: i32,
     pub base_atk: (i32, i32),
     pub str_bonus: i32,
+    #[serde(default)]
+    pub legacy_armour: i32,
     pub class: Class,
     pub inv: crate::shared::Shared<Vec<Item>>,
     pub weapon: crate::shared::Shared<Option<Item>>,
@@ -244,6 +246,7 @@ impl Hero {
             max_hp,
             base_atk: (1, 2),
             str_bonus: 0,
+            legacy_armour: 0,
             class,
             inv: Vec::new().into(),
             weapon: None.into(),
@@ -292,7 +295,7 @@ impl Hero {
         (lo + self.str_bonus + self.gift.fury, hi + self.str_bonus + self.gift.fury)
     }
     pub fn def(&self) -> i32 {
-        self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0) + if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 } + self.gift.guard
+        self.armour.as_ref().map(|a| a.def_bonus()).unwrap_or(0) + if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 } + self.gift.guard + self.legacy_armour
     }
     /// Cut 25 §1 (AN: three forge buys took bank 40 → 95 %, more than any row): the forged
     /// armour blunts a blow, never negates it — a third of a blow (rounded) always lands through
@@ -303,6 +306,7 @@ impl Hero {
         let forged = self.armour.as_ref().is_some_and(|a| crate::kit::is_kit_id(a.id));
         let guard = if self.bulwark_t > 0 { 3 } else { 0 } + if self.ward_t > 0 { 2 } else { 0 } + self.gift.guard;
         let through = if forged { (roll - armour).max((roll + 1) / 3) } else { (roll - armour).max(0) };
+        let through = if self.legacy_armour > 0 { (through - self.legacy_armour).max((through + 2) / 3) } else { through };
         (through - guard).max(0)
     }
     /// Cut 25 §1: the chance a blow lands — the forged weapon's steps are aim (`kit::AIM_PER_STEP`

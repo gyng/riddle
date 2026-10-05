@@ -169,7 +169,7 @@ try {
   }));
   let rp = await rep();
   check(rp.spent.length === 1 && rp.spent[0] === "heal ×16 · −$640", `the spent section: ${JSON.stringify(rp.spent)}`);
-  check(rp.gold === "+$412 banked · +$96 returned · +$45 salvage · −$640 spent", `the gold line reconciles the tiles: "${rp.gold}"`);
+  check(rp.gold === "+$412 collected · +$96 returned · +$45 salvage · −$640 spent", `the gold line reconciles the tiles: "${rp.gold}"`);
   await shot("04-report-ledger");
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 60, runs: 1, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 } } }); });
   await sleep(150);
@@ -569,7 +569,7 @@ try {
       const goldChips = () => page.evaluate(() => ({ filter: document.querySelector(".gold-sheet")?.dataset.filter ?? null, chips: [...document.querySelectorAll(".gold-sheet .row-label .chip.mini")].map((c) => ({ text: c.textContent, on: c.classList.contains("on") })), lines: document.querySelectorAll(".gold-sheet .lrow:not(.bal)").length }));
       let gc = await goldChips();
       if (gc.filter) {
-        check(gc.chips.length === 2 && /^(died|returned|banked|stalled|lost thread) D\d+$/.test(gc.chips[0].text) && gc.chips[0].on && gc.chips[1].text === "all" && !gc.chips[1].on, `the run-filtered gold sheet names its filter: ${gc.chips.map((c) => `${c.text}${c.on ? " (on)" : ""}`).join(" · ")}`);
+        check(gc.chips.length === 2 && /^(died|returned|collected|stalled|lost thread) D\d+$/.test(gc.chips[0].text) && gc.chips[0].on && gc.chips[1].text === "all" && !gc.chips[1].on, `the run-filtered gold sheet names its filter: ${gc.chips.map((c) => `${c.text}${c.on ? " (on)" : ""}`).join(" · ")}`);
         await shot("qaF-gold-run");
         await page.locator(".gold-sheet .row-label .chip.mini", { hasText: /^all$/ }).first().click({ timeout: 5000 });
         await sleep(150);
@@ -590,11 +590,11 @@ try {
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 6, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 2, returned: 3, stalled: 1 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "runs returned 2/6 · runs banked 2/6 · runs stalled 1/6 · deaths 1/6" || tiles.slice(3).join(" · ") === "runs banked 2/6 · runs returned 2/6 · runs stalled 1/6 · deaths 1/6", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "runs returned 2/6 · full hauls 2/6 · runs stalled 1/6 · deaths 1/6" || tiles.slice(3).join(" · ") === "full hauls 2/6 · runs returned 2/6 · runs stalled 1/6 · deaths 1/6", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "runs banked 0/3 · runs returned 3/3 · deaths 0/3", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "full hauls 0/3 · runs returned 3/3 · deaths 0/3", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
   const fakeStalled = await page.evaluate(async () => { const rep = await window.__riddle.engine.runOfflineQuick(600); return typeof rep.stalled; });
   check(fakeStalled === "number", `the fake's report carries stalled (${fakeStalled})`);
   // the pile once: the exit line's `bones: 8 items on D4` stands alone; the client's `bones left` line only without it

@@ -100,10 +100,18 @@ export class App {
   async runTick(force = false): Promise<void> {
     if (!this.booted || this.offlineRunning || this.runnerBusy || !this.engine?.advance || (!force && !this.runnerOn)) return;
     const now = Date.now();
-    if (this.view.kind === "watch") { this.runnerAt = now; return; }   // the watch plays its own run; its time is not the town's
+    if (this.view.kind === "watch") {
+      this.runnerAt=now;
+      if(this.lineage.hero_slots?.length&&!document.hidden){
+        this.runnerBusy=true;const selected=this.lineage.selected_bloodline;
+        try{const L=await this.engine.lineage();if(L.selected_bloodline===selected){this.lineage=L;this.emitLive();}}
+        finally{this.runnerBusy=false;}
+      }
+      return;
+    }   // the watch plays its own run; its time is not the town's
     if (document.hidden) return;                                       // (the time hidden is the next tick's, or an absence)
     const L = this.lineage, live = !!L.live && L.live.turn > 0;
-    if (!live && L.tree?.waits) { this.runnerAt = now; return; }      // before the scout the hero home waits: nothing runs
+    if (!live && L.tree?.waits && !L.hero_slots?.some(h=>h.state!=="waits")) { this.runnerAt = now; return; }      // before the scout the hero home waits: nothing runs
     const dt = now - (this.runnerAt || now);
     if (!force && !(live ? dt >= LIVE_TICK_MS : this.restLeftS() <= 0.25 || dt >= REST_SYNC_MS)) return;
     if (dt <= 0) { this.runnerAt = now; return; }
@@ -116,7 +124,7 @@ export class App {
         this.lineage = await this.engine.lineage();   // a run ended or began: the town, the purse, the log
         this.emitChange();
       } else if (!live) this.lineage = await this.engine.lineage();   // the rest's sync: its countdown re-anchored, nothing repaints
-      else this.lineage = { ...this.lineage, live: r.live ?? null };
+      else this.lineage = this.lineage.hero_slots?.length ? await this.engine.lineage() : { ...this.lineage, live: r.live ?? null };
       this.emitLive();
     } catch (e) { console.warn("advance", e); this.runnerAt = now; }
     finally { this.runnerBusy = false; }
@@ -780,6 +788,15 @@ export class App {
   }
 
   // --- lineage ---
+  async selectBloodline(id:number):Promise<boolean> {
+    if((this.lineage.selected_bloodline??1)===id)return true;
+    if(!this.engine.selectBloodline)return false;
+    if(this.view.kind==="watch")this.go({kind:"camp"});
+    this.lastForecast=null;this.loadout=[];
+    const ok=await this.mutate(()=>this.engine.selectBloodline!(id),undefined,true);
+    if(ok){this.loadout=[...(this.lineage.selected_loadout??[])];this.persist();this.runnerAt=Date.now();this.go({kind:"camp"});}
+    return ok;
+  }
   async refresh(): Promise<void> { this.lineage = await this.engine.lineage(); this.vocab = await this.engine.vocabulary(); this.emitChange(); }
   onChange(fn: () => void): () => void { this.changeListeners.add(fn); return () => this.changeListeners.delete(fn); }
   private emitChange(): void { for (const fn of this.changeListeners) fn(); }
@@ -999,6 +1016,10 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const sum = (x?: number, y?: number): number | undefined => x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0);
   const cat = <T,>(x?: T[], y?: T[]): T[] | undefined => x === undefined && y === undefined ? undefined : [...(x ?? []), ...(y ?? [])];
   return {
+    bloodlines: [...new Set([...(a.bloodlines??[]),...(b.bloodlines??[])].map(s=>s.id))].map(id=>{
+      const rows=[...(a.bloodlines??[]),...(b.bloodlines??[])].filter(s=>s.id===id),last=rows[rows.length-1]!;
+      return {...last,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
+    }),
     rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled), driven: sum(a.driven, b.driven),
     bones_found: cat(a.bones_found, b.bones_found),
     new_finds: a.new_finds || b.new_finds ? [...new Set([...(a.new_finds ?? []), ...(b.new_finds ?? [])])] : undefined,   // QA 0c6e126 (qaY): every kind first found this absence

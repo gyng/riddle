@@ -1,4 +1,33 @@
-**LATEST OWNER UX — 2026-10-05:** Empty town → free house → hero arrives →
+**CURRENT OWNER FOLLOW-UP — 2026-10-05:** Legacy is spendable hero-upgrade
+currency. Read docs/UX_LEGACY_UPGRADES.md (supersedes the no-spending and old
+manual-chest clauses below). Three ranks each: Health +3 HP, Damage +1,
+Armour +1; costs3/6/9. Updated owner direction: read UX_BLOODLINES.md.
+Slots are persistent bloodlines; Legacy/upgrades survive heir death. Multiple
+heroes run independently, with shared town gold. Desktop roster/mobile sheet,
+class controls in Details, past heroes in Chronicle.
+Rust owns offers/purchases/stats and rejects away/poor/capped/unknown buys.
+Forecast keys include ranks, not unused points. All player saves collect gold
+automatically; versioned migration releases the old chest without duplicating
+currency/ledger entries. Savings remains separate. Topbar Legacy opens hero
+upgrades; history/class XP fold under Details; collected replaces banked in
+presentation while raw persisted exit keys remain stable for run accounting.
+Local acceptance:536 core tests/1ignored,14 dayplayer recovery tests,11 tooling;
+tsc/copy/clippy/shipping build. Routine FULL561s: metrics111.4s,QA46.5s and18
+fortnight cases PASS. Native/shipping58 exact complete bridge replies, including
+multihero live state, shared wallet, Legacy, refusal and migrations. Real native
+and shipping UI29 bloodline checks+65 first-session/Legacy/forge checks400/1440.
+The canonical100ms multihero clock is independent of elapsed chunk size and
+selected bloodline; singlehero offline/replay behavior remains unchanged.
+Watched multihero ticks advance all slot clocks; shared Savings pays once per
+20 completed runs. Combined salvage/lost/spent reports sum across bloodlines;
+replay/verdict IDs and class XP remain scoped to the selected hero.
+Private evidence scratchpad/legacy-upgrades-20261005; never stage it or mine.bars.
+Scoped watch gate:fights46 checks153.8s; clarity:paint5 checks58.3s. Initial
+headless attempts failed with resource errors/tab crash; after reclaiming1.73GiB
+of stale generated example/probe caches, the unchanged headless fights pass.
+Public source and exact CI/public artifact proof follow.
+
+**PREVIOUS PUBLISHED OWNER UX — 2026-10-05:** Empty town → free house → hero arrives →
 Send is implemented. Read docs/UX_FIRST_HOME.md; it supersedes the old fresh-Send
 contract without a Cut31/cohort. House eligibility and per-hero Legacy live in
 Rust. Legacy earns 1/run plus new personal depth floors, archives on death,

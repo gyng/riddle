@@ -9,7 +9,7 @@
 // ending plays at 1×) — five players read the old "next fight" press as "plays faster"; in `fights` it stays the next fight.
 // Cut 14: the fight frame runs at 2× in `fights` and 4× in `fast` (the slowdowns were "way too slow").
 // Cut 14 §3: a stack (two foes on one tile) fans sideways in the map frame with a name per row, a foe there is ≥ 24 CSS px tall
-// (`__viewer.debugRects` / `debugLabels`); a bank exit opens the fight frame with `BANKED $N` as its callout before the sheet.
+// (`__viewer.debugRects` / `debugLabels`); a bank exit opens the fight frame with `COLLECTED $N` as its callout before the sheet.
 // Cut 15 §4: a boss's kill opens (holds) the fight frame with `GOBLIN WARLORD DOWN` in `fast` and `fights`; two name tags whose
 // boxes would intersect draw on two rows (no two tags drawn in a frame intersect).
 // Cut 28 §3: at 1× no stretch > 5 s without a fight, a beat, a pickup of note or a descent.
@@ -180,7 +180,7 @@ try {
   check(stack.labels.length === 2 && new Set(rows).size === 2 && Math.abs(rows[0] - rows[1]) >= 10, `their names sit on two rows (${stack.labels.map((l) => `${l.text} y${Math.round(l.y)}`).join(" · ")})`);
   check(stack.rects.every((r) => r.h >= 24), `a foe in the map frame is ≥ 24 CSS px tall (${stack.rects.map((r) => `${r.kind} ${Math.round(r.h)} px`).join(" · ")})`);
 
-  // Cut 14 §3: a bank is a beat — the fight frame opens on the stairs with `BANKED $N` as the callout before the exit sheet (the
+  // Cut 14 §3: a bank is a beat — the fight frame opens on the stairs with `COLLECTED $N` as the callout before the exit sheet (the
   // hero starts on the up stairs, so `depth>=1 → bank` banks on its first action), in `fights`
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=1 → bank");
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&rules=${bankRules}`, { waitUntil: "domcontentloaded" });
@@ -190,7 +190,7 @@ try {
   while (Date.now() - tb < 20_000) {
     const st = await state(); const tk = await ticker();
     if (st?.screen !== "watch" && st?.screen !== "exit") break;
-    if (/^BANKED \$\d+$/.test(tk) && st.frame === "fight") { beat = { text: tk, frame: st.frame, at: Date.now() }; break; }
+    if (/^COLLECTED \$\d+$/.test(tk) && st.frame === "fight") { beat = { text: tk, frame: st.frame, at: Date.now() }; break; }
     await sleep(40);
   }
   check(!!beat, `a bank opens the fight frame with the sum as its callout (${beat ? `"${beat.text}"` : "never seen"})`);

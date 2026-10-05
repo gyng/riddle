@@ -248,7 +248,7 @@ try {
     await go({ kind: "report", report: { ...base, banked: b, returned: rt } }); await waitFor((s) => s?.screen === "report", "report"); await sleep(250);
     tileOrder.push((await text(".report .tiles .tile .label")).join(" "));
   }
-  check(tileOrder.every((t) => t === "runs best marks runs banked runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
+  check(tileOrder.every((t) => t === "runs best marks full hauls runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
   const rep = await page.evaluate(() => {
     const sec = (l) => [...document.querySelectorAll(".report .rsec")].find((x) => new RegExp(l, "i").test(x.querySelector(".label")?.textContent ?? ""));
     return { pending: [...(sec("pending")?.querySelectorAll("li") ?? [])].map((l) => l.textContent), items: [...(sec("learned")?.querySelectorAll(".chips.items .chip") ?? [])].map((c) => c.textContent),
@@ -256,7 +256,7 @@ try {
   });
   check(rep.pending.some((p) => /hp < 30% → drink heal · fired in 0 of 16 runs · shadowed by return at 30%$/.test(p)), `PENDING keeps the shadowing row (${rep.pending.join(" | ")})`);
   check(rep.items.join(" | ") === "blink (ashen) | speed (amber)" && rep.foes.includes("stray · lock") && rep.foes.includes("alert rises · cond alert ≥"), `LEARNED: identities on their own row, a foe's tags after \` · \` (${rep.items.join(" | ")} · ${rep.foes.join(" | ")})`);
-  check(/^\+\$100 banked · \+\$30 returned · \+\$5 salvage$/.test(rep.gold ?? "") && !/home/.test(rep.gold ?? ""), `the gold line says banked / returned, never \`home\` ("${rep.gold}")`);
+  check(/^\+\$100 collected · \+\$30 returned · \+\$5 salvage$/.test(rep.gold ?? "") && !/home/.test(rep.gold ?? ""), `the gold line says banked / returned, never \`home\` ("${rep.gold}")`);
   check(/^reach D7 17% · was 0%$/.test(rep.stall ?? ""), `a plateau patch names its floor ("${rep.stall}")`);
   const plateau = await page.evaluate(() => {
     const news = [...document.querySelectorAll(".report .news-line")];

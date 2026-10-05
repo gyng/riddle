@@ -14,7 +14,7 @@ playing, without granting currency, workers, XP, rules or changing simulation ti
 
 Legacy: default to a separate per-heir lifetime record,
 earned as 1 point per completed expedition plus newly reached personal depth floors, archived
-after death. No spending or combat/stat effect until explicitly selected.
+after death. Spendable upgrades are now specified in docs/UX_LEGACY_UPGRADES.md.
 No policy learns implicitly; class XP/marks remain distinct. Award once per
 completed run; zero points for blocked sends or constructing the free house.
 
@@ -23,8 +23,8 @@ secured gold. Remove the bank/keep/death/rule formula line; keep outcome detail
 available on demand. Coin motion only for actual Rust-owned transfers, never
 invent currency or count the same secured gold twice; reduce motion accessibly.
 New towns collect gold automatically when the run ends; the free porter becomes
-available after three positive returned hauls. Old saves retain manual chest
-collection and its existing porter gate. Savings remain distinct.
+available after three positive returned hauls. Existing saves also collect automatically via the conserving migration in
+docs/UX_LEGACY_UPGRADES.md. Savings remain distinct.
 
 Forge: next weapon/armour/pack upgrade with item, price and one buy action;
 future ladders/salvage/forecast detail fold away. No expensive forecast required

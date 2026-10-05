@@ -37,15 +37,16 @@ fn first_home_blocks_runs_and_survives_reload_without_spending() {
 }
 
 #[test]
-fn missing_home_and_legacy_fields_preserve_old_residents_and_chests() {
+fn missing_home_and_legacy_fields_preserve_old_residents_and_collect_chests() {
     let g = Game::new_resident(17);
     let mut saved: serde_json::Value = serde_json::from_str(&g.save()).unwrap();
     saved["lineage"]["town"].as_object_mut().unwrap().remove("home");
     saved["lineage"]["town"].as_object_mut().unwrap().remove("auto_collect");
+    saved["lineage"]["town"].as_object_mut().unwrap().remove("gold_v");
     saved["lineage"].as_object_mut().unwrap().remove("hero_legacy");
     let mut old = Game::load(&saved.to_string()).unwrap();
     assert!(old.lineage().town.home);
-    assert!(!old.lineage.town.auto_collect);
+    assert!(old.lineage.town.auto_collect);
     assert!(old.try_send().is_ok());
     saved["lineage"].as_object_mut().unwrap().remove("town");
     assert!(Game::load(&saved.to_string()).unwrap().lineage().town.home);
@@ -66,7 +67,7 @@ fn hero_legacy_awards_once_archives_on_death_and_is_not_class_xp() {
         assert!(g.finish_run().is_none());
         assert_eq!(g.lineage.hero_legacy, before);
     }
-    assert_eq!(g.lineage.hero_legacy[0].points, 7);
+    assert_eq!(g.lineage.bloodline.as_ref().unwrap().points, 7);
     assert_eq!(g.lineage.hero_legacy[0].runs, 3);
     assert_eq!(g.lineage.hero_legacy[0].best_depth, 4);
     assert_eq!(g.lineage.hero_legacy.last().unwrap().heir, 2);
@@ -74,7 +75,7 @@ fn hero_legacy_awards_once_archives_on_death_and_is_not_class_xp() {
     let saved = g.save();
     assert_eq!(Game::load(&saved).unwrap().lineage.hero_legacy, g.lineage.hero_legacy);
     g.lineage.classes.get_mut("fighter").unwrap().xp += 100;
-    assert_eq!(g.lineage.hero_legacy[0].points, 7);
+    assert_eq!(g.lineage.bloodline.as_ref().unwrap().points, 7);
 }
 
 #[test]
@@ -543,4 +544,61 @@ fn guide_hourly_start_change_prices_passage_before_the_next_send() {
             assert_eq!(g.run.as_ref().unwrap().passage, expected.unwrap().1);
         }
     });
+}
+
+#[test]
+fn legacy_purchases_change_real_stats_persist_and_follow_the_bloodline() {
+    use crate::engine::ExitTier;
+    let mut g = Game::new_resident(19);
+    g.lineage.bloodline.as_mut().unwrap().points = 54;
+    let xp = g.lineage.classes.clone(); let gold = g.lineage.gold; let rules = g.lineage.rules().clone();
+    let mut baseline = g.clone(); baseline.start_run(Some(991));
+    let base = baseline.run.as_ref().unwrap().hero.clone();
+    let key = crate::forecast::lineage_key(&g);
+    for id in crate::legacy::IDS { for _ in 0..3 { g.upgrade_hero(id).unwrap(); } }
+    assert_ne!(key, crate::forecast::lineage_key(&g));
+    assert_eq!(g.lineage.classes, xp); assert_eq!(g.lineage.gold, gold); assert_eq!(g.lineage.rules(), &rules);
+    let h = g.lineage.bloodline.as_ref().unwrap(); assert_eq!((h.points,h.spent), (0,54));
+    let mut g = Game::load(&g.save()).unwrap(); g.start_run(Some(991));
+    let hero = &g.run.as_ref().unwrap().hero;
+    assert_eq!(hero.max_hp,base.max_hp+9); assert_eq!(hero.max_hp_base,base.max_hp_base+9);
+    assert_eq!(hero.atk(),(base.atk().0+3,base.atk().1+3)); assert_eq!(hero.def(),base.def()+3);
+    let mut armour_only = crate::hero::Hero::new(crate::hero::Class::Fighter, crate::geom::Pos::new(0,0));
+    armour_only.legacy_armour=3;
+    for roll in 1..20 { assert!(armour_only.blunt(roll)>0); }
+    let r=g.run.as_mut().unwrap();r.over=Some(ExitTier::Death);r.hero.hp=0;r.death_cause=Some("rat".into());g.finish_run().unwrap();
+    assert_eq!(g.lineage.bloodline.as_ref().unwrap().spent,54); assert_eq!(g.lineage.hero_legacy[1].points,0);
+    assert!(g.lineage.hero_legacy[1].upgrades.is_empty());
+    g.start_run(Some(991)); assert_eq!(g.run.as_ref().unwrap().hero.legacy_armour,3);
+}
+
+#[test]
+fn legacy_refuses_poor_unknown_capped_and_away_purchases_without_mutation() {
+    let mut g = Game::new_resident(20);
+    for id in ["health","unknown"] { let before=g.save(); assert!(g.upgrade_hero(id).is_err());assert_eq!(before,g.save()); }
+    g.lineage.bloodline.as_mut().unwrap().points=100;
+    for (rank,price) in [(1,3),(2,6),(3,9)] {
+        let before=g.lineage.bloodline.as_ref().unwrap().points;g.upgrade_hero("health").unwrap();
+        assert_eq!(g.lineage.bloodline.as_ref().unwrap().points,before-price);assert_eq!(g.lineage.bloodline.as_ref().unwrap().upgrades["health"],rank);
+    }
+    let before=g.save();assert!(g.upgrade_hero("health").is_err());assert_eq!(before,g.save());
+    let key=crate::forecast::lineage_key(&g);g.lineage.bloodline.as_mut().unwrap().points+=1;assert_eq!(key,crate::forecast::lineage_key(&g));
+    g.send();let before=g.save();assert!(g.upgrade_hero("damage").is_err());assert_eq!(before,g.save());
+    assert!(g.lineage().legacy_upgrades.iter().all(|u| !u.affordable));
+}
+
+#[test]
+fn old_chest_migration_conserves_all_gold_and_is_idempotent_including_live_runs() {
+    for live in [false,true] {
+        let mut g=Game::new_resident(21);g.lineage.town.gold_v=0;g.lineage.town.auto_collect=false;
+        g.lineage.gold_move(1234,"returned D4");g.lineage.town.bank=50;g.lineage.tree.ledger+=50;
+        g.lineage.heir_best=7;g.lineage.hero_legacy.clear();g.lineage.bloodline=None;
+        if live { g.send(); }
+        let ledger=g.lineage.tree.ledger;let gold=g.lineage.gold;let counts=g.lineage.tree.done.clone();
+        let g=Game::load(&g.save()).unwrap();assert!(g.lineage.town.auto_collect);assert_eq!(g.lineage.tree.chest,0);
+        assert_eq!(g.lineage.gold,gold);assert_eq!(g.lineage.town.bank,50);assert_eq!(g.lineage.tree.ledger,ledger);
+        assert_eq!(g.lineage.tree.done,counts);assert_eq!(g.lineage.hero_legacy[0].best_depth,7);
+        assert_eq!(g.lineage.bloodline.as_ref().unwrap().points,0);assert_eq!(g.run.is_some(),live);
+        let save=g.save();assert_eq!(Game::load(&save).unwrap().save(),save);
+    }
 }

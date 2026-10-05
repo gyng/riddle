@@ -49,6 +49,13 @@ pub fn load(text: &str) -> Result<Game, String> {
     crate::traits::upgrade(&mut g.lineage);
     // Cut 30.5: a save from before the works tree: its workers up to the scout hired (no player regresses)
     crate::tree::upgrade(&mut g.lineage);
+    if g.lineage.town.gold_v == 0 {
+        // The chest is part of total gold already: release it without another ledger credit.
+        g.lineage.town.auto_collect = true;
+        g.lineage.tree.chest = 0;
+        g.lineage.town.gold_v = 1;
+    }
+    crate::legacy::ensure(&mut g.lineage);
     // Refresh generated camp rows before the editor can absorb a legacy compiled row as authored.
     // A live replay keeps its row indices until the normal run-end recompile. Literal sets are unchanged.
     if g.run.is_none() {

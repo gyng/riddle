@@ -35,7 +35,7 @@ const METHODS: (keyof Engine)[] = [
   "setOrders",        // Cut 29 §4: optional likewise (the standing-orders panel falls back to each order's own call)
   "equipPackage", "unequipPackage", "pickTemperament", "spendLevel", "revokeDrill", "packageOptions",   // Cut 30 §1–2: optional likewise (no packages panel without them)
   "bankDeposit", "bankWithdraw", "swapQuest",   // Cut 30 §3/§5: optional likewise (no bank / quest board without them)
-  "buildTown", "hire", "openChest", "setWorker", "promote",             // Cut 30.5: optional likewise (no works tree without them)
+  "selectBloodline", "addBloodline", "upgradeHero", "buildTown", "hire", "openChest", "setWorker", "promote",             // Cut 30.5: optional likewise (no works tree without them)
   "advance", "replay",                                     // RUNS_UI: optional likewise (no runs while open / no replays without them)
 ];
 

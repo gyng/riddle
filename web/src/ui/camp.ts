@@ -1,3 +1,4 @@
+import { heroRoster } from "./heroes";
 // Camp: lineage strip · set tabs · rule editor · forecast · vault loadout · unlocks · send.
 // Cut 6: the strip's gold opens the `gold` sheet (the last 20 movements, newest first, §1); the disabled send reads
 // `6/5 · drop one` and a card's buy reads `◆3 · takes a row` on a full set (§4); owned cards and automations stay on the
@@ -48,8 +49,6 @@ import { openQuest, questShown } from "./quest";   // Cut 30 §5: the quest boar
 import { sendMark } from "./works";
 import { itemIcon, itemName } from "./items";   // run-clear: items in their rarity rims
 import { kwHost } from "./tips";
-import { renderLanes } from "./runlane";   // RUNS_UI: the run lanes
-import { openRuns } from "./runs";         // RUNS_UI: the runs log   // Cut 30.5: the gem's send counter before the scout, `auto` after
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -233,12 +232,15 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     quest: (a) => { closePanel(); openQuest(app, a); },
   });
   exposeTown(town);
+  const focusHome=():void=>{town.el.scrollIntoView({block:"nearest"});town.view.focusHero();};
+  window.addEventListener("riddle:focus-hero",focusHome);
   const well = h("div", { class: "well camp-well" }, busyStrip, town.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
-  const lanes = renderLanes(app, { watch: () => app.go({ kind: "watch" }), log: () => openRuns(app) });
-  const restLine = h("div", { class: "rest-line lanes-line" }, lanes.el, rest);
+  const lanes = heroRoster(app, { focus:()=>{town.el.scrollIntoView({block:"nearest"});town.view.focusHero();}, rules:()=>{app.editing=true;editor.refresh();paintTiles();} });
+  tabs.prepend(h("button",{class:"chip hero-return",onclick:()=>{app.editing=false;paintTiles();}},/* copy:button */"Heroes"));
+  const restLine = h("div", { class: "rest-line lanes-line heroes-col" }, lanes.el, rest);
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
   // Cut 27 §2: the edit as a scene — over the well's foot after an edit's refine (before · after on the renderer), then its line under `vs sent`
@@ -284,6 +286,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
    *  Cut 30 §3: the building bar — one tile per building standing, in build order (the forge, the vault, the kennel, the bank: tile and
    *  building open the same panel, the badge shared), then the tiles with no building (the pen's edit, the pack, unlocks, the heirs'). */
   function paintTiles(): void {
+    el.classList.toggle("hero-editing",app.editing);
     const R = revealed(app);
     const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick: () => { closeAllSheets(); onclick(); }, on, fresh: R.fresh(STEP_OF[id]) || (id === "forge" && R.fresh("forge")) });
     const built = townBuilt(app.lineage);
@@ -938,5 +941,5 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
   const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
   const offLive = app.onLive(() => { if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
-  return { el, dispose: () => { offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  return { el, dispose: () => { window.removeEventListener("riddle:focus-hero",focusHome); offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

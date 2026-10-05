@@ -50,7 +50,7 @@ export const conceptTag = (c: Concept): HTMLElement => h("span", { class: "conce
 // ---- docs/TOOLTIPS.md: the keyword registry (the concepts above plus the glossary's terms) ----
 
 /** Every keyword: a concept (its icon and caption above) or a glossary term. */
-export type Term = Concept | "heir" | "gold" | "best" | "reach" | "package" | "stance" | "tactic" | "temperament" | "drill" | "scar" | "quest" | "track"
+export type Term = Concept | "bloodline" | "heir" | "gold" | "best" | "reach" | "package" | "stance" | "tactic" | "temperament" | "drill" | "scar" | "quest" | "track"
   | "pen" | "lever" | "bank" | "banked" | "returned" | "death" | "plateau" | "ends" | "priority" | "condition" | "action" | "forge" | "kennel" | "pack"
   | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled"
   | "works" | "worker" | "chest" | "scout" | "next" | "rank"   // Cut 30.5: the works tree
@@ -77,6 +77,7 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   rarity: "how fine a find is · common up to legendary",
   ...WORKS_TIP,
   // RUNS_UI (docs/RUNS_UI.md)
+  bloodline: "a persistent hero slot · keeps Legacy and upgrades",
   lane: "a hero's runs · live, resting or waiting", live: "the run going on now · watch or not",
   log: "every run · by absence · replays", replay: "the run again · same rolls", away: "runs while the game was shut",
 

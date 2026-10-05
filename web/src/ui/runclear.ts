@@ -1,3 +1,4 @@
+import { goldWords } from "./gold-words";
 // Run-clear (the owner, 2026-10-02: "each run should have the clear screen? did that disappear. eg, hurt/went home"): every run that
 // ends shows a short card before the town — the end as a stamp (BANKED · RETURNED · STALLED · REPELLED · DIED), its reason (the core's
 // `ExitLine.reason`: `hurt · went home`), the floor it reached (and a `new best` badge when it set one), the gold it kept and where it
@@ -79,8 +80,8 @@ export function clearCard(app: App, x: ExitLine, o: { onTap?: () => void } = {})
   const finds = x.finds ?? [];
   const best = finds[0];
   // (the wax is its own layer: the slam's keyframes animate the stamp's filter, the wax keeps its pigment)
-  const stamp = h("div", { class: `rc-stamp end-${kind}`, "data-end": kind }, h("span", { class: "rc-wax", "aria-hidden": "true" }), h("span", { class: "rc-word" }, STAMP[kind]));
-  const reason = x.reason ? h("div", { class: "rc-reason", "data-why": x.reason }, x.reason) : null;
+  const stamp = h("div", { class: `rc-stamp end-${kind}`, "data-end": kind }, h("span", { class: "rc-wax", "aria-hidden": "true" }), h("span", { class: "rc-word" }, goldWords(STAMP[kind])));
+  const reason = x.reason ? h("div", { class: "rc-reason", "data-why": x.reason }, goldWords(x.reason)) : null;
   const deep = depth ? h("div", { class: "rc-depth" }, h("span", { class: "rc-plaque num" }, icon("depth", ""), `D${depth}`),
     x.new_best ? h("span", { class: "rc-best", "data-best": "1" }, /* copy:label */ "new best") : null) : null;
   const to = goldTo(L);

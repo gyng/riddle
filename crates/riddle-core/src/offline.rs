@@ -194,6 +194,7 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
                     let remaining = budget - consumed;
                     let extra = remaining / mean;
                     game.batch.runs += extra as u32;
+                    if !game.sim { crate::legacy::ensure(&mut game.lineage);game.lineage.bloodline.as_mut().expect("bloodline").points+=extra as u32; }
                     // RUNS_UI: the extrapolated runs, one record in the log (`+N`)
                     if extra > 0 {
                         let rec = RunRec { via: "away".into(), absence: Some(game.lineage.absences), clock_s: game.lineage.clock_s + budget / TICKS_PER_SECOND, tier: "return".into(), sampled: Some(extra as u32), ..Default::default() };
@@ -295,7 +296,7 @@ pub(crate) fn report(game: &mut Game, elapsed_s: u64, facts_before: &std::collec
 }
 
 #[allow(clippy::too_many_arguments)]
-fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool, full: bool, with_stall: bool) -> ReturnReport {
+pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections::BTreeSet<String>, class: &str, rank_before: u32, sampled: bool, full: bool, with_stall: bool) -> ReturnReport {
     let t = game.run.as_ref().map(|r| r.turn).unwrap_or(0);
     game.settle_renown(t);
     let learned: Vec<String> = game.lineage.facts.difference(facts_before).cloned().collect();
@@ -352,7 +353,7 @@ fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::collections:
     }
     let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price,
         broken: b.oath_breaks.values().sum(), cause: b.oath_breaks.iter().max_by_key(|(c, n)| (**n, std::cmp::Reverse(c.len()))).map(|(c, _)| c.clone()) });
-    let mut r = ReturnReport { lead: Vec::new(), oath, grew: Vec::new(), workers: Vec::new(), chest: 0, packages: crate::packages::beats(&b.pkg_lines),
+    let mut r = ReturnReport { bloodlines:vec![],lead: Vec::new(), oath, grew: Vec::new(), workers: Vec::new(), chest: 0, packages: crate::packages::beats(&b.pkg_lines),
         elapsed_s,
         runs: b.runs,
         sampled,
@@ -739,11 +740,12 @@ pub fn advance(game: &mut Game, elapsed_ms: u64) -> Advance {
         crate::town::roll(&mut game.lineage);
     }
     // Cut 29 §1's night mark, as an absence pays it: ◆1 a day whose sends came home
-    if home > 0 && clock > clock0 {
-        let last = ((clock - 1) / crate::engine::DAY_S) as u32;
+    if home > 0 {
+        let last = (clock.saturating_sub(1).max(clock0) / crate::engine::DAY_S) as u32;
         let first = day0.max(game.lineage.mark_day);
         if last >= first {
             game.lineage.marks += last - first + 1;
+            if game.offline { game.batch.night_marks += last - first + 1; }
             game.lineage.mark_day = last + 1;
         }
     }
