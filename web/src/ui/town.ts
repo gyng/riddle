@@ -56,15 +56,24 @@ export type TownUi = { el: HTMLElement; view: TownView; paint(): void; send(afte
 export function renderTown(app: App, hooks: TownHooks): TownUi {
   const el = h("div", { class: "town" });
   const hits = h("div", { class: "town-hits" });
-  const buildPlot = (): void => { const plot = state?.staked; if (plot?.ready && app.engine.buildTown) void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build"); };
+  let building = false;
+  const buildPlot = (): void => {
+    const plot = state?.staked;
+    if (building || !plot?.ready || !app.engine.buildTown) return;
+    building = true; tag.setAttribute("aria-busy", "true");
+    void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build").finally(() => { building = false; tag.setAttribute("aria-busy", "false"); });
+  };
   const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite", onclick: buildPlot, onkeydown: (e: Event) => { const k = e as KeyboardEvent; if (state?.staked?.ready && (k.key === "Enter" || k.key === " ")) { k.preventDefault(); buildPlot(); } } });
+  const foundation = h("div", { class: "town-foundation", hidden: true, "aria-hidden": "true" });
+  // Presentation-only vector: an empty foundation and four stakes, no house silhouette.
+  foundation.innerHTML = /* copy:none */ '<svg viewBox="0 0 104 64" xmlns="http://www.w3.org/2000/svg"><path class="chalk" d="M12 32 52 12 92 32 52 52Z"/><path class="stake" d="M12 32V22 M52 12V2 M92 32V22 M52 52V42"/><path class="stake-cap" d="M8 20h8v4H8z M48 0h8v4h-8z M88 20h8v4h-8z M48 40h8v4h-8z"/></svg>';
   // Cut 30.5: the `next` pill rides the scene's top-left (the home screen's one goal); a tap opens the works on its node
   const pill = nextPill(app, (node, at) => openWorks(app, node, at));
   kwHost(pill.el, "next");   // docs/TOOLTIPS.md: its tip on long-press / hover
   // c30-legible (the owner, a new player: "I didn't understand why there were new buildings"): a building's arrival names what raised
   // it (`first gold home → blacksmith`, the core's trigger), once, over the town while it stands up; its target glows the while
   const arrival = h("div", { class: "town-arrival num", "aria-live": "polite" });
-  el.append(hits, tag, arrival, pill.el);
+  el.append(hits, foundation, tag, arrival, pill.el);
   let arrivalTimer = 0;
   const view = createTownView(el);
   let chestOpenUntil = 0, chestTimer = 0;
@@ -148,7 +157,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       const ce = b.querySelector(".town-count"); if (cnt) { if (ce) ce.textContent = cnt; else b.appendChild(h("span", { class: "town-count num" }, cnt)); } else ce?.remove();
     }
     // c30-legible: the staked plot always wears its tag — what it becomes and what raises it (`kennel · first tame`), not only on tap
-    if (s.staked && (s.stage >= 1 || s.staked.ready)) { replace(tag, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, LABEL[s.staked.id] ?? s.staked.id), s.staked.id === "house" ? h("small", { class: "dim" }, /* copy:label */ " · Free") : s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
+    if (s.staked && (s.stage >= 1 || s.staked.ready)) { replace(tag, s.staked.id === "house" ? icon("works", "⚒") : null, h("span", { class: s.staked.id === "house" ? "build-copy" : "" }, h("span", { class: "build-title" }, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, LABEL[s.staked.id] ?? s.staked.id)), s.staked.id === "house" ? h("small", { class: "dim" }, /* copy:label */ "Free") : s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : "")); tag.hidden = false; tag.dataset.next = s.staked.id; }
     else tag.hidden = true;
     if (s.staked?.ready && app.engine.buildTown) { tag.setAttribute("role", "button"); tag.tabIndex = 0; }
     else { tag.removeAttribute("role"); tag.removeAttribute("tabindex"); }
@@ -167,11 +176,16 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       Object.assign(b.style, { left: `${Math.round(cx - w / 2)}px`, top: `${Math.round(by - hh + (hh > r.h ? (hh - r.h) / 2 : 0))}px`, width: `${Math.round(w)}px`, height: `${Math.round(hh)}px` });
     }
     if (!tag.hidden) placeTag();
+    foundation.hidden = state?.home !== false || state?.staked?.id !== "house";
   }
   view.onLayout(layout);
   function placeTag(): void {
     const r = view.rectOf("staked"); if (!r) { tag.hidden = true; return; }
-    Object.assign(tag.style, { left: `${Math.round(r.x + r.w / 2)}px`, top: `${Math.round(r.y - 6)}px` });
+    const first = state?.home === false && state?.staked?.id === "house", cx = r.x + r.w / 2;
+    if (first) Object.assign(foundation.style, { left: `${Math.round(cx)}px`, top: `${Math.round(r.y + r.h / 2)}px` });
+    const half = tag.offsetWidth / 2;
+    Object.assign(tag.style, { left: `${Math.round(Math.max(half + 8, Math.min(el.clientWidth - half - 8, cx)))}px`,
+      top: `${Math.round(first ? Math.min(el.clientHeight - 8, r.y + r.h / 2 + 42 + tag.offsetHeight) : r.y - 6)}px` });
   }
   function tap(id: string, e: Event): void {
     view.poke();
@@ -182,7 +196,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     if (id === "worker") { openWorks(app, b.dataset.worker || undefined, b); return; }
     if (id === "staked") {
       const s = state?.staked; if (!s) return;
-      if (s.ready && app.engine.buildTown) { void app.mutate(() => app.engine.buildTown!(s.id), /* copy:callout */ "build"); return; }
+      if (s.ready && app.engine.buildTown) { buildPlot(); return; }
       // the next building and what raises it (`kennel · first tame`): always shown (c30-legible); a tap flashes it
       replace(tag, h("b", null, LABEL[s.id] ?? s.id), s.trigger ? h("span", { class: "dim" }, ` · ${s.trigger}`) : "");
       tag.hidden = false; placeTag(); tag.classList.add("flash"); clearTimeout(tagTimer); tagTimer = window.setTimeout(() => { tag.classList.remove("flash"); }, 1200);

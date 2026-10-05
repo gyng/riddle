@@ -21,12 +21,12 @@ html.skin-panel .sheet-wrap.centered > .game-window { border: 18px solid transpa
 /* All ordinary game controls share a tactile bevel. Gems/studs and map hits
    already have their own packed art; the text combat log keeps basic styling. */
 :is(.sheet-body, .hero-roster, .report-sheet, .death-sheet) button:is(.chip, .btn, .tab, .hero-details, .hero-expand, .details-fold, .pkg-rows-btn),
-.hero-roster-head .btn { min-height: 44px; border: 2px solid #34415b; border-radius: 2px; padding: 8px 12px;
+.hero-roster-head .btn, .town-tag[role="button"] { min-height: 44px; border: 2px solid #34415b; border-radius: 2px; padding: 8px 12px;
   background: linear-gradient(#36445e 0%, #222b40 44%, #161d2d 48%, #1e2638 100%);
   box-shadow: inset 0 2px 0 #8894aa66, inset 2px 0 0 #71819a33, inset 0 -3px 0 #070b16, 0 2px 3px #080b1380;
   color: #eadfc5; font: 600 var(--control-size)/1.25 var(--control-font); letter-spacing: .025em;
   text-shadow: 0 1px 1px #060812; white-space: normal; }
-html.skin-tablet :is(.sheet-body, .hero-roster, .report-sheet) button:is(.chip, .btn, .hero-details, .details-fold, .pkg-rows-btn) {
+html.skin-tablet :is(.sheet-body, .hero-roster, .report-sheet) button:is(.chip, .btn, .hero-details, .details-fold, .pkg-rows-btn), html.skin-tablet .town-tag[role="button"] {
   border: 8px solid transparent; border-image: url('/ui/frames/tablet.png') 24 fill / 8px stretch; padding: 3px 8px; }
 :is(.sheet-body, .hero-roster, .report-sheet) button:is(.chip, .btn, .hero-details, .details-fold, .pkg-rows-btn):hover:not(:disabled) { filter: brightness(1.15); }
 :is(.sheet-body, .hero-roster, .report-sheet) button:is(.chip, .btn, .hero-details, .details-fold, .pkg-rows-btn):active:not(:disabled) { transform: translateY(1px); filter: brightness(.9); }
@@ -140,3 +140,7 @@ html.skin-tablet .game-window .pkg-panel .chip.pkg:not(.locked) { border: 8px so
   .pkg-panel .pkg-sec { padding-top: 8px; padding-bottom: 10px; margin-bottom: 4px; }
   .pkg-panel .pkg-name { font-size: 16px; }
 }
+
+.town-tag[role="button"]:hover { filter: brightness(1.15); }
+.town-tag[role="button"]:focus-visible { outline: 2px solid var(--gilt); outline-offset: 3px; }
+.town-tag[aria-busy="true"] { cursor: progress; }

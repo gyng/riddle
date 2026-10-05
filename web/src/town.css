@@ -37,3 +37,17 @@
 .town-hero-focus { position: absolute; width: 52px; height: 52px; border: 2px solid var(--acc); border-radius: 50%; transform: translate(-50%,-85%); pointer-events: none; z-index: 4; box-shadow: 0 0 14px var(--gilt); animation: hero-focus 1.8s ease-out forwards; }
 @keyframes hero-focus { to { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .town-hero-focus { animation: none; } }
+
+/* The first home's blueprint is an overlay on Rust's staked plot, never a building. */
+.town-foundation { position: absolute; z-index: 2; pointer-events: none; transform: translate(-50%, -50%); width: 104px; height: 64px;
+  filter: drop-shadow(0 2px 2px #080b13); }
+.town-foundation[hidden] { display: none; }
+.town-foundation svg { width: 100%; height: 100%; overflow: visible; }
+.town-foundation .chalk { fill: #b79c4b18; stroke: #e3d8b4; stroke-width: 2; stroke-dasharray: 6 3; }
+.town-foundation .stake { stroke: #d1a569; stroke-width: 5; stroke-linecap: square; }
+.town-foundation .stake-cap { fill: #f0cd8d; stroke: #574027; stroke-width: 1; }
+.town-tag .build-copy { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.town-tag .build-title { white-space: nowrap; }
+.town-tag .build-copy small { font-size: 13px; }
+.awaiting-home .town-tag .build-copy { font-size: 18px; }
+.awaiting-home .town-tag .ico { width: 28px; height: 28px; }

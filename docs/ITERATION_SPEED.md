@@ -1,3 +1,18 @@
+**FIRST-HOUSE GRAPHICS — 2026-10-06:** Shifted from query optimization
+to the actual opening experience. Empty house plot now has a code-native chalk
+foundation/four stakes and shared chunky Build house/Free control with hammer
+fallback. Construction stays manual/Rust-authoritative; shared pending guard
+prevents repeated keyboard/map actions. Real WASM400/1440 acceptance passes,
+existing town day0/desktop passes, tsc/build/copy1492/diff pass. Generated
+preview-only desktop/mobile target and exact built-in imagegen prompt are in
+docs/targets/; not shipped scene art. Management windows follow HUD/footer
+resizes; geometry test awaits opening animation,184 checks pass headed.
+Actual first-session/scout/8h walks32.8/29.7s; return3.0/3.5s, no page/console
+errors. Two pre-existing WebGL warnings remain. Seed1 has no worst death;
+live boss/death coverage remains next, along with renderer warnings and
+content/gameplay choices from those walks. docs/UX_FIRST_PLOT.md records
+scope/artifacts. No Rust simulation changes, full balance audit or deployment.
+
 **SELECTED TACTICS / GRAPHICS SHIFT — 2026-10-06:** Explicit comparison
 now prices opened combat styles and only the selected tactic slot, skipping
 hidden groups/level previews. Rust owns legal candidates, samples and results;

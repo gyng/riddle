@@ -95,7 +95,11 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
     place();
     window.addEventListener("resize", place);
     unplace = () => window.removeEventListener("resize", place);
-    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(place); ro.observe(content instanceof Element ? content : panel); }
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(place); ro.observe(content instanceof Element ? content : panel);
+      // Fonts and changing HUD content can resize the usable area after opening.
+      for (const chrome of document.querySelectorAll("main.frame > .topbar, main.frame > .console")) ro.observe(chrome);
+    }
   } else if (beside) {
     const place = (): void => { if (beside.isConnected) placeWide(wrap, panel, beside); };
     place();
