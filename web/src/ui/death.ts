@@ -320,6 +320,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
   const well = h("div", { class: "well death-well" },
+    d.hero?.name ? h("div", { class: "death-hero num dim" }, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`) : null,
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerSrc ? " has-killer" : ""}` },
       // gfx round 10 (raters, every round: "show the killer behind the banner"): the killer's portrait in an iron medallion on the cloth
       killerSrc ? h("img", { class: "killer", src: killerSrc, alt: "", draggable: "false", "aria-hidden": "true" }) : null, luckLead, line)),

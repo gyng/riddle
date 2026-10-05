@@ -1,3 +1,15 @@
+**HISTORICAL DEATH HERO — 2026-10-06:** Death records now capture optional
+Rust name/heir/class/bloodline identity at creation; screen shows it above
+banner. Uses run heir/class, no current-hero inference/backfill for old records.
+Owner You died seal and stall/action/verdict behaviour retained.551 fast tests
+34.64s/1 ignored, UI27 at320/400/1440 plus death-actions44 pass5.1s; clippy/
+build/typecheck/copy1505/diff pass, chunk advisory. Rebuilt WASM5,240,080 bytes.
+Headed real seed15 old camp/new8h recorded Iris heir4/current5 death identity
+persists save-load400/1440, no warnings/overflow/screens shown. Other-selected
+hero isolation is UI fixture/Rust slot-id coverage. CONTENT_DEATH_HERO.md
+records scope. No tuning/historical portrait/full audit/deploy. Next: concrete
+content/gameplay feedback from first-run/away walks beyond further layout passes.
+
 **COMBAT STYLE / TRAIT SILHOUETTES — 2026-10-06:** Existing expressive
 bear/tortoise/lion/hawk and hare/badger/magpie/goat now render without square
 icon frames, at44px (equipped mobile34px). Shared packageIcon marks only

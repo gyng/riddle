@@ -703,3 +703,31 @@ fn hero_slot_looks_resolve_defaults_and_keep_chosen_bloodlines_independent() {
     assert_eq!(loaded.lineage().hero_slots, slots);
     assert_eq!(loaded.lineage().look, "female");
 }
+
+
+#[test]
+fn recorded_death_hero_is_historical_and_old_wire_is_compatible() {
+    let mut g = Game::new_resident(2);
+    g.lineage.bloodline_id = 2;
+    g.start_run(None);
+    let run = g.run.as_ref().unwrap();
+    let before = g.save();
+    let recorded = crate::trace::death_record(&g, run).death;
+    assert_eq!(g.save(), before, "recording identity cannot change game or RNG");
+    let hero = recorded.hero.as_ref().unwrap();
+    assert_eq!(hero.name, crate::legacy::hero_name(2, run.heir));
+    assert_eq!(hero.heir, run.heir);
+    assert_eq!(hero.class, run.hero.class.name());
+    assert_eq!(hero.bloodline_id, 2);
+    g.lineage.heir += 1;
+    g.lineage.bloodline_id = 3;
+    let raw = serde_json::to_value(&recorded).unwrap();
+    let restored: crate::wire::Death = serde_json::from_value(raw.clone()).unwrap();
+    assert_eq!(restored.hero, recorded.hero);
+    assert_ne!(restored.hero.as_ref().unwrap().name, crate::legacy::hero_name(2, g.lineage.heir));
+    let mut old = raw;
+    old.as_object_mut().unwrap().remove("hero");
+    let loaded: crate::wire::Death = serde_json::from_value(old).unwrap();
+    assert!(loaded.hero.is_none());
+    assert!(serde_json::to_value(loaded).unwrap().get("hero").is_none());
+}

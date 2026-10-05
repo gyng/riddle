@@ -85,6 +85,12 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let rules = game.lineage.rules().clone();
     let vocab = context_vocab(game, run);
     let death = Death {
+        hero: Some(crate::wire::DeathHero {
+            name: crate::legacy::hero_name(game.lineage.seed, run.heir).into(),
+            bloodline_id: game.lineage.bloodline_id,
+            heir: run.heir,
+            class: run.hero.class.name().into(),
+        }),
         package: None,
         lever: None,
         run_id: run.id,

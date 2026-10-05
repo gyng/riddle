@@ -1109,8 +1109,19 @@ pub struct Stall {
     pub trace: Option<Trace>,
 }
 
+/// Identity captured with the run's verdict, independent of the current heir.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct DeathHero {
+    pub name: String,
+    pub bloodline_id: u32,
+    pub heir: u32,
+    pub class: String,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Death {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hero: Option<DeathHero>,
     /// Cut 30 §2: the package row that last acted (the verdict's row when it names one), as
     /// `package · row` (`Steady · HP<20% → return`, `drill · Warlord · boss → hit boss`); absent when the
     /// last row to act was the pen's or a chore.
