@@ -117,4 +117,3 @@ unknown schemas, cached provenance, malformed engine JSON and invalid save
 fields, and refuses to overwrite existing output files. Full semantic engine
 validation is performed by the actual game loader, not this JSON reader.
 Actual captured-file extraction and live-save loader round trips pass.
-
