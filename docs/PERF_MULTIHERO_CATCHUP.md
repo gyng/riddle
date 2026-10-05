@@ -103,3 +103,17 @@ Browser defaults:8h,7 alternating pairs. CATCHUP_HOURS/CATCHUP_PAIRS override;
 CATCHUP_RECORD_OUTPUT=1 also writes exact raw report/save records. These are
 local diagnostics, not substitutes for gates. Preserve a baseline artifact
 before rebuilding. Run timing series on a quiet machine sequentially.
+
+Follow-up profile (retained candidate, progressed three-hero fixture, five fresh
+8h runs): median2.2734s. Exact repeated report/save hashes match the paired
+series. stall_verdict/report_with account for50.89/50.96% of all profile samples
+and run_offline_mode82.41%; roughly62% of sampled engine time is the selected
+plateau forecast. town_from is0.21% of all samples. Load/save/idle are included
+in the profile denominator; nested percentages are not additive. Source shows
+stall_patches computes the base and all candidates at FORECAST_SIMS, paired to
+the base's achieved count. Next candidate should bound this optional estimate
+cost or reuse safe memoized results, preserving gameplay/save progression and
+paired seeds. Owner permits approximate forecasts; any changed recommendation
+must be explicit in a new contract and validated against the existing full
+estimate, without weakening balance gates. No further code change from this
+profile alone. Artifact: scratchpad/multihero-perf-20261006/profile-late.

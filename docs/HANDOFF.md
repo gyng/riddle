@@ -1,3 +1,12 @@
+**NEXT PROFILE TARGET — 2026-10-06:** Progressed3hero candidate fastWASM
+five fresh8h runs median2.2734s, repeated report/save equals paired series.
+Selected plateau stall_verdict50.89% of all samples/run_offline_mode82.41%
+(~62% of sampled engine time); town_from0.21%. Samples include load/save/idle;
+nested percentages not additive. Next: contract bounded paired plateau forecast
+or safe cache reuse; owner allows approximate estimates, preserve gameplay/save
+progression and unchanged balance gates. Details PERF_MULTIHERO_CATCHUP.md.
+No follow-up implementation yet; content/gameplay/gfx queue remains.
+
 **MULTIHERO CATCH-UP — 2026-10-06:** Profiled legal Scout camps; retained
 copy-on-write Town/hired/done/paused/acts/ranks and clone_from allocation no-op.
 No changes to gold, worker order, clock or serialized values. First map-only
