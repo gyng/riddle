@@ -1,3 +1,17 @@
+**MEASURED CORE BUILD/TEST PATH — 2026-10-06:** Isolated current1d76e86
+fast native warm edit10.302/10.475s, restore10.466/10.228s; both restores match
+original native executable hash. Main source untouched. Core frontend3.36s/
+codegen6.475s median dominate, bridge/example~0.5s. Cold prime54.48s separate.
+Full unchanged suite Cargo35.211s, Nextest8=35.937s/16=36.622s, all548 pass/
+1 ignored. One sample per runner; no demonstrated win, keep Cargo/no omitted
+checks. Concurrent case timings identify forecast prefix29.799s and quiet
+catch-up equality26.473s; not isolated CPU attribution. PERF_BUILD_TIMING.md
+records method/artifacts; derived504MiB target reclaimed after binary retained.
+Copy1503/diff pass; no optimization settings, game/UI changes or deploy/full
+balance audit. Next: measure actual ordered forecast/tick paths while retaining
+existing equality checks; compiler/linker tweaks unlikely to beat this path.
+Gameplay/graphics objectives persist; avoid another generic report layout pass.
+
 **SKIP TEST-ONLY NATIVE REBUILDS — 2026-10-06:** Watcher previously
 queued Cargo for every cfg(test) module edit. Now skips only root test modules
 with exclusive current cfg(test) declaration AND exclusion in Cargo native
