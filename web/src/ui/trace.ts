@@ -138,7 +138,7 @@ export function traceChip(trace: Trace | undefined, cls = "chip mini", ctx: Chai
   // Cut 14 §4: `label` names the chip's exit (`D5 · died · trace`, ui/report.ts); the plain chip stays `trace`
   const home = ctx.home ?? (!!head && /^(banked|returned|driven)\b/.test(head));   // the exit line's first word is the tier (engine data)
   return h("button", { class: cls, onclick: () => openSheet(() => h("div", { class: "sheet-body trace-sheet" },
-    h("div", { class: "label row-label" }, /* copy:label */ "trace"),
+    h("div", { class: "label row-label" }, /* copy:label */ "decision log"),
     head ? h("div", { class: "trace-head ledger-line num dim" }, head) : null,
-    ...traceTable(trace, { ...ctx, provenance: true, home }, EXIT_TRACE_ROWS))) }, label ?? /* copy:button */ "trace");
+    ...traceTable(trace, { ...ctx, provenance: true, home }, EXIT_TRACE_ROWS))) }, label ?? /* copy:button */ "decision log");
 }

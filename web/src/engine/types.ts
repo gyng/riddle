@@ -366,7 +366,7 @@ export type Town = { home?: boolean; auto_collect?: boolean; buildings: Building
 /** Cut 30 §2 (core) — a package (`Guarded L3`): `kind` stance · tactic · temperament; `level` 1–5 from `runs` (the runs one of its rows
  *  fired in; `next_at` the runs the next level wants); `slot` when equipped; `owned` once its stage came (`trigger` until then);
  *  `level_price` the marks a level spend costs (`spendLevel`). */
-export type Package = { id: string; name: string; kind: string; level: number; runs: number; next_at?: number; slot?: number; owned: boolean; trigger?: string; level_price?: number };
+export type Package = { id: string; name: string; description?: string; kind: string; level: number; runs: number; next_at?: number; slot?: number; owned: boolean; trigger?: string; level_price?: number };
 /** Cut 30 §1 (core) — a drilled counter (`drill · attack boss`, named, announced once as `DRILLED · Warlord`), revocable (`revokeDrill`);
  *  `scar` the boss's scar now in % (`scarred ×3` = 15). */
 export type Drill = { boss: string; rows: Row[]; revoked: boolean; scar: number };
@@ -672,6 +672,7 @@ export interface Engine {
   spendLevel?(id: string): Lineage;                     // §2: marks for a package's next level (`Package.level_price`)
   revokeDrill?(boss: string, revoked: boolean): Lineage;   // §1: revoke (or restore) a drill — one tap, it stays
   packageOptions?(sims: number): PkgOption[];           // §2: every package move priced on the paired panel (slow: background lane)
+  packageOptionsKey?(sims: number): string;            // Rust-owned complete query inputs; read on the same mirror as prices
   bankDeposit?(amount: number): Lineage;                // §3: deposit (capped at `town.bank_cap`)
   bankWithdraw?(amount: number): Lineage;               // §3
   swapQuest?(): Lineage;                                // §5: the day's free swap

@@ -22,6 +22,7 @@
 .town-tag { position: absolute; z-index: 3; transform: translate(-50%, -100%); padding: 3px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none;
   background: rgba(13, 12, 20, .9); box-shadow: 0 0 0 1px #8a6a2a; color: #f3d192; font-size: 13px; }
 .town-tag[hidden] { display: none; }
+.town-tag[role="button"] { pointer-events: auto; cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 4px; }
 .town-tag .dim { color: #c4baa1; }
 .panel.town-anchored { animation: unfold .12s ease-out; }
 .bank-sheet .bank-line { font-size: 18px; margin: 4px 0; }

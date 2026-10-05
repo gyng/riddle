@@ -91,12 +91,12 @@ export function traceLabel(app: App, x: ExitLine, newer: ExitLine[] = []): strin
   // QA 778fa1b (qaU: `died · trace` beside every `D8 · returned · trace`): the chip sits in its own column now (Cut 20), so it names the
   // floor always, even when the line beside it says `on D6`
   const d = exitDepth(app, x, newer);
-  return /* copy:callout */ `${d !== undefined ? `D${d} · ` : ""}${goldWords(tier)} · trace`;
+  return /* copy:callout */ `${d !== undefined ? `D${d} · ` : ""}${goldWords(tier)} · log`;
 }
 
 /** Cut 10 §3: an exit line's lead — the tier from its keep share and the sum kept: `returned $61` · `banked $84` · `died $0`. */
 export function exitLead(x: ExitLine): string {
-  const tier = x.keep_pct >= 100 ? /* copy:label */ "banked" : x.keep_pct <= 0 ? /* copy:label */ "died" : /* copy:label */ "returned";
+  const tier = x.keep_pct >= 100 ? /* copy:label */ "full haul" : x.keep_pct <= 0 ? /* copy:label */ "died" : /* copy:label */ "returned";
   return `${tier} $${x.kept}`;
 }
 
@@ -263,7 +263,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const stalledN = r.stalled ?? 0, drivenN = r.driven ?? 0, bankedN = r.banked ?? 0, returnedN = Math.max(0, (r.returned ?? 0) - stalledN - drivenN);
   // docs/COPY.md pass 4 (`BANKED 0` read as gold banked by all 4 readers): an end's count is a share of the runs (`0/16`)
   const ofRuns = (k: number): string => (exits && r.runs > 0 ? `${k}/${r.runs}` : `${k}`);
-  const banked = tile(ofRuns(bankedN), /* copy:label */ "banked"), returned = tile(ofRuns(returnedN), /* copy:label */ "returned");
+  const banked = tile(ofRuns(bankedN), /* copy:label */ "full haul"), returned = tile(ofRuns(returnedN), /* copy:label */ "returned");
   // c30-legible (the owner, a new player: "I didn't understand … why the run ended early"): an end's tile says why, the core's ≤ 3
   // words — the most common reason among this report's exits of that end (`hurt · banked`, `hurt · went home`)
   const why = (lead: RegExp): string | undefined => {
@@ -304,7 +304,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // the send's deepest floor, a delta like the tiles beside it (the lineage best is in the header; both QA players read
     // `1 RUNS · D4 BEST` as this send's); an old wire without it shows the lineage best
     r.deepest !== undefined ? tile(`D${r.deepest}`, /* copy:label */ "deepest") : tile(`D${L.best_depth}`, /* copy:label */ "best"),
-    tile(`◆${r.marks_earned > 0 ? "+" : ""}${r.marks_earned}`, /* copy:label */ "marks"),
+    tile(`◆${r.marks_earned > 0 ? "+" : ""}${r.marks_earned}`, /* copy:label */ "upgrade tokens"),
     ...(exits ? exitTiles() : []),
     exits ? tile(ofRuns(deathsN), /* copy:label */ "deaths") : null,
   );
@@ -524,11 +524,11 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // its floor yields to it)
       r.worst_death ? cmdTile({ id: "open", label: /* copy:button */ "deepest", icon: "trace", onclick: () => app.go({ kind: "death", death: r.worst_death!, lost: r.lost ?? [], from: { report: r } }) }) : null,
       cmdTile({ id: "gold", label: /* copy:button */ "gold", icon: "gold", onclick: () => openGoldSheet(app) }),
-      revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "ledger", icon: "ledger", onclick: () => openLedger(app) }) : null,
+      revealed(app).has("heirs") ? cmdTile({ id: "ledger", label: /* copy:button */ "enemy guide", icon: "ledger", onclick: () => openLedger(app) }) : null,
   ];
   const cons = renderConsole({
     portrait: portrait(app, { hp: 1, label: heirOrd(L.heir) }).el,
-    gem: gem({ label: /* copy:button */ "camp", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
+    gem: gem({ label: /* copy:button */ "town", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
     tiles: consTiles,
   });
   // QA 524827b (qaAA: KEPT `axe +7 → vault` after the cage's `took axe +1`): an item enchant scrolls raised says by how many
@@ -595,7 +595,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     // Cut 24 §5 (AK, AL: the tapped chip read as salvaged — a twin or the return's cut sold, the kept one renamed by the vault): what
     // the keep sheet sent to the vault leads the sell-off
-    section(/* copy:label */ "kept", keptItems.length ? h("div", { class: "chips kept" }, ...keptItems.map((x) => h("span", { class: "chip kept" }, ...withRim(x.label, named(x.label)), flavourTag(L, x.label), /* copy:callout */ " → vault",
+    section(/* copy:label */ "kept", keptItems.length ? h("div", { class: "chips kept" }, ...keptItems.map((x) => h("span", { class: "chip kept" }, ...withRim(x.label, named(x.label)), flavourTag(L, x.label), /* copy:callout */ " → storage",
       x.enchanted && x.enchanted > 0 ? h("small", { class: "num dim enchanted" }, /* copy:callout */ ` · enchanted ×${x.enchanted}`) : ""))) : null),
     // Cut 21 §2: found supplies the exits put on the shelf (the next send packs them free), before what was sold
     section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → supplies"))) : null),
@@ -604,7 +604,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
     // QA 524827b (qaAB: `+40 · ★0`, `+51 · ★0`, then `+102 · ★1 ↑1` — "no threshold on screen"): the renown toward the next ★ (the core's
     // rule: rank n+1 at 100·(n+1)² renown) — `★0 · 91/100`
-    section(/* copy:label */ "renown", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "",
+    section(/* copy:label */ "reputation", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "",
       typeof L.renown === "number" ? h("small", { class: "dim next-rank" }, ` · ${L.renown}/${100 * ((L.rank ?? r.renown.rank) + 1) ** 2}`) : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
     section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: noteText(x.text), n: x.n })))),
   ].filter((x): x is HTMLElement => !!x));
@@ -688,7 +688,7 @@ function factChips(facts: string[], counters: Counter[] = [], alertLock?: string
     if (c) { bossCounters.set(c[1], counters.find((k) => k.boss === c[1])?.text ?? ""); continue; }
     // QA 912e135 (qaW: LEARNED `vault`, `alert · rising`, `counter · gas>pack` named no action or number): each says what it is and what it
     // opens — the cage seen (its tablet), the alert rising (`cond: alert`), a tag that beats another (the companions' counters)
-    if (f === "vault") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "cage seen")); continue; }
+    if (f === "vault") { rest.push(h("span", { class: "chip fact" }, /* copy:callout */ "loot choice seen")); continue; }
     // QA 0c6e126 (qaY: `alert rises · alert ≥ open`, `lock`, `shrine` on their own lines, tied to nothing): each says what it opens — the
     // `alert ≥` card for sale; a floor event seen, the `on see` condition that names it
     // QA 524827b (qaAA: `unlocks alert ≥` read as a verb with no object): the fact, then the cond it makes writable (`cond alert ≥`)

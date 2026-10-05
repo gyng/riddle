@@ -41,7 +41,7 @@ export const beatText = (b: string): string => b;
  *  (a wall of `past −4 … −19` said "never wear a tactic" when most were noise). `score`: the move's worth, for ordering (best first). */
 export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
   /* copy:label */
-  const terms: [string, number, boolean, number][] = [["death", o.d_death, true, o.death], ["past", o.d_past, false, o.past], ["bank", o.d_bank, false, o.bank]];
+  const terms: [string, number, boolean, number][] = [["deaths", o.d_death, true, o.death], ["deeper", o.d_past, false, o.past], ["full haul", o.d_bank, false, o.bank]];
   const band = (p: number): number => 1.96 * Math.sqrt(Math.max(0.01, p * (1 - p)) / Math.max(1, sims));
   const clear = terms.filter((t) => Math.abs(t[1]) > band(t[3]));
   if (!clear.length) return { text: "—", good: null, score: 0 };
@@ -57,7 +57,7 @@ export function headline(app: App): string | null {
   const f = app.lastForecast; if (!f) return null;
   const next = Math.max(f.start ?? app.lineage.start ?? 1, app.lineage.best_depth + 1);
   const d = f.depths.find((x) => x.depth === next) ?? f.depths[f.depths.length - 1];
-  return d ? /* copy:callout */ `reach D${d.depth} ${share(d.reach, lowOf(f))}` : null;
+  return d ? /* copy:callout */ `floor ${d.depth} ${share(d.reach, lowOf(f))}` : null;
 }
 
 /** Cache replies and in-flight requests per app snapshot. A new lineage invalidates
@@ -93,17 +93,22 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
   openSheet((close) => {
     const body = h("div", { class: "sheet-body pkg-panel" });
     let reading: OptionsRead | null = null;
-    const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then(() => paint()); };
+    let compare = false, details = false, tacticSlot: number | null = null;
+    const choosing = new Set<string>();
+    const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then((ok) => { if (ok) choosing.delete(p.kind); paint(); }); };
     const paint = (): void => {
       const L = app.lineage, P = L.packages; if (!P) { close(); return; }
-      const next = reading && currentRead(app, reading) ? reading : measure(app);
+      const next = !compare ? null : reading && currentRead(app, reading) ? reading : measure(app);
       if (next !== reading) {
         reading = next;
-        if (next) void next.promise.then(() => {
-          if (body.isConnected && reading === next) paint();
-        }).catch(() => {
-          if (body.isConnected && reading === next) paint();
-        });
+        const settle = (): void => {
+          if (!body.isConnected || reading !== next) return;
+          // The town clock may advance repeatedly while this query runs. A stale
+          // result must not start an endless series of replacement simulations.
+          if (next && !currentRead(app, next)) { compare = false; reading = null; }
+          paint();
+        };
+        if (next) void next.promise.then(settle).catch(settle);
       }
       const opts = reading?.opts ?? null;
       const owned = (kind: string): Package[] => P.all.filter((p) => p.kind === kind && p.owned);
@@ -115,7 +120,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip");
         const pr = o ? priceOf(o) : null;
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          h("span", { class: "pkg-name" }, chipText(p)), kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price"));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
+          h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price"));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {
@@ -130,53 +135,61 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
       };
       /** The worn package of a slot: its chip `Steady L3`, the level bar, a level bought with marks when the purse holds them. */
       const worn = (p: Package | undefined, kind: string, slot: number): HTMLElement => {
+        const change = kind === "tactic" ? h("button", { class: "chip mini pkg-change", "data-edit-slot": slot, onclick: () => { tacticSlot = slot; choosing.add(kind); paint(); } }, p ? /* copy:button */ "change" : /* copy:button */ "choose tactic") : "";
         // (an open slot reads as a place to put one: an outlined socket, the chips under it fill it)
-        if (!p) return h("div", { class: "pkg-slot empty", "data-kind": kind, "data-slot": slot }, h("span", { class: /* copy:none */ "chip pkg empty socket" }, /* copy:label */ "empty"));
+        if (!p) return h("div", { class: "pkg-slot empty", "data-kind": kind, "data-slot": slot }, change);
         const lv = p.level_price && L.marks >= p.level_price && app.engine.spendLevel
           ? twoTap(/* copy:button */ `◆${p.level_price} L${p.level + 1}`, /* copy:button */ `ok ◆${p.level_price}`, () => void app.mutate(() => app.engine.spendLevel!(p.id), /* copy:callout */ `L${p.level + 1}`, true).then(() => paint()), { class: "chip mini pkg-level", key: `lvl:${p.id}` })
           : "";
-        const off = kind !== "stance" && app.engine.unequipPackage ? h("button", { class: "chip mini pkg-off", "aria-label": "unequip", onclick: () => void app.mutate(() => app.engine.unequipPackage!(p.id), undefined, true).then(() => paint()) }, "×") : "";
+        const off = kind === "tactic" && app.engine.unequipPackage ? h("button", { class: "chip mini pkg-off", "aria-label": "remove", onclick: () => void app.mutate(() => app.engine.unequipPackage!(p.id), undefined, true).then(() => paint()) }, "×") : "";
         return h("div", { class: "pkg-slot", "data-kind": kind, "data-slot": slot },
-          h("span", { class: "chip pkg on", "data-pkg": p.id }, h("span", { class: "pkg-name" }, chipText(p)), levelBar(p)), lv, off);
+          h("span", { class: "chip pkg on", "data-pkg": p.id }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", levelBar(p)), change, lv, off);
       };
       const section = (label: string, kind: string, ...kids: (HTMLElement | "")[]): HTMLElement => h("section", { class: "pkg-sec", "data-kind": kind }, h("div", { class: "label pkg-head" }, kw(kind as Term, label)), ...kids);   // docs/TOOLTIPS.md: the slot's word is its keyword
+      const choices = (kind: string, ...kids: HTMLElement[]): HTMLElement => h("div", { class: "pkg-choices", hidden: !choosing.has(kind) }, ...kids);
+      const changeKind = (kind: string): HTMLElement => h("button", { class: "chip mini pkg-change", "data-change-kind": kind, "aria-expanded": String(choosing.has(kind)), onclick: () => { if (choosing.has(kind)) choosing.delete(kind); else choosing.add(kind); paint(); } }, /* copy:button */ "change");
       // the stance: worn, the others priced
       const stance = byId.get(P.stance);
       const stanceAlts = owned("stance").filter((p) => p.id !== P.stance);
-      const secs: HTMLElement[] = [section(/* copy:label */ "stance", "stance", worn(stance, "stance", 0), h("div", { class: "chips pkg-alts" }, ...ranked(stanceAlts, 0).map((p) => alt(p, 0)), locked("stance")))];
+      const secs: HTMLElement[] = [section(/* copy:label */ "combat style", "stance", h("div", { class: "pkg-equipped" }, worn(stance, "stance", 0), stanceAlts.length ? changeKind("stance") : ""), choices("stance", h("div", { class: "chips pkg-alts" }, ...ranked(stanceAlts, 0).map((p) => alt(p, 0)))))];
       // the tactics: one slot (two at its stage), each worn or empty; the owned others priced for the first empty slot (else slot 1)
       const slots = P.tactic_slots ?? 0;
       if (slots > 0 || owned("tactic").length) {
         const worn2 = Array.from({ length: Math.max(1, slots) }, (_, i) => worn(byId.get((P.tactics ?? [])[i] ?? ""), "tactic", i));
-        const free = Math.min(Math.max(0, (P.tactics ?? []).length), Math.max(0, slots - 1));
+        const free = Math.min(tacticSlot ?? Math.max(0, (P.tactics ?? []).length), Math.max(0, slots - 1));
         const tAlts = owned("tactic").filter((p) => !(P.tactics ?? []).includes(p.id));
-        secs.push(section(/* copy:label */ "tactic", "tactic", h("div", { class: "pkg-slots" }, ...worn2), h("div", { class: "chips pkg-alts" }, ...ranked(tAlts, free).map((p) => alt(p, free)), slots < 2 ? h("span", { class: /* copy:none */ "chip pkg locked slot2", "aria-disabled": "true" }, h("span", { class: "pkg-name" }, /* copy:label */ "slot 2"), h("small", { class: "pkg-price dim" }, /* copy:callout */ "⊘ meet Lich")) : "")));
-      } else secs.push(section(/* copy:label */ "tactic", "tactic", h("div", { class: "chips pkg-alts" }, locked("tactic"))));
+        secs.push(section(/* copy:label */ "extra tactics", "tactic", h("div", { class: "pkg-slots" }, ...worn2), choices("tactic", h("div", { class: "chips pkg-alts" }, ...ranked(tAlts, free).map((p) => alt(p, free))))));
+      }
       // the temperament: from heir 3 — the wake's three cards while the offer stands (card 1 worn until one is picked)
       if (P.temperament_open || P.offer?.length) {
         const offer = (P.offer ?? []).map((id) => byId.get(id)).filter((p): p is Package => !!p);
         const cards = offer.length ? offer : owned("temperament");
-        secs.push(section(/* copy:label */ "temperament", "temperament", h("div", { class: "chips pkg-alts temper" }, ...cards.map((p) => h("button", { class: `chip pkg temper${p.id === P.temperament ? " on" : ""}`, "data-pkg": p.id, "aria-pressed": p.id === P.temperament ? "true" : "false",
+        const personality = h("div", { class: "chips pkg-alts temper" }, ...cards.map((p) => h("button", { class: `chip pkg temper${p.id === P.temperament ? " on" : ""}`, "data-pkg": p.id, "aria-pressed": p.id === P.temperament ? "true" : "false",
           onclick: () => { if (p.id === P.temperament) return; void app.mutate(() => (P.offer?.includes(p.id) && app.engine.pickTemperament ? app.engine.pickTemperament(p.id) : app.engine.equipPackage!(p.id, 0)), /* copy:callout */ p.name, true).then(() => paint()); } },
-          h("span", { class: "pkg-name" }, chipText(p)), p.id === P.temperament ? levelBar(p) : "")))));
+          h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", p.id === P.temperament ? levelBar(p) : "")));
+        if (offer.length) secs.push(section(/* copy:label */ "personality", "temperament", personality));
+        else secs.push(section(/* copy:label */ "personality", "temperament", h("div", { class: "pkg-equipped" }, worn(byId.get(P.temperament ?? ""), "temperament", 0), cards.length > 1 ? changeKind("temperament") : ""), choices("temperament", personality)));
       }
       // drills and scars: `drill · Warlord` (one tap revokes, it stays revoked), `scarred ×3`
       const drills = P.drills ?? [];
       const scars = new Map(P.scars ?? []);
+      const extra: HTMLElement[] = [];
       if (drills.length || scars.size) {
         const boss = (b: string): string => b.replace(/^goblin_/, "").replace(/_/g, " ");
         const lines = [...new Set([...drills.map((d) => d.boss), ...scars.keys()])].map((b) => {
           const d = drills.find((x) => x.boss === b), sc = Math.round((scars.get(b) ?? d?.scar ?? 0) / 5);
           return h("div", { class: `pkg-drill${d?.revoked ? " revoked" : ""}`, "data-boss": b },
-            d ? h("button", { class: `chip mini drill${d.revoked ? "" : " on"}`, "aria-pressed": d.revoked ? "false" : "true", onclick: () => void app.mutate(() => app.engine.revokeDrill!(b, !d.revoked), undefined, true).then(() => paint()) }, /* copy:label */ `drill · ${boss(b)}`) : h("span", { class: "chip mini boss" }, boss(b)),
+            d ? h("button", { class: `chip mini drill${d.revoked ? "" : " on"}`, "aria-pressed": d.revoked ? "false" : "true", onclick: () => void app.mutate(() => app.engine.revokeDrill!(b, !d.revoked), undefined, true).then(() => paint()) }, /* copy:label */ `counter · ${boss(b)}`) : h("span", { class: "chip mini boss" }, boss(b)),
             sc > 0 ? h("small", { class: "scar num" }, ...kwText(/* copy:callout */ `scarred ×${sc}`, ["scar"])) : "");
         });
-        secs.push(h("section", { class: "pkg-sec drills" }, h("div", { class: "label pkg-head" }, kw("drill", /* copy:label */ "drills")), ...lines));
+        extra.push(h("section", { class: "pkg-sec drills" }, h("div", { class: "label pkg-head" }, kw("drill", /* copy:label */ "boss counters")), ...lines));
       }
       // the compiled rows, folded: each its package, a shadowed one greyed with its winner
-      secs.push(rowsFold(app, P));
+      extra.push(rowsFold(app, P));
+      const more = h("details", { class: "pkg-advanced", open: details, ontoggle: (e: Event) => { details = (e.currentTarget as HTMLDetailsElement).open; } }, h("summary", null, /* copy:button */ "details"), ...extra, h("div", { class: "chips pkg-unlocks" }, locked("stance"), locked("tactic")));
+      const compareButton = h("button", { class: "chip pkg-compare", disabled: compare && !!reading && !opts, onclick: () => { compare = true; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
       const head = headline(app);
-      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "packages")), head ? h("b", { class: "pkg-headline num" }, ...kwText(head, ["reach"])) : ""), ...secs);
+      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, more);
     };
     paint();
     return body;
@@ -189,7 +202,7 @@ function rowsFold(app: App, P: Packages): HTMLElement {
   const rows = app.lineage.sets?.[app.lineage.active_set ?? 0]?.rows ?? app.rules.rows;
   const src = P.rows ?? [];
   const stance = P.all.find((p) => p.id === P.stance)?.name ?? P.stance;
-  const label = (i: number): string => src[i]?.label || (P.pen_open ? /* copy:label */ "the pen" : stance);   // (before the pen no row is the pen's)
+  const label = (i: number): string => src[i]?.label || (P.pen_open ? /* copy:label */ "custom rules" : stance);   // (before the pen no row is the pen's)
   const list = h("div", { class: "pkg-rows", hidden: true }, ...rows.map((r, i) => {
     const s = src[i]?.shadowed_by;
     return h("div", { class: `pkg-row${s !== undefined && s !== null ? " shadowed" : ""}`, "data-i": i },
@@ -197,7 +210,7 @@ function rowsFold(app: App, P: Packages): HTMLElement {
   }));
   const n = src.filter((x) => x.shadowed_by !== undefined && x.shadowed_by !== null).length;
   const btn: HTMLButtonElement = h("button", { class: "details-fold pkg-rows-btn num", "aria-expanded": "false", onclick: () => { list.hidden = !list.hidden; btn.setAttribute("aria-expanded", String(!list.hidden)); btn.classList.toggle("on", !list.hidden); } },
-    h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "rows", h("small", { class: "dim" }, n ? /* copy:callout */ ` · ${rows.length} · ${n} greyed` : ` · ${rows.length}`));
+    h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "rules", h("small", { class: "dim" }, n ? /* copy:callout */ ` · ${rows.length} · ${n} greyed` : ` · ${rows.length}`));
   return h("section", { class: "pkg-sec rows" }, btn, list);
 }
 
@@ -213,7 +226,8 @@ export function packagesStrip(app: App, opts: { ro?: boolean } = {}): { el: HTML
     const worn = [byId.get(P.stance), ...(P.tactics ?? []).map((t) => byId.get(t)), P.temperament ? byId.get(P.temperament) : undefined].filter((p): p is Package => !!p);
     const live = packagesShown(L) && !opts.ro;
     replace(el, ...worn.map((p) => {
-      const kids = [h("span", { class: "pkg-kind dim" }, ...kwText(p.kind, ["stance", "tactic", "temperament"])), h("span", { class: "pkg-name" }, chipText(p)), levelBar(p)];
+      const label = p.kind === "stance" ? /* copy:label */ "combat style" : p.kind === "temperament" ? /* copy:label */ "personality" : /* copy:label */ "extra tactic";
+      const kids = [h("span", { class: "pkg-kind dim" }, kw(p.kind as Term, label)), h("span", { class: "pkg-name" }, chipText(p)), levelBar(p)];
       return live ? h("button", { class: "row tablet compact pkg-tab", "data-pkg": p.id, onclick: (e: Event) => openPackages(app, e.currentTarget as HTMLElement) }, ...kids)
         : h("div", { class: "row tablet compact pkg-tab plaque", "data-pkg": p.id }, ...kids);
     }));

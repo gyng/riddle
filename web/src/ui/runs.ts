@@ -107,7 +107,7 @@ function heirLines(app: App, close: () => void): HTMLElement[] {
 /** one run's entry: `#41 · D9★ · $212 · ✦2 · 4m` over `hurt · banked · 12m`, `▶` at its end; a death opens its verdict */
 function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () => void): HTMLElement {
   const L = app.lineage;
-  const why = r.reason ?? (r.tier === "death" ? /* copy:label */ "died" : r.tier === "bank" ? /* copy:label */ "banked" : /* copy:label */ "returned");
+  const why = r.reason ?? (r.tier === "death" ? /* copy:label */ "died" : r.tier === "bank" ? /* copy:label */ "full haul" : /* copy:label */ "returned");
   const top = h("span", { class: "re-top num" },
     h("b", { class: "re-id" }, `#${r.id}`),
     h("span", { class: `re-tier t-${r.tier}`, "aria-hidden": "true" }, TIER_GLYPH[r.tier] ?? ""),

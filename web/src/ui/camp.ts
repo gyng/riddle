@@ -302,12 +302,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       cons.setTiles([
         ...built.map((b) => bt[b]?.()),
         // Cut 30 §2/§5: the packages and the quest board (the board by the mouth opens it too)
-        packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "packages", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
+        packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "tactics", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
         questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: () => { closeAllSheets(); openQuest(app, anchor("board")); } }),
         R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
-        R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
+        R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "supplies", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
         R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
-        R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
+        R.has("heirs") && t("ledger", /* copy:button */ "enemy guide", "ledger", () => openLedger(app)),
         // RUNS_UI: the chronicle is the log's `heirs` (the lane's log stud) — its tile gave its place to the run lanes' log
       ]);
       shaft.el.classList.toggle("on", open === "forecast");
@@ -317,17 +317,17 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       // QA 92eb880 (N: "the `edit` tile toggles: tapping it while editing closes the editor (I lost the next tap twice)"): it turns
       // editing on and stays lit; a second tap closes the open panel, never the editor
       R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
-      R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "loadout", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
+      R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "supplies", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
       R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
-      R.has("vault") && t("vault", /* copy:button */ "vault", "vault", () => togglePanel("vault"), open === "vault"),
+      R.has("vault") && t("vault", /* copy:button */ "stored gear", "vault", () => togglePanel("vault"), open === "vault"),
       // Cut 23 §1: the forge sells the heir's kit — carved at the first salvage or the first kit step the purse can buy; its badge counts
       // the steps affordable now
       (R.has("forge") || R.has("kit")) && withBadge(t("forge", /* copy:button */ "forge", "forge", () => openForge(app)), kitBadge()),
-      R.has("party") && t("party", /* copy:button */ "party", "party", () => togglePanel("party"), open === "party"),
+      R.has("party") && t("party", /* copy:button */ "companions", "party", () => togglePanel("party"), open === "party"),
       // Cut 30 §2/§5: the packages (from the second stance) and the quest board (from the Warlord slain), each glinting once as it comes
-      packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "packages", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
+      packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "tactics", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
       questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: (e: Event) => { closeAllSheets(); openQuest(app, e.currentTarget as HTMLElement); } }),
-      R.has("heirs") && t("ledger", /* copy:button */ "ledger", "ledger", () => openLedger(app)),
+      R.has("heirs") && t("ledger", /* copy:button */ "enemy guide", "ledger", () => openLedger(app)),
       // RUNS_UI: the chronicle is the log's `heirs` (the lane's log stud)
     ]);
     shaft.el.classList.toggle("on", open === "forecast");
@@ -434,7 +434,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintVault(): void {
     const L = app.lineage; const slots = vaultSlots(L.unlocks);
     clear(vault);
-    vault.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "vault", " ", h("span", { class: "num dim" }, `${L.vault.length}/${slots}`)));   // Cut 17: `forge` is its console tile
+    vault.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "stored gear", " ", h("span", { class: "num dim" }, `${L.vault.length}/${slots}`)));   // Cut 17: `forge` is its console tile
     const chips = h("div", { class: "chips" });
     for (const it of L.vault) {
       const on = app.loadout.includes(it.id);
@@ -476,7 +476,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // and then the line says only that (`vault full · scroll stays`), never a `keeps` that will not happen
     const stays = blocked ? (L.vault.length === 1 ? (L.vault[0].label ?? L.vault[0].kind).replace(/_/g, " ") : "all") : "";
     if (auto) prefs.appendChild(h("small", { class: "keep-auto dim num" }, blocked ? "" : auto.length ? /* copy:callout */ `keeps ${auto.join(" + ")}` : /* copy:callout */ "keeps nothing",
-      full ? h("b", { class: `${blocked ? "warn " : ""}vault-full` }, blocked ? /* copy:callout */ "vault full" : /* copy:callout */ " · vault full", blocked ? /* copy:callout */ ` · ${stays} stays` : "") : ""));   // QA 0c6e126 (qaY: `vault full · none kept` beside a vault holding mail — "the vault holds armour, keeps weapon"): the line names what stays
+      full ? h("b", { class: `${blocked ? "warn " : ""}vault-full` }, blocked ? /* copy:callout */ "storage full" : /* copy:callout */ " · storage full", blocked ? /* copy:callout */ ` · ${stays} stays` : "") : ""));   // QA 0c6e126 (qaY: `vault full · none kept` beside a vault holding mail — "the vault holds armour, keeps weapon"): the line names what stays
     vault.appendChild(prefs);
     // Cut 19 §1: the cage's preference left this panel for its own tablet beside the rules (`cage → armour`)
     // QA 912e135 (qaW: `home: armour` set here, `cage → weapon` on the tablet — "one preference, one name"): they are two settings, and
@@ -509,14 +509,14 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         const cur = app.lineage.vault_pref ?? "weapon";
         replace(list, ...CAGE_PREFS.map((p) => {
           const o = opts?.find((x) => x.pref === p); const d = o ? cageDelta(o) : null;
-          return h("button", { class: `chip cage-opt${p === cur ? " on" : ""}`, "data-pref": p, onclick: async () => { close(); if (p !== cur) await app.mutate(() => app.engine.setVaultPref(p), /* copy:callout */ "cage"); } },
+          return h("button", { class: `chip cage-opt${p === cur ? " on" : ""}`, "data-pref": p, onclick: async () => { close(); if (p !== cur) await app.mutate(() => app.engine.setVaultPref(p), /* copy:callout */ "loot choice"); } },
             h("span", null, p), d ? h("b", { class: `num ${d.cls === "cur" ? "level cur" : `delta ${d.cls}`}` }, ` ${d.text}`) : pending && p !== cur ? h("small", { class: "num dim" }, " …") : "");
         }));
       };
       const k = key(), memo = cageMemo?.key === k ? cageMemo.opts : null;
       paint(memo, !memo && !!app.engine.cageForecast);
       if (!memo && app.engine.cageForecast) void app.engine.cageForecast(refined).then((opts) => { cageMemo = { key: k, opts }; if (list.isConnected) paint(opts, false); }).catch((e) => { console.warn("cageForecast", e); if (list.isConnected) paint(null, false); });
-      return h("div", { class: "sheet-body cage-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"), list);
+      return h("div", { class: "sheet-body cage-picker" }, h("div", { class: "label row-label" }, /* copy:label */ "loot preference"), list);
     }, { anchor: ordersOn() ? ordersTab : anchor });   // Cut 23 §4: beside the tablet it sets, never over it
   }
   function paintStart(): void {
@@ -611,12 +611,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const o = L.orders!;
     const bits = [
       /* copy:callout */ `keep ${KEEP_WORD[o.keep] ?? o.keep}`,
-      R.has("cage") ? /* copy:callout */ `cages → ${o.cage}` : "",
+      R.has("cage") ? /* copy:callout */ `loot → ${o.cage}` : "",
       R.has("start") && o.start > 1 ? /* copy:callout */ `start D${o.start}` : "",
       o.repeat ? "" : /* copy:callout */ "no repeat",
       o.insure ? "" : /* copy:callout */ "no insure",
     ].filter(Boolean);
-    replace(ordersTab, h("span", { class: "rn num" }, icon("ledger", "☰")), h("span", { class: "rtext" }, h("b", { class: "orders-head" }, /* copy:label */ "orders"), " ", h("span", { class: "orders-sum dim num" }, bits.join(" · "))));
+    replace(ordersTab, h("span", { class: "rn num" }, icon("ledger", "☰")), h("span", { class: "rtext" }, h("b", { class: "orders-head" }, /* copy:label */ "run setup"), " ", h("span", { class: "orders-sum dim num" }, bits.join(" · "))));
   }
   function openOrders(): void {
     openSheet((close) => {
@@ -627,7 +627,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         const act = (p: Partial<StandingOrders>, move: string) => (): void => { void setOrder(p, move).then(() => { if (body.isConnected) { replace(rows, ...build()); paintOrders(); } }); };
         const build = (): HTMLElement[] => { const o = app.lineage.orders!, R = revealed(app); return [
           row(/* copy:callout */ "keep for heirs", ...KEEP_ORDERS.map((k) => pick(o.keep, k, KEEP_WORD[k], act({ keep: k }, /* copy:callout */ "keep")))),
-          R.has("cage") ? row(/* copy:label */ "from cages", h("button", { class: "chip order on", onclick: () => { close(); openCagePicker(ordersTab); } }, o.cage, h("small", { class: "dim" }, " ▸"))) : null,
+          R.has("cage") ? row(/* copy:label */ "loot preference", h("button", { class: "chip order on", onclick: () => { close(); openCagePicker(ordersTab); } }, o.cage, h("small", { class: "dim" }, " ▸"))) : null,
           R.has("start") ? row(/* copy:label */ "start", h("button", { class: "chip order on", onclick: () => { close(); openStartPicker(); } }, `D${o.start}`, h("small", { class: "dim" }, " ▸"))) : null,
           row(/* copy:label */ "repeat pack", pick(o.repeat, true, /* copy:button */ "on", act({ repeat: true }, /* copy:callout */ "repeat")), pick(o.repeat, false, /* copy:button */ "off", act({ repeat: false }, /* copy:callout */ "repeat"))),
           row(/* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
@@ -783,7 +783,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // QA 524827b (qaAB: `summon ally scroll $33` beside the vault's own — read as packing the kept one; it bought a new one): a kind the
         // vault holds says the shop's is another (`new · 1 in vault`; the vault's chip packs the kept one)
         const vaulted = (L.vault ?? []).filter((v) => v.kind === e.kind).length;
-        const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : second ? /* copy:callout */ "2nd · tames foe" : vaulted ? /* copy:callout */ `new · ${vaulted} in vault` : use ?? "";
+        const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : second ? /* copy:callout */ "2nd · tames foe" : vaulted ? /* copy:callout */ `new · ${vaulted} stored` : use ?? "";
         shopEl.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind), /* copy:callout */ "buy") },
           h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, e.price > 0 ? `$${e.price}` : /* copy:label */ "free")), h("small", { class: "why num dim" }, why || "\u00a0"))));   // QA 912e135: the kennel's leash, taken back
       }

@@ -85,10 +85,10 @@ export function formula(cs: string[], reward: HTMLElement | "", cls = ""): HTMLE
 export const refundOf = (o: Pick<Oath, "price">): number => Math.floor(o.price / 2);
 /** Cut 28b: a report's or exit's oath words from the core's event (`OATH KEPT`, `OATH BROKEN · R2 return`). */
 export function oathBeat(ev: { kept: boolean; row: number; cause: string }, rows?: Row[]): string {
-  if (ev.kept) return /* copy:callout */ "OATH KEPT";
+  if (ev.kept) return /* copy:callout */ "CHALLENGE COMPLETE";
   // docs/COPY.md: the rule that broke it by its words (`return at 20%`), never its place
   const why = ev.row >= 0 && rows?.[ev.row] ? ruleName(rows, ev.row) : ev.cause;
-  return /* copy:callout */ `OATH BROKEN · ${why}`;
+  return /* copy:callout */ `CHALLENGE FAILED · ${why}`;
 }
 /** The seal: the wax seal sprite (the verdict banner's), the glyph `⚜` without it. */
 export const seal = (): HTMLElement => h("span", { class: "oath-seal", "aria-hidden": "true" });
@@ -112,7 +112,7 @@ export function paintOathTab(app: App, tab: HTMLElement): void {
   tab.classList.toggle("sworn", !!o);
   replace(tab, h("span", { class: "rn num" }, seal()),
     o ? h("span", { class: "rtext" }, formula(chipsOf(o), rewardIcon(o.reward), "tab"), " ", shareEl(app, o), swornAll(L).length > 1 ? h("small", { class: "num dim more" }, ` +${swornAll(L).length - 1}`) : "")
-      : h("span", { class: "rtext" }, /* copy:rule_token */ "oaths", " ", h("small", { class: "num dim" }, `${board.length}`), conceptCap("oaths")));
+      : h("span", { class: "rtext" }, /* copy:rule_token */ "challenges", " ", h("small", { class: "num dim" }, `${board.length}`), conceptCap("oaths")));
 }
 
 /** The oath board: three carved tablets on the parchment, each its deal as a formula (constraint chips → reward) and its stake (two taps
@@ -129,8 +129,8 @@ export function openOathBoard(app: App, anchor: HTMLElement): void {
           ? [h("span", { class: "oath-fate num", "data-oath": o.id }, h("b", { class: "stake" }, `$${o.price}`), " · ", h("b", { class: "tally" }, "0/1"), " ", shareEl(app, o),
               sh ? h("small", { class: "dim oath-night" }, /* copy:callout */ ` · night ${share(sh.night, lowOf(app.lastForecast))}`) : ""),
             // Cut 29 §1: with two or three slots the forswear names its oath (`forswearOathId`)
-            eng(app).forswearOathId || eng(app).forswearOath ? twoTap(/* copy:button */ `forswear +$${refundOf(o)}`, /* copy:button */ `ok +$${refundOf(o)}`, () => void app.mutate(() => eng(app).forswearOathId ? eng(app).forswearOathId!(o.id) : eng(app).forswearOath!(), /* copy:callout */ "oath").then(paint), { class: "chip mini forswear num", key: `forswear:${o.id}` }) : ""]
-          : [twoTap(/* copy:button */ `stake $${o.price}`, /* copy:button */ `ok $${o.price}`, () => void app.mutate(() => eng(app).swearOath!(o.id), /* copy:callout */ "oath").then(paint),
+            eng(app).forswearOathId || eng(app).forswearOath ? twoTap(/* copy:button */ `cancel +$${refundOf(o)}`, /* copy:button */ `ok +$${refundOf(o)}`, () => void app.mutate(() => eng(app).forswearOathId ? eng(app).forswearOathId!(o.id) : eng(app).forswearOath!(), /* copy:callout */ "challenge").then(paint), { class: "chip mini forswear num", key: `forswear:${o.id}` }) : ""]
+          : [twoTap(/* copy:button */ `stake $${o.price}`, /* copy:button */ `ok $${o.price}`, () => void app.mutate(() => eng(app).swearOath!(o.id), /* copy:callout */ "challenge").then(paint),
               { class: "chip swear num", disabled: short || !eng(app).swearOath || full, key: `swear:${o.id}` }),
             short ? h("small", { class: "num dim why" }, /* copy:callout */ `$${o.price - L.gold} short`) : ""];
         return h("div", { class: `oath tablet${isSworn ? " sworn" : ""}${short && !isSworn ? " short" : ""}`, "data-oath": o.id, "data-kind": o.kind },
@@ -151,19 +151,19 @@ export function openOathBoard(app: App, anchor: HTMLElement): void {
     const paintSinks = (): void => {
       const L = app.lineage, d = L.oath_draw, c = L.commission, works = L.works ?? [];
       replace(sinks,
-        slotsOf(L) > 1 ? h("div", { class: "oath-slots num" }, /* copy:label */ "sworn ", h("b", null, `${swornAll(L).length}/${slotsOf(L)}`)) : "",
+        slotsOf(L) > 1 ? h("div", { class: "oath-slots num" }, /* copy:label */ "active ", h("b", null, `${swornAll(L).length}/${slotsOf(L)}`)) : "",
         d && eng(app).drawOath ? h("div", { class: "oath-draw" },
-          twoTap(/* copy:button */ `draw ◆${d.cost}`, /* copy:button */ `ok ◆${d.cost}`, () => void app.mutate(() => eng(app).drawOath!(), /* copy:callout */ "oath").then(() => { paint(); paintSinks(); }), { class: "chip draw num", disabled: !d.available, key: "draw" }),
+          twoTap(/* copy:button */ `draw ◆${d.cost}`, /* copy:button */ `ok ◆${d.cost}`, () => void app.mutate(() => eng(app).drawOath!(), /* copy:callout */ "challenge").then(() => { paint(); paintSinks(); }), { class: "chip draw num", disabled: !d.available, key: "draw" }),
           !d.available && d.needs ? h("small", { class: "num dim why" }, ` ⊘ ${d.needs}`) : "") : "",
         c && eng(app).commission ? h("div", { class: "oath-works" },
-          h("span", { class: "label dim" }, /* copy:label */ "works"), " ",
+          h("span", { class: "label dim" }, /* copy:label */ "town upgrades"), " ",
           works.length ? h("span", { class: "works-built num" }, works.join(" · "), " ") : "",
-          twoTap(/* copy:button */ `build ${c.label} $${c.price}`, /* copy:button */ `ok $${c.price}`, () => void app.mutate(() => eng(app).commission!(), /* copy:callout */ "works").then(paintSinks), { class: "chip commission num", disabled: !c.available, key: "commission" }),
+          twoTap(/* copy:button */ `build ${c.label} $${c.price}`, /* copy:button */ `ok $${c.price}`, () => void app.mutate(() => eng(app).commission!(), /* copy:callout */ "town upgrade").then(paintSinks), { class: "chip commission num", disabled: !c.available, key: "commission" }),
           !c.available ? h("small", { class: "num dim why" }, /* copy:callout */ ` $${Math.max(0, c.price - L.gold)} short`) : "") : "");
     };
     paint(); paintSinks();
     const off = app.onForecast(() => { if (list.isConnected) paint(); else off(); });
-    return h("div", { class: "sheet-body oath-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "oaths"), list, sinks);
+    return h("div", { class: "sheet-body oath-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "challenges"), list, sinks);
   }, { anchor });
 }
 /** `warlord: aim` → `counter: attack boss` when the lineage knows the counter's rule; the core's fact otherwise (`mother: ?`). */
@@ -184,7 +184,7 @@ export function oathProgress(app: App, r: ReturnReport): HTMLElement | null {
   const o = oathsOf(app.lineage).find((b) => b.id === x.id);
   const cs = chipsOf(x.chips?.length || x.text ? x : o ?? { chips: [], text: "" });
   const reward = x.reward ?? o?.reward;
-  return h("section", { class: `rsec oath-sec${x.done ? " done" : ""}` }, h("div", { class: "label" }, /* copy:label */ "oath"),
+  return h("section", { class: `rsec oath-sec${x.done ? " done" : ""}` }, h("div", { class: "label" }, /* copy:label */ "challenge"),
     h("div", { class: `oath tablet report-oath${x.done ? " done" : ""}`, "data-oath": x.id }, seal(),
       formula(cs, rewardEl(reward), "oath-head"),
       h("div", { class: "oath-foot num" },

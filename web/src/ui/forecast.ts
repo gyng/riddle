@@ -162,14 +162,14 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
   const terms: HTMLElement[] = [];
   if (head?.m) terms.push(term(`D${head.d.depth}`, head.m, "depth", false, head.d, `D${head.d.depth}`));
   const bank = moveOf(vs.bank), death = moveOf(vs.death);
-  if (withEnds && bank) terms.push(term(/* copy:label */ "bank", bank, "bank", false, vs.bank));
+  if (withEnds && bank) terms.push(term(/* copy:label */ "full haul", bank, "bank", false, vs.bank));
   if (withEnds && death && death.dir !== "flat") terms.push(term(/* copy:label */ "death", death, "death", true, vs.death));
   // QA 912e135 (qaX: `death −11` in green while the stall share rose 0 → 11 %): a stall that moves outside its ± is its own term, worse up
   const stall = moveOf(vs.stall);
   if (withEnds && stall && stall.dir !== "flat") terms.push(term(/* copy:label */ "stall", stall, "stall", true, vs.stall));
   // Cut 28 §1: with an oath sworn, the edit's move on it is its own term (`oath +12`)
   const oath = moveOf(vs.oath);
-  if (withEnds && oath && oath.dir !== "flat") terms.push(term(/* copy:label */ "oath", oath, "oath", false, vs.oath));
+  if (withEnds && oath && oath.dir !== "flat") terms.push(term(/* copy:label */ "challenge", oath, "oath", false, vs.oath));
   if (!terms.length) return null;
   // QA 778fa1b (qaU: `death −10` stayed while the refine beside it read 22 → 27 %): a move paired on the first pass trails `…` and
   // reads dim until the refine's is asked again and lands (`ForecastVs.refined`; absent on an older core: no mark)
@@ -257,7 +257,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const epm = pmShown(e.death, e.pm);
     const pm = epm !== undefined ? h("small", { class: "dim pm band", style: bandW(epm), title: `±${epm}` }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";   // Cut 29: `±6` read as −6 — a band
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, kw("ends", /* copy:label */ "ends")), " ", /* copy:callout */ `bank ${eh(e.bank)} · return ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
+    replace(ends, h("span", { class: "label ends-label" }, kw("ends", /* copy:label */ "run outcomes")), " ", /* copy:callout */ `full haul ${eh(e.bank)}`, /* copy:callout */ ` · turn back ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -460,7 +460,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     if (e && !ends.hidden) replace(ends,
       // QA 778fa1b (qaU: the `▲`/`▼` after `return 92%` / `death 8%` clipped at the panel's edge): the arrow rides the number (`b`), raised
       // over its end, inside the column
-      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "bank", " ", h("b", null, endShare(e.bank, lowOf(last)), moveMark(vs?.bank, true))),
+      h("span", { class: "end bank" }, h("i", { class: "gemdot" }), /* copy:callout */ "full haul", " ", h("b", null, endShare(e.bank, lowOf(last)), moveMark(vs?.bank, true))),
       h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, endShare(e.return, lowOf(last)), moveMark(vs?.return, true))),
       // QA 23ed91f (L: "`bank 0% · return 0% · death 96%` never sums to 100; `stall` only in the panel"): a stall share is its own gem
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",

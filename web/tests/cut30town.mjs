@@ -96,7 +96,7 @@ try {
     const surf = await fold(":is(.well-wrap, .console)");
     // Cut 30.5 (docs/AUTOMATION_TREE.md §3A): the `next` pill is day 0's fifth surface
     const pill = await page.evaluate(() => !!document.querySelector(".next-pill:not([hidden])"));
-    check(surf.length <= (pill ? 5 : 4) && ["mouth", "tent", "crate"].every((x) => surf.includes(x)) && surf.some((x) => /send/.test(x)),
+    check(surf.length <= (pill ? 5 : 4) && ["mouth", "tent", "Heroes"].every((x) => surf.includes(x)) && surf.some((x) => /send/.test(x)) && !surf.includes("crate"),
       `day 0: ≤ ${pill ? 5 : 4} interactive surfaces — the mouth, the tent, the crate, the gem${pill ? ", the pill" : ""} (${surf.length}: ${surf.join(" | ")})`);
     check(t.staked === "blacksmith" && !t.targets.some((x) => x.id === "staked") && t.buildings.length === 0, `day 0: the next plot staked (${t.staked}), not a surface; nothing built (${t.buildings.join(",") || "–"})`);
     check(t.targets.every((x) => x.w >= 44 && x.h >= 44), `day 0: every target ≥ 44 px (${t.targets.map((x) => `${x.id} ${Math.round(x.w)}×${Math.round(x.h)}`).join(", ")})`);
@@ -129,7 +129,7 @@ try {
         // the staked plot's trigger, on tap
         await page.locator('.town-hit[data-building="staked"]').click();
         const tag = await until(() => { const e = document.querySelector(".town-tag:not([hidden])"); return e ? e.textContent : null; }, "the staked plot's tag", 3000).catch(() => null);
-        check(!!tag && tag.includes("kennel") && tag.split(/\s+/).length <= 6, `stage 2: the staked plot names the next building and its trigger on tap ("${tag}")`);
+        check(!!tag && tag.includes("companions") && tag.split(/\s+/).length <= 6, `stage 2: the staked plot names the next building and its trigger on tap ("${tag}")`);
         // a building's panel stands over it (or under it when the room above is short)
         await page.locator('.town-hit[data-building="storehouse"]').click();
         await sleep(250);

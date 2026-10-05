@@ -497,6 +497,11 @@ impl Game {
         js(&self.inner.package_options(sims.max(8)))
     }
 
+    #[wasm_bindgen(js_name = packageOptionsKey)]
+    pub fn package_options_key(&self, sims: u32) -> String {
+        js(&self.inner.package_options_key(sims.max(8)))
+    }
+
     /// Cut 30 §3: deposit gold in the bank (capped); returns the Lineage.
     #[wasm_bindgen(js_name = bankDeposit)]
     pub fn bank_deposit(&mut self, amount: i32) -> Result<String, JsError> {

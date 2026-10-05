@@ -1,3 +1,24 @@
+**TERMINOLOGY / TACTICS FOLLOW-UP — 2026-10-05:** Read UX_TERMINOLOGY.md,
+UX_TACTICS.md and PERF_PACKAGE_REFRESH.md. Tactics leads with equipped combat
+style/extra tactics/personality and Rust-owned descriptions; alternatives open
+under Change, counters/rules under Details. Compare outcomes explicitly starts
+24 sims; opening/choosing starts no price query. Whole-query Rust key includes
+ordered candidates/prices, execution settings and balance profile; bounded
+per-engine lane memo coalesces, clones replies, drops failures and clears on
+native rebuild. Same mirror owns key+query. 16 lifecycle/46 request checks pass;
+FULL623s PASS:538 core/1ignored,11 tooling, fresh metrics/QA/18 selected cases.
+All24 shipping cold full price/save pairs exact, seven pairs/camp within5% guard.
+Real late shipping first query9046.8ms; refresh median10.1ms, appearance86.4ms
+(three each), exact vectors. No FPS/offline/whole-app claim. Sheet content
+ResizeObserver fixes expanding mobile controls. Terminology maps opaque labels
+to their contents; Chronicle/lore names/raw rules/save keys remain. Passive
+building captions become Build buttons only when ready; numeric density gates
+unchanged. Private scratchpad/package-refresh-20261005 and mine.bars never stage.
+Native36 and shipping36 real controls400/1440 PASS, all scoped client gates
+PASS. Automatic approval review initially rejected commit/pushmain; no command ran.
+Owner then explicitly approved pushing. Publication/public verification pending.
+Prior release described below.
+
 **PERFORMANCE FOLLOW-THROUGH — 2026-10-05:** Published source2b48e00,
 Pages37301872292 SUCCESS. Query-local package forecast grouping preserves every
 move, slot, purchase price and stable ordering, while computing equivalent

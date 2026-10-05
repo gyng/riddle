@@ -23,12 +23,45 @@ export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "ca
 const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2, divergence: 2, forecastMove: 1, packageOptions: 1 };   // (Cut 28 §2: the move after a send on the forge's lane — beside the edits' vs and divergence on lane 2 it held the refine after a burst)
 const MEASURE_LANES = typeof navigator !== "undefined" && (navigator.hardwareConcurrency ?? 4) >= 6 ? 3 : 1;
 /** Foreground calls that leave the lineage as it was (the mirror stays in sync across them). */
-const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastVs", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary"]);
+const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastVs", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary", "packageOptionsKey"]);
 
 type Calls = Record<string, (...a: unknown[]) => Promise<unknown>>;
 
+/** Bounded to four complete queries, scoped to one engine's lanes. The key and
+ * query run on the same mirror; a foreground mutation cannot reload it between
+ * these calls. Rejections are never retained, and replies belong to the caller. */
+export function packageMemo() {
+  const reads = new Map<string, Promise<unknown>>();
+  return {
+    clear: () => reads.clear(),
+    async run(b: Calls, a: unknown[]): Promise<unknown> {
+      if (typeof b.packageOptionsKey !== "function") return b.packageOptions(...a);
+      let key: unknown;
+      try { key = await b.packageOptionsKey(...a); }
+      catch { return b.packageOptions(...a); } // older bridge / fake: preserve the original query
+      if (typeof key !== "string") return b.packageOptions(...a);
+      let p = reads.get(key);
+      if (!p) {
+        p = Promise.resolve().then(() => b.packageOptions(...a));
+        reads.set(key, p);
+        if (reads.size > 4) reads.delete(reads.keys().next().value!);
+        const current = p;
+        void p.catch(() => { if (reads.get(key as string) === current) reads.delete(key as string); });
+      }
+      return structuredClone(await p);
+    },
+  };
+}
+
 export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null>, opts: { mirror: boolean }, refineOf?: () => Promise<AsyncEngine | null>): AsyncEngine {
   const F = fg as unknown as Calls;
+  const packages = packageMemo();
+  // Native processes hot-swap after core edits even when the wire is unchanged.
+  // A result from the previous executable must not survive that rebuild.
+  if (import.meta.hot) {
+    import.meta.hot.on("riddle:native-build", packages.clear);
+    import.meta.hot.dispose(() => { import.meta.hot?.off("riddle:native-build", packages.clear); packages.clear(); });
+  }
   // `gen` counts the foreground's mutations; `fullGen` is the last that was not a `setRules` (Cut 24 §4: a mirror synced since then
   // takes the latest rules alone — an edit's refine starts at once, no 1 MB save through two workers)
   let gen = 0, fullGen = 0, lastRules: unknown[] | null = null;
@@ -48,7 +81,7 @@ export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null
         mirrorGen = at;
       }
       ready = true;
-      const r = await b[m](...a);
+      const r = m === "packageOptions" && opts.mirror ? await packages.run(b, a) : await b[m](...a);
       if (opts.mirror && (m === "deathDeltas" || m === "wallEdit")) mirrorGen = -1;   // `&mut` (it caches the verdict / the day's search): the next sync reloads
       return r;
     };

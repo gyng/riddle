@@ -38,9 +38,12 @@ Next, in impact order:
    pairs12.07/37.14/8.04%. Late1461→911 simulations,38→24 panels. Complete
    outputs match; FULL460s and real-native/shipping/public UI pass. Source2b48e00
    published, Pages37301872292 artifact identity verified;
-   see PERF_PACKAGE_PANELS.md. Next consider Rust-owned whole-query fingerprints
-   for reuse across refreshed snapshots, including candidates/purchase prices;
-   the client currently invalidates conservatively on every new lineage.
+   see PERF_PACKAGE_PANELS.md. Whole-query Rust fingerprints now reuse complete
+   results across equivalent refreshes/appearance changes: shipping late-camp
+   reads9.047s→7–93ms, all complete vectors equal. Opening Tactics starts no
+   price query; Compare outcomes is explicit. See PERF_PACKAGE_REFRESH.md and
+   UX_TACTICS.md. Next profile remaining cold comparison/search workloads on
+   saved early/late/tuned camps, before attempting more flood micro-optimizations.
    Prior clipped-vision and stack-row probes remain rejected. Preserve seeds,
    budgets, LOS oracle and saved-camp comparisons. Keep frozen executables out
    of mutable Cargo targets; scope any invalid-object cache repair to the

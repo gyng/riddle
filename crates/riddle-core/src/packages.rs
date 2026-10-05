@@ -103,6 +103,28 @@ pub fn name(id: &str) -> &str {
     def(id).map(|d| d.name).unwrap_or(if id == CUSTOM { "custom" } else { id })
 }
 
+/// Plain-language purpose; detailed conditions remain in the compiled rules.
+pub fn description(id: &str) -> &'static str {
+    match id {
+        "steady" => "Heal when hurt · fight nearest",
+        "guarded" => "Heal early · recover between fights",
+        "bold" => "Push deeper · fight while hurt",
+        "hunter" => "Prioritise ranged enemies and bosses",
+        "boss_focus" => "Prioritise bosses and their summons",
+        "corridor_fighting" => "Fight groups from narrow corridors",
+        "kite_archers" => "Dodge archer shots · target archers",
+        "thief_guard" => "Prioritise thieves · protect supplies",
+        "gas_step" => "Keep gas enemies at range",
+        "pack_break" => "Split groups · finish weak foes",
+        "skittish" => "Retreat when hurt and surrounded",
+        "unbowed" => "Face bosses while healthy",
+        "light_hands" => "Collect loot after kills",
+        "iron_gut" => "Try unknown potions while healthy",
+        CUSTOM => "Written hero rules",
+        _ => "",
+    }
+}
+
 /// Runs a package needs for L2 · L3 · L4 · L5 (tunable; the gate is the felt pace).
 pub const LEVEL_RUNS: [u32; 4] = [10, 40, 120, 220];
 pub const MAX_LEVEL: u32 = 5;
@@ -1099,6 +1121,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
             crate::wire::PackageWire {
                 id: d.id.into(),
                 name: d.name.into(),
+                description: description(d.id).into(),
                 kind: d.kind.word().into(),
                 level: level_of(runs),
                 runs,
@@ -1111,7 +1134,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
         })
         .collect();
     if p.stance == CUSTOM {
-        all.insert(0, crate::wire::PackageWire { id: CUSTOM.into(), name: "custom".into(), kind: "stance".into(), level: 1, slot: Some(0), owned: true, ..Default::default() });
+        all.insert(0, crate::wire::PackageWire { id: CUSTOM.into(), name: "custom".into(), description: description(CUSTOM).into(), kind: "stance".into(), level: 1, slot: Some(0), owned: true, ..Default::default() });
     }
     let set = l.rules();
     let usable = |_: &Cond| true;
@@ -1274,21 +1297,38 @@ fn panels(g: &crate::engine::Game, set: &RuleSet, sims: u32, stone: Option<u32>)
 /// A move that answers the wall reads there, under the noise of the floors above it; one that only helps
 /// at the frontier while the walk to it suffers reads on the first panel. (Read from the stone alone, a
 /// stance that walks home early looked best.)
+fn option_panel_key(g: &crate::engine::Game, set: &RuleSet, sims: u32, stone: Option<u32>) -> (String, Option<String>, String) {
+    let own = crate::forecast::panel_key(g, set, sims);
+    let wall = stone.map(|s| {
+        let mut w = g.sim_clone();
+        w.lineage.start = s;
+        crate::forecast::panel_key(&w, set, sims)
+    });
+    (own, wall, crate::forecast::rules_key(set))
+}
+
+/// Complete package-query inputs, including the ordered choices and their purchase prices.
+/// The caller must read this and the prices from the same unchanged game.
+pub fn options_key(g: &crate::engine::Game, sims: u32) -> String {
+    let best = g.lineage.best_depth;
+    let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
+    let mut moves = Vec::new();
+    for (id, action, slot) in candidates(&g.lineage) {
+        let mut c = g.sim_clone();
+        if apply(&mut c.lineage, &id, &action, slot).is_err() { continue; }
+        let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
+        moves.push((id, action, slot, price, option_panel_key(&c, &compile(&c.lineage), sims, stone)));
+    }
+    serde_json::to_string(&(best, crate::forecast::sim_width(), crate::forecast::parallel_sims(), crate::balance::get(), option_panel_key(g, g.lineage.rules(), sims, stone), moves)).expect("package query key")
+}
+
 pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
     let best = g.lineage.best_depth;
     let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
     let (base, wall_base) = panels(g, g.lineage.rules(), sims, stone);
     let moves = candidates(&g.lineage);
     let threaded = moves.len() > 1 && 2 * moves.len() >= crate::forecast::sim_width();
-    let key = |g: &crate::engine::Game, set: &RuleSet| {
-        let own = crate::forecast::panel_key(g, set, sims);
-        let wall = stone.map(|s| {
-            let mut w = g.sim_clone();
-            w.lineage.start = s;
-            crate::forecast::panel_key(&w, set, sims)
-        });
-        (own, wall, crate::forecast::rules_key(set))
-    };
+    let key = |g: &crate::engine::Game, set: &RuleSet| option_panel_key(g, set, sims, stone);
     let mut groups = std::collections::BTreeMap::new();
     groups.insert(key(g, g.lineage.rules()), 0usize);
     let mut jobs = Vec::new();

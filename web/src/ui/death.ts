@@ -261,7 +261,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const leverBtn = lever ? h("button", { class: "death-lever tablet", "data-kind": lever.kind, onclick: leverAct },
     h("span", { class: "lever-kind" }, LEVER_WORD[lever.kind] ?? lever.kind), h("b", null, lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
   if (leverBtn) kwHost(leverBtn, "lever");
-  function leverGem(): HTMLButtonElement { return gem({ label: lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "camp" : /* copy:button */ "camp", cls: "lever-gem", pulse: true, onclick: leverAct }); }
+  function leverGem(): HTMLButtonElement { return gem({ label: lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "town" : /* copy:button */ "town", cls: "lever-gem", pulse: true, onclick: leverAct }); }
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
   const makeGem = (): HTMLButtonElement => prePen ? leverGem() : top && measuring && isPatchTop()
     ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, "…"), h("small", { class: "gem-w" }, /* copy:label */ "measuring")), cls: "patch-gem pending", onclick: () => undefined })
@@ -275,7 +275,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     // QA 308f045 (qaAD: a verdict opened from the return report had no way back — `edit · morgue · camp`, browser back to the camp): a
     // verdict opened from a report leads back to it
     from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report }) }) : null,
-    tile({ id: "camp", label: /* copy:button */ "camp", icon: "camp", onclick: () => app.go({ kind: "camp" }) }),
+    tile({ id: "camp", label: /* copy:button */ "town", icon: "camp", onclick: () => app.go({ kind: "camp" }) }),
   ] });
   const killerSrc = drove ? null : foeSrc(d.cause);
   const tracePanel = h("div", { class: "parchment trace-panel", hidden: !!drove && !d.trace.turns.length }, ...trace);   // a drive-off's line may carry no trace

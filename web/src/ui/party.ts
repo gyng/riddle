@@ -24,9 +24,9 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     clear(head); clear(cards); clear(eggs);
     const all = [...L.party, ...L.kennel];
     // Cut 17: `ledger` and `chronicle` are console tiles now (the reveal ladder's 5th heir)
-    if (!all.length && !L.eggs.length) { head.append(/* copy:label */ "party", " ", h("span", { class: "num dim" }, `0/${slots}`)); return; }
+    if (!all.length && !L.eggs.length) { head.append(/* copy:label */ "companions", " ", h("span", { class: "num dim" }, `0/${slots}`)); return; }
     const canBreed = L.kennel.filter((c) => c.level >= 2).length >= 2;
-    head.append(/* copy:label */ "party", " ", h("span", { class: "num dim" }, `${L.party.length}/${slots}`),
+    head.append(/* copy:label */ "companions", " ", h("span", { class: "num dim" }, `${L.party.length}/${slots}`),
       canBreed ? h("button", { class: `mini${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); } }, /* copy:button */ "breed") : "");
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
@@ -113,7 +113,7 @@ export function openLedger(app: App): void {
     const headRow = h("div", { class: "lrow head" }, h("span", { class: "k" }, ""), /* copy:label */ ...["seen", "known", "studied", "tamed", "bred"].map((s) => h("span", { class: "dot-h" }, s)));
     const trophies = L.trophies.filter((t) => t.startsWith("ledger:"));
     // the sheet's title (QA on 952e306: "ledger: 36 rows of '? ○○○○○', no title")
-    return h("div", { class: "sheet-body ledger" }, h("div", { class: "label" }, /* copy:label */ "ledger"), headRow, ...rows,
+    return h("div", { class: "sheet-body ledger" }, h("div", { class: "label" }, /* copy:label */ "enemy guide"), headRow, ...rows,
       trophies.length ? h("div", { class: "chips" }, ...trophies.map((t) => h("span", { class: "chip fact" }, "★ ", nice(t.slice(7))))) : "");
   });
 }

@@ -23,6 +23,19 @@
 .pkg-price:empty { display: none; }
 .chip.pkg.temper { min-width: 92px; }
 .pkg-alts { display: flex; flex-wrap: wrap; gap: 6px; }
+.pkg-equipped { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pkg-equipped .pkg-slot { margin: 0; min-width: 0; flex: 1; }
+.pkg-slot { max-width: 100%; }
+.chip.pkg { white-space: normal; max-width: 100%; }
+.pkg-panel .pkg-sec { padding-bottom: 12px; border-bottom: 1px solid rgba(122,92,30,.18); }
+.pkg-choices { margin-top: 10px; }
+.pkg-choices[hidden] { display: none; }
+.pkg-advanced { margin-top: 14px; }
+.pkg-advanced > summary { cursor: pointer; padding: 8px 0; font-size: 12px; color: #7a5c1e; }
+.pkg-compare { margin-top: 2px; }
+.pkg-panel .pkg-change { flex: none; }
+.pkg-description { color: #635846; font-size: 12px; line-height: 1.4; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.chip.pkg.on .pkg-description { color: var(--bone); }
 .lvl-bar { display: block; width: 100%; min-width: 64px; height: 4px; border-radius: 2px; background: rgba(77, 108, 153, .35); overflow: hidden; }
 .lvl-bar .fill { display: block; height: 100%; background: linear-gradient(90deg, var(--gilt), var(--acc)); }
 .chip.mini.pkg-level { color: var(--acc); }

@@ -25,7 +25,7 @@ export function renderEnding(app: App): Mounted {
         tile(`${app.totalRuns()}`, /* copy:label */ "runs"),
         tile(`${L.graveyard.length}`, /* copy:label */ "deaths"),
         tile(`${L.facts.length}`, /* copy:label */ "facts"),
-        tile(`${L.renown}`, /* copy:label */ "renown")),
+        tile(`${L.renown}`, /* copy:label */ "reputation")),
       h("div", { class: "send-bar" }, chips)));
   return { el };
 }

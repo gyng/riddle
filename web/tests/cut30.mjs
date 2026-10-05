@@ -79,9 +79,13 @@ try {
     await pastWarlord();
     await withState((e) => { e.st30.runs = { steady: 45 }; e.rules.rows.push({ ...e.rules.rows[0] }); e.lineage.sets[0].rows.push({ ...e.lineage.sets[0].rows[0] }); });
     const t1 = await tiles();
-    check(t1.some((t) => t.startsWith("packages")), `the second stance arrived: the packages tile (${t1.join(" ")})`);
+    check(await page.locator('.cmd .tile[data-tile="packages"] .tl').textContent() === 'tactics', 'town control says tactics');
     await page.click(`.cmd .tile[data-tile="packages"]`);
     await until(() => !!document.querySelector(".pkg-panel .pkg-slot"), "the packages panel");
+    check(await page.locator('.pkg-choices').first().isHidden(), 'choices folded on opening');
+    await page.click('.pkg-compare');
+    await page.click('[data-change-kind="stance"]');
+    await page.click('[data-edit-slot="0"]');
     await until(() => !document.querySelector(".pkg-panel .pkg-price.pending"), "the prices", 10_000);
     const P = await page.evaluate(() => {
       const q = (s) => [...document.querySelectorAll(s)];
@@ -98,9 +102,9 @@ try {
         drills: q(".pkg-drill").map((d) => d.textContent),
       };
     });
-    check(/^reach D\d+ (\d+%|<\d+%|>\d+%)$/.test(P.head), `the panel's head is the forecast's one headline (\`${P.head}\`)`);
+    check(/^floor \d+ (\d+%|<\d+%|>\d+%)$/.test(P.head), `the panel's head is the forecast's one headline (\`${P.head}\`)`);
     check(P.stance === "Steady L3" && P.bar && P.bar !== "0%", `the worn stance's chip \`Steady L3\` and its level bar (${P.stance}, ${P.bar})`);
-    check(P.alts.length >= 2 && P.alts.every((a) => a.price.length === 1 && /^(death|past|bank) [+−]\d+$|^$/.test(a.price[0])), `each other stance priced in one line, nothing inside the noise (${P.alts.map((a) => `${a.name} · ${a.price.join("|")}`).join(", ")})`);
+    check(P.alts.length >= 2 && P.alts.every((a) => a.price.length === 1 && /^(deaths|deeper|full haul) [+−]\d+$|^$/.test(a.price[0])), `each other stance priced in one line, nothing inside the noise (${P.alts.map((a) => `${a.name} · ${a.price.join("|")}`).join(", ")})`);
     const rank = (c) => (/ up/.test(c) ? 2 : / down/.test(c) ? 0 : 1);
     const ordered = (xs) => xs.every((x, i) => i === 0 || rank(xs[i - 1]) >= rank(x));
     check(ordered(P.alts.map((a) => a.cls)) && ordered(P.tPrices.map((x) => x.cls)) && / up/.test(P.alts[0].cls), `the best move leads each kind, a loss last (stances ${P.alts.map((a) => a.price[0]).join(" · ")}; tactics ${P.tPrices.map((x) => x.t).join(" · ")})`);
@@ -109,13 +113,15 @@ try {
     check(P.tactic === 1 && P.tAlts >= 1, `one tactic slot at the Warlord slain, the tactics to wear (${P.tactic} slot, ${P.tAlts} tactics)`);
     check(!P.temper, `no temperament before heir 3 (${P.temper})`);
     check(P.shadow.length >= 1 && P.shadow.every((s) => /^\S.* wins$/.test(s)), `a shadowed row greyed with its winner (${P.shadow.join(", ")})`);
-    check(P.drills.some((d) => /drill · warlord/.test(d)), `the Warlord's drill shown (${P.drills.join(", ")})`);
-    await page.click(".pkg-sec[data-kind=\"stance\"] .pkg-rows-btn, .pkg-rows-btn").catch(() => undefined);
+    check(P.drills.some((d) => /counter · warlord/.test(d)), `the Warlord's drill shown (${P.drills.join(", ")})`);
+    await page.click('.pkg-advanced > summary');
+    await page.click('.pkg-rows-btn');
     await shot("packages");
     // equip: free and instant
     const g0 = await page.evaluate(() => window.__riddle.lineage.gold);
     // (a wall-clock reading: on a loaded machine it is taken once more, back from Steady — tests/lib/load.mjs)
     const wear = async (id, name) => {
+      if (!(await page.locator('.pkg-sec[data-kind="stance"] .pkg-choices').isVisible())) await page.click('[data-change-kind="stance"]');
       const t0 = Date.now();
       await page.click(`.pkg-sec[data-kind="stance"] .chip.pkg.alt[data-pkg="${id}"]`);
       await until((a) => window.__riddle.lineage.packages.stance === a.id && document.querySelector('.pkg-sec[data-kind="stance"] .pkg-slot .chip.pkg.on .pkg-name')?.textContent === a.name, `${name} worn`, 20_000, { id, name });
@@ -125,10 +131,12 @@ try {
     const g1 = await page.evaluate(() => window.__riddle.lineage.gold);
     check(g1 === g0 && eq.ok, `equipping is free and instant ($${g0} → $${g1}, ${eq.line})`);
     // a tactic worn in its slot
+    await page.click('[data-edit-slot="0"]');
     await page.click('.pkg-sec[data-kind="tactic"] .chip.pkg.alt');
     const tw = await until(() => window.__riddle.lineage.packages.tactics?.length === 1 && document.querySelector('.pkg-sec[data-kind="tactic"] .chip.pkg.on .pkg-name')?.textContent, "a tactic worn");
     check(/ L\d$/.test(tw), `a tactic worn reads \`<name> L<n>\` (${tw})`);
     // revoke the drill: one tap, it stays
+    if (!(await page.locator('.pkg-advanced').evaluate(e=>e.open))) await page.click('.pkg-advanced > summary');
     await page.click(".pkg-drill .drill");
     const rv = await until(() => window.__riddle.lineage.packages.drills?.find((d) => d.boss === "goblin_warlord")?.revoked === true && document.querySelector(".pkg-drill.revoked") ? true : null, "the drill revoked");
     check(rv, `a drill revoked with one tap stays revoked`);
@@ -137,6 +145,7 @@ try {
     await withState((e) => { e.lineage.heir = 3; });
     await page.click(`.cmd .tile[data-tile="packages"]`);
     await until(() => !!document.querySelector('.pkg-sec[data-kind="temperament"]'), "the temperament slot");
+    if (await page.locator('[data-change-kind="temperament"]').count()) await page.click('[data-change-kind="temperament"]');
     const cards = await page.evaluate(() => [...document.querySelectorAll(".chip.pkg.temper")].map((c) => c.dataset.pkg));
     await page.click(`.chip.pkg.temper[data-pkg="${cards[1]}"]`);
     const picked = await until(() => window.__riddle.lineage.packages.temperament, "a temperament picked");
@@ -248,7 +257,7 @@ try {
     const dt = await page.evaluate(() => { const r = window.__riddle; const rep = r.lastReport ?? null; return document.querySelector('.report-sheet .tile.plaque[data-k="deaths"]')?.textContent ?? ""; });
     out.push(`note the deaths tile on Steady: ${dt.replace(/\s+/g, " ").trim()}`);
     const R = await page.evaluate(() => { const s = document.querySelector(".report-sheet"); const first = [...s.children].find((c) => c.offsetParent !== null); return { first: first?.className, lines: [...s.querySelectorAll(".grew-line")].map((l) => l.textContent), beats: [...s.querySelectorAll(".beat-plaque")].map((b) => b.textContent) }; });
-    check(R.first === "grew" && R.lines.length >= 1, `the report leads with what grew (${R.first}: ${R.lines.join(" | ")})`);
+    check(R.first === "report-summary" && R.lines.length >= 1, `the report leads with the summary; growth remains in details (${R.first}: ${R.lines.join(" | ")})`);
     await shot("report");
     const M = await page.evaluate(async () => {
       const { mergeGrew } = await import("/src/app.ts");

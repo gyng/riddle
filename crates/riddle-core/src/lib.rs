@@ -197,6 +197,9 @@ impl Game {
     pub fn package_options(&self, sims: u32) -> Vec<packages::PkgOption> {
         packages::options(self, sims)
     }
+    pub fn package_options_key(&self, sims: u32) -> String {
+        packages::options_key(self, sims)
+    }
     /// Cut 30 §3: bank a deposit (capped); the gold moved.
     pub fn bank_deposit(&mut self, amount: i32) -> Result<i32, String> {
         let n = town::deposit(&mut self.lineage, amount)?;

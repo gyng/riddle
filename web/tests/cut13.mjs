@@ -377,7 +377,7 @@ try {
   check(chipsQ.some((c) => c.text === "alert rises · cond alert ≥") && !chipsQ.some((c) => /:/.test(c.text)), `alert:rising reads with a dot: ${chipsQ.map((c) => `"${c.text}"`).join(", ")}`);
   await shot("11-report-chips");
   await page.evaluate(() => document.querySelector('.report .details-fold[aria-expanded="false"]')?.click());   // Cut 28 §2: the ledger folds under `details`
-  await page.locator(".report .exit-lines .chip.mini", { hasText: /\btrace$/ }).first().click({ timeout: 5000 }); await sleep(200);   // Cut 14 §4: the chip reads `D5 · died · trace`
+  await page.locator(".report .exit-lines .chip.mini", { hasText: /\blog$/ }).first().click({ timeout: 5000 }); await sleep(200);   // Cut 14 §4: the chip reads `D5 · died · trace`
   const traceSheet = await page.evaluate(() => {
     const w = document.querySelector(".sheet-wrap"); if (!w) return null;
     return { head: w.querySelector(".trace-head")?.textContent ?? null, rows: [...w.querySelectorAll(".chain-row")].map((r) => r.textContent.replace(/\s+/g, " ").trim()) };

@@ -66,7 +66,8 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   closers.set(wrap, close);
   if (parent) { parentOf.set(wrap, parent); parent.hidden = true; parent.classList.add("under"); }
   wrap.appendChild(panel);
-  panel.appendChild(build(close));
+  const content = build(close);
+  panel.appendChild(content);
   // Cut 17 §2: every sheet is a panel with a close stud (×) top-right — its own `closeX` when the body carries one
   if (!panel.querySelector(".sheet-x")) panel.prepend(stud(close));
   if (parent) {
@@ -84,13 +85,13 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   if (beside) {
     const place = (): void => { if (beside.isConnected) placeWide(wrap, panel, beside); };
     place();
-    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(panel.firstElementChild ?? panel); }
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(content instanceof Element ? content : panel); }
     if (anchor) anchor.classList.add("sheet-anchor");
   } else if (anchor && anchor.isConnected) {
     anchor.classList.add("sheet-anchor");
     const place = (): void => { if (anchor.isConnected) placeBeside(wrap, panel, anchor); };
     place();
-    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(panel.firstElementChild ?? panel); }
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(content instanceof Element ? content : panel); }
     // Cut 29 (cut23's flake: the camp repainted under an open verb sheet — a line above the rows went, R1 rose 63 px — and the
     // sheet hung above R1 covered it): re-placed whenever its anchor moves, while it is open
     let last = anchor.getBoundingClientRect().top;

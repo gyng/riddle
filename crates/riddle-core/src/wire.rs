@@ -1534,6 +1534,8 @@ pub struct QuestWire {
 pub struct PackageWire {
     pub id: String,
     pub name: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub description: String,
     pub kind: String,
     pub level: u32,
     pub runs: u32,

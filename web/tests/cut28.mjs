@@ -57,7 +57,7 @@ try {
   await withLineage((L) => { L.gold = 2000; L.best_depth = Math.max(L.best_depth, 9); L.heir = Math.max(L.heir, 2); });
   await camp();
   const tab = await until(() => { const t = document.querySelector(".oath-tab:not([hidden])"); return t ? t.textContent.replace(/\s+/g, " ").trim() : null; }, "the oath tablet");
-  check(/^oaths 3$/.test(tab.replace(/^\S*\s*/, "")) || /oaths\s*3/.test(tab), `the first wall (the Warlord's floor) carves the oath tablet ("${tab}")`);
+  check(/^challenges 3$/.test(tab.replace(/^\S*\s*/, "")) || /challenges\s*3/.test(tab), `the first wall (the Warlord's floor) carves the oath tablet ("${tab}")`);
   await page.click(".oath-tab");
   await page.waitForSelector(".sheet-wrap .oath-board", { timeout: 5000 });
   await sleep(200);
@@ -86,7 +86,7 @@ try {
   check(gold0 - gold1 === price, `swearing pays its price ($${gold0} → $${gold1}, price $${price})`);
   // Cut 28b: the sworn tablet shows the stake's fate (`$130 · 0/1`) and what forswearing returns (`forswear +$65`)
   const fate = await until(() => { const t = document.querySelector(".sheet-wrap .oath.tablet.sworn"); return t ? { fate: t.querySelector(".oath-fate")?.textContent.replace(/\s+/g, " ").trim() ?? "", fs: t.querySelector(".chip.forswear")?.textContent.trim() ?? "" } : null; }, "the sworn tablet");
-  check(fate.fate.startsWith(`$${price} · 0/1`) && fate.fs === `forswear +$${Math.floor(price / 2)}`, `the sworn tablet shows the stake's fate and the refund ("${fate.fate}", "${fate.fs}")`);
+  check(fate.fate.startsWith(`$${price} · 0/1`) && fate.fs === `cancel +$${Math.floor(price / 2)}`, `the challenge shows the stake's fate and the refund ("${fate.fate}", "${fate.fs}")`);
   await page.keyboard.press("Escape"); await sleep(200);
   const onShaft = await until(() => { const s = document.querySelector(".shaft .shaft-oath .oath-share:not(.pending)"); return s ? { shaft: document.querySelector(".shaft .shaft-oath").textContent.replace(/\s+/g, " ").trim(), tab: document.querySelector(".oath-tab").textContent.replace(/\s+/g, " ").trim(), sworn: document.querySelector(".oath-tab").classList.contains("sworn") } : null; }, "the oath's share on the shaft", 15_000);
   check(/\d+%|<\d+%/.test(onShaft.shaft), `the sworn oath rides the shaft with its share ("${onShaft.shaft}")`);
@@ -105,7 +105,7 @@ try {
 
   // Cut 28b: the oath's fate as the watch beats it, from the core's event
   const beats = await page.evaluate(async () => { const m = await import("/src/ui/oaths.ts"); return [m.oathBeat({ kept: true, row: 2, cause: "tame" }), m.oathBeat({ kept: false, row: 1, cause: "return" }), m.oathBeat({ kept: false, row: -1, cause: "rest" })]; });
-  check(beats.join(" | ") === "OATH KEPT | OATH BROKEN · return | OATH BROKEN · rest", `the watch says the oath's fate (${beats.join(" | ")})`);
+  check(beats.join(" | ") === "CHALLENGE COMPLETE | CHALLENGE FAILED · return | CHALLENGE FAILED · rest", `the watch says the oath's fate (${beats.join(" | ")})`);
 
   // ---- §2: a run whose state changed — the state's line, no row edited, no scene
   await page.evaluate(() => { window.__riddle.watchMode = "fast"; });
@@ -150,7 +150,7 @@ try {
   const dbg = await page.evaluate(() => ({ oath: window.__riddle.lineage.oath, view: JSON.stringify(window.__riddle.view?.report?.lead ?? null), ro: JSON.stringify(window.__riddle.view?.report?.oath ?? null) }));
   if (!rep.lead.length) out.push(`note: ${JSON.stringify(dbg)}`);
   check(rep.lead.length >= 1 && rep.lead[0].k === "oath", `the report leads with a decision, the oath first (${rep.lead.map((l) => `${l.k}: ${l.text}`).join(" · ")})`);
-  check(!!rep.oath && /kept \d+\/\d+/.test(rep.oath) && rep.oathAt >= 0 && rep.oathAt < rep.foldAt, `the oath's tablet is above the fold with its tally ("${rep.oath}")`);
+  check(!!rep.oath && /kept \d+\/\d+/.test(rep.oath) && rep.inDetails.includes("challenge"), `the challenge keeps its tally in Details ("${rep.oath}")`);
   check(rep.hidden === true && /details$/.test(rep.fold ?? ""), `the ledger is folded under \`details\` (hidden ${rep.hidden}, "${rep.fold}")`);
   const LEDGER = ["salvaged", "bones", "spent", "found", "kept", "reel", "stolen", "shelved", "renown"];
   check(rep.above.every((s) => !LEDGER.includes(s)) && rep.exitsFolded, `no ledger section above the fold (above: ${rep.above.join(", ") || "none"}; folded: ${rep.inDetails.join(", ")})`);
@@ -169,12 +169,13 @@ try {
   await camp();
 
   // ---- §4: the class picker opens from the portrait while the wake's class chips stand
-  await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, heir: Math.max(2, r.lineage.heir), class_offer: [{ class: r.lineage.class, signature: "shield_bash", level: 1, opens: 1 }, { class: "rogue", signature: "vanish", level: 1, opens: 1 }] }; r.go({ kind: "camp" }); });
+  await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, live: null, heir: Math.max(2, r.lineage.heir), class_offer: [{ class: r.lineage.class, signature: "shield_bash", level: 1, opens: 1 }, { class: "rogue", signature: "vanish", level: 1, opens: 1 }] }; r.go({ kind: "camp" }); });
   await camp();
-  const pr = await page.evaluate(() => { const p = document.querySelector(".console .portrait"); return { tag: p?.tagName, chips: document.querySelectorAll(".classes-offer .chip").length }; });
-  await page.click(".console .portrait", { position: { x: 30, y: 30 } });
+  await page.click('.town-hit[data-building="tent"]');
+  check(await page.locator('.hero-class').isEnabled(), 'hero Details offers Change class');
+  await page.click('.hero-class');
   const sheet = await page.waitForSelector(".sheet-wrap .classes", { timeout: 3000 }).then(() => true).catch(() => false);
-  check(pr.tag === "BUTTON" && pr.chips >= 2 && sheet, `the portrait opens the class picker beside the wake's chips (${pr.tag}, ${pr.chips} chips, sheet ${sheet})`);
+  check(sheet, 'Change class opens the class picker from hero Details');
 } catch (e) {
   check(false, `threw: ${e.message}`);
 }

@@ -229,7 +229,7 @@ function reachSpan(p: Patch, stallish = false, base?: BaseAt): HTMLElement {
   // why it survives more and still does not lead
   const w0 = p.whole, cost = exits && w0 && !p.camp_pending && w0.reach_from !== undefined && w0.reach_to !== undefined && w0.reach < 0 && Math.abs(w0.reach) > w0.reach_pm
     ? h("span", { class: "exit-cost down" }, /* copy:callout */ ` · reach D${w0.depth ?? p.forecast_depth ?? ""} ${Math.round(w0.reach_from * 100)}→${Math.round(w0.reach_to * 100)}%`) : "";
-  if (exits) return h("span", { class: "num delta exit early" }, p.row.verb.v === "bank" ? /* copy:callout */ "bank early" : /* copy:callout */ "return early", cost);
+  if (exits) return h("span", { class: "num delta exit early" }, p.row.verb.v === "bank" ? /* copy:callout */ "secure early" : /* copy:callout */ "return early", cost);
   if (p.camp_pending) return h("span", { class: "num delta pending" }, /* copy:callout */ "reach …");
   const delta = Math.round(p.forecast_delta * 100);
   // QA 524827b: a move's ± is the paired one (`PatchWhole.reach_pm`, the camp's `vs sent` measure) once the whole run is measured

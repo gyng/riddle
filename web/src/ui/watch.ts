@@ -2022,8 +2022,8 @@ export function renderWatch(app: App): Mounted {
       const grace = h("div", { class: "grace" }, bar);
       requestAnimationFrame(() => requestAnimationFrame(() => { if (frozen()) graceHold(); else bar.style.width = "0%"; }));
       // the three-item room is the cage to the player (the core's `twist_word`; QA on 3d71c33: "a sheet titled VAULT")
-      return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "cage"),
-        full ? h("div", { class: "vault-full dim num" }, /* copy:callout */ "vault full → sold") : "", chips, grace);
+      return h("div", { class: "sheet-body vault-choice" }, h("div", { class: "label row-label" }, /* copy:label */ "loot choice"),
+        full ? h("div", { class: "vault-full dim num" }, /* copy:callout */ "storage full → sold") : "", chips, grace);
     }, { modeless: true });
     paintCard(frame); applySpeed();
   }
@@ -2112,7 +2112,7 @@ export function renderWatch(app: App): Mounted {
         // Cut 29 §4: a settled exit says its one line (`kept leather +1`); with nothing new kept it says nothing unless the vault is full
         const full = vaultSlots(app.lineage.unlocks) <= app.lineage.vault.length;
         if (settledNote || inVault.length || full) {
-          showBanner(settledNote ?? (inVault.length ? /* copy:callout */ `${inVault.join(", ")} → vault` : /* copy:callout */ "vault full"), VAULT_FULL_MS, "rest keep-note");
+          showBanner(settledNote ?? (inVault.length ? /* copy:callout */ `${inVault.join(", ")} → storage` : /* copy:callout */ "storage full"), VAULT_FULL_MS, "rest keep-note");
           await new Promise((r) => setTimeout(r, VAULT_FULL_MS));
         }
       }
@@ -2234,7 +2234,7 @@ export function renderWatch(app: App): Mounted {
           if (keep.has(it.id)) keep.delete(it.id);
           else { if (keep.size >= free) { const oldest = keep.values().next().value; if (oldest === undefined) return; keep.delete(oldest); } keep.add(it.id); }
           paint();
-        } }, itemIcon(it, { size: "s" }), itemName(it), " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "vault") : unpaid ? "" : h("b", { class: "num gold" }, `$${worthOf(i)}`))));   // the engine's worth at this exit (its old client table read 4×)
+        } }, itemIcon(it, { size: "s" }), itemName(it), " ", /* QA 1a2a4a9 (P: "`axe ⌂` — what ⌂ means"): a kept pick reads where it goes */ keep.has(it.id) ? h("b", null, "→ ", /* copy:label */ "stored gear") : unpaid ? "" : h("b", { class: "num gold" }, `$${worthOf(i)}`))));   // the engine's worth at this exit (its old client table read 4×)
       };
       paint();
       // the pile once: the exit line carries `bones: 8 items on D4` (the core's), so the client's `bones left` line only stands in
@@ -2251,7 +2251,7 @@ export function renderWatch(app: App): Mounted {
       const trace = tr?.turns.length ? h("button", { class: "chip mini", onclick: () => {
         if (!traceBox.childElementCount) traceBox.append(...traceTable(tr, { rows: app.rules.rows, runId, home: p.tier !== "death", provenance: true }, EXIT_TRACE_ROWS));
         traceBox.hidden = !traceBox.hidden;
-      } }, /* copy:button */ "trace") : null;
+      } }, /* copy:button */ "decision log") : null;
       // the sheet counts picks against free slots, so its label is `keep 0/1`, not the camp's `vault 1/2` (QA on e0f87e7:
       // "VAULT 0/1 while camp shows VAULT 1/2 · same counter")
       // QA 23ed91f (K: "`$5`, `$4`, `$1` on each item: a cost to keep, or a sale price?" and the report's SALVAGED listed `mapping ·

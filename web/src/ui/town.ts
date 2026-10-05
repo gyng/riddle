@@ -35,12 +35,12 @@ export type TownHooks = {
   quest(anchor: HTMLElement): void;
 };
 /* copy:label */
-const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "pack", blacksmith: "blacksmith", storehouse: "storehouse", kennel: "kennel", bank: "savings", staked: "next plot", board: "quest board", chest: "chest", worker: "next worker" };
+const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "supplies", blacksmith: "blacksmith", storehouse: "stored gear", kennel: "companions", bank: "savings", staked: "next plot", board: "quest board", chest: "chest", worker: "next worker" };
 /** a building's tile on the bar: its id (the old console ids, kept: tests and badges key on them), icon and word */
 /* copy:button */
 export const BUILDING_TILE: Record<BuildingId, { id: string; icon: string; label: string; glyph: string }> = {
-  blacksmith: { id: "forge", icon: "forge", label: "forge", glyph: "⚒" }, storehouse: { id: "vault", icon: "vault", label: "vault", glyph: "▣" },
-  kennel: { id: "party", icon: "party", label: "kennel", glyph: "🐾" }, bank: { id: "bank", icon: "gold", label: "savings", glyph: "$" },
+  blacksmith: { id: "forge", icon: "forge", label: "forge", glyph: "⚒" }, storehouse: { id: "vault", icon: "vault", label: "stored gear", glyph: "▣" },
+  kennel: { id: "party", icon: "party", label: "companions", glyph: "🐾" }, bank: { id: "bank", icon: "gold", label: "savings", glyph: "$" },
 };
 /** the buildings standing, in build order (null: a lineage with no town on the wire — the old console reveal stands) */
 export const townBuilt = (L: Lineage): BuildingId[] | null => L.town ? L.town.buildings.map((b) => b.id).filter((id): id is BuildingId => (BUILDINGS as readonly string[]).includes(id)) : null;
@@ -56,7 +56,8 @@ export type TownUi = { el: HTMLElement; view: TownView; paint(): void; send(afte
 export function renderTown(app: App, hooks: TownHooks): TownUi {
   const el = h("div", { class: "town" });
   const hits = h("div", { class: "town-hits" });
-  const tag: HTMLButtonElement = h("button", { class: "town-tag num", hidden: true, "aria-live": "polite", onclick: () => { const plot = state?.staked; if (plot?.ready && app.engine.buildTown) void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build"); } });
+  const buildPlot = (): void => { const plot = state?.staked; if (plot?.ready && app.engine.buildTown) void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build"); };
+  const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite", onclick: buildPlot, onkeydown: (e: Event) => { const k = e as KeyboardEvent; if (state?.staked?.ready && (k.key === "Enter" || k.key === " ")) { k.preventDefault(); buildPlot(); } } });
   // Cut 30.5: the `next` pill rides the scene's top-left (the home screen's one goal); a tap opens the works on its node
   const pill = nextPill(app, (node, at) => openWorks(app, node, at));
   kwHost(pill.el, "next");   // docs/TOOLTIPS.md: its tip on long-press / hover
@@ -147,9 +148,10 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       const ce = b.querySelector(".town-count"); if (cnt) { if (ce) ce.textContent = cnt; else b.appendChild(h("span", { class: "town-count num" }, cnt)); } else ce?.remove();
     }
     // c30-legible: the staked plot always wears its tag — what it becomes and what raises it (`kennel · first tame`), not only on tap
-    if (s.staked && (s.stage >= 1 || s.staked.ready)) { replace(tag, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, s.staked.id), s.staked.id === "house" ? h("small", { class: "dim" }, /* copy:label */ " · Free") : s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
+    if (s.staked && (s.stage >= 1 || s.staked.ready)) { replace(tag, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, LABEL[s.staked.id] ?? s.staked.id), s.staked.id === "house" ? h("small", { class: "dim" }, /* copy:label */ " · Free") : s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : ""); tag.hidden = false; tag.dataset.next = s.staked.id; }
     else tag.hidden = true;
-    tag.disabled = !s.staked?.ready || !app.engine.buildTown;
+    if (s.staked?.ready && app.engine.buildTown) { tag.setAttribute("role", "button"); tag.tabIndex = 0; }
+    else { tag.removeAttribute("role"); tag.removeAttribute("tabindex"); }
     layout();
   }
   function layout(): void {
@@ -182,7 +184,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       const s = state?.staked; if (!s) return;
       if (s.ready && app.engine.buildTown) { void app.mutate(() => app.engine.buildTown!(s.id), /* copy:callout */ "build"); return; }
       // the next building and what raises it (`kennel · first tame`): always shown (c30-legible); a tap flashes it
-      replace(tag, h("b", null, s.id), s.trigger ? h("span", { class: "dim" }, ` · ${s.trigger}`) : "");
+      replace(tag, h("b", null, LABEL[s.id] ?? s.id), s.trigger ? h("span", { class: "dim" }, ` · ${s.trigger}`) : "");
       tag.hidden = false; placeTag(); tag.classList.add("flash"); clearTimeout(tagTimer); tagTimer = window.setTimeout(() => { tag.classList.remove("flash"); }, 1200);
       return;
     }

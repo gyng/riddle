@@ -70,7 +70,7 @@ export function nextPill(app: App, anchorOpen: (node?: string, at?: HTMLElement)
     const W = app.lineage.tree;
     if (!W) { el.hidden = true; return; }
     const p = W.next ?? { kind: "none", text: "" };
-    const text = p.text || /* copy:label */ "works";
+    const text = p.text || /* copy:label */ "workers";
     const node = W.nodes.find((n) => n.id === p.node);
     const frac = p.kind === "buy" || p.kind === "chest" ? 1 : p.have !== undefined && p.need ? Math.max(0, Math.min(1, p.have / p.need)) : undefined;
     const key = JSON.stringify([p, text]);
@@ -138,7 +138,7 @@ export function openWorks(app: App, focus?: string, anchor?: HTMLElement | null)
           h("small", { class: "wb-name" }, trackName(t)), h("b", { class: "wb-now" }, now?.name ?? ""),
           nx ? h("small", { class: "wb-next num" }, /* copy:callout */ `next · ${nx.name}${nx.trigger ? ` · ${nx.trigger}` : ""}`) : h("small", { class: "wb-next dim" }, "✓"));
       })) : "";
-      replace(body, h("div", { class: "label row-label" }, kw("works", /* copy:label */ "works")),
+      replace(body, h("div", { class: "label row-label" }, kw("works", /* copy:label */ "workers")),
         // (a rank on offer takes the second silhouette's place: the sheet stays ≤ 7 nodes on a phone)
         h("div", { class: "works-trunk" }, ...v.next.slice(0, rankCard ? 1 : 2).reverse().map(sil), v.focus ? card(v.focus) : "", rankCard, done), branches);
       const f = focus && body.querySelector<HTMLElement>(`.wnode[data-node="${focus}"]`);

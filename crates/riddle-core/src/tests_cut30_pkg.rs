@@ -1238,3 +1238,35 @@ fn equivalent_package_prices_keep_each_slot_and_purchase() {
         assert_eq!(packages::options(&g, 2), options, "a warm base cache preserves every choice and its order");
     });
 }
+
+#[test]
+fn package_query_key_tracks_prices_and_simulation_inputs() {
+    let g = Game::new_resident(7);
+    let saved = g.save();
+    let key = packages::options_key(&g, 24);
+    assert_eq!(g.save(), saved, "key calculation is read-only");
+    let mut c = g.sim_clone();
+    c.set_look("cat").unwrap();
+    c.lineage.rest_left += 10;
+    c.lineage.bloodline.as_mut().unwrap().points += 100;
+    c.lineage.sets[0].name = Some("renamed".into());
+    assert_eq!(packages::options_key(&c, 24), key, "cosmetics, clock and unspent Legacy do not change prices");
+    assert_eq!(packages::options(&g, 2), packages::options(&c, 2));
+    assert_ne!(packages::options_key(&g, 25), key, "simulation count belongs to the query");
+    let changes: [fn(&mut Game); 8] = [
+        |c| c.lineage.seed += 1,
+        |c| c.lineage.heir += 1,
+        |c| c.lineage.gold += 1,
+        |c| c.lineage.best_depth += 1,
+        |c| { c.lineage.bloodline.as_mut().unwrap().upgrades.insert("health".into(), 1); },
+        |c| { c.lineage.pkg.owned.insert("guarded".into()); },
+        |c| c.lineage.marks = 100,
+        |c| c.lineage.sets[0].rows.clear(),
+    ];
+    for (i, change) in changes.into_iter().enumerate() {
+        let mut c = g.sim_clone(); change(&mut c);
+        assert_ne!(packages::options_key(&c, 24), key, "changed query input {i}");
+    }
+    let mut c = g.sim_clone(); c.loadout.push(123);
+    assert_ne!(packages::options_key(&c, 24), key, "loadout belongs to the query");
+}
