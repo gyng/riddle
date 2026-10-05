@@ -15,18 +15,15 @@ scratchpad/legacy-upgrades-20261005/public-timing.*; UX_BLOODLINES.md.
 
 Next, in impact order:
 
-1. **Core compilation.** Re-establish a warm core edit/restore baseline on the
-   new source, then compare fast-profile codegen units32/64 against16. The
-   previous source took27.04s in Cargo (frontend2.84s, codegen24.20s),28.125s
-   edit-to-ready; adapter-only2.24s is a different workload. Keep shipping
-   settings separate. Measure saved-camp simulation/forecast runtimes and
-   compare complete outputs/raw saves before retaining faster compilation;
-   report runtime tradeoffs, no compile-only speedup claim.
-   Include one/two/three bloodline catch-up and exact shared-wallet/selection
-   comparisons. Measure on a quiet machine; do not overlap GPU timing gates
-   with compiler experiments. Diagnose the observed missing-rlib race between
-   native auto-rebuild and gate fingerprinting before automating overlapping
-   rebuilds; never fall back to a guessed cache key.
+1. **Core compilation — measured improvement retained.** Keep opt3/CGU16;
+   omit debug information by default, with explicit line-level profiling builds
+   documented in NATIVE_DEV.md. Warm equivalent body edits fell25.696→9.396s;
+   restores26.006→9.259s. All nine complete saved-camp/multihero outputs match;
+   runtime differences remain within5%. CGU32/64 were slower; opt2 hurt late
+   simulation throughput. See PERF_COMPILE.md for evidence and acceptance.
+   Fast WASM already used debug0; shipping settings are unchanged. Diagnose
+   the missing-rlib race between native auto-rebuild and gate fingerprinting
+   before automating overlapping builds; never use a guessed cache key.
 2. **Work inside simulations.** Profile current expensive package/forecast
    cases again, then reduce repeated vision/pathfinding work with the LOS
    oracle and exact saved-camp comparisons. Prior clipped-vision and stack

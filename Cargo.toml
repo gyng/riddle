@@ -15,7 +15,8 @@ inherits = "release"
 lto = false
 codegen-units = 16
 incremental = true
-debug = 1
+# Opt in to line-level profiling with CARGO_PROFILE_FAST_DEBUG=1 and a separate target directory.
+debug = 0
 
 # `cargo test` (debug) still optimises the sim crate so heavy tests do not crawl.
 [profile.dev.package.riddle-core]

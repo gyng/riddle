@@ -33,9 +33,21 @@ Quiet public8h catch-up fixture (seed1,10000 gold,scout):1/2/3 heroes16/32/49
 runs262/404/602ms. Exact native/public saves match each case. Single samples,
 early fixture, engine-call timings only. See UX_BLOODLINES.md.
 Public GPU walk9 dumps31.8s, no console/page errors;2 WebGL driver warnings.
-Next work stays in impact order in ITERATION_SPEED.md: warm core edit/restore,
-CGU32/64 versus16 with exact-output and runtime comparisons; then refreshed
-expensive simulation/search profiling. No compiler-profile change has landed.
+Native compiler follow-through: warm equivalent core edit25.696→9.396s,
+restore26.006→9.259s by defaulting fast.debug=0, retaining opt3/CGU16.
+Actual dev watcher ready9.475–9.744s across two edit/restore pairs. CGU32/64
+were slower; opt2 hurt late simulation speed. All nine complete saved-camp/
+multihero outputs match and measured runtimes stay within5%. Line-level CPU
+profiling is explicitly available with debug1 in a separate target; see
+NATIVE_DEV.md and PERF_COMPILE.md. Fast WASM already omitted debug info.
+Shipping release settings and local packaged WASM bytes are unchanged.
+Native-profile acceptance PASS:536 core tests/1ignored,14 recovery tests,
+11 tooling, tsc/copy/clippy/shipping build; fresh routine FULL571s with all18
+selected player cases PASS. Native/shipping58 complete replies match. This is
+not a full-suite speedup claim. Evidence and profiling tradeoff:PERF_COMPILE.md.
+Next work stays in impact order in ITERATION_SPEED.md: refreshed expensive
+simulation/search profiling. Do not weaken simulation budgets or overlap
+compiler benchmarking with GPU measurements.
 
 **PREVIOUS PUBLISHED OWNER UX — 2026-10-05:** Empty town → free house → hero arrives →
 Send is implemented. Read docs/UX_FIRST_HOME.md; it supersedes the old fresh-Send

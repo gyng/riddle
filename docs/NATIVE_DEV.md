@@ -28,6 +28,21 @@ The bridge is generated directly from shipping bindings; unknown signatures
 fail closed. Run `node tools/native-codegen.mjs` after bridge edits. The client
 checks the compiled bridge hash at boot and requests a rebuild when it is stale.
 
+## Line-level CPU profiling
+
+The normal fast profile omits debug information. On the current core, an
+equivalent warm body edit/restore rebuild took about9s instead of26s, with
+identical complete simulation outputs (docs/PERF_COMPILE.md). Simulation
+optimization remains level3. Fast WASM already omitted this information;
+shipping release settings are unchanged.
+
+Enable line tables explicitly when profiling. A separate target directory
+keeps profiling artifacts apart from the dev server and gate builds:
+
+```sh
+CARGO_PROFILE_FAST_DEBUG=1 CARGO_TARGET_DIR=target/profile-lines cargo build --profile fast -p riddle-core --example sim_perf
+```
+
 ## Numerical tuning without compilation
 
 Copy the complete Rust-owned template, then use a separate port:
