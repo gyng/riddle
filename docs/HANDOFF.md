@@ -16,8 +16,15 @@ and1.04/3.51% lower, below2% each; all36 complete outputs match per probe.
 Requested allocation bytes−18%/−65% are cumulative traffic, not live memory or
 proven latency wins. Production pathfinding unchanged; PERF_PATHFIND.md.
 Next count duplicate whole forecast panels/sims and derive a Rust-owned query
-fingerprint before reusing results across refreshed snapshots. Publication
-checkpoint is pending; existing publication approval remains valid.
+fingerprint before reusing results across refreshed snapshots. Published
+source76a75ae, Pages37295295222 SUCCESS: public HTML/JS/WASM exactly match CI;
+public real-controls10/10 checks400/1440 pass, no page errors; screenshots shown
+inline. The same healthy publication finished after the initial poll deadline.
+Equivalent-panel diagnostic finds16/14,38/24,17/16 requested/unique panels on
+early/late/tuned camps. Isolated query-local grouping screen:36 complete outputs
+match; package medians12/36/8% lower, offline within5%. Longer seven-pair and
+native worker/cache proofs remain pending; production core is unchanged.
+Read PERF_PACKAGE_PANELS.md. Existing publication approval remains valid.
 
 **CURRENT OWNER FOLLOW-UP — 2026-10-05:** Legacy is spendable hero-upgrade
 currency. Read docs/UX_LEGACY_UPGRADES.md (supersedes the no-spending and old

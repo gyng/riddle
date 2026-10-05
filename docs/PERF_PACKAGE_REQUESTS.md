@@ -41,4 +41,13 @@ This uses conservative snapshot invalidation: a new lineage object can cause a
 fresh read even if the refreshed fields are irrelevant to simulation. Do not
 reuse across refreshes using another client-side projection. A future Rust-owned
 package query fingerprint must include candidate/price inputs as well as panel
-inputs before broader reuse is safe. Publication acceptance follows.
+inputs before broader reuse is safe.
+
+Published source76a75ae, Pages37295295222 SUCCESS. Public HTML, entry JavaScript
+and WASM match the CI artifact byte for byte; WASM remains3adfbebe739b0b468f94a1ab0c7a5f0ee3000cde97fd421a54af335e23e18bef.
+Public real-controls checks10/10 pass at400/1440, including pending-query reuse,
+completed-query reuse and actual Legacy purchase invalidation; no page errors.
+Both public screenshots shown inline. Evidence:public-proof/proof.json and
+public-ui/proof.json under scratchpad/flood-perf-20261005. The first artifact
+poll reached its local deadline during the healthy release build; resumed
+verification of the same CI run succeeded, without restarting publication.
