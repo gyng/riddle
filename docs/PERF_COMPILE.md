@@ -61,3 +61,10 @@ WASM remains byte-identical to the prior local release:
 a1974e7382cfaae5cc4acef14312d37fc16b27fe9170ad13a28e630eca899caf.
 Evidence: scratchpad/compile-20261005/{verify-full.log,dayplayer.log,parity.json}.
 The full acceptance time is not a suite speedup measurement.
+
+Publication:source08f764a, Pages37289223600 SUCCESS. Public index and WASM
+match the actual CI artifact bytes. Entire shipping site matches the previously
+accepted bloodline-release CI artifact byte-for-byte, so its94 public UI checks
+remain applicable. Public WASM (CI toolchain, separate from local builds):
+3adfbebe739b0b468f94a1ab0c7a5f0ee3000cde97fd421a54af335e23e18bef.
+Private evidence:scratchpad/compile-20261005/public-proof/{proof.json,artifact}.

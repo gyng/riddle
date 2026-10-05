@@ -44,7 +44,10 @@ Shipping release settings and local packaged WASM bytes are unchanged.
 Native-profile acceptance PASS:536 core tests/1ignored,14 recovery tests,
 11 tooling, tsc/copy/clippy/shipping build; fresh routine FULL571s with all18
 selected player cases PASS. Native/shipping58 complete replies match. This is
-not a full-suite speedup claim. Evidence and profiling tradeoff:PERF_COMPILE.md.
+not a full-suite speedup claim. Published08f764a, Pages37289223600 SUCCESS.
+Public index/WASM match CI exactly; entire site matches the previously accepted
+bloodline-release artifact byte-for-byte. Public WASM remains3adfbebe…6bef;
+the94 public UI checks remain applicable. Evidence:PERF_COMPILE.md.
 Next work stays in impact order in ITERATION_SPEED.md: refreshed expensive
 simulation/search work. Current named fast-WASM profile and rejected predicate
 specialization are recorded in PERF_PATHFIND.md (all36 complete outputs match;
