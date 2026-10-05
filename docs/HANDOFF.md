@@ -1,3 +1,14 @@
+**COLD TACTICS PROFILE — 2026-10-05:** PERF_COLD_TACTICS.md profiles the
+current24-simulation cold query. Named fast WASM median8.121s on late camp;
+setup1.53%,clone0.41%,set_rules0.06%; tick-batch94.27% inclusive. Definition
+wrapper inlining is rejected after three alternating pairs/camp: late+0.65%,
+tuned−1.25%,early−3.14%, all12 full price/save pairs exact. defs.rs restored
+byte-for-byte; no retained engine change or shipping speedup claimed. Profile
+tool accepts --sims and records inclusive shares, with warm-up/load boundaries
+and artifact provenance. Next repeated hero/chore work, especially shadows
+allocation, ahead of clone architecture. Private scratchpad/cold-profile-20261005;
+manual deployment policy remains below.
+
 **LOCAL QA MAINTENANCE — 2026-10-05:** QA_CURRENT_UI.md updates the historical
 Cut23 Forge phase to owner-approved item/price/direct purchase and explicit
 forecast behavior. Kit queries instrumented before opening: zero on open/buy,

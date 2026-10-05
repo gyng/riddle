@@ -1,3 +1,11 @@
+Cold Tactics profiling is refreshed for24 sims, matching the current button.
+See PERF_COLD_TACTICS.md: late named-WASM median8.121s; simulation setup1.53%
+including clone0.41%. Definition wrapper inlining fails the2% screen and is
+reverted (late+0.65%,tuned−1.25%,early−3.14%, all12 full price/save pairs exact).
+Next prioritize repeated hero/chore work and rule-shadow allocations; current
+clone/preparation evidence does not justify that architecture for this case.
+`profile-catchup.mjs --sims 24` now records inclusive and leaf call shares.
+
 The historical Cut23 interaction gate now runs against the current Forge and
 report folds: `(cd web && node tests/run.mjs cut23)`, 33 checks, 27.0s. It no
 longer aborts before the anchored-picker/supply/reason checks. This is restored
