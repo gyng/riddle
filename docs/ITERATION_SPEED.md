@@ -1,3 +1,15 @@
+## UI iteration after shared chrome — 2026-10-05
+
+Window geometry and typography now have a scoped gate: `(cd web && node tests/run.mjs chrome)` (176 checks, 27.2s on this machine). It covers seven
+windows at 320/400/768/1440px, expansion, resizing and Escape. Use it for
+material/layout changes; add `tips` when copy or tooltip behavior changes
+(70 checks, 122.5s). The shipping walk remains the end-to-end milestone.
+Shared chrome.css and openWindow reduce per-screen style/placement work;
+mockups under art/ui/targets stay outside the shipped bundle. No runtime speed
+claim from this UI change. Keep the simulation/build optimization queue below
+in its measured impact order; the remaining first uncached comparison and
+fresh all-case gate cost still need profiling before architectural changes.
+
 # Iteration speed — where a cut's time goes, and what to cut next
 
 ## Queue after bloodlines UX — 2026-10-05

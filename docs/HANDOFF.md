@@ -1,3 +1,12 @@
+**DEPLOYMENT POLICY — 2026-10-05:** Owner: "don't need to deploy until i tell
+you". Push permission remains, publication requires a fresh explicit request.
+Pages now builds on pushes/PRs and deploys only via workflow_dispatch on main.
+Do not dispatch until requested. UI source81873c2 is pushed; build37322014020
+passed, but its queued deployment was cancelled at the owner's instruction.
+Public verification stopped; no public UI validation claimed for this release.
+Latest verified public release remains43c9a09. UI local/shipping acceptance
+and target art follow below.
+
 **CHUNKY UI — 2026-10-05:** Read UX_CHUNKY_UI.md and
 art/ui/targets/README.md. Built-in imagegen targets cover Tactics and
 Hero/Forge/Workers/Settings using SC2/WC3 construction with the current painted

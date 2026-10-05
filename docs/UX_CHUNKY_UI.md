@@ -38,3 +38,18 @@ activation closes its preceding plate while retaining its action; long-press
 continues to suppress activation. Tooltip density/copy limits are unchanged.
 
 Tooltip interaction/density/copy suite: 70/70 pass on 360/400/1440px.
+
+Anchored sheets and nested Back/Escape: 12 direct checks pass at400/1440.
+Historical Cut23 harness deviation: its initial Forge phase fails because it
+selects .kit-next and expects automatic forecast lines/two-tap buys. Those
+controls were removed before this change (prior-source forge.ts has no
+.kit-next); current explicit/direct Forge behavior is covered by Cut30town.
+No historical assertion was weakened; private direct picker checks cover the
+shared-sheet regression concern independently. Update this historical harness
+under a separate migration contract rather than treating its old Forge phase
+as the current implementation contract.
+
+Source81873c2 pushed. CI build37322014020 passed; queued Pages deployment
+cancelled at the owner's instruction. No public acceptance claimed. Publish
+only when explicitly requested. Local/shipping screenshots remain in the
+private milestone directory; target art is checked in.
