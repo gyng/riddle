@@ -41,3 +41,18 @@ headless fight attempts hit Chromium resource/crash errors with the workstation
 nearly out of disk space. Removing1.73GiB of inactive example/probe incremental
 caches older than7days restored the unchanged test; current core/WASM caches
 were retained. No timing/seed/assertion reductions.
+
+Published source07ae69ce03ab05b52c1884209ade70ec7b9c2d98; Pages37255798391
+SUCCESS. Public real-engine checks:29 bloodline+65 first-session checks400/1440;
+settled desktop/mobile screenshots shown inline. Public index exactly matches
+CI's artifact; deployed WASM SHA256:
+3adfbebe739b0b468f94a1ab0c7a5f0ee3000cde97fd421a54af335e23e18bef.
+
+Public catch-up probe: fresh seed1,10000 gold, scout hired,8h. One quiet
+observation per size:1 hero16 runs262ms;2 heroes32 runs404ms;3 heroes49 runs602ms.
+Exact complete native/public saved state matches before and after each case.
+These engine-call timings are an early auto-send fixture, not late-game search
+or whole-app loading estimates. Current fast-profile compiler tuning remains
+queued separately in docs/ITERATION_SPEED.md.
+Public headed GPU walk:9 screen dumps31.8s; no console errors or page errors.
+Two WebGL driver warnings (query enum/texture-copy bounds) were logged.

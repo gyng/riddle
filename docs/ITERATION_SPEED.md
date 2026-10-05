@@ -6,10 +6,12 @@ Completed: forge buys/opening require no kit forecast; automatic requests after
 reports and quiet camp refines are removed. Detailed forecasts are explicit.
 The dev speed parameter sets mode before mounting instead of clicking hidden
 controls. Bloodline forecasts clone only the selected Game, never the whole
-multihero Session. Early auto-send fixture, one native observation under compiler
-load: eight-hour catch-up1 hero365ms/16 runs,2 heroes1010ms/32 runs,3 heroes1281ms/49
-runs. These are engine-call measurements, not shipping WASM or frame-rate claims.
-Evidence: scratchpad/legacy-upgrades-20261005/multi-timing.*.
+multihero Session. Public source07ae69c is verified. Early auto-send fixture
+(seed1,10000 gold,scout), one quiet sample per size: eight-hour catch-up1 hero16
+runs262ms;2 heroes32 runs404ms;3 heroes49 runs602ms. Exact complete native/public
+saves match each case; native125/306/469ms. These are engine-call measurements,
+not late-game/whole-app/frame-rate claims. Evidence:
+scratchpad/legacy-upgrades-20261005/public-timing.*; UX_BLOODLINES.md.
 
 Next, in impact order:
 

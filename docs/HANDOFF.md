@@ -25,7 +25,17 @@ Private evidence scratchpad/legacy-upgrades-20261005; never stage it or mine.bar
 Scoped watch gate:fights46 checks153.8s; clarity:paint5 checks58.3s. Initial
 headless attempts failed with resource errors/tab crash; after reclaiming1.73GiB
 of stale generated example/probe caches, the unchanged headless fights pass.
-Public source and exact CI/public artifact proof follow.
+Published source07ae69c; Pages37255798391 SUCCESS. Public94 real-engine UI checks
+(29 bloodline+65 first-session)400/1440 pass; settled screenshots shown inline.
+Public index matches CI exactly; deployed WASM SHA256:
+3adfbebe739b0b468f94a1ab0c7a5f0ee3000cde97fd421a54af335e23e18bef.
+Quiet public8h catch-up fixture (seed1,10000 gold,scout):1/2/3 heroes16/32/49
+runs262/404/602ms. Exact native/public saves match each case. Single samples,
+early fixture, engine-call timings only. See UX_BLOODLINES.md.
+Public GPU walk9 dumps31.8s, no console/page errors;2 WebGL driver warnings.
+Next work stays in impact order in ITERATION_SPEED.md: warm core edit/restore,
+CGU32/64 versus16 with exact-output and runtime comparisons; then refreshed
+expensive simulation/search profiling. No compiler-profile change has landed.
 
 **PREVIOUS PUBLISHED OWNER UX — 2026-10-05:** Empty town → free house → hero arrives →
 Send is implemented. Read docs/UX_FIRST_HOME.md; it supersedes the old fresh-Send
