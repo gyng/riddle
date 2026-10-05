@@ -1003,7 +1003,8 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   return {
     bloodlines: [...new Set([...(a.bloodlines??[]),...(b.bloodlines??[])].map(s=>s.id))].map(id=>{
       const rows=[...(a.bloodlines??[]),...(b.bloodlines??[])].filter(s=>s.id===id),last=rows[rows.length-1]!;
-      return {...last,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
+      const progression = rows.reduce<Pick<ReturnReport, "packages" | "grew">>((merged,s)=>mergeGrew(merged,s),{});
+      return {...last,...progression,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
     }),
     rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled), driven: sum(a.driven, b.driven),
     bones_found: cat(a.bones_found, b.bones_found),
@@ -1071,7 +1072,7 @@ export function mergeGrew(a: Pick<ReturnReport, "grew" | "packages">, b: Pick<Re
     for (const x of [...(a.packages ?? []), ...(b.packages ?? [])]) {
       const lv = /^(.+) L(\d+)$/.exec(x);
       const at = lv ? beats.findIndex((y) => y.startsWith(`${lv[1]} L`) && /^.+ L\d+$/.test(y)) : beats.indexOf(x);
-      if (at < 0) beats.push(x); else if (lv) beats[at] = x;
+      if (at < 0) beats.push(x); else if (lv && Number(lv[2]) > Number(/\d+$/.exec(beats[at])![0])) beats[at] = x;
     }
     out.packages = beats;
   }

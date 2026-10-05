@@ -148,7 +148,7 @@ impl Session {
             crate::offline::report_with(g,seconds,&before.0,&before.1,before.2,false,full,last)
         };
         let mut r=finish(&mut self.active,&active_before,full,last);
-        let summary=|id:u32,r:&ReturnReport|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
+        let summary=|id:u32,r:&ReturnReport|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),packages:r.packages.clone(),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
         if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r));}
         for (id,g) in &mut self.others {
             town_from(&self.active.lineage,&mut g.lineage);
@@ -170,6 +170,34 @@ impl Session {
 mod tests {
     use super::*;
     fn resident()->Session { let mut s=Session::new(1);s.active.build_town("house").unwrap();s.active.lineage.gold_move(1000,"test income");s }
+    #[test]
+    fn away_training_retains_each_slot_even_when_selected_hero_waits() {
+        for both in [false,true] {
+            let mut s=resident();s.add_bloodline().unwrap();
+            s.select_bloodline(2).unwrap();s.lineage.pkg.runs.insert("steady".into(),39);s.send();
+            s.select_bloodline(1).unwrap();
+            if both {s.lineage.pkg.runs.insert("steady".into(),9);s.send();}
+            let r=s.run_offline_mode(3600,false,true);
+            let other=r.bloodlines.iter().find(|b|b.id==2).unwrap();
+            assert!(other.packages.contains(&"STEADY L3".into()), "unselected training lost");
+            let selected=r.bloodlines.iter().find(|b|b.id==1).unwrap();
+            assert_eq!(selected.packages.contains(&"STEADY L2".into()),both);
+            assert_eq!(selected.packages,r.packages,"top-level beats remain selected-slot compatible");
+            assert_eq!(r.bloodlines.iter().map(|b|b.runs).sum::<u32>(),r.runs);
+            let gold=r.gold.as_ref().unwrap();
+            assert_eq!(r.bloodlines.iter().map(|b|b.gold).sum::<i32>(),gold.home+gold.salvage+gold.wake-gold.spent);
+            let wire=serde_json::to_value(&r).unwrap();
+            let restored:ReturnReport=serde_json::from_value(wire.clone()).unwrap();
+            assert_eq!(restored.bloodlines,r.bloodlines);
+            let mut old=serde_json::to_value(other).unwrap();old.as_object_mut().unwrap().remove("packages");
+            assert!(serde_json::from_value::<crate::wire::BloodlineReturn>(old).unwrap().packages.is_empty());
+            let saved=s.save();let mut restored=Session::load(&saved).unwrap();
+            assert_eq!(restored.active.lineage.pkg.runs,s.active.lineage.pkg.runs);
+            assert_eq!(restored.others[&2].lineage.pkg.runs,s.others[&2].lineage.pkg.runs);
+            let later=restored.run_offline_mode(3600,false,true);
+            assert!(later.bloodlines.iter().all(|b|b.packages.is_empty()),"later no-gain report must not repeat training");
+        }
+    }
     #[test]
     fn slots_isolate_policy_xp_and_legacy_and_switch_without_restarting_runs() {
         let mut s=resident();s.active.lineage.bloodline.as_mut().unwrap().points=9;

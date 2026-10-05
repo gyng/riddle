@@ -1,3 +1,20 @@
+**BLOODLINE TRAINING — 2026-10-06:** Away report discarded unselected
+training. BloodlineReturn now retains each own bounded package beats (explicit
+[] is known empty, old wire optional). Per-id sliced merge retains highest core
+level/unique drill; stable report Bloodline labels, no current-heir inference;
+selected top-level/backcompat/Details maintained.553 fast Rust pass34.32s/
+1ignored, clippy/rebuiltWASM5246299bytes, UI63+54+57 pass4.9s320/400/1440,
+build/typecheck/copy1511/diff pass; chunk advisory. Headed savedseed15camp/legal
+second slot/save-load/two12h slices:79runs, slot1SteadyL3 from first slice,
+slot2SteadyL2 plus second-slice Warlord tactic; exact source/group and core
+run/gold sums, no warnings/overflow400/1440/screens shown. Gold home excludes
+salvage as before. Mandatory UI fixture salvage/XP/renown corrected. See
+CONTENT_BLOODLINE_TRAINING.md for five-beat cap and unchanged other facts/finds/
+XP/death aggregation limitations. No tuning/full audit/deployment.
+Next: real screenshots show both active heroes named Niall; improve simultaneous
+hero individuality while preserving deterministic stable historical identities.
+Content/gameplay/perf queue remains; no repeated generic window polish.
+
 **BOSS COUNTER CLARITY — 2026-10-06:** Tactics Details now uses chunky
 boss cards with existing art, readable learned actions/item silhouettes, core
 card carries gloss, explicit On/Off and accessible enable/disable labels.

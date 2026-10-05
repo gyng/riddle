@@ -71,10 +71,20 @@ export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: str
 
 /** Already-earned core level/drill beats, surfaced without exposing routine details. */
 export const trainingBeats = (beats: string[] | undefined): string[] => (beats ?? []).filter((b) => /^DRILLED\b/.test(b) || / L\d+$/.test(b));
+const trainingBadges = (earned: string[]): HTMLElement =>
+  h("div", { class: "beats" }, ...earned.map((b) => h("span", { class: `beat-plaque${/^DRILLED/.test(b) ? " drill" : ""}`, "data-training": b },
+    b.replace(/^DRILLED · (.+)$/, /* copy:label */ "$1 tactic"))));
 export function trainingBlock(beats: string[] | undefined): HTMLElement | null {
   const earned = trainingBeats(beats);
   return earned.length ? h("section", { class: "run-training" },
+    h("b", { class: "row-label" }, /* copy:label */ "Training"), trainingBadges(earned)) : null;
+}
+/** Multihero progress uses the report's persistent slot, never today's selected heir. */
+export function reportTrainingBlock(r: Pick<ReturnReport, "bloodlines" | "packages">): HTMLElement | null {
+  if (!r.bloodlines?.some((s) => s.packages !== undefined)) return trainingBlock(r.packages);
+  const earned = [...r.bloodlines].sort((a,b) => a.id-b.id).map((s) => ({ ...s, beats: trainingBeats(s.packages) })).filter((s) => s.beats.length);
+  return earned.length ? h("section", { class: "run-training" },
     h("b", { class: "row-label" }, /* copy:label */ "Training"),
-    h("div", { class: "beats" }, ...earned.map((b) => h("span", { class: `beat-plaque${/^DRILLED/.test(b) ? " drill" : ""}`, "data-training": b },
-      b.replace(/^DRILLED · (.+)$/, /* copy:label */ "$1 tactic"))))) : null;
+    ...earned.map((s) => h("div", { class: "bloodline-training", "data-bloodline": s.id },
+      h("small", { class: "training-lineage" }, s.name), trainingBadges(s.beats)))) : null;
 }

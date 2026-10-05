@@ -33,7 +33,7 @@ import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
-import { grewBlock, heroFace, trainingBlock, trainingBeats } from "./tracks";
+import { grewBlock, heroFace, reportTrainingBlock, trainingBeats } from "./tracks";
 import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
@@ -592,7 +592,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, upgradeHost, trainingBlock(r.packages), firstWorkers,
+    summary, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop

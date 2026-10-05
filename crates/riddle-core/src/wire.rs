@@ -1265,7 +1265,12 @@ pub struct DeathCount {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
-pub struct BloodlineReturn { pub id:u32, pub name:String, pub runs:u32, pub deepest:u32, pub gold:i32 }
+pub struct BloodlineReturn {
+    pub id:u32, pub name:String, pub runs:u32, pub deepest:u32, pub gold:i32,
+    /// Bounded training/unlock beats from this slot's own report (empty is known empty).
+    #[serde(default)]
+    pub packages: Vec<String>,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ReturnReport {

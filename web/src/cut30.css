@@ -118,3 +118,6 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .run-training .beat-plaque { font-size: 15px; letter-spacing: .02em; }
 .death .run-training { text-align: center; }
 .death .run-training .beats { justify-content: center; }
+
+.bloodline-training { margin-top: 8px; }
+.training-lineage { font: 600 14px/1.2 var(--control-font); }
