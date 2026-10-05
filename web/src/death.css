@@ -45,3 +45,4 @@
 /* blind check: the top bar's first-time `buys unlocks` caption read as clutter here — it belongs where marks are spent */
 .death .topbar .concept-cap { display: none; }
 .death .death-more .fold-hint { font: 500 12px/1 var(--display); letter-spacing: .04em; text-transform: none; opacity: .8; }
+.death-lever .lever-name { display: flex; align-items: center; gap: 10px; min-width: 0; overflow-wrap: anywhere; }

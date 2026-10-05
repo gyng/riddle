@@ -1,3 +1,16 @@
+**READABLE DEATH ACTION / RECOMMENDATION ICONS — 2026-10-06:**
+Saved Warlord deaths now name the historical action as `Steady · attack nearest`
+rather than exposing row syntax. Core-selected cause row wins; missing rules
+use its matching trace verb, missing history retains source only. Current camp
+edits cannot rewrite historical action. Spend recommendations use shared item
+silhouettes; identified style recommendations use expressive emblems. Targeted
+consumable rules now select item kind before comma-separated target. Controls,
+rules, rarity and late-pen verdicts unchanged. Client44/item214/geometry184,
+build/copy1492/diff pass; real WASM400/1440 screenshots show decoded sword,
+no warnings/overflow. Contract/evidence UX_DEATH_ACTIONS.md. No deployment.
+Separate live Captain capture timed out after90s; no live-boss coverage claim.
+Next: inspect live-watch state before retrying that diagnostic.
+
 **RELIABLE GPU DIAGNOSTICS — 2026-10-06:** Fixed real GPU timer enum
 bug (EXT constants used with WebGL2 API), unreachable full-ring timeout,
 disjoint/lifetime cleanup and stale timing stats on context loss. Real headed

@@ -26,7 +26,8 @@ import { gem, portrait, renderBar, renderConsole, tile, wideCols } from "./frame
 import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
-import { foeSrc } from "./skin";
+import { foeSrc, packageIcon } from "./skin";
+import { itemIcon } from "./items";
 import { penOpen } from "./packages";
 import { openForge } from "./forge";
 import { kwHost } from "./tips";
@@ -40,6 +41,18 @@ export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* co
 /** The headline's margin segment: a stall's is the guard's reason (`no path`); an hp margin (`3 over` / `3 hp short`) is left
  *  out — four QA players read `1 hp short` as the hp left (the morgue still carries it); an empty margin is no segment. */
 export const headlineMargin = (m: string): string => m.split(" · ").filter((x) => x && !/^\d+ (over|hp short)$/.test(x)).map(marginText).join(" · ");   // QA 23ed91f: `1 hp short · 5 unknown unused` kept its hp part
+
+/** Name the core-selected historical action without exposing its row syntax. */
+export function deathAction(d: Death): string {
+  if (!d.package) return "";
+  const parts = d.package.split(" · ");
+  const source = parts.slice(0, parts[0] === "drill" ? 2 : 1).join(" · ");
+  const index = d.cause_row ?? [...d.trace.turns].reverse().find((t) => t.row >= 0)?.row;
+  const rows = d.rules?.rows;
+  const turn = index === undefined ? undefined : [...d.trace.turns].reverse().find((t) => t.row === index);
+  const action = index !== undefined && rows?.[index] ? ruleName(rows, index) : turn ? verbLabel(turn.verb) : "";
+  return action ? `${source} · ${action}` : source;
+}
 
 /** QA 23ed91f (K: "`died $0` and `keeps 0%` say the same thing twice"): a death's line drops its `keeps 0%` (the lead says it). */
 /** QA 1a2a4a9 (O, P, and many before: "`+$40 wake` — no source"): the core's wake pay tops the next heir's purse up to $40 — it reads
@@ -259,7 +272,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   /* copy:button */
   const LEVER_GEM: Record<string, string> = { spend: "forge", package: "wear", wait: "send" };
   const leverBtn = lever ? h("button", { class: "death-lever tablet", "data-kind": lever.kind, onclick: leverAct },
-    h("span", { class: "lever-kind" }, LEVER_WORD[lever.kind] ?? lever.kind), h("b", null, lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
+    h("span", { class: "lever-kind" }, LEVER_WORD[lever.kind] ?? lever.kind), h("b", { class: "lever-name" },
+      lever.kind === "spend" ? itemIcon({ kind: lever.text, label: lever.text }) : lever.kind === "package" ? (() => {
+        const p = app.lineage.packages?.all.find((x) => x.name === lever.text || x.id === lever.text.toLowerCase());
+        return p ? packageIcon(p.id) : "";
+      })() : "", lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
   if (leverBtn) kwHost(leverBtn, "lever");
   function leverGem(): HTMLButtonElement { return gem({ label: lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "town" : /* copy:button */ "town", cls: "lever-gem", pulse: true, onclick: leverAct }); }
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
@@ -285,8 +302,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const rowsRan = d.rules?.rows ?? app.rules.rows;
   const whyEl = h("div", { class: "death-why" });
   const leadPatch = (): Patch | undefined => { const b = top?.btn; return b ? patchOf.get(b) : undefined; };
-  // (before the pen the why is the package row that acted — `Steady · HP<20% → return` — never a verdict term)
-  const setWhy = (): void => { whyEl.textContent = prePen ? (d as Death & { package?: string }).package ?? "" : whyOf(app, d, leadPatch(), rowsRan, luck, drove, causeRow); whyEl.hidden = !whyEl.textContent; };
+  // Before the pen, name the historical package and action in readable words.
+  const setWhy = (): void => { whyEl.textContent = prePen ? deathAction(d) : whyOf(app, d, leadPatch(), rowsRan, luck, drove, causeRow); whyEl.hidden = !whyEl.textContent; };
   const sendAgain = canSend && !prePen ? h("button", { class: "death-send chip", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send again") : null;
   const now = h("div", { class: "death-now" }, leverBtn, prePen ? null : patches, sendAgain);
   // the rest view: the lit fix and one other; `send again` when the death leaned on luck or nothing helps (both when there is room)

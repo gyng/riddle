@@ -22,8 +22,11 @@ import { hasCurriculum, sysOpen } from "./systems";
 import { icon, verbIcon } from "./skin";
 import { kw } from "./tips";
 import { itemIcon } from "./items";
-const verbItem = (v: Verb): HTMLElement | null => ["drink", "read", "throw"].includes(v.v) && v.a
-  ? itemIcon({ kind: v.a === "unknown" ? v.v === "read" ? "scroll" : "potion" : v.a, label: verbLabel(v) }, { size: "s" }) : null;
+const verbItem = (v: Verb): HTMLElement | null => {
+  if (!["drink", "read", "throw"].includes(v.v) || !v.a) return null;
+  const kind = v.a.split(",")[0]!;
+  return itemIcon({ kind: kind === "unknown" ? v.v === "read" ? "scroll" : "potion" : kind, label: verbLabel(v) }, { size: "s" });
+};
 const condItem = (c: Cond): HTMLElement | null => c.k === "item" && c.t ? itemIcon({ kind:c.t, label:condLabel(c) }, { size:"s" }) : null;
 /** gfx round 1: the action's icon plaque at a tablet's right end (camp.png); nothing when its icon is not packed. */
 const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
