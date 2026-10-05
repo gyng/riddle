@@ -358,3 +358,34 @@ fn wall_outcome_prefix_survives_eviction_and_preserves_priced_forecasts() {
     });
     assert_eq!(sequential, parallel);
 }
+
+#[test]
+fn rough_previews_preserve_full_forecasts_and_actual_progress() {
+    static ONE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    crate::forecast::with_sim_width(&ONE, || {
+        let mut g = estimate_camp();
+        let mut control = estimate_camp();
+        let saved = g.save();
+        let f = crate::forecast::forecast_estimate(&g);
+        assert_eq!(f.sims, crate::forecast::PREVIEW_SIMS);
+        assert!(!f.refined);
+        let ends = f.ends.as_ref().unwrap();
+        assert!((ends.bank + ends.return_ + ends.death + ends.stall - 1.0).abs() < 1e-9);
+        crate::kit::estimates(&g);
+        let vs = crate::forecast::forecast_vs_estimate(&g, g.lineage.rules());
+        assert_eq!(vs.sims, f.sims);
+        assert!(vs.depths.iter().all(|d| d.delta == 0.0));
+        assert_eq!(g.save(), saved, "previews are pure reads");
+        assert_eq!(serde_json::to_value(crate::kit::deltas(&g)).unwrap(), serde_json::to_value(crate::kit::deltas(&control)).unwrap());
+        assert_eq!(g.forecast(), control.forecast());
+        assert_eq!(g.forecast_refine(), control.forecast_refine());
+        assert_eq!(g.save(), control.save());
+        g.start_run(Some(101)); control.start_run(Some(101));
+        assert_eq!(g.save(), control.save());
+        let mut direct = estimate_camp(); let mut clean = estimate_camp();
+        crate::forecast::forecast_estimate(&direct); crate::kit::estimates(&direct);
+        direct.start_run(Some(102)); clean.start_run(Some(102));
+        assert_eq!(serde_json::to_value(crate::offline::run_offline_quick(&mut direct, 3600)).unwrap(), serde_json::to_value(crate::offline::run_offline_quick(&mut clean, 3600)).unwrap());
+        assert_eq!(direct.save(), clean.save());
+    });
+}

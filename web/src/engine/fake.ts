@@ -1135,6 +1135,7 @@ export class FakeEngine implements Engine {
     this.gold(-lad.next.price, `forge ${lad.next.label}`); this.kitOwned[slot] = (this.kitOwned[slot] ?? 0) + 1; return this.lineage();
   }
   kitDeltas(): KitLadder[] { return this.kitLadders(true); }
+  kitEstimates(): KitLadder[] { return this.kitLadders(true); }
   /** Cut 23 §3 stand-in: a row's why-not (`0/164 · no gas met`), from the row's shape; null before the first send. */
   private rowWhy(): (RowWhy | null)[] {
     const sends = this.s.runCounter; if (!sends) return this.s.rules.rows.map(() => null);
@@ -1378,6 +1379,7 @@ export class FakeEngine implements Engine {
   }
 
   forecast(): Forecast { this.fcRefined = false; return { ...this.forecastN(20), refined: false, start: this.payableStart(), ...shadowField(this.s.rules.rows) }; }
+  forecastEstimate(): Forecast { this.fcRefined = false; return { ...this.forecastN(8), refined: false, start: this.payableStart(), ...shadowField(this.s.rules.rows) }; }
   /** Cut 21 §1 stand-in: the floor the next send starts on — the chosen waystone when lit and the purse pays its toll, else D1. */
   private payableStart(): number { const L = this.s.lineage, st = L.start ?? 1; return st > 1 && (L.waystones ?? []).includes(st) && L.gold >= WAYSTONE_TOLL * st ? st : 1; }   // Cut 13 §5: the first paint is marked (`±6…`)
   /** Cut 6 §9: the same forecast at 100 sims (the client asks 2 s after a quiet paint). Same seeds ⇒ the first 20 agree. */
@@ -1386,8 +1388,10 @@ export class FakeEngine implements Engine {
   forecastRefine(): Forecast { this.fcRefined = true; return { ...this.forecastN(100), refined: true, start: this.payableStart(), ...shadowField(this.s.rules.rows) }; }
   /** Cut 22 §3 stand-in: the active set's panel minus `prev`'s on the same 20 seeds — per depth and on the ends, each with its paired
    *  half-width (1.96 σ of the per-seed difference / √N), far tighter than either bar's own ± when the two sets mostly agree. */
-  forecastVs(prev: RuleSet): ForecastVs {
-    const L = this.s.lineage, N = this.fcRefined ? 100 : 20, known = this.known(), known_to = L.best_depth + 1;
+  forecastVsEstimate(prev: RuleSet): ForecastVs { return this.forecastVsN(prev, 8); }
+  forecastVs(prev: RuleSet): ForecastVs { return this.forecastVsN(prev, this.fcRefined ? 100 : 20); }
+  private forecastVsN(prev: RuleSet, N: number): ForecastVs {
+    const L = this.s.lineage, known = this.known(), known_to = L.best_depth + 1;
     const a: Run[] = [], b: Run[] = [];
     for (let i = 0; i < N; i++) { const seed = hash(`fc:${L.seed}:${i}`); a.push(this.simOne(seed, this.s.rules, known)); b.push(this.simOne(seed, prev, known)); }
     const move = (f: (r: Run) => number): VsMove => {
@@ -1396,7 +1400,7 @@ export class FakeEngine implements Engine {
       return { delta: m, pm: 1.96 * Math.sqrt(v / N) };
     };
     const depths = Array.from({ length: Math.min(15, known_to) }, (_, k) => ({ depth: k + 1, ...move((r) => (r.depth >= k + 1 ? 1 : 0)) }));
-    return { depths, bank: move((r) => (r.exit === "bank" ? 1 : 0)), death: move((r) => ((r.exit ?? "death") === "death" ? 1 : 0)), return: move((r) => (r.exit === "return" ? 1 : 0)), refined: this.fcRefined };   // QA 778fa1b: the panels paired are the refined ones once the refine ran
+    return { depths, bank: move((r) => (r.exit === "bank" ? 1 : 0)), death: move((r) => ((r.exit ?? "death") === "death" ? 1 : 0)), return: move((r) => (r.exit === "return" ? 1 : 0)), sims: N, refined: N > 20 };   // QA 778fa1b: the panels paired are the refined ones once the refine ran
   }
   private forecastN(N: number): Forecast {
     const L = this.s.lineage; const known_to = L.best_depth + 1;
@@ -2038,7 +2042,7 @@ function fakeBoard28(e: Fk): { board: Oath[]; sworn: string | null; titles: stri
       : o.kind === "lean" || o.kind === "bold" ? [{ k: o.chips[0].replace(/^reach /, ""), share: Math.min(1, share * 1.6) }] : [];
     return { id: o.id, text: o.text, share, pm, night: 1 - Math.pow(1 - share, 16), ...(steps.length ? { steps } : {}) };
   };
-  for (const [name, n] of [["forecast", 20], ["forecastRefine", 100]] as const) {
+  for (const [name, n] of [["forecast", 20], ["forecastEstimate", 8], ["forecastRefine", 100]] as const) {
     const f = P[name]; P[name] = function (this: Fk): Forecast { const r = f.call(this) as Forecast; const o = share28(this, n); return o ? { ...r, oath: o } : r; };
   }
   const vs = P.forecastVs; P.forecastVs = function (this: Fk, prev: unknown): ForecastVs {

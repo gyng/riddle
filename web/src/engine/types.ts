@@ -694,6 +694,8 @@ export interface Engine {
   setRules(set: RuleSet): void;
   loadout(itemIds: number[]): void;
   forecast(): Forecast;
+  forecastVsEstimate?(prev: RuleSet): ForecastVs;
+  forecastEstimate?(): Forecast;       // small, explicitly rough UI preview
   send(): Snapshot;                    // start (or resume) an expedition
   step(turns: number): StepResult;     // advance live view
   runOffline(elapsedS: number): ReturnReport;
@@ -738,7 +740,7 @@ export interface Engine {
   choose(itemId: number): Snapshot;     // §4: take one item of the opened vault (`Snapshot.vault_choice.items[].id`)
   setVaultPref(pref: string): Lineage;  // §4: `weapon | armour | potion | scroll` — what an unanswered vault choice takes
   // Cut 6
-  forecastRefine?(): Forecast;          // §9: the same forecast at 100 sims (optional; the client calls it 2 s after a quiet paint)
+  forecastRefine?(): Forecast;          // §9: the same forecast at 100 sims (optional; the player requests it through More samples)
   // Cut 19
   cageForecast?(refined?: boolean): CageOption[];        // §1: every cage preference's forecast for the active set (three extra camp panels, memoised; seconds in wasm — call when the picker opens or after the refine)
   setRestock?(on: boolean): Lineage;    // §3: the loadout's repeat on/off (off refunds the re-packed shelf; on re-packs an empty shelf now)
@@ -757,7 +759,8 @@ export interface Engine {
     // §2: both stairs of a seen fork for the active set (one extra camp panel, memoised; seconds in wasm — call when the fork chip's sheet opens)
   // Cut 23
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
-  kitDeltas?(): KitLadder[];            // §1: `Lineage.kit` with each `next` measured (paired forecast; seconds in wasm — call after paint, memoised)
+  kitDeltas?(): KitLadder[];            // full paired forecast, retained for detailed callers
+  kitEstimates?(): KitLadder[];         // small depth/exit preview, with its actual uncertainty
   // Cut 27
   fold?(): FoldLine;                    // §1: right after `send()` — plays the floors the set clears ≥ 95 % (`Forecast.fold_to` at the send) and returns the fold line; the watch opens on `step.snapshot` (foreground: it ticks the live run)
   divergence?(prev: RuleSet): Divergence | null;   // §2: the edit as a scene against `prev` (the sent set) — background lane, after the forecast (reads its paired panels; ~one sim's cost)

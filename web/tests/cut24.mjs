@@ -69,9 +69,10 @@ try {
     const tile = page.locator(".cmd .tile[data-tile=forge]");
     if (r && await tile.count()) {
       await tile.click({ timeout: 5000 });
+      await page.locator(".forge-details summary").click(); await page.locator(".forge-details button", {hasText:"Forecast"}).click();
       const t0 = Date.now(); let kit = [];
-      while (Date.now() - t0 < 10_000) { kit = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .forge .kit-move")].map((m) => m.textContent.replace(/\s+/g, " ").trim())); if (kit.length && kit.every((m) => !/…/.test(m))) break; await sleep(150); }
-      check(kit.length > 0 && kit.every((m) => /^· reach D\d+ ([+−]\d+|same)( · (bank|death) [+−]\d+)*$/.test(m)), `the forge sheet's steps read \`reach D9 +7 · death −7\` (${kit.join(" | ")})`);
+      while (Date.now() - t0 < 10_000) { kit = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .forge .forge-forecasts > div")].map((m) => m.textContent.replace(/\s+/g, " ").trim())); if (kit.length && kit.every((m) => !/…/.test(m))) break; await sleep(150); }
+      check(kit.length > 0 && kit.every((m) => /^(Weapon|Armour|Pack) · (reach D\d+ ([+−]\d+|same)( · (bank|death) [+−]\d+)*|No change|Complete)$/i.test(m)), `the forge sheet's steps read \`reach D9 +7 · death −7\` (${kit.join(" | ")})`);
       await shot("cut24-forge");
       await page.keyboard.press("Escape"); await sleep(150);
     } else check(false, "the forge tile is carved with gold for a step");
@@ -145,11 +146,12 @@ try {
       r.go({ kind: "report", report: { elapsed_s: 600, runs: 1, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 1, exits } });
     });
     await sleep(300);
+    await page.locator(".report .details-fold").click();
     const d = await section("counter");
     // (Cut 28 §2: the tablet sits above the report's fold and carries the drive-off's `verdict` chip always)
-    check(/^counter warlord repelled him · shield wall try: attack boss( verdict)?$/.test(d), `a boss that drove him off reads its counter ("${d}")`);
+    check(/^counter\s*warlord repelled him · shield wall\s*try: attack boss(\s*verdict)?$/.test(d), `a boss that drove him off reads its counter ("${d}")`);
     const lead = await page.evaluate(() => { const n = document.querySelector(".report .news"), t = document.querySelector(".report .tiles"); return { lines: [...(n?.querySelectorAll(".news-line") ?? [])].map((x) => x.textContent), before: !!n && !!t && !!(n.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING), lead: n?.querySelector(".news-line.lead")?.textContent ?? null }; });
-    check(lead.before && lead.lead === "first: the captive" && lead.lines.join(" | ") === "first: the captive | repelled by Warlord", `what was new leads the report, before the counts (${lead.lines.join(" | ") || "none"})`);
+    check(!lead.before && lead.lines.join(" | ") === "first: the captive | repelled by Warlord", `news inside Details keeps first discoveries before drive-offs (${lead.lines.join(" | ") || "none"})`);
     await shot("cut24-driven");
     await page.locator(".report .driven-line").first().click({ timeout: 5000 });
     await camp();
@@ -166,6 +168,7 @@ try {
       r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, driven: 1, exits } });
     });
     await sleep(300);
+    await page.locator(".report .details-fold").click();
     const t = await page.evaluate(() => ({ tiles: [...document.querySelectorAll(".report .tiles .tile")].map((x) => `${x.querySelector(".label")?.textContent} ${x.querySelector("b")?.textContent}`), leads: [...document.querySelectorAll(".report .exit-lines .ledger-btn")].map((b) => b.querySelector(".news-lead")?.textContent ?? "-") }));
     check(t.tiles.includes("runs returned 2/3") && t.tiles.includes("repelled 1/3"), `a drive-off is counted apart from the returns (${t.tiles.join(" · ")})`);
     check(t.leads.join(" | ") === "repelled by Warlord | - | record: D9", `each exit line leads with its run's news, newest first (${t.leads.join(" | ")})`);
@@ -215,7 +218,7 @@ try {
       const gained = await page.evaluate((v0) => window.__riddle.lineage.vault.filter((v) => !v0.includes(v.id)).map((v) => v.label), vault0);
       const twin = chips.filter((c) => c === tapped).length > 1;
       check(on[i] && on.filter(Boolean).length === 1 && gained.length === 1, `the tapped chip is the one pick and the vault took it (${tapped} → ${gained.join(", ") || "nothing"})`);
-      check(!!kept && gained.length === 1 && kept.includes(gained[0].replace(/_/g, " ").toLowerCase()) && / → vault/.test(kept), `the report names what went in ("${kept}")`);
+      check(!!kept && gained.length === 1 && kept.includes(gained[0].replace(/_/g, " ").toLowerCase()) && / → storage/.test(kept), `the report names what went in ("${kept}")`);
       check(twin || !salv || !salv.includes(tapped.toLowerCase()), `SALVAGED lists the tapped chip only for a twin of it ("${salv ?? "none"}", twin ${twin})`);
       await shot("cut24-kept");
     }

@@ -245,10 +245,18 @@ pub fn equip(l: &LineageState, hero: &mut Hero) {
 /// bank and death shares. Memoised like the cage tablet (the options' panels land in the
 /// game's panel cache, keyed by the lineage fingerprint, which carries the kit).
 pub fn deltas(game: &Game) -> Vec<KitLadder> {
+    deltas_with(game, crate::forecast::option_sims(game, game.lineage.rules()), false)
+}
+
+/// Forge previews read depth/exit shares, never skipped-floor gold.
+pub fn estimates(game: &Game) -> Vec<KitLadder> {
+    deltas_with(game, crate::forecast::PREVIEW_SIMS, true)
+}
+
+fn deltas_with(game: &Game, sims: u32, outcomes: bool) -> Vec<KitLadder> {
     let rules = game.lineage.rules().clone();
-    // Cut 25 §4: the first pass's sims (`forecast::option_sims`).
-    let sims = crate::forecast::option_sims(game, &rules);
-    let base = crate::forecast::camp_panel(game, &rules, sims);
+    let panel = if outcomes { crate::forecast::camp_panel_outcomes } else { crate::forecast::camp_panel };
+    let base = panel(game, &rules, sims);
     // the move is read where the set's own reach is nearest even (best + 1 sits under 1 %, so
     // every step read `≈`): the deepest floor the base reaches on about half its runs
     let reach_at = |d: u32| base.iter().filter(|r| r.max_depth >= d).count() as f64 / base.len().max(1) as f64;
@@ -276,7 +284,7 @@ pub fn deltas(game: &Game) -> Vec<KitLadder> {
             }
         }
         *g.panel_cache.borrow_mut() = game.panel_cache.borrow().clone();
-        let a = crate::forecast::camp_panel(&g, &rules, sims);
+        let a = panel(&g, &rules, sims);
         for (k, v) in g.panel_cache.into_inner() {
             crate::forecast::panel_insert(game, k, v);
         }

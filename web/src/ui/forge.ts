@@ -14,15 +14,13 @@ let kitMemo: { key: string; kit: KitLadder[] } | null = null;
 const kitKey = (app: App): string => JSON.stringify([app.rules.rows, (app.rules as { route?: number[] }).route ?? [], (app.lineage.kit ?? []).map((k) => k.owned), app.lineage.best_depth, app.lineage.start ?? 1]);
 /** Cut 25 §4: the measure in flight and the state it measures — the sheet opened meanwhile waits on it rather than asking again. */
 let kitAsk: { key: string; p: Promise<KitLadder[]> } | null = null;
-/** Cut 25 §4 (AM: ~8 s of `…` on the forge's steps after an absence): the forge's moves measured ahead of the tap — the report after an
- *  absence and a quiet camp (a refined forecast) ask for them (on the forge's own lane), so the sheet paints them at once. Nothing when
- *  the forge has no step to measure, the memo already holds this state, or its measure is in flight. */
+/** One explicitly requested rough preview, reused while the same kit/rules are shown. */
 export function measureKit(app: App): Promise<KitLadder[]> | null {
-  if (!app.engine.kitDeltas || !(app.lineage.kit ?? []).some((k) => k.next)) return null;
+  if (!(app.engine.kitEstimates ?? app.engine.kitDeltas) || !(app.lineage.kit ?? []).some((k) => k.next)) return null;
   const k = kitKey(app);
   if (kitMemo?.key === k) return Promise.resolve(kitMemo.kit);
   if (kitAsk?.key === k) return kitAsk.p;
-  const p = app.engine.kitDeltas().then((m) => { kitMemo = { key: k, kit: m }; return m; });
+  const p = (app.engine.kitEstimates ?? app.engine.kitDeltas)!.call(app.engine).then((m) => { kitMemo = { key: k, kit: m }; return m; });
   kitAsk = { key: k, p }; void p.catch(() => undefined).finally(() => { if (kitAsk?.p === p) kitAsk = null; });
   return p;
 }
@@ -58,6 +56,7 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
     const kit = h("div", { class: "kit simple-kit" });
     const advanced = h("details", { class: "forge-details" }, h("summary", null, /* copy:button */ "Details"));
     const forecasts = h("div", { class: "forge-forecasts" });
+    const estimateLabel = h("small", { class: "dim forge-estimate" }, /* copy:label */ "rough estimate");
     const forecastButton = h("button", { class: "chip", onclick: () => {
       forecastButton.disabled = true;
       forecastButton.textContent = "Measuring…";
@@ -86,7 +85,7 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
       }));
       replace(advanced, h("summary", null, /* copy:button */ "Details"),
         h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => h("p", null, `${SLOT_LABEL[lad.slot]} · ${lad.steps.slice(lad.owned + 1).map((s) => `${s.label} $${s.price}`).join(" · ") || "Complete"}`))),
-        salvage(app), app.engine.kitDeltas ? forecastButton : null, forecasts);
+        salvage(app), (app.engine.kitEstimates ?? app.engine.kitDeltas) ? forecastButton : null, estimateLabel, forecasts);
     };
     paint();
     return h("div", { class: "sheet-body forge" }, h("div", { class: "label" }, /* copy:label */ "Forge"), kit, advanced);

@@ -1,3 +1,22 @@
+**ROUGH CAMP/FORGE PREVIEWS — 2026-10-06:** Camp and paired edit previews
+use eight samples; Forge's explicit Forecast uses eight outcome-only samples.
+No automatic larger camp pass after paint/edit: More samples is explicit,
+deduplicated, retryable and rejects stale hero/rule/lineage replies. Rough
+answers remain readable; same-state detailed answers stay cached. Shipping
+three alternating cold pairs/camp: forecast early286→45 ms, late460→127 ms,
+tuned835→379 ms (55–84% faster); Forge1266→204,1896→597,3382→783 ms
+(69–84%). Approximate probabilities can differ materially: max reach35 points
+in these fixtures, not ground truth. All12 subsequent full/refined/Forge/8h
+reply/save pairs exact. Full verifier:545 tests, one ignored,11 tooling tests,
+clippy/build/copy and fresh18 selected fortnight cases,470s total; whole
+progression table exact except elapsed header. Client lifecycle32, Forge33,
+geometry176, shipping paint5, Cut24/28 gates20/27 pass. Actual shipping400/1440
+preview/refinement/Forge controls/screens pass. PERF_ROUGH_PREVIEWS.md records
+scope, uncertainty, raw artifacts and no whole-app/FPS speed claim.
+Next: per-engine/hero complete-state Forge memoization and stale reply guards;
+raw report unlock IDs/wall-edit wording; selected Tactics group queries. All
+cases within minutes remains unfinished. Push authorized; no deployment.
+
 **WALL SEARCH OUTCOMES — 2026-10-06:** Depth-only wall search now skips the
 unused passage-gold ledger per candidate, retaining12/48 samples and owned
 screening prefixes. Shipping three alternating cold pairs/camp: early

@@ -1,7 +1,6 @@
 // Forecast panel: reach% bars per depth up to known_to, `?` beyond; top causes.
 // Cut 4 §8: the row for best+1 names the top cause even at 0% (`D6 0% · goblin warlord`) when causes are known.
-// Cut 6 §5: that row also names the boss's counter when the lineage knows it. Cut 6 §9: `app` repaints quietly with
-// the refined (100-sim) forecast 2 s after a paint with the rules unchanged (same `onForecast` listener).
+// Known counters accompany rough previews; a larger pass is requested explicitly.
 // Cut 7 §2: `yours: 3 of 5 rows` under the bars — the rows of the active set the player wrote or edited (`Row.origin`),
 // repainted on every edit (the forecast itself waits for the engine).
 // Cut 9 §3: a bar reads `D4 71% ±6` when the engine sends `pm` (the binomial half-width), so a wobble reads as noise.
@@ -156,7 +155,7 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
     // QA 0c6e126 (qaY: `D5 88→84%` — "no forecast on screen ever showed 88%"): `from→to` only from a share of the sent set this camp
     // painted (`App.baseWasShown`); measured again under a changed lineage (a purchase, the cage), the term is the signed move
     const from = b ? Math.round(b.base! * 100) : 0;
-    const txt = m!.dir === "flat" ? (rough ? "…" : m!.text) : b && app.baseWasShown(shownKey, from) ? `${from}→${Math.round((b.base! + b.delta) * 100)}%` : m!.text;
+    const txt = m!.dir === "flat" ? m!.text : b && app.baseWasShown(shownKey, from) ? `${from}→${Math.round((b.base! + b.delta) * 100)}%` : m!.text;
     return h("span", { class: "vs-term", "data-k": key }, h("i", { class: "sep" }, " · "), label, " ", h("b", { class: `dlt ${tone(m!.dir, worse)}` }, txt));
   };
   const terms: HTMLElement[] = [];
@@ -173,7 +172,7 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
   if (!terms.length) return null;
   // QA 778fa1b (qaU: `death −10` stayed while the refine beside it read 22 → 27 %): a move paired on the first pass trails `…` and
   // reads dim until the refine's is asked again and lands (`ForecastVs.refined`; absent on an older core: no mark)
-  return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs last run", rough ? "…" : ""), ...terms);
+  return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs last run", ""), ...terms);
 }
 
 /** Cut 28 §2 (AV: "death jumped 14 → 36 %; I blamed my new rows — the real cause was the party dying"): the state's part of the move
@@ -232,13 +231,19 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   const vsHost = h("div", { class: "fc-vs", hidden: true });
   const paintVs = (): void => { const line = vsLine(app, app.vsShown(), app.lastForecast, true), st = stateLine(app); vsHost.hidden = !line && !st; replace(vsHost, st ?? "", line ?? ""); };
   // QA 778fa1b (qaU: 94/78/42 then 95/73/36 for the same rules, "no sign it was settling"): the first pass's label trails `…`
-  const settling = h("span", { class: "fc-settling", hidden: true }, "…");
+  const quality = h("small", { class: "fc-quality dim" }, /* copy:label */ "rough estimate");
+  const sampleCount = h("small", { class: "fc-samples num dim" });
+  let refineFailed = false;
+  const refineButton = h("button", { class: "chip fc-refine", hidden: !app.engine.forecastRefine, onclick: () => {
+    refineFailed = false; refineButton.disabled = true; refineButton.textContent = /* copy:button */ "Measuring…";
+    void app.refineForecast().catch(() => { refineFailed = true; }).finally(() => { if (app.lastForecast) paint(app.lastForecast); });
+  } }, /* copy:button */ "More samples");
   // QA 778fa1b (qaV: `D1 100%` beside `death 100%` read as dying on D1): the bars say what they count — the share that reaches each floor
   // Cut 29 §3: the last two runs side by side (the core's `Lineage.meters.runs`, older first) — the phone's under the forecast (the desktop's
   // is the right column's meters)
   const runs = app.lineage.meters?.runs ?? [];
   const cmp = runs.length >= 2 && !isWide() ? meterCompare(runs[runs.length - 2], runs[runs.length - 1]) : null;
-  const el = h("section", { class: "forecast" }, h("div", { class: "label" }, /* copy:label */ "forecast", settling), h("div", { class: "label reach-label dim" }, kw("reach")), bars, ends, vsHost, picked, yours, causes, cmp);
+  const el = h("section", { class: "forecast" }, h("div", { class: "fc-heading" }, h("span", { class: "label" }, /* copy:label */ "forecast"), quality, sampleCount, refineButton), h("div", { class: "label reach-label dim" }, kw("reach")), bars, ends, vsHost, picked, yours, causes, cmp);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
@@ -255,7 +260,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
     const lo = lowOf(f), eh = (x: number): string => endShare(x, lo);
     const epm = pmShown(e.death, e.pm);
-    const pm = epm !== undefined ? h("small", { class: "dim pm band", style: bandW(epm), title: `±${epm}` }, /* copy:none */ ` ±${epm}${f.refined === false ? "…" : ""}`) : "";   // Cut 29: `±6` read as −6 — a band
+    const pm = epm !== undefined ? h("small", { class: "dim pm band", style: bandW(epm), title: `±${epm}` }, /* copy:none */ ` ±${epm}`) : "";   // Cut 29: `±6` read as −6 — a band
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
     replace(ends, h("span", { class: "label ends-label" }, kw("ends", /* copy:label */ "run outcomes")), " ", /* copy:callout */ `full haul ${eh(e.bank)}`, /* copy:callout */ ` · turn back ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
   };
@@ -270,8 +275,11 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
     el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
     // QA 92eb880 (M: "D6 32%±13 → 38%±10 on opening edit"): the first pass paints dim, its ± trailing `…`, until the refine lands
     el.classList.toggle("rough", f.refined === false);
-    settling.hidden = f.refined !== false;
-    const first = f.refined === false ? "…" : "";   // Cut 13 §5: the first paint's ± trails `…`; the refine's does not
+    quality.hidden = f.refined !== false;
+    sampleCount.textContent = f.sims ? `${f.sims} samples` : "";
+    refineButton.disabled = app.forecastRefining || f.refined === true || el.classList.contains("stale");
+    refineButton.textContent = app.forecastRefining ? /* copy:button */ "Measuring…" : refineFailed ? /* copy:button */ "Retry" : /* copy:button */ "More samples";
+    const first = "";   // Cut 13 §5: the first paint's ± trails `…`; the refine's does not
     const next = app.lineage.best_depth + 1;
     // Cut 4 §8 names the top cause on best+1; QA 23ed91f (L: `D9 0% ±1 · rat` for a set that dies on D1–D2): when nobody gets near
     // best+1, the cause sits on the floor where the reach falls most
@@ -343,7 +351,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
   bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, "…"), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
   // a rule edit (or a set switch) dims the numbers until the engine's next forecast paints — an empty set's takes seconds and
   // the old set's bars read as the new one's meanwhile (QA on 952e306: "set '2 0' showed set 1's D4 72%")
-  const stale = (): void => { paintYours(); paintVs(); el.classList.add("stale"); };
+  const stale = (): void => { refineFailed = false; paintYours(); paintVs(); el.classList.add("stale"); refineButton.disabled = true; };
   // QA a946e04 (S: the shaft `D5 22% ±11 · return 78%` beside the panel's `21% ±8 · return 76%` on one screen): the panel and the shaft
   // paint one forecast — `app.lastForecast`, the event both are handed (the first pass `…`, then the refine) — and the panel starts
   // from it, never from a pass of its own
@@ -399,7 +407,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
     const byDepth = new Map((last?.depths ?? []).map((d) => [d.depth, d]));
     const vs = app.vsShown(), vsBy = new Map((vs?.depths ?? []).map((d) => [d.depth, d]));
     const known = last?.known_to ?? 0;
-    const rough = last?.refined === false, cap = bankCap(app.rules.rows);
+    const cap = bankCap(app.rules.rows);
     const folded: HTMLElement[] = [];
     if (from > start) {
       const hi = from - 1, d = byDepth.get(hi), reach = d ? d.reach : hi <= known ? 1 : 0;
@@ -443,7 +451,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
         h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, lane ? h("i", { class: "lane", "data-biome": lane }, ` ${lane}`) : "", lane && laneEnd(depth) ? h("i", { class: "lane-to dim" }, ` → D${laneEnd(depth)}`) : "", bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`, conceptCap("bounty")) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
-        h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm band", style: bandW(pmShown(d.reach, d.pm)!), title: `±${pmShown(d.reach, d.pm)}` }, /* copy:none */ `±${pmShown(d.reach, d.pm)}${rough ? "…" : ""}`) : "",
+        h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm band", style: bandW(pmShown(d.reach, d.pm)!), title: `±${pmShown(d.reach, d.pm)}` }, /* copy:none */ `±${pmShown(d.reach, d.pm)}`) : "",
           d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
@@ -466,7 +474,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
-      h("span", { class: "end gold" }, /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), rough ? h("i", { class: "settling" }, "…") : ""));
+      h("span", { class: "end gold" }, /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), ""));
     replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
     const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last), st = stateLine(app);
     vsHost.hidden = !line && !lm && !st; replace(vsHost, st ?? "", lm ?? "", line ?? "");

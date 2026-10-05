@@ -77,6 +77,11 @@ impl Game {
         js(&self.inner.forecast())
     }
 
+    #[wasm_bindgen(js_name = forecastEstimate)]
+    pub fn forecast_estimate(&self) -> String {
+        js(&riddle_core::forecast::forecast_estimate(&self.inner))
+    }
+
     /// Cut 6 §9: the same forecast at 100 sims (same seeds first), the client's refine pass.
     #[wasm_bindgen(js_name = forecastRefine)]
     pub fn forecast_refine(&self) -> String {
@@ -372,6 +377,12 @@ impl Game {
         Ok(js(&self.inner.forecast_vs(&prev)))
     }
 
+    #[wasm_bindgen(js_name = forecastVsEstimate)]
+    pub fn forecast_vs_estimate(&self, prev: &str) -> Result<String, JsError> {
+        let prev = riddle_core::RuleSet::parse(prev).map_err(err)?;
+        Ok(js(&riddle_core::forecast::forecast_vs_estimate(&self.inner, &prev)))
+    }
+
     /// Cut 27 §1: right after `send` — play the floors the set clears ≥ 95 % and return the fold
     /// line (`FoldLine`: `from`, `to`, `clear`, `gold`, `beats`, `chips`, `floors[]` with each
     /// floor's snapshot and events, `step` as one `step()`). Nothing folded: `to < from`.
@@ -592,6 +603,11 @@ impl Game {
     #[wasm_bindgen(js_name = kitDeltas)]
     pub fn kit_deltas(&self) -> String {
         js(&riddle_core::kit::deltas(&self.inner))
+    }
+
+    #[wasm_bindgen(js_name = kitEstimates)]
+    pub fn kit_estimates(&self) -> String {
+        js(&riddle_core::kit::estimates(&self.inner))
     }
 
     // ---- Cut 3: ascension

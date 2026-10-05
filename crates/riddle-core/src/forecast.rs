@@ -401,6 +401,12 @@ pub fn forecast(game: &Game) -> Forecast {
     forecast_with(game, rules, camp_sims(game, rules))
 }
 
+/// Small UI preview; real progress and the normal/refined API keep their quality.
+pub const PREVIEW_SIMS: u32 = 8;
+pub fn forecast_estimate(game: &Game) -> Forecast {
+    forecast_with(game, game.lineage.rules(), PREVIEW_SIMS)
+}
+
 /// The camp's sims for `rules` now: `REFINE_SIMS` once that panel was refined for this
 /// (lineage, rules) — whether or not the panel is still in the cache (QA on 1a2a4a9, qaO:
 /// the cage picker's three panels filled the cache, its clear-all dropped the refined panel,
@@ -1066,8 +1072,15 @@ pub fn fork_forecast_at(game: &Game, fork: u32, sims: u32) -> Vec<crate::wire::F
 /// own paint). Per depth of the shaft and on the ends: the mean per-seed difference and its
 /// 95 % half-width from the per-seed differences (`paired`), over the seeds both panels ran.
 pub fn forecast_vs(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
+    forecast_vs_with(game, prev, camp_sims(game, game.lineage.rules()))
+}
+
+pub fn forecast_vs_estimate(game: &Game, prev: &RuleSet) -> crate::wire::ForecastVs {
+    forecast_vs_with(game, prev, PREVIEW_SIMS)
+}
+
+fn forecast_vs_with(game: &Game, prev: &RuleSet, sims: u32) -> crate::wire::ForecastVs {
     let rules = game.lineage.rules().clone();
-    let sims = camp_sims(game, &rules);
     let a = camp_panel(game, &rules, sims);
     let mut b = camp_panel(game, prev, sims);
     // QA on 524827b (qaAA: `vs sent…` held > 25 s after a cage change): under the tick budget the

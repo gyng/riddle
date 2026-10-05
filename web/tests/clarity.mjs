@@ -485,10 +485,11 @@ try {
       r.onForecast((f) => log.push({ t: performance.now(), refined: f.refined }));
       const until = (pred, ms) => new Promise((res) => { const t0 = performance.now(); const tick = () => { if (pred() || performance.now() - t0 > ms) res(pred()); else setTimeout(tick, 20); }; tick(); });
       await until(() => log.some((x) => x.refined === false), 8000);                       // the camp's first paint
-      await new Promise((res) => setTimeout(res, 2300));                                   // the refine (2 s after it) is in flight now
+      void r.refineForecast(); await new Promise((res) => setTimeout(res, 2300));                                   // the refine (2 s after it) is in flight now
       void r.engine.unlockDeltas(); void r.engine.cageForecast();                          // …and more slow measures queued behind it
       const at = performance.now(); log.length = 0;
       r.insertRow({ conds: [{ k: "hp<", n: 30 }], verb: { v: "rest" } }, 0);               // an edit
+      await until(() => log.some((x) => x.refined === false), 8000); void r.refineForecast();
       await until(() => log.some((x) => x.refined === true), 12_000);
       const first = log.find((x) => x.refined === false), refine = log.find((x) => x.refined === true);
       return { first: first ? Math.round(first.t - at) : -1, refine: refine ? Math.round(refine.t - at) : -1 };
@@ -525,8 +526,9 @@ try {
       r.onForecast((f) => log.push({ t: performance.now(), refined: f.refined }));
       const until = (pred, ms) => new Promise((res) => { const t0 = performance.now(); const tick = () => { if (pred() || performance.now() - t0 > ms) res(pred()); else setTimeout(tick, 15); }; tick(); });
       const wait = (ms) => new Promise((res) => setTimeout(res, ms));
-      const took = async (at) => { await until(() => log.some((x) => x.refined === true), 15_000); return { first: Math.round((log.find((x) => x.refined === false)?.t ?? NaN) - at), refine: Math.round((log.find((x) => x.refined === true)?.t ?? NaN) - at) }; };
+      const took = async (at) => { if (r.lastForecast?.refined && r.refinedKey === r.fcKey()) log.push({t:performance.now(),refined:true}); else { await until(() => log.some((x) => x.refined === false), 15000); void r.refineForecast(); } await until(() => log.some((x) => x.refined === true), 15_000); return { first: Math.round((log.find((x) => x.refined === false)?.t ?? NaN) - at), refine: Math.round((log.find((x) => x.refined === true)?.t ?? NaN) - at) }; };
       r.insertRow({ conds: [{ k: "hp<", n: 30 }], verb: { v: "rest" } }, 0);
+      await until(() => log.some((x) => x.refined === false), 8000); void r.refineForecast();
       await until(() => log.some((x) => x.refined === true), 15_000); await wait(1000);
       const quiet = [];
       for (const n of [40, 50, 60]) { log.length = 0; const at = performance.now(); r.rules.rows[0].conds[0].n = n; r.rulesChanged(); quiet.push(await took(at)); await wait(1000); }
@@ -567,7 +569,7 @@ try {
       r.onForecast((f) => log.push({ t: performance.now(), refined: f.refined }));
       const until = (pred, ms) => new Promise((res) => { const t0 = performance.now(); const tick = () => { if (pred() || performance.now() - t0 > ms) res(pred()); else setTimeout(tick, 15); }; tick(); });
       const wait = (ms) => new Promise((res) => setTimeout(res, ms));
-      const took = async (at) => { await until(() => log.some((x) => x.refined === true), 30_000); return { first: Math.round((log.find((x) => x.refined === false)?.t ?? NaN) - at), refine: Math.round((log.find((x) => x.refined === true)?.t ?? NaN) - at) }; };
+      const took = async (at) => { if (r.lastForecast?.refined && r.refinedKey === r.fcKey()) log.push({t:performance.now(),refined:true}); else { await until(() => log.some((x) => x.refined === false), 15000); void r.refineForecast(); } await until(() => log.some((x) => x.refined === true), 30_000); return { first: Math.round((log.find((x) => x.refined === false)?.t ?? NaN) - at), refine: Math.round((log.find((x) => x.refined === true)?.t ?? NaN) - at) }; };
       log.length = 0; let at = performance.now(); r.go({ kind: "camp" });
       const camp = await took(at); await wait(8000);
       const i = r.rules.rows.findIndex((x) => x.conds.some((c) => c.n !== undefined));
@@ -576,17 +578,18 @@ try {
       for (const d of [5, -5, 10]) { if (!c) break; log.length = 0; at = performance.now(); c.n = Math.max(5, c.n + d); r.rulesChanged(); edits.push(await took(at)); await wait(1500); }
       await wait(4000);   // the quiet camp (its prefetch)
       at = performance.now(); document.querySelector(".cmd .tile[data-tile=forge]")?.click();
-      await until(() => { const m = [...document.querySelectorAll(".sheet-wrap .forge .kit-move")]; return m.length > 0 && m.every((x) => !/…/.test(x.textContent)); }, 30_000);
+      document.querySelector(".forge-details summary")?.click(); document.querySelector(".forge-details button")?.click();
+      await until(() => { const m = [...document.querySelectorAll(".sheet-wrap .forge .forge-forecasts > div")]; return m.length > 0 && m.every((x) => !/…/.test(x.textContent)); }, 30_000);
       const forge = Math.round(performance.now() - at);
       // Cut 27 §2: the edit as a scene — a big edit (the set's first row cut), its refine, the core's divergence, the scene's first frame
       log.length = 0; r.go({ kind: "camp" }); await took(performance.now()); await wait(1500);
       window.__scene = {}; log.length = 0; at = performance.now();
-      r.rules.rows.splice(0, 1); r.rulesChanged();
+      r.rules.rows.splice(0, 1); r.rulesChanged(); await took(at);
       const sceneOn = await until(() => !!window.__scene.playAt || window.__scene.last === null || (window.__scene.answerAt && !document.querySelector(".camp .div-scene:not([hidden])")), 30_000);
       await wait(300);
       const sc = window.__scene;
       const scene = { refine: Math.round((sc.refineAt ?? NaN) - at), answer: Math.round((sc.answerAt ?? NaN) - (sc.refineAt ?? NaN)), play: sc.playAt ? Math.round(sc.playAt - sc.refineAt) : null, found: sc.last ? `${sc.last.moved.toFixed(2)}${sc.last.inside ? " inside" : ""}` : sc.last === null ? "none" : "?", ok: sceneOn };
-      return { camp, edits, forge, scene, best: r.lineage.best_depth, kit: !!document.querySelector(".sheet-wrap .forge .kit-move") };
+      return { camp, edits, forge, scene, best: r.lineage.best_depth, kit: !!document.querySelector(".sheet-wrap .forge .forge-forecasts > div") };
     });
     const med = t.edits.map((e) => e.first).sort((a, b) => a - b)[1], medR = t.edits.map((e) => e.refine).sort((a, b) => a - b)[1];
     const line = `deep D${t.best} (real wasm): camp first ${t.camp.first} ms · refine ${t.camp.refine}; an edit's first ${t.edits.map((e) => e.first).join("/")} (median ${med}) · refine ${t.edits.map((e) => e.refine).join("/")} (median ${medR}); forge ${t.kit ? `${t.forge} ms` : "no step"} — bars 1.2 s · 3 s · 3 s`;

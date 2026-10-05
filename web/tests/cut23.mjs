@@ -70,7 +70,7 @@ try {
   await camp();
   const tile = await page.evaluate(() => { const t = document.querySelector(".cmd .tile[data-tile=forge]"); return t ? { badge: t.querySelector(".kit-n")?.textContent ?? null } : null; });
   check(!!tile && /^\d$/.test(tile.badge ?? ""), `the first affordable kit step carves the forge tile, its badge counts them (${JSON.stringify(tile)})`);
-  await page.evaluate(() => { const a=window.__riddle, f=a.engine.kitDeltas.bind(a.engine); window.kitReads=0; a.engine.kitDeltas=async()=>{window.kitReads++;return f();}; });
+  await page.evaluate(() => { const a=window.__riddle; window.kitReads=0; for (const name of ["kitDeltas", "kitEstimates"]) { if(!a.engine[name])continue; const f=a.engine[name].bind(a.engine); a.engine[name]=async()=>{window.kitReads++;return f();}; } });
   await page.locator(".cmd .tile[data-tile=forge]").click({ timeout: 5000 });
   await until(() => page.evaluate(() => document.querySelectorAll(".sheet-wrap .forge .kit-slot").length === 3), "the forge's three slots");
   const next = await page.evaluate(() => [...document.querySelectorAll('.forge .kit-slot')].map(el=>({slot:el.dataset.slot,item:el.querySelector('.forge-item')?.textContent.trim(),button:el.querySelector('.forge-buy')?.textContent.trim(),disabled:el.querySelector('.forge-buy')?.disabled})));

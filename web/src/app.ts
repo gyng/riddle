@@ -51,13 +51,6 @@ const SAVE_DEBOUNCE_MS = 1000;
 // (~3 s per slice; one `death(id)` at the end instead), so slices are a flat 30 min. On a stale wasm build
 // without it, the full call is used with slices that grow with the absence (80 min for 8 h, 2 h cap).
 const OFFLINE_SLICE_S = 30 * 60, OFFLINE_SLICE_MAX_S = 2 * 3600, OFFLINE_SLICES = 6;
-// Cut 23 §4 (AI: "each forecast takes ~5 s to settle"): the refine starts 1 s after a quiet paint (was 2 s; it runs on the background lane)
-// Cut 24 §4 (AK: "3–7 s to settle"): with a refine lane of its own (engine/lanes.ts `refineLane`, latest only) an edit's refine starts
-// beside its first pass (REFINE_PAR_MS, the forecast's own debounce) and an edit meanwhile waits at most for the one in flight (≤ 1.3 s
-// in wasm), never for a queue of stale ones; a paint no edit asked for (a camp, a buy) and one lane (the fake, `?lanes=0`) keep Cut 23's 1 s
-const REFINE_MS = 1000, REFINE_PAR_MS = 30;
-/** Cut 28 §4: a refine not answered by then leaves the first pass standing (its `…` marks go). */
-const REFINE_STUCK_MS = 15_000;
 /** Cut 28 §2: the quiet the camp keeps before the move's attribution is asked. */
 const MOVE_QUIET_MS = 1500;
 /** Cut 20 §3: an edit's forecast waits this long for the next edit (was 250 ms; the first paint is due ≤ 1 s after the edit). */
@@ -178,10 +171,11 @@ export class App {
   private fcAsk = 0;       // Cut 25 §4: the latest forecast asked (only it paints)
   private fcRunning = 0;   // … and how many are in flight
   private fcDirty = false;
-  /** Cut 6 §9: the quiet second pass (100 sims) 2 s after a paint with the rules unchanged; off once the engine lacks it. */
-  private refineTimer = 0;
+  /** Explicit larger forecast request; reject replies after the camp state changes. */
   private refineSeq = 0;
-  private refineOff = false;
+  forecastRefining = false;
+  private refineRequest: Promise<void> | null = null;
+  private refineRequestKey = "";
   private fcListeners = new Set<(f: Forecast) => void>();
   private changeListeners = new Set<() => void>();
   private rulesListeners = new Set<() => void>();
@@ -248,9 +242,9 @@ export class App {
     if (f.vs) { this.setVs(f.vs); return; }
     if (this.vsOff || !this.engine.forecastVs) return;
     const seq = this.editSeq;
-    const ask = afterRefine && this.engine.forecastVsRefined ? this.engine.forecastVsRefined : this.engine.forecastVs;
+    const ask = afterRefine && this.engine.forecastVsRefined ? this.engine.forecastVsRefined : !f.refined && this.engine.forecastVsEstimate ? this.engine.forecastVsEstimate : this.engine.forecastVs;
     // QA 778fa1b (qaU: `death −10` stayed from the first paint while the refined panel beside it read 22 → 27 %): asked again once the
-    // refine lands (`scheduleRefine`); a first-pass answer never replaces a refined one that came back first
+    // explicit refinement lands; a first-pass answer never replaces a refined one that came back first
     void ask.call(this.engine, cloneSet(base)).then((v) => { if (seq === this.editSeq && v && !(this.vs?.refined && !v.refined)) this.setVs(v); })
       .catch((e) => { this.vsOff = true; console.warn("forecastVs unavailable", e); });
   }
@@ -285,8 +279,6 @@ export class App {
   get moveByCore(): boolean { return !!this.engine?.forecastMove && !this.moveOff; }
   /** Asked once after a send, on the camp's first refined paint (the state changed by the run; purchases after it are `lmove`'s). */
   private moveDue = false;
-  /** Cut 28 §4: how long a refine may go unanswered before the first pass stands (a field: the tests shorten it). */
-  refineStuckMs = REFINE_STUCK_MS;
   private moveTimer = 0;
   /** Asked once the camp is quiet (MOVE_QUIET_MS after a refined paint with no edit): its 2–6 panels never queue beside an edit's refine. */
   private askMove(): void {
@@ -628,20 +620,18 @@ export class App {
     if (!this.vsBase && this.fcFresh && this.fcRules) { this.vsBase = this.fcRules; this.vsBaseShadow = this.fcShadow; if (this.lastForecast) this.noteBaseShown(this.lastForecast); }
     this.fcFresh = false; this.editSeq++; this.setVs(null);
     this.persist();
-    clearTimeout(this.fcTimer); clearTimeout(this.refineTimer); this.refineSeq++;
+    clearTimeout(this.fcTimer); this.refineSeq++; this.forecastRefining = false;
     this.shadow = null; this.shadowEdited = true;   // QA 92eb880: the marks wait for the forecast of the rules now
     for (const fn of this.rulesListeners) fn();
     if (this.overBudget) return;
     const seq = ++this.rulesSeq;
     void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) { this.shelfCheck(); this.adoptCompiled(seq); } }).catch((e) => console.warn("rules rejected", e));
     this.fcTimer = window.setTimeout(() => void this.emitForecast(), FC_DEBOUNCE_MS);
-    // Cut 24 §4: the edit's refine starts beside its first pass (its own lane, the rules alone synced), not after it
-    if (this.engine.refineLane) this.scheduleRefine(REFINE_PAR_MS, true);
   }
   /** Cut 24 §4: the state a forecast measures — the edit and the lineage it was asked on. */
   private fcKey(): string { this.lineageIds.has(this.lineage) || this.lineageIds.set(this.lineage, ++this.lineageN); return `${this.editSeq}:${this.lineageIds.get(this.lineage)}`; }
   private lineageIds = new WeakMap<object, number>(); private lineageN = 0;
-  private refineKey = ""; private refinedKey = ""; private refinedN = 0;   // the state the refine scheduled measures; the one whose refine painted (and a count of refines painted)
+  private refinedKey = ""; private refinedN = 0;   // the requested state whose detailed result painted, and its generation
   /** Cut 12 §6: the unlock shelf's `+1 row ⊘ fill rows` is the engine's read of its own set, so it repaints once a rule edit
    *  crosses `max_rows` — after `setRules` resolved (the rules listeners fire before the engine call). */
   private shelfCheck(): void {
@@ -658,6 +648,7 @@ export class App {
   async emitForecast(): Promise<void> {
     if (this.lineage.town?.home === false) return;
     if (!this.fcListeners.size) return;
+    if (this.refinedKey === this.fcKey() && this.lastForecast?.refined) return;
     // Cut 25 §4: with lanes that can take it (`parallelForecast`) an edit's forecast starts at once — a stale one in flight is left to finish
     // unpainted (it no longer holds the fresh one behind it: 1.5 s after a burst of edits, where the bar is 1.2)
     const par = !!this.engine.parallelForecast;
@@ -666,18 +657,15 @@ export class App {
     this.fcInFlight = true; this.fcDirty = false; this.fcRunning++;
     try {
       const asked = cloneSet(this.rules), key = this.fcKey(), refinedBefore = this.refinedN;
-      // Cut 25 §4 (deep lineage: the camp's refine landed 4.2 s after its mount — 1 s after the first paint, then 2 s): with a refine lane
-      // any state's refine starts beside its first pass, not only an edit's
-      if (this.engine.refineLane && this.refineKey !== key && !this.overBudget) this.scheduleRefine(REFINE_PAR_MS, true);
-      const f = await this.busy(/* copy:label */ "forecast", () => this.engine.forecast());
+      const estimate = this.engine.forecastEstimate ?? this.engine.forecast;
+      const f = await this.busy(/* copy:label */ "forecast", () => estimate.call(this.engine));
       // QA 23ed91f (L: switching to an empty set, the shaft kept the old set's `return 94%` for ~5 s, then flipped): a forecast whose
       // rules changed while it ran is not painted (the shaft stays dimmed `stale`); the next one, for the rules now, is
       if (!this.fcDirty && ask === this.fcAsk) {
         this.fcRules = asked; this.fcShadow = f.shadowed_by ?? []; this.fcFresh = true;
         // Cut 24 §4: the refine of this very state may have painted while this pass ran (it runs beside it) — the first pass is then
-        // older news; a state no refine was asked for gets one now
+        // older news; an explicitly refined answer keeps its requested quality
         if (!(this.refinedKey === key && this.refinedN !== refinedBefore)) { this.publishForecast(f); this.measureVs(f, asked); }
-        if (this.refineKey !== key) this.scheduleRefine(REFINE_MS);
       }
     } catch (e) { console.warn("forecast failed", e); }
     finally { if (--this.fcRunning <= 0) { this.fcRunning = 0; this.fcInFlight = false; } }
@@ -692,36 +680,30 @@ export class App {
     if (f.refined && !this.overBudget && this.lineage && this.view.kind === "camp") { const sh = sharesOf(f); this.noteState(rulesKey(this.rules), sh.shares, sh.pm, f.sims ?? 0); this.askMove(); }
     for (const fn of this.fcListeners) { try { fn(f); } catch (e) { console.warn("forecast listener", e); } }
   }
-  /** Cut 6 §9: after the forecast paints and the rules stay unchanged for REFINE_MS, `forecastRefine` (100 sims) repaints
-   *  quietly (no progress bar). A rule edit or a fresh forecast cancels it; an engine without it is asked once. */
-  private scheduleRefine(ms: number, beside = false): void {
-    clearTimeout(this.refineTimer);
-    if (this.refineOff || !this.engine.forecastRefine) return;
-    const seq = ++this.refineSeq, key = this.fcKey();
-    this.refineKey = key;
-    // Cut 24 §4: an edit's refine on its own lane runs beside the first pass (`beside`); any other waits for a quiet paint as before
-    this.refineTimer = window.setTimeout(async () => {
-      if (seq !== this.refineSeq || (!beside && this.fcInFlight) || this.offlineRunning || this.overBudget) { if (seq === this.refineSeq) this.refineKey = ""; return; }
-      // Cut 28 §4 (AU: with the `kite archers` card the forecast sat on `…` until the card was dropped): a refine that has not answered in
-      // REFINE_STUCK_MS leaves the first pass standing as the answer — its `…` marks go (`refined` unset, an older core's paint) — and a
-      // refine that lands later still paints over it
-      const stuck = window.setTimeout(() => {
-        const f0 = this.lastForecast;
-        if (seq !== this.refineSeq || !f0 || f0.refined !== false || !this.fcRules || !sameSet(this.fcRules, this.rules)) return;
-        console.warn("forecastRefine: no answer in", this.refineStuckMs, "ms");
-        const { refined: _r, ...rest } = f0; this.publishForecast({ ...rest, stuck: true } as Forecast);
-      }, this.refineStuckMs);
+  /** Larger forecasts run only when requested, and can only paint the state asked. */
+  refineForecast(): Promise<void> {
+    if (!this.engine.forecastRefine || this.offlineRunning || this.overBudget) return Promise.resolve();
+    const key = this.fcKey();
+    if (this.refinedKey === key && this.lastForecast?.refined) return Promise.resolve();
+    if (this.refineRequest && this.refineRequestKey === key) return this.refineRequest;
+    const seq = ++this.refineSeq, asked = cloneSet(this.rules);
+    this.refineRequestKey = key; this.forecastRefining = true;
+    const job = Promise.resolve().then(async () => {
       try {
-        const f = await this.engine.forecastRefine!().finally(() => clearTimeout(stuck));
-        if (seq !== this.refineSeq) return;
+        if (seq !== this.refineSeq || key !== this.fcKey()) return;
+        const f = await this.engine.forecastRefine!();
+        if (seq !== this.refineSeq || key !== this.fcKey()) return;
+        this.fcRules = asked; this.fcShadow = f.shadowed_by ?? []; this.fcFresh = true;
         this.refinedKey = key; this.refinedN++;
         this.publishForecast(f);
-        // QA 912e135: the first pass's move is not the refined bars' — the marks wait (`vsShown`) and the line reads `vs sent …` until it lands
         if (this.vs && !this.vs.refined) for (const fn of this.vsListeners) { try { fn(); } catch (e) { console.warn("vs listener", e); } }
-        // Cut 22 §3: the refine's move — the one it carries, else `forecastVs` asked again now the panels paired are the refined ones
         if (this.vsBase && !sameSet(this.vsBase, this.rules)) { if (f.vs) this.setVs(f.vs); else this.measureVs(f, cloneSet(this.rules), true); }
-      } catch (e) { this.refineOff = true; console.warn("forecastRefine unavailable", e); }
-    }, ms);
+      } finally {
+        if (seq === this.refineSeq) { this.forecastRefining = false; this.refineRequest = null; }
+      }
+    });
+    this.refineRequest = job;
+    return job;
   }
   /** Cut 5 §6: the set's name (≤ 12 chars; empty clears it to the default). It rides the RuleSet through `setRules`, so the
    *  engine save carries it and the core can quote it in the chronicle. Renaming a set that is not active selects it first. */

@@ -121,6 +121,7 @@ try {
     await sleep(250);
   }
   await camp();
+  await page.evaluate(() => window.__riddle.refineForecast());
   const st = await until(() => { const l = document.querySelector(".shaft-vs-host .shaft-state"); return l ? { text: l.textContent.replace(/\s+/g, " ").trim(), k: l.dataset.k, vs: !!document.querySelector(".shaft-vs-host .shaft-vs"), scene: !(document.querySelector(".div-line")?.hidden ?? true) } : null; }, "the state's line", 15_000).catch(() => null);
   check(!!st && /^party [−+]\d+\b.* · (death|bank|D\d+) [−+]\d+$/.test(st.text), `a state change reads as its own line ("${st?.text}")`);
   check(!!st && !st.vs && !st.scene, `with no row edited there is no rows' move and no scene (vs ${st?.vs}, scene ${st?.scene})`);
@@ -161,10 +162,10 @@ try {
   await page.click(".gem.camp-gem"); await camp();
 
   // ---- §4: a refine that never answers (AU's `kite archers` card) leaves the first pass standing — its `…` marks go
-  await page.evaluate(() => { const r = window.__riddle; r.refineStuckMs = 1500; r.engine.forecastRefine = () => new Promise(() => {}); const row = r.rules.rows[r.rules.rows.length - 1]; r.rules.rows.push({ ...row, conds: [...row.conds] }); r.rules.rows.pop(); r.rules.rows.reverse(); r.rulesChanged(); });
+  await page.evaluate(() => { const r = window.__riddle; window.refineCalls=0; r.engine.forecastRefine = () => { window.refineCalls++; return new Promise(() => {}); }; const row = r.rules.rows[r.rules.rows.length - 1]; r.rules.rows.push({ ...row, conds: [...row.conds] }); r.rules.rows.pop(); r.rules.rows.reverse(); r.rulesChanged(); });
   const rough = await until(() => document.querySelector(".shaft.rough") ? 1 : null, "the first pass", 10_000).catch(() => null);
-  const settled = await until(() => { const sh = document.querySelector(".shaft"); return sh && !sh.classList.contains("rough") && !sh.classList.contains("stale") && !/…/.test(sh.querySelector(".notches")?.textContent ?? "") ? 1 : null; }, "the first pass standing", 8_000).catch(() => null);
-  check(!!rough && !!settled, `a refine with no answer leaves the first pass standing, no \`…\` (first pass ${!!rough}, settled ${!!settled})`);
+  const settled = await until(() => { const sh = document.querySelector(".shaft"); return sh && sh.classList.contains("rough") && !sh.classList.contains("stale") && !/…/.test(sh.querySelector(".notches")?.textContent ?? "") ? 1 : null; }, "the first pass standing", 8_000).catch(() => null);
+  check(!!rough && !!settled && await page.evaluate(()=>window.refineCalls)===0, `a rough answer stands without requesting refinement, no \`…\` (first pass ${!!rough}, settled ${!!settled})`);
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows.reverse(); r.go({ kind: "camp" }); });
   await camp();
 

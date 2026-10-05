@@ -14,16 +14,16 @@ import type { AsyncEngine } from "./types";
 /** The calls that run on the refine lane when there is one (latest only per call). */
 export const REFINE = new Set<string>(["forecastRefine", "forecastVsRefined"]);
 /** The calls that run on the background lane. */
-export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "startForecast", "forkForecast", "forecastMove", "wallEdit", "packageOptions"]);   // Cut 28 §2: `forecastMove` (2–6 camp panels); Cut 29 §1: `wallEdit` (the wall's search: many camp panels, once a day)
+export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "kitEstimates", "startForecast", "forkForecast", "forecastMove", "wallEdit", "packageOptions"]);   // Cut 28 §2: `forecastMove` (2–6 camp panels); Cut 29 §1: `wallEdit` (the wall's search: many camp panels, once a day)
 // Cut 25 §4 (AM: "~8 s for forge estimates on a D11 lineage after an absence"): measured on a D11 lineage after an 8 h absence (headed,
 // real wasm) the forge's `kitDeltas` (~6 s there) queued behind the camp's `unlockDeltas` (~9.7 s) on the one background lane — 15 s
 // from the camp's paint; `startForecast` ran on the foreground, ahead of an edit's forecast. The slow measures now run on lanes of their
 // own (a mirror each), so no measure waits behind another's: the unlock shelf's, the forge's (and the start picker's), the rest (the cage,
 // a death's patches). One lane on a machine with few cores (`MEASURE_LANES`).
-const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2, divergence: 2, forecastMove: 1, packageOptions: 1 };   // (Cut 28 §2: the move after a send on the forge's lane — beside the edits' vs and divergence on lane 2 it held the refine after a burst)
+const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, kitEstimates: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2, forecastVsEstimate: 2, divergence: 2, forecastMove: 1, packageOptions: 1 };   // (Cut 28 §2: the move after a send on the forge's lane — beside the edits' vs and divergence on lane 2 it held the refine after a burst)
 const MEASURE_LANES = typeof navigator !== "undefined" && (navigator.hardwareConcurrency ?? 4) >= 6 ? 3 : 1;
 /** Foreground calls that leave the lineage as it was (the mirror stays in sync across them). */
-const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastVs", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary", "packageOptionsKey"]);
+const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastEstimate", "forecastVs", "forecastVsEstimate", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary", "packageOptionsKey"]);
 
 type Calls = Record<string, (...a: unknown[]) => Promise<unknown>>;
 
@@ -114,7 +114,7 @@ export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null
   for (const m of Object.keys(F)) {
     if (refineLane && REFINE.has(m)) out[m] = (...a: unknown[]) => refineLane(m, a);
     else if (BACKGROUND.has(m)) out[m] = (...a: unknown[]) => onBackground(m, a);
-    else if (m === "forecast" && opts.mirror) out[m] = (...a: unknown[]) => {
+    else if ((m === "forecast" || m === "forecastEstimate") && opts.mirror) out[m] = (...a: unknown[]) => {
       const L = fgBusy > 0 ? lanes.find((l) => l && !l.busy && l.run.cheap?.()) : undefined;
       if (!L) return onFg(m, a);
       L.busy++; const p = L.chain.then(() => L.run(m, a)); L.chain = p.catch(() => undefined).finally(() => { L.busy--; }); return p;
@@ -156,7 +156,7 @@ export function latestOnly(run: (m: string, a: unknown[]) => Promise<unknown>): 
 
 /** Dev (`?engine=fake&fake_lag=1`): the fake behind a worker's timing — one lane's calls in order, each taking the wasm's
  *  order of magnitude for its kind, so the clarity gate can measure an edit's first paint against the slow measures. */
-const LAG_MS: Record<string, number> = { forecast: 350, forecastRefine: 2500, unlockDeltas: 3000, cageForecast: 3000, deathDeltas: 3000, kitDeltas: 3000, death: 500 };   // Cut 25 §4: the forge's measure too
+const LAG_MS: Record<string, number> = { forecast: 350, forecastEstimate: 350, forecastRefine: 2500, unlockDeltas: 3000, cageForecast: 3000, deathDeltas: 3000, kitDeltas: 3000, kitEstimates: 3000, death: 500 };   // Cut 25 §4: the forge's measure too
 export function lagged(e: AsyncEngine, lag: Record<string, number> = LAG_MS): AsyncEngine {
   const E = e as unknown as Calls;
   let chain: Promise<unknown> = Promise.resolve();

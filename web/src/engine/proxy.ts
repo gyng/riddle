@@ -4,7 +4,7 @@ import type { AsyncEngine, Engine } from "./types";
 import type { Req, Res } from "./worker";
 
 const METHODS: (keyof Engine)[] = [
-  "newLineage", "load", "save", "vocabulary", "setRules", "loadout", "forecast", "send", "step", "runOffline", "death",
+  "newLineage", "load", "save", "vocabulary", "setRules", "loadout", "forecast", "forecastEstimate", "send", "step", "runOffline", "death",
   "buy", "lineage", "exportRules", "importRules", "setParty", "setCompanionRules", "breed", "hatch", "companionVocabulary",
   "buySupply", "clearSupplies", "supplyCatalogue", "keep", "setKeepPref", "insure", "sellVault", "runOfflineQuick", "unlocks", "unlockDeltas", "setClass", "selectSet", "ascend",
   "bail", "choose", "setVaultPref",
@@ -19,9 +19,9 @@ const METHODS: (keyof Engine)[] = [
   "setRestock",       // Cut 19 §3: optional likewise (the loadout's repeat toggle)
   "setStart",         // Cut 21 §1: optional likewise (the start tablet)
   "startForecast",    // Cut 21 §1: optional likewise (the start picker's per-start moves)
-  "forecastVs",       // Cut 22 §3: optional likewise (the edit's paired move under the shaft)
+  "forecastVs", "forecastVsEstimate",       // Cut 22 §3: optional likewise (the edit's paired move under the shaft)
   "buyKit",           // Cut 23 §1: optional likewise (the forge)
-  "kitDeltas",        // Cut 23 §1: optional likewise (the forge steps' measured moves)
+  "kitDeltas", "kitEstimates",        // Cut 23 §1: optional likewise (the forge steps' measured moves)
   "forkForecast",     // Cut 26 §2: optional likewise (the fork chip's two stairs)
   "fold",             // Cut 27 §1: optional likewise (the watch steps the folded floors itself without it)
   "divergence",       // Cut 27 §2: optional likewise (no scene without it)

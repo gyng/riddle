@@ -40,6 +40,7 @@ export class WasmEngine implements Engine {
   setRules(set: RuleSet): void { this.game.setRules(JSON.stringify(set)); }
   loadout(itemIds: number[]): void { this.game.loadout(JSON.stringify(itemIds)); }
   forecast(): Forecast { return this.call("forecast"); }
+  forecastEstimate(): Forecast { return this.call(typeof this.game.forecastEstimate === "function" ? "forecastEstimate" : "forecast"); }
   send(): Snapshot { return this.call("send"); }
   step(turns: number): StepResult { return this.call("step", turns); }
   runOffline(elapsedS: number): ReturnReport { return this.call("runOffline", elapsedS); }
@@ -96,10 +97,12 @@ export class WasmEngine implements Engine {
   // Cut 26 §2: throws `wasm: forkForecast` on a build without it (the fork chip's sheet then shows the chips alone)
   forkForecast(fork: number, refined?: boolean): ForkOption[] { return this.call("forkForecast", fork, refined); }   // QA 308f045: on the camp's pass
   // Cut 22 §3: throws `wasm: forecastVs` on a build without it (the client then reads `Forecast.vs`, or shows no move)
+  forecastVsEstimate(prev: RuleSet): ForecastVs { return this.call(typeof this.game.forecastVsEstimate === "function" ? "forecastVsEstimate" : "forecastVs", JSON.stringify(prev)); }
   forecastVs(prev: RuleSet): ForecastVs { return this.call("forecastVs", JSON.stringify(prev)); }
   // Cut 23 §1: throw `wasm: buyKit` / `wasm: kitDeltas` on a build without them (the camp shows no forge)
   buyKit(slot: string): Lineage { return this.call("buyKit", slot); }
   kitDeltas(): KitLadder[] { return this.call("kitDeltas"); }
+  kitEstimates(): KitLadder[] { return this.call(typeof this.game.kitEstimates === "function" ? "kitEstimates" : "kitDeltas"); }
   // Cut 27: throw `wasm: fold` / `wasm: divergence` on a build without them (the watch then plays every floor; the camp shows no scene)
   fold(): FoldLine { return this.call("fold"); }
   divergence(prev: RuleSet): Divergence | null { return this.call("divergence", JSON.stringify(prev)); }
