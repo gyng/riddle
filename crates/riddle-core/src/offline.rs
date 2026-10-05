@@ -14,6 +14,9 @@ pub const STALL_MIN_RUNS: u32 = 4;
 /// A stall patch must move the forecast at the stall depth + 1 by more than this.
 pub const STALL_DELTA: f64 = 0.02;
 pub const STALL_SHOWN: usize = 3;
+/// Quick reports estimate optional plateau changes on a bounded paired sample.
+/// Full reports and direct analysis keep FORECAST_SIMS.
+pub const QUICK_STALL_SIMS: u32 = 12;
 /// Cut 30 §1: the most rest an idle-floor hero carries into a new absence (ticks: 10 minutes).
 pub const REST_CARRY_TICKS: u32 = 10 * 60 * 10;
 
@@ -305,7 +308,7 @@ pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::c
     let worst_death_id = game.batch.worst_death;
     let worst_death = if full { worst_death_id.and_then(|id| crate::trace::death(game, id)) } else { None };
     let pending = crate::meta::pending(game);
-    let stall = if with_stall { stall_verdict(game) } else { None };
+    let stall = if with_stall { stall_verdict_with(game, if full { crate::forecast::FORECAST_SIMS } else { QUICK_STALL_SIMS }) } else { None };
     // Cut 29 §1 (E1): the wall's edit is not searched here (20–60 s native at a wall, minutes in
     // wasm, inside an offline slice): the client asks `Game::wall_edit` on the report.
     // Cut 28b: the lineage's first plateau (the stall's window, verdict or not) opens the oath board
@@ -486,6 +489,10 @@ pub fn lead_of(game: &Game, r: &ReturnReport) -> Vec<crate::wire::ReportLead> {
 /// ended most of them is named and up to three patches are forecast at the stall depth + 1.
 /// The patches are cached per (row, depth, rules, vocabulary): a chunked absence asks every slice.
 pub fn stall_verdict(game: &mut Game) -> Option<Stall> {
+    stall_verdict_with(game, crate::forecast::FORECAST_SIMS)
+}
+
+fn stall_verdict_with(game: &mut Game, sims: u32) -> Option<Stall> {
     let t = &game.stall;
     if t.runs < STALL_MIN_RUNS {
         return None;
@@ -506,11 +513,11 @@ pub fn stall_verdict(game: &mut Game) -> Option<Stall> {
         before => format!("R{} {verb} ended {here} runs, {before} before; none past D{depth}", row + 1),
     };
     let vocab = game.vocabulary();
-    let key = format!("{row}:{depth}:{}:{}:{}", serde_json::to_string(&rules).unwrap_or_default(), vocab.conds.len(), vocab.verbs.len());
+    let key = format!("{row}:{depth}:{sims}:{}:{}:{}", serde_json::to_string(&rules).unwrap_or_default(), vocab.conds.len(), vocab.verbs.len());
     let patches = match &game.stall_cache {
         Some((k, p)) if *k == key => p.clone(),
         _ => {
-            let p = stall_patches(game, &rules, row as usize, &ending, depth);
+            let p = stall_patches(game, &rules, row as usize, &ending, depth, sims);
             game.stall_cache = Some((key, p.clone()));
             p
         }
@@ -565,9 +572,8 @@ pub fn apply_patch(rules: &RuleSet, p: &Patch, max_rows: usize) -> RuleSet {
 /// Candidates: the ending row pushed 10 points deeper, that row removed, the boss counter when
 /// the stall floor is a boss floor and the boss is known, `hp<90 → rest` when absent. Kept
 /// when the forecast at depth + 1 moves by more than `STALL_DELTA`, ranked by delta.
-fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: u32) -> Vec<Patch> {
+fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: u32, sims: u32) -> Vec<Patch> {
     let target = depth + 1;
-    let sims = crate::forecast::FORECAST_SIMS;
     let max_rows = game.lineage.max_rows();
     let vocab = game.vocabulary();
     let has_verb = |v: &Verb| vocab.verbs.contains(v);
@@ -754,4 +760,37 @@ pub fn advance(game: &mut Game, elapsed_ms: u64) -> Advance {
     }
     out.live = game.live_run();
     out
+}
+#[cfg(test)]
+mod plateau_tests {
+    use super::*;
+    #[test]
+    fn quick_plateau_is_bounded_and_full_analysis_has_a_separate_cache() {
+        static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+        crate::forecast::with_sim_width(&WIDTH, || {
+            let mut g=Game::new_literal(1);
+            let mut rules=g.lineage.rules().clone();
+            rules.rows.insert(0,Row::new(vec![Cond::n("hp<",35)],Verb::new("return")));
+            g.set_rules(rules).unwrap();g.stall.runs=4;g.stall.depth=5;
+            g.stall.exit_rows.insert(0,4);g.stall.absent_rows.insert(0,4);
+            let saved=g.save();
+            let (quick,qwork)=crate::forecast::measure_work(||stall_verdict_with(&mut g,QUICK_STALL_SIMS).unwrap());
+            // Base + deeper threshold + removal + rest (no boss on D5).
+            assert!(qwork.simulations>0&&qwork.simulations<=u64::from(QUICK_STALL_SIMS)*4,"{qwork:?}");
+            assert_eq!(g.save(),saved,"estimates cannot alter progression");
+            assert!(quick.patches.iter().all(|p|p.forecast_delta>STALL_DELTA));
+            assert!(quick.patches.windows(2).all(|w|w[0].forecast_delta>=w[1].forecast_delta));
+            let (again,work)=crate::forecast::measure_work(||stall_verdict_with(&mut g,QUICK_STALL_SIMS).unwrap());
+            assert_eq!(again,quick);assert_eq!(work.simulations,0);
+            let (full,fwork)=crate::forecast::measure_work(||stall_verdict(&mut g).unwrap());
+            assert!(fwork.simulations>qwork.simulations,"full analysis must not reuse the quick sample: {fwork:?}");
+            let mut reference=Game::load(&saved).unwrap();
+            assert_eq!(full,stall_verdict(&mut reference).unwrap(),"full analysis remains the fresh full estimate");
+            let (quick_after_full,work)=crate::forecast::measure_work(||stall_verdict_with(&mut g,QUICK_STALL_SIMS).unwrap());
+            assert_eq!(quick_after_full,quick);
+            // One result slot: switching modes recomputes candidates, reusing the base memo.
+            assert!(work.simulations<=qwork.simulations);
+            assert_eq!(g.save(),saved);
+        });
+    }
 }

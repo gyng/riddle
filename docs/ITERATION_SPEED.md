@@ -1,3 +1,26 @@
+**BOUNDED QUICK PLATEAU — 2026-10-06:** Quick reports now cap paired
+plateau base at12seeds (same450ktick budget/min5), candidates use achieved base
+count/same ordered seeds. Full reports/direct stall_verdict retain50cap. Cache
+key includes cap; one result slot, base memo retained across mode switches.
+38case quality32literal seeds(hp<35return)+6progressed camp states:13/13strong
+firsts match full positive set;18/19all offered firsts match. Matching deltas
+median error6.7pts/max24.3pts, one camp extra+8.3pt suggestion; approximate,
+not field-calibrated. First22case sample only5strong, expanded rather than
+lowering6minimum. Exact raw saves/other report fields all38native and70WASM
+calls. Seven quiet headedfast pairs progressed2:2039.3→1405.2ms31.09%,
+3:2258.2→1617.5ms28.37%;early effectivelyunchanged. Native forecast work
+69/1375344→36/749619 sims/ticks, no native timingclaim.
+557fast tests39.57s/1ignored,clippy/WASM5240670/build/typecheck/copy1511/diff
+pass; chunk advisory. UIactions48/upgrade57pass10.6s; actual real-WASM
+camp3/8h Details400/1440 no warnings/overflow, source extra suggestion/screens
+shown, no patch applied. Test count/cache assumptions and misplaced cfg caught/
+corrected, full checks rerun. PERF_PLATEAU_FORECAST.md for hashes/limits.
+New plateau_perf diagnostic/fixtures; compare tool strict default preserved,
+explicit estimate flag permits only stall.patches changes. No deployment/
+shipping/full balance or exhaustive audit. Next: assess concrete content/gameplay
+feedback from actual screenshots (record floor20 vs recent-run plateau13 and
+raw rule syntax still need clarity); avoid another generic UI polish pass.
+
 **NEXT PROFILE TARGET — 2026-10-06:** Progressed3hero candidate fastWASM
 five fresh8h runs median2.2734s, repeated report/save equals paired series.
 Selected plateau stall_verdict50.89% of all samples/run_offline_mode82.41%
