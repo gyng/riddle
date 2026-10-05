@@ -1,11 +1,31 @@
 // Dev-only rebuild queue. Edits are debounced; one build runs at a time.
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
+// A test-like filename alone is not enough: Cargo must exclude this module,
+// and its current declaration must still be exclusively cfg(test).
+function provenTestOnly(file, root) {
+  const match = /^crates\/riddle-core\/src\/(tests\w*)\.rs$/.exec(file);
+  if (!match || process.env.CARGO_TARGET_DIR || /\s/.test(resolve(root))) return false;
+  try {
+    const lib = readFileSync(resolve(root, 'crates/riddle-core/src/lib.rs'), 'utf8');
+    const name = match[1];
+    const declarations = [...lib.matchAll(new RegExp(`^\\s*(?:pub\\s+)?mod\\s+${name}\\s*;`, 'gm'))];
+    if (declarations.length !== 1 || !new RegExp(`^#\\[cfg\\(test\\)\\]\\s*\\nmod ${name};$`, 'm').test(lib)) return false;
+    const deps = readFileSync(resolve(root, 'target/fast/examples/native_dev.d'), 'utf8').split('\n')[0];
+    // Unrecognised/escaped dep-info stays conservative rather than misparsing it.
+    if (deps.includes('\\') || !deps.startsWith(`${resolve(root, 'target/fast/examples/native_dev')}: `)) return false;
+    const inputs = new Set(deps.slice(deps.indexOf(': ') + 2).split(/\s+/));
+    return inputs.has(resolve(root, 'crates/riddle-core/src/lib.rs')) && !inputs.has(resolve(root, file));
+  } catch { return false; }
+}
+
 export function nativeInput(file, root = ROOT) {
   const path = relative(root, resolve(file)).replaceAll('\\', '/');
+  if (provenTestOnly(path, root)) return false;
   return ['Cargo.toml', 'Cargo.lock', 'crates/riddle-core/Cargo.toml', 'crates/riddle-wasm/Cargo.toml',
     'crates/riddle-core/examples/native_dev.rs', 'tools/native-build.mjs', 'tools/native-codegen.mjs'].includes(path)
     || /^(crates\/riddle-(core|wasm)\/src\/|crates\/riddle-core\/presets\/)/.test(path);

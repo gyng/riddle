@@ -1,3 +1,18 @@
+**SKIP TEST-ONLY NATIVE REBUILDS — 2026-10-06:** Watcher previously
+queued Cargo for every cfg(test) module edit. Now skips only root test modules
+with exclusive current cfg(test) declaration AND exclusion in Cargo native
+example dep-info. Missing/ambiguous/escaped/custom-target proof keeps rebuilds;
+runtime includes, lib/bridge/presets/manifests remain invalidating. Actual10
+repo test modules now0 queued builds (previous coalesced1), runtime tree edit
+still1.9 watcher/host/bridge/real-compiler identity checks3.31s, tsc/copy1503/
+diff pass. No tests/gates removed; no Rust/WASM/UI/deploy. Scope is avoided
+queue entries, not full-check speed claim; no native5367/5368 server listening
+at inspection, so prior72s cannot be attributed to native contention. Docs
+PERF_NATIVE_TEST_EDITS.md/NATIVE_DEV.md and diagnostic classification record
+proof/fallbacks. Existing native servers require restart to load watcher.
+Next: profile a real core edit/build with explicit Cargo timing instead of
+attributing slow checks to an unverified overlap; gameplay/gfx work remains.
+
 **SCOUT ACT LEDGER — 2026-10-06:** Automatic sends previously enabled
 runs without recording scout acts. Offline/live-clock new runs now increment
 existing worker ledger through hired/on/non-sim/non-literal helper; manual

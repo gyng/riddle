@@ -20,6 +20,13 @@ a time. Edits during compilation queue one follow-up build. The next engine
 call restarts native processes and restores their saves; no WASM packaging.
 The dev page shows rebuilding/errors, retaining the previous engine on failure.
 `/__native/health` includes build state and edit-to-ready milliseconds.
+Test-only core module edits skip the automatic rebuild when their current
+`#[cfg(test)]` declaration and Cargo's native dependency list both confirm
+that they are excluded from the runtime. Missing/ambiguous proof retains a
+rebuild. Tests still run normally; runtime and bridge edits rebuild as before.
+Custom target directories retain conservative rebuilding. This avoids queuing
+Cargo behind tests for an edit that cannot update the native engine.
+
 Set `RIDDLE_NATIVE_WATCH=0` before launch to disable watching, then use
 `node tools/native-build.mjs` manually. Existing servers started before this
 watcher need one restart (or a fresh port) to load it. Balance-file edits already
