@@ -158,3 +158,10 @@ html .console .cmd-compact .tile .tl { overflow: visible; text-overflow: clip; }
 
 .hero-sheet .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .hero-sheet .hero-actions > .chip { min-height: 44px; }
+
+/* Creature dispositions read by silhouette; the containing card carries selection. */
+.icon-socket.expressive-emblem { border: 0; background: none; box-shadow: none; }
+.icon-socket.expressive-emblem .ico { width: 44px; height: 44px; }
+@media (max-width: 520px) {
+  .pkg-panel .pkg-equipped .icon-socket.expressive-emblem .ico { width: 34px; height: 34px; }
+}

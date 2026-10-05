@@ -55,6 +55,7 @@ export function verbIcon(v: string): string | null {
 /** Expressive creature emblems for styles/traits; action icons for extra tactics. */
 export function packageIcon(id: string): HTMLElement {
   const actions: Record<string, string> = { boss_focus: "v_attack", corridor_fighting: "v_corridor", kite_archers: "v_shoot", thief_guard: "v_shield", gas_step: "v_retreat", pack_break: "v_throw", custom: "edit" };
-  const name = hasIcon(`pkg_${id}_v2`) ? `pkg_${id}_v2` : hasIcon(`pkg_${id}`) ? `pkg_${id}` : actions[id] ?? "unlocks";
-  return h("span", { class: "icon-socket", "aria-hidden": "true" }, icon(name, "✦"));
+  const expressive = hasIcon(`pkg_${id}_v2`);
+  const name = expressive ? `pkg_${id}_v2` : hasIcon(`pkg_${id}`) ? `pkg_${id}` : actions[id] ?? "unlocks";
+  return h("span", { class: `icon-socket${expressive ? " expressive-emblem" : ""}`, "aria-hidden": "true" }, icon(name, "✦"));
 }

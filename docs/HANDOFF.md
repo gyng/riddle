@@ -1,3 +1,13 @@
+**COMBAT STYLE / TRAIT SILHOUETTES — 2026-10-06:** Existing expressive
+bear/tortoise/lion/hawk and hare/badger/magpie/goat now render without square
+icon frames, at44px (equipped mobile34px). Shared packageIcon marks only
+packed expressive assets; chunky cards/selected gold outline remain. No art
+regeneration/gameplay changes. Headed400/1440 all-unlocked fixture all eight
+decoded/unframed/no overflow/screens shown. Selection28/chrome184 pass27.6s,
+build/typecheck/copy1504/diff pass; chunk advisory. UX_STYLE_SILHOUETTES.md
+records scope. No Rust/WASM/full audit/deploy. Next broader content/gameplay/
+graphics queue remains; avoid another icon pass absent new user evidence.
+
 **HERO APPEARANCE ENTRY — 2026-10-06:** Hero details now offers Appearance
 beside Change class, reusing existing three-portrait picker. Parent updates
 on identity/look/name change while retaining expanded Details; closes release
