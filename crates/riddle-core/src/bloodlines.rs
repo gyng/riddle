@@ -23,13 +23,13 @@ impl DerefMut for Session { fn deref_mut(&mut self)->&mut Game { &mut self.activ
 fn town_from(source: &LineageState, dest: &mut LineageState) {
     dest.gold=source.gold;
     if dest.gold_ledger.len()!=source.gold_ledger.len()||dest.gold_ledger.last()!=source.gold_ledger.last(){dest.gold_ledger=source.gold_ledger.clone();}
-    if dest.town!=source.town {dest.town=source.town.clone();}
-    if dest.tree.hired!=source.tree.hired{dest.tree.hired=source.tree.hired.clone();}
-    if dest.tree.done!=source.tree.done{dest.tree.done=source.tree.done.clone();}
-    if dest.tree.paused!=source.tree.paused{dest.tree.paused=source.tree.paused.clone();}
+    dest.town.clone_from(&source.town);
+    dest.tree.hired.clone_from(&source.tree.hired);
+    dest.tree.done.clone_from(&source.tree.done);
+    dest.tree.paused.clone_from(&source.tree.paused);
     dest.tree.chest=source.tree.chest; dest.tree.ledger=source.tree.ledger;
-    if dest.tree.acts!=source.tree.acts{dest.tree.acts=source.tree.acts.clone();}
-    if dest.tree.ranks!=source.tree.ranks{dest.tree.ranks=source.tree.ranks.clone();}
+    dest.tree.acts.clone_from(&source.tree.acts);
+    dest.tree.ranks.clone_from(&source.tree.ranks);
 }
 impl Session {
     pub fn new(seed:u64)->Self { Self { bloodlines_v:1, selected:1, next_id:2, elapsed_remainder_ms:0, active:Game::new(seed), others:BTreeMap::new() } }
@@ -174,6 +174,37 @@ impl Session {
 mod tests {
     use super::*;
     fn resident()->Session { let mut s=Session::new(1);s.active.build_town("house").unwrap();s.active.lineage.gold_move(1000,"test income");s }
+    #[test]
+    fn worker_maps_detach_before_writes_and_synchronize_in_slot_order() {
+        let mut s=resident();s.add_bloodline().unwrap();s.add_bloodline().unwrap();
+        s.active.lineage.tree.done.insert("send".into(),3);
+        s.active.lineage.tree.acts.insert("scout".into(),7);
+        s.active.lineage.tree.ranks.insert("scout".into(),2);
+        for g in s.others.values_mut(){town_from(&s.active.lineage,&mut g.lineage);}
+        let snapshot=s.clone();let before=snapshot.save();
+        let second=&mut s.others.get_mut(&2).unwrap().lineage;
+        second.town.bank=100;second.tree.ledger+=100;
+        second.tree.hired.push(("porter".into(),0));second.tree.paused.insert("porter".into());
+        *second.tree.done.get_mut("send").unwrap()+=1;
+        *second.tree.acts.get_mut("scout").unwrap()+=1;
+        *second.tree.ranks.get_mut("scout").unwrap()+=1;
+        assert_eq!(s.active.lineage.town.bank,0);
+        assert_eq!(s.others[&3].lineage.town.bank,0);
+        assert!(!s.active.lineage.tree.paused.contains("porter"));
+        assert_eq!(s.active.lineage.tree.done["send"],3);
+        assert_eq!(s.others[&3].lineage.tree.acts["scout"],7);
+        assert_eq!(snapshot.save(),before,"writes cannot mutate an earlier simulation snapshot");
+        town_from(&s.others[&2].lineage,&mut s.active.lineage);
+        town_from(&s.active.lineage,&mut s.others.get_mut(&3).unwrap().lineage);
+        assert_eq!(s.active.lineage.town.bank,100);
+        assert!(s.others[&3].lineage.tree.paused.contains("porter"));
+        assert!(s.others[&3].lineage.tree.hired.iter().any(|(id,_)|id=="porter"));
+        assert_eq!(s.active.lineage.tree.done["send"],4);
+        assert_eq!(s.others[&3].lineage.tree.acts["scout"],8);
+        assert_eq!(s.others[&3].lineage.tree.ranks["scout"],3);
+        let saved=s.save();assert_eq!(Session::load(&saved).unwrap().save(),saved);
+        assert_eq!(snapshot.save(),before);
+    }
     #[test]
     fn new_residents_use_unworn_looks_without_affecting_runs_or_saved_choices() {
         for chosen in [None,Some("cat")] {

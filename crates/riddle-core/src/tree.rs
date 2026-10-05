@@ -74,13 +74,13 @@ pub struct Tree {
     pub v: u32,
     /// Workers hired (id, the day).
     #[serde(default)]
-    pub hired: Vec<(String, u32)>,
+    pub hired: crate::shared::Shared<Vec<(String, u32)>>,
     /// Chores done by hand, per node.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub done: BTreeMap<String, u32>,
+    #[serde(default, skip_serializing_if = "crate::shared::map_is_empty")]
+    pub done: crate::shared::Shared<BTreeMap<String, u32>>,
     /// Hired workers switched off.
-    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
-    pub paused: BTreeSet<String>,
+    #[serde(default, skip_serializing_if = "crate::shared::set_is_empty")]
+    pub paused: crate::shared::Shared<BTreeSet<String>>,
     /// The haul not yet collected (part of `LineageState::gold`; the purse is the rest).
     #[serde(default)]
     pub chest: i32,
@@ -94,11 +94,11 @@ pub struct Tree {
     #[serde(default)]
     pub ledger: i64,
     /// Each worker's acts in all (the report's `first`).
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub acts: BTreeMap<String, u32>,
+    #[serde(default, skip_serializing_if = "crate::shared::map_is_empty")]
+    pub acts: crate::shared::Shared<BTreeMap<String, u32>>,
     /// Week 2: each promoted worker's rank (2–3; a hired worker absent here is rank 1).
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub ranks: BTreeMap<String, u32>,
+    #[serde(default, skip_serializing_if = "crate::shared::map_is_empty")]
+    pub ranks: crate::shared::Shared<BTreeMap<String, u32>>,
     /// The guide's ledger: per waystone started from, the recent sends and those that brought gold home
     /// (halved past `STONE_MEMORY` sends); and the start last picked by hand.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -159,7 +159,7 @@ pub fn guide_pick(l: &LineageState, by_hand: bool) -> u32 {
 impl Tree {
     /// A new lineage's tree: the quartermaster given, nothing else.
     pub fn fresh() -> Tree {
-        Tree { v: 1, hired: vec![("quartermaster".into(), 0)], ..Default::default() }
+        Tree { v: 1, hired: vec![("quartermaster".into(), 0)].into(), ..Default::default() }
     }
 }
 

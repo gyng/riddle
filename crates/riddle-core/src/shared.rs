@@ -12,7 +12,7 @@
 //! The containers keep `#[derive(Clone)]`: a field added later as a plain type is cloned deep,
 //! as before — slower, never wrong.
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap,BTreeSet};
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -28,6 +28,11 @@ impl<T> Shared<T> {
 impl<T> Clone for Shared<T> {
     fn clone(&self) -> Self {
         Shared(Arc::clone(&self.0))
+    }
+    fn clone_from(&mut self, source: &Self) {
+        // Same value allocation already installed; avoid reference-count churn.
+        // This is clone assignment, never an equality shortcut for arbitrary T.
+        if !Arc::ptr_eq(&self.0, &source.0) { self.0 = Arc::clone(&source.0); }
     }
 }
 
@@ -120,3 +125,6 @@ impl<T> std::borrow::Borrow<T> for Shared<T> {
         &self.0
     }
 }
+
+/// `skip_serializing_if` for a shared `BTreeSet`.
+pub fn set_is_empty<T>(s: &Shared<BTreeSet<T>>) -> bool { s.is_empty() }

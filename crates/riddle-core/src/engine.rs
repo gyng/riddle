@@ -1523,7 +1523,7 @@ pub struct LineageState {
     pub pkg_v: u32,
     /// Cut 30 §3–5: the town (buildings, the bank, the quest board).
     #[serde(default)]
-    pub town: crate::town::Town,
+    pub town: crate::shared::Shared<crate::town::Town>,
     /// Cut 30 (PROGRESSION_V2 §4): the systems that may still open this report (one a report; set at
     /// an absence's start and a send), and the ready ones waiting their turn, in curriculum order.
     #[serde(default)]
@@ -1767,7 +1767,7 @@ impl LineageState {
             orders: Default::default(),
             pkg: Default::default(),
             pkg_v: 1,
-            town: crate::town::Town { manual: true, home: Some(false), auto_collect: true, gold_v: 1, ..Default::default() },
+            town: crate::town::Town { manual: true, home: Some(false), auto_collect: true, gold_v: 1, ..Default::default() }.into(),
             reveal_left: 0,
             reveal_queue: Vec::new(),
             glory: 0,

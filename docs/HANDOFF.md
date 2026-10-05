@@ -1,3 +1,23 @@
+**MULTIHERO CATCH-UP — 2026-10-06:** Profiled legal Scout camps; retained
+copy-on-write Town/hired/done/paused/acts/ranks and clone_from allocation no-op.
+No changes to gold, worker order, clock or serialized values. First map-only
+candidate6.47% missed10% target; expanded containers rather than weakening it.
+Seven alternating headed fast-WASM pairs: early2 heroes419.5→359.9ms14.21%,
+3 heroes654.1→533.6ms18.42%;1 hero168.7→168.6ms unchanged. Progressed2/3
+heroes4.10/6.09% (still~2s). Five native pairs:early3 +13.39%,later2/3
++1.83/2.84%. Exact raw original/candidate report+save all five fixtures in
+both runtimes. New Session diagnostic avoids old sim_perf selected-Game-only
+pitfall; paired browser tool preserves original artifacts. Baseline native/
+WASM phrase-index difference traced to existing64bit gate vs32bit app wording;
+optional RIDDLE_SHIPPING_WORDS=1 matches originalWASM exact raw output for1
+fixture (not all-five cross-runtime claim).556fast tests35.14s/1ignored,
+clippy/WASM5240610/build/typecheck/copy1511/diff pass. UI training63/worker60
+pass; mistyped worker suite corrected. Headed actual legal2slot/two12h79runs/
+thirdslot/reload400/1440 no warnings/overflow, roster shown. See
+PERF_MULTIHERO_CATCHUP.md for hashes/method/limits. No shipping/full balance
+or exhaustive audit/deploy. Next: profile progressed camp report/forecast
+cost before more sync work; content/gameplay/gfx queue remains active.
+
 **NEW BLOODLINE APPEARANCE — 2026-10-06:** New residents choose first
 unused existing cosmetic among currently resolved looks (usually male/female/
 cat), preserving current choices, initial class defaults and old saves. Chosen
