@@ -35,7 +35,7 @@ export type EntState = {
   spawning: { t0: number } | null;
   hp: number; maxHp: number;
   flip: boolean;
-  glyph: string | null; glyphT: number;
+  glyph: string | null; glyphT: number; telegraph: string | null;
   ringFrom: number;                // companion ring shown once clock ≥ ringFrom
   remembered: boolean;             // Cut 4 §3: pursued but unseen; drawn dimmed at its last seen tile, never tweened
   fresh?: boolean;                 // preloaded from a snapshot before its events: the first move places it
@@ -175,7 +175,7 @@ export class ReplayState {
     const st: EntState = {
       id: e.id, kind: hero ? heroKind(e.kind) : e.kind, ally: !!e.ally, hero, cid: e.cid ?? null, x: e.x, y: e.y, px: e.x, py: e.y,
       move: null, lunge: null, shake: null, flashUntil: -Infinity, fade: 0, dying: null, spawning: null,
-      hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphT: this.clock,
+      hp: e.hp, maxHp: e.max_hp, flip: false, glyph: e.telegraph ? "!" : null, glyphT: this.clock, telegraph: e.telegraph ?? null,
       ringFrom: -Infinity, remembered: !!e.remembered,
       neutral: e.kind === "captive" || (e.tags ?? []).includes("captive"),
       boss: (e.tags ?? []).includes("boss"),
@@ -392,7 +392,7 @@ export class ReplayState {
         const e = this.ents.get(ev.id);
         if (!e) break;
         e.glyph = /summon|cast|conjure/.test(ev.what) ? "*" : "!";
-        e.glyphT = t;
+        e.glyphT = t; e.telegraph = ev.what;
         break;
       }
       case "projectile":

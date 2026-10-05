@@ -775,11 +775,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     }
     if (bossTitle && now > bossTitle.until) bossTitle = null;
     // gfx round 1 (raters: "six labels pile up; the hero lost inside the swarm"): the PLATE_MAX hostiles nearest the hero carry their name
-    // plate; the rest of a crowd carries the small pixel hp bar (the fight frame) or nothing (the map)
+    // plate (active warnings first); the rest of a crowd carries the small pixel hp bar (the fight frame) or nothing (the map)
     const plated = new Set<number>();
     if (heroEnt) {
       const near = [...st.ents.values()].filter((e) => !e.hero && !e.ally && !e.neutral && !e.dying && e.kind !== "bones" && !e.remembered && st.visible[e.y * st.w + e.x])
-        .sort((a, c) => Math.max(Math.abs(a.x - heroEnt.x), Math.abs(a.y - heroEnt.y)) - Math.max(Math.abs(c.x - heroEnt.x), Math.abs(c.y - heroEnt.y)) || a.id - c.id);
+        .sort((a, c) => Number(!!c.glyph && !!c.telegraph) - Number(!!a.glyph && !!a.telegraph) || Math.max(Math.abs(a.x - heroEnt.x), Math.abs(a.y - heroEnt.y)) - Math.max(Math.abs(c.x - heroEnt.x), Math.abs(c.y - heroEnt.y)) || a.id - c.id);
       for (const e of near.slice(0, quiet ? 1 : PLATE_MAX)) plated.add(e.id);   // (a quiet view — a held beat, the edit's scene — names one)
     }
     // Cut 18 §2: the hero's drawn rect (world: x0, x1, y0, y1) — his feet with his stack's fan — so a sprite over him can be moved off
@@ -884,7 +884,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // QA e75ec29 (R: "the pet is an unlabelled sprite with no hp"): an ally carries a tag too — green-tinted, its kind and name
       // (`jackal Skog`; a summoned ally, unnamed, its kind), with the same short hp bar
       const tagged = !e.hero && !e.neutral && !e.dying && (!bossInView || e.boss || !!e.ally) && (e.boss || !!e.ally || plated.has(e.id));
-      const tagText = e.ally ? allyName(e.kind, e.name) : e.name;
+      const warning = !e.ally && !!e.glyph && !!e.telegraph;
+      const tagText = e.ally ? allyName(e.kind, e.name) : warning ? /* copy:callout */ `${e.name} · ${e.telegraph}` : e.name;
       if (fight && barBg && barFg && !tagged && !e.dying && !e.neutral && e.maxHp > 0) {
         const fill = Math.max(0, Math.min(BAR_W, Math.round((BAR_W * e.hp) / e.maxHp)));
         L.hud.push(fx, fy + h + 1, 3.7, BAR_W, 1, barBg.u0, barBg.v0, barBg.u1, barBg.v1);
@@ -912,7 +913,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
           tagBoxes.push([nx - nw / 2, ny, nx + nw / 2, ny + th]);
           const [cx, cy] = toCss(nx, ny);
           labels.push({ text: tagText, x: cx, y: cy, id: e.id, w: (nw * k) / dpr, h: TAG_H });
-          tags.push({ id: e.id, text: tagText, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1, ally: e.ally, boss: !!e.boss });
+          tags.push({ id: e.id, text: tagText, x: cx, y: cy, w: (nw * k) / dpr, hp: e.maxHp > 0 ? e.hp / e.maxHp : -1, ally: e.ally, boss: !!e.boss, warning });
           top = ny + th + 1;
         }
       }

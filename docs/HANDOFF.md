@@ -1,3 +1,18 @@
+**READABLE ENEMY WARNINGS — 2026-10-06:** Exact real-WASM
+Captain first rally tick650 captured via diagnostic save/1-tick replay after
+visibility-filtered discovery. Existing Captain sprite/name work; far horn/
+glyph can sit at viewport edge. Existing nameplate now says captain · rallies
+in warm text; active warnings prioritized within same5/quiet1 hostile budget.
+Snapshot/live event supply warning, existing glyph lifetime/attack/move hides
+it; visibility, boss/ally suppression and stack culling retained. No art, zoom,
+camera, clock or simulation changes. Exact wire fixture~21KiB checked in.
+Headed recorded before/after1000 and after400 screens shown/no warnings;
+not new full-app boss victory/progression coverage. Renderer30 checks5.9s,
+existing fights46 checks154s, tsc/build/copy1500/diff pass. Existing chunk
+advisory remains. UX_TELEGRAPH_NAMES.md records scope/fixture corrections;
+no full balance audit/deployment. Next: fresh first-session/away-return content/
+graphics walk; stop repeated Captain audits absent new evidence.
+
 **HONEST WATCH STATUS — 2026-10-06:** Badge distinguishes Live
 delve, Watch paused, Watching D5 / Live D6, and Run ended / Watching D5.
 Picture/log retain ordered historical floor; roster retains actual live core
