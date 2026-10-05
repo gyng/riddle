@@ -8,18 +8,33 @@ import { closeEverything, openWindow as openSheet } from "./sheet";
 import { audio } from "../audio";
 import { workerNodes } from "./works";
 import { autoOn, setAutoOn } from "./autodismiss";
+import { captureDebug, debugFilename, downloadDebug, debugNote } from "../debug";
 
 export function openSettings(app: App): void {
   closeEverything();   // QA 23ed91f (L: the settings sheet opened over the open UNLOCKS panel — two studs): one at a time
   openSheet((close) => {
     const body = h("div", { class: "sheet-body settings" });
     const area = h("textarea", { class: "ta", rows: 6, spellcheck: false });
+    const debugStatus = h("div", { class: "dim debug-status", role: "status" });
+    const debugCopy = h("button", { class: "btn debug-copy", hidden: true, onclick: async () => { stamp(debugCopy, await copyText(area.value)); } }, /* copy:button */ "Copy dump");
+    const debugOut = h("button", { class: "btn debug-export", onclick: async () => {
+      debugOut.disabled = true; debugCopy.hidden = true;
+      replace(debugStatus, /* copy:label */ "Capturing state…");
+      try {
+        const bundle = await captureDebug(app); area.value = JSON.stringify(bundle, null, 2);
+        debugCopy.hidden = false;
+        try { downloadDebug(area.value, debugFilename(bundle)); replace(debugStatus, /* copy:label */ "Dump ready"); }
+        catch { replace(debugStatus, /* copy:label */ "Copy dump"); }
+      } catch (e) { debugNote("export-error", e instanceof Error ? e.message : String(e)); area.value = ""; replace(debugStatus, /* copy:label */ "Export failed"); }
+      finally { debugOut.disabled = false; }
+    } }, /* copy:button */ "Debug export");
     const row = (label: string, ...btns: HTMLElement[]): HTMLElement => h("div", { class: "srow" }, h("span", { class: "label" }, label), ...btns);
     const stamp = (b: HTMLElement, ok: boolean): void => { const t = b.textContent; b.textContent = ok ? "✓" : "×"; setTimeout(() => { b.textContent = t; }, 900); };
 
-    const saveOut = h("button", { class: "btn", onclick: async () => { const s = app.exportSave(); area.value = s; stamp(saveOut, await copyText(s)); } }, /* copy:button */ "export");
+    const clearDebug = (): void => { debugCopy.hidden = true; replace(debugStatus); };
+    const saveOut = h("button", { class: "btn", onclick: async () => { clearDebug(); const s = app.exportSave(); area.value = s; stamp(saveOut, await copyText(s)); } }, /* copy:button */ "export");
     const saveIn = h("button", { class: "btn", onclick: async () => { const ok = await app.importSave(area.value.trim()); stamp(saveIn, ok); if (ok) close(); } }, /* copy:button */ "import");
-    const rulesOut = h("button", { class: "btn", onclick: async () => { const s = await app.engine.exportRules(); area.value = s; stamp(rulesOut, await copyText(s)); } }, /* copy:button */ "export");
+    const rulesOut = h("button", { class: "btn", onclick: async () => { clearDebug(); const s = await app.engine.exportRules(); area.value = s; stamp(rulesOut, await copyText(s)); } }, /* copy:button */ "export");
     const rulesIn = h("button", { class: "btn", onclick: async () => { const t = area.value.trim(); if (!t) { stamp(rulesIn, false); return; } try { await app.setRulesText(t); stamp(rulesIn, true); close(); } catch { stamp(rulesIn, false); } } }, /* copy:button */ "import");
 
     let armed = 0;
@@ -59,6 +74,8 @@ export function openSettings(app: App): void {
       row(/* copy:label */ "auto continue", auto),
       row(/* copy:label */ "save", saveOut, saveIn),
       row(/* copy:label */ "rules", rulesOut, rulesIn),
+      row(/* copy:label */ "debug", debugOut, debugCopy),
+      debugStatus,
       area,
       row(/* copy:label */ "engine", h("span", { class: "badge num" }, app.kind === "wasm" ? `wasm ${app.version}` : app.kind)),
       // the seed in decimal (both QA players on 952e306 decoded `#d3` as 211 in hex)

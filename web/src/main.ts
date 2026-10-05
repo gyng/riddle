@@ -7,6 +7,8 @@ import "./chrome.css";   // shared chunky windows, controls, sockets and typogra
 import "./juice";   // juice (docs/JUICE.md): UI motion switch + purse count-up (juice.css)
 import { installWashChrome } from "./render/wash";
 import { start, type DevOptions } from "./app";
+import { installDiagnostics } from "./debug";
+installDiagnostics();
 installWashChrome();   // docs/ART_DIRECTION.md §9: the `?look=wash` prototype's chrome (a no-op without the flag)
 start(readDevParams());
 

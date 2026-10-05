@@ -1,3 +1,16 @@
+**TESTER DEBUG EXPORT IMPLEMENTED — 2026-10-06:** Settings → Debug export
+now downloads a versioned diagnostic JSON with fresh complete Rust Session
+save, all bloodlines, build/engine identity, separate UI drafts/screen/replay
+context and bounded errors/actions. Save-only capture, no stale fallback;
+changing state retries and failure stays explicit. Copy/manual fallback remains
+available. tools/debug-export.mjs extracts an importable save + context file
+without overwriting. Actual shipping-WASM400/1440 tests cover exact multihero
+and in-flight restore, subsequent offline results, immediate purchase/catch-up,
+error/retry/fallback/optional metadata; export gate ~5s. Settings stack/report,
+tsc/build/copy1492 pass. Headed screenshots shown. Contract/evidence:
+docs/TESTER_STATE_EXPORT.md. No Rust or deployment. Next: selected Tactics
+query work and remaining target-screen consistency; broad goal remains active.
+
 **QUEUED TESTER DEBUG EXPORT — 2026-10-06:** Owner requested a state dump
 for testers/debugging. Next tester-support feature, ahead of further Tactics
 query optimization: Settings → Debug export, one downloadable versioned JSON

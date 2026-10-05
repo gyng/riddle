@@ -15,6 +15,7 @@ import { closeAllSheets, onEscapeIdle } from "./ui/sheet";
 import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
 import { audio } from "./audio";
+import { debugNote } from "./debug";
 import { applySkin } from "./ui/skin";
 import { initTips } from "./ui/tips";   // docs/TOOLTIPS.md: keyword tips
 import { mergeMeters } from "./ui/meters";
@@ -615,6 +616,7 @@ export class App {
    *  Cut 12 §1: own rows against `max_rows`; card rows sit outside the cap. */
   get overBudget(): boolean { return this.ownRows() > this.vocab.max_rows; }
   rulesChanged(): void {
+    debugNote("rules", "edited");
     this.rowFires = null; this.rowFiresOf = undefined;   // Cut 14 §4: the counts were the set that ran
     // Cut 22 §3: the edit's base is the set the last painted forecast measured; the shown move clears until this edit's lands
     if (!this.vsBase && this.fcFresh && this.fcRules) { this.vsBase = this.fcRules; this.vsBaseShadow = this.fcShadow; if (this.lastForecast) this.noteBaseShown(this.lastForecast); }
@@ -902,6 +904,7 @@ export class App {
 
   // --- screens ---
   go(screen: Screen): void {
+    debugNote("screen", screen.kind);
     closeAllSheets();
     this.mounted?.dispose?.();
     if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };

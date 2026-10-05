@@ -1,7 +1,7 @@
-# Tester debug export — queued 2026-10-06
+# Tester debug export — 2026-10-06
 
-Owner request: testers can dump state so we can debug. Status: queued, not
-implemented. This extends Settings' existing save/rules copy export; it is a
+Owner request: testers can dump state so we can debug. Status: implemented
+and verified locally, not deployed. This extends Settings' existing save/rules copy export; it is a
 local downloadable diagnostic file, with no upload or deployment.
 
 ## Tester flow
@@ -61,6 +61,60 @@ context without requiring a tester to understand the bundle structure.
 6. Tsc/copy/build plus scoped export/import and real-engine checks pass;
    checkpoint screenshots shown. Push authorized; deployment remains manual.
 
-Priority: next tester-support feature, ahead of further Tactics query
-optimization. The performance/design queue remains active after it. This
-contract records work to implement; it does not claim an export UI exists yet.
+Priority: tester-support feature ahead of further Tactics query optimization.
+The performance/design queue remains active after it.
+
+## Implemented behavior and evidence
+
+Settings has Debug export and Copy dump, using the existing chunky sheet and
+textarea. A fresh ordered engine save is required; no flush/cached-checkpoint
+fallback. Editing/hero/engine changes during the request retry up to three
+times, then fail explicitly. A stalled engine request times out after 30s.
+The UI exposes failure/retry; a download failure leaves the complete text and
+copy control available. Other save/rules exports clear diagnostic-only status.
+Capture does not write the save or invoke gameplay/simulation methods.
+
+Schema 1 embeds the existing save envelope and exact Rust Session save, which
+contains the selected game plus the other bloodlines. UI drafts/over-budget
+rules are separate from engine truth. Screen/report/death data, watch dataset
+including available replay frame, and live context are sampled at request time,
+explicitly labelled; they are not claimed to be the same frame as the later
+worker snapshot. Save receipt and request times are both included. Build commit
+includes a dirty suffix when applicable; source archives fall back to unknown.
+
+Diagnostics keep 64 entries of at most 2000 characters: screen transitions,
+rule edits, global errors/unhandled rejections, worker errors and export errors.
+They cover this page session, not errors from before launch or every console
+message. URL credentials/query/hash are stripped from recorded HTTP URLs.
+Environment uses an explicit preference allowlist, viewport, browser and canvas
+dimensions; renderer timing/GPU profiling is outside this feature. Optional
+environment failure is labelled and does not discard the valid save.
+
+`web/tests/debug-export.mjs` passes at 400/1440 using the actual shipping WASM
+engine: two bloodlines and selected hero retained, engine save byte-exact after
+capture and import, subsequent 30-minute offline reports/saves exact, capture
+calls save only, immediate Forge purchase and offline report captured exactly,
+in-flight run captured and restored exactly. Failed saves, changing drafts,
+continual changes, unavailable optional diagnostics, bounded history, unrelated
+storage exclusion, URL sanitization, download/copy fallback and retry pass.
+The complete export gate takes about 5s headless. Existing Settings stack and
+report gates pass; tsc/production build/copy lint1492 pass. No Rust edits or
+full simulation/balance rerun. Headed 400/1440 screenshots/downloads are in
+scratchpad/debug-export-20261006/. Layouts were tested in Chromium, not on a
+physical phone/Safari.
+
+## Developer reproduction
+
+Run `node tools/debug-export.mjs dump.json --save /tmp/repro-save.json`.
+It writes an importable save and `/tmp/repro-save.json.context.json`, preserving
+build, capture provenance, UI context and diagnostic notes. Paste the save file
+into Settings' save import in the matching engine/build. Start with saved state;
+importing opens camp, so the context file describes the original screen/replay
+and drafts to reproduce. It does not automatically replay past UI actions.
+
+The reader accepts schema1 with legacy v1/current v2 save envelopes, rejects
+unknown schemas, cached provenance, malformed engine JSON and invalid save
+fields, and refuses to overwrite existing output files. Full semantic engine
+validation is performed by the actual game loader, not this JSON reader.
+Actual captured-file extraction and live-save loader round trips pass.
+

@@ -2,6 +2,13 @@ import { defineConfig, type Plugin } from "vite";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+let buildCommit = "unknown";
+try {
+  buildCommit = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
+  try { execFileSync("git", ["diff", "--quiet", "HEAD"], { stdio: "ignore" }); }
+  catch { buildCommit += "-dirty"; }
+} catch { /* source archive */ }
 import { nativePlugin } from "../tools/native-host.mjs";
 
 // Injects the emitted bundle's file list into public/sw.js as a versioned precache manifest.
@@ -30,7 +37,7 @@ function swPrecache(): Plugin {
 
 export default defineConfig({
   base: process.env.RIDDLE_BASE ?? "/",
-  define: { "import.meta.env.VITE_BUILD_DATE": JSON.stringify(new Date().toISOString().slice(0, 10)) },
+  define: { "import.meta.env.VITE_BUILD_DATE": JSON.stringify(new Date().toISOString().slice(0, 10)), "import.meta.env.VITE_BUILD_COMMIT": JSON.stringify(buildCommit) },
   plugins: [swPrecache(), nativePlugin()],
   build: { target: "es2022", sourcemap: false, chunkSizeWarningLimit: 900 },
 });
