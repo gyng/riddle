@@ -1,3 +1,17 @@
+**RELIABLE GPU DIAGNOSTICS — 2026-10-06:** Fixed real GPU timer enum
+bug (EXT constants used with WebGL2 API), unreachable full-ring timeout,
+disjoint/lifetime cleanup and stale timing stats on context loss. Real headed
+WASM clean run now has finite GPU latest/p95 readings and zero warnings; not
+an FPS/sim-speedup claim. Also fixed sprite-normal canvas300×150 allocation
+receiving512×512 upload: initialize to atlas size and replace texture on resize.
+Protocol + GL grow/shrink741 checks, context-loss19 checks(26.9s), tsc/build/
+copy1492/diff pass. Context harness now follows manual house/hero opening and
+Speed-menu Jump; all recovery/exit bounds retained. PERF_GPU_DIAGNOSTICS.md
+records trace, scope, artifacts and earlier failed harness checks. No deploy.
+Actual saved Warlord death400/1440 warning-free/no overflow; screenshots shown.
+Next: raw last-action rule copy and missing item icon in death recommendation,
+then live boss audit. Saved death coverage does not certify live boss flow.
+
 **EXPRESSIVE STYLE/TRAIT ICONS — 2026-10-06:** Owner requested more
 personality. Four combat styles now have expressive creature emblems: calm
 bear/armoured tortoise/charging lion/focused hawk. Traits: anxious hare,

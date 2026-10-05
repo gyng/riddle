@@ -30,7 +30,7 @@ async function open(init) {
 }
 const screen = (p) => p.evaluate(() => window.__riddle?.screen ?? null).catch(() => null);
 const tick = (p) => p.evaluate(() => Number(document.querySelector(".watch")?.dataset.tick ?? NaN)).catch(() => NaN);
-const stats = (p) => p.evaluate(() => { const s = window.__viewer?.stats?.(); return s ? { glLost: !!s.glLost, calls: s.calls, tick: s.tick } : null; }).catch(() => null);
+const stats = (p) => p.evaluate(() => { const s = window.__viewer?.stats?.(); return s ? { glLost: !!s.glLost, calls: s.calls, tick: s.tick, gpuTimer: s.gpuTimer, gpuMs: s.gpuMs, gpuP95: s.gpuP95 } : null; }).catch(() => null);
 async function waitFor(p, pred, label, ms = 30000) { const t = Date.now(); while (Date.now() - t < ms) { if (await pred()) return true; await sleep(100); } throw new Error(`timeout: ${label}`); }
 /** ▶▶| pressed until the run leaves the watch (an exit's vault pick taken); ms to get there, or -1. */
 async function skipToExit(p, ms = 60000) {
@@ -41,7 +41,13 @@ async function skipToExit(p, ms = 60000) {
       if (s === "exit") { await p.locator(".sheet-wrap .vault-choice .chip").first().click({ timeout: 1000 }).catch(() => {}); }
       return Date.now() - t;
     }
-    await p.evaluate(() => document.querySelector('button[data-tile="skip"]')?.click());
+    await p.evaluate(() => {
+      if (!document.querySelector("main.watch")) return;
+      if (!document.querySelector('button[data-tile="skip"]')) document.querySelector('button[data-tile="speed"]')?.click();
+      const skip = document.querySelector('button[data-tile="skip"]');
+      if (!skip) throw new Error("Jump control missing from Speed menu");
+      skip.click();
+    });
     await sleep(250);
   }
   return -1;
@@ -65,7 +71,15 @@ const town2d = (p) => p.evaluate(() => {
 const townStats = (p) => p.evaluate(() => window.__town?.stats() ?? null).catch(() => null);
 /** a fresh lineage's camp → send (the gem) → the watch */
 async function toWatch(p, label) {
+  await p.waitForFunction(() => window.__riddle?.booted);
   await waitFor(p, async () => ["camp", "watch"].includes(await screen(p)), `${label}: the camp`, 60000);
+  // Current opening: manual house construction precedes the first Send.
+  if (await p.evaluate(() => window.__riddle?.lineage.town?.home === false)) {
+    await p.locator('.town-tag[data-next="house"]').waitFor({ state: "visible" });
+    await p.locator('.town-tag[data-next="house"]').click();
+    await waitFor(p, async () => await p.locator('button.send:enabled').count() > 0, `${label}: first hero`);
+  }
+  await p.evaluate(() => { window.__riddle.watchMode = "one"; });
   const t = Date.now();
   while ((await screen(p)) === "camp" && Date.now() - t < 20000) { await p.evaluate(() => (document.querySelector("button.send") ?? document.querySelector(".gem-slot .gem"))?.click()); await sleep(700); }
   await waitFor(p, async () => (await screen(p)) === "watch" && !!(await stats(p)), label);
@@ -81,14 +95,14 @@ try {
   // (a) a lost context mid-watch (the fake engine: its early floors last), restored, lost again and skipped to the exit
   {
     const p = await open();
-    await p.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1`, { waitUntil: "domcontentloaded" });
-    await waitFor(p, async () => (await screen(p)) === "watch" && !!(await stats(p)), "the watch (fake)");
-    await p.evaluate(() => document.querySelector('button[data-tile="one"]')?.click());   // normal: the run lasts
+    await p.goto(`${url}?dev=1&engine=fake&fresh=1&seed=157&runs=0`, { waitUntil: "domcontentloaded" });
+    await toWatch(p, "the watch (fake)");
     await sleep(1200);
     await lose(p);
     await sleep(600);
     const s1 = await stats(p), o1 = await overlay(p), t1 = await tick(p);
     check(s1?.glLost === true, `lost: stats().glLost (${s1?.glLost})`);
+    check(s1?.gpuTimer === false && Number.isNaN(s1.gpuMs) && Number.isNaN(s1.gpuP95), "lost: GPU timings are explicitly unavailable");
     check(o1.shown && o1.colours >= 4, `lost: the 2D view is drawn over the canvas (shown ${o1.shown}, ${o1.colours} colours)`);
     await sleep(2000);
     const t2 = await tick(p), sc = await screen(p);
@@ -130,7 +144,6 @@ try {
     await toWatch(p, "the watch (no GL)");
     const s0 = await stats(p);
     check(s0?.glLost === true, `no GL: the 2D viewer mounted (glLost ${s0?.glLost})`);
-    await p.evaluate(() => document.querySelector('button[data-tile="one"]')?.click());
     const t1 = await tick(p); await sleep(2000); const t2 = await tick(p);
     check((await screen(p)) !== "watch" || t2 > t1, `no GL: the tick advances (${t1} → ${t2})`);
     const drawn = await p.evaluate(() => { const c = document.querySelector(".watch canvas.view"); const d = c.getContext("2d")?.getImageData(0, 0, c.width, c.height).data; if (!d) return 0; const s = new Set(); for (let i = 0; i < d.length; i += 4 * 97) s.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]); return s.size; });

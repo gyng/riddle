@@ -264,6 +264,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     e.preventDefault();   // ask for a restore
     if (disposed) return;
     glLost = true; stats.glLost = true;
+    gpu.dispose(); stats.gpuTimer = false; stats.gpuMs = stats.gpuP95 = NaN;
     tagLayer.sync([]); tagLayer.plates([]); tagLayer.numbers([]);
     (view2d ??= new View2D({ host: canvas })).show(true);
   };

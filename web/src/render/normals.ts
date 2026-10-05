@@ -79,11 +79,17 @@ export class SpriteNormals {
   private clear = new THREE.Color(0.5, 0.5, 1);
 
   constructor(spriteTex: THREE.Texture) {
-    this.tex = new THREE.CanvasTexture(this.canvas);
-    this.tex.minFilter = THREE.NearestFilter; this.tex.magFilter = THREE.NearestFilter; this.tex.generateMipmaps = false;
-    this.tex.colorSpace = THREE.NoColorSpace; this.tex.flipY = true; this.tex.premultiplyAlpha = false;
+    const image = spriteTex.image as { width?: number; height?: number } | undefined;
+    this.canvas.width = image?.width ?? 1; this.canvas.height = image?.height ?? 1;
+    this.tex = this.makeTexture();
     this.material = new THREE.ShaderMaterial({ vertexShader: QUAD_VERT, fragmentShader: FRAG, uniforms: { map: { value: spriteTex }, nmap: { value: this.tex } },
       transparent: false, depthTest: true, depthWrite: true, side: THREE.DoubleSide });
+  }
+  private makeTexture(): THREE.CanvasTexture {
+    const tex = new THREE.CanvasTexture(this.canvas);
+    tex.minFilter = THREE.NearestFilter; tex.magFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+    tex.colorSpace = THREE.NoColorSpace; tex.flipY = true; tex.premultiplyAlpha = false;
+    return tex;
   }
   add(mesh: THREE.Mesh): void { this.scene.add(mesh); }
   /** re-derive when the sprite sheet changed (cheap otherwise) */
@@ -94,7 +100,12 @@ export class SpriteNormals {
     if (sheet.version !== this.seen) { this.seen = sheet.version; this.since = now; return; }
     if (this.version >= 0 && now - this.since < SETTLE_MS) return;
     this.version = sheet.version;
-    if (this.canvas.width !== sheet.canvas.width || this.canvas.height !== sheet.canvas.height) { this.canvas.width = sheet.canvas.width; this.canvas.height = sheet.canvas.height; }
+    if (this.canvas.width !== sheet.canvas.width || this.canvas.height !== sheet.canvas.height) {
+      // WebGL texture storage is immutable after its first upload. Resizing the
+      // canvas alone would upload a larger image into the old allocation.
+      this.tex.dispose(); this.canvas.width = sheet.canvas.width; this.canvas.height = sheet.canvas.height;
+      this.tex = this.makeTexture(); this.material.uniforms.nmap!.value = this.tex;
+    }
     deriveNormals(sheet.canvas, this.canvas);
     this.tex.needsUpdate = true;
   }

@@ -5,13 +5,12 @@
 // wall-time numbers, which on a phone are a lower bound only (the GPU runs asynchronously).
 type Ext = {
   TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number;
-  QUERY_RESULT_AVAILABLE_EXT: number; QUERY_RESULT_EXT: number;
 };
 
 const RING = 16;
 const HIST = 120;
 
-const STALL = 120; // issued queries with no result → the driver never resolves them; give up
+const STALL = 120; // frame attempts with pending queries but no progress → give up
 
 export class GpuTimer {
   available: boolean; // false if the extension is missing or (after STALL frames) never resolves
@@ -21,6 +20,7 @@ export class GpuTimer {
   private head = 0;      // next query slot to issue
   private tail = 0;      // oldest unresolved slot
   private active = false;
+  private waiting = 0;
   private samples: number[] = [];
   ms = NaN;
   resolved = 0;   // queries that produced a sample
@@ -34,19 +34,21 @@ export class GpuTimer {
 
   begin(): void {
     if (!this.ext || this.active) return;
+    if (this.gl.isContextLost()) { this.dispose(); return; }
     this.poll();
-    if (this.head >= STALL && this.resolved === 0 && this.disjoint === 0) { this.dispose(); return; }
+    if (this.head > this.tail && ++this.waiting >= STALL) { this.dispose(); return; }
     // don't overrun the ring: leave the oldest unresolved query in flight rather than reuse it
     if (this.head - this.tail >= RING) return;
     const slot = this.head % RING;
     let q = this.ring[slot] ?? null;
-    if (!q) { q = this.gl.createQuery(); this.ring[slot] = q; }
-    this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, q!);
+    if (!q) { q = this.gl.createQuery(); if (!q) { this.dispose(); return; } this.ring[slot] = q; }
+    this.gl.beginQuery(this.ext.TIME_ELAPSED_EXT, q);
     this.active = true;
   }
 
   end(): void {
     if (!this.ext || !this.active) return;
+    if (this.gl.isContextLost()) { this.dispose(); return; }
     this.gl.endQuery(this.ext.TIME_ELAPSED_EXT);
     this.active = false;
     this.head++;
@@ -56,19 +58,24 @@ export class GpuTimer {
   private poll(): void {
     const gl = this.gl, ext = this.ext!;
     const disjoint = gl.getParameter(ext.GPU_DISJOINT_EXT) as boolean;
+    if (disjoint) {
+      // A clock discontinuity invalidates every pending query, even if it is
+      // not ready yet. Do not accept it later when the flag has cleared.
+      this.disjoint += this.head - this.tail;
+      this.clearQueries(); this.samples = []; this.ms = NaN;
+      return;
+    }
     while (this.tail < this.head) {
       const q = this.ring[this.tail % RING]!;
-      const avail = gl.getQueryParameter(q, ext.QUERY_RESULT_AVAILABLE_EXT);
-      if (gl.getError() === gl.INVALID_ENUM) { this.ext = null; return; }   // harness without real query support: stop, no console spam
+      const avail = gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE);
       if (!avail) break;
-      if (!disjoint) {
-        const ns = gl.getQueryParameter(q, ext.QUERY_RESULT_EXT) as number;
-        this.ms = ns / 1e6;
-        this.samples.push(this.ms);
-        if (this.samples.length > HIST) this.samples.shift();
-        this.resolved++;
-      } else this.disjoint++;
+      const ns = gl.getQueryParameter(q, gl.QUERY_RESULT) as number;
+      this.ms = ns / 1e6;
+      this.samples.push(this.ms);
+      if (this.samples.length > HIST) this.samples.shift();
+      this.resolved++;
       this.tail++;
+      this.waiting = 0;
     }
   }
 
@@ -79,9 +86,15 @@ export class GpuTimer {
     return s[Math.min(s.length - 1, Math.floor(s.length * p))]!;
   }
 
-  dispose(): void {
+  private clearQueries(): void {
     for (const q of this.ring) if (q) this.gl.deleteQuery(q);
     this.ring = [];
+    this.head = this.tail = this.waiting = 0;
+  }
+
+  dispose(): void {
+    if (this.active && this.ext && !this.gl.isContextLost()) this.gl.endQuery(this.ext.TIME_ELAPSED_EXT);
+    this.active = false; this.clearQueries(); this.samples = [];
     this.ext = null;
     this.available = false;
     this.ms = NaN;
