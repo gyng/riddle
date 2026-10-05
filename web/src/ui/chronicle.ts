@@ -23,12 +23,15 @@ export function openChronicle(app: App): void {
     const others=(L.hero_slots??[]).filter(s=>s.id!==L.selected_bloodline&&(s.chronicle?.length??0)>0);
     const lines = [...(L.chronicle ?? [])].reverse();
     return h("div", { class: "sheet-body" }, h("div", { class: "label" }, /* copy:label */ "chronicle"), h("div", { class: "chronicle" }, ...others.map(s=>h("section",null,h("b",null,s.name),...(s.chronicle??[]).slice().reverse().map(line=>h("button",{class:"cline",onclick:()=>void app.selectBloodline(s.id).then(ok=>{if(ok)openChronicle(app);})},line)))), ...lines.map((line) => {
+      const heir = Number(/^♟(\d+)/.exec(line)?.[1]);
+      const name = L.hero_legacy?.find((h) => h.heir === heir)?.name;
+      const text = name ? `${name} · ${line}` : line;
       const id = keptDeath(L, line);
-      if (id === undefined) return h("div", { class: "cline" }, line);
+      if (id === undefined) return h("div", { class: "cline" }, text);
       return h("button", { class: "cline kept", onclick: () => {
         void app.busy(/* copy:label */ "verdict", () => app.engine.death(id)).then((death) => { closeAllSheets(); app.go({ kind: "death", death, kept: true }); })
           .catch((e) => console.warn("kept death", e));
-      } }, line, h("small", { class: "dim" }, " ▸"));
+      } }, text, h("small", { class: "dim" }, " ▸"));
     })));
   });
 }

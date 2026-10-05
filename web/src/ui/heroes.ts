@@ -22,8 +22,9 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
     const face=h('span',{class:'hero-thumb','aria-hidden':'true'});paintFace(face,s.class,44);
     const action=s.state==='live'?/* copy:label */`Live D${s.live?.depth??1}`:s.state==='rests'?/* copy:label */`Resting ${spanOf(s.rest_s)}`:/* copy:label */'Ready';
     const xp=s.next===0?/* copy:label */`L${s.level} · MAX`:/* copy:label */`L${s.level} · XP ${s.xp}/${s.next??'—'}`;
-    const body=h('button',{class:'hero-jump','aria-label':`${s.name} · ${action}`,'data-hero':s.id,onclick:()=>void focus(s)},face,
-      h('span',{class:'hero-info'},h('b',null,s.name),h('span',{class:'hero-class-name'},`${heirOrd(s.heir)} · ${s.class}`),h('small',{class:'hero-xp num'},xp),
+    const name=s.hero_name||s.name;
+    const body=h('button',{class:'hero-jump','aria-label':`${name} · ${s.name} · ${heirOrd(s.heir)} · ${action}`,'data-hero':s.id,onclick:()=>void focus(s)},face,
+      h('span',{class:'hero-info'},h('b',null,name),h('span',{class:'hero-class-name'},`${s.hero_name?s.name:heirOrd(s.heir)} · ${s.class}`),h('small',{class:'hero-xp num'},xp),
         h('span',{class:'hero-action'},h('i',{'aria-hidden':'true',class:`lane-beat ${s.state}`}),action),s.notice?h('small',{class:'hero-notice'},/* copy:callout */'Upgrade ready'):''));
     kwHost(body,'bloodline');
     return h('article',{class:`hero-row${s.id===app.lineage.selected_bloodline?' selected':''}`,'data-slot':s.id,'data-state':s.state},body,
@@ -40,7 +41,7 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   };
   const paint=():void=>{
     const L=app.lineage;const slots=L.hero_slots??[];
-    const next=JSON.stringify([slots.map(s=>[s.id,s.heir,s.class,s.level,s.xp,s.next,s.state,s.live?.depth,s.live?.hp,spanOf(s.rest_s),s.notice]),L.gold,L.town?.home,L.selected_bloodline]);
+    const next=JSON.stringify([slots.map(s=>[s.id,s.name,s.hero_name,s.heir,s.class,s.level,s.xp,s.next,s.state,s.live?.depth,s.live?.hp,spanOf(s.rest_s),s.notice]),L.gold,L.town?.home,L.selected_bloodline]);
     if(next===key)return;key=next;
     const current=slots.find(s=>s.id===L.selected_bloodline);
     replace(el,h('header',{class:'hero-roster-head'},h('h2',null,/* copy:label */'Heroes'),hooks.rules&&penOpen(L)?h('button',{class:'chip',onclick:hooks.rules},/* copy:button */'Rules'):''),

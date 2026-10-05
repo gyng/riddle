@@ -445,7 +445,7 @@ export type ReplayFloor = { snapshot: Snapshot; events: Ev[] };
 export type Replay = { run_id: number; floors: ReplayFloor[]; hash: string; ticks: number };
 /** RUNS_UI (client; Cut 31's heroes on the wire later) — one lane: a hero's run state. `state` live · rests · waits. */
 export type BloodlineLegacy = { points:number; spent:number; upgrades:Record<string,number> };
-export type HeroSlot = { id:number; name:string; heir:number; class:string; level:number; xp:number; next?:number; state:"live"|"rests"|"waits"; live?:Lineage["live"]; rest_s:number; legacy:BloodlineLegacy; notice:boolean; chronicle?:string[] };
+export type HeroSlot = { hero_name?:string; id:number; name:string; heir:number; class:string; level:number; xp:number; next?:number; state:"live"|"rests"|"waits"; live?:Lineage["live"]; rest_s:number; legacy:BloodlineLegacy; notice:boolean; chronicle?:string[] };
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
@@ -495,7 +495,7 @@ export type ReturnReport = {
 export type Lineage = { bloodline?: BloodlineLegacy;
                         selected_loadout?: number[];
   hero_slots?: HeroSlot[]; selected_bloodline?:number; bloodline_price?:number; bloodline_cap?:number;
-                        hero_legacy?: { heir: number; points: number; runs: number; best_depth: number; class: string; spent?: number; upgrades?: Record<string, number> }[];
+                        hero_legacy?: {name?:string; heir: number; points: number; runs: number; best_depth: number; class: string; spent?: number; upgrades?: Record<string, number> }[];
                         legacy_upgrades?: { id: string; rank: number; cap: number; price: number; effect: string; affordable: boolean }[];
                         runs?: RunRec[]; live?: LiveRun | null; replays?: number[]; clock_s?: number; absences?: number;   // RUNS_UI (core): the runs log, the run under way, the run ids a replay is held for, the lineage clock (s), the absences counted
                         heroes?: HeroLane[];                                                                     // RUNS_UI: reserved for Cut 31 (a lane per hero); the client derives the one hero's lane until then

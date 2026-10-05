@@ -1,3 +1,21 @@
+**NAMED HEROES — 2026-10-06:** Active slots now show a Rust-derived
+person name first, Bloodline/class beneath, preserving persistent Legacy slot.
+Hero menu/selected Chronicle use same names; raw chronicle lines still drive
+kept death links. Fixed24-name pool, pure seed/heir lookup/no RNG consumption;
+consecutive heirs differ, names cycle24 and may coincide across slots. Query
+only decorates cloned wire records; empty saved names omitted, read/save
+unchanged. Old/fake wire falls back. Missing roster name invalidation caught
+and fixed.549 core tests37.62s/1 ignored,12 tooling/typecheck/copy1503/quick
+125s (includes compile), clippy/build/rebuilt WASM pass; chunk advisory remains.
+27 UI checks320/400/1440 +existing report57 pass. Actual headed seed2 Wren/
+Vale400/1440 names stable across exact save-load and2→1 selection, correct
+menu/Legacy, no warnings/overflow/screens shown. Past name/death-link tested
+via UI fixture/Rust history, no new real death walk. CONTENT_HERO_NAMES.md
+records scope. No portraits/gameplay-stat/full audit/deploy. Prefix read found
+existing exact reuse intact; prior setup<2% profile means no setup rewrite
+speed claim. Next: gameplay/graphics personality beyond repeated UI polish;
+portrait/sprite variation and first-run visible feedback remain promising.
+
 **MEASURED CORE BUILD/TEST PATH — 2026-10-06:** Isolated current1d76e86
 fast native warm edit10.302/10.475s, restore10.466/10.228s; both restores match
 original native executable hash. Main source untouched. Core frontend3.36s/

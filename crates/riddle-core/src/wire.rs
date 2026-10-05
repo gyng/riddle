@@ -1481,6 +1481,8 @@ pub struct TownWire {
 /// Each hero's lifetime achievements, independent of XP and package marks.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HeroLegacy {
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
     #[serde(default)]
     pub spent: u32,
     #[serde(default)]
@@ -1501,6 +1503,8 @@ pub struct BloodlineLegacy {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HeroSlot {
+    #[serde(default)]
+    pub hero_name: String,
     pub id:u32, pub name:String, pub heir:u32, pub class:String,
     pub level:u32, pub xp:u32, pub next:Option<u32>,
     pub state:String, pub live:Option<LiveRun>, pub rest_s:f64,

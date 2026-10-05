@@ -1,6 +1,15 @@
 //! Explicit upgrades belonging to the current hero, independent of class XP and gold.
 use crate::{engine::{Game, LineageState}, hero::Hero, wire::{HeroLegacy, LegacyUpgrade, BloodlineLegacy}};
 
+/// Stable cosmetic identity; never consumes the game's random stream.
+pub fn hero_name(seed: u64, heir: u32) -> &'static str {
+    const NAMES: [&str; 24] = ["Alden", "Bryn", "Corin", "Dara", "Elian", "Fenn", "Galen", "Hale",
+        "Iris", "Jora", "Kael", "Lark", "Maren", "Niall", "Orin", "Petra", "Quill", "Rook",
+        "Sable", "Toren", "Una", "Vale", "Wren", "Yara"];
+    let first = crate::rng::splitmix(seed) % NAMES.len() as u64;
+    NAMES[((first + u64::from(heir.saturating_sub(1))) % NAMES.len() as u64) as usize]
+}
+
 pub const CAP: u32 = 3;
 pub const IDS: [&str; 3] = ["health", "damage", "armour"];
 

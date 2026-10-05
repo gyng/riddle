@@ -306,7 +306,7 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
       const face = h("span", { class: "hero-window-face" });
       paintFace(face, L.class, 56, L.look ?? "");
       replace(body, h("div", { class: "label row-label" }, /* copy:label */ `Bloodline ${L.selected_bloodline??1}`),
-        h("div", { class: "hero-line num" }, face, h("b", null, L.class), " ", h("span", null, `L${lvl.level}`)),
+        h("div", { class: "hero-line num" }, face, h("b", null, L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name || L.class), " ", L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name ? h("span", null, L.class) : "", " ", h("span", null, `L${lvl.level}`)),
         h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${L.bloodline?.points ?? legacy?.points ?? 0}`),
         L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
         h("div", { class: "legacy-upgrades" }, ...(L.legacy_upgrades ?? []).map((u) =>

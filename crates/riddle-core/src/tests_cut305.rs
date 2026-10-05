@@ -659,3 +659,22 @@ fn scout_actions_cover_live_clock_and_do_not_change_gameplay_or_simulations() {
         assert_eq!(excluded.save(), expected, "unhired/paused/literal/sim must not record a scout act");
     }
 }
+
+
+#[test]
+fn hero_names_are_read_only_stable_and_follow_heir_history() {
+    for seed in [0, 2, u64::MAX] {
+        let mut g = Game::new_resident(seed);
+        let raw = g.save();
+        let first = g.lineage().hero_legacy[0].name.clone();
+        assert!(!first.is_empty());
+        assert_eq!(g.save(), raw, "wire names must not mutate saves or RNG");
+        assert_eq!(Game::load(&raw).unwrap().lineage().hero_legacy[0].name, first);
+        g.lineage.heir += 1;
+        crate::legacy::ensure(&mut g.lineage);
+        let wire = g.lineage();
+        assert_eq!(wire.hero_legacy[0].name, first);
+        assert_ne!(wire.hero_legacy.last().unwrap().name, first);
+        assert_eq!(wire.hero_legacy.last().unwrap().name, crate::legacy::hero_name(seed, 2));
+    }
+}
