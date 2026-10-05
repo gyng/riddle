@@ -15,6 +15,7 @@ import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { systemIcon, systemLabel } from "./systems";
 import { openForge } from "./forge";
+import { openHero } from "./town";
 import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, InvItem, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
@@ -27,7 +28,7 @@ import { heirOrd, lostLabel, noteText, rowLabel, setRefRows } from "./tokens";
 import { traceChip } from "./trace";
 import { closeAllSheets } from "./sheet";
 import { openGoldSheet, runRange } from "./gold";
-import { gem, portrait, renderBar, renderConsole, tile as cmdTile, wideCols, isWide } from "./frame";
+import { gem, portrait, renderBar, renderConsole, tile as cmdTile, wideCols, isWide, paintFace } from "./frame";
 import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
@@ -535,7 +536,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const cons = renderConsole({
     portrait: portrait(app, { hp: 1, label: heirOrd(L.heir) }).el,
     gem: gem({ label: /* copy:button */ "town", cls: "camp-gem", pulse: true, onclick: () => app.go({ kind: "camp" }) }),
-    tiles: consTiles,
+    tiles: consTiles, compact: true,
   });
   // QA 524827b (qaAA: KEPT `axe +7 → vault` after the cage's `took axe +1`): an item enchant scrolls raised says by how many
   const keptItems: { label: string; enchanted?: number }[] = r.kept ? r.kept.map((label) => ({ label })) : r.new_finds ? r.found : [];
@@ -567,9 +568,27 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       toLog(tile(String(r.runs), /* copy:label */ "runs")),
       tile(`D${r.deepest ?? L.best_depth}`, /* copy:label */ "deepest"),
       h("div", { class: "tile plaque", "data-k": "gold" }, icon("gold"), h("b", { class: "num" }, `$${r.gold?.home ?? (r.exits ?? []).reduce((n, x) => n + x.kept, 0)}`), h("span", { class: "label" }, /* copy:label */ "Gold home"))));
+  const upgradeHost = h("div", { class: "report-upgrade-host" });
+  let upgradeKey = "";
+  const paintUpgrade = (): void => {
+    const current = app.lineage;
+    const points = current.bloodline?.points ?? current.hero_legacy?.find((x) => x.heir === current.heir)?.points;
+    const available = points !== undefined && !!app.engine.upgradeHero && !!current.legacy_upgrades?.some((u) => u.affordable);
+    const key = JSON.stringify([available, current.selected_bloodline, current.class, points]);
+    if (key === upgradeKey) return;
+    upgradeKey = key;
+    if (!available) { replace(upgradeHost); return; }
+    const face = h("span", { class: "icon-socket", "aria-hidden": "true" });
+    paintFace(face, current.class, 44);
+    replace(upgradeHost, h("button", { class: "chip report-upgrade", onclick: (e: Event) => openHero(app, e.currentTarget as HTMLElement) }, face,
+      h("span", { class: "report-upgrade-copy" }, h("b", null, /* copy:button */ "Upgrade hero"),
+        h("small", { class: "num" }, /* copy:label */ `Bloodline ${current.selected_bloodline ?? 1} · ${points} Legacy`))));
+  };
+  const offUpgrade = app.onChange(paintUpgrade), offLiveUpgrade = app.onLive(paintUpgrade);
+  paintUpgrade();
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary,
+    summary, upgradeHost,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
@@ -624,7 +643,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const clear = mountClear(app, r, absence, reportWell, gemEl, () => cons.setTiles(consTiles));
   if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
   if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
-  return { el, dispose: () => { bar.dispose(); wide.dispose(); } };
+  return { el, dispose: () => { offUpgrade(); offLiveUpgrade(); bar.dispose(); wide.dispose(); } };
 }
 
 /** Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): each companion that fell, by name — `Greth · ogre L5 · fell D12

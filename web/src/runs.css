@@ -232,3 +232,7 @@ button.re-body { cursor: pointer; }
 .watch .hud .live-badge[data-status="paused"] .lane-beat,
 .watch .hud .live-badge[data-status="earlier"] .lane-beat,
 .watch .hud .live-badge[data-status="ended"] .lane-beat { animation: none; box-shadow: none; background: #c6bdab; }
+
+.report-upgrade { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 16px; text-align: left; }
+.report-upgrade-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.report-upgrade-copy small { font-size: 14px; }

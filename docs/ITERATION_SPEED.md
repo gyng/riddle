@@ -1,3 +1,19 @@
+**REPORT → HERO UPGRADES — 2026-10-06:** Return report now offers
+Upgrade hero only for selected core affordable upgrades with known Legacy
+balance/bridge support. Existing hero sheet opens without spending; slot/live
+changes refresh CTA and disposal removes both subscriptions. Three results/
+details retained. Report opts into compact footer; complete labels/no empty
+slots.57 scoped UI checks320/400/1440 pass3.5s; report-actions32/chrome184,
+production build/typecheck/copy1502/diff pass. Separate headed real-WASM400/
+1440 legal seed2 scout/8h16runs,D7,$974home/32Legacy verifies route and Health
+purchase3Legacy: first32→29/rank1, second remains0. No warnings/overflow;
+screens shown. Initial harness selected fading inert clone, corrected active
+sheet selector. Four-control footer geometry uses module fixture, not actual
+four-command report. Existing chunk advisory; no Rust/full audit/deployment.
+UX_REPORT_HERO_UPGRADE.md records scope/evidence. Next: first-session feedback
+for worker/hero choices; favor concrete gameplay/content gaps from playtests
+rather than another generic layout pass.
+
 **READABLE ENEMY WARNINGS — 2026-10-06:** Exact real-WASM
 Captain first rally tick650 captured via diagnostic save/1-tick replay after
 visibility-filtered discovery. Existing Captain sprite/name work; far horn/
