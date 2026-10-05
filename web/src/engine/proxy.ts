@@ -34,7 +34,7 @@ const METHODS: (keyof Engine)[] = [
   "drawOath", "forswearOathId", "commission",   // Cut 29 §1/§5: optional likewise (no draw / second-slot forswear / commission without them)
   "seenSystems",      // Cut 29 §2: optional likewise (the glint then repeats until an absence)
   "setOrders",        // Cut 29 §4: optional likewise (the standing-orders panel falls back to each order's own call)
-  "equipPackage", "unequipPackage", "pickTemperament", "spendLevel", "revokeDrill", "packageOptions", "packageOptionsKey",   // Cut 30 §1–2: optional likewise (no packages panel without them)
+  "equipPackage", "unequipPackage", "pickTemperament", "spendLevel", "revokeDrill", "packageOptions", "packageOptionsKey", "packageOptionsFor", "packageOptionsForKey",   // Cut 30 §1–2: optional likewise (no packages panel without them)
   "bankDeposit", "bankWithdraw", "swapQuest",   // Cut 30 §3/§5: optional likewise (no bank / quest board without them)
   "selectBloodline", "addBloodline", "upgradeHero", "buildTown", "hire", "openChest", "setWorker", "promote",             // Cut 30.5: optional likewise (no works tree without them)
   "advance", "replay",                                     // RUNS_UI: optional likewise (no runs while open / no replays without them)

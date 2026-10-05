@@ -2359,6 +2359,13 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
       return { id: p.id, action: "equip", slot: 0, past: 0.3 + d_past, bank: 0.5 + d_past / 2, death: 0.15 + d_death, d_past, d_bank: d_past / 2, d_death };
     });
   };
+  P.packageOptionsFor = function (this: Fk30, _sims: unknown, choices: unknown): PkgOption[] {
+    const all = P.packageOptions.call(this) as PkgOption[];
+    return (choices as [string, number][]).flatMap(([id, slot]) => {
+      const option = all.find((o) => o.id === id);
+      return option ? [{ ...option, slot }] : [];
+    });
+  };
   P.bankDeposit = function (this: Fk30, amount: unknown): Lineage {
     const L = this.lineage(); if (!L.town!.buildings.some((b) => b.id === "bank")) throw new Error("no bank yet");
     const n = Math.min(amount as number, this.s.lineage.gold, L.town!.bank_cap - L.town!.bank); if (n <= 0) throw new Error("bank full");

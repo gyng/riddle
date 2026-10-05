@@ -124,6 +124,11 @@ export class WasmEngine implements Engine {
   spendLevel(id: string): Lineage { return this.call("spendLevel", id); }
   revokeDrill(boss: string, revoked: boolean): Lineage { return this.call("revokeDrill", boss, revoked); }
   packageOptions(sims: number): PkgOption[] { return this.call("packageOptions", sims); }
+  packageOptionsFor(sims: number, choices: [string, number][]): PkgOption[] {
+    if (typeof this.g?.packageOptionsFor !== "function") return this.packageOptions(sims).filter((o) => o.action === "equip" && choices.some(([id, slot]) => o.id === id && o.slot === slot));
+    return this.call("packageOptionsFor", sims, JSON.stringify(choices));
+  }
+  packageOptionsForKey(sims: number, choices: [string, number][]): string { return this.call("packageOptionsForKey", sims, JSON.stringify(choices)); }
   packageOptionsKey(sims: number): string { return this.call("packageOptionsKey", sims); }
   bankDeposit(amount: number): Lineage { return this.call("bankDeposit", amount); }
   bankWithdraw(amount: number): Lineage { return this.call("bankWithdraw", amount); }

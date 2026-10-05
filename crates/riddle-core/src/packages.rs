@@ -1323,10 +1323,22 @@ fn option_panel_key(g: &crate::engine::Game, set: &RuleSet, sims: u32, stone: Op
 /// Complete package-query inputs, including the ordered choices and their purchase prices.
 /// The caller must read this and the prices from the same unchanged game.
 pub fn options_key(g: &crate::engine::Game, sims: u32) -> String {
+    options_key_from(g, sims, candidates(&g.lineage))
+}
+
+fn selected_candidates(g: &crate::engine::Game, choices: &[(String, usize)]) -> Vec<(String, String, usize)> {
+    candidates(&g.lineage).into_iter().filter(|(id, action, slot)| action == "equip" && choices.iter().any(|(want, at)| want == id && at == slot)).collect()
+}
+
+pub fn options_for_key(g: &crate::engine::Game, sims: u32, choices: &[(String, usize)]) -> String {
+    options_key_from(g, sims, selected_candidates(g, choices))
+}
+
+fn options_key_from(g: &crate::engine::Game, sims: u32, candidates: Vec<(String, String, usize)>) -> String {
     let best = g.lineage.best_depth;
     let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
     let mut moves = Vec::new();
-    for (id, action, slot) in candidates(&g.lineage) {
+    for (id, action, slot) in candidates {
         let mut c = g.sim_clone();
         if apply(&mut c.lineage, &id, &action, slot).is_err() { continue; }
         let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
@@ -1336,11 +1348,23 @@ pub fn options_key(g: &crate::engine::Game, sims: u32) -> String {
 }
 
 pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
+    options_from(g, sims, candidates(&g.lineage))
+}
+
+/// Equip previews for explicitly selected legal choices; an empty selection runs no panels.
+pub fn options_for(g: &crate::engine::Game, sims: u32, choices: &[(String, usize)]) -> Vec<PkgOption> {
+    let moves = selected_candidates(g, choices);
+    if moves.is_empty() { return Vec::new(); }
+    options_from(g, sims, moves)
+}
+
+fn options_from(g: &crate::engine::Game, sims: u32, moves: Vec<(String, String, usize)>) -> Vec<PkgOption> {
     let best = g.lineage.best_depth;
     let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
     let (base, wall_base) = panels(g, g.lineage.rules(), sims, stone);
-    let moves = candidates(&g.lineage);
-    let threaded = moves.len() > 1 && 2 * moves.len() >= crate::forecast::sim_width();
+    // Preserve the complete query's native panel execution policy for exact subset answers.
+    let full_count = candidates(&g.lineage).len();
+    let threaded = full_count > 1 && 2 * full_count >= crate::forecast::sim_width();
     let key = |g: &crate::engine::Game, set: &RuleSet| option_panel_key(g, set, sims, stone);
     let mut groups = std::collections::BTreeMap::new();
     groups.insert(key(g, g.lineage.rules()), 0usize);

@@ -1,3 +1,19 @@
+**SELECTED TACTICS / GRAPHICS SHIFT — 2026-10-06:** Explicit comparison
+now prices opened combat styles and only the selected tactic slot, skipping
+hidden groups/level previews. Rust owns legal candidates, samples and results;
+new read-only subset API preserves full-query answers and native execution
+policy. Background keys include method/choices; stale hero/rule/selection
+answers clear, retry works and close releases subscriptions. Release-WASM nine
+cold-game pairs: medians516→169,2448→944,2574→455ms (67/61/82% less query
+time); replies/saves/subsequent30min outputs exact. Core546 tests(one ignored),
+clippy, client28/82/19/176, tsc/copy1492/build/native bridge pass. Release WASM
+rebuilt; real400/1440 controls/screens pass. Also moved estimates below card
+descriptions, fixing squeezed Bold text. PERF_TACTICS_SELECTION.md records
+scope; eighteen-case/full exhaustive progression audit not rerun. No deploy.
+Owner says move to content/gameplay/graphics as gains diminish. Next: actual
+first-session/8h-check-in/live-boss walk, then highest-impact player gap and
+chunky target-screen consistency. Avoid another speculative micro-optimization.
+
 **TESTER DEBUG EXPORT IMPLEMENTED — 2026-10-06:** Settings → Debug export
 now downloads a versioned diagnostic JSON with fresh complete Rust Session
 save, all bloodlines, build/engine identity, separate UI drafts/screen/replay

@@ -672,6 +672,8 @@ export interface Engine {
   spendLevel?(id: string): Lineage;                     // §2: marks for a package's next level (`Package.level_price`)
   revokeDrill?(boss: string, revoked: boolean): Lineage;   // §1: revoke (or restore) a drill — one tap, it stays
   packageOptions?(sims: number): PkgOption[];           // §2: every package move priced on the paired panel (slow: background lane)
+  packageOptionsFor?(sims: number, choices: [string, number][]): PkgOption[];
+  packageOptionsForKey?(sims: number, choices: [string, number][]): string;
   packageOptionsKey?(sims: number): string;            // Rust-owned complete query inputs; read on the same mirror as prices
   bankDeposit?(amount: number): Lineage;                // §3: deposit (capped at `town.bank_cap`)
   bankWithdraw?(amount: number): Lineage;               // §3

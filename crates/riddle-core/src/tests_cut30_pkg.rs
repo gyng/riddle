@@ -1270,3 +1270,31 @@ fn package_query_key_tracks_prices_and_simulation_inputs() {
     let mut c = g.sim_clone(); c.loadout.push(123);
     assert_ne!(packages::options_key(&c, 24), key, "loadout belongs to the query");
 }
+
+#[test]
+fn selected_package_prices_match_full_choices() {
+    for seed in [7, 21] {
+        let mut g = Game::new_resident(seed);
+        for id in ["guarded", "boss_focus", "pack_break"] { g.lineage.pkg.owned.insert(id.into()); }
+        g.lineage.pkg.meets.insert("lich".into(), 1);
+        g.lineage.marks = 10;
+        packages::wear(&mut g.lineage, Some("unbowed"));
+        packages::recompile(&mut g.lineage);
+        let saved = g.save();
+        let full = packages::options(&g, 8);
+        for choices in [vec![("guarded".into(), 0)], vec![("boss_focus".into(), 1)], vec![("guarded".into(), 0), ("pack_break".into(), 0)]] {
+            let fresh = Game::load(&saved).unwrap();
+            let expected: Vec<_> = full.iter().filter(|o| o.action == "equip" && choices.contains(&(o.id.clone(), o.slot))).cloned().collect();
+            assert_eq!(packages::options_for(&fresh, 8, &choices), expected);
+            assert_eq!(fresh.save(), saved);
+            let key = packages::options_for_key(&fresh, 8, &choices);
+            let mut duplicate = choices.clone(); duplicate.extend(choices.clone()); duplicate.reverse();
+            assert_eq!(packages::options_for_key(&fresh, 8, &duplicate), key);
+        }
+        let empty = Game::load(&saved).unwrap();
+        assert!(packages::options_for(&empty, 8, &[]).is_empty());
+        assert!(empty.panel_cache.borrow().is_empty(), "empty selection must run no panels");
+        assert!(packages::options_for(&empty, 8, &[("invalid".into(), 0)]).is_empty());
+        assert_eq!(empty.save(), saved);
+    }
+}

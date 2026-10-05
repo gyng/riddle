@@ -108,3 +108,8 @@
 
 /* the repeat plate belongs to the home screen: over a panel it is a stray caption (owner check, 2026-10-02) */
 body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hidden; }
+
+/* Estimates sit below the description; they must not steal its text column. */
+.pkg-alts { align-items: stretch; }
+.pkg.alt .pkg-copy > .pkg-price { display: block; margin-left: 0; margin-top: 4px; }
+.pkg.alt .pkg-copy > .pkg-price:empty { display: none; }

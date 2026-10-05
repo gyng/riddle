@@ -14,16 +14,16 @@ import type { AsyncEngine } from "./types";
 /** The calls that run on the refine lane when there is one (latest only per call). */
 export const REFINE = new Set<string>(["forecastRefine", "forecastVsRefined"]);
 /** The calls that run on the background lane. */
-export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "kitEstimates", "startForecast", "forkForecast", "forecastMove", "wallEdit", "packageOptions"]);   // Cut 28 §2: `forecastMove` (2–6 camp panels); Cut 29 §1: `wallEdit` (the wall's search: many camp panels, once a day)
+export const BACKGROUND = new Set<string>(["forecastRefine", "unlockDeltas", "cageForecast", "deathDeltas", "kitDeltas", "kitEstimates", "startForecast", "forkForecast", "forecastMove", "wallEdit", "packageOptions", "packageOptionsFor"]);   // Cut 28 §2: `forecastMove` (2–6 camp panels); Cut 29 §1: `wallEdit` (the wall's search: many camp panels, once a day)
 // Cut 25 §4 (AM: "~8 s for forge estimates on a D11 lineage after an absence"): measured on a D11 lineage after an 8 h absence (headed,
 // real wasm) the forge's `kitDeltas` (~6 s there) queued behind the camp's `unlockDeltas` (~9.7 s) on the one background lane — 15 s
 // from the camp's paint; `startForecast` ran on the foreground, ahead of an edit's forecast. The slow measures now run on lanes of their
 // own (a mirror each), so no measure waits behind another's: the unlock shelf's, the forge's (and the start picker's), the rest (the cage,
 // a death's patches). One lane on a machine with few cores (`MEASURE_LANES`).
-const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, kitEstimates: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2, forecastVsEstimate: 2, divergence: 2, forecastMove: 1, packageOptions: 1 };   // (Cut 28 §2: the move after a send on the forge's lane — beside the edits' vs and divergence on lane 2 it held the refine after a burst)
+const MEASURE_LANE: Record<string, number> = { unlockDeltas: 0, kitDeltas: 1, kitEstimates: 1, startForecast: 1, forkForecast: 1, cageForecast: 2, deathDeltas: 2, forecastRefine: 2, forecastVs: 2, forecastVsEstimate: 2, divergence: 2, forecastMove: 1, packageOptions: 1, packageOptionsFor: 1 };   // (Cut 28 §2: the move after a send on the forge's lane — beside the edits' vs and divergence on lane 2 it held the refine after a burst)
 const MEASURE_LANES = typeof navigator !== "undefined" && (navigator.hardwareConcurrency ?? 4) >= 6 ? 3 : 1;
 /** Foreground calls that leave the lineage as it was (the mirror stays in sync across them). */
-const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastEstimate", "forecastVs", "forecastVsEstimate", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary", "packageOptionsKey"]);
+const READ_ONLY = new Set<string>(["save", "vocabulary", "forecast", "forecastEstimate", "forecastVs", "forecastVsEstimate", "lineage", "exportRules", "importRules", "unlocks", "supplyCatalogue", "companionVocabulary", "packageOptionsKey", "packageOptionsForKey"]);
 
 type Calls = Record<string, (...a: unknown[]) => Promise<unknown>>;
 
@@ -34,16 +34,18 @@ export function packageMemo() {
   const reads = new Map<string, Promise<unknown>>();
   return {
     clear: () => reads.clear(),
-    async run(b: Calls, a: unknown[]): Promise<unknown> {
-      if (typeof b.packageOptionsKey !== "function") return b.packageOptions(...a);
+    async run(b: Calls, a: unknown[], method = "packageOptions"): Promise<unknown> {
+      const keyMethod = `${method}Key`;
+      if (typeof b[keyMethod] !== "function") return b[method](...a);
       let key: unknown;
-      try { key = await b.packageOptionsKey(...a); }
-      catch { return b.packageOptions(...a); } // older bridge / fake: preserve the original query
-      if (typeof key !== "string") return b.packageOptions(...a);
-      let p = reads.get(key);
+      try { key = await b[keyMethod](...a); }
+      catch { return b[method](...a); } // older bridge / fake: preserve the original query
+      if (typeof key !== "string") return b[method](...a);
+      key = `${method}:${key}`;
+      let p = reads.get(key as string);
       if (!p) {
-        p = Promise.resolve().then(() => b.packageOptions(...a));
-        reads.set(key, p);
+        p = Promise.resolve().then(() => b[method](...a));
+        reads.set(key as string, p);
         if (reads.size > 4) reads.delete(reads.keys().next().value!);
         const current = p;
         void p.catch(() => { if (reads.get(key as string) === current) reads.delete(key as string); });
@@ -81,7 +83,7 @@ export function twoLanes(fg: AsyncEngine, bgOf: () => Promise<AsyncEngine | null
         mirrorGen = at;
       }
       ready = true;
-      const r = m === "packageOptions" && opts.mirror ? await packages.run(b, a) : await b[m](...a);
+      const r = (m === "packageOptions" || m === "packageOptionsFor") && opts.mirror ? await packages.run(b, a, m) : await b[m](...a);
       if (opts.mirror && (m === "deathDeltas" || m === "wallEdit")) mirrorGen = -1;   // `&mut` (it caches the verdict / the day's search): the next sync reloads
       return r;
     };

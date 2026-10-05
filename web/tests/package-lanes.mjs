@@ -38,6 +38,14 @@ try {
   const other=twoLanes(fg,bg,{mirror:true});const isolated=other.packageOptions(24);await new Promise(r=>setTimeout(r,0));check(queryCount===3,'another engine isolates cache');jobs[2].resolve([]);await isolated;
   const bounded=packageMemo();let count=0;const immediate={packageOptionsKey:async k=>String(k),packageOptions:async()=>++count};
   for(let i=0;i<5;i++)await bounded.run(immediate,[i]);await bounded.run(immediate,[0]);check(count===6,'cache is bounded to four keys');
+  let selectedCalls=0;
+  const selected={packageOptionsForKey:async(_sims,choices)=>JSON.stringify(choices),packageOptionsFor:async(_sims,choices)=>{selectedCalls++;return choices;},packageOptionsKey:async()=>JSON.stringify([["guarded",0]]),packageOptions:async()=>["full"]};
+  const selectedMemo=packageMemo();
+  await selectedMemo.run(selected,[8,[["guarded",0]]],"packageOptionsFor");
+  await selectedMemo.run(selected,[8,[["guarded",0]]],"packageOptionsFor");
+  check(selectedCalls===1,'same selected choices share a query');
+  await selectedMemo.run(selected,[8,[["guarded",1]]],"packageOptionsFor");check(selectedCalls===2,'slot belongs to selected key');
+  check((await selectedMemo.run(selected,[8]))[0]==='full','full query cannot reuse selected cache');
   return n;
  });console.log(`package-lanes: ${checks} checks PASS`);
 }finally{await browser.close();}

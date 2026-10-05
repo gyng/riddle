@@ -67,17 +67,18 @@ export function headline(app: App): string | null {
 
 /** Cache replies and in-flight requests per app snapshot. A new lineage invalidates
  * every hero/simulation input, without reproducing Rust's input key in the client. */
-type OptionsRead = { engine: App["engine"]; lineage: Lineage; inputs: string; opts: PkgOption[] | null; promise: Promise<PkgOption[]> };
+type OptionsRead = { engine: App["engine"]; lineage: Lineage; inputs: string; selection: string; opts: PkgOption[] | null; promise: Promise<PkgOption[]> };
 const optionReads = new WeakMap<App, OptionsRead>();
 const optionInputs = (app: App): string => JSON.stringify([app.rules, app.loadout]);
-const currentRead = (app: App, read: OptionsRead): boolean => read.engine === app.engine && read.lineage === app.lineage && read.inputs === optionInputs(app);
-function measure(app: App): OptionsRead | null {
-  if (!app.engine.packageOptions) return null;
+const selectionKey = (app: App, choices: [string, number][]): string => app.engine.packageOptionsFor ? JSON.stringify(choices) : "all";
+const currentRead = (app: App, read: OptionsRead, choices: [string, number][]): boolean => read.engine === app.engine && read.lineage === app.lineage && read.inputs === optionInputs(app) && read.selection === selectionKey(app, choices);
+function measure(app: App, choices: [string, number][]): OptionsRead | null {
+  if (!app.engine.packageOptions && !app.engine.packageOptionsFor) return null;
   const cached = optionReads.get(app);
-  if (cached && currentRead(app, cached)) return cached;
+  if (cached && currentRead(app, cached, choices)) return cached;
   const engine = app.engine;
   let read: OptionsRead;
-  const promise = Promise.resolve().then(() => engine.packageOptions!(PRICE_SIMS)).then((opts) => {
+  const promise = Promise.resolve().then(() => engine.packageOptionsFor ? engine.packageOptionsFor(PRICE_SIMS, choices) : engine.packageOptions!(PRICE_SIMS)).then((opts) => {
     read.opts = opts;
     return opts;
   }).catch((error: unknown) => {
@@ -85,7 +86,7 @@ function measure(app: App): OptionsRead | null {
     if (optionReads.get(app) === read) optionReads.delete(app);
     throw error;
   });
-  read = { engine, lineage: app.lineage, inputs: optionInputs(app), opts: null, promise };
+  read = { engine, lineage: app.lineage, inputs: optionInputs(app), selection: selectionKey(app, choices), opts: null, promise };
   optionReads.set(app, read);
   return read;
 }
@@ -95,6 +96,7 @@ const levelBar = (p: Package): HTMLElement => h("span", { class: "lvl-bar", "ari
 
 /** Opens the packages panel (a sheet anchored to `anchor`, the tile that opened it). */
 export function openPackages(app: App, anchor?: HTMLElement | null): void {
+  let dispose = (): void => {};
   openSheet((close) => {
     const body = h("div", { class: "sheet-body pkg-panel" });
     let reading: OptionsRead | null = null;
@@ -103,14 +105,16 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
     const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then((ok) => { if (ok) choosing.delete(p.kind); paint(); }); };
     const paint = (): void => {
       const L = app.lineage, P = L.packages; if (!P) { close(); return; }
-      const next = !compare ? null : reading && currentRead(app, reading) ? reading : measure(app);
+      const freeSlot = Math.min(tacticSlot ?? Math.max(0, (P.tactics ?? []).length), Math.max(0, (P.tactic_slots ?? 0) - 1));
+      const selected: [string, number][] = P.all.filter((p) => p.owned && ((choosing.has("stance") && p.kind === "stance" && p.id !== P.stance) || (choosing.has("tactic") && p.kind === "tactic" && !(P.tactics ?? []).includes(p.id)))).map((p) => [p.id, p.kind === "tactic" ? freeSlot : 0]);
+      const next = !compare ? null : reading && currentRead(app, reading, selected) ? reading : measure(app, selected);
       if (next !== reading) {
         reading = next;
         const settle = (): void => {
           if (!body.isConnected || reading !== next) return;
           // The town clock may advance repeatedly while this query runs. A stale
           // result must not start an endless series of replacement simulations.
-          if (next && !currentRead(app, next)) { compare = false; reading = null; }
+          if (next && !currentRead(app, next, selected)) { compare = false; reading = null; }
           paint();
         };
         if (next) void next.promise.then(settle).catch(settle);
@@ -125,7 +129,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip");
         const pr = o ? priceOf(o) : null;
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : ""), kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price"));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
+          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price")));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {
@@ -192,13 +196,16 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
       // the compiled rows, folded: each its package, a shadowed one greyed with its winner
       extra.push(rowsFold(app, P));
       const more = h("details", { class: "pkg-advanced", open: details, ontoggle: (e: Event) => { details = (e.currentTarget as HTMLDetailsElement).open; } }, h("summary", null, /* copy:button */ "details"), ...extra, h("div", { class: "chips pkg-unlocks" }, locked("stance"), locked("tactic")));
-      const compareButton = h("button", { class: "chip pkg-compare", disabled: compare && !!reading && !opts, onclick: () => { compare = true; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
+      const compareButton = h("button", { class: "chip pkg-compare", disabled: compare && !!reading && !opts, onclick: () => { if (!choosing.has("stance") && !choosing.has("tactic")) { if (stanceAlts.length) choosing.add("stance"); else if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); } compare = true; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
       const head = headline(app);
       replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: /* copy:tooltip */ "Small sample · minor differences unclear" }, /* copy:label */ "rough estimate") : "", more);
     };
+    const changed = (): void => { compare = false; reading = null; paint(); };
+    const offChange = app.onChange?.(changed), offRules = app.onRules?.(changed);
+    dispose = () => { offChange?.(); offRules?.(); };
     paint();
     return body;
-  }, { anchor });
+  }, { anchor, onClose: () => dispose() });
 }
 
 /** The compiled set under one `rows` fold: each row its words and its package (`Steady`), a row always pre-empted greyed with its winner

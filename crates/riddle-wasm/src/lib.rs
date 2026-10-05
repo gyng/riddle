@@ -513,6 +513,18 @@ impl Game {
         js(&self.inner.package_options_key(sims.max(8)))
     }
 
+    #[wasm_bindgen(js_name = packageOptionsFor)]
+    pub fn package_options_for(&self, sims: u32, choices_json: &str) -> Result<String, JsError> {
+        let choices: Vec<(String, usize)> = serde_json::from_str(choices_json).map_err(|e| err(e.to_string()))?;
+        Ok(js(&self.inner.package_options_for(sims.max(8), &choices)))
+    }
+
+    #[wasm_bindgen(js_name = packageOptionsForKey)]
+    pub fn package_options_for_key(&self, sims: u32, choices_json: &str) -> Result<String, JsError> {
+        let choices: Vec<(String, usize)> = serde_json::from_str(choices_json).map_err(|e| err(e.to_string()))?;
+        Ok(js(&self.inner.package_options_for_key(sims.max(8), &choices)))
+    }
+
     /// Cut 30 §3: deposit gold in the bank (capped); returns the Lineage.
     #[wasm_bindgen(js_name = bankDeposit)]
     pub fn bank_deposit(&mut self, amount: i32) -> Result<String, JsError> {

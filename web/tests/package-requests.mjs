@@ -19,7 +19,7 @@ try{
    const query=(sims)=>{check(sims===8,"comparison uses eight simulations");return new Promise((resolve,reject)=>pending.push({resolve,reject}));};
    app.engine={packageOptions:query,equipPackage:async(id)=>({...app.lineage,packages:{...app.lineage.packages,stance:id}})};
    app.mutate=async(fn)=>{app.lineage=await fn();return true;};
-   const open=async(a=app)=>{closeAllSheets();openPackages(a);document.querySelector('.pkg-compare').click();document.querySelector('[data-change-kind="stance"]')?.click();await tick();};
+   const open=async(a=app)=>{closeAllSheets();openPackages(a);document.querySelector('.pkg-compare').click();if(document.querySelector('[data-change-kind="stance"]')?.getAttribute('aria-expanded')==='false')document.querySelector('[data-change-kind="stance"]')?.click();await tick();};
    const answer=(id='guarded',death=false)=>[{id,action:'equip',slot:0,price:0,past:death ? 0.1 : 0.9,bank:.1,death:.1,reach:.1,mean:1,d_past:death?0:.8,d_bank:0,d_death:death?-.8:0,d_reach:0,d_mean:0,d_wall:0}];
    check(PRICE_SIMS===8,'small sample default');
    check(priceOf({...answer()[0],d_past:0,d_bank:-.25,bank:0}).good===null,'zero candidate share cannot hide baseline noise');
