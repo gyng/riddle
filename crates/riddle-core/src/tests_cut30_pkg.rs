@@ -1213,3 +1213,28 @@ fn buildings_require_a_manual_action_and_survive_save_load() {
     assert!(crate::town::built(&restored.lineage, "blacksmith"));
     assert!(restored.lineage.town.manual);
 }
+
+#[test]
+fn equivalent_package_prices_keep_each_slot_and_purchase() {
+    let mut g = Game::new_resident(7);
+    g.lineage.pkg.owned.insert("boss_focus".into());
+    g.lineage.pkg.meets.insert("lich".into(), 1);
+    g.lineage.marks = 10;
+    packages::wear(&mut g.lineage, Some("unbowed"));
+    packages::recompile(&mut g.lineage);
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        let before = g.save();
+        let options = packages::options(&g, 2);
+        let slots: Vec<_> = options.iter().filter(|o| o.id == "boss_focus").collect();
+        assert_eq!(slots.len(), 2, "both empty tactic slots remain choices");
+        let mut first = slots[0].clone();
+        first.slot = slots[1].slot;
+        assert_eq!(&first, slots[1], "equivalent slots retain identical prices");
+        let level = options.iter().find(|o| o.id == "unbowed" && o.action == "level").unwrap();
+        assert_eq!(level.price, 2, "a forecast-neutral level still has its own purchase price");
+        assert_eq!((level.d_past, level.d_bank, level.d_death, level.d_reach, level.d_mean, level.d_wall), (0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+        assert_eq!(g.save(), before, "pricing must not spend or equip");
+        assert_eq!(packages::options(&g, 2), options, "a warm base cache preserves every choice and its order");
+    });
+}

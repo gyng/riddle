@@ -1278,28 +1278,50 @@ pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
     let best = g.lineage.best_depth;
     let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
     let (base, wall_base) = panels(g, g.lineage.rules(), sims, stone);
-    let one = |g: &crate::engine::Game, (id, action, slot): &(String, String, usize)| -> Option<PkgOption> {
+    let moves = candidates(&g.lineage);
+    let threaded = moves.len() > 1 && 2 * moves.len() >= crate::forecast::sim_width();
+    let key = |g: &crate::engine::Game, set: &RuleSet| {
+        let own = crate::forecast::panel_key(g, set, sims);
+        let wall = stone.map(|s| {
+            let mut w = g.sim_clone();
+            w.lineage.start = s;
+            crate::forecast::panel_key(&w, set, sims)
+        });
+        (own, wall, crate::forecast::rules_key(set))
+    };
+    let mut groups = std::collections::BTreeMap::new();
+    groups.insert(key(g, g.lineage.rules()), 0usize);
+    let mut jobs = Vec::new();
+    let mut plan = Vec::new();
+    for m in &moves {
+        let mut c = g.sim_clone();
+        if apply(&mut c.lineage, &m.0, &m.1, m.2).is_err() { continue; }
+        let set = compile(&c.lineage);
+        let k = key(&c, &set);
+        let group = *groups.entry(k).or_insert_with(|| { jobs.push(m.clone()); jobs.len() });
+        plan.push((m.clone(), group));
+    }
+    // Preserve worker-local sequential budget execution when only one distinct job remains.
+    if threaded && crate::forecast::parallel_sims() && jobs.len() <= 1 {
+        jobs = moves.clone();
+        plan = moves.iter().cloned().enumerate().map(|(i, m)| (m, i + 1)).collect();
+    }
+    let one = |g: &crate::engine::Game, (id, action, slot): &(String, String, usize)| {
         let mut c = g.sim_clone();
         apply(&mut c.lineage, id, action, *slot).ok()?;
         let set = compile(&c.lineage);
-        let ((past, bank, death, reach, mean), wall) = panels(&c, &set, sims, stone);
-        let d_wall = match (wall_base, wall) {
-            (Some(a), Some(b)) => b - a,
-            _ => 0.0,
-        };
-        let price = if action == "level" { level_price(&g.lineage, id).unwrap_or(0) } else { 0 };
-        Some(PkgOption { id: id.clone(), action: action.clone(), slot: *slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall })
+        Some(panels(&c, &set, sims, stone))
     };
-    // Each move's two panels are a pure function of the game (a clone of it, the move made): with
-    // moves enough to fill the threads, the moves share them (`forecast::par_map`, each worker's
-    // panels one sim after another) rather than each panel its sims — a panel's sims on many threads
-    // run past its tick budget by the sims in flight when it is spent. Same results either way.
-    let moves = candidates(&g.lineage);
-    let mut out: Vec<PkgOption> = if moves.len() > 1 && 2 * moves.len() >= crate::forecast::sim_width() {
-        crate::forecast::par_map(g, moves, one).into_iter().flatten().collect()
-    } else {
-        moves.iter().filter_map(|m| one(g, m)).collect()
-    };
+    let mut measured = vec![Some((base, wall_base))];
+    measured.extend(if threaded {
+        crate::forecast::par_map(g, jobs, one)
+    } else { jobs.iter().map(|m| one(g, m)).collect() });
+    let mut out: Vec<PkgOption> = plan.into_iter().filter_map(|((id, action, slot), group)| {
+        let ((past, bank, death, reach, mean), wall) = measured[group]?;
+        let d_wall = match (wall_base, wall) { (Some(a), Some(b)) => b - a, _ => 0.0 };
+        let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
+        Some(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall })
+    }).collect();
     out.sort_by(|a, b| score(b).total_cmp(&score(a)));
     out
 }

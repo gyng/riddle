@@ -32,11 +32,18 @@ Next, in impact order:
    See PERF_PATHFIND.md. Retained client fix: same pending package read opened
    three times starts1 request; hero/Legacy/rules/loadout snapshots invalidate,
    old replies cannot repaint newer state. See PERF_PACKAGE_REQUESTS.md.
-   Next count duplicate panel keys and sims across package candidates/reads;
-   consider Rust-owned query fingerprints and cache reuse only with complete
-   output/continuation proofs. Current client invalidates conservatively on
-   every new lineage snapshot. Prior clipped-vision and stack-row probes remain
-   rejected. Preserve seeds, budgets, LOS oracle and saved-camp comparisons.
+   Query-local own/wall/raw-policy grouping removes equivalent candidate
+   calculations while preserving every move, price and stable order. Seven
+   native pairs: early13.39%,late36.27%,tuned8.20% quicker; shipping browser
+   pairs12.07/37.14/8.04%. Late1461→911 simulations,38→24 panels. Complete
+   outputs match; FULL460s and real-native/shipping UI pass. Publication pending;
+   see PERF_PACKAGE_PANELS.md. Next consider Rust-owned whole-query fingerprints
+   for reuse across refreshed snapshots, including candidates/purchase prices;
+   the client currently invalidates conservatively on every new lineage.
+   Prior clipped-vision and stack-row probes remain rejected. Preserve seeds,
+   budgets, LOS oracle and saved-camp comparisons. Keep frozen executables out
+   of mutable Cargo targets; scope any invalid-object cache repair to the
+   affected crate/profile instead of discarding all dependency caches.
 3. **Mechanical QA.** Use the existing saved-camp checks for rapid feedback,
    retaining routine/full acceptance and GPU checks at release checkpoints.
    Do not reduce seed budgets or weaken gates to claim faster iteration.

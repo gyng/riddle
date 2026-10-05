@@ -23,8 +23,23 @@ inline. The same healthy publication finished after the initial poll deadline.
 Equivalent-panel diagnostic finds16/14,38/24,17/16 requested/unique panels on
 early/late/tuned camps. Isolated query-local grouping screen:36 complete outputs
 match; package medians12/36/8% lower, offline within5%. Longer seven-pair and
-native worker/cache proofs remain pending; production core is unchanged.
+native worker/cache proofs now pass: seven package pairs early13.39%,late36.27%,
+tuned8.20% lower; all60 complete outputs match. Twelve paired native24-sim
+checks2/8 workers,cold/warm match every field. Query-local own/wall/raw-policy
+grouping is in the working tree, with slot/price/save/order regression test
+passing. Shipping browser seven pairs early12.07%,late37.14%,tuned8.04% quicker;
+all24 paired price/save cases match prior shipping and native full prices.
+FULL460s PASS:537 core/1ignored,11 tooling, tsc/copy/clippy/shipping site,
+fresh metrics108.6s,QA44.0s,all18 selected fortnight cases. Client38+17 checks,
+real native10+shipping10 controls400/1440,58 exact complete bridge replies,
+14 recovery tests58.24s PASS. First local compiler/linker attempts failed;
+scoped core fast-profile cache clean repaired generated objects; source unchanged.
+New core release is locally accepted and ready to publish; public checkpoint pending.
 Read PERF_PACKAGE_PANELS.md. Existing publication approval remains valid.
+Owner requested orphan server cleanup:49 stale Riddle listeners, including5365,
+stopped; all closed ports verified,91 associated processes targeted with SIGTERM.
+Keep5219(main),5594(current native),5264(shipping preview); all respond200.
+Exclude other projects and Codex processes. Evidence:server-cleanup.json.
 
 **CURRENT OWNER FOLLOW-UP — 2026-10-05:** Legacy is spendable hero-upgrade
 currency. Read docs/UX_LEGACY_UPGRADES.md (supersedes the no-spending and old
