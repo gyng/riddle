@@ -227,3 +227,8 @@ button.re-body { cursor: pointer; }
   .hero-row { flex-wrap: wrap; }
   .hero-details { margin-left: auto; }
 }
+
+/* A held or earlier picture is not the current live view. */
+.watch .hud .live-badge[data-status="paused"] .lane-beat,
+.watch .hud .live-badge[data-status="earlier"] .lane-beat,
+.watch .hud .live-badge[data-status="ended"] .lane-beat { animation: none; box-shadow: none; background: #c6bdab; }

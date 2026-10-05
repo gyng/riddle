@@ -1,3 +1,19 @@
+**HONEST WATCH STATUS — 2026-10-06:** Badge distinguishes Live
+delve, Watch paused, Watching D5 / Live D6, and Run ended / Watching D5.
+Picture/log retain ordered historical floor; roster retains actual live core
+floor. Pause freezes picture while core continues, unchanged. Badge DOM only
+changes when displayed state changes; neutral non-pulsing dot for held/earlier/
+ended states; final exit still hides badge. Scoped400/1440 actual UI batches
+prove core D6/picture D5, synchronous earlier label on resume, catch-up and
+pending ending14.6s; watch-console five-width controls pass14.5s. Actual headed
+WASM pause/resume400/1440 screens clean/no overflow, shown; those real captures
+stay D5 (no independent real cross-floor proof). tsc/build/copy1500/diff pass;
+existing chunk advisory remains. UX_WATCH_STATUS.md records scope. No clock/
+simulation/roster changes/full balance audit/deployment. Captain already has
+own atlas slot/name fallback; no art replacement based on crowded late frame.
+Next: exact recorded Captain rally/nameplate audit, then player-facing graphics/
+content based on that evidence rather than repeated blind boss waits.
+
 **COMPACT WATCH CONSOLE — 2026-10-06:** Shared console now has
 optional compact command card; watch uses two real action tiles without six
 empty slots. Mobile Speed/Town menu labels fit at existing font sizes;320px

@@ -325,6 +325,14 @@ export const bossDown = (kind: string): string => /* copy:callout */ `${kind.rep
 /** Cut 12 §4: `nest` → `a nest`, `orchard` → `an orchard` (one word after the article). */
 export const withArticle = (w: string): string => { const x = oneWord(w); return `${/^[aeiou]/i.test(x) ? "an" : "a"} ${x}`; };
 
+/** Describe the watched picture separately from the core's current floor. */
+export function watchStatus(picture: number, live: number, paused: boolean, ended: boolean): { kind: string; label: string; detail: string } {
+  if (ended) return { kind: "ended", label: /* copy:label */ "Run ended", detail: /* copy:label */ `Watching D${picture}` };
+  if (paused) return { kind: "paused", label: /* copy:label */ "Watch paused", detail: /* copy:label */ "continues away" };
+  if (picture !== live) return { kind: "earlier", label: /* copy:label */ `Watching D${picture}`, detail: /* copy:label */ `Live D${live}` };
+  return { kind: "live", label: /* copy:label */ "Live delve", detail: /* copy:label */ "continues away" };
+}
+
 export function renderWatch(app: App): Mounted {
   setRefRows(() => app.rules.rows);
   const canvas = h("canvas", { class: "view" });
@@ -437,10 +445,10 @@ export function renderWatch(app: App): Mounted {
     if (metersOn) replace(meterBox, compactLine(lastMeters));
     if (wide.slot) replace(wideMeters, meterPanel(lastMeters.run, app.rules.rows, { title: /* copy:label */ "this run" }));
   }
-  // RUNS_UI (the blind read: "is WATCH the live run or a replay? does it go on if I leave?"): the HUD says it is the run going on now,
-  // and that it goes on by itself (`↻ auto`, the lane's mark) — the `town` tile's ↻ is the same mark
-  const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), /* copy:label */ "Live delve",
-    h("span", { class: "lb-auto" }, " · ", /* copy:label */ "continues away")), "live");
+  // Distinguish the watched picture from the core's ongoing run; leaving town still lets him continue.
+  const watchLabel = h("span", { class: "watch-status-label" }, /* copy:label */ "Live delve");
+  const watchDetail = h("span", { class: "lb-auto" }, " · ", /* copy:label */ "continues away");
+  const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), watchLabel, watchDetail), "live");
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
@@ -597,12 +605,24 @@ export function renderWatch(app: App): Mounted {
   }
   const viewerIdle = (): boolean => viewer?.idle ? viewer.idle() : true;
 
+  let statusKey = "";
+  function paintWatchStatus(): void {
+    const state = watchStatus(hud.depth, snap?.depth ?? hud.depth, paused, !!held || !!exitTier);
+    const key = `${state.kind}:${state.label}:${state.detail}`;
+    if (key === statusKey) return;
+    statusKey = key;
+    liveBadge.dataset.status = state.kind;
+    liveBadge.dataset.live = state.kind === "live" ? "1" : "0";
+    watchLabel.textContent = state.label;
+    watchDetail.textContent = ` · ${state.detail}`;
+  }
   function paintHud(): void {
     const p = hud.maxHp ? hud.hp / hud.maxHp : 0;
     face.set(p);
     stake.classList.toggle("warn", p < 0.4);
     replace(hpText, /* copy:callout */ `${Math.max(0, hud.hp)}/${hud.maxHp} hp`);   // docs/COPY.md pass 5: `28/36` read as XP or rooms
     replace(depth, `D${hud.depth}`);
+    paintWatchStatus();
     // QA 23ed91f (K: "`!` / `!!` / `!!!` after the depth label, and `alert 1` / `alert 3`"): one name for one thing — the HUD reads
     // `alert 3`, as the callout does when it rises; nothing at 0
     // QA 0c6e126 (qaY: `alert 1` / `alert 2` with no scale): the level out of its top (the core's cap, 8: each rise calls wanderers)
@@ -1334,6 +1354,7 @@ export function renderWatch(app: App): Mounted {
   }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
+    paintWatchStatus();
     paintKeepOut();
     // Cut 27 §1: while a stretch folds the world stands under its line (the fold steps it); the line holds its minimum, then docks
     if (folding) { paintScrub(viewerTick()); if (!folding.stepping && performance.now() >= folding.holdUntil) endFold(); return; }
@@ -1680,6 +1701,7 @@ export function renderWatch(app: App): Mounted {
       if (ticker.classList.contains("show") || tickerQueue.length) scheduleTicker();
       for (const x of frozenFeed.splice(0)) feed(x.evs, x.s);
     }
+    paintWatchStatus();
   }
   /** QA 1a2a4a9: a cage the skip met — open, its beat not yet shown. */
   const cageMet = (): boolean => !!cage && !cage.done && !cage.shown;
