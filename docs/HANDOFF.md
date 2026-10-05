@@ -46,7 +46,10 @@ Native-profile acceptance PASS:536 core tests/1ignored,14 recovery tests,
 selected player cases PASS. Native/shipping58 complete replies match. This is
 not a full-suite speedup claim. Evidence and profiling tradeoff:PERF_COMPILE.md.
 Next work stays in impact order in ITERATION_SPEED.md: refreshed expensive
-simulation/search profiling. Do not weaken simulation budgets or overlap
+simulation/search work. Current named fast-WASM profile and rejected predicate
+specialization are recorded in PERF_PATHFIND.md (all36 complete outputs match;
+late2.03% lower, tuned0.49%, below acceptance). Production pathfinding unchanged.
+Quantify repeated flood/allocation work next. Do not weaken simulation budgets or overlap
 compiler benchmarking with GPU measurements.
 
 **PREVIOUS PUBLISHED OWNER UX — 2026-10-05:** Empty town → free house → hero arrives →

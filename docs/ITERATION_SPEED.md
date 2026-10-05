@@ -24,8 +24,11 @@ Next, in impact order:
    Fast WASM already used debug0; shipping settings are unchanged. Diagnose
    the missing-rlib race between native auto-rebuild and gate fingerprinting
    before automating overlapping builds; never use a guessed cache key.
-2. **Work inside simulations.** Profile current expensive package/forecast
-   cases again, then reduce repeated vision/pathfinding work with the LOS
+2. **Work inside simulations.** Current named fast-WASM profile confirms
+   vision7.25%, nearest_tile5.86%, flood_resume4.18% leaf shares. Predicate
+   specialization is rejected: late2.03% lower, tuned only0.49%; all36 complete
+   outputs match. See PERF_PATHFIND.md. Quantify repeated floods/allocations
+   before scratch-buffer reuse or cache changes; preserve invalidation and the LOS
    oracle and exact saved-camp comparisons. Prior clipped-vision and stack
    row-storage probes were rejected; their patches are not accepted wins.
 3. **Mechanical QA.** Use the existing saved-camp checks for rapid feedback,
