@@ -1,3 +1,19 @@
+**FIRST WORKER ACTS VISIBLE — 2026-10-06:** Simple report had hidden
+all core first worker acts in collapsed Details. Core-marked first positive
+acts now appear under Workers started with existing icon/name/exact act;
+every first worker shown, routine/chest stay folded, no duplicate entries.
+Three result cards/upgrade route retained.60 scoped checks320/400/1440 incl
+five workers/merge/no-repeat/old wire pass4.3s; existing report-upgrade57/
+report-actions32 also pass4.9s batch. Build/typecheck/copy1503/diff pass;
+existing chunk advisory. Headed real-WASM legal seed2 first8h report actual
+porter first haul$1287 visible400/1440, laterhaul$1433 first=false/no repeated
+announcement, zero warnings/overflow; screens shown. Core gross haul is
+separate from net Gold home$974, not recalculated. Reopening same historical
+report retains first record. UX_WORKER_FIRST_ACT.md records evidence/scope;
+no Rust/full audit/deployment. Next: content/gameplay feedback for new heroes
+and worker actions; inspect core actual action coverage before adding claims
+(scout/quartermaster do not currently appear in tree::report_acts inputs).
+
 **REPORT → HERO UPGRADES — 2026-10-06:** Return report now offers
 Upgrade hero only for selected core affordable upgrades with known Legacy
 balance/bridge support. Existing hero sheet opens without spending; slot/live

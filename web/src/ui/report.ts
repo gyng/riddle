@@ -586,15 +586,19 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   };
   const offUpgrade = app.onChange(paintUpgrade), offLiveUpgrade = app.onLive(paintUpgrade);
   paintUpgrade();
+  const firstActs = (r.workers ?? []).filter((a) => a.first && (a.n > 0 || a.what));
+  const firstWorkers = firstActs.length ? h("section", { class: "report-first-workers" },
+    h("b", { class: "row-label" }, /* copy:label */ "Workers started"),
+    workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, upgradeHost,
+    summary, upgradeHost, firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
   const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
   const meterTitle = r.runs > 1 ? /* copy:label */ "this night" : /* copy:label */ "this run";
-  details.append(...[pendingSec, tiles, grewBlock(r, heroFace(L)), workersBlock(L, r), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null, goldLine(), picked, exitLines, rested,
+  details.append(...[pendingSec, tiles, grewBlock(r, heroFace(L)), workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest }), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null, goldLine(), picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
     section(/* copy:label */ "learned", factChips(learnedFacts.filter((f) => !counterFacts.includes(f)), L.counters ?? [], (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),

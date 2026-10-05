@@ -89,3 +89,10 @@
 
 /* settings: the workers' switches */
 .settings .workers-row .chip { margin: 2px 3px 2px 0; }
+
+/* Newly working hires stay visible; routine worker totals remain in Details. */
+.report-first-workers { margin: 0 0 16px; }
+.report-first-workers .works-acts { margin-top: 6px; gap: 8px; }
+.report-first-workers .work-act { flex-wrap: wrap; max-width: 100%; font-size: 16px; }
+.report-first-workers .work-act .num { overflow-wrap: anywhere; }
+.report-first-workers .wa-ico .ico { width: 24px; height: 24px; }

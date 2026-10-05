@@ -196,12 +196,12 @@ export function sendMark(L: Lineage): HTMLElement | "" {
 /** the worker's name (the node's; the id's words when the tree is not at hand) */
 const nameOf = (L: Lineage, id: string): string => L.tree?.nodes.find((n) => n.id === id)?.name ?? id.replace(/_/g, "-");
 /** An absence's worker lines, compact (`apprentice · +2 steps`), and the haul left in the chest (`chest +$120`); null when none. */
-export function workersBlock(L: Lineage, r: Pick<ReturnReport, "workers" | "chest">): HTMLElement | null {
+export function workersBlock(L: Lineage, r: Pick<ReturnReport, "workers" | "chest">, limit = 4): HTMLElement | null {
   const acts = (r.workers ?? []).filter((a) => a.n > 0 || a.what);
   if (!acts.length && !r.chest) return null;
   return h("div", { class: "works-acts" },
-    ...acts.slice(0, 4).map((a) => h("span", { class: `chip work-act${a.first ? " first" : ""}`, "data-worker": a.id }, h("span", { class: "wa-ico" }, nodeIcon(a.id, nameOf(L, a.id))), h("b", null, nameOf(L, a.id)), h("span", { class: "num" }, ` · ${a.what}`))),
-    acts.length > 4 ? h("small", { class: "dim" }, /* copy:callout */ `+${acts.length - 4} more`) : "",
+    ...acts.slice(0, limit).map((a) => h("span", { class: `chip work-act${a.first ? " first" : ""}`, "data-worker": a.id }, h("span", { class: "wa-ico" }, nodeIcon(a.id, nameOf(L, a.id))), h("b", null, nameOf(L, a.id)), h("span", { class: "num" }, ` · ${a.what}`))),
+    acts.length > limit ? h("small", { class: "dim" }, /* copy:callout */ `+${acts.length - limit} more`) : "",
     r.chest ? h("span", { class: "chip work-act chest", "data-worker": "chest" }, h("span", { class: "num gold" }, /* copy:callout */ `chest +$${r.chest}`)) : "");
 }
 /** Slices of one absence merge: each worker's acts summed (its line's number is the sum), `first` if any slice's was. */
