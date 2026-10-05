@@ -1,3 +1,15 @@
+**FAST ESTIMATES — 2026-10-05:** Owner accepts approximate forecasts. Tactics
+now requests8 instead of24 samples, labels rough estimate and rounds ≈ deltas
+to five points. Conservative noise filter uses both candidate/baseline variance
+and five samples (wire lacks actual count). Three alternating named fast-WASM
+pairs/camp: early1.507→0.927s, late8.044→2.854s, tuned8.806→5.649s.
+All saves unchanged. Raw mean delta differences4–7 points, maxima25–33; final
+visible estimates0/1/2 have no sign reversals versus24 samples in these fixtures.
+Not ground truth or a shipping latency claim. PERF_FAST_ESTIMATES.md has contract
+and limits. Rule allocation probe parked/restored, no Rust/WASM runtime changes.
+Next fixed passage20-sample overhead and larger camp/Forge panels; keep actual
+passage gold/runs/offline unchanged. Manual publication policy still applies.
+
 **COLD TACTICS PROFILE — 2026-10-05:** PERF_COLD_TACTICS.md profiles the
 current24-simulation cold query. Named fast WASM median8.121s on late camp;
 setup1.53%,clone0.41%,set_rules0.06%; tick-batch94.27% inclusive. Definition

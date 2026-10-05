@@ -1,3 +1,12 @@
+**Forecast priority update — 2026-10-05:** Owner accepts approximate forecasts.
+Reduce predictive work before further tick micro-optimizations. Tactics8-sample
+estimate replaces24: named fast-WASM late8.044→2.854s, tuned8.806→5.649s,
+early1.507→0.927s. No actual-run/offline change. See PERF_FAST_ESTIMATES.md for
+noise filtering, quality and limits. Next, isolate approximate passage pricing
+from real20-sample passage gold, then reduce camp/Forge first-pass panels with
+honest actual-count display. Preserve larger refinement only on explicit demand.
+Unmeasured rule-row allocation probe is parked, not a retained speedup.
+
 Cold Tactics profiling is refreshed for24 sims, matching the current button.
 See PERF_COLD_TACTICS.md: late named-WASM median8.121s; simulation setup1.53%
 including clone0.41%. Definition wrapper inlining fails the2% screen and is

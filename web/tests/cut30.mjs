@@ -104,10 +104,10 @@ try {
     });
     check(/^floor \d+ (\d+%|<\d+%|>\d+%)$/.test(P.head), `the panel's head is the forecast's one headline (\`${P.head}\`)`);
     check(P.stance === "Steady L3" && P.bar && P.bar !== "0%", `the worn stance's chip \`Steady L3\` and its level bar (${P.stance}, ${P.bar})`);
-    check(P.alts.length >= 2 && P.alts.every((a) => a.price.length === 1 && /^(deaths|deeper|full haul) [+−]\d+$|^$/.test(a.price[0])), `each other stance priced in one line, nothing inside the noise (${P.alts.map((a) => `${a.name} · ${a.price.join("|")}`).join(", ")})`);
+    check(P.alts.length >= 2 && P.alts.every((a) => a.price.length === 1 && /^(deaths|deeper|full haul) ≈[+−]\d+$|^$/.test(a.price[0])), `each other stance priced in one line, nothing inside the noise (${P.alts.map((a) => `${a.name} · ${a.price.join("|")}`).join(", ")})`);
     const rank = (c) => (/ up/.test(c) ? 2 : / down/.test(c) ? 0 : 1);
     const ordered = (xs) => xs.every((x, i) => i === 0 || rank(xs[i - 1]) >= rank(x));
-    check(ordered(P.alts.map((a) => a.cls)) && ordered(P.tPrices.map((x) => x.cls)) && / up/.test(P.alts[0].cls), `the best move leads each kind, a loss last (stances ${P.alts.map((a) => a.price[0]).join(" · ")}; tactics ${P.tPrices.map((x) => x.t).join(" · ")})`);
+    check(ordered(P.alts.map((a) => a.cls)) && ordered(P.tPrices.map((x) => x.cls)) && P.alts.every((a) => !a.price[0]), `rough comparison hides the fake fixture’s small differences (stances ${P.alts.map((a) => a.price[0]).join(" · ")}; tactics ${P.tPrices.map((x) => x.t).join(" · ")})`);
     check(P.tPrices.filter((x) => / down/.test(x.cls)).length <= 1, `the tactics are not a wall of losses (${P.tPrices.map((x) => x.t).join(" · ")})`);
     check(P.rowSrc.length > 0 && !P.rowSrc.some((x) => /the pen/.test(x)), `before the pen every row names its package, never the pen (${P.rowSrc.join(" · ")})`);
     check(P.tactic === 1 && P.tAlts >= 1, `one tactic slot at the Warlord slain, the tactics to wear (${P.tactic} slot, ${P.tAlts} tactics)`);

@@ -38,21 +38,25 @@ export const beatText = (b: string): string => b;
 
 /** The one-line price of a move on the paired panel: the term that moves most — `death −8`, `past +5`, `bank +3` — else `same`.
  *  `good`: whether the move helps (a death share that falls helps). */
-/** `sims`: the paired panel's sends — a move inside its 95 % band (`1.96·√(p(1−p)/n)` on the share it moves) reads `—`, never a number
- *  (a wall of `past −4 … −19` said "never wear a tactic" when most were noise). `score`: the move's worth, for ordering (best first). */
+/** A rough noise filter, not calibrated confidence. Panels can stop after five sends;
+ *  the wire omits actual counts, so never assume more than five for this filter. */
 export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
   /* copy:label */
   const terms: [string, number, boolean, number][] = [["deaths", o.d_death, true, o.death], ["deeper", o.d_past, false, o.past], ["full haul", o.d_bank, false, o.bank]];
-  const band = (p: number): number => 1.96 * Math.sqrt(Math.max(0.01, p * (1 - p)) / Math.max(1, sims));
-  const clear = terms.filter((t) => Math.abs(t[1]) > band(t[3]));
+  const variance = (p: number): number => Math.max(0.01, p * (1 - p));
+  const band = (p: number, delta: number): number => {
+    const base = Math.max(0, Math.min(1, p - delta));
+    return 1.96 * Math.sqrt((variance(p) + variance(base)) / Math.max(1, Math.min(5, sims)));
+  };
+  const clear = terms.filter((t) => Math.abs(t[1]) > band(t[3], t[1]));
   if (!clear.length) return { text: "—", good: null, score: 0 };
   const [label, d, worse] = clear.reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
-  const pts = Math.round(d * 100);
+  const pts = Math.round(d * 20) * 5;
   const good = (pts > 0) !== worse;
-  return { text: `${label} ${pts > 0 ? "+" : "−"}${Math.abs(pts)}`, good, score: good ? Math.abs(pts) : -Math.abs(pts) };
+  return { text: `${label} ≈${pts > 0 ? "+" : "−"}${Math.abs(pts)}`, good, score: good ? Math.abs(pts) : -Math.abs(pts) };
 }
-/** The panel's sims for a price (the paired panel `packageOptions(PRICE_SIMS)`). */
-export const PRICE_SIMS = 24;
+/** Small first estimate: actual runs remain unchanged. */
+export const PRICE_SIMS = 8;
 /** The forecast's one headline: the reach of the next floor (`reach D9 72%`); null before a forecast. */
 export function headline(app: App): string | null {
   const f = app.lastForecast; if (!f) return null;
@@ -190,7 +194,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
       const more = h("details", { class: "pkg-advanced", open: details, ontoggle: (e: Event) => { details = (e.currentTarget as HTMLDetailsElement).open; } }, h("summary", null, /* copy:button */ "details"), ...extra, h("div", { class: "chips pkg-unlocks" }, locked("stance"), locked("tactic")));
       const compareButton = h("button", { class: "chip pkg-compare", disabled: compare && !!reading && !opts, onclick: () => { compare = true; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
       const head = headline(app);
-      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, more);
+      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: /* copy:tooltip */ "Small sample · minor differences unclear" }, /* copy:label */ "rough estimate") : "", more);
     };
     paint();
     return body;

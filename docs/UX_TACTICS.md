@@ -11,8 +11,10 @@ cards from the main view. Keep direct free equipping and paid levels.
 Boss counters/scars and compiled rules fold under Details. Keyword tooltips
 describe hero behavior without the “package” jargon.
 
-Outcome comparisons are optional: Compare outcomes starts the same24-sim
-query, preserves uncertainty bands and prices, and shows pending status. Opening
+Outcome comparisons are optional: Compare outcomes starts an eight-sample
+query and shows pending status. Results read “rough estimate”, use ≈ and round
+to five points. A conservative two-sided noise filter hides ambiguous changes
+(see PERF_FAST_ESTIMATES.md); this is not calibrated statistical confidence. Opening
 or changing a selection never requires that query. Close/reopen without comparison
 must issue zero price queries. Existing snapshot, failure and late-reply guards
 remain. Rust-owned whole-query reuse applies when comparisons are requested.
@@ -25,7 +27,7 @@ explicit; stale-reply/hero/Legacy guards pass. Numeric sim/bot gates unchanged.
 Local acceptance:36 real native and36 real shipping control checks400/1440:
 first house click/Enter, no opening queries, folded alternatives, visible
 purposes, free style equip, two selected tactic slots/removal, mobile Details/
-rules, no horizontal overflow, explicit24-sim comparison, reopening without
+rules, no horizontal overflow, explicit24-sim comparison at that release, reopening without
 background comparison, Legacy invalidation and confirmed level purchase.
 Scoped client: cut30 all41; cut30town all; cut28 all27; request46/lane16.
 Copy-lint1468 literals/51 files:0 violations; final client shipping build PASS.
