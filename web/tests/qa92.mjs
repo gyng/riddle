@@ -52,6 +52,7 @@ const mod = (path, fn, arg) => page.evaluate(async ([p, f, a]) => { const m = aw
 const paintForecast = (f) => page.evaluate((f) => { const r = window.__riddle; const x = { ...r.lastForecast, ...f }; r.lastForecast = x; r.shadow = x.shadowed_by ?? []; for (const fn of r.fcListeners) fn(x); }, f);
 const text = (sel) => page.evaluate((s) => [...document.querySelectorAll(s)].map((e) => e.textContent.replace(/\s+/g, " ").trim()), sel);
 
+const reportOnly = process.argv.includes("--part=report");
 const t0 = Date.now();
 try {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=11`, { waitUntil: "domcontentloaded" });
@@ -68,6 +69,7 @@ try {
   });
   await waitFor((s) => s?.screen === "camp", "camp"); await settle();
 
+  if (!reportOnly) {
   // ---- 1a. a first pass is rough on the shaft and the panel; the refine is not
   const depths = (rs) => rs.map((reach, i) => ({ depth: i + 1, reach, pm: 0.04 }));
   await paintForecast({ depths: depths([1, 0.95, 0.8, 0.6, 0.4, 0.2, 0]), known_to: 7, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0.2, return: 0.3, death: 0.5, gold: 20, pm: 0.05 }, refined: false });
@@ -231,6 +233,10 @@ try {
   check(d.rows[1]?.reach === "reach D8 same" && d.rows[2]?.reach === "return early", `a move inside the ± reads \`same\` (Cut 24 §4; was \`≈\` alone, QA 778fa1b); an exit says so ("${d.rows[1]?.reach}" · "${d.rows[2]?.reach}")`);
   await shot("qa92-rerank");
 
+  } else {
+    await page.evaluate(() => { const a = window.__riddle; a.lineage.packages = undefined; a.engine = { ...a.engine, wallEdit: async () => null }; });
+  }
+
   // ---- the report: one tile order; the shadowed pending line; LEARNED; the gold words; the plateau's floor
   await page.evaluate(() => { window.__riddle.lineage.counters = [{ boss: "goblin_warlord", text: "attack boss", row: { conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "attack", a: "tag:boss" } } }]; });
   const L = await page.evaluate(() => window.__riddle.lineage);
@@ -248,7 +254,7 @@ try {
     await go({ kind: "report", report: { ...base, banked: b, returned: rt } }); await waitFor((s) => s?.screen === "report", "report"); await sleep(250);
     tileOrder.push((await text(".report .tiles .tile .label")).join(" "));
   }
-  check(tileOrder.every((t) => t === "runs best marks full hauls runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
+  check(tileOrder.every((t) => t === "runs deepest Gold home runs best upgrade tokens full haul runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
   const rep = await page.evaluate(() => {
     const sec = (l) => [...document.querySelectorAll(".report .rsec")].find((x) => new RegExp(l, "i").test(x.querySelector(".label")?.textContent ?? ""));
     return { pending: [...(sec("pending")?.querySelectorAll("li") ?? [])].map((l) => l.textContent), items: [...(sec("learned")?.querySelectorAll(".chips.items .chip") ?? [])].map((c) => c.textContent),
@@ -264,11 +270,12 @@ try {
       explanation: document.querySelector(".stall-line")?.textContent,
       separate: news.every((n, i) => !i || n.getBoundingClientRect().top >= news[i - 1].getBoundingClientRect().bottom) };
   });
-  check(/Progress stopped.*floor 6/.test(plateau.title ?? "") && /Returned home.*no deeper runs/.test(plateau.summary ?? ""), "the plateau spells out stopped progress, the floor and returned runs");
-  check(/Rule 3: bank ended 13 runs, none reached beyond floor 6/.test(plateau.explanation ?? "") && plateau.separate, "the ending rule is readable and unrelated news stays on separate rows");
+  check(/Record.*floor 6/.test(plateau.title ?? "") && /Recent best.*floor 6/.test(plateau.summary ?? ""), "historical record and recent ceiling have separate labels");
+  check(/Collected gold · 13 runs, none beyond floor 6/.test(plateau.explanation ?? "") && plateau.separate, "the recent outcome is readable and unrelated news stays on separate rows");
   check((await text(".counter-learned")).join() === "Warlord weakness learned" && (await text(".counter-action")).join() === "Target the boss · bypass shields", "the learned Warlord weakness explains the action and what it beats without counter jargon");
   await shot("qa92-report");
 
+  if (!reportOnly) {
   // ---- the watch's helpers
   const rates = await mod("/src/ui/watch.ts", (m) => [1.332247798006322, 2, 4, 16, 1].map(m.rateText));
   check(rates.join(" ") === "1.3 2 4 16 1", `the speed badge rounds (${rates.join(" ")})`);
@@ -278,6 +285,7 @@ try {
     return [m.cageNear(snap(10)), m.cageNear(snap(25))];
   });
   check(cage[0] === true && cage[1] === false, `an unopened cage near the hero is seen, a far one not (${cage.join(",")})`);
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.stack ?? e.message}`);
 } finally {

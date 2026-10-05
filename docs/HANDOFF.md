@@ -1,3 +1,21 @@
+**RECENT PROGRESS CLARITY — 2026-10-06:** Report Details now labels
+stored record and recent-window best separately; actual record20/recent13.
+Known bank/return causes read collected gold/returned home with original
+current/earlier run counts and floor; legacy fallback intact. Suggested changes
+use plain action+condition, all thresholds preserved, exact patch application
+unchanged. Mobile numbers beneath action avoid cramped three-line title.
+60checks320/400/1440 +qa92report8 +actions32 pass4.0s; build/typecheck/
+copy1523/diff pass, chunk advisory. Headed actual camp3/8h Details400/1440
+source values/action no warnings/overflow, final screenshots shown. First
+hidden-title screenshot attempt and fixture selector corrected. Full qa92 has
+pre-existing camp ellipsis/obsolete unlock selector failures+timeout, reproduced
+with untouched HEAD test before report. Added explicit --part=report, default
+all sections retained; exact stale report tile labels updated, no assertions
+removed. UX_RECENT_PROGRESS.md for scope/limits. Corrected prior actions48
+count to32(two widths); upgrade57 remains. No Rust/WASM/tuning/deployment.
+Next: repair historical camp QA fixtures/selectors for trustworthy fast iteration,
+then resume concrete content/gameplay/gfx improvements; avoid generic layout loops.
+
 **BOUNDED QUICK PLATEAU — 2026-10-06:** Quick reports now cap paired
 plateau base at12seeds (same450ktick budget/min5), candidates use achieved base
 count/same ordered seeds. Full reports/direct stall_verdict retain50cap. Cache
@@ -11,7 +29,7 @@ calls. Seven quiet headedfast pairs progressed2:2039.3→1405.2ms31.09%,
 3:2258.2→1617.5ms28.37%;early effectivelyunchanged. Native forecast work
 69/1375344→36/749619 sims/ticks, no native timingclaim.
 557fast tests39.57s/1ignored,clippy/WASM5240670/build/typecheck/copy1511/diff
-pass; chunk advisory. UIactions48/upgrade57pass10.6s; actual real-WASM
+pass; chunk advisory. UIactions32/upgrade57pass10.6s; actual real-WASM
 camp3/8h Details400/1440 no warnings/overflow, source extra suggestion/screens
 shown, no patch applied. Test count/cache assumptions and misplaced cfg caught/
 corrected, full checks rerun. PERF_PLATEAU_FORECAST.md for hashes/limits.

@@ -92,8 +92,8 @@ Candidate SHA256: `d0eeb0fffc0e6a9d5f6829d618919a8ff597f201498f42c7bf7cef6be2487
 Paired records: scratchpad/plateau-perf-20261006/paired/comparison.json.
 
 Clippy all targets-Dwarnings, final rebuiltWASM, web build/typecheck,
-copy1511/diff checks pass; existing web chunk advisory. UI report-actions48
-and report-hero-upgrade57 checks pass in10.6s (three widths each). Actual
+copy1511/diff checks pass; existing web chunk advisory. UI report-actions32
+and report-hero-upgrade57 checks pass in10.6s (actions two widths, upgrade three widths). Actual
 real-WASM progressed camp-3 quick8h report400/1440: generated +8.3point boss
 attack suggestion, source payload visible, Details opens, no warnings/overflow;
 headed screenshots shown. This is also the quality sample's extra quick first

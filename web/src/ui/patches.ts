@@ -12,7 +12,7 @@ import type { App } from "../app";
 import type { Patch, Row, Trace } from "../engine/types";
 import { h, pct } from "./dom";
 import { closeX, openSheet } from "./sheet";
-import { isCardRow, refName, rowLabel, ruleName, sameCond, sameVerb } from "./tokens";
+import { condLabel, verbLabel, isCardRow, refName, rowLabel, ruleName, sameCond, sameVerb } from "./tokens";
 import { icon, verbIcon } from "./skin";
 /** gfx round 2 (raters: "the three fix rows are plain brown slabs — give each an icon, as the target does"): the fix's action plaque. */
 const patchPlaque = (row: Row | undefined): HTMLElement | "" => { const id = row ? verbIcon(row.verb.v) : null; return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
@@ -68,7 +68,7 @@ function firesOf(app: App, trace?: Trace): number[] {
  *  `depth`: the floor a stall patch's reach is measured on (`reach D7 17%`; N: "reach of which floor?"). */
 /** `stall`: a stall's verdict screen — the core's `survive` is the share of replays that end the loop (the hero came home either way):
  *  `unstuck 100% · base 8%`, never `survives` (QA 1a2a4a9, P: "`survives 100%` for a hero who came home"). */
-export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: boolean; select?: (btn: HTMLButtonElement) => void;
+export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: boolean; plain?: boolean; select?: (btn: HTMLButtonElement) => void;
   /** QA 912e135 (qaW: `survives 100% · unpatched 50%` read as the run surviving, and as "a coin flip" under GAP): the floor of the death
    *  the shares are replays of — a head over the block says so (`D6 death · replayed`) */
   moment?: number;
@@ -77,6 +77,18 @@ export type PatchOpts = { nothingBeatsBase?: boolean; depth?: number; stall?: bo
   replays?: number };
 /** A replay share as its count (`11/12`) when the replays are known, else a %. */
 const replayShare = (x: number, n?: number): string => n ? `${Math.round(x * n)}/${n}` : pct(x);
+/** Report suggestions keep exact conditions, with plain labels for familiar actions. */
+function plainPatchRow(row: Row): HTMLElement {
+  const action = row.verb.v === "attack" && row.verb.a === "tag:boss" ? /* copy:callout */ "Target the boss"
+    : row.verb.v === "bank" ? /* copy:label */ "Collect gold"
+    : row.verb.v === "return" ? /* copy:label */ "Return home" : verbLabel(row.verb);
+  const conditions = row.conds.map(c => c.k === "foe_tag" && c.t === "boss" ? /* copy:callout */ "Boss in sight"
+    : c.k === "hp<" && c.n !== undefined ? /* copy:rule_token */ `Health below ${c.n}%`
+    : c.k === "depth>=" && c.n !== undefined ? /* copy:rule_token */ `Floor ${c.n}+`
+    : c.k === "loot>=" && c.n !== undefined ? /* copy:rule_token */ `Carry $${c.n}+` : condLabel(c));
+  return h("span", { class: "patch-wording" }, h("b", { class: "patch-action" }, action), " ",
+    h("small", { class: "patch-condition" }, conditions.length ? conditions.join(" · ") : /* copy:label */ "Always"));
+}
 export function patchRows(app: App, patches: Patch[], baseline?: number, trace?: Trace, opts: PatchOpts = {}): HTMLElement {
   const head = opts.nothingBeatsBase && patches.length
     ? h("div", { class: "patches-head num dim" }, /* copy:death_line */ `none beats ${replayShare(baseline ?? 1, opts.replays)} as is`) : null;
@@ -102,7 +114,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const full = !unlock && !move && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
     // QA a946e04 (S: `R1 − hp < 20% · foes ≥ 1 → drink unknown` — "delete R1?"): a cut reads as one (`cut R1`); a replace keeps `R1 ↻`
     const target = move ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move above ${refName(p.insert_at)} `)
-      : p.remove || p.replace ? h("small", { class: "dim target" }, p.remove ? /* copy:callout */ "cut " : /* copy:callout */ `replaces ${refName(p.insert_at)} `)
+      : p.remove || p.replace ? h("small", { class: "dim target" }, opts.plain ? p.remove ? /* copy:label */ "Remove " : /* copy:label */ "Change " : p.remove ? /* copy:callout */ "cut " : /* copy:callout */ `replaces ${refName(p.insert_at)} `)
       // Cut 27 §5 (AT: a gas death after cutting the bloat row stamped `dice`): a row the player removed, put back where it was
       : p.restores !== undefined ? h("small", { class: "target restore-tag" }, /* copy:callout */ "restore ")
       // Cut 19 §4: the core names the row the insert drops (`Patch.drops`, the dead run's least-fired own row) — `+ drop R5`; the tap
@@ -155,7 +167,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
       ? async (): Promise<void> => { if (!(await app.mutate(() => app.engine.buySupply(p.buys!.kind)))) return; await onclick(); }
       : onclick;
     const buyTag = p.buys && !unlock && held < 0 ? h("small", { class: "num buy-tag gold" }, /* copy:callout */ ` · + ${p.buys.label} $${p.buys.price}`) : "";
-    const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : rowLabel(p.row), dropTag, buyTag);
+    const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : opts.plain ? plainPatchRow(p.row) : rowLabel(p.row), dropTag, buyTag);
     // an unlock's second line is the row it inserts once bought; a root patch's is the chain's root it answers
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
     // QA 1a2a4a9 (O: "tapping a patch card applied it and jumped to camp; I meant to select it"): with `opts.select` (the death screen)

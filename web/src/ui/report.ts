@@ -231,8 +231,8 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
   };
   return h("div", { class: `news${lead.length ? " with-lead" : ""}` },
     ...leadT.map(({ l, t }, i) => h("div", { class: `news-line decision k-${l.k}${i === 0 ? " lead" : ""}`, "data-k": l.k },
-      l.k === "plateau" ? h("div", { class: "plateau-title" }, /* copy:label */ "Progress stopped", h("span", { class: "plateau-floor" }, t.replace(/^plateau: none past D(\d+)$/, /* copy:label */ "floor $1"))) : l.k === "counter" ? learnedCounter(t) : readableUnlock(t),
-      l.k === "plateau" ? h("div", { class: "plateau-summary" }, /* copy:callout */ "Returned home", " · ", /* copy:callout */ "no deeper runs") : null)),
+      l.k === "plateau" ? h("div", { class: "plateau-title" }, /* copy:label */ "Record", h("span", { class: "plateau-floor" }, t.replace(/^plateau: none past D(\d+)$/, /* copy:label */ "floor $1"))) : l.k === "counter" ? learnedCounter(t) : readableUnlock(t),
+      l.k === "plateau" && r.stall && stallDepth(r.stall.text) !== undefined ? h("div", { class: "plateau-summary" }, /* copy:label */ "Recent best", " · ", /* copy:label */ `floor ${stallDepth(r.stall.text)! - 1}`) : null)),
     ...nsT.slice(0, lead.length ? 2 : 4).map(({ n, t }, i) => h("div", { class: `news-line k-${n.k}${i === 0 && !lead.length ? " lead" : ""}` }, readableUnlock(t))));
 }
 
@@ -449,10 +449,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 30 integration: before the pen the plateau is its line alone, as the death screen before the pen (no trace, no row patches)
   const prePen = !penOpen(L), shopOpen = !prePen || revealed(app).has("unlocks");
   const stall = r.stall ? h("section", { class: "rsec stall" },
-    h("div", { class: "label" }, /* copy:label */ "Runs ended"),
-    h("div", { class: "stall-line num" }, r.stall.text.replace(/^R(\d+) /, "Rule $1: ").replace(/none past D(\d+)/, "none reached beyond floor $1").replace(/(\d+) before;/, "$1 earlier;"), " ", prePen ? "" : traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),
+    h("div", { class: "label" }, /* copy:label */ "Recent runs"),
+    h("div", { class: "stall-line num" }, recentRunText(r.stall.text), " ", prePen ? "" : traceChip(r.stall.trace, "chip mini", { rows: app.rules.rows, runId: stallRun(r), home: true })),
     r.stall.patches.length && !prePen ? h("div", { class: "label stall-next" }, /* copy:label */ "Suggested changes") : null,
-    r.stall.patches.length && !prePen ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text) }) : null) : null;
+    r.stall.patches.length && !prePen ? patchRows(app, r.stall.patches, undefined, undefined, { depth: stallDepth(r.stall.text), plain: true }) : null) : null;
   // Cut 2 §2: one line per pile recovered this send (the core sends `heir 3 · D7 · 4 items`, `bones:7:4` too; the watch
   // `D5 · 7 items`). Every line says it was found — `found ♟3's bones · D7 · 4 items` — since `bones D8 · 11 items · ♟3` read
   // as a pile still lying there (QA on e0f87e7: "survived 16 offline runs", "persisted through run 3")
@@ -682,6 +682,15 @@ function flavourTag(L: Pick<Lineage, "vault" | "facts">, label: string): HTMLEle
 export function stallDepth(text: string): number | undefined {
   const m = /\bpast D(\d+)\b/.exec(text) ?? /\bD(\d+)\b/.exec(text);
   return m ? Number(m[1]) + 1 : undefined;
+}
+
+/** Display the core's window counts, including runs before this absence. */
+export function recentRunText(text: string): string {
+  return text.replace(/^R\d+ bank ended /, /* copy:callout */ "Collected gold · ")
+    .replace(/^R\d+ return ended /, /* copy:callout */ "Returned home · ")
+    .replace(/^R(\d+) /, "Rule $1: ")
+    .replace(/none past D(\d+)/, "none beyond floor $1")
+    .replace(/(\d+) before;/, "$1 earlier;");
 }
 
 /** The run a stall's trace belongs to: the exit line that carries the same trace (the stall has no run id on the wire; the
