@@ -4,7 +4,7 @@
 // Cut 14: `slowdowns` row — `on` / `off` (`app.slowdowns`, persisted): the watch's fight / near / scene holds, or the flat rate.
 import type { App } from "../app";
 import { h, copyText, replace } from "./dom";
-import { closeEverything, openSheet } from "./sheet";
+import { closeEverything, openWindow as openSheet } from "./sheet";
 import { audio } from "../audio";
 import { workerNodes } from "./works";
 import { autoOn, setAutoOn } from "./autodismiss";
@@ -52,6 +52,7 @@ export function openSettings(app: App): void {
     } }, autoOn() ? /* copy:button */ "on" : /* copy:button */ "off");
 
     body.append(
+      h("div", { class: "label row-label" }, /* copy:label */ "Settings"),
       hired.length ? h("div", { class: "srow workers-row" }, h("span", { class: "label" }, /* copy:label */ "workers"), h("span", { class: "chips" }, ...hired.map((n) => workerChip(n.id, n.name, !n.paused)))) : "",
       row(/* copy:label */ "sound", mute),
       row(/* copy:label */ "slowdowns", slow),

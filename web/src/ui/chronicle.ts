@@ -7,7 +7,7 @@
 import type { App } from "../app";
 import type { Lineage } from "../engine/types";
 import { h } from "./dom";
-import { closeAllSheets, openSheet } from "./sheet";
+import { closeAllSheets, openWindow as openSheet } from "./sheet";
 
 /** The kept death behind a chronicle line: the line's `♟N` names the heir, the newest grave of that heir carries the id. */
 export function keptDeath(L: Lineage, line: string): number | undefined {

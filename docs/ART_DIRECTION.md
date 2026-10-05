@@ -193,3 +193,13 @@ sheet with the prototype's before/after: `scratchpad/style/sheet.png`.
    and halftone once the art carries the palette itself. Do/don't, in short — **do**: moon from above, INK everywhere, one
    BLOOD thing per frame, visible grid, washes inside it. **Don't**: amber rooms, glossy metal, smooth gradients, a second
    accent colour, texture louder than the actor, text in art.
+
+### 7.2 Management windows (2026-10-05)
+
+See UX_CHUNKY_UI.md and art/ui/targets/README.md. Centered parchment uses the
+existing iron panel frame and tablet title plate. Standard-width Fira Sans
+400/600 is the management body face (15px; descriptions 13px). Command labels
+and ordinary controls share 14px Fira Condensed; Grenze remains the 24px title
+face. Reuse packed icons inside inset sockets. Forge bronze, Hero/Tactics gilt
+and Workers blue vary the same module. Report/death retain their scroll/banner
+silhouettes; the live combat log remains basic text over the map.

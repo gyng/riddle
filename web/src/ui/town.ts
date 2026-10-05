@@ -11,8 +11,8 @@ import { createTownView, townState, BUILDINGS, type BuildingId, type PlotId, typ
 import { h, replace } from "./dom";
 import { icon } from "./skin";
 import { kitAffordable } from "./forge";
-import { openSheet } from "./sheet";
-import { tile } from "./frame";
+import { openWindow as openSheet } from "./sheet";
+import { tile, paintFace } from "./frame";
 import { audio } from "../audio";
 import { questShown } from "./quest";
 import { nextPill, openWorks } from "./works";   // Cut 30.5: the `next` pill, the works sheet
@@ -289,13 +289,16 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
       const L = app.lineage, lvl = L.classes?.[L.class] ?? { level: 1, xp: 0, next: undefined as number | undefined };
       const p = Math.min(1, lvl.next ? lvl.xp / lvl.next : 0);
       const legacy = L.hero_legacy?.find((x) => x.heir === L.heir);
+      const face = h("span", { class: "hero-window-face" });
+      paintFace(face, L.class, 56, L.look ?? "");
       replace(body, h("div", { class: "label row-label" }, /* copy:label */ `Bloodline ${L.selected_bloodline??1}`),
-        h("div", { class: "hero-line num" }, h("b", null, L.class), " ", h("span", null, `L${lvl.level}`)),
+        h("div", { class: "hero-line num" }, face, h("b", null, L.class), " ", h("span", null, `L${lvl.level}`)),
         h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${L.bloodline?.points ?? legacy?.points ?? 0}`),
         L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
         h("div", { class: "legacy-upgrades" }, ...(L.legacy_upgrades ?? []).map((u) =>
           h("section", { class: "legacy-upgrade", "data-upgrade": u.id },
-            h("div", null, h("b", null, u.id), h("small", { class: "dim num" }, ` ${u.rank}/${u.cap} · ${u.effect}`)),
+            h("span", { class: "icon-socket" }, icon(({health:"v_drink",damage:"v_attack",armour:"v_shield"} as Record<string,string>)[u.id] ?? "unlocks", "✦")),
+            h("div", { class: "upgrade-copy" }, h("b", null, u.id), h("small", { class: "dim num" }, ` ${u.rank}/${u.cap} · ${u.effect}`)),
             h("button", { class: "chip legacy-buy", disabled: !u.affordable || !app.engine.upgradeHero, "data-upgrade": u.id,
               onclick: (e: Event) => {
                 (e.currentTarget as HTMLButtonElement).disabled = true;

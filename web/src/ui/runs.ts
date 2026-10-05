@@ -7,7 +7,7 @@ import { goldWords } from "./gold-words";
 import type { App } from "../app";
 import type { ExitLine, Lineage, Replay, RunRec } from "../engine/types";
 import { h, replace } from "./dom";
-import { closeAllSheets, openSheet } from "./sheet";
+import { closeAllSheets, openWindow as openSheet } from "./sheet";
 import { makeViewer, type Viewer } from "./viewer";
 import { markRunsSeen, runsSeen } from "./runlane";
 import { kwHost } from "./tips";

@@ -5,7 +5,7 @@
 //             the death screen): a keyword marked once per panel, ≤ 1 marked per line, ≤ 4 on screen, ≤ 8 % of the visible words
 //             (1 on a screen under 25 words); every marked keyword has its tip
 //   copy      every registry term renders a tip of ≤ 10 words (gloss and live value), no sentence, no forbidden word
-//   controls  a tap on a keyword inside a button runs the button and opens no tip; a long-press shows the tip and runs nothing
+//   controls  a tap on a keyword host runs the button and opens no tip; a long-press shows the tip and runs nothing
 //   fade      two opens make a keyword plain; its tip still opens (hover / long-press)
 //   one       at most one plate, ever
 //   layout    opening a tip shifts nothing; the plate stays inside a 360 px viewport
@@ -96,7 +96,7 @@ for (const V of VIEWS) {
   const longPress = async (sel) => {
     const r = await page.locator(sel).first().boundingBox();
     const x = r.x + r.width / 2, y = r.y + r.height / 2;
-    if (!V.touch) { await page.mouse.move(x, y); await sleep(600); return; }
+    if (!V.touch) { await page.mouse.move(1, 1); await page.mouse.move(x, y); await sleep(600); return; }
     const cdp = await ctx.newCDPSession(page);
     await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
     await sleep(650);
@@ -133,7 +133,7 @@ for (const V of VIEWS) {
     check(dp.terms.some((t) => ["package", "stance", "tactic", "reach", "drill"].includes(t)), `${V.name} · the packages panel marks its words (${dp.terms.join(" ")})`);
 
     // one plate; a second tip replaces the first; no layout shift; inside the viewport
-    const kws = await page.evaluate(() => [...document.querySelectorAll(".pkg-panel .kw.kw-on")].map((k) => k.dataset.kw));
+    const kws = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap:not(.under) .pkg-panel .kw")].filter(k => { const r = k.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.width > 0; }).sort((a,b) => Number(b.classList.contains("kw-on")) - Number(a.classList.contains("kw-on"))).map(k => k.dataset.kw));
     if (kws.length >= 2) {
       const rects = () => page.evaluate(() => [...document.querySelectorAll(".pkg-panel *, .topbar *, footer.console *")].map((e) => { const r = e.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }));
       const before = await rects();
@@ -145,7 +145,7 @@ for (const V of VIEWS) {
       const box = await page.evaluate(() => { const r = document.querySelector(".kw-tip:not([hidden])")?.getBoundingClientRect(); return r ? { l: r.left, r: r.right, t: r.top, b: r.bottom, vw: document.documentElement.clientWidth, vh: innerHeight } : null; });
       check(box && box.l >= 0 && box.r <= box.vw && box.t >= 0 && box.b <= box.vh, `${V.name} · the plate is inside the viewport (${box ? `${Math.round(box.l)}–${Math.round(box.r)} of ${box.vw}` : "none"})`);
       if (shots) await page.screenshot({ path: resolve(shots, `packages-tip-${V.name}.png`) });
-      await tapOrClick(`.pkg-panel .kw.kw-on[data-kw="${kws[1]}"]`); await sleep(250);
+      await longPress(`.sheet-wrap:not(.under) .pkg-panel .kw[data-kw="${kws[1]}"]`); await sleep(250);
       const b = await tipOpen(), n = await page.evaluate(() => window.__tips.plates() + document.querySelectorAll(".kw-tip").length - 1);
       check(b === kws[1] && n === 1, `${V.name} · one plate at a time (${b} open, ${n} plate)`);
       // nested: a keyword inside the tip adds its gloss in the same plate
@@ -156,20 +156,20 @@ for (const V of VIEWS) {
       // a tap elsewhere closes it
       if (V.touch) { const p = await page.evaluate(() => { const r = document.querySelector('.pkg-sec[data-kind="tactic"] .pkg-head').getBoundingClientRect(); return { x: Math.round(r.right - 12), y: Math.round(r.top + r.height / 2) }; }); await page.touchscreen.tap(p.x, p.y); await sleep(200); check((await tipOpen()) === null, `${V.name} · a tap elsewhere closes the tip`); }
       await closeTip();
-    } else check(false, `${V.name} · two marked words on the packages panel to test with (${kws.join(" ")})`);
+    } else check(false, `${V.name} · two visible keywords on the packages panel to test replacement with (${kws.join(" ")})`);
     await page.evaluate(() => { for (const s of document.querySelectorAll(".sheet .close-stud, .sheet .sheet-x")) s.click(); });
     await sleep(300);
 
-    // ---- a keyword inside a button: the tap is the button's; a long-press (hover) the tip's
+    // ---- a keyword host on a button: the tap is the button's; a long-press (hover) the tip's
     await page.evaluate(() => window.__tips.reset());
     await camp();
-    const inBtn = await page.evaluate(() => !!document.querySelector("button .kw"));
+    const inBtn = await page.evaluate(() => !!document.querySelector('button[data-kwh="package"]'));
     if (inBtn) {
-      await tapOrClick("button.pkg-tab .kw");
+      await tapOrClick('.cmd .tile[data-tile="packages"]');
       const opened = await until(() => !!document.querySelector(".pkg-panel"), "the panel from a keyword in its button", 4000).catch(() => false);
-      check(opened && (await tipOpen()) === null, `${V.name} · a tap on a keyword inside a button runs the button, no tip (panel ${!!opened})`);
+      check(opened && (await tipOpen()) === null, `${V.name} · a tap on a keyword host runs the button, no tip (panel ${!!opened})`);
       await page.evaluate(() => { for (const s of document.querySelectorAll(".sheet .close-stud, .sheet .sheet-x")) s.click(); }); await sleep(300);
-    } else check(false, `${V.name} · a keyword inside a button on the mid-game camp`);
+    } else check(false, `${V.name} · a keyword host on a button on the mid-game camp`);
     await closeTip();
     await longPress('.cmd .tile[data-tile="packages"]');
     const lp = { tip: await tipOpen(), panel: await page.evaluate(() => !!document.querySelector(".pkg-panel")) };

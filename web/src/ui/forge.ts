@@ -3,9 +3,10 @@
 import type { App } from "../app";
 import type { KitLadder, Lineage } from "../engine/types";
 import { h, replace } from "./dom";
-import { openSheet } from "./sheet";
+import { openWindow as openSheet } from "./sheet";
 import { moveOf } from "./forecast";
 import { audio } from "../audio";
+import { icon } from "./skin";
 import { itemIcon, itemName } from "./items";   // run-clear
 
 /** The last `kitDeltas()` and what it was measured for (the set, the kit owned, the best, the start): the sheet paints it at once. */
@@ -81,7 +82,7 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
         } }, next ? /* copy:button */ `Forge $${next.price}` : /* copy:button */ "Complete");
         return h("section", { class: "kit-slot tablet", "data-slot": lad.slot },
           h("div", { class: "kit-head" }, h("b", null, SLOT_LABEL[lad.slot]), h("small", { class: "dim" }, current ?? /* copy:label */ "Starting kit")),
-          h("div", { class: "forge-action" }, h("div", { class: "forge-item" }, ...(item?.kind ? [itemIcon({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity }, { size: "s" }), itemName({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity })] : [next?.label ?? current ?? "Complete"])), button));
+          h("div", { class: "forge-action" }, h("div", { class: "forge-item" }, ...(item?.kind ? [itemIcon({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity }, { size: "s" }), itemName({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity })] : [h("span", { class: "icon-socket" }, icon("loadout", "▤")), next?.label ?? current ?? "Complete"])), button));
       }));
       replace(advanced, h("summary", null, /* copy:button */ "Details"),
         h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => h("p", null, `${SLOT_LABEL[lad.slot]} · ${lad.steps.slice(lad.owned + 1).map((s) => `${s.label} $${s.price}`).join(" · ") || "Complete"}`))),

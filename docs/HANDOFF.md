@@ -1,3 +1,16 @@
+**CHUNKY UI — 2026-10-05:** Read UX_CHUNKY_UI.md and
+art/ui/targets/README.md. Built-in imagegen targets cover Tactics and
+Hero/Forge/Workers/Settings using SC2/WC3 construction with the current painted
+art. Existing panel/tablet nine-slices now form shared centered management
+windows, bevel controls, inset sockets and gauges. Standard-width Fira Sans
+body; Grenze titles; consistent 14px command labels. Main windows use
+openWindow, while token pickers and live loot retain openSheet behavior.
+Layout gates176 PASS across320/400/768/1440, real shipping controls36 PASS,
+shipping first-load/live/report/offline walk PASS. Copy/tsc/build PASS; unchanged
+engine's full numeric table revalidated from caches. Tooltip copy shortened to
+budget; activating a control now closes its preceding tooltip. Tooltip70/70 PASS; publication evidence follows when complete. Private captures:
+scratchpad/chunky-ui-20261005; never stage scratchpad or mine.bars.
+
 **TERMINOLOGY / TACTICS FOLLOW-UP — 2026-10-05:** Read UX_TERMINOLOGY.md,
 UX_TACTICS.md and PERF_PACKAGE_REFRESH.md. Tactics leads with equipped combat
 style/extra tactics/personality and Rust-owned descriptions; alternatives open

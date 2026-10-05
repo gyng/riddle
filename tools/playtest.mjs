@@ -190,7 +190,7 @@ async function attempt() {
       else { await clickBtn("main.death button", "edit"); await waitFor((x) => x?.screen === "camp", "camp after edit"); await settle(); await dump("camp", { note: "no patch offered" }); }
     } else if (s.screen === "report") {
       await dump("report", { note: "returned" });
-      await clickBtn("main.report .gem", "camp"); await waitFor((x) => x?.screen === "camp", "camp after the report"); await settle(); await dump("camp");
+      await clickBtn("main.report .gem", "town"); await waitFor((x) => x?.screen === "camp", "camp after the report"); await settle(); await dump("camp");
     } else if (s.screen === "ending") await dump("ending");
     else await dump(s.screen, { note: "unexpected" });
 

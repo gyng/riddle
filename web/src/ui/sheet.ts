@@ -32,7 +32,7 @@ export function onEscapeIdle(fn: (() => void) | null): void { idle = fn; }
 /** `anchor` (Cut 23 §4, AI/AJ: "the option sheet covers the chips it edits"): the element the sheet edits (a row's chips) — the panel
  *  unfolds on whichever side of it has more room and never over it (its height capped to that side), re-placed as its body changes.
  *  A tap outside the panel (the backdrop, the anchor's row under it) only closes the sheet: it never reaches what lies beneath. */
-export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean; anchor?: HTMLElement | null; stay?: boolean } = {}): void {
+export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean; anchor?: HTMLElement | null; stay?: boolean; center?: boolean } = {}): void {
   const panel = h("div", { class: "sheet", role: "dialog" });
   // Cut 24 §5 (AK: "the chip tap didn't open the verb sheet a second time"): a tap on another chip of the anchor's own row (the verb
   // while the cond sheet is up) closes this sheet and opens that one — the row being edited stays live; anywhere else a tap only closes
@@ -54,11 +54,12 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   };
   const wrap = h("div", { class: `sheet-wrap${opts.modeless ? " modeless" : ""}`, onclick: (e) => { if (e.target !== wrap) return; const pass = passThrough(e as MouseEvent) ?? tileUnder(e as MouseEvent); close(); pass?.click(); } });
   let ro: ResizeObserver | null = null;
+  let unplace: (() => void) | undefined;
   // Cut 25 §6: the sheet this one replaces (the top non-modeless one), hidden until this one goes
   const parent = opts.modeless ? undefined : [...stack].reverse().find((w) => !w.classList.contains("modeless"));
   const close = (): void => {
     const i = stack.indexOf(wrap); if (i < 0) return;
-    stack.splice(i, 1); sheetGhost(wrap); wrap.remove(); ro?.disconnect(); opts.anchor?.classList.remove("sheet-anchor"); closers.delete(wrap); parentOf.delete(wrap);
+    stack.splice(i, 1); sheetGhost(wrap); wrap.remove(); ro?.disconnect(); unplace?.(); opts.anchor?.classList.remove("sheet-anchor"); closers.delete(wrap); parentOf.delete(wrap);
     if (parent && stack.includes(parent)) { parent.hidden = false; parent.classList.remove("under"); }
   };
   /** The `×` of a sheet that replaced another closes the chain (this one and every one it replaced). */
@@ -82,7 +83,20 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   const anchor = opts.anchor;
   // the wide frame (desktop): the panel stands beside what opened it — the anchor, else the control last tapped
   const beside = wideNow() && !opts.modeless ? (anchor?.isConnected ? anchor : lastTap?.isConnected && !wrap.contains(lastTap) ? lastTap : null) : null;
-  if (beside) {
+  if (opts.center && !opts.modeless) {
+    wrap.classList.add("centered");
+    panel.classList.add("game-window");
+    const place = (): void => {
+      const bar = document.querySelector("main.frame > .topbar")?.getBoundingClientRect();
+      const console = document.querySelector("main.frame > .console")?.getBoundingClientRect();
+      wrap.style.setProperty("--window-top", `${Math.max(0, bar?.bottom ?? 0)}px`);
+      wrap.style.setProperty("--window-bottom", `${Math.max(0, console ? innerHeight - console.top : 0)}px`);
+    };
+    place();
+    window.addEventListener("resize", place);
+    unplace = () => window.removeEventListener("resize", place);
+    if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(place); ro.observe(content instanceof Element ? content : panel); }
+  } else if (beside) {
     const place = (): void => { if (beside.isConnected) placeWide(wrap, panel, beside); };
     place();
     if (typeof ResizeObserver !== "undefined") { ro = new ResizeObserver(() => place()); ro.observe(content instanceof Element ? content : panel); }
@@ -150,3 +164,8 @@ function placeBeside(wrap: HTMLElement, panel: HTMLElement, anchor: HTMLElement)
   wrap.dataset.side = top ? "above" : "below";
 }
 window.addEventListener("keydown", (e) => { if (e.key !== "Escape") return; if (stack.length) closeSheet(); else if (!panelEscape?.()) idle?.(); });
+
+/** Full game windows center in the playable area; token pickers keep openSheet's anchor behavior. */
+export function openWindow(build: (close: () => void) => Node, opts: Parameters<typeof openSheet>[1] = {}): void {
+  openSheet(build, { ...opts, center: true });
+}

@@ -6,7 +6,7 @@ import type { App } from "../app";
 import type { Companion, Row, RuleSet } from "../engine/types";
 import { h, clear, twoTap } from "./dom";
 import { renderEditor } from "./editor";
-import { closeAllSheets, openSheet } from "./sheet";
+import { closeAllSheets, openWindow as openSheet } from "./sheet";
 import { cloneSet } from "../app";
 import { paintPortrait, paintSprite } from "./frame";
 

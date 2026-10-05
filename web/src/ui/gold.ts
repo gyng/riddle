@@ -14,7 +14,7 @@ import { wakeShown } from "./death";
 import type { App } from "../app";
 import type { ExitLine, GoldLine } from "../engine/types";
 import { h } from "./dom";
-import { openSheet } from "./sheet";
+import { openWindow as openSheet } from "./sheet";
 import { goldWords } from "./gold-words";
 
 /** The ledger word of the exit `x` ended with: read off the line's own lead (`returned $0 · … · stalled` is a return that

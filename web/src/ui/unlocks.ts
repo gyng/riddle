@@ -12,7 +12,7 @@ import { CLASSES, isFreeClass } from "../engine/classes";
 import { h } from "./dom";
 import { ruleName } from "./tokens";
 import { rowChips } from "./editor";
-import { openSheet } from "./sheet";
+import { openWindow as openSheet } from "./sheet";
 
 /* copy:unlock_card */
 const LABEL: Record<string, string> = {

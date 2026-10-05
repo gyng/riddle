@@ -22,7 +22,7 @@ import type { Forecast, Lineage, Oath, OathReport, OathReward, OathShare, Return
 import { ruleName } from "./tokens";
 import { h, replace, twoTap } from "./dom";
 import { icon } from "./skin";
-import { openSheet } from "./sheet";
+import { openWindow as openSheet } from "./sheet";
 import { moveOf, pmShown, share, lowOf } from "./forecast";
 
 export const oathsOf = (L: Lineage | null | undefined): Oath[] => (L?.oaths ?? []).slice(0, 3);

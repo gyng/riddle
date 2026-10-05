@@ -188,6 +188,8 @@ function install(): void {
     const n = e.target instanceof Element ? e.target.closest<HTMLElement>(".kw-n") : null;
     if (n && plate?.contains(n)) { e.stopPropagation(); nested(n); return; }
     const t = trigger(e.target);
+    // A control keeps its action; its earlier hover/long-press plate must close.
+    if (t && inControl(t)) { closeTip(); return; }
     if (!t || !tappable(t)) return;
     e.stopPropagation(); e.preventDefault();
     if (owner === t) closeTip(); else openTip(t);

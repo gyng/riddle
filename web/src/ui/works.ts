@@ -7,7 +7,7 @@ import "../works.css";
 import type { App } from "../app";
 import type { Lineage, ReturnReport, WorkNode, WorkerAct, Works } from "../engine/types";
 import { h, replace } from "./dom";
-import { closeEverything, openSheet } from "./sheet";
+import { closeEverything, openWindow as openSheet } from "./sheet";
 import { icon } from "./skin";
 import { audio } from "../audio";
 import { heroFace, trackIcon, trackName, TRACK_IDS } from "./tracks";

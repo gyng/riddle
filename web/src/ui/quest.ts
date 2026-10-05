@@ -6,7 +6,7 @@ import "../cut30.css";
 import type { App } from "../app";
 import type { Lineage, Quest } from "../engine/types";
 import { h, replace } from "./dom";
-import { openSheet } from "./sheet";
+import { openWindow as openSheet } from "./sheet";
 import { sysOpen } from "./systems";
 import skin from "./skin.json";
 import { kw } from "./tips";

@@ -65,7 +65,7 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   bones: "a dead heir's gear on his floor", oaths: "a goal for a reward", bounty: "this floor pays double gold", waystone: "start a run deeper",
   fork: "the other stairs, another place", grudge: "the foe that killed him",
   heir: "the family's hero now · the next takes over", gold: "earned on runs · spent in town", best: "deepest floor any heir reached",
-  reach: "chance a run gets that deep", package: "hero rules for fighting, healing and returning · improve through runs", stance: "combat style · chooses when to fight, heal and return",
+  reach: "chance a run gets that deep", package: "fighting, healing and returning rules", stance: "when to fight, heal and return",
   tactic: "extra rules for specific fights · alongside the combat style", temperament: "personality · changes the hero's behavior", drill: "learned boss counter · enabled automatically · can be disabled",
   scar: "boss weaker each meeting", quest: "one goal · a reward when done", track: "one way the family grows", pen: "write hero rules · unlocks later",
   lever: "the cheapest move against this death", bank: "deposits earn interest each night", banked: "home with all the loot",

@@ -11,9 +11,10 @@ import "../cut30.css";
 import type { App } from "../app";
 import type { Lineage, Package, Packages, PkgOption } from "../engine/types";
 import { h, replace, twoTap } from "./dom";
-import { openSheet } from "./sheet";
+import { openWindow as openSheet } from "./sheet";
 import { lowOf, share } from "./forecast";
 import { rowLabel } from "./tokens";
+import { packageIcon } from "./skin";
 import { sysOpen } from "./systems";
 import { kw, kwHost, kwText } from "./tips";
 import type { Term } from "./concepts";
@@ -120,7 +121,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip");
         const pr = o ? priceOf(o) : null;
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price"));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
+          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : ""), kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price"));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {
@@ -143,7 +144,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
           : "";
         const off = kind === "tactic" && app.engine.unequipPackage ? h("button", { class: "chip mini pkg-off", "aria-label": "remove", onclick: () => void app.mutate(() => app.engine.unequipPackage!(p.id), undefined, true).then(() => paint()) }, "×") : "";
         return h("div", { class: "pkg-slot", "data-kind": kind, "data-slot": slot },
-          h("span", { class: "chip pkg on", "data-pkg": p.id }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", levelBar(p)), change, lv, off);
+          h("span", { class: "chip pkg on", "data-pkg": p.id }, packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", levelBar(p))), change, lv, off);
       };
       const section = (label: string, kind: string, ...kids: (HTMLElement | "")[]): HTMLElement => h("section", { class: "pkg-sec", "data-kind": kind }, h("div", { class: "label pkg-head" }, kw(kind as Term, label)), ...kids);   // docs/TOOLTIPS.md: the slot's word is its keyword
       const choices = (kind: string, ...kids: HTMLElement[]): HTMLElement => h("div", { class: "pkg-choices", hidden: !choosing.has(kind) }, ...kids);
@@ -166,7 +167,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
         const cards = offer.length ? offer : owned("temperament");
         const personality = h("div", { class: "chips pkg-alts temper" }, ...cards.map((p) => h("button", { class: `chip pkg temper${p.id === P.temperament ? " on" : ""}`, "data-pkg": p.id, "aria-pressed": p.id === P.temperament ? "true" : "false",
           onclick: () => { if (p.id === P.temperament) return; void app.mutate(() => (P.offer?.includes(p.id) && app.engine.pickTemperament ? app.engine.pickTemperament(p.id) : app.engine.equipPackage!(p.id, 0)), /* copy:callout */ p.name, true).then(() => paint()); } },
-          h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", p.id === P.temperament ? levelBar(p) : "")));
+          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", p.id === P.temperament ? levelBar(p) : ""))));
         if (offer.length) secs.push(section(/* copy:label */ "personality", "temperament", personality));
         else secs.push(section(/* copy:label */ "personality", "temperament", h("div", { class: "pkg-equipped" }, worn(byId.get(P.temperament ?? ""), "temperament", 0), cards.length > 1 ? changeKind("temperament") : ""), choices("temperament", personality)));
       }
