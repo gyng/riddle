@@ -1,3 +1,12 @@
+**Unused forecast work — 2026-10-05:** Eight-sample Tactics queries omit the
+passage-gold forecast they do not consume. Separate outcomes: panels cannot
+feed real gold/folding forecasts. Additional named fast-WASM reductions:
+early52%, late18%, tuned55%; complete prices/saves match the prior eight-sample
+queries. Full verification and fast/shipping larger-panel/offline parity pass.
+See PERF_FAST_ESTIMATES.md. Next apply the same projection to larger Tactics
+requests after32/50-sample and warm-cache validation (dayplayer uses32), then
+smaller camp/Forge first-pass forecasts. Preserve real send/offline calculations.
+
 **Forecast priority update — 2026-10-05:** Owner accepts approximate forecasts.
 Reduce predictive work before further tick micro-optimizations. Tactics8-sample
 estimate replaces24: named fast-WASM late8.044→2.854s, tuned8.806→5.649s,

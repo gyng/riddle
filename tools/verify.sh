@@ -12,7 +12,7 @@ t0=$(date +%s)
 log=$(mktemp); tsclog=$(mktemp)
 ( cd web && pnpm -s exec tsc --noEmit >"$tsclog" 2>&1 && node ../tools/copy-lint.mjs >>"$tsclog" 2>&1 && node --test ../tools/gold-range.test.mjs ../tools/runtime-key.test.mjs ../tools/camp-check.test.mjs ../tools/native-codegen.test.mjs ../tools/native-host.test.mjs ../tools/native-watch.test.mjs >>"$tsclog" 2>&1 ) & side=$!
 cargo test -q --workspace --profile fast >"$log" 2>&1 && ok=1 || ok=0
-grep -E "test result|error|panicked|FAILED" "$log" | grep -v "0 passed" || true
+grep -E "test result|error|panicked|FAILED" "$log" | grep -F -v "test result: ok. 0 passed;" || true
 [ "$ok" = 1 ] || { grep -E "^(failures:|    [a-z_:]+$|thread .* panicked)" "$log" | head -20; rm -f "$log" "$tsclog"; exit 1; }
 wait $side && sideok=1 || sideok=0
 cat "$tsclog"; rm -f "$log" "$tsclog"

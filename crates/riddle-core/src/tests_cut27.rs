@@ -189,3 +189,65 @@ fn an_edit_that_moves_the_forecast_has_a_divergence() {
     assert_eq!(g.divergence(&edit), None);
 }
 
+
+fn estimate_camp() -> Game {
+    let mut g = edited(11, 18);
+    g.lineage.light_waystones(18);
+    g.lineage.start = 14;
+    g.lineage.gold_move(100_000, "estimate test");
+    crate::kit::buy_all(&mut g.lineage);
+    assert_eq!(crate::forecast::sim_start(&g), 14);
+    g
+}
+
+#[test]
+fn passage_estimate_caches_cannot_change_regular_panels_or_real_sends() {
+    use crate::forecast::{camp_panel, camp_panel_outcomes, measure_work, passage_for};
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        let control = estimate_camp();
+        let rules = control.lineage.rules().clone();
+        let normal = camp_panel(&control, &rules, 8);
+        let quote = passage_for(&control, &rules, 14);
+        for estimate_first in [true, false] {
+            let mut g = estimate_camp();
+            let save = g.save();
+            if !estimate_first { assert_eq!(camp_panel(&g, &rules, 8), normal); }
+            let small = camp_panel_outcomes(&g, &rules, 8);
+            let (again, work) = measure_work(|| camp_panel_outcomes(&g, &rules, 8));
+            assert_eq!(small, again);
+            assert_eq!(work.simulations, 0, "estimate memo must avoid rerunning passage");
+            assert_eq!(camp_panel(&g, &rules, 8), normal, "regular panels cannot reuse estimated gold");
+            assert_eq!(passage_for(&g, &rules, 14), quote);
+            assert_eq!(g.save(), save, "predictions do not mutate game state");
+            let mut actual = estimate_camp();
+            g.start_run(Some(42));
+            actual.start_run(Some(42));
+            assert_eq!(g.save(), actual.save(), "actual sends cannot read approximate quote");
+        }
+    });
+}
+
+#[test]
+fn passage_estimate_skips_unused_gold_and_matches_parallel_order() {
+    use crate::forecast::{camp_panel, camp_panel_outcomes, measure_work};
+    static ONE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    static TWO: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(2);
+    let sequential = crate::forecast::with_sim_width(&ONE, || {
+        let g = estimate_camp();
+        let rules = g.lineage.rules();
+        let (outcomes, small) = measure_work(|| camp_panel_outcomes(&g, rules, 8));
+        assert!(g.forecast_cache.borrow().is_empty(), "outcome forecast must not quote gold");
+        let (normal, full) = measure_work(|| camp_panel(&g, rules, 8));
+        assert!(small.simulations < full.simulations, "fixture must exercise skipped passage work");
+        for (a, b) in outcomes.iter().zip(&normal) {
+            assert_eq!((a.max_depth, a.tier, &a.cause, a.ticks, &a.fires), (b.max_depth, b.tier, &b.cause, b.ticks, &b.fires));
+        }
+        outcomes
+    });
+    let parallel = crate::forecast::with_sim_width(&TWO, || {
+        let g = estimate_camp();
+        camp_panel_outcomes(&g, g.lineage.rules(), 8)
+    });
+    assert_eq!(sequential, parallel);
+}

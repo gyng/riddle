@@ -1,3 +1,18 @@
+**OUTCOME-ONLY FORECASTS — 2026-10-05:** Eight-sample Tactics queries now skip
+unused passage-gold pricing, with outcome panels cached under outcomes:.
+Regular gold forecasts, real sends and offline progress retain their prior
+calculations. Three alternating named fast-WASM pairs/camp: early0.988→0.471s,
+late2.801→2.283s, tuned5.588→2.491s; all12 complete price/save pairs exact.
+Two native cache/send/work/parallel tests pass. Nine larger-panel/offline pairs
+match in fast WASM and nine in shipping WASM after estimates run first.
+Shipping400/1440 controls pass, screenshots shown. Full verification green:
+540 core tests, one ignored, clippy, shipping build, tool tests and fresh selected
+full gates. Stable verifier rerun46s uses completed caches; not a fresh runtime.
+Fixed verifier filter hiding totals like540 passed. PERF_FAST_ESTIMATES.md
+records the rejected sized-gold probe, acceptance and limits. Next extend
+outcome-only work to larger Tactics requests (dayplayer uses32), then isolate
+smaller first camp/Forge panels from actual progress. No deployment authorized.
+
 **FAST ESTIMATES — 2026-10-05:** Owner accepts approximate forecasts. Tactics
 now requests8 instead of24 samples, labels rough estimate and rounds ≈ deltas
 to five points. Conservative noise filter uses both candidate/baseline variance

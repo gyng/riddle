@@ -110,6 +110,11 @@ pub fn simulate_budget(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_d
 /// function of their index, so a shorter panel on the same seeds is this one's prefix: Cut 24
 /// §4, the refine pass reuses the first pass's sims instead of running them again).
 pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_depth: u32, budget: u64, prefix: Vec<SimResult>) -> Vec<SimResult> {
+    simulate_budget_from_priced(game, rules, sims, tag, stop_depth, budget, prefix, true)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn simulate_budget_from_priced(game: &Game, rules: &RuleSet, sims: u32, tag: u64, stop_depth: u32, budget: u64, prefix: Vec<SimResult>, price_passage: bool) -> Vec<SimResult> {
     let from = (prefix.len() as u32).min(sims);
     work(|w| w.prefix_simulations += u64::from(from));
     let spent0: u64 = prefix.iter().map(|r| r.ticks as u64).sum();
@@ -120,7 +125,7 @@ pub fn simulate_budget_from(game: &Game, rules: &RuleSet, sims: u32, tag: u64, s
     // how many of them count, in order. Natively they run on all cores and the budget is
     // applied to the ordered results afterwards, so the answer is the sequential one exactly.
     // Cut 27 §1: a waystone start's passage, priced once for the panel (every sim is paid alike).
-    let passage = if done { None } else { sim_passage(game, rules) };
+    let passage = if done || !price_passage { None } else { sim_passage(game, rules) };
     if done {
     } else if parallel_sims() && sims > from + 1 {
         ran.extend(par_sims(game, from, sims, spent0, budget, |base, i| simulate_one(base, rules, tag, stop_depth, i, passage)));
@@ -465,11 +470,24 @@ pub fn camp_panel(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
 
 /// Continue a screening panel for exactly this game/rules/tag, in index order.
 /// The wall search owns its prefix so cache eviction cannot discard its work.
-pub(crate) fn camp_panel_from(game: &Game, rules: &RuleSet, sims: u32, mut prefix: Vec<SimResult>) -> Vec<SimResult> {
+pub(crate) fn camp_panel_from(game: &Game, rules: &RuleSet, sims: u32, prefix: Vec<SimResult>) -> Vec<SimResult> {
+    camp_panel_priced(game, rules, sims, prefix, true)
+}
+
+/// Outcome-only forecast: skipped-floor gold cannot affect a single simulation's
+/// combat/depth/exit, and these callers do not read its gold totals. Never reuse
+/// these incomplete results in a gold forecast or an actual send.
+pub(crate) fn camp_panel_outcomes(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
+    camp_panel_priced(game, rules, sims, Vec::new(), false)
+}
+
+fn camp_panel_priced(game: &Game, rules: &RuleSet, sims: u32, mut prefix: Vec<SimResult>, price_passage: bool) -> Vec<SimResult> {
     let known_to = game.lineage.best_depth + 1;
     let tag = forecast_tag(game, known_to);
     let budget = panel_budget(sims);
-    let key = panel_key(game, rules, sims);
+    let normal_key = panel_key(game, rules, sims);
+    let namespace = if price_passage { "" } else { "outcomes:" };
+    let key = format!("{namespace}{normal_key}");
     if let Some(v) = game.panel_cache.borrow().get(&key) {
         work(|w| w.panel_hits += 1);
         return v.clone();
@@ -477,8 +495,9 @@ pub(crate) fn camp_panel_from(game: &Game, rules: &RuleSet, sims: u32, mut prefi
     work(|w| w.panel_misses += 1);
     // Every size/budget runs the same indexed sends. Reuse any exact-input prefix,
     // including wall12→48, and truncate it under this request's ordered budget.
-    let parts: Vec<_> = key.splitn(5, ':').collect();
+    let parts: Vec<_> = normal_key.splitn(5, ':').collect();
     for (k, v) in game.panel_cache.borrow().iter() {
+        let Some(k) = k.strip_prefix(namespace) else { continue; };
         let p: Vec<_> = k.splitn(5, ':').collect();
         if p.len() == 5 && p[0] == parts[0] && p[2] == parts[2] && p[4] == parts[4] && v.len().min(sims as usize) > prefix.len().min(sims as usize) {
             prefix = v.clone();
@@ -493,8 +512,8 @@ pub(crate) fn camp_panel_from(game: &Game, rules: &RuleSet, sims: u32, mut prefi
         used += 1;
     }
     prefix.truncate(used);
-    let ended = simulate_budget_from(game, rules, sims, tag, u32::MAX, budget, prefix);
-    if sims >= REFINE_SIMS {
+    let ended = simulate_budget_from_priced(game, rules, sims, tag, u32::MAX, budget, prefix, price_passage);
+    if price_passage && sims >= REFINE_SIMS {
         let mut r = game.refined_panels.borrow_mut();
         if r.len() >= REFINED_MAX {
             r.clear();
