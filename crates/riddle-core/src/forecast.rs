@@ -478,7 +478,12 @@ pub(crate) fn camp_panel_from(game: &Game, rules: &RuleSet, sims: u32, prefix: V
 /// combat/depth/exit, and these callers do not read its gold totals. Never reuse
 /// these incomplete results in a gold forecast or an actual send.
 pub(crate) fn camp_panel_outcomes(game: &Game, rules: &RuleSet, sims: u32) -> Vec<SimResult> {
-    camp_panel_priced(game, rules, sims, Vec::new(), false)
+    camp_panel_outcomes_from(game, rules, sims, Vec::new())
+}
+
+/// Continue an owned screening prefix without pricing unused skipped-floor gold.
+pub(crate) fn camp_panel_outcomes_from(game: &Game, rules: &RuleSet, sims: u32, prefix: Vec<SimResult>) -> Vec<SimResult> {
+    camp_panel_priced(game, rules, sims, prefix, false)
 }
 
 fn camp_panel_priced(game: &Game, rules: &RuleSet, sims: u32, mut prefix: Vec<SimResult>, price_passage: bool) -> Vec<SimResult> {

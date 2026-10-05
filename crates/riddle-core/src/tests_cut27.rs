@@ -322,3 +322,39 @@ fn d1_outcomes_are_complete_gold_results_for_later_forecasts() {
         assert_eq!(g.save(), save);
     });
 }
+
+#[test]
+fn wall_outcome_prefix_survives_eviction_and_preserves_priced_forecasts() {
+    use crate::forecast::{camp_panel, camp_panel_outcomes, camp_panel_outcomes_from, measure_work};
+    static ONE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    static TWO: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(2);
+    let sequential = crate::forecast::with_sim_width(&ONE, || {
+        let g = estimate_camp();
+        let rules = g.lineage.rules();
+        let before = g.save();
+        let prefix = camp_panel_outcomes(&g, rules, crate::wall::SCREEN);
+        assert!(!prefix.is_empty());
+        g.panel_cache.borrow_mut().clear();
+        let (extended, resumed) = measure_work(|| camp_panel_outcomes_from(&g, rules, crate::wall::FULL, prefix.clone()));
+        let cold = estimate_camp();
+        let (fresh, work) = measure_work(|| camp_panel_outcomes(&cold, cold.lineage.rules(), crate::wall::FULL));
+        assert_eq!(extended, fresh, "evicted screening work continues in the original index order");
+        assert_eq!(resumed.simulations + prefix.len() as u64, work.simulations);
+        assert!(g.forecast_cache.borrow().is_empty(), "wall candidates never price skipped-floor gold");
+        let priced_control = estimate_camp();
+        let priced = camp_panel(&priced_control, priced_control.lineage.rules(), crate::wall::FULL);
+        for (a, b) in extended.iter().zip(&priced) {
+            assert_eq!((a.max_depth, a.tier, &a.cause, a.ticks, &a.fires), (b.max_depth, b.tier, &b.cause, b.ticks, &b.fires));
+        }
+        assert_eq!(camp_panel(&g, rules, crate::wall::FULL), priced, "incomplete outcomes cannot supply gold forecasts");
+        assert_eq!(g.save(), before);
+        extended
+    });
+    let parallel = crate::forecast::with_sim_width(&TWO, || {
+        let g = estimate_camp();
+        let prefix = camp_panel_outcomes(&g, g.lineage.rules(), crate::wall::SCREEN);
+        g.panel_cache.borrow_mut().clear();
+        camp_panel_outcomes_from(&g, g.lineage.rules(), crate::wall::FULL, prefix)
+    });
+    assert_eq!(sequential, parallel);
+}

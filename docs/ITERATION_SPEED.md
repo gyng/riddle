@@ -1,3 +1,16 @@
+**Wall-search projection — 2026-10-06:** Depth-only candidates now skip unused
+passage-gold work and retain their screening prefixes after cache eviction.
+Shipping late7.865→4.396s and tuned27.591→15.377s (both44% faster), early
+0.440→0.342s; all complete offers/saves match. Native heavy searches improve
+44–45%, simulations582→401 and1216→814. Full selected routine verifier429s
+with fresh legs, not an exhaustive audit or a two-minute claim. Exact full
+dayplayer output except elapsed header. See PERF_WALL_OUTCOMES.md for scope.
+Next prioritize small first-pass camp/Forge previews and explicit refinement:
+App.emitForecast/rulesChanged still launch automatic100-sample followups, so
+reducing only the first pass can leave substantial competing work. Keep real
+gold/runs/offline correct. Raw report unlock IDs and opaque wall-edit labels
+seen in the actual UI checkpoint remain on the copy-audit queue. No deployment.
+
 **Larger outcome forecasts — 2026-10-06:** Extend unused passage-gold removal
 to ordinary Tactics queries below100. Explicit refinement preserves existing
 quality state; safe complete-prefix reuse avoids duplicate warm work. Shipping

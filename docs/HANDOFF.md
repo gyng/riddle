@@ -1,3 +1,20 @@
+**WALL SEARCH OUTCOMES — 2026-10-06:** Depth-only wall search now skips the
+unused passage-gold ledger per candidate, retaining12/48 samples and owned
+screening prefixes. Shipping three alternating cold pairs/camp: early
+0.440→0.342s; late7.865→4.396s; tuned27.591→15.377s (heavy44% faster).
+All12 complete offer/save pairs exact; nine post-search shipping sequences
+match normal/refined forecasts and direct8h offline saves. Producer finished
+all artifacts then exited143; independent artifact recheck terminal0 exact.
+Real shipping400/1440 report Details→offer→apply controls/screens pass.
+Full verifier terminal0:544 tests, one ignored,11 tooling tests, clippy/build,
+fresh18 selected fortnight cases;429s total includes compilation. Dayplayer
+printout exact except elapsed header, no causal whole-suite speed claim.
+PERF_WALL_OUTCOMES.md records source/hashes, test scope and acceptance.
+Next reduce first-pass camp/Forge preview cost and reserve100-sample refinement
+for explicit demand (still auto-scheduled in App). Screenshot exposed old raw
+report `unlock supply_cap_5 (0)` and opaque wall edits; wording audit remains.
+Push authorized; publication still requires an explicit user request.
+
 **LARGER TACTICS OUTCOMES — 2026-10-06:** Ordinary Tactics queries below100
 samples now omit unused passage-gold work. Complete priced prefixes can feed
 outcome queries; incomplete deep-start outcomes cannot feed gold forecasts.

@@ -12,7 +12,7 @@
 //! moves the start: `start D24`). Every band boss's known counter between the wall and the record is
 //! weighed; the set's last exit row is never dropped or written over.
 use crate::engine::Game;
-use crate::forecast::{camp_panel, SimResult};
+use crate::forecast::{camp_panel_outcomes, SimResult};
 use crate::rules::{Cond, Row, RuleSet, Verb};
 
 /// Days at the same best depth before the wall's edit is searched (once a day).
@@ -33,7 +33,9 @@ fn shares(g: &Game, set: &RuleSet, n: u32, at: u32) -> (f64, f64) {
 }
 fn panel(g: &Game, set: &RuleSet, n: u32, prefix: Vec<SimResult>) -> Vec<SimResult> {
     let edited = crate::forecast::edited_game(g, set);
-    let rs = crate::forecast::camp_panel_from(&edited, edited.lineage.rules(), n, prefix);
+    // Search scores depths only. Keep its indexed screening prefix, without
+    // calculating the separate skipped-floor gold ledger for every candidate.
+    let rs = crate::forecast::camp_panel_outcomes_from(&edited, edited.lineage.rules(), n, prefix);
     for (k, v) in edited.panel_cache.into_inner() {
         crate::forecast::panel_insert(g, k, v);
     }
@@ -53,7 +55,7 @@ pub const WALL_REACH: f64 = 0.25;
 /// D28 on most sends: past D33 every candidate read 0, and the search offered nothing for six days.
 pub fn wall_floor(g: &Game, set: &RuleSet) -> u32 {
     let best = g.lineage.best_depth;
-    let rs: Vec<SimResult> = camp_panel(g, set, FULL);
+    let rs: Vec<SimResult> = camp_panel_outcomes(g, set, FULL);
     let k = rs.len().max(1) as f64;
     let from = g.lineage.start.max(1);
     (from..=best).rev().find(|&d| rs.iter().filter(|r| r.max_depth >= d).count() as f64 / k >= WALL_REACH).unwrap_or(best)
