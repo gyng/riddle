@@ -1,3 +1,14 @@
+**HERO APPEARANCE ENTRY — 2026-10-06:** Hero details now offers Appearance
+beside Change class, reusing existing three-portrait picker. Parent updates
+on identity/look/name change while retaining expanded Details; closes release
+subscription. No-op/dismiss writes nothing, unsupported bridge disables action,
+cosmetics allowed away.45 checks320/400/1440 pass5.4s; existing appearance54/
+names27/report57 pass. Build/typecheck/copy1504/diff clean; chunk advisory.
+Headed actual real-WASM400/1440 Wren female/Vale cat UI choices persist reload,
+gold49/class/XP/Legacy unchanged, no warnings/overflow/screens shown. Details
+expansion tested by fixture. UX_HERO_APPEARANCE.md records scope. No Rust/WASM/
+full audit/deploy. Next: combat style/trait silhouette clarity per owner.
+
 **PER-BLOODLINE PORTRAITS — 2026-10-06:** Existing12 male/female/cat
 class portraits were ignored by roster; report Upgrade hero also ignored look.
 HeroSlot now carries its own resolved Rust cosmetic look; roster paint/repaint

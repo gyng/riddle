@@ -17,6 +17,7 @@ import { audio } from "../audio";
 import { questShown } from "./quest";
 import { nextPill, openWorks } from "./works";   // Cut 30.5: the `next` pill, the works sheet
 import { openChronicle } from "./chronicle";
+import { openLooks } from "./look";
 import { classList } from "./unlocks";
 import { CLASS_VERBS } from "../engine/classes";
 import { verbLabel } from "./tokens";
@@ -297,9 +298,14 @@ export function openBank(app: App, anchor?: HTMLElement | null): void {
 
 /** The tent: the hero — the class, its level and xp (the class picker once classes can be had: the camp's). */
 export function openHero(app: App, anchor?: HTMLElement | null): void {
+  let off = (): void => {};
   openSheet(() => {
     const body = h("div", { class: "sheet-body hero-sheet" });
+    const identity = (): string => JSON.stringify([app.lineage.selected_bloodline, app.lineage.heir, app.lineage.class, app.lineage.look, app.lineage.hero_slots?.find((s) => s.id === app.lineage.selected_bloodline)?.hero_name]);
+    let painted = "";
     const paint = (): void => {
+      painted = identity();
+      const historyOpen = body.querySelector<HTMLDetailsElement>(".hero-history")?.open ?? false;
       const L = app.lineage, lvl = L.classes?.[L.class] ?? { level: 1, xp: 0, next: undefined as number | undefined };
       const p = Math.min(1, lvl.next ? lvl.xp / lvl.next : 0);
       const legacy = L.hero_legacy?.find((x) => x.heir === L.heir);
@@ -318,15 +324,19 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
                 (e.currentTarget as HTMLButtonElement).disabled = true;
                 if (app.engine.upgradeHero) void app.mutate(() => app.engine.upgradeHero!(u.id), /* copy:callout */ "Upgraded").then(() => { if (body.isConnected) paint(); });
               } }, u.rank >= u.cap ? /* copy:button */ "Complete" : /* copy:button */ `Upgrade ${u.price}`, h("small", null, /* copy:label */ "Legacy"))))),
-        h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, /* copy:button */ "Change class"),
-        h("details", { class: "hero-history" }, h("summary", null, /* copy:button */ "Details"),
+        h("div", { class: "hero-actions" },
+          h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, /* copy:button */ "Change class"),
+          h("button", { class: "chip hero-appearance", onclick: () => openLooks(app), disabled: !app.engine.setLook }, /* copy:button */ "Appearance")),
+        h("details", { class: "hero-history", open: historyOpen }, h("summary", null, /* copy:button */ "Details"),
           h("div", { class: "dim num" }, `${legacy?.runs ?? 0} runs · deepest ${legacy?.best_depth ?? 0}`),
           h("div", { class: "dim num" }, /* copy:label */ "Class XP", ` ${lvl.xp}${lvl.next ? ` / ${lvl.next}` : ""}`),
           h("div", { class: "bank-bar xp-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(p * 100)}%` })),
           h("button", { class: "chip hero-chronicle", onclick: () => openChronicle(app) }, /* copy:button */ "Chronicle")));
     };
-    paint(); return body;
-  }, { anchor });
+    paint();
+    off = app.onChange(() => { if (body.isConnected && identity() !== painted) paint(); });
+    return body;
+  }, { anchor, onClose: () => off() });
 }
 
 /** A camp panel opened from a building stands over it (its foot on the building's top), or under it when the room above is short. */

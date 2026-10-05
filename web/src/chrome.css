@@ -155,3 +155,6 @@ html .console .cmd-compact .tile .tl { overflow: visible; text-overflow: clip; }
   html .console .cmd-compact .tile .ico { flex: 0 0 24px; width: 24px; height: 24px; }
   html .console .cmd-compact .tile .tl { min-width: 0; }
 }
+
+.hero-sheet .hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.hero-sheet .hero-actions > .chip { min-height: 44px; }

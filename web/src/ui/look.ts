@@ -13,7 +13,7 @@ export function syncLook(app: App): void { setHeroLook(app.lineage.look); }
 /** The stud on the camp's portrait well: opens the look sheet (its tap never reaches the well's own class picker). */
 export function lookStud(app: App): HTMLElement {
   const open = (e: Event): void => { e.stopPropagation(); e.preventDefault(); openLooks(app); };
-  return h("span", { class: "look-stud", role: "button", tabindex: "0", "aria-label": /* copy:label */ "look", "data-look": app.lineage.look ?? "",
+  return h("span", { class: "look-stud", role: "button", tabindex: "0", "aria-label": /* copy:label */ "Appearance", "data-look": app.lineage.look ?? "",
     onclick: open, onkeydown: (e: Event) => { const k = (e as KeyboardEvent).key; if (k === "Enter" || k === " ") open(e); } }, "◐");
 }
 
@@ -29,6 +29,6 @@ export function openLooks(app: App): void {
         onclick: async () => { if (!on && await app.setLook(look)) syncLook(app); close(); } },
         h("span", { class: "look-well" }, face), h("span", { class: "look-name" }, look));
     }));
-    return h("div", { class: "sheet-body look-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "look"), row);
+    return h("div", { class: "sheet-body look-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "Appearance"), row);
   });
 }
