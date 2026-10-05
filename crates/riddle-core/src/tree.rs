@@ -460,6 +460,13 @@ fn act(game: &mut Game, id: &str, n: u32) {
     *game.lineage.tree.acts.entry(id.to_string()).or_insert(0) += n;
 }
 
+/// A new run started by the automatic clock, not by a Send button or a preview.
+pub(crate) fn scout_sent(game: &mut Game) {
+    if !game.sim && !game.lineage.pkg.literal && on(&game.lineage, "scout") {
+        act(game, "scout", 1);
+    }
+}
+
 /// A weapon's worth a blow: its mean hit with its aim (a forged arm's steps), at its pace.
 fn blow_worth(w: &crate::item::Item) -> i64 {
     let (lo, hi) = w.atk();
@@ -829,6 +836,7 @@ pub fn report_acts(before: &BTreeMap<String, u32>, after: &BTreeMap<String, u32>
             (k > 0).then(|| {
                 let what = match n.id {
                     "porter" => format!("hauled ${k}"),
+                    "scout" => format!("sent {k}"),
                     "apprentice" => format!("+{k} step{}", if k == 1 { "" } else { "s" }),
                     "clerk" => format!("banked ${k}"),
                     "drillmaster" => format!("+{k} level{}", if k == 1 { "" } else { "s" }),

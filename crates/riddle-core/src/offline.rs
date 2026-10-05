@@ -121,6 +121,7 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
         }
         if game.run.is_none() {
             game.start_run(None);
+            crate::tree::scout_sent(game);
             game.events.clear();
         }
         let mut settled = false;
@@ -167,6 +168,7 @@ fn run_offline_with(game: &mut Game, elapsed_s: u64, full: bool, with_stall: boo
                 for _ in 0..SAMPLE_RUNS {
                     game.lineage.rest_left = 0;
                     game.start_run(None);
+                    crate::tree::scout_sent(game);
                     game.run_to_end(crate::engine::MAX_TURNS_PER_RUN);
                     let (turns, tier, cause) = {
                         let r = game.run.as_ref().unwrap();
@@ -700,6 +702,7 @@ pub fn advance(game: &mut Game, elapsed_ms: u64) -> Advance {
             let rules = game.lineage.rules().clone();
             game.passage = crate::forecast::sim_passage(game, &rules);
             game.start_run(None);
+            crate::tree::scout_sent(game);
             game.events.clear();
         }
         let mut settled = false;

@@ -1,3 +1,19 @@
+**SCOUT ACT LEDGER — 2026-10-06:** Automatic sends previously enabled
+runs without recording scout acts. Offline/live-clock new runs now increment
+existing worker ledger through hired/on/non-sim/non-literal helper; manual
+send/resume/preview excluded. Wire says sent N; persisted first flag shown
+by existing first-worker report, later acts stay in Details. Counter only;
+serialized game excluding acts unchanged. Fast548 tests33.21s (1 ignored),
+quick host/typecheck/copy green72s, clippy/build clean; initial sandbox host
+test failed, full host-access rerun passed. Rebuilt real WASM5,218,820 bytes;
+existing worker UI60 checks pass. Headed400/1440 actual seed2 first8h16runs:
+scout sent16 first=true visible, later8h16sent first=false/no repeat; no
+warnings/overflow/screens shown. Counts actual starts, not extrapolated
+records. SCOUT_ACTS.md records scope. No balance tuning/full audit/deployment.
+Next: gameplay/graphics feedback for the first few runs; avoid another generic
+report layout pass. Local quick72s still includes native auto-rebuild/test
+contention: inspect measured compiler overlap before claiming build speed.
+
 **FIRST WORKER ACTS VISIBLE — 2026-10-06:** Simple report had hidden
 all core first worker acts in collapsed Details. Core-marked first positive
 acts now appear under Workers started with existing icon/name/exact act;

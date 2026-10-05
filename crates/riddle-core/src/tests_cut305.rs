@@ -602,3 +602,60 @@ fn old_chest_migration_conserves_all_gold_and_is_idempotent_including_live_runs(
         let save=g.save();assert_eq!(Game::load(&save).unwrap().save(),save);
     }
 }
+
+
+#[test]
+fn scout_actions_count_automatic_runs_not_manual_sends_and_survive_reload() {
+    let mut g = Game::new_resident(2);
+    tree::grant(&mut g.lineage, &["porter", "scout"]);
+    let count = |g: &Game| g.lineage.tree.acts.get("scout").copied().unwrap_or(0);
+    g.send();
+    g.send(); // A live run resumed by hand is still no scout act.
+    assert_eq!(count(&g), 0);
+    let id = g.lineage.next_run_id;
+    let first = run_offline_counts(&mut g, 8 * 3600);
+    let started = g.lineage.next_run_id - id;
+    assert!(started > 0);
+    assert_eq!(count(&g), started);
+    let act = first.workers.iter().find(|a| a.id == "scout").unwrap();
+    assert_eq!(act.n, started);
+    assert_eq!(act.what, format!("sent {started}"));
+    assert!(act.first);
+    let mut loaded = Game::load(&g.save()).unwrap();
+    let before = count(&loaded);
+    let later = run_offline_counts(&mut loaded, 3600);
+    let act = later.workers.iter().find(|a| a.id == "scout").unwrap();
+    assert_eq!(act.n, count(&loaded) - before);
+    assert!(!act.first);
+    loaded.set_worker("scout", false).unwrap();
+    let before = count(&loaded);
+    run_offline_counts(&mut loaded, 3600);
+    assert_eq!(count(&loaded), before);
+    loaded.send();
+    run_offline_counts(&mut loaded, 3600);
+    assert_eq!(count(&loaded), before);
+}
+
+#[test]
+fn scout_actions_cover_live_clock_and_do_not_change_gameplay_or_simulations() {
+    let mut g = Game::new_resident(2);
+    tree::grant(&mut g.lineage, &["scout"]);
+    let id = g.lineage.next_run_id;
+    g.advance(100);
+    assert_eq!(g.lineage.tree.acts.get("scout"), Some(&(g.lineage.next_run_id - id)));
+    assert_eq!(g.lineage.next_run_id - id, 1);
+    let mut expected = g.save();
+    tree::scout_sent(&mut g);
+    let mut after: serde_json::Value = serde_json::from_str(&g.save()).unwrap();
+    let mut before: serde_json::Value = serde_json::from_str(&expected).unwrap();
+    before["lineage"]["tree"].as_object_mut().unwrap().remove("acts");
+    after["lineage"]["tree"].as_object_mut().unwrap().remove("acts");
+    assert_eq!(before, after, "bookkeeping changes only the worker ledger");
+    for kind in 0..4 {
+        let mut excluded = match kind { 0 | 3 => Game::new_resident(2), 1 => Game::new_literal(2), _ => g.sim_clone() };
+        if kind == 3 { tree::grant(&mut excluded.lineage, &["scout"]); excluded.set_worker("scout", false).unwrap(); }
+        expected = excluded.save();
+        tree::scout_sent(&mut excluded);
+        assert_eq!(excluded.save(), expected, "unhired/paused/literal/sim must not record a scout act");
+    }
+}
