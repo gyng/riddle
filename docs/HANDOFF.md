@@ -1,3 +1,18 @@
+**STYLE / TRAIT PERSONALITY — 2026-10-06:** Owner requests more expressive
+creature icons. Built-in imagegen eight individual v3 edits of v2, stronger
+asymmetric expressions/gestures (calming bear paw, wary shell peek, laughing
+lion, hawk tilt, startled hare, defiant badger, winking magpie, potion-licking
+goat). Keep v2; packageIcon prefers v3 with existing fallbacks. Source art and
+96px packed icons committed; prompts art/prompts/style-personality-v3.
+Headed all-unlocked visual fixture400/1440 all eight decode34–44px, alpha/
+unframed/no overflow; screenshots shown. Build/typecheck/copy1511/diff pass,
+existing chunk advisory. Selection28/death-actions44 pass; corrected wrong
+selection test filename. No gameplay change/deployment. GFX_STYLE_PERSONALITY.md.
+Per-bloodline training changes remain uncommitted pending real headed away
+proof: core553pass34.32s/1ignored, WASM5246299bytes, clippy pass, UI63 checks
+320/400/1440; fixture mandatory salvage/XP/renown omissions corrected. Earlier
+run-training54/report-upgrade57 green. See CONTENT_BLOODLINE_TRAINING.md.
+
 **BOSS COUNTER CLARITY — 2026-10-06:** Tactics Details now uses chunky
 boss cards with existing art, readable learned actions/item silhouettes, core
 card carries gloss, explicit On/Off and accessible enable/disable labels.
