@@ -1,3 +1,19 @@
+**NEW BLOODLINE APPEARANCE — 2026-10-06:** New residents choose first
+unused existing cosmetic among currently resolved looks (usually male/female/
+cat), preserving current choices, initial class defaults and old saves. Chosen
+appearance remains inherited/editable.555 fast tests36.84s/1ignored, clippy/
+rebuiltWASM5244053bytes/build/typecheck/copy1511/diff pass; chunk advisory. Core
+same three-run report and full Session state except lineage.look equals clone
+with cleared cosmetics; default/custom/class-default/load/select/old missing/
+heir/full-slot checks. Existing UI slot/report54 +Appearance45 pass5.7s across
+320/400/1440. Headed real savedseed15/legal second slot/two12h/legal third:
+core male/female/cat asset ids, female hero menu, exact reload/select/new-slot
+retains choices, no warnings/overflow400/1440/screens shown. Existing portraits
+subtle anime/cat-ears art, no new art/geometry/backfill. GFX_NEW_BLOODLINE_LOOKS.md.
+No stats/RNG/default first hero/deployment change. Next: measure actual current
+multihero catch-up cost and shared clock synchronization before optimization;
+old single-hero timing does not prove scaling. Content/gameplay queue persists.
+
 **HERO FAMILY IDENTITY — 2026-10-06:** Real two-slot screenshot had
 Niall twice. Preserve pure given-name derivation; append persistent slot family
 Ash/Thorn/Flint (numbered fallback imported ids). Roster/lifetime wire/new deaths

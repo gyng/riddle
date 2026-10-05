@@ -59,6 +59,10 @@ impl Session {
         if self.active.lineage.town.shared_night_runs.is_none() { self.active.lineage.town.shared_night_runs=Some(self.active.lineage.night_runs); }
         let mut g=Game::new_resident(self.active.lineage.seed ^ (id as u64).wrapping_mul(0x9e3779b97f4a7c15));
         g.lineage.bloodline_id=id;g.lineage.clock_s=self.active.lineage.clock_s;
+        // A new resident uses an unworn cosmetic. Existing/saved looks never change.
+        let worn:Vec<_>=std::iter::once(&self.active).chain(self.others.values())
+            .map(|g|g.lineage.look.as_deref().unwrap_or_else(||g.lineage.class.default_look())).collect();
+        g.lineage.look=crate::hero::Class::LOOKS.iter().find(|look|!worn.contains(look)).map(|look|(*look).into());
         self.active.lineage.gold_move(-SLOT_PRICE,&format!("bloodline {id}"));
         town_from(&self.active.lineage,&mut g.lineage);
         self.others.insert(id,g); self.next_id+=1;
@@ -170,6 +174,33 @@ impl Session {
 mod tests {
     use super::*;
     fn resident()->Session { let mut s=Session::new(1);s.active.build_town("house").unwrap();s.active.lineage.gold_move(1000,"test income");s }
+    #[test]
+    fn new_residents_use_unworn_looks_without_affecting_runs_or_saved_choices() {
+        for chosen in [None,Some("cat")] {
+            let mut s=resident();if let Some(look)=chosen{s.set_look(look).unwrap();}
+            s.add_bloodline().unwrap();s.add_bloodline().unwrap();
+            let looks:Vec<_>=s.lineage().hero_slots.iter().map(|h|h.look.clone()).collect();
+            let expected=if chosen.is_some(){vec!["cat","male","female"]}else{vec!["male","female","cat"]};
+            assert_eq!(looks,expected);
+            let before=s.save();assert!(s.add_bloodline().is_err());assert_eq!(s.save(),before);
+            let mut loaded=Session::load(&before).unwrap();
+            loaded.select_bloodline(3).unwrap();loaded.select_bloodline(1).unwrap();
+            assert_eq!(loaded.lineage().hero_slots,s.lineage().hero_slots);
+            for g in loaded.others.values_mut(){let look=g.lineage.look.clone();g.lineage.new_heir();assert_eq!(g.lineage.look,look);}
+            for id in 1..=3 {s.select_bloodline(id).unwrap();s.send();}
+            let mut plain=s.clone();plain.active.lineage.look=None;for g in plain.others.values_mut(){g.lineage.look=None;}
+            assert_eq!(s.run_offline_mode(3600,false,true),plain.run_offline_mode(3600,false,true));
+            let normalize=|session:&Session|{let mut v=serde_json::to_value(session).unwrap();v["lineage"].as_object_mut().unwrap().remove("look");
+                for g in v["others"].as_object_mut().unwrap().values_mut(){g["lineage"].as_object_mut().unwrap().remove("look");}v};
+            assert_eq!(normalize(&s),normalize(&plain),"cosmetics cannot affect game state or RNG");
+        }
+        // An existing class default counts even without an explicit saved choice.
+        let mut s=resident();s.active.lineage.class=crate::hero::Class::Rogue;
+        s.add_bloodline().unwrap();assert_eq!(s.others[&2].lineage.look.as_deref(),Some("male"));
+        let mut old=serde_json::to_value(&s).unwrap();old["others"]["2"]["lineage"].as_object_mut().unwrap().remove("look");
+        let loaded=Session::load(&old.to_string()).unwrap();assert_eq!(loaded.others[&2].lineage.look,None);
+        assert_eq!(loaded.lineage().hero_slots[1].look,"male","old saves keep their old default");
+    }
     #[test]
     fn away_training_retains_each_slot_even_when_selected_hero_waits() {
         for both in [false,true] {
