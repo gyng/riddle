@@ -1504,6 +1504,8 @@ pub struct BloodlineLegacy {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HeroSlot {
     #[serde(default)]
+    pub look: String,
+    #[serde(default)]
     pub hero_name: String,
     pub id:u32, pub name:String, pub heir:u32, pub class:String,
     pub level:u32, pub xp:u32, pub next:Option<u32>,

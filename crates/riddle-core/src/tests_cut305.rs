@@ -678,3 +678,28 @@ fn hero_names_are_read_only_stable_and_follow_heir_history() {
         assert_eq!(wire.hero_legacy.last().unwrap().name, crate::legacy::hero_name(seed, 2));
     }
 }
+
+
+#[test]
+fn hero_slot_looks_resolve_defaults_and_keep_chosen_bloodlines_independent() {
+    let mut s = crate::bloodlines::Session::new(2);
+    s.build_town("house").unwrap();
+    assert_eq!(s.lineage().hero_slots[0].look, "male");
+    s.active.lineage.gold = 500;
+    s.active.lineage.tree.ledger = 500;
+    s.set_look("female").unwrap();
+    s.add_bloodline().unwrap();
+    s.select_bloodline(2).unwrap();
+    s.set_look("cat").unwrap();
+    let slots = s.lineage().hero_slots;
+    assert_eq!(slots[0].look, "female");
+    assert_eq!(slots[1].look, "cat");
+    let before = s.save();
+    assert!(s.set_look("unknown").is_err());
+    assert_eq!(s.save(), before);
+    let mut loaded = crate::bloodlines::Session::load(&before).unwrap();
+    assert_eq!(loaded.lineage().hero_slots, slots);
+    loaded.select_bloodline(1).unwrap();
+    assert_eq!(loaded.lineage().hero_slots, slots);
+    assert_eq!(loaded.lineage().look, "female");
+}

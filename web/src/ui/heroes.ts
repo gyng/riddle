@@ -19,7 +19,7 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   };
   const details=async(s:HeroSlot,anchor:HTMLElement):Promise<void>=>{if(await app.selectBloodline(s.id)){closeAllSheets();openHero(app,anchor.isConnected?anchor:null);}};
   const row=(s:HeroSlot):HTMLElement=>{
-    const face=h('span',{class:'hero-thumb','aria-hidden':'true'});paintFace(face,s.class,44);
+    const face=h('span',{class:'hero-thumb','aria-hidden':'true'});paintFace(face,s.class,44,s.look);
     const action=s.state==='live'?/* copy:label */`Live D${s.live?.depth??1}`:s.state==='rests'?/* copy:label */`Resting ${spanOf(s.rest_s)}`:/* copy:label */'Ready';
     const xp=s.next===0?/* copy:label */`L${s.level} · MAX`:/* copy:label */`L${s.level} · XP ${s.xp}/${s.next??'—'}`;
     const name=s.hero_name||s.name;
@@ -41,7 +41,7 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   };
   const paint=():void=>{
     const L=app.lineage;const slots=L.hero_slots??[];
-    const next=JSON.stringify([slots.map(s=>[s.id,s.name,s.hero_name,s.heir,s.class,s.level,s.xp,s.next,s.state,s.live?.depth,s.live?.hp,spanOf(s.rest_s),s.notice]),L.gold,L.town?.home,L.selected_bloodline]);
+    const next=JSON.stringify([slots.map(s=>[s.id,s.name,s.hero_name,s.look,s.heir,s.class,s.level,s.xp,s.next,s.state,s.live?.depth,s.live?.hp,spanOf(s.rest_s),s.notice]),L.gold,L.town?.home,L.selected_bloodline]);
     if(next===key)return;key=next;
     const current=slots.find(s=>s.id===L.selected_bloodline);
     replace(el,h('header',{class:'hero-roster-head'},h('h2',null,/* copy:label */'Heroes'),hooks.rules&&penOpen(L)?h('button',{class:'chip',onclick:hooks.rules},/* copy:button */'Rules'):''),

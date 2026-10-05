@@ -445,7 +445,7 @@ export type ReplayFloor = { snapshot: Snapshot; events: Ev[] };
 export type Replay = { run_id: number; floors: ReplayFloor[]; hash: string; ticks: number };
 /** RUNS_UI (client; Cut 31's heroes on the wire later) — one lane: a hero's run state. `state` live · rests · waits. */
 export type BloodlineLegacy = { points:number; spent:number; upgrades:Record<string,number> };
-export type HeroSlot = { hero_name?:string; id:number; name:string; heir:number; class:string; level:number; xp:number; next?:number; state:"live"|"rests"|"waits"; live?:Lineage["live"]; rest_s:number; legacy:BloodlineLegacy; notice:boolean; chronicle?:string[] };
+export type HeroSlot = { look?:string; hero_name?:string; id:number; name:string; heir:number; class:string; level:number; xp:number; next?:number; state:"live"|"rests"|"waits"; live?:Lineage["live"]; rest_s:number; legacy:BloodlineLegacy; notice:boolean; chronicle?:string[] };
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {

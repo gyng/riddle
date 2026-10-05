@@ -574,12 +574,12 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     const current = app.lineage;
     const points = current.bloodline?.points ?? current.hero_legacy?.find((x) => x.heir === current.heir)?.points;
     const available = points !== undefined && !!app.engine.upgradeHero && !!current.legacy_upgrades?.some((u) => u.affordable);
-    const key = JSON.stringify([available, current.selected_bloodline, current.class, points]);
+    const key = JSON.stringify([available, current.selected_bloodline, current.class, current.look, points]);
     if (key === upgradeKey) return;
     upgradeKey = key;
     if (!available) { replace(upgradeHost); return; }
     const face = h("span", { class: "icon-socket", "aria-hidden": "true" });
-    paintFace(face, current.class, 44);
+    paintFace(face, current.class, 44, current.look);
     replace(upgradeHost, h("button", { class: "chip report-upgrade", onclick: (e: Event) => openHero(app, e.currentTarget as HTMLElement) }, face,
       h("span", { class: "report-upgrade-copy" }, h("b", null, /* copy:button */ "Upgrade hero"),
         h("small", { class: "num" }, /* copy:label */ `Bloodline ${current.selected_bloodline ?? 1} · ${points} Legacy`))));

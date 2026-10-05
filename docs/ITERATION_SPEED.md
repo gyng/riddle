@@ -1,3 +1,17 @@
+**PER-BLOODLINE PORTRAITS — 2026-10-06:** Existing12 male/female/cat
+class portraits were ignored by roster; report Upgrade hero also ignored look.
+HeroSlot now carries its own resolved Rust cosmetic look; roster paint/repaint
+key uses it. Report portrait/key use selected Lineage.look.550 Rust tests
+35.95s/1 ignored,12 tooling/type/copy/quick107s, clippy/build/rebuilt WASM
+5,221,684 bytes pass; chunk advisory.54 UI appearance checks320/400/1440 incl
+12 ids/fallback/appearance-only refresh +names27/report57 pass5.2s batch.
+Actual headed seed2 female Wren/cat Vale API choices survive exact reload/
+2→1 selection, correct active portraits400/1440/menu, no warnings/overflow;
+screens shown. This honors choices, not new default variety or picker UI walk.
+GFX_HERO_SLOT_LOOKS.md records scope. No art/stat/default/full audit/deploy.
+Next: existing appearance picker reachability from hero details (camp hides
+console portrait); use existing art/module before new portrait generation.
+
 **NAMED HEROES — 2026-10-06:** Active slots now show a Rust-derived
 person name first, Bloodline/class beneath, preserving persistent Legacy slot.
 Hero menu/selected Chronicle use same names; raw chronicle lines still drive
