@@ -49,7 +49,12 @@ shipping-WASM10 checks400/1440 pass through visible controls, including actual
 Legacy purchase remeasurement; both complete real-UI price vectors match.
 The58 complete bridge replies for Legacy/multihero/offline/migration match
 native/shipping exactly. All14 dayplayer recovery tests pass58.24s. Publication
-checkpoint is pending; existing owner publication approval remains valid.
+checkpoint complete: source2b48e00, Pages37301872292 SUCCESS. Public HTML,
+entry JavaScript and WASM match CI byte for byte. Public10 real-controls checks
+400/1440 pass with no page errors; complete price vectors and upgrade results
+match native. Both public screenshots shown inline. WASM SHA256:
+5c8ba5dffc017976016f7114344e53c4a56024669147ac0bcaeae043398f6d2a.
+Evidence:public-proof/proof.json,public-ui/proof.json,public-ui-parity.json.
 
 First local FULL attempts failed before tests with a compiler SIGSEGV and then
 undefined hidden linker symbols. Quarantining one incremental directory was

@@ -1,45 +1,37 @@
-**PERFORMANCE FOLLOW-THROUGH — 2026-10-05:** Package panel reopens now share
-one pending query per App/engine/lineage/rules/loadout snapshot. The old global
-memo omitted hero class/Legacy/etc and could reuse another hero's prices.
-Three opens:3→1 requests; hero change starts a fresh read. Old async replies
-cannot overwrite/repaint new state; failures retry on reopen, no retry loop;
-mutations while open clear/reprice. Conservative lineage-snapshot invalidation,
-no client imitation of Rust input keys. Read PERF_PACKAGE_REQUESTS.md.
-Acceptance:38 race/retry/isolation checks400/1440+17 existing package checks;
-10 real-native and10 shipping-WASM checks, actual Legacy purchase remeasures.
-Routine FULL38s:536 core/1ignored,11 tooling, tsc/copy/clippy/shipping build;
-compiled metrics/QA/18-case gates unchanged and cached. No core source or WASM
-change; no cold-query/simulation throughput gain claimed. Private evidence:
-scratchpad/flood-perf-20261005. Never stage it or mine.bars.
-Parent-only and stack first-step flood probes rejected: late/tuned1.06/1.32%
-and1.04/3.51% lower, below2% each; all36 complete outputs match per probe.
-Requested allocation bytes−18%/−65% are cumulative traffic, not live memory or
-proven latency wins. Production pathfinding unchanged; PERF_PATHFIND.md.
-Next count duplicate whole forecast panels/sims and derive a Rust-owned query
-fingerprint before reusing results across refreshed snapshots. Published
-source76a75ae, Pages37295295222 SUCCESS: public HTML/JS/WASM exactly match CI;
-public real-controls10/10 checks400/1440 pass, no page errors; screenshots shown
-inline. The same healthy publication finished after the initial poll deadline.
-Equivalent-panel diagnostic finds16/14,38/24,17/16 requested/unique panels on
-early/late/tuned camps. Isolated query-local grouping screen:36 complete outputs
-match; package medians12/36/8% lower, offline within5%. Longer seven-pair and
-native worker/cache proofs now pass: seven package pairs early13.39%,late36.27%,
-tuned8.20% lower; all60 complete outputs match. Twelve paired native24-sim
-checks2/8 workers,cold/warm match every field. Query-local own/wall/raw-policy
-grouping is in the working tree, with slot/price/save/order regression test
-passing. Shipping browser seven pairs early12.07%,late37.14%,tuned8.04% quicker;
-all24 paired price/save cases match prior shipping and native full prices.
-FULL460s PASS:537 core/1ignored,11 tooling, tsc/copy/clippy/shipping site,
-fresh metrics108.6s,QA44.0s,all18 selected fortnight cases. Client38+17 checks,
-real native10+shipping10 controls400/1440,58 exact complete bridge replies,
-14 recovery tests58.24s PASS. First local compiler/linker attempts failed;
-scoped core fast-profile cache clean repaired generated objects; source unchanged.
-New core release is locally accepted and ready to publish; public checkpoint pending.
-Read PERF_PACKAGE_PANELS.md. Existing publication approval remains valid.
-Owner requested orphan server cleanup:49 stale Riddle listeners, including5365,
-stopped; all closed ports verified,91 associated processes targeted with SIGTERM.
-Keep5219(main),5594(current native),5264(shipping preview); all respond200.
-Exclude other projects and Codex processes. Evidence:server-cleanup.json.
+**PERFORMANCE FOLLOW-THROUGH — 2026-10-05:** Published source2b48e00,
+Pages37301872292 SUCCESS. Query-local package forecast grouping preserves every
+move, slot, purchase price and stable ordering, while computing equivalent
+own/wall/raw-policy panels once. Seven native pairs: early13.39%,late36.27%,
+tuned8.20% quicker; shipping browser12.07/37.14/8.04%. Late17.884→11.242s in
+shipping browser;1461→911 simulations,38→24 panels. All60 complete native
+outputs and24 paired shipping price/save cases match. Offline within1.1%; no
+catch-up/frame-rate/whole-app speedup claim. Read PERF_PACKAGE_PANELS.md.
+FULL460s PASS:537 core/1ignored,11 tooling, tsc/copy/clippy/shipping site;
+fresh metrics108.6s,QA44.0s,all18 selected fortnight cases. Client38 race/retry
+checks+17 package checks; real native10,shipping10,public10 controls400/1440;
+58 exact complete bridge replies,14 recovery tests58.24s PASS. Public complete
+price vectors and upgrade results match native at both widths; no page errors.
+Public HTML/JS/WASM match CI bytes exactly. Deployed WASM SHA256:
+5c8ba5dffc017976016f7114344e53c4a56024669147ac0bcaeae043398f6d2a.
+Both public screenshots shown inline. Private evidence under
+scratchpad/flood-perf-20261005/panel-reuse; never stage it or mine.bars.
+First local compiler/linker attempts failed; scoped core fast-profile cache
+clean repaired generated objects, unchanged source/flags then passed FULL.
+Keep frozen executables outside Cargo targets; do not infer crash causation
+from hardlinked incremental objects alone. Shipping/native-dev caches preserved.
+Earlier source76a75ae fixes pending package reopens3→1 queries, per App/engine/
+lineage/rules/loadout snapshot; hero/Legacy changes invalidate, stale replies
+cannot repaint, failures retry on reopen. Public accepted; PERF_PACKAGE_REQUESTS.md.
+Parent-only/stack first-step flood probes remain rejected: late/tuned1.06/1.32%
+and1.04/3.51% below2% each despite exact outputs; production pathfinding unchanged.
+Cumulative allocation traffic−18/−65% is not peak memory or latency evidence.
+Read PERF_PATHFIND.md. Next measure harmless camp refreshes before introducing
+Rust-owned whole-query fingerprints, including candidates and purchase prices;
+current client snapshot invalidation is conservative. Existing approval persists.
+Owner requested orphan cleanup:49 stale Riddle listeners including5365 stopped;
+closed ports verified,91 associated processes targeted with SIGTERM. Keep5219
+(main),5594(current native),5264(shipping preview); all respond200. Other projects
+and Codex excluded. Evidence:server-cleanup.json under scratchpad/flood-perf-20261005.
 
 **CURRENT OWNER FOLLOW-UP — 2026-10-05:** Legacy is spendable hero-upgrade
 currency. Read docs/UX_LEGACY_UPGRADES.md (supersedes the no-spending and old

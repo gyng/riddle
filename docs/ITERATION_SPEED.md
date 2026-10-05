@@ -36,7 +36,8 @@ Next, in impact order:
    calculations while preserving every move, price and stable order. Seven
    native pairs: early13.39%,late36.27%,tuned8.20% quicker; shipping browser
    pairs12.07/37.14/8.04%. Late1461→911 simulations,38→24 panels. Complete
-   outputs match; FULL460s and real-native/shipping UI pass. Publication pending;
+   outputs match; FULL460s and real-native/shipping/public UI pass. Source2b48e00
+   published, Pages37301872292 artifact identity verified;
    see PERF_PACKAGE_PANELS.md. Next consider Rust-owned whole-query fingerprints
    for reuse across refreshed snapshots, including candidates/purchase prices;
    the client currently invalidates conservatively on every new lineage.
