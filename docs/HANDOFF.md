@@ -1,3 +1,15 @@
+**EXPRESSIVE STYLE/TRAIT ICONS — 2026-10-06:** Owner requested more
+personality. Four combat styles now have expressive creature emblems: calm
+bear/armoured tortoise/charging lion/focused hawk. Traits: anxious hare,
+defiant battered badger, coin-stealing magpie, curious goat with potion.
+Eight transparent versioned imagegen masters/prompts saved; existing original
+icons retained as fallbacks. Shared packageIcon uses listed v2 assets; existing
+packer outputs96px PNGs (~164KiB total). Names/rules/UI dimensions unchanged.
+Desktop/mobile all-unlocked visual fixture8 icons decoded at28–38px, screenshots
+inspected/shown; selection28/geometry184, tsc/build/copy1492/diff pass. Contract
+and evidence docs/UX_STYLE_PERSONALITY.md. No simulation changes or deployment.
+Next broader queue remains live boss/death clarity and renderer warnings.
+
 **FIRST-HOUSE GRAPHICS — 2026-10-06:** Shifted from query optimization
 to the actual opening experience. Empty house plot now has a code-native chalk
 foundation/four stakes and shared chunky Build house/Free control with hammer
