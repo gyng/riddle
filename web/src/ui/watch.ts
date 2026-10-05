@@ -413,7 +413,7 @@ export function renderWatch(app: App): Mounted {
     let text: (string | HTMLElement)[] | undefined;
     const who = (id: number): string => id === heroId ? /* copy:label */ "Hero" : victims.get(id) ?? /* copy:label */ "Foe";
     const damage = (amount: number, id: number): HTMLElement => h("span", { class: amount < 0 ? "log-heal" : id === heroId ? "log-hurt" : "log-damage" }, `${amount < 0 ? "+" : "−"}${Math.abs(amount)} hp`);
-    const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, name);
+    const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, itemIcon({kind:name, label:name}, {size:"xs"}), name);
     if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · `, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
     else if (ev.k === "hurt") text = [`${who(ev.id)} · ${ev.cause.replace(/_/g, " ")} `, damage(ev.dmg, ev.id)];
     else if (ev.k === "heal") text = [`${who(ev.id)} · ${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id)];

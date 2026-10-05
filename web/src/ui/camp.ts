@@ -47,7 +47,7 @@ import { anchorPanel, buildingTile, exposeTown, markOpened, openBank, openHero, 
 import { onPackages, openPackages, packagesShown, packagesStrip, penOpen } from "./packages";   // Cut 30 §2: the packages, the pen gated late
 import { openQuest, questShown } from "./quest";   // Cut 30 §5: the quest board
 import { sendMark } from "./works";
-import { itemIcon, itemName } from "./items";   // run-clear: items in their rarity rims
+import { itemIcon, itemName, itemChip } from "./items";   // run-clear: items in their rarity rims
 import { kwHost } from "./tips";
 
 const SET_NAME_MAX = 12;
@@ -455,7 +455,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // QA 308f045 (qaAC: `home armour` answered `vault full · axe stays` and nothing took the axe out): a full vault offers each item out —
     // `sell axe`, a second tap salvages it at a bank's share (the gold sheet's `salvage` line), and the slot is free for the preference
     if (app.engine.sellVault && slots > 0 && L.vault.length >= slots) vault.appendChild(h("div", { class: "chips vault-sell" }, ...L.vault.map((it) =>
-      twoTap(/* copy:button */ `sell ${it.label.replace(/_/g, " ")}`, /* copy:button */ "ok", () => void app.mutate(() => app.engine.sellVault!(it.id), /* copy:callout */ "sold"), { class: "chip mini sell", key: `sell:${it.id}` }))));
+      twoTap([h("span", null, /* copy:button */ "sell "), itemChip(it, it.label.replace(/_/g, " "))], /* copy:button */ "ok", () => void app.mutate(() => app.engine.sellVault!(it.id), /* copy:callout */ "sold"), { class: "chip mini sell", key: `sell:${it.id}`, armedContent: () => [h("span", null, /* copy:button */ "ok "), itemChip(it)] }))));
     // keep preference for offline exits
     // QA 23ed91f: two rows that cannot be confused — `home` (what an unwatched exit keeps for the vault) and `cage` (what an
     // unanswered cage in the dungeon takes); K set `vault potion` as "what the home vault keeps"
@@ -742,7 +742,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const adds = (L.repeat_added ?? []).filter((a) => !picks.some((p) => p.kind === a.kind));
     repeatAdd.hidden = !adds.length || !revealed(app).has("loadout");
     replace(repeatAdd, ...adds.map((a) => h("button", { class: "chip repeat-add-chip num", "data-kind": a.kind, disabled: full, onclick: () => void app.mutate(() => app.engine.buySupply(a.kind), /* copy:callout */ "buy") },
-      h("b", null, `+ ${a.kind.replace(/_/g, " ")}`), h("small", { class: "dim" }, /* copy:callout */ ` · for ${a.row}`))));
+      h("b", null, "+ ", itemChip({kind:a.kind, label:a.kind.replace(/_/g, " ")})), h("small", { class: "dim" }, /* copy:callout */ ` · for ${a.row}`))));
     clear(supplies);
     supplies.appendChild(h("div", { class: "label row-label" }, /* copy:label */ "supplies", " ", h("span", { class: "num dim" }, `${picks.length}/${cap}`)));
     // Cut 23 §4 (AJ: "a layout jump bought a confusion potion"): the shelf is `cap` fixed slots (a bought line fills the next empty one)
@@ -785,7 +785,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         const vaulted = (L.vault ?? []).filter((v) => v.kind === e.kind).length;
         const why = full ? /* copy:callout */ `${picks.length}/${cap} slots` : e.needs ? e.needs.replace(/_/g, " ") : L.gold < e.price ? /* copy:callout */ `$${e.price - L.gold} short` : second ? /* copy:callout */ "2nd · tames foe" : vaulted ? /* copy:callout */ `new · ${vaulted} stored` : use ?? "";
         shopEl.appendChild(h("button", { class: `chip buy${can ? "" : " off"}`, disabled: !can, onclick: () => void app.mutate(() => app.engine.buySupply(e.kind), /* copy:callout */ "buy") },
-          h("span", { class: "buy-main" }, h("span", null, e.label, " ", h("b", { class: "num gold" }, e.price > 0 ? `$${e.price}` : /* copy:label */ "free")), h("small", { class: "why num dim" }, why || "\u00a0"))));   // QA 912e135: the kennel's leash, taken back
+          h("span", { class: "buy-main" }, h("span", {class:"buy-title"}, itemChip({kind:e.kind, label:e.label}), " ", h("b", { class: "num gold" }, e.price > 0 ? `$${e.price}` : /* copy:label */ "free")), h("small", { class: "why num dim" }, why || "\u00a0"))));   // QA 912e135: the kennel's leash, taken back
       }
     };
     if (app.supplyCat.length) shop(app.supplyCat);

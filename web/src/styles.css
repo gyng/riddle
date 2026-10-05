@@ -573,13 +573,13 @@ main.frame.watch { max-width: 760px; }
 .cmd .tile[data-rate]::after { position: absolute; top: 3px; right: 5px; margin: 0; font: 600 10px var(--sans); color: var(--acc); max-width: 3.4em; overflow: hidden; white-space: nowrap; }
 
 /* the primary gem */
-.gem { position: relative; display: flex; align-items: center; justify-content: center; width: 84px; height: 84px; min-width: 84px; padding: 0 12px; border-radius: 50%;
+.gem { position: relative; display: flex; flex: none; aspect-ratio: 1; align-items: center; justify-content: center; width: 84px; height: 84px; min-width: 84px; padding: 0 12px; border-radius: 50%;
   font: 900 17px/1.05 var(--display); letter-spacing: .04em; text-transform: uppercase; color: var(--bone); text-shadow: 0 1px 0 var(--ink), 0 0 6px rgba(92, 11, 28, .9);
   background: radial-gradient(circle at 45% 38%, #f0a0aa, #e0344b 18%, var(--blood) 42%, var(--clot) 70%, var(--umbra) 72%, #7a6331 80%, var(--gilt) 84%, var(--ink) 88%, transparent 90%);
   filter: drop-shadow(0 3px 5px var(--ink)); transition: transform .06s; }
-.skin-gem .gem { background: url(/ui/frames/gem.png) center / 100% 100% no-repeat; }
+.skin-gem .gem { background: url(/ui/frames/gem.png) center / contain no-repeat; }
 .gem.red { color: #3b0000; background: radial-gradient(circle at 45% 38%, #ff5c60, #c71f35 45%, var(--clot) 70%, #24273e 72%, #39496d 84%, #14131d 88%, transparent 90%); }
-.skin-gem-red .gem.red { background: url(/ui/frames/gem_red.png) center / 100% 100% no-repeat; }
+.skin-gem-red .gem.red { background: url(/ui/frames/gem_red.png) center / contain no-repeat; }
 .gem:not(:disabled):active { transform: scale(.95); filter: brightness(.9) drop-shadow(0 2px 3px var(--ink)); }
 .gem:disabled { filter: grayscale(.85) brightness(.7) drop-shadow(0 3px 5px var(--ink)); cursor: default; }
 .gem.small { font: 700 11px/1.1 var(--sans); letter-spacing: 0; text-transform: none; padding: 0 16px; white-space: normal; text-align: center; }

@@ -1,6 +1,4 @@
-/* Run-clear — item rarity (docs/ART_DIRECTION.md, "Rarity"): muted pigments that sit beside the palette, each ≥ 3:1 on BONE parchment and
-   on UMBRA stone; a lit variant for a name or a glow on the dark. The rim is the tablet's language: an INK outline, the rarity's pigment
-   as the frame, an UMBRA well with the BONE ink drawing in it. */
+/* Item silhouettes stay unframed; rarity belongs to names and icon metadata. */
 :root {
   --r-common: #7b776a; --r-uncommon: #4e8763; --r-rare: #4c76b2; --r-epic: #8762a6; --r-legendary: #a3752a;
   --r-common-lit: #b3ad9b; --r-uncommon-lit: #86bc95; --r-rare-lit: #8eafe0; --r-epic-lit: #bf9ad6; --r-legendary-lit: #e3b862;
@@ -12,18 +10,13 @@
 .r-legendary { --r: var(--r-legendary); --r-lit: var(--r-legendary-lit); }
 
 .item-ico { --sz: 34px; position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none;
-  width: var(--sz); height: var(--sz); border-radius: 5px; overflow: hidden; vertical-align: middle;
-  background: radial-gradient(circle at 40% 30%, #2b3350 0%, var(--umbra) 70%);
-  box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 2px var(--r), inset 0 0 0 3px rgba(13, 12, 20, .55), inset 0 2px 6px rgba(234, 223, 197, .08); }
-.item-ico.sz-s { --sz: 22px; border-radius: 4px; box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 1.5px var(--r), inset 0 0 0 2.5px rgba(13, 12, 20, .5); }
-.item-ico.sz-l { --sz: 48px; border-radius: 6px; box-shadow: 0 0 0 1px var(--ink), inset 0 0 0 3px var(--r), inset 0 0 0 4px rgba(13, 12, 20, .55), inset 0 3px 8px rgba(234, 223, 197, .08); }
-.item-ico .item-pic { width: 82%; height: 82%; object-fit: contain; image-rendering: auto; filter: drop-shadow(0 1px 0 var(--ink)); }
-.item-ico .item-pic.glyph { display: flex; align-items: center; justify-content: center; font: 700 calc(var(--sz) * .55)/1 var(--display); color: var(--bone); }
+  width: var(--sz); height: var(--sz); vertical-align: middle; background: none; border: 0; box-shadow: none; outline: none; }
+.item-ico.sz-s { --sz: 22px; }
+.item-ico.sz-l { --sz: 48px; }
+.item-ico .item-pic { width: 100%; height: 100%; object-fit: contain; image-rendering: auto; filter: drop-shadow(0 1px 1px rgba(13, 12, 20, .65)); }
+.item-ico .item-pic.glyph { display: flex; align-items: center; justify-content: center; font: 700 calc(var(--sz) * .75)/1 var(--display); color: var(--r-lit); }
+.sheet .item-ico .item-pic.glyph, .panel .item-ico .item-pic.glyph { color: var(--r); }
 .item-ico .item-pic.glyph::before { content: attr(data-glyph); }
-/* epic and legendary carry a soft halo of their own pigment (a lit wash, not a neon glow) */
-.item-ico.r-epic, .item-ico.r-legendary { box-shadow: 0 0 0 1px var(--ink), 0 0 7px -1px var(--r), inset 0 0 0 2px var(--r), inset 0 0 0 3px rgba(13, 12, 20, .55); }
-.item-ico.sz-l.r-epic, .item-ico.sz-l.r-legendary { box-shadow: 0 0 0 1px var(--ink), 0 0 10px -1px var(--r-lit), inset 0 0 0 3px var(--r), inset 0 0 0 4px rgba(13, 12, 20, .55); }
-.item-ico.r-legendary { background: radial-gradient(circle at 40% 30%, #4a3a22 0%, var(--umbra) 72%); }
 
 .item-name { color: var(--r-lit); font-weight: 600; }
 .parchment .item-name, .sheet .item-name, .panel .item-name { color: var(--r); }
@@ -31,18 +24,34 @@
 .item-chip { display: inline-flex; align-items: center; gap: 5px; }
 .item-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; }
 
-/* rare and up: a small glint crosses the icon now and then */
+/* Finds keep their one-time arrival animation; no rectangular shine over the silhouette. */
 @media (prefers-reduced-motion: no-preference) {
-  html[data-juice="on"] .item-ico.glint::after { content: ""; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
-    background: linear-gradient(115deg, transparent 38%, rgba(234, 223, 197, .55) 50%, transparent 62%) no-repeat; background-size: 260% 100%; background-position: 160% 0;
-    animation: r-glint 3.8s ease-in-out infinite; animation-delay: calc(var(--pop-delay, 0ms) + 600ms); }
-  html[data-juice="on"] .item-ico.r-epic.glint::after { animation-duration: 3.1s; }
-  html[data-juice="on"] .item-ico.r-legendary.glint::after { animation-duration: 2.4s; background-image: linear-gradient(115deg, transparent 36%, rgba(247, 222, 160, .7) 50%, transparent 64%); }
-  @keyframes r-glint { 0%, 70% { background-position: 160% 0; } 100% { background-position: -60% 0; } }
-  /* finds pop in by rarity, the commonest first */
   html[data-juice="on"] .item-row.pop .item-ico { animation: r-pop .42s cubic-bezier(.3, 1.6, .5, 1) backwards; animation-delay: var(--pop-delay, 0ms); }
   @keyframes r-pop { from { transform: scale(.2) rotate(-12deg); opacity: 0; filter: brightness(2); } 60% { transform: scale(1.15); opacity: 1; } to { transform: none; filter: none; } }
 }
-/* without juice, the glint is a still highlight on the rim (the rarity still reads) */
-html:not([data-juice="on"]) .item-ico.glint { outline: 1px solid var(--r-lit); outline-offset: -4px; }
 .chip .item-ico, .item-l .item-ico { margin-right: 5px; vertical-align: -6px; }
+
+/* Small item marks keep the map's combat log plain and compact. */
+.item-ico.sz-xs { --sz: 14px; background: transparent; box-shadow: none; border-radius: 0; }
+.combat-log .item-ico.sz-xs { margin-right: 3px; vertical-align: -2px; }
+.forge-ladders .item-chip { margin-block: 2px; }
+.salvage .k .item-chip { display: inline; }
+.salvage .k .item-ico { margin-right: 5px; }
+
+.supplies .buy-main .item-chip { min-width: 0; max-width: 100%; }
+.supplies .buy-main .item-name { white-space: normal; line-height: 1.15; }
+
+/* Item names and upgrade counts remain readable on the narrow parchment. */
+.forge .salvage .lrow { grid-template-columns: minmax(0, 1fr) 28px 28px; gap: 2px 8px; }
+.forge .salvage .lrow.head > span:nth-child(2) { display: none; }
+.forge .salvage .lrow:not(.head) { padding: 6px 0; }
+.forge .salvage .k { grid-column: 1; grid-row: 1; }
+.forge .salvage .ladder { grid-column: 1; grid-row: 2; margin-left: 27px; white-space: normal; overflow: visible; }
+.forge .salvage .dot { grid-row: 1 / span 2; }
+.forge .salvage .dot:nth-child(3) { grid-column: 2; }
+.forge .salvage .dot:nth-child(4) { grid-column: 3; }
+.supplies .buy-main, .supplies .buy-title { width: 100%; }
+.supplies .buy-title { display: flex; flex-wrap: wrap; align-items: center; column-gap: 4px; }
+.supplies .buy-title > .item-chip { flex: 1 1 100%; }
+.supplies .buy-title > .gold { font-size: 12px; line-height: 1.1; margin-left: 27px; }
+.supplies .chips.shop > .chip.buy { height: 84px; }

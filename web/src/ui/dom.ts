@@ -47,7 +47,7 @@ if (typeof document !== "undefined") document.addEventListener("pointerdown", (e
  *  its line and turns its price into `ok $340` where it stood: the second tap lands where the first was). */
 export function twoTap(label: string | Node[], armedLabel: string, act: () => void, attrs: { class?: string; disabled?: boolean; key?: string; armedContent?: () => Node[] } = {}): HTMLButtonElement {
   const content = (): Child[] => (typeof label === "string" ? [label] : label);
-  const plain = typeof label === "string" ? label : armedLabel;
+  const plain = typeof label === "string" ? label : label.map((node) => node.textContent ?? "").join("");
   const b: HTMLButtonElement = h("button", { class: attrs.class ?? "chip mini", disabled: attrs.disabled, "aria-label": plain });
   const key = attrs.key;
   let armed = false;

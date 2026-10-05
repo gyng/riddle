@@ -21,6 +21,10 @@ import { openSheet } from "./sheet";
 import { hasCurriculum, sysOpen } from "./systems";
 import { icon, verbIcon } from "./skin";
 import { kw } from "./tips";
+import { itemIcon } from "./items";
+const verbItem = (v: Verb): HTMLElement | null => ["drink", "read", "throw"].includes(v.v) && v.a
+  ? itemIcon({ kind: v.a === "unknown" ? v.v === "read" ? "scroll" : "potion" : v.a, label: verbLabel(v) }, { size: "s" }) : null;
+const condItem = (c: Cond): HTMLElement | null => c.k === "item" && c.t ? itemIcon({ kind:c.t, label:condLabel(c) }, { size:"s" }) : null;
 /** gfx round 1: the action's icon plaque at a tablet's right end (camp.png); nothing when its icon is not packed. */
 const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
 import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, ruleName, sameCond, sameVerb, verbLabel } from "./tokens";
@@ -82,9 +86,9 @@ export function gateVocab(V: Vocabulary, L: App["lineage"] | undefined): Vocabul
 /** Cut 6 §6: a row as read-only chips (`foe: ranged → kite`), shared by the card sheet and the shelf. */
 export function rowChips(row: Row): HTMLElement {
   const chips = h("div", { class: "chips" });
-  row.conds.forEach((c) => chips.appendChild(h("span", { class: "chip cond locked" }, condLabel(c))));
+  row.conds.forEach((c) => chips.appendChild(h("span", { class: "chip cond locked" }, condItem(c), condLabel(c))));
   if (row.conds.length) chips.appendChild(h("span", { class: "arrow" }, "→"));
-  chips.appendChild(h("span", { class: "chip verb locked" }, verbLabel(row.verb)));
+  chips.appendChild(h("span", { class: "chip verb locked" }, verbItem(row.verb), verbLabel(row.verb)));
   return chips;
 }
 /** Cut 6 §6: the sheet behind a `[card]` row or an owned automation: its rows as chips, nothing else. */
@@ -128,7 +132,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // tap — `0/164 · no gas met`, `3/164 · blocked · no scroll` and the reason's gloss — with `edit` under it; else the tap edits
       rows().forEach((row, i) => { const b: HTMLButtonElement = h("button", { class: `row tablet compact${isCardRow(row) ? " locked" : ""}`, "data-i": i,
         onclick: () => { const w = bind.rowWhy?.()[i]; if (w) openWhy(i, b, () => opts.onTablet?.(i)); else opts.onTablet?.(i); } },
-        h("span", { class: "rn num" }, `${i + 1}`), h("span", { class: "rtext" }, rowLabel(row)), verbPlaque(row)); list.appendChild(b); });
+        h("span", { class: "rn num" }, `${i + 1}`), h("span", { class: "rtext" }, ...row.conds.map(condItem), verbItem(row.verb), rowLabel(row)), verbPlaque(row)); list.appendChild(b); });
       paintShadow();
       return;
     }
@@ -200,7 +204,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const chips = h("div", { class: "chips" });
     const card = row.verb.v === "tactic";
     if (card) {
-      row.conds.forEach((c) => chips.appendChild(h("span", { class: "chip cond locked" }, condLabel(c))));
+      row.conds.forEach((c) => chips.appendChild(h("span", { class: "chip cond locked" }, condItem(c), condLabel(c))));
       if (row.conds.length) chips.appendChild(h("span", { class: "arrow" }, "→"));
       const id = row.verb.a ?? "";
       const cardRows = bind.cardRows?.(id);
@@ -213,10 +217,10 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // Cut 8B §4: the card's rows, inline and dim — rows the player could have written
       if (cardRows?.length) chips.appendChild(h("div", { class: "card-inline" }, ...cardRows.map((r) => rowChips(r))));
     } else {
-      row.conds.forEach((c, ci) => { const lk = lockedOf(vocab(), c); chips.appendChild(h("button", { class: `chip cond${lk !== undefined ? " locked-in" : ""}`, onclick: (e: Event) => pickCond(row, ci, rowOf(e)) }, lk !== undefined ? "⊘ " : "", condLabel(c), lk ? h("small", { class: "needs dim" }, ` ${lk}`) : "")); });
+      row.conds.forEach((c, ci) => { const lk = lockedOf(vocab(), c); chips.appendChild(h("button", { class: `chip cond${lk !== undefined ? " locked-in" : ""}`, onclick: (e: Event) => pickCond(row, ci, rowOf(e)) }, lk !== undefined ? "⊘ " : "", condItem(c), condLabel(c), lk ? h("small", { class: "needs dim" }, ` ${lk}`) : "")); });
       if (row.conds.length < 2) chips.appendChild(h("button", { class: "chip cond add", onclick: (e: Event) => pickCond(row, row.conds.length, rowOf(e)) }, "+"));
       chips.appendChild(h("span", { class: "arrow" }, "→"));
-      chips.appendChild(h("button", { class: "chip verb", onclick: (e: Event) => pickVerb(row, rowOf(e)) }, verbLabel(row.verb)));
+      chips.appendChild(h("button", { class: "chip verb", onclick: (e: Event) => pickVerb(row, rowOf(e)) }, verbItem(row.verb), verbLabel(row.verb)));
     }
     const order = bind.canReorder?.() ?? true;
     const grip = h("button", { class: `grip${order ? "" : " still"}`, onpointerdown: (e) => startDrag(e as PointerEvent, i, order) }, order ? "≡" : "", h("small", { class: "rn num" }, `${i + 1}`));
@@ -283,7 +287,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       const grid = h("div", { class: "grid" });
       // QA 23ed91f (K: "`drink heal` is the default R1 verb, but it is missing from the VERB list"): the row's own verb is on the list
       // (lit) even when the vocabulary does not offer it today, so the picker never hides what the row does
-      if (!vocab().verbs.some((v) => sameVerb(row.verb, v)) && row.verb.v !== "tactic") grid.appendChild(h("button", { class: "chip verb on", onclick: () => close() }, verbLabel(row.verb)));
+      if (!vocab().verbs.some((v) => sameVerb(row.verb, v)) && row.verb.v !== "tactic") grid.appendChild(h("button", { class: "chip verb on", onclick: () => close() }, verbItem(row.verb), verbLabel(row.verb)));
       for (const v of vocab().verbs) {
         const on = sameVerb(row.verb, v);
         // Cut 12 §1: a set holds one row per card — a card another row already carries is not offered
@@ -294,7 +298,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
           // uneditable prefix otherwise) and the row is the card's, not the player's
           if (v.v === "tactic") { row.conds = []; row.origin = "card"; commit(); } else edited(row);
           close();
-        } }, verbLabel(v)));
+        } }, verbItem(v), verbLabel(v)));
       }
       // QA 92eb880 (M: "`drink heal` is offered only on the row that already has it"): a verb another row holds that the vocabulary does
       // not offer today sits dim with its reason (a drink/read of an unknown kind), never selectable
@@ -303,7 +307,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
         if (r === row || r.verb.v === "tactic" || vocab().verbs.some((v) => sameVerb(r.verb, v)) || sameVerb(r.verb, row.verb)) continue;
         const key = verbLabel(r.verb); if (seen.has(key)) continue; seen.add(key);
         const why = (r.verb.v === "drink" || r.verb.v === "read") && r.verb.a && r.verb.a !== "unknown" ? /* copy:rule_token */ "unknown" : "";
-        grid.appendChild(h("span", { class: "chip verb locked off", "aria-disabled": "true" }, "⊘ ", key, why ? h("small", { class: "needs dim" }, why) : ""));
+        grid.appendChild(h("span", { class: "chip verb locked off", "aria-disabled": "true" }, "⊘ ", verbItem(r.verb), key, why ? h("small", { class: "needs dim" }, why) : ""));
       }
       return h("div", { class: "sheet-body" }, h("div", { class: "label row-label" }, kw("action")), grid);
     }, { anchor });

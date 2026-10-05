@@ -7,7 +7,7 @@ import { openWindow as openSheet } from "./sheet";
 import { moveOf } from "./forecast";
 import { audio } from "../audio";
 import { icon } from "./skin";
-import { itemIcon, itemName } from "./items";   // run-clear
+import { itemIcon, itemName, itemChip } from "./items";   // run-clear
 
 /** Conservative wire snapshot: simulation inputs and displayed prices belong to this camp. */
 const kitKey = (app: App): string => JSON.stringify([app.lineage, app.rules, app.loadout]);
@@ -99,11 +99,11 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
           void app.mutate(() => app.engine.buyKit!(lad.slot), /* copy:callout */ "Forged").then((ok) => { if (ok) audio.cue("unlock"); if (kit.isConnected) paint(); });
         } }, next ? /* copy:button */ `Forge $${next.price}` : /* copy:button */ "Complete");
         return h("section", { class: "kit-slot tablet", "data-slot": lad.slot },
-          h("div", { class: "kit-head" }, h("b", null, SLOT_LABEL[lad.slot]), h("small", { class: "dim" }, current ?? /* copy:label */ "Starting kit")),
+          h("div", { class: "kit-head" }, h("b", null, SLOT_LABEL[lad.slot]), h("small", { class: "dim" }, current ? itemChip({kind:lad.steps[lad.owned - 1]?.kind ?? lad.slot,label:current,rarity:lad.steps[lad.owned - 1]?.rarity}) : /* copy:label */ "Starting kit")),
           h("div", { class: "forge-action" }, h("div", { class: "forge-item" }, ...(item?.kind ? [itemIcon({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity }, { size: "s" }), itemName({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity })] : [h("span", { class: "icon-socket" }, icon("loadout", "▤")), next?.label ?? current ?? "Complete"])), button));
       }));
       replace(advanced, h("summary", null, /* copy:button */ "Details"),
-        h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => h("p", null, `${SLOT_LABEL[lad.slot]} · ${lad.steps.slice(lad.owned + 1).map((s) => `${s.label} $${s.price}`).join(" · ") || "Complete"}`))),
+        h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => h("p", null, `${SLOT_LABEL[lad.slot]} · `, ...(lad.steps.slice(lad.owned + 1).length ? lad.steps.slice(lad.owned + 1).flatMap((s, i) => [i ? " · " : "", itemChip({kind: s.kind ?? lad.slot, label: s.label, rarity: s.rarity}), ` $${s.price}`]) : ["Complete"])))),
         salvage(app), (app.engine.kitEstimates ?? app.engine.kitDeltas) ? forecastButton : null, estimateLabel, forecasts);
     };
     const changed = (): void => {
@@ -127,7 +127,7 @@ function salvage(app: App): HTMLElement {
   // with nothing salvaged yet, one dim line says so instead of bare headers (QA on 50bb162: "FORGE sheet shows only the headers")
   if (!rows.length) return h("div", { class: "salvage ledger" }, h("div", { class: "empty-line dim" }, /* copy:callout */ "nothing salvaged"));
   return h("div", { class: "salvage ledger" }, head, ...rows.map(([kind, f]) => h("div", { class: "lrow" },
-    h("span", { class: "k" }, kind.replace(/_/g, " ")),
+    h("span", { class: "k" }, itemChip({kind, label: kind.replace(/_/g, " ")})),
     h("span", { class: "ladder num dim" }, /* copy:label */ "salvaged", " ", f.next ? h("span", null, `${f.salvaged}/${f.next.need}`, " → ", h("span", { class: "rung" }, f.next.label.replace(/_/g, " "))) : `${f.salvaged}`),
     // QA 778fa1b (qaU: `· | ·` read as missing values; qaV: `⚒` looked like a button): a mark, not a tool — `✓` / `–`
     h("span", { class: `dot${f.craftable ? " on" : ""}` }, f.craftable ? "✓" : "–"), h("span", { class: `dot num${f.tier ? " on" : ""}` }, f.tier ? `+${f.tier}` : "–"))));

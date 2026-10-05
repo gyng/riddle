@@ -8,7 +8,7 @@
 //   absence   fake engine, 8 h away: the last run's card first (its ring on the card), a tap lifts it to the absence's report; by itself too
 //   death     fake engine, a run that dies: the watch goes to the death screen and never through a card or report (one screen), and
 //             the death screen's header carries the card's strip (the floor)
-//   rarity    the five tiers have five distinct rim pigments; the core reads a vault mace +2 as epic, a dagger common
+//   rarity    the five tiers have five distinct rarity pigments; the core reads a vault mace +2 as epic, a dagger common
 //   node web/tests/runclear.mjs [--part=a,b]      (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
@@ -40,7 +40,7 @@ const screen = () => page.evaluate(() => window.__riddle?.screen);
 const card = () => page.evaluate(() => {
   const c = document.querySelector(".run-clear"); if (!c) return null;
   const words = c.innerText.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
-  const rims = [...c.querySelectorAll(".item-ico")].map((i) => ({ r: i.dataset.rarity, rim: getComputedStyle(i).boxShadow }));
+  const rims = [...c.querySelectorAll(".item-ico")].map((i) => ({ r: i.dataset.rarity, rim: getComputedStyle(i).boxShadow, bg: getComputedStyle(i).backgroundImage }));
   return { words: words.length, text: words.join(" "), stamp: c.querySelector(".rc-stamp")?.textContent?.trim().toLowerCase(), why: c.querySelector(".rc-reason")?.textContent?.trim(),
     depth: c.querySelector(".rc-depth")?.textContent?.trim(), gold: c.querySelector(".rc-coins")?.dataset.gold, rims, clear: document.querySelector("main.report")?.dataset.clear };
 });
@@ -75,8 +75,8 @@ try {
       check(!!line?.reason && k.why === line.reason, `the reason line is the core's (${k.why} | ${line?.reason})`);
       check(!!line?.end && !!line.reached && k.depth?.startsWith(`D${line.reached}`), `the end and the floor are the core's (${line?.end} · D${line?.reached} | ${k.depth})`);
       check(k.words <= MAX_WORDS, `≤ ${MAX_WORDS} words at rest (${k.words}: ${k.text})`);
-      const rimmed = k.rims.filter((x) => x.r && /rgb/.test(x.rim));
-      check(k.rims.length === Math.min(6, line.finds) && rimmed.length === k.rims.length, `every find in a rim, ≤ 6 shown (${rimmed.length}/${k.rims.length} of ${line.finds})`);
+      const rimmed = k.rims.filter((x) => x.r && x.rim === "none" && x.bg === "none");
+      check(k.rims.length === Math.min(6, line.finds) && rimmed.length === k.rims.length, `every find has an unframed silhouette, ≤ 6 shown (${rimmed.length}/${k.rims.length} of ${line.finds})`);
       check(k.rims.some((x) => x.r !== "common"), `a find above common shows its tier (${k.rims.map((x) => x.r).join(", ")})`);
       check(k.clear === "run", `the card stands over the run's report (${k.clear})`);
       await page.waitForTimeout(400);
@@ -160,7 +160,7 @@ try {
       const out = ["common", "uncommon", "rare", "epic", "legendary"].map((r) => { const e = document.createElement("span"); e.className = `item-ico r-${r}`; host.appendChild(e); return getComputedStyle(e).getPropertyValue("--r").trim(); });
       host.remove(); return out;
     });
-    check(new Set(rims).size === 5 && rims.every((x) => /^#[0-9a-f]{6}$/i.test(x)), `five distinct rim pigments (${rims.join(" ")})`);
+    check(new Set(rims).size === 5 && rims.every((x) => /^#[0-9a-f]{6}$/i.test(x)), `five distinct rarity pigments (${rims.join(" ")})`);
     // the cage and the vault: real items from the core in their rims (a vault item put there through the engine's save)
     const shown = await page.evaluate(async () => {
       const r = window.__riddle; const save = JSON.parse(await r.engine.save());

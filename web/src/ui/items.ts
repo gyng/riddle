@@ -1,6 +1,6 @@
 // Run-clear (the owner, 2026-10-02: "include item rarity colours + icons"): an item drawn wherever the client shows one — its icon
-// (the packed `it_<kind>`, else a primitive glyph by its family: art never blocks the game) in a rim of its rarity, its name tinted
-// the same, and a small glint from rare up. The rarity is the core's (`InvItem.rarity`, `item::rarity`); the colours are
+// (the packed `it_<kind>`, else a primitive glyph by its family: art never blocks the game) as a clear silhouette with its rarity, its name tinted
+// the same, and one-time arrivals for finds. The rarity is the core's (`InvItem.rarity`, `item::rarity`); the colours are
 // docs/ART_DIRECTION.md's rarity row (items.css).
 import "../items.css";
 import type { InvItem, Rarity } from "../engine/types";
@@ -21,10 +21,18 @@ const FAMILY: [RegExp, string, string][] = /* copy:none */ [
   [/^(scroll|teleport|blink|fear|mapping|identify|enchant|darkness|summon_ally|aggravate|recall|silence|earthquake|mirror)$/, "scroll", "§"],
   [/^gold$/, "gold", "$"],
 ];
-const familyOf = (kind: string): [string, string] => { const f = FAMILY.find(([re]) => re.test(kind)); return f ? [f[1], f[2]] : ["misc", "◇"]; };
+const iconKind = (kind: string): string => kind.toLowerCase().replace(/\s*\(\d+\)$/, "").replace(/\s*\+\d+$/, "").replace(/\?$/, "").trim().replace(/ /g, "_");
+const familyOf = (kind: string): [string, string] => {
+  const k = iconKind(kind);
+  if (/(?:^|_)potion$/.test(k)) return ["potion", "⚗"];
+  if (/(?:^|_)scroll$/.test(k)) return ["scroll", "§"];
+  if (k === "pack") return ["pack", "▤"];
+  const f = FAMILY.find(([re]) => re.test(k)); return f ? [f[1], f[2]] : ["misc", "◇"];
+};
 /** The kind an icon is drawn for: the item's own (`sword`), a potion or scroll by its family (their icons are the flask and the roll). */
 export function iconId(kind: string): string | null {
-  const k = kind.replace(/ /g, "_");
+  const k = iconKind(kind);
+  if (k === "pack" && hasIcon("loadout")) return "loadout";
   if (hasIcon(`it_${k}`)) return `it_${k}`;
   const [fam] = familyOf(k);
   return (fam === "potion" || fam === "scroll") && hasIcon(`it_${fam}`) ? `it_${fam}` : null;
@@ -32,8 +40,8 @@ export function iconId(kind: string): string | null {
 
 type ItemLike = Pick<InvItem, "kind" | "label"> & { rarity?: Rarity };
 
-/** The item's icon in its rarity rim (`.item-ico.r-rare`): the packed picture, else the family glyph. */
-export function itemIcon(it: ItemLike, o: { size?: "s" | "m" | "l"; delay?: number } = {}): HTMLElement {
+/** The item's unframed silhouette (`.item-ico.r-rare`): the packed picture, else the family glyph. */
+export function itemIcon(it: ItemLike, o: { size?: "xs" | "s" | "m" | "l"; delay?: number } = {}): HTMLElement {
   const r = it.rarity ?? "common";
   const id = iconId(it.kind);
   const [fam, glyph] = familyOf(it.kind.replace(/ /g, "_"));
@@ -52,7 +60,7 @@ export const itemChip = (it: ItemLike, text = it.label, cls = ""): HTMLElement =
   h("span", { class: `item-chip r-${it.rarity ?? "common"}${cls ? ` ${cls}` : ""}`, "data-rarity": it.rarity ?? "common" }, itemIcon(it, { size: "s" }), itemName(it, text));
 
 /** A row of item icons, rarest first (the core sends them so), its rarity tooltip on the row (docs/TOOLTIPS.md: `rarity`). */
-export function itemRow(xs: ItemLike[], o: { size?: "s" | "m" | "l"; pop?: boolean; max?: number } = {}): HTMLElement | null {
+export function itemRow(xs: ItemLike[], o: { size?: "xs" | "s" | "m" | "l"; pop?: boolean; max?: number } = {}): HTMLElement | null {
   if (!xs.length) return null;
   const shown = xs.slice(0, o.max ?? 6);
   // finds pop in by rarity: the commonest first, the rarest last (the beat lands on the best)

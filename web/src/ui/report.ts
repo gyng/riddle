@@ -39,7 +39,7 @@ import { bountyText } from "./forecast";
 import { kwHost, kwText } from "./tips";
 import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
 import { mountClear } from "./runclear";   // run-clear: the run's card before the town
-import { itemIcon, itemName } from "./items";
+import { itemIcon, itemName, itemChip } from "./items";
 
 
 const EXITS_SHOW = 8;
@@ -546,7 +546,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details");
   // run-clear: a find or a kept item in its rarity rim — the rarity is the core's (the exit lines' finds, the vault), matched by label
   const rarityOf = new Map<string, InvItem>([...(r.exits ?? []).flatMap((x) => x.finds ?? []), ...L.vault].map((it) => [it.label, it]));
-  const withRim = (label: string, text: string): (HTMLElement | string)[] => { const it = rarityOf.get(label); return it ? [itemIcon(it, { size: "s" }), itemName(it, text)] : [text]; };
+  const withRim = (label: string, text: string): (HTMLElement | string)[] => { const it = rarityOf.get(label); return it ? [itemIcon(it, { size: "s" }), itemName(it, text)] : [itemChip({kind:label, label:text})]; };
   const foundChips = (): HTMLElement | null => {
     const names = r.found.map((i) => i.label);
     if (!names.length) return null;
@@ -590,7 +590,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // QA 524827b (qaAA: `heal ×2 $8` read as the heals' value): the thefts' toll is the carry's, once (`carry −$35`, the watch strip's
       // word); each chip names what went, coins as `coins`
       r.stolen_gold ? h("span", { class: "chip stolen gold num" }, /* copy:callout */ `carry −$${r.stolen_gold}`) : "",
-      ...mergeRows((r.stolen ?? []).map((x) => ({ kind: named(x.label.replace(/\s*\(\d+\)$/, "")), n: x.n, gold: x.gold ?? 0 }))).map((x) => h("span", { class: "chip stolen" }, x.kind === "gold" ? /* copy:label */ "coins" : x.kind, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : ""))) : null),
+      ...mergeRows((r.stolen ?? []).map((x) => ({ kind: named(x.label.replace(/\s*\(\d+\)$/, "")), n: x.n, gold: x.gold ?? 0 }))).map((x) => h("span", { class: "chip stolen" }, itemChip({kind:x.kind, label:x.kind === "gold" ? /* copy:label */ "coins" : x.kind}), x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : ""))) : null),
     section(/* copy:label */ "bones", (r.bones_found ?? []).length ? h("div", null, conceptTag("bones"), lines((r.bones_found ?? []).map(bonesLine))) : null),
     section(/* copy:label */ "deaths", r.deaths.length ? h("ul", { class: "lines" }, ...r.deaths.map((d) => h("li", null, d.cause.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${d.n}`)))) : null),
     // Cut 24 §5 (AK, AL: the tapped chip read as salvaged — a twin or the return's cut sold, the kept one renamed by the vault): what
@@ -598,10 +598,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "kept", keptItems.length ? h("div", { class: "chips kept" }, ...keptItems.map((x) => h("span", { class: "chip kept" }, ...withRim(x.label, named(x.label)), flavourTag(L, x.label), /* copy:callout */ " → storage",
       x.enchanted && x.enchanted > 0 ? h("small", { class: "num dim enchanted" }, /* copy:callout */ ` · enchanted ×${x.enchanted}`) : ""))) : null),
     // Cut 21 §2: found supplies the exits put on the shelf (the next send packs them free), before what was sold
-    section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ `found ${x.kind.replace(/_/g, " ")}`, x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → supplies"))) : null),
-    section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...mergeRows(r.salvaged.map((x) => ({ ...x, kind: named(x.kind) }))).map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
+    section(/* copy:label */ "shelved", r.shelved?.length ? h("div", { class: "chips shelved" }, ...r.shelved.map((x) => h("span", { class: "chip shelf" }, /* copy:callout */ "found ", itemChip({kind:x.kind, label:x.kind.replace(/_/g, " ")}), x.n > 1 ? h("b", { class: "num" }, ` ×${x.n}`) : "", /* copy:callout */ " → supplies"))) : null),
+    section(/* copy:label */ "salvaged", r.salvaged?.length ? h("ul", { class: "lines" }, ...mergeRows(r.salvaged.map((x) => ({ ...x, kind: named(x.kind) }))).map((s) => h("li", null, itemChip({kind:s.kind, label:s.kind.replace(/_/g, " ")}), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num gold" }, `$${s.gold}`)))) : null),
     // Cut 13 §3: what the automations bought this absence, per kind (`heal ×16 · −$640`)
-    section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, s.kind.replace(/_/g, " "), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
+    section(/* copy:label */ "spent", r.spent?.length ? h("ul", { class: "lines" }, ...r.spent.map((s) => h("li", null, itemChip({kind:s.kind, label:s.kind.replace(/_/g, " ")}), " ", h("b", { class: "num" }, `×${s.n}`), " · ", h("span", { class: "num down" }, `−$${s.gold}`)))) : null),
     // QA 524827b (qaAB: `+40 · ★0`, `+51 · ★0`, then `+102 · ★1 ↑1` — "no threshold on screen"): the renown toward the next ★ (the core's
     // rule: rank n+1 at 100·(n+1)² renown) — `★0 · 91/100`
     section(/* copy:label */ "reputation", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "",
@@ -679,7 +679,7 @@ function factChips(facts: string[], counters: Counter[] = [], alertLock?: string
     const it = /^item:([^=]+)=(.+)$/.exec(f);
     // QA 92eb880 (M: "LEARNED flattens potion/scroll pairs … `stray lock` and `blink` read as pairs off by one"): an identity reads
     // `blink (ashen)`, on its own row under the foes
-    if (it) { itemChips.push(h("span", { class: "chip fact item" }, nice(it[2]), h("small", null, ` (${nice(it[1])})`))); continue; }
+    if (it) { itemChips.push(h("span", { class: "chip fact item" }, itemChip({kind:it[2], label:nice(it[2])}), h("small", null, ` (${nice(it[1])})`))); continue; }
     const b = /^biome:(.+)$/.exec(f);
     if (b) { rest.push(h("span", { class: "chip fact" }, nice(b[1]))); continue; }
     const bn = /^bones:(\d+)$/.exec(f);

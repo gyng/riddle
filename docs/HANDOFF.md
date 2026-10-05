@@ -1,3 +1,18 @@
+**ITEM SILHOUETTES / ROUND SEND — 2026-10-06:** Owner requires item icons
+and no boxes around silhouettes. Extended the shared item module to Forge
+salvage/future/current kit, shops/repeat/sell, item rules, report item lists and
+learned identities, and tiny live-log item marks. Unknown potion/scroll labels
+use their visible family; all unpacked kinds keep glyph fallbacks. Removed
+frames/wells/rectangular glints at every rarity; names retain rarity colours.
+Mobile Forge/shop rows wrap names/counts/prices instead of clipping. The old
+.send flex:1 stretched gem art96×86/124×108; flex:none + contain restores
+86×86/108×108. Real shipping400/1440 controls/screens,214 item checks,
+Forge33/report20/geometry176/lifecycle68/paint5 and Rust rarity checks pass;
+tsc/copy/build pass. UX_ITEM_ICONS.md records coverage/limits/artifacts.
+No Rust changes, no deployment. Next raw report unlock IDs/wall-edit copy,
+then selected Tactics groups. Historical Cut25 remains disclosed as failing
+old report/armed-purchase expectations, not resolved by these changes.
+
 **FORGE CACHE OWNERSHIP — 2026-10-06:** Preview reuse is scoped to App and
 engine, with full lineage/rules/loadout keys and four completed camps retained.
 Open Forge clears stale answers on changes without starting simulations;
