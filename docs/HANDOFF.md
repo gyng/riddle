@@ -1,3 +1,16 @@
+**FORGE CACHE OWNERSHIP — 2026-10-06:** Preview reuse is scoped to App and
+engine, with full lineage/rules/loadout keys and four completed camps retained.
+Open Forge clears stale answers on changes without starting simulations;
+stale successes/failures cannot paint over newer requests. Closing releases
+subscriptions. Actual shipping400/1440 checks: three taps including reopen
+use one Rust query; purchase clears results, next explicit tap uses query two.
+Tsc/copy/build and scoped Forge33/20, geometry176, forecast lifecycle32 and
+Forge lifecycle68 checks pass. Broad historical Cut25 remains failing at its
+old watched-run tile expectation/retired kit-next purchase selector; not
+claimed green. PERF_FORGE_CACHE.md records scope and artifacts. Owner now
+requires icons for all items: audit Forge salvage/ladders, supply shops and
+report item lines first, reuse existing item art/fallback system. No deployment.
+
 **ROUGH CAMP/FORGE PREVIEWS — 2026-10-06:** Camp and paired edit previews
 use eight samples; Forge's explicit Forecast uses eight outcome-only samples.
 No automatic larger camp pass after paint/edit: More samples is explicit,

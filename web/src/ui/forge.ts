@@ -9,19 +9,34 @@ import { audio } from "../audio";
 import { icon } from "./skin";
 import { itemIcon, itemName } from "./items";   // run-clear
 
-/** The last `kitDeltas()` and what it was measured for (the set, the kit owned, the best, the start): the sheet paints it at once. */
-let kitMemo: { key: string; kit: KitLadder[] } | null = null;
-const kitKey = (app: App): string => JSON.stringify([app.rules.rows, (app.rules as { route?: number[] }).route ?? [], (app.lineage.kit ?? []).map((k) => k.owned), app.lineage.best_depth, app.lineage.start ?? 1]);
-/** Cut 25 §4: the measure in flight and the state it measures — the sheet opened meanwhile waits on it rather than asking again. */
-let kitAsk: { key: string; p: Promise<KitLadder[]> } | null = null;
-/** One explicitly requested rough preview, reused while the same kit/rules are shown. */
+/** Conservative wire snapshot: simulation inputs and displayed prices belong to this camp. */
+const kitKey = (app: App): string => JSON.stringify([app.lineage, app.rules, app.loadout]);
+type KitCache = { engine: App["engine"]; done: Map<string, KitLadder[]>; pending: Map<string, Promise<KitLadder[]>> };
+const kitCaches = new WeakMap<App, KitCache>();
+/** One explicit preview per state, isolated from other Apps/engines; four completed camps retained. */
 export function measureKit(app: App): Promise<KitLadder[]> | null {
-  if (!(app.engine.kitEstimates ?? app.engine.kitDeltas) || !(app.lineage.kit ?? []).some((k) => k.next)) return null;
-  const k = kitKey(app);
-  if (kitMemo?.key === k) return Promise.resolve(kitMemo.kit);
-  if (kitAsk?.key === k) return kitAsk.p;
-  const p = (app.engine.kitEstimates ?? app.engine.kitDeltas)!.call(app.engine).then((m) => { kitMemo = { key: k, kit: m }; return m; });
-  kitAsk = { key: k, p }; void p.catch(() => undefined).finally(() => { if (kitAsk?.p === p) kitAsk = null; });
+  const engine = app.engine;
+  const query = engine.kitEstimates ?? engine.kitDeltas;
+  if (!query || !(app.lineage.kit ?? []).some((k) => k.next)) return null;
+  let cache = kitCaches.get(app);
+  if (!cache || cache.engine !== engine) {
+    cache = { engine, done: new Map(), pending: new Map() };
+    kitCaches.set(app, cache);
+  }
+  const own = cache, key = kitKey(app);
+  const done = own.done.get(key);
+  if (done) { own.done.delete(key); own.done.set(key, done); return Promise.resolve(done); }
+  const pending = own.pending.get(key);
+  if (pending) return pending;
+  // Schedule after registration so synchronous failures also release the pending request.
+  const p = Promise.resolve().then(() => query.call(engine)).then((rows) => {
+    if (app.engine === engine && kitKey(app) === key) {
+      own.done.set(key, rows);
+      if (own.done.size > 4) own.done.delete(own.done.keys().next().value!);
+    }
+    return rows;
+  }).finally(() => { if (own.pending.get(key) === p) own.pending.delete(key); });
+  own.pending.set(key, p);
   return p;
 }
 /* copy:label */
@@ -52,21 +67,25 @@ export function kitMove(n: NonNullable<KitLadder["next"]>): string | null {
 
 
 export function openForge(app: App, anchor?: HTMLElement | null): void {
+  let unChange: (() => void) | undefined, unRules: (() => void) | undefined;
   openSheet(() => {
+    let state = kitKey(app), engine = app.engine, request = 0;
     const kit = h("div", { class: "kit simple-kit" });
     const advanced = h("details", { class: "forge-details" }, h("summary", null, /* copy:button */ "Details"));
     const forecasts = h("div", { class: "forge-forecasts" });
     const estimateLabel = h("small", { class: "dim forge-estimate" }, /* copy:label */ "rough estimate");
     const forecastButton = h("button", { class: "chip", onclick: () => {
+      const asked = ++request, key = kitKey(app), owner = app.engine;
+      const current = (): boolean => forecasts.isConnected && request === asked && app.engine === owner && kitKey(app) === key;
       forecastButton.disabled = true;
       forecastButton.textContent = "Measuring…";
       const ask = measureKit(app);
       if (!ask) { forecastButton.textContent = "Forecast"; forecastButton.disabled = false; return; }
       void ask.then((rows) => {
-        if (!forecasts.isConnected) return;
+        if (!current()) return;
         replace(forecasts, ...rows.map((row) => h("div", { class: "num" }, `${SLOT_LABEL[row.slot]} · ${row.next ? kitMove(row.next) ?? "No change" : "Complete"}`)));
         forecastButton.textContent = "Forecast"; forecastButton.disabled = false;
-      }).catch(() => { forecastButton.textContent = /* copy:button */ "Retry forecast"; forecastButton.disabled = false; });
+      }).catch(() => { if (!current()) return; forecastButton.textContent = /* copy:button */ "Retry forecast"; forecastButton.disabled = false; });
     } }, /* copy:button */ "Forecast");
     const paint = (): void => {
       const ladders = app.lineage.kit ?? [];
@@ -87,9 +106,18 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
         h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => h("p", null, `${SLOT_LABEL[lad.slot]} · ${lad.steps.slice(lad.owned + 1).map((s) => `${s.label} $${s.price}`).join(" · ") || "Complete"}`))),
         salvage(app), (app.engine.kitEstimates ?? app.engine.kitDeltas) ? forecastButton : null, estimateLabel, forecasts);
     };
+    const changed = (): void => {
+      const key = kitKey(app);
+      if (key === state && engine === app.engine) return;
+      state = key; engine = app.engine; request++;
+      replace(forecasts);
+      forecastButton.textContent = "Forecast"; forecastButton.disabled = false;
+      paint();
+    };
     paint();
+    unChange = app.onChange(changed); unRules = app.onRules(changed);
     return h("div", { class: "sheet-body forge" }, h("div", { class: "label" }, /* copy:label */ "Forge"), kit, advanced);
-  }, { anchor });
+  }, { anchor, onClose: () => { unChange?.(); unRules?.(); } });
 }
 
 /** Cut 9 §10: each kind's salvage ladder — `sword · salvaged 3/5 → craftable` (the engine's `next` rung); at the top, the count alone. */

@@ -32,7 +32,7 @@ export function onEscapeIdle(fn: (() => void) | null): void { idle = fn; }
 /** `anchor` (Cut 23 §4, AI/AJ: "the option sheet covers the chips it edits"): the element the sheet edits (a row's chips) — the panel
  *  unfolds on whichever side of it has more room and never over it (its height capped to that side), re-placed as its body changes.
  *  A tap outside the panel (the backdrop, the anchor's row under it) only closes the sheet: it never reaches what lies beneath. */
-export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean; anchor?: HTMLElement | null; stay?: boolean; center?: boolean } = {}): void {
+export function openSheet(build: (close: () => void) => Node, opts: { modeless?: boolean; anchor?: HTMLElement | null; stay?: boolean; center?: boolean; onClose?: () => void } = {}): void {
   const panel = h("div", { class: "sheet", role: "dialog" });
   // Cut 24 §5 (AK: "the chip tap didn't open the verb sheet a second time"): a tap on another chip of the anchor's own row (the verb
   // while the cond sheet is up) closes this sheet and opens that one — the row being edited stays live; anywhere else a tap only closes
@@ -59,7 +59,7 @@ export function openSheet(build: (close: () => void) => Node, opts: { modeless?:
   const parent = opts.modeless ? undefined : [...stack].reverse().find((w) => !w.classList.contains("modeless"));
   const close = (): void => {
     const i = stack.indexOf(wrap); if (i < 0) return;
-    stack.splice(i, 1); sheetGhost(wrap); wrap.remove(); ro?.disconnect(); unplace?.(); opts.anchor?.classList.remove("sheet-anchor"); closers.delete(wrap); parentOf.delete(wrap);
+    stack.splice(i, 1); opts.onClose?.(); sheetGhost(wrap); wrap.remove(); ro?.disconnect(); unplace?.(); opts.anchor?.classList.remove("sheet-anchor"); closers.delete(wrap); parentOf.delete(wrap);
     if (parent && stack.includes(parent)) { parent.hidden = false; parent.classList.remove("under"); }
   };
   /** The `×` of a sheet that replaced another closes the chain (this one and every one it replaced). */
