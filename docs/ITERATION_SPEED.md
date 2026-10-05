@@ -1,3 +1,13 @@
+**QUEUED TESTER DEBUG EXPORT — 2026-10-06:** Owner requested a state dump
+for testers/debugging. Next tester-support feature, ahead of further Tactics
+query optimization: Settings → Debug export, one downloadable versioned JSON
+with fresh complete save, build/engine version, bloodline/rules, screen/run
+context and bounded recent errors; mobile fallback and local reproduction
+reader. Existing export serializes cached lastSave, so fresh coherent capture
+and explicit failure are required. Contract: docs/TESTER_STATE_EXPORT.md.
+Queued only, not implemented. No deployment. Existing optimization/UI queue
+continues afterwards.
+
 **READABLE REPORT ACTIONS — 2026-10-06:** Report news/reel/pending now
 show readable unlock names; pending uses actual catalogue currency/price once
 loaded, with no initial zero/free promise. Wall offers show Reach next floor,
