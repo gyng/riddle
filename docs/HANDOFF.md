@@ -1,3 +1,17 @@
+**BOSS COUNTER CLARITY — 2026-10-06:** Tactics Details now uses chunky
+boss cards with existing art, readable learned actions/item silhouettes, core
+card carries gloss, explicit On/Off and accessible enable/disable labels.
+Exact Max HP −N% replaces hardcoded scar/5 counts; scar-only bosses get no
+invented tactic. Missing bridge disabled, pending click guarded.69 checks320/
+400/1440 pass3.7s, selection28/chrome184 pass, build/typecheck/copy1510/diff
+clean; chunk advisory. Actual headed savedcamp1 four counters400/1440: Warlord
+Off/save-load/On, other drills enabled, expanded Details retained, no warnings/
+overflow; corrected screens shown. Queen/non5% fixture coverage. Contrast/CSS
+write mistake caught and corrected before final build/layout checks. Contract
+UX_BOSS_COUNTERS.md records evidence. No Rust/WASM/tuning/full audit/deploy.
+Next: multihero progression attribution and concrete first-wall gameplay choice
+feedback; stop generic repeated report/window polish absent new evidence.
+
 **RUN TRAINING FEEDBACK — 2026-10-06:** Watched reports dropped core
 style levels/drills. Add bounded per-run ExitLine.packages to last_exit/batch/
 death copies; watch copies into report. Shared Training before Details/death

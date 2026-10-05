@@ -13,10 +13,11 @@ import type { Lineage, Package, Packages, PkgOption } from "../engine/types";
 import { h, replace, twoTap } from "./dom";
 import { openWindow as openSheet } from "./sheet";
 import { lowOf, share } from "./forecast";
-import { rowLabel } from "./tokens";
-import { packageIcon } from "./skin";
+import { rowLabel, verbLabel } from "./tokens";
+import { packageIcon, foeSrc, icon, verbIcon } from "./skin";
+import { itemIcon } from "./items";
 import { sysOpen } from "./systems";
-import { kw, kwHost, kwText } from "./tips";
+import { kw, kwHost } from "./tips";
 import type { Term } from "./concepts";
 
 /** The lineage climbs on packages (a Cut 30 core, not a harness's literal set). */
@@ -184,12 +185,29 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
       const scars = new Map(P.scars ?? []);
       const extra: HTMLElement[] = [];
       if (drills.length || scars.size) {
-        const boss = (b: string): string => b.replace(/^goblin_/, "").replace(/_/g, " ");
+        const boss = (b: string): string => b.replace(/^goblin_/, "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
         const lines = [...new Set([...drills.map((d) => d.boss), ...scars.keys()])].map((b) => {
-          const d = drills.find((x) => x.boss === b), sc = Math.round((scars.get(b) ?? d?.scar ?? 0) / 5);
+          const d = drills.find((x) => x.boss === b), sc = scars.get(b) ?? d?.scar ?? 0;
+          const face = foeSrc(b);
+          const toggle = d ? h("button", { class: `chip mini drill${d.revoked ? "" : " on"}`, disabled: !app.engine.revokeDrill,
+            "aria-pressed": String(!d.revoked), "aria-label": d.revoked ? /* copy:label */ `Enable ${boss(b)} tactic` : /* copy:label */ `Disable ${boss(b)} tactic`,
+            onclick: (e: Event) => {
+              const button = e.currentTarget as HTMLButtonElement; button.disabled = true;
+              if (app.engine.revokeDrill) void app.mutate(() => app.engine.revokeDrill!(b, !d.revoked), undefined, true).then(() => paint()).finally(() => { if (button.isConnected) button.disabled = !app.engine.revokeDrill; });
+            } }, d.revoked ? /* copy:button */ "Off" : /* copy:button */ "On") : null;
+          const actions = (d?.rows ?? []).map((r) => {
+            const card = r.verb.v === "tactic" ? app.unlockCat?.find((u) => u.id === r.verb.a) : undefined;
+            const action = card?.carries ?? verbLabel(r.verb).replace(/^tactic /, "");
+            const consumable = /^(drink|read|throw)$/.test(r.verb.v);
+            const kind = r.verb.a?.split(",")[0] || (r.verb.v === "read" ? "scroll" : "potion");
+            return h("span", { class: "counter-action", title: rowLabel(r) },
+              consumable ? itemIcon({ kind, label: kind.replace(/_/g, " ") }, { size: "xs" }) : icon(verbIcon(r.verb.v) ?? "unlocks", "✦"), action);
+          });
           return h("div", { class: `pkg-drill${d?.revoked ? " revoked" : ""}`, "data-boss": b },
-            d ? h("button", { class: `chip mini drill${d.revoked ? "" : " on"}`, "aria-pressed": d.revoked ? "false" : "true", onclick: () => void app.mutate(() => app.engine.revokeDrill!(b, !d.revoked), undefined, true).then(() => paint()) }, /* copy:label */ `counter · ${boss(b)}`) : h("span", { class: "chip mini boss" }, boss(b)),
-            sc > 0 ? h("small", { class: "scar num" }, ...kwText(/* copy:callout */ `scarred ×${sc}`, ["scar"])) : "");
+            h("span", { class: "counter-face", "aria-hidden": "true" }, face ? h("img", { src: face, alt: "", draggable: "false" }) : icon("v_attack", "⚔")),
+            h("div", { class: "counter-copy" }, h("b", { class: "counter-name" }, boss(b)),
+              actions.length ? h("div", { class: "counter-actions" }, ...actions) : null,
+              sc > 0 ? h("small", { class: "scar num" }, /* copy:label */ `Max HP −${sc}%`) : null), toggle);
         });
         extra.push(h("section", { class: "pkg-sec drills" }, h("div", { class: "label pkg-head" }, kw("drill", /* copy:label */ "boss counters")), ...lines));
       }

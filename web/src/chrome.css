@@ -165,3 +165,18 @@ html .console .cmd-compact .tile .tl { overflow: visible; text-overflow: clip; }
 @media (max-width: 520px) {
   .pkg-panel .pkg-equipped .icon-socket.expressive-emblem .ico { width: 34px; height: 34px; }
 }
+
+/* Boss counters retain parchment contrast within shared chunky dark cards. */
+.pkg-panel .pkg-drill { padding: 10px; border: 2px solid #40516c; color: #eadbbd; background: linear-gradient(115deg,#29344a,#131b2b); box-shadow: inset 0 1px 0 #8a99b155, inset 0 -3px 0 #080d17; }
+.pkg-panel .pkg-drill .counter-face { flex: 0 0 40px; width: 40px; height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.pkg-panel .pkg-drill .counter-face img { width: 40px; height: 40px; object-fit: contain; }
+.pkg-panel .pkg-drill .counter-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.pkg-panel .pkg-drill .counter-name { color: #f2d6a0; font: 600 17px/1.2 var(--control-font); }
+.pkg-panel .pkg-drill .counter-actions { display: flex; flex-direction: column; gap: 4px; font: 400 14px/1.3 var(--body-font); }
+.pkg-panel .pkg-drill .counter-action { display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.pkg-panel .pkg-drill .counter-action > .ico { flex: 0 0 20px; width: 20px; height: 20px; }
+.pkg-panel .pkg-drill.revoked .counter-actions { color: #bac5d7; }
+.pkg-panel .pkg-drill.revoked .drill { opacity: 1; text-decoration: none; }
+.pkg-panel .pkg-drill .drill { min-width: 44px; min-height: 44px; }
+.pkg-panel .pkg-drill .scar { color: #e7b894; }
+html.skin-tablet .pkg-panel .pkg-drill { border: 8px solid transparent; border-image: url('/ui/frames/tablet.png') 24 fill / 8px stretch; padding: 6px; }
