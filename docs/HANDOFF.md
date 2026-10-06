@@ -1,3 +1,14 @@
+**LIVE/DEATH ENEMY TOOLTIPS — 2026-10-06:** Extended enemyHost to live boss
+name (once per kind, not per HP tick) and death killer portrait/cause button.
+Normal cause tap still opens trace; hover/longpress details; unknown historical
+owner or another bloodline uses unavailable rather than selected facts. Stalls
+and environmental causes no invented enemy. New enemy-surfaces checks320/400/
+1440 cover input/owner/environment/livekind. Death identity/action +watch
+status/log4/4 pass21.4s; build/typecheck/copy1554 pass. Actual headedWASM old
+Warlord record400/1440 shows correct unavailable knowledge with no warnings/
+overflow; screenshots shown. UX_ENEMY_TOOLTIP_SURFACES.md;
+scratchpad/enemy-surfaces-20261006/. No core/balance/art/deploy.
+
 **OWNING BLOODLINE BOSS TOOLTIPS — 2026-10-06:** Victory reports now retain
 bounded per-boss facts/ledger/wall snapshots from the winning slot. Hovering
 an unselected hero's victory shows its knowledge without selecting it. Merge

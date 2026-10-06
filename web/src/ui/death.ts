@@ -28,6 +28,7 @@ import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel
 import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
 import { foeSrc, packageIcon } from "./skin";
+import { enemyHost } from "./enemy-tips";
 import { itemIcon } from "./items";
 import { penOpen } from "./packages";
 import { openForge } from "./forge";
@@ -295,7 +296,10 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report }) }) : null,
     tile({ id: "camp", label: /* copy:button */ "town", icon: "camp", onclick: () => app.go({ kind: "camp" }) }),
   ] });
-  const killerSrc = drove ? null : foeSrc(d.cause);
+  const killerSrc = drove || d.verdict === "stall" ? null : foeSrc(d.cause);
+  const enemyKnowledge = (kept && !d.hero) || (d.hero?.bloodline_id !== undefined && d.hero.bloodline_id !== (app.lineage.selected_bloodline ?? 1)) ? undefined : app.lineage;
+  const killerPortrait = killerSrc ? enemyHost(h("img", { class: "killer", src: killerSrc, alt: d.cause.replace(/_/g, " "), draggable: "false" }), d.cause, enemyKnowledge) : null;
+  if (killerSrc) enemyHost(line.querySelector<HTMLElement>(".cause-btn")!, d.cause, enemyKnowledge);
   const tracePanel = h("div", { class: "parchment trace-panel", hidden: !!drove && !d.trace.turns.length }, ...trace);   // a drive-off's line may carry no trace
   // death screen v2 — the three questions, in order: what killed him (the banner), why (one line, the player's words), what now (the
   // lit fix and at most two others, each its short name and its effect; `send again` beside them for a luck death or none to offer);
@@ -324,7 +328,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     d.hero?.name ? h("div", { class: "death-hero num dim" }, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`) : null,
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerSrc ? " has-killer" : ""}` },
       // gfx round 10 (raters, every round: "show the killer behind the banner"): the killer's portrait in an iron medallion on the cloth
-      killerSrc ? h("img", { class: "killer", src: killerSrc, alt: "", draggable: "false", "aria-hidden": "true" }) : null, luckLead, line)),
+      killerPortrait, luckLead, line)),
     // run-clear: the death screen is a death's card — its header carries the floor, a new best, the finds left in the bones
     kept || from ? null : clearStrip(d.line),
     ...(prePen ? [whyEl, trainingBlock(d.line?.packages), now] : [whyEl, trainingBlock(d.line?.packages), details, now, more, tail]));

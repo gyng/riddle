@@ -114,6 +114,7 @@
 // ticks after the last of those stops holding. Entry and exit are released at the viewer's clock (the engine runs ahead),
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
+import { enemyHost } from "./enemy-tips";
 import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
 import { combatLogEvents, telegraphText } from "./combat-log";
@@ -663,6 +664,7 @@ export function renderWatch(app: App): Mounted {
     if (bossFaceKind !== bossHud.kind) {
       if (bossFaceKind) { bossCounter.hidden = true; clear(bossCounter); }   // another boss: his own counter line, when sighted
       bossFaceKind = bossHud.kind;
+      enemyHost(bossName, bossHud.kind, app.lineage);
       const k = bossHud.kind.replace(/^boss_/, "");
       if (!paintPortrait(bossFace, `boss_${k}`)) paintSprite(bossFace, `boss_${k}`, 26, k);
     }
