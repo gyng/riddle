@@ -812,7 +812,7 @@ export class App {
   }
   /** Runs an engine call that returns a Lineage and adopts it. Errors (unaffordable, locked) are swallowed after a warn. */
   /** `adopt` (Cut 30 §2): the call recompiled the set (a package equipped, levelled, a drill revoked) — the editing copy is the core's again. */
-  async mutate(fn: () => Promise<Lineage>, move?: string, adopt = false): Promise<boolean> {
+  async mutate(fn: () => Promise<Lineage>, move?: string, adopt = false, options?: { saveBeforePaint?: boolean }): Promise<boolean> {
     // QA 0c6e126 (qaY): a purchase, a drop, a cage or a kit step (`move`, its word) — the camp's next forecast for these rules is read
     // against the one painted before it (`lineageMove`)
     // QA 524827b (qaAA: after `+1 row` and `verb: throw` bought, the line under the forecast still read `drop · D6 ≈ ±6` from the leash
@@ -822,6 +822,11 @@ export class App {
     try { this.lineage = await fn(); } catch (e) { this.lmPending = null; console.warn("engine refused", e); return false; }
     if (adopt) this.adoptSets();
     this.baseMoved = true;
+    // A finished manual building must survive navigation from its first paint.
+    // Fetch the worker's snapshot before listeners can expose completion; normal
+    // edits retain their fast paint/debounced save, without an extra save here.
+    const saveBeforePaint = options?.saveBeforePaint === true;
+    if (saveBeforePaint) await this.flush();
     await this.afterLineage();
     return true;
   }

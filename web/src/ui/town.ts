@@ -62,7 +62,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     const plot = state?.staked;
     if (building || !plot?.ready || !app.engine.buildTown) return;
     building = true; tag.setAttribute("aria-busy", "true");
-    void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build").finally(() => { building = false; tag.setAttribute("aria-busy", "false"); });
+    void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build", false, { saveBeforePaint: true }).finally(() => { building = false; tag.setAttribute("aria-busy", "false"); });
   };
   const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite", onclick: buildPlot, onkeydown: (e: Event) => { const k = e as KeyboardEvent; if (state?.staked?.ready && (k.key === "Enter" || k.key === " ")) { k.preventDefault(); buildPlot(); } } });
   const foundation = h("div", { class: "town-foundation", hidden: true, "aria-hidden": "true" });

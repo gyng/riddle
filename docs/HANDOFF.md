@@ -1,3 +1,18 @@
+**MANUAL CONSTRUCTION SAVED BEFORE COMPLETION — 2026-10-06:** Reproduced
+realWASM immediate navigation from firsthomechange: restoredempty/0heroes before
+1sdebouncedsave. App.mutate optional saveBeforePaint checkpoint; townbuild opts
+in for everymanualplot. Worker snapshotcached/written before change listeners
+canexposecompletion; guard heldthroughsave. Othermutationfastpaint unchanged;
+normalrulesrefreshmaypersistlater. Beforefalse/0→aftertrue/1, no testflush.
+Final39persistencechecks400/1440normal/reduced, exactslots, delay/dedup/refusal;
+firstplot320/400/1440 +selection28+death44pass11.7s. Build/typecheck/copy1535
+pass,bundleadvisory. Headedafter screenshotshown(artloaded after immediate state
+assertion). UX_TOWN_SAVE.md; scratchpad/town-save-20261006/. NoRust/balance/
+WASM/deploy/performanceclaim. Storage failure retains existingplay-onhandling.
+Next: actualfirstsession gameplay/content followthrough using legalmanualsends
+and earnedchoices, nowfirsthousegraphics/persistencehandled. Keepgoalactive,
+followownerfeedback ratherthan redoing iconart without newevidence.
+
 **FIRST HOUSE GFX + V7 ICON READABILITY — 2026-10-06:** Owner rejected v6
 readability; all8 now broad pixel silhouettes/dark contours/bone highlights,
 unframed44–52px, no portraits/mascots. Built-in imagegen9separateassets; exact
