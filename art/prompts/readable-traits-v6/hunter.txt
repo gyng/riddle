@@ -1,0 +1,26 @@
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+Use case: stylized-concept. Single production game UI COMBAT STYLE ICON, not portrait, on genuinely TRANSPARENT background.
+HUNTER combat style: ONE large dark angular crossbow seen head-on at a slight diagonal, large BONE crescent bow limbs, a clearly visible thick pale bolt pointing up. Simple gothic crossbow shape with thick ink edges, one tiny blood-red binding. No hat or face.
+CRITICAL SMALL ICON RULES: immediately readable at 44 pixels square. Entire object fills 84 percent of square, 8 percent fully transparent margin on all sides. Only THREE broad value masses: near-black INK outline and shadow, large BONE pale lit mass, a limited single accent. Hand-painted moonlit gothic relic, stepped edges and very restrained wash texture. Every identifying component at least 8 pixels wide at final44px. NO fine hatching, NO dense grain, NO armour layers, NO face, NO human bust, NO hair. Simplify aggressively. Confident thick continuous dark outline and substantial pale silhouette. No animal, mascot, cartoon face, logos, text, badges, circles around the icon, panels, backdrop, glow. Negative space must stay transparent. Produce ONE isolated icon, no contact sheet.

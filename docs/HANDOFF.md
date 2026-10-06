@@ -1,3 +1,24 @@
+**READABLE GOTHIC STYLE/TRAIT ICONS — 2026-10-06:** Owner rejected sports
+mascot look, then rejected human portrait traits after game-size screenshot.
+Final v6 uses one large pale silhouette: upright sword/shield/striking blade/
+crossbow; retreating boot/fist breaking chain/hand taking coin/iron-bound potion.
+Built-in imagegen8 final calls, exact prompts art/prompts/readable-traits-v6/;
+sources art/ui/icons/pkg_*_v6.png, packed96px, corneralpha0. Portraitv5 discarded
+to scratch only. Existing unframed44–52px module retained, v6 preference and
+fallbacks; ART_DIRECTION7.3 records tiny-size symbols over portrait details.
+Headed fake all-owned320/400/1440 all8 decoded/no overlap/overflow/page errors;
+phone+desktop screenshotsshown. Selection28+death44pass3.5s, build/typecheck/
+copy1532/diffpass; bundle advisory. No recognition-study/gameplay/perf/deploy
+claim. GFX_GOTHIC_TRAIT_ICONS.md; scratchpad/gothic-traits-20261006/.
+Next: finish the queued native choice-check diagnostic, currently untracked
+choice_check.rs/tools/choice-check.mjs/DEV_CHOICE_CHECK.md. Four actual8h native
+cases exactreport/save match WASM firstbossfixture; warm1.11s then1.37s; multi
+2heroes31runs, unavailable/duplicate/hours0/overwrite/inputimmutability pass.
+Clippy passed; rebuilt WASM hashunchangedae07… . Final docs/link/commit pending;
+no balance tuning. Source and logs scratchpad/earned-tactic-comparison-20261006/.
+Then fresh gameplay evidence: Bloat Mother firstkill hidden underDetails in
+Bold $0 report; do not assume BossFocus helps from one unchanged-savedtown test.
+
 **EARNED TACTICS VISIBLE ON RETURN — 2026-10-06:** Freshseed3houseUI,
 3engine manual sends+porter/scout, unchangedSteady/no upgrades, four8hQuick
 absences: D7/8/8/13; Warlord firstslain in24–32hinterval. +Bold/+bossfocus/

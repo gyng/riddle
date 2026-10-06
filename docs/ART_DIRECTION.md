@@ -203,3 +203,13 @@ and ordinary controls share 14px Fira Condensed; Grenze remains the 24px title
 face. Reuse packed icons inside inset sockets. Forge bronze, Hero/Tactics gilt
 and Workers blue vary the same module. Report/death retain their scroll/banner
 silhouettes; the live combat log remains basic text over the map.
+
+### 7.3 Combat styles and traits (2026-10-06)
+
+Owner correction: these icons follow the same moonlit gothic ink-and-wash
+direction as the hero art. Use one large deliberate gesture or worn relic
+with stepped painted shapes and a substantial pale silhouette. Human portrait
+expressions were also rejected: their details disappear at icon size. Animal
+team-badge faces and sports-mascot styling are superseded. Keep silhouettes without a
+surrounding tile, circle or badge; judge at44–52px in the tactics window.
+The v6 set and exact prompts are documented in GFX_GOTHIC_TRAIT_ICONS.md.
