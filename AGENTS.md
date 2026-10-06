@@ -38,6 +38,7 @@ research/              the four research reports behind the plan
 tools/verify.sh --quick        # tests (fast profile) ∥ tsc + copy-lint            ~45 s
 tools/tune.sh <row-ids>        # content iteration: full seed counts, targeted requirements, fail-fast; --list lists rows; never a full gate pass
 node tools/camp-check.mjs SAVE... [--record DIR|--compare DIR] # saved-camp feedback: three 8h native replays ~4 s warm; --mode packages,wall for tuning searches; diagnostic, never the gate
+node tools/choice-check.mjs SAVE --choices boss_focus,kite_archers,bold --out NEW_DIR # actual next8h baseline/choice outcomes from one saved Session (~1–3s warm first-boss fixture); --balance PROFILE; diagnostic only, docs/DEV_CHOICE_CHECK.md
 tools/native-dev.sh                                         # real Rust dev UI on :5367; rebuild native, no wasm packaging; docs/NATIVE_DEV.md
 # RIDDLE_BALANCE_FILE=<profile> RIDDLE_NATIVE_PORT=5368 tools/native-dev.sh: compile-free validated tuning
 # tools/tune.sh <rows> --resume: internal check-in checkpoints, exact runtime/parameters only

@@ -643,6 +643,16 @@ Next, in impact order:
 
 ## Saved-camp feedback — 2026-10-04
 
+For actual earned-choice outcomes, use
+`node tools/choice-check.mjs SAVE --choices boss_focus,kite_archers,bold --hours 8 --out NEW_DIR`.
+Baseline and each choice replay the same saved multihero Session, changing only
+the selected hero's equipment. Raw reports/saves and input/runtime/profile
+hashes make content changes reviewable. Four first-boss cases took1.12s warm and2.20s with the final pinned runtime;
+this is one fixture, not a general catch-up bound or balance verdict.
+`--balance PROFILE` reuses Rust-owned validated tuning. See
+[DEV_CHOICE_CHECK.md](DEV_CHOICE_CHECK.md) for ownership, limits and verification.
+Continue using targeted tuning rows and the normal gates for acceptance.
+
 `node tools/camp-check.mjs SAVE... --record DIR` captures full native workload
 outputs; `--compare DIR` checks an edit against them without rebuilding the
 fortnight that produced the camp. Three early/late/tuned 8-hour absence checks

@@ -1,3 +1,26 @@
+**ACTUAL SAVED-TOWN CHOICE COMMAND — 2026-10-06:** Native Session diagnostic
+now ready: node tools/choice-check.mjs SAVE --choices boss_focus,kite_archers,bold
+--hours 8 --out NEW_DIR; baseline+independent selected-hero choices, all active
+bloodlines continue normally. SLOT means tactic equipment slot, not hero id.
+Immutable source/executable copies, SHA manifest/raw reports/final saves; no
+extra hires/builds/upgrades scripted. Rust validated dev-balance optional;
+default clears inherited JSON. 1–336h bound, all choices validated before sims,
+refuse output overwrite. Diagnostic only, no acceptance gate reduction.
+Final4×8h2.20s(build0.09s); priorwarm1.11/1.12/1.37s. All4final report/rawsave
+exact vsWASM firstboss32hseed3. Already-equippedSteady exactbaseline5case2.00s.
+Pinned2hero31runs/bothreports exactstates,2cases1.15s. Profiledefault exact;
+changedBoldheal50 changesoutput,invalid101rejects; defaultafterprofile/inherited
+garbage exact restored. Firstfeaturebuild53.75s,warm0.04–0.06s. Invalid/unowned/
+duplicate/hours0/337(nativealso)/missing/overwrite/inputimmutabilitypass.
+Clippy/JS/diffpass; rebuiltWASM5236591/hashae07…unchanged. No UI/runtime-lib/
+tuning/deploy/fullbalanceclaim. DEV_CHOICE_CHECK.md, ITERATION_SPEED savedcamp
+section and AGENTS command. Source/logs scratchpad/choice-check-release-20261006/.
+Original browser death summary corrected to sumcause counts(Bold12,not7kinds).
+Next fresh gameplay evidence: Bold firstkillsBloatMother despite12deaths/$0home,
+but victory hidden underDetails. Review actual boss rewards/progress framing
+from saved report on400/1440; don't add genericchrome or tunefromonefixture.
+Both temporary5396/5397 alreadycleaned; shared5219preserved.
+
 **READABLE GOTHIC STYLE/TRAIT ICONS — 2026-10-06:** Owner rejected sports
 mascot look, then rejected human portrait traits after game-size screenshot.
 Final v6 uses one large pale silhouette: upright sword/shield/striking blade/
