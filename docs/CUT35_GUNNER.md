@@ -3,8 +3,9 @@
 Owner request2026-10-07: add a Gunner class, with long and short guns, distinct
 from archery. This becomes the next class priority, before proposed Rogue/
 Ranger specializations. Finish Cut34's live verification without abandoning it.
-Status: contract and two transparent equipment icons prepared; Gunner gameplay
-is not implemented or selectable yet. No deployment.
+Status: contract, two transparent equipment icons and per-weapon chamber/reload
+primitives prepared; Gunner combat integration is not implemented or selectable
+yet. No deployment.
 
 ## Identity and progression
 
@@ -103,6 +104,29 @@ render/look.ts manifests and ui/skin.ts icons. Current ranged ItemDef boolean
 cannot alone encode chambers, gun range or reload commitment; introduce a
 bounded firearm profile/state rather than inferring all ranged weapons as guns.
 
+## Saved weapon foundation — 2026-10-07 (partial A/B)
+
+`firearm.rs` owns separate long/short profiles and chamber commitment, saved on
+each `Item` as an optional field. Non-guns omit it exactly. Reload deadlines are
+absolute run ticks (20/15); checked overflow, repeated reloads and invalid shots
+refuse without mutation. Valid fire reserves one chamber, or both for short
+burst, before future hit/miss/reflection rolls. Per-item state survives stowing,
+swapping and serialization. The geometric spread filter restricts secondary
+targets to neighbours of the primary in a90-degree forward cone within range3.
+The future action caller must additionally validate visibility/hostility/LOS,
+cap at three targets, commit target memory only after successful validation,
+and resolve ordinary damage/counters. None of that combat work is certified yet.
+
+Actual firearm `ItemDef`s are separate from legacy `ITEMS`, preserving existing
+global loot and vocabulary enumeration. They have zero global drop weight.
+They are not obtainable through the UI or current class. No fifth-class enum,
+unlock, forge choice, firing verb or automatic reload is exposed in this step.
+Scheduler must stop batches at reload deadlines and emit completion exactly
+once; these primitives do not yet run timers themselves. Seven focused tests
+cover range/LOS/sight refusals, exact timer boundaries, weapon-instance saves/
+swaps, slice serialization, burst/overflow, spread geometry and old-item JSON.
+These are primitive checks, not full native/WASM8h gameplay parity.
+
 ## Art checkpoint — 2026-10-07
 
 Built-in imagegen, separate long/short prompts, actual alpha. Source
@@ -112,3 +136,9 @@ unchanged. Long slender rifle versus squat double-barrel silhouette inspected.
 Exact prompts/provenance art/prompts/gunner-equipment-20261007.md. These icons
 do not expose Gunner or firearm items before gameplay exists. Next A/B core
 implementation; portrait/sprites and action icons remain part of later D.
+
+Foundation verification: final quick643core PASS/one ignored,14tool PASS,
+TS/copy1705/zero; final fast all-target clippy warnings denied PASS. Rebuilt
+real fastWASM5383173B. Six old tier0/challenge complete loaded/advanced events/
+saves and twelve old Tier5 style/base campaigns remain byte-exact. This does
+not certify all four class migrations, Gunner gameplay or CUT35 completion.

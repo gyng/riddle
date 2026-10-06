@@ -376,6 +376,13 @@ pub fn biome_kinds(biome: Biome) -> Vec<&'static str> {
 }
 
 pub fn item_def(kind: &str) -> &'static ItemDef {
+    // Class-owned firearms stay outside the legacy global loot/token table.
+    // Adding them must not alter other classes' vocabulary or weighted drops.
+    match kind {
+        "long_gun" => return &crate::firearm::LONG_GUN,
+        "short_gun" => return &crate::firearm::SHORT_GUN,
+        _ => {}
+    }
     static IX: std::sync::OnceLock<KindIndex> = std::sync::OnceLock::new();
     let ix = IX.get_or_init(|| KindIndex::new(ITEMS.iter().map(|i| i.kind)));
     ix.find(kind, |i| ITEMS[i].kind).map_or(&ITEMS[0], |i| &ITEMS[i])

@@ -46,6 +46,10 @@ pub struct Item {
     /// its `enchant` came from enchant scrolls the heirs read on it (`InvItem.enchanted`).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub enchanted: i32,
+    /// Chambers belong to this weapon instance, including while stowed. Ordinary
+    /// items omit the field so older saves retain their exact representation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub firearm: Option<crate::firearm::Chambers>,
 }
 
 fn is_zero(x: &i32) -> bool {
@@ -54,7 +58,7 @@ fn is_zero(x: &i32) -> bool {
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, auto_packed: false, enchanted: 0 }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, auto_packed: false, enchanted: 0, firearm: crate::firearm::Profile::of(kind).map(crate::firearm::Chambers::loaded) }
     }
     /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
     pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {

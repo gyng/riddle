@@ -12,6 +12,7 @@ pub mod fold;
 pub mod divergence;
 pub mod forecast;
 pub mod gen;
+pub mod firearm;
 pub mod geom;
 pub mod hero;
 pub mod item;

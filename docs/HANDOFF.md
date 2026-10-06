@@ -1,3 +1,26 @@
+**CUT35 GUNNER SAVED-WEAPON FOUNDATION — 2026-10-07 (PARTIAL):**
+
+Per-item optional firearm state in item.rs; firearm.rs owns long/short profiles,
+absolute20/15tick reload deadlines, checked overflow, chamber reservation and
+short90-degree forward spread geometry. Gun definitions are deliberately
+outside legacy ITEMS/global loot/token enumeration. Existing bow is not a gun.
+Seven focused tests cover boundary/refusal/swap/serialization/burst/geometry/
+old-item JSON; full quick643core PASS/one ignored,14tool PASS, TS/copy1705/zero,
+235s including rebuild contention. Final all-target fast clippy warnings denied
+passes. Real fastWASM5383173B rebuilt. Six original tier0/challenge complete
+loaded/advanced event/save fixtures and all twelve older Tier5 style/base
+seed1/3/5 campaigns retain exact bytes. Logs /tmp/riddle-gunner-state-
+{quick,final-clippy,wasm,old-compat,lower-tier}.log. These fixture comparisons
+do not certify all four classes or the optional exhaustive audit.
+
+This is NOT a playable Gunner checkpoint. No class enum/unlock/forge selection,
+combat firing/damage/counters, timer scheduler or UI integrated yet. Saved state
+primitives alone do not prove whole/sliced gameplay parity. Next connect real
+combat and scheduler (batch stops at deadlines; emit completion once), then
+class/ownership/default policy and full CUT35 A–E delivery. Initialise actual
+run guns loaded at send without refilling ordinary swaps or retained live saves.
+No new rendered screen, no deployment. Keep-going95fun goal remains active.
+
 **CUT34 CONTENT/PERFORMANCE CHECKPOINT; GUNNER NEXT — 2026-10-07:**
 
 

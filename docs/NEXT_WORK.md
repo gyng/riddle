@@ -36,7 +36,10 @@ Rogue/Ranger styles. Fifth base class with actual long/short gun equipment,
 chambers and timed reload commitment, inherited XP/Legacy, named automatic
 class tactics from first send, meaningful distinct range/armour/close-spread
 matchups. Prepared transparent gun icons via built-in imagegen and existing
-packer; actual class/runtime/portraits/forge/watch reload UI not implemented yet.
+packer. Per-item saved chambers, absolute20/15tick reload commitment and
+long/short weapon definitions now implemented;643core/14tool quick checks
+and all-target fast clippy pass. Combat/scheduler integration, class/unlock,
+portraits/forge/watch reload UI remain pending. No playable Gunner yet.
 Preserve old drop RNG, authored rules and saved state; do not expose inactive
 classes. Subsequent class-training audit and further boss/loot variety remain.
 
