@@ -3,7 +3,7 @@ import { h } from "./dom";
 import { detailHost } from "./tips";
 import { foeSrc } from "./skin";
 const nice = (s: string): string => s.replace(/_/g, " ").replace(/\b[a-z]/g, c => c.toUpperCase());
-export function enemyHost<E extends HTMLElement>(el: E, kind: string, L?: Lineage, defeated = false): E {
+export function enemyHost<E extends HTMLElement>(el: E, kind: string, L?: Pick<Lineage, "facts" | "ledger" | "walls" | "counters">, defeated = false): E {
   return detailHost(el, () => {
     kind = kind.replace(/ pack$/, "").trim().replace(/ /g, "_");
     const row = L?.ledger?.find(r => r.kind === kind), wall = L?.walls?.find(w => w.boss === kind);

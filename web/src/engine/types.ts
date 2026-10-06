@@ -445,11 +445,12 @@ export type ReplayFloor = { snapshot: Snapshot; events: Ev[] };
 export type Replay = { run_id: number; floors: ReplayFloor[]; hash: string; ticks: number };
 /** RUNS_UI (client; Cut 31's heroes on the wire later) — one lane: a hero's run state. `state` live · rests · waits. */
 export type BloodlineLegacy = { points:number; spent:number; upgrades:Record<string,number> };
+export type BossKnowledge = { boss: string; facts: string[]; ledger?: LedgerRow | null; wall?: BossWall | null };
 export type HeroSlot = { look?:string; hero_name?:string; id:number; name:string; heir:number; class:string; level:number; xp:number; next?:number; state:"live"|"rests"|"waits"; live?:Lineage["live"]; rest_s:number; legacy:BloodlineLegacy; notice:boolean; chronicle?:string[] };
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
-  bloodlines?: {id:number;name:string;runs:number;deepest:number;gold:number;packages?:string[];bests?:string[];xp?:ReturnReport["xp"][]}[];
+  bloodlines?: {id:number;name:string;runs:number;deepest:number;gold:number;packages?:string[];bests?:string[];boss_knowledge?:BossKnowledge[];xp?:ReturnReport["xp"][]}[];
   workers?: WorkerAct[];                                                       // Cut 30.5 (core): the workers' acts this absence (porter's hauls, apprentice's steps, clerk's deposits, …)
   chest?: number;                                                              // Cut 30.5 (core): the haul gold this absence left in the chest (before the porter; the chest's badge)
   grew?: GrewLine[];                                                          // Cut 30 §4 (core): what grew on each track over the absence — the report leads with it

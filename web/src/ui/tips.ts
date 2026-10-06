@@ -69,7 +69,7 @@ export function detailHost<E extends HTMLElement>(el: E, body: () => Node[]): E 
 const CONTROL = "button, a[href], [role=button], input, select, textarea, label, summary";
 const inControl = (el: Element): boolean => !!el.closest(CONTROL);
 const termAt = (el: Element): Term => ((el as HTMLElement).dataset.kw ?? (el as HTMLElement).dataset.kwh) as Term;
-const trigger = (t: EventTarget | null): HTMLElement | null => (t instanceof Element ? t.closest<HTMLElement>(".kw, [data-kwh], [data-detail-tip]") : null);
+const trigger = (t: EventTarget | null): HTMLElement | null => (t instanceof Element ? (t.closest<HTMLElement>("[data-detail-tip]") ?? t.closest<HTMLElement>(".kw, [data-kwh]")) : null);
 /** The trigger answers a tap: a marked keyword, or a stat host, outside any control. */
 const tappable = (el: HTMLElement): boolean => !inControl(el.parentElement ?? el) && !(el.matches("[data-kwh]") && el.matches(CONTROL)) && (el.classList.contains("kw-on") || el.matches("[data-kwh], [data-detail-tip]"));
 

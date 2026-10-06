@@ -1264,6 +1264,15 @@ pub struct DeathCount {
     pub n: u32,
 }
 
+/// Learned details captured from the bloodline that earned a first victory.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct BossKnowledge {
+    pub boss: String,
+    pub facts: Vec<String>,
+    pub ledger: Option<LedgerRow>,
+    pub wall: Option<BossWall>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct BloodlineReturn {
     pub id:u32, pub name:String, pub runs:u32, pub deepest:u32, pub gold:i32,
@@ -1277,6 +1286,8 @@ pub struct BloodlineReturn {
     /// This slot's new records and first kills; empty is known empty.
     #[serde(default)]
     pub bests: Vec<String>,
+    #[serde(default, skip_serializing_if="Vec::is_empty")]
+    pub boss_knowledge: Vec<BossKnowledge>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

@@ -134,6 +134,16 @@ impl Session {
         }
         out.live=self.active.live_run();out
     }
+    fn victory_knowledge(g:&Game,bests:&[String])->Vec<crate::wire::BossKnowledge> {
+        bests.iter().filter_map(|best|best.strip_prefix("boss:").map(str::trim)).map(|boss| {
+            let prefix=format!("foe:{boss}:");
+            crate::wire::BossKnowledge { boss:boss.into(),
+                facts:g.lineage.facts.iter().filter(|f|f.starts_with(&prefix)).cloned().collect(),
+                ledger:g.lineage.ledger().into_iter().find(|r|r.kind==boss),
+                wall:crate::oath::walls(&g.lineage).into_iter().find(|w|w.boss==boss),
+            }
+        }).collect()
+    }
     pub fn run_offline_mode(&mut self,seconds:u64,full:bool,last:bool)->ReturnReport {
         if self.others.is_empty(){return if full {self.active.run_offline(seconds)}else if last{crate::offline::run_offline_quick(&mut self.active,seconds)}else{crate::offline::run_offline_counts(&mut self.active,seconds)};}
         let begin=|g:&mut Game|{
@@ -152,12 +162,12 @@ impl Session {
             crate::offline::report_with(g,seconds,&before.0,&before.1,before.2,false,full,last)
         };
         let mut r=finish(&mut self.active,&active_before,full,last);
-        let summary=|id:u32,r:&ReturnReport|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
-        if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r));}
+        let summary=|id:u32,r:&ReturnReport,g:&Game|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),boss_knowledge:Self::victory_knowledge(g,&r.bests),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
+        if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r,&self.active));}
         for (id,g) in &mut self.others {
             town_from(&self.active.lineage,&mut g.lineage);
             let other=finish(g,&others_before[id],false,false);
-            r.bloodlines.push(summary(*id,&other));
+            r.bloodlines.push(summary(*id,&other,g));
             r.runs+=other.runs; r.banked+=other.banked; r.returned+=other.returned;r.deepest=r.deepest.max(other.deepest);
             for death in other.deaths {if let Some(d)=r.deaths.iter_mut().find(|d|d.cause==death.cause){d.n+=death.n;}else{r.deaths.push(death);}}
             if let Some(b)=other.gold {let a=r.gold.get_or_insert_with(Default::default);a.home+=b.home;a.salvage+=b.salvage;a.spent+=b.spent;a.wake+=b.wake;a.wake_n+=b.wake_n;a.wake_cap=a.wake_cap.max(b.wake_cap);a.lost+=b.lost;a.unkept+=b.unkept;}
@@ -362,5 +372,26 @@ mod tests {
         s.active.lineage.town.shared_night_runs=Some(crate::engine::NIGHT_RUNS-1);
         s.active.send();s.select_bloodline(2).unwrap();s.active.send();
         s.run_offline_mode(3600,false,true);assert_eq!(s.active.lineage.town.interest,20,"shared Savings pays once, not once per bloodline");
+    }
+}
+
+#[cfg(test)]
+mod victory_knowledge_tests {
+    use super::*;
+    #[test]
+    fn victory_details_are_owned_read_only_and_default_on_old_wire() {
+        let mut a=Game::new(1);let mut b=Game::new(2);
+        a.lineage.facts.insert("foe:bloat_mother:gas".into());
+        b.lineage.facts.insert("foe:bloat_mother:telegraph".into());
+        let before=(a.save(),b.save());
+        let bests=vec!["D13".into(),"boss: bloat_mother".into()];
+        let first=Session::victory_knowledge(&a,&bests);
+        let second=Session::victory_knowledge(&b,&bests);
+        assert_eq!(first.len(),1);assert_eq!(first[0].facts,vec!["foe:bloat_mother:gas"]);
+        assert_eq!(second[0].facts,vec!["foe:bloat_mother:telegraph"]);
+        assert_eq!((a.save(),b.save()),before);
+        assert!(Session::victory_knowledge(&a,&[]).is_empty());
+        let old:crate::wire::BloodlineReturn=serde_json::from_str(r#"{"id":1,"name":"One","runs":1,"deepest":13,"gold":0}"#).unwrap();
+        assert!(old.boss_knowledge.is_empty());
     }
 }

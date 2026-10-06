@@ -1,3 +1,14 @@
+**OWNING BLOODLINE BOSS TOOLTIPS — 2026-10-06:** Victory reports now retain
+bounded per-boss facts/ledger/wall snapshots from the winning slot. Hovering
+an unselected hero's victory shows its knowledge without selecting it. Merge
+keeps snapshots within owners across slices; old wire falls back safely.
+Custom detail hosts override nested glossary labels. Real earned2hero8h WASM
+report (minus new snapshots) and finalsave exactly match old fixture; own
+facts/ledger/wall exact; hover selection/save unchanged;400/1440 screenshots.
+Core561pass/1ignored, clippy clean, rebuiltWASM5250760; enemy320/400/1440 and
+report54 and sharedtips70/70 pass; build/typecheck/copy1554 pass. UX_BOSS_KNOWLEDGE.md;
+scratchpad/boss-knowledge-20261006/. No balance/deploy. Keep broadergoalactive.
+
 **DETAILED ENEMY TOOLTIPS — 2026-10-06:** Owner asked hoverBloatMother/etc.
 Addedshared detailHost WeakMap callbacks to existing singletooltipplate/input/
 placement; no perrowlisteners. Reportbossportrait/name, seenenemyguidenames,

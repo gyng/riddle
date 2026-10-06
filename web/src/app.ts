@@ -1027,7 +1027,9 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
       const progression = rows.reduce<Pick<ReturnReport, "packages" | "grew">>((merged,s)=>mergeGrew(merged,s),{});
       const xp = rows.reduce<ReturnReport["xp"][] | undefined>((merged,s)=>mergeClassXp(merged,s.xp),undefined);
       const bests = rows.some(s=>s.bests!==undefined) ? [...new Set(rows.flatMap(s=>s.bests??[]))] : undefined;
-      return {...last,...progression,xp,bests,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
+      const boss_knowledge = rows.some(s=>s.boss_knowledge!==undefined)
+        ? [...new Map(rows.flatMap(s=>s.boss_knowledge??[]).map(k=>[k.boss,k])).values()] : undefined;
+      return {...last,...progression,xp,bests,boss_knowledge,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
     }),
     rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled), driven: sum(a.driven, b.driven),
     bones_found: cat(a.bones_found, b.bones_found),
