@@ -152,7 +152,7 @@ impl Session {
             crate::offline::report_with(g,seconds,&before.0,&before.1,before.2,false,full,last)
         };
         let mut r=finish(&mut self.active,&active_before,full,last);
-        let summary=|id:u32,r:&ReturnReport|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
+        let summary=|id:u32,r:&ReturnReport|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
         if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r));}
         for (id,g) in &mut self.others {
             town_from(&self.active.lineage,&mut g.lineage);
@@ -279,6 +279,29 @@ mod tests {
             assert_eq!(restored.others[&2].lineage.pkg.runs,s.others[&2].lineage.pkg.runs);
             let later=restored.run_offline_mode(3600,false,true);
             assert!(later.bloodlines.iter().all(|b|b.packages.is_empty()),"later no-gain report must not repeat training");
+        }
+    }
+    #[test]
+    fn away_bests_belong_to_each_slot_even_when_selected_hero_waits() {
+        for both in [false,true] {
+            let mut s=resident();s.add_bloodline().unwrap();
+            s.select_bloodline(2).unwrap();s.send();
+            s.select_bloodline(1).unwrap();if both {s.send();}
+            let r=s.run_offline_mode(3600,false,true);
+            let other=r.bloodlines.iter().find(|b|b.id==2).unwrap();
+            assert!(!other.bests.is_empty(),"unselected completed-run records lost");
+            assert!(other.bests.contains(&format!("D{}",s.others[&2].lineage.best_depth)));
+            let selected=r.bloodlines.iter().find(|b|b.id==1).unwrap();
+            assert_eq!(!selected.bests.is_empty(),both);
+            assert_eq!(selected.bests,r.bests,"top-level records keep selected-slot compatibility");
+            let wire=serde_json::to_value(&r).unwrap();
+            let restored:ReturnReport=serde_json::from_value(wire).unwrap();
+            assert_eq!(restored.bloodlines,r.bloodlines);
+            let mut old=serde_json::to_value(other).unwrap();old.as_object_mut().unwrap().remove("bests");
+            assert!(serde_json::from_value::<crate::wire::BloodlineReturn>(old).unwrap().bests.is_empty());
+            let mut restored=Session::load(&s.save()).unwrap();
+            let later=restored.run_offline_mode(3600,false,true);
+            assert!(later.bloodlines.iter().all(|b|b.bests.is_empty()),"no later run must not repeat old records");
         }
     }
     #[test]

@@ -449,7 +449,7 @@ export type HeroSlot = { look?:string; hero_name?:string; id:number; name:string
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
-  bloodlines?: {id:number;name:string;runs:number;deepest:number;gold:number;packages?:string[];xp?:ReturnReport["xp"][]}[];
+  bloodlines?: {id:number;name:string;runs:number;deepest:number;gold:number;packages?:string[];bests?:string[];xp?:ReturnReport["xp"][]}[];
   workers?: WorkerAct[];                                                       // Cut 30.5 (core): the workers' acts this absence (porter's hauls, apprentice's steps, clerk's deposits, …)
   chest?: number;                                                              // Cut 30.5 (core): the haul gold this absence left in the chest (before the porter; the chest's badge)
   grew?: GrewLine[];                                                          // Cut 30 §4 (core): what grew on each track over the absence — the report leads with it

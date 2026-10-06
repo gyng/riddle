@@ -36,6 +36,7 @@ import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
 import { grewBlock, heroFace, reportTrainingBlock, trainingBeats } from "./tracks";
 import { reportChoices } from "./report-choices";
+import { bossName, reportBosses } from "./report-bosses";
 import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
@@ -595,7 +596,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, reportBosses(r), classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
@@ -761,7 +762,7 @@ function factChips(facts: string[], counters: Counter[] = [], alertLock?: string
 }
 
 /** QA 23ed91f (K: "a lone `D8` and `rank 2` in among the trophies"): a depth best reads `new best D8`, a rank `★ rank 3`; trophies as sent. */
-export const bestLabel = (x: string): string => /^D\d+$/.test(x) ? /* copy:callout */ `new best ${x}` : /^rank \d+$/.test(x) ? `★ ${x}` : x;
+export const bestLabel = (x: string): string => /^D\d+$/.test(x) ? /* copy:callout */ `new best ${x}` : /^rank \d+$/.test(x) ? `★ ${x}` : x.replace(/^boss:\s*([a-z][a-z0-9_]*)$/, (_all, id: string) => /* copy:callout */ `${bossName(id)} defeated`);
 
 /** "rank 1 … rank 8", "fighter L2 … L4", "D3 … D6": one line per family, the highest, in first-seen order (`rank 3` with its
  *  space: QA 23ed91f, `rank 2` and `rank 3` both stood). */

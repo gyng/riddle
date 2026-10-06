@@ -1,3 +1,15 @@
+**FIRST BOSS VICTORIES VISIBLE — 2026-10-06:** Explicit boss bests now above
+Details, existing foe art/readable labels, no invented gold reward. Per-slot
+BloodlineReturn.bests defaulted, merged byowner; selected top-level compatible.
+Known empty suppresses oldfallback; unknownoldreports show unownedtopbests.
+Workspace560pass/1ignored,clippy; clients172pass/build/copy1534. WASM5237180
+SHA7554108a1f234dc3597d9473e5d5ca5b2fb552319541fb28786c065ae4fc1acd.
+Real Bold firstMother12deaths/$0; real2slot8h29runs, unselected1Motherwin
+correctlyowned while2selected/no bossgain. Headed400/1440 clean.
+UX_BOSS_REWARDS.md; scratchpad/boss-rewards-20261006/. No deploy/fullbalance.
+Owner steering: trait icons still unreadable; improve build-house plot/marker
+and match target UI/juice/polish. This is current work, not more reportchrome.
+
 **ACTUAL SAVED-TOWN CHOICE COMMAND — 2026-10-06:** Native Session diagnostic
 now ready: node tools/choice-check.mjs SAVE --choices boss_focus,kite_archers,bold
 --hours 8 --out NEW_DIR; baseline+independent selected-hero choices, all active

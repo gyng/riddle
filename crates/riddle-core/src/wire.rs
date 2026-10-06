@@ -1274,6 +1274,9 @@ pub struct BloodlineReturn {
     /// Bounded training/unlock beats from this slot's own report (empty is known empty).
     #[serde(default)]
     pub packages: Vec<String>,
+    /// This slot's new records and first kills; empty is known empty.
+    #[serde(default)]
+    pub bests: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
