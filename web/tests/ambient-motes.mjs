@@ -33,8 +33,8 @@ try {for(const width of [400,1440]) {
  await p.waitForTimeout(100);assert.equal(await p.locator('.ambient-motes').count(),0);
  await p.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});
  await p.waitForTimeout(100);assert.equal(await p.locator('.ambient-motes').count(),1);
- await p.emulateMedia({reducedMotion:'reduce'});await p.waitForTimeout(100);assert.equal(await p.locator('.ambient-motes').count(),0);
- await p.emulateMedia({reducedMotion:'no-preference'});await p.waitForTimeout(100);assert.equal(await p.locator('.ambient-motes').count(),1);
+ await p.emulateMedia({reducedMotion:'reduce'});await p.waitForFunction(()=>matchMedia('(prefers-reduced-motion: reduce)').matches&&!document.querySelector('.ambient-motes'),{},{timeout:1000});assert.equal(await p.locator('.ambient-motes').count(),0);
+ await p.emulateMedia({reducedMotion:'no-preference'});await p.waitForFunction(()=>!matchMedia('(prefers-reduced-motion: reduce)').matches&&document.querySelectorAll('.ambient-motes').length===1,{},{timeout:1000});assert.equal(await p.locator('.ambient-motes').count(),1);
  await p.evaluate(()=>{const main=document.querySelector('main.frame');main.classList.add('watch');document.getElementById('app').appendChild(main);});await p.waitForTimeout(100);assert.equal(await p.locator('.ambient-motes').count(),0);
  assert.deepEqual(errors,[]);await p.goto(`${url}?engine=fake&fresh=1&runs=0&juice=0`);await p.waitForFunction(()=>window.__riddle?.booted);assert.equal(await p.locator('.ambient-motes').count(),0);
  console.log(width,'drift/wake/locality/bounds/lifecycle/reduced-motion/off PASS');await p.close();

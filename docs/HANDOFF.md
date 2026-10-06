@@ -1,3 +1,38 @@
+**CUT35 PUBLIC GUNNER / CLIENT FAILURE AUDIT — 2026-10-07:**
+
+UI_READY=true; missing LABEL.gunner fixed so public unowned hero picker shows
+the fifth Rust offer (CLASSES remains4 default/fake IDs). Actual earned seed3
+unlock camp1440/400/320: public button pays8marks/selects Gunner, short gun
+pays275 once, class/gun/marks persist through real page reload, no overflow or
+pageerrors. Seven selected-class skill chips visible. Screenshots shown; QA in
+scratchpad/gunner-public-qa-20261007. No grants, deployment or95score claim.
+
+New public-offer test checks locked fresh, earned available, cost/ownership and
+duplicate full-save refusal; old hidden-offer assertion replaced with available
+offer and unchanged-save assertion (missing XP/pay/refusal checks retained).
+675corePASS/oneignored,14toolsPASS134s; TS/copy1730zero, fast all-targetclippy,
+webbuildPASS; realWASM5482237B. Fresh routine18-caseFULL PASS, source
+5a82e7f17f85d591, session63334 terminal0. Sixoldfixture fullsaves/advance exact
+except prior intentionalmeters. Broader exhaustive audit uncertified.
+
+IMPORTANT: old fullclient session65678 is TERMINAL1:80/111PASS581.6s, not
+pending/green. Raw /tmp/riddle-gunner-current-all-client.log. It started before
+public exposure. Audit docs/CLIENT_GATE_AUDIT_20261007.md records31failures,
+stale selectors/wording and unclassified actual regressions. No cases removed.
+First corrections: live-roster now exactD1/D7 Delving on old activity-free wire
+plus bounded first-request wait, all19identity/dedup/stale checks retained.
+Quiet clarity:paint PASS5checks with unchanged3s bar. Reduced-motion diagnostic
+shows wide query true before event delivery at100ms; await actual query/layer
+transition within1s. Final ambient+roster2/2PASS10.3s at400/1440. Production
+particle code unchanged. Preserve failed baseline and raw diagnostic.
+
+Next highest priority: audit/fix remaining fullclient failures against current
+manual-house/late-pen/compact-Speed contracts; unknown chrome/trace/report/replay/
+restock failures need actual inspection. Do not restore unwanted controls or
+claim all-client green from scoped passes. Then fresh played idle-hybrid fun
+evaluation;95 still active/unverified. All ownQA5378/5379 closed; shared5219
+preserved. No owned pending jobs from this checkpoint.
+
 **CUT35 CURRENT CAMPAIGNS / CATCH-UP / ROUTINE GATE — 2026-10-07 (PARTIAL):**
 
 Backup/Forge pushed as7e59c96. Current normal earned unlock camps with paid

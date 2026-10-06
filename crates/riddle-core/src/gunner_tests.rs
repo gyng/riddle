@@ -5,6 +5,19 @@ fn home()->Game {
     g.lineage.hero_legacy.last_mut().unwrap().best_depth=13;g
 }
 fn unlocked()->Game {let mut g=home();g.buy("gunner").unwrap();g.set_class("gunner").unwrap();g}
+#[test]
+fn public_gunner_offer_obeys_earned_gate_and_payment() {
+    let fresh=Game::new_resident(3);
+    let offer=crate::meta::catalogue(&fresh.lineage).into_iter().find(|u|u.id=="gunner").expect("public fifth class offer");
+    assert!(!offer.available&&!offer.owned);
+    let mut g=home();
+    let offer=crate::meta::catalogue(&g.lineage).into_iter().find(|u|u.id=="gunner").unwrap();
+    assert!(offer.available);assert_eq!(offer.cost,8);
+    g.buy("gunner").unwrap();assert_eq!(g.lineage.marks,0);
+    let offer=crate::meta::catalogue(&g.lineage).into_iter().find(|u|u.id=="gunner").unwrap();
+    assert!(offer.owned&&!offer.available);
+    let before=g.save();assert!(g.buy("gunner").is_err());assert_eq!(g.save(),before);
+}
 fn arena(kind:&str,level:u32)->Game {
     let mut g=crate::tests::arena();g.sim=true;
     crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("hold"))]);
@@ -174,7 +187,7 @@ fn authored_cadence_uses_real_aim_burst_and_reload_commitments() {
 #[test]
 fn paid_historical_unlock_keeps_missing_xp_absent_and_refuses_exactly() {
     let mut g=home();assert!(!g.lineage.classes.contains_key("gunner"));
-    let before=g.save();assert!(!g.unlocks().iter().any(|u|u.id=="gunner"));assert_eq!(g.save(),before);
+    let before=g.save();assert!(g.unlocks().iter().any(|u|u.id=="gunner"&&u.available&&!u.owned));assert_eq!(g.save(),before);
     g.lineage.hero_legacy.last_mut().unwrap().best_depth=12;let before=g.save();assert!(g.buy("gunner").is_err());assert_eq!(g.save(),before);
     g.lineage.hero_legacy.last_mut().unwrap().best_depth=13;g.lineage.marks=7;let before=g.save();assert!(g.buy("gunner").is_err());assert_eq!(g.save(),before);
     g.lineage.marks=8;g.buy("gunner").unwrap();assert_eq!(g.lineage.marks,0);assert_eq!(g.lineage.class,Class::Fighter);

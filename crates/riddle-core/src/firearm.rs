@@ -74,8 +74,8 @@ pub struct Skills {
 pub const SMOKE_COOLDOWN:u32=90;
 pub const FAST_COOLDOWN:u32=100;
 pub const FINISH_COOLDOWN:u32=60;
-/// The core class is implemented first; expose the paid offer after app/art QA.
-pub const UI_READY:bool=false;
+/// Earned progression, action art and catch-up acceptance permit the paid class offer.
+pub const UI_READY:bool=true;
 pub fn starting_kind(l:&crate::engine::LineageState)->&'static str {
     if l.class==crate::hero::Class::Gunner&&l.kit.get("gun_choice")==Some(&1)&&l.kit.get("short_gun")==Some(&1) {"short_gun"}
     else {l.class.starting_weapon()}

@@ -43,7 +43,7 @@ parity/UI/current18case checks pass. Owner's next class is Gunner with actual
 long/short guns, chambers and reload timing (`docs/CUT35_GUNNER.md`). Fifth class/paid unlock/classXP and real long/short gun chambers, reloads,
 aim/burst/smoke/fast reload/finisher are implemented, with forge choices and
 portrait/sprite. Compact played chamber/reload/aim watch and death-trace replay
-indicators have scoped real-worker QA. Public class offers remain hidden:
+indicators have scoped real-worker QA. Public paid Gunner offers are now enabled after scoped earned/core/worker acceptance:
 normal earned paid-upkeep paths now pass D13 within48h on all six seed/gun
 cases; current paid-upkeep campaigns reach D13 at8h and all six master
 within96–136h (pre-captive-fix mastery misses remain historical evidence). All six clear Tier0 within seven days. Ordinary reload retreat preserves
@@ -62,8 +62,9 @@ retains permanent kit, while ordinary found weapons still drop. Six full actual
 first-run native/WASM saves/events match exactly; compact Forge and responsive
 purchase/toggle QA pass. Current paid-upkeep campaigns and selected-backup one/three-slot8h
 catch-up parity pass; equal-work positive gun/reload overhead4.69–5.61% is
-within the10% bar. Final class choice/death/replay and broad client/current18-case
-acceptance are being completed before the public class offer is enabled. Earlier bow-
+within the10% bar. Actual public paid choice/reload persistence, death/replay and current18-case
+acceptance pass. The broad client run failed80/111 before exposure; failure audit
+and fixes remain open, so no blanket client-green or95fun claim. Earlier bow-
 override progression claims were corrected; see CUT35/HANDOFF. No deployment.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an

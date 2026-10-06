@@ -1,5 +1,27 @@
 # Cut 35 — Gunner, long guns and short guns
 
+## Public paid class checkpoint — 2026-10-07
+
+UI_READY=true exposes the earned Gunner offer. Added its missing class label so
+an unowned Gunner appears in the hero picker; selected class still leads with
+all7skill chips. CLASSES stays4 for the fake/default display seed: live Rust
+catalogue supplies the fifth offer. Real earned seed3 unlock camp, no grants:
+actual button buys/selects for exactly8marks, short gun275gold once, reload
+retains selected Gunner/short gun and marks.1440/400/320 no overflow/pageerrors;
+actual screenshots/scripts gunner-public-qa-20261007. Public offer test covers
+locked fresh town, earned gate, cost/ownership and duplicate full-save refusal.
+Old hidden-offer assertion updated to verify available offer without creating XP.
+
+675corePASS/oneignored,14toolsPASS, TS/copy1730zero, fast alltargetclippy/build,
+realWASM5482237bytes; current18-case routineFULL PASS/source5a82e7f17f85d591.
+Six old fixture saves/advance gameplay remain exact except intentionalmeters.
+No deploy. This does not certify the broad client suite: it failed80/111 in
+581.6s before public exposure. The31failures are retained and being audited in
+docs/CLIENT_GATE_AUDIT_20261007.md; selected real-worker Gunner checks pass,
+but no blanket client-green or95fun claim. Current late pen/manual house/Speed
+menu contracts require actual-flow checks instead of stale selectors. Numeric
+bars remain intact; unknown failures still need reproduction and fixes.
+
 ## Earned melee-backup contract — 2026-10-07
 
 Optional home-only Gunner forge choice `gun_sidearm`, paid once at one locked

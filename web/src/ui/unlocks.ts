@@ -19,7 +19,7 @@ const LABEL: Record<string, string> = {
   row5: "+1 rule slot", row6: "+1 rule slot", row7: "+1 rule slot", row8: "+1 rule slot", row9: "+1 rule slot", row10: "+1 rule slot",
   party_slot_2: "+1 party", party_slot_3: "+1 party", party_slot_4: "+1 party",
   vault2: "+1 storage slot", vault3: "+1 storage slot", vault4: "+1 storage slot", vault5: "+1 storage slot",
-  rogue: "class: rogue", ranger: "class: ranger", caster: "class: caster",
+  rogue: "class: rogue", ranger: "class: ranger", caster: "class: caster", gunner: "class: gunner",
   tame: "action: tame", throw: "action: throw",
   cond_alert: "condition: alert", cond_turns: "condition: turns", cond_loot: "condition: loot", cond_on_kill: "condition: on kill", cond_on_see: "condition: on see", cond_party_hp: "condition: party hp",
   corridor_fighting: "rule: corridor fighting", kite_archers: "rule: kite archers", stair_dance: "rule: stair dance", gas_step: "rule: gas step",
