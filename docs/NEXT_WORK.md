@@ -9,6 +9,11 @@ All43 item icons are covered in UX_ITEM_ICON_COVERAGE.md; the ending audit's
 unsafe refusal fallback is fixed in UX_ASCENSION_REFUSAL.md.
 Next: earned King/ending presentation and explanations for all four ascension
 variants, verifying actual carry/reset semantics including multiple bloodlines.
+Carry/reset audit now verified in UX_ASCENSION_CONSEQUENCES.md: 12 variant/slot
+transitions, six exact-save refusals, existing four variant behavior checks.
+Selected slot resets; shared spendable gold clears with its ledger adjustment;
+Legacy, town/workers/Savings and other heroes persist. Synthetic API fixtures
+do not prove an earned King victory. Ending UI work remains open.
 Then the audit's impact-ordered variety and optional-reset gameplay queue. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.

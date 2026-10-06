@@ -206,6 +206,76 @@ mod tests {
     use super::*;
     fn resident()->Session { let mut s=Session::new(1);s.active.build_town("house").unwrap();s.active.lineage.gold_move(1000,"test income");s }
     #[test]
+    fn ascension_preserves_bloodlines_and_town_but_resets_shared_wallet() {
+        for variant in crate::engine::VARIANTS {
+            for selected in 1..=3 {
+                let mut s=resident();s.add_bloodline().unwrap();s.add_bloodline().unwrap();
+                s.active.lineage.town.bank=123;
+                s.active.lineage.tree.ledger+=123;
+                crate::tree::grant(&mut s.active.lineage,&["porter","scout"]);
+                for id in 1..=3 {
+                    s.select_bloodline(id).unwrap();
+                    let l=&mut s.active.lineage;
+                    crate::legacy::ensure(l);
+                    let legacy=l.bloodline.as_mut().unwrap();
+                    legacy.points=40+id;legacy.upgrades.insert("health".into(),1);
+                    l.best_depth=10+id;l.heir_best=10+id;
+                    l.clock_s=86400+u64::from(id);
+                    l.facts.insert("foe:lich:boss".into());
+                    l.pkg.runs.insert("steady".into(),12);
+                    l.classes.insert("fighter".into(),crate::wire::ClassProg{level:7,xp:10,next:0});
+                    l.forge.insert("sword".into(),crate::wire::ForgeRow::at(20));
+                    l.kit.insert("sword".into(),2);
+                    l.vault.push(crate::item::Item::new(100_001,"plate"));
+                    l.unlocks.insert("cadence".into());
+                    if id!=selected {s.send();}
+                }
+                s.select_bloodline(selected).unwrap();
+                s.active.lineage.ended=true;
+                let before=serde_json::to_value(&s.active.lineage).unwrap();
+                let others=s.others.clone();
+                s.ascend(variant).unwrap();
+                let after=serde_json::to_value(&s.active.lineage).unwrap();
+                for field in ["bloodline_id","bloodline","hero_legacy","classes","facts","pkg","forge","town","sets","clock_s"] {
+                    assert!(before.get(field).is_some(),"fixture has {field}");
+                    assert_eq!(after[field],before[field],"{variant}, slot {selected}, carry {field}");
+                }
+                let mut expected_tree=before["tree"].clone();
+                expected_tree["ledger"]=serde_json::json!(before["tree"]["ledger"].as_i64().unwrap()-before["gold"].as_i64().unwrap());
+                assert_eq!(after["tree"],expected_tree,"only cleared gold changes worker bookkeeping");
+                assert_eq!(s.selected,selected);
+                assert_eq!(s.others,others,"unselected games, including live runs, untouched");
+                assert_eq!((s.active.lineage.gold,s.active.lineage.best_depth,s.active.lineage.heir),(0,0,1));
+                assert!(s.active.lineage.kit.is_empty());
+                assert_eq!(s.active.lineage.vault.is_empty(),variant=="bones_only");
+                assert_eq!(s.active.lineage.unlocks.contains("cadence"),variant=="short_list");
+                for (id,old) in others {
+                    s.select_bloodline(id).unwrap();
+                    assert_eq!(s.active.lineage.gold,0,"switch cannot restore old shared gold");
+                    assert_eq!(s.active.lineage.town.bank,123,"Savings survives");
+                    let mut expected=old;
+                    town_from(&s.active.lineage,&mut expected.lineage);
+                    assert_eq!(s.active,expected,"only shared town resources synchronize");
+                }
+            }
+        }
+    }
+    #[test]
+    fn ascension_refusal_preserves_complete_multibloodline_save() {
+        let mut s=resident();s.add_bloodline().unwrap();s.add_bloodline().unwrap();
+        for id in 1..=3 {
+            s.select_bloodline(id).unwrap();s.send();
+            let before=s.save();
+            assert!(s.ascend("hunted").is_err());
+            assert_eq!(s.save(),before,"premature refusal, slot {id}");
+            s.active.lineage.ended=true;
+            let before=s.save();
+            assert!(s.ascend("unknown").is_err());
+            assert_eq!(s.save(),before,"unknown variant, slot {id}");
+            s.active.lineage.ended=false;
+        }
+    }
+    #[test]
     fn offline_slice_multi_preserves_wallet_each_hero_and_complete_report() {
         for automated in [false,true] {
             let mut base=resident();base.add_bloodline().unwrap();base.add_bloodline().unwrap();

@@ -1,3 +1,17 @@
+**ASCENSION CONSEQUENCES AUDIT — 2026-10-06:**
+UX_ASCENSION_CONSEQUENCES.md source matrix and two new Session regression tests.
+All four variants × three selected slots: Legacy/upgrades, class XP, facts,
+trained packages, town/workers/Savings/forge salvage preserved; selected heir/
+record/kit reset, shared gold clears, ledger subtracts cleared gold. Other games
+unchanged in full before synchronization and after replacing only town fields;
+switch cannot recover stale gold. Six premature/unknown exact-save refusals.
+Eight focused fast native tests PASS; diff clean. Initial tree ledger equality
+and omitted zero clock fixture assertions corrected, no runtime changes.
+Synthetic ended fixtures prove API contract, not earned King/variant progression.
+No UI/WASM/runtime changes, full gate claim or deploy; shared5219 HTTP200.
+Next earned King/ending UI, variant explanations and explicit shared-gold review;
+then existing-content variety and scoped optional-reset proposal. Goal active.
+
 **ITEM COVERAGE + ASCENSION REFUSAL — 2026-10-06:**
 UX_ITEM_ICON_COVERAGE.md + UX_ASCENSION_REFUSAL.md implemented. All43 Rust item
 kinds now resolve to packaged art, tests require images rather than glyphs.
