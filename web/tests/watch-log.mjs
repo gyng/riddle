@@ -15,13 +15,13 @@ try {
    a.engine.send=async()=>s;
    a.engine.step=async ticks=>{
     const t=turn+1;turn+=ticks;
-    const events=first?[
+    const events=window.__extraLog?(window.__extraLog=false,[{k:'pickup',t,id:s.hero.id,item:'sword +2'}]):first?[
      {k:'telegraph',t,id:s.hero.id,what:'rallies'},
      {k:'heal',t,id:s.hero.id,amount:3,src:'heal'},
      {k:'pickup',t,id:s.hero.id,item:'sword +1'},
      {k:'descend',t,depth:depth+1,biome:s.biome},
      {k:'hurt',t,id:s.hero.id,dmg:2,hp:s.hero.hp-2,cause:'poison'}
-    ]:window.__fillLog&&!filled?(filled=true,Array.from({length:90},()=>({k:'pickup',t,id:s.hero.id,item:'gold'}))):[];
+    ]:window.__fillLog&&!filled?(filled=true,Array.from({length:90},(_,i)=>({k:'pickup',t,id:s.hero.id,item:`gold ${i}`}))):[];
     first=false;
     return {events,snapshot:{...s,turn,depth:depth+1},run_over:false};
    };
@@ -35,6 +35,15 @@ try {
   // The batch deliberately exceeds the ring: retained later pickups must use the descended floor.
   const result=await p.evaluate(()=>({rows:[...document.querySelectorAll('.combat-lines li')].map(x=>x.textContent),overflow:document.documentElement.scrollWidth>innerWidth}));
   if(result.rows.some(x=>!x.startsWith(`D${depth+1} · `))||result.overflow||errors.length)throw Error(JSON.stringify({width,depth,result,errors}));
+  await p.evaluate(()=>{document.querySelector('.combat-lines').scrollTop=180;});
+  await p.waitForFunction(()=>!document.querySelector('.log-latest').hidden);
+  const before=await p.evaluate(()=>{const rows=document.querySelector('.combat-lines');return {text:[...rows.children].find(x=>x.getBoundingClientRect().bottom>rows.getBoundingClientRect().top).textContent,top:rows.scrollTop,removed:rows.firstElementChild.offsetHeight};});
+  await p.evaluate(()=>window.__extraLog=true);
+  await p.waitForFunction(()=>document.querySelector('.combat-lines').lastElementChild?.textContent.includes('sword +2'));
+  const after=await p.evaluate(()=>{const rows=document.querySelector('.combat-lines');return{top:rows.scrollTop,text:[...rows.children].find(x=>x.getBoundingClientRect().bottom>rows.getBoundingClientRect().top).textContent,latest:!document.querySelector('.log-latest').hidden};});
+  if(after.top!==before.top-before.removed||after.text!==before.text||!after.latest)throw Error(JSON.stringify({before,after}));
+  await p.locator('.log-latest').click();
+  if(!await p.evaluate(()=>{const r=document.querySelector('.combat-lines');return r.scrollHeight-r.clientHeight-r.scrollTop<=2&&document.querySelector('.log-latest').hidden;}))throw Error('Latest must resume following');
   console.log(width,depth,'ordered floor attribution and80-entry bound PASS');
   await p.close();
  }

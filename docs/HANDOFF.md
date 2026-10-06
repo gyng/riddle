@@ -1,3 +1,20 @@
+**LIVE WATCH READING — 2026-10-06:** Speed tile now shows selected mode
+inside its face; still exactly two console actions. Run ended badge remains
+visible on the final picture. Plain combat history holds its visible older
+text as incoming entries trim the80-entry ring; Latest resumes following,
+keyboard history focus added. Actual removed-row height measured only when
+reading older entries; no animation-loop reads or game state/Rust changes.
+Five targeted suites pass48.4s (log/status/console/spacing/QA+stall44); frame63
+also passes. Build/typecheck/copy1570/diff clean, existing bundle advisory.
+Actual headed WASM earnedseed3 ownedBold400/1440 live/paused and realD6death
+screens shown; no errors/overflow, watched2nd vs engine3rd, gold8443 consistent.
+Final captures hold only verdict presentation then release to real death screen.
+Combined pause/end capture exceeded60s; separate captures completed. Contract
+UX_WATCH_LIVE_READING.md, scratchpad/watch-experience-20261006/. No deployment.
+Preview5423 cleaned; shared5219 preserved. Broad goal remains active; next
+local iteration opportunity remains measured UI part parallelism; gameplay
+balance evidence before tuning. Full client/balance suite not certified.
+
 **WATCH MESSAGE SPACING — 2026-10-06:** Phone endcause overlappedlog from
 independentbottom offsets. Transparentflexstack nowholds tip/ticker/cause/log,
 wrappedheight +8px gaps; inactive/suppressedfight/cut/emptylog rows collapse.

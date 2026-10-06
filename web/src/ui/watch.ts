@@ -417,9 +417,21 @@ export function renderWatch(app: App): Mounted {
         h("div", { class: "chips" }, skip, meterTile, bail));
     });
   } });
+  const speedMode = h("small", { class: "watch-speed-mode" }, mode0 === "one" ? /* copy:label */ "Normal" : mode0 === "fast" ? /* copy:label */ "Fast" : /* copy:label */ "Fights only");
+  speedBtn.querySelector(".tl")!.append(" ", speedMode);
   const cons = renderConsole({ portrait: face.el, tiles: [speedBtn, toTown], gem: pause, top: scrub, compact: true });
   const combatRows = h("ol", { class: "combat-lines", "aria-live": "off" });
-  const combatLog = h("div", { class: "combat-log", "aria-label": /* copy:label */ "Combat log" }, combatRows);
+  let logFollowing = true;
+  const logLatest = h("button", { class: "log-latest", hidden: true, onclick: () => {
+    logFollowing = true; combatRows.scrollTop = combatRows.scrollHeight; logLatest.hidden = true;
+  } }, /* copy:button */ "Latest ↓");
+  combatRows.tabIndex = 0;
+  combatRows.setAttribute("aria-label", /* copy:label */ "Combat history");
+  combatRows.addEventListener("scroll", () => {
+    logFollowing = combatRows.scrollHeight - combatRows.clientHeight - combatRows.scrollTop <= 2;
+    logLatest.hidden = logFollowing;
+  });
+  const combatLog = h("div", { class: "combat-log", "aria-label": /* copy:label */ "Combat log" }, logLatest, combatRows);
   let logDepth = app.lineage.live?.depth ?? 1;
   let repeatedRule: { key: string; el: HTMLElement; count: number; badge: HTMLElement } | undefined;
   function logEvent(ev: Ev, heroId: number, names: ReadonlyMap<number, string>, warningText?: string): void {
@@ -428,7 +440,7 @@ export function renderWatch(app: App): Mounted {
       repeatedRule.count++;
       repeatedRule.badge.textContent = ` ×${repeatedRule.count}`;
       repeatedRule.el.dataset.tick = String(ev.t);
-      combatRows.scrollTop = combatRows.scrollHeight;
+      if (logFollowing) combatRows.scrollTop = combatRows.scrollHeight;
       return;
     }
     repeatedRule = undefined;
@@ -453,8 +465,13 @@ export function renderWatch(app: App): Mounted {
       row.appendChild(badge); repeatedRule = { key: ruleKey, el: row, count: 1, badge };
     }
     combatRows.appendChild(row);
-    while (combatRows.childElementCount > 80) combatRows.firstElementChild?.remove();
-    combatRows.scrollTop = combatRows.scrollHeight;
+    while (combatRows.childElementCount > 80) {
+      const first = combatRows.firstElementChild as HTMLElement;
+      const height = logFollowing ? 0 : first.offsetHeight;
+      first.remove();
+      if (!logFollowing) combatRows.scrollTop = Math.max(0, combatRows.scrollTop - height);
+    }
+    if (logFollowing) combatRows.scrollTop = combatRows.scrollHeight;
   }
   const wideMeters = h("div", { class: "meters-live" });
   const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
@@ -1735,6 +1752,7 @@ export function renderWatch(app: App): Mounted {
   function setMode(m: Mode): void {
     if (app.watchMode !== m) { app.watchMode = m; app.persist(); }   // remembered for the next run
     const wasCard = cardUp;
+    speedMode.textContent = m === "one" ? /* copy:label */ "Normal" : m === "fast" ? /* copy:label */ "Fast" : /* copy:label */ "Fights only";
     mode = m; freeze(false, hidden); mapHold = false; cardLive = false; el.dataset.mode = m;
     // Cut 14 §6: leaving the card (`fights` → `fast`) lands live — the travel under it was the world's skip, not a replay owed
     if (wasCard && m !== "fights" && !held && !exitTier) goLive();
@@ -2132,7 +2150,7 @@ export function renderWatch(app: App): Mounted {
     // the stilled pause; the verdict / report gem comes once the last frame has played (`nextGem`)
     pause.disabled = true;
     for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, toTown]) b.disabled = true;
-    liveBadge.hidden = true;   // RUNS_UI: the run is over — nothing live left here
+    paintWatchStatus();   // Keep the ended state visible while its last picture plays.
   }
   function nextGem(): void {
     if (el.dataset.next === "1" || !pause.isConnected) return;

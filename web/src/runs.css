@@ -249,3 +249,13 @@ button.re-body { cursor: pointer; }
 .class-xp-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 10px; margin-top: 5px; font-size: 16px; }
 .class-xp-owner { flex-basis: 100%; color: #63563f; font-size: 13px; }
 .class-xp-gain, .class-xp-level { color: #684e20; }
+
+/* Playback mode remains visible without adding another console control. */
+.watch .tile[data-tile="speed"] { overflow: visible; }
+.watch .watch-speed-mode { display: block; margin-top: 3px;
+  white-space: nowrap; font: 600 11px/15px var(--sans); color: var(--bone); text-shadow: 0 1px 3px #000; }
+.watch .combat-lines { overflow-anchor: none; }
+.watch .combat-lines:focus-visible { outline: 1px solid var(--gilt); outline-offset: 2px; }
+.watch .log-latest { display: block; margin: 0 0 4px auto; padding: 3px 6px;
+  border: 0; background: none; box-shadow: none; color: #f5cf79; font: 600 12px/18px var(--sans); text-shadow: 0 1px 3px #000; }
+.watch .log-latest[hidden] { display: none; }

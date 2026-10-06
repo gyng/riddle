@@ -30,6 +30,7 @@ try{for(const width of [400,1440]){
  await p.waitForFunction(()=>document.querySelector('.live-badge')?.dataset.status==='live');
  await p.locator('.console .gem').click();await p.evaluate(()=>window.__endWatch=true);
  await p.waitForFunction(()=>document.querySelector('.live-badge')?.dataset.status==='ended');
+ if(!await p.locator('.live-badge').isVisible())throw Error('End status hidden');
  const end=await p.locator('.live-badge').innerText();if(!end.includes('Run ended')||!end.includes('Watching D6'))throw Error(end);
  if(errors.length)throw Error(errors.join('\n'));console.log(width,'status/paused core progress/resume/ending PASS');await p.close();
 }}finally{await b.close();}

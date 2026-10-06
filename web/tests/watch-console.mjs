@@ -15,8 +15,10 @@ try{for(const width of [320,360,400,840,1440]){
   return{labels,fillers:document.querySelectorAll('.console .cmd .empty').length,overlap:buttons.some(b=>extras.some(e=>overlap(rect(b),rect(e)))),overflow:document.documentElement.scrollWidth>innerWidth};
  });
  if(result.labels.length!==2||result.fillers||result.overlap||result.overflow||result.labels.some(x=>!x.fits||!x.touch))throw Error(JSON.stringify({width,result}));
+ if(await p.locator('.watch-speed-mode').innerText()!=='Fights only')throw Error('Default mode missing');
  await p.locator('[data-tile=speed]').click();await p.locator('.sheet [data-tile=fast]').click();
  await p.waitForFunction(()=>document.querySelector('.watch')?.dataset.mode==='fast'&&!document.querySelector('.sheet'));
+ if(await p.locator('.watch-speed-mode').innerText()!=='Fast')throw Error('Selected mode missing');
  await p.locator('.console .gem').click();await p.waitForFunction(()=>document.querySelector('.watch')?.dataset.speed==='0');
  await p.locator('.console .gem').click();await p.waitForFunction(()=>Number(document.querySelector('.watch')?.dataset.speed)>0);
  await p.locator('.console [data-tile=town]').click();await p.waitForFunction(()=>window.__riddle.screen==='camp');

@@ -756,7 +756,7 @@ try {
   f = await frame();
   check(f.bar && f.console && f.gem?.visible && ["⏸", "▶"].includes(f.gem.text), `watch: bar + console, ⏸ in the gem (${JSON.stringify(f.gem)})`);
   const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((b) => b.textContent.trim()));
-  check(cmd.join(" · ") === "Speed · Town menu", `watch: Speed groups controls and Town menu stays visible (${cmd.join(" · ")})`);
+  check(cmd.length === 2 && /^Speed (Normal|Fast|Fights only)$/.test(cmd[0]) && cmd[1] === "Town menu", `watch: Speed groups controls and Town menu stays visible (${cmd.join(" · ")})`);
   await shot("ui-watch");
   let s = await state(); const tw = Date.now();
   while (s?.screen === "watch" && Date.now() - tw < 90_000) { await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); await sleep(250); s = await state(); }
