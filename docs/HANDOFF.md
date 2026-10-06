@@ -1,3 +1,24 @@
+**EARNED ENDING + REAL ASCENSION PROOF — 2026-10-06:**
+Normal TUNED seed3 kills Mirror King on day4. Bounded dayplayer5day job stopped
+at check-in12 via DP_CHECKPOINT_STOP_AFTER (exit75 diagnostic, not gatePASS).
+Exact original checkpoint and float-bit-decoded/integer-preserving Game export
+retained scratchpad/earned-ending-20261006/, provenance hashes in
+UX_ASCENSION_CONSEQUENCES.md. Earned heir33/D34,173runs/32deaths/$2850/204facts;
+ended and mirror_king kill confirmed, no display/balance overrides. Earlier
+60day search terminated after capture; first-victory reproduction authoritative.
+Four actual UI-confirmed WASM variants and Hunted with legally purchased two
+other bloodlines already sent: full resulting saves byte-identical to native
+and durable storage, reviews/Escape fullsave unchanged, other games/live runs
+integer-exact unchanged (Python final check). Headed400/1440 earned ending/
+review/newcamp screenshots viewed/shown, noerrors/overflow. Scripts/full saves
+and verification JSON retained. No runtime/UI/art/balance change or deployment;
+long-term variant progression/full gates uncertified. Fixed-choice14d six-case
+diagnostic90.7s onlyD23, no ending, distinguished from tuned victory.
+Post-ascension camp capture reveals retained XP/class bar plus automation
+meet-Lich gate despite retained workers; next audit persistent management
+controls vs reset progression before content-variety/optional-reset proposal.
+Goal active; task preview5455 group2162224 cleaned; shared5219 HTTP200.
+
 **EXPLAINED ENDING + ASCENSION REVIEW — 2026-10-06:**
 UX_ASCENSION_CONSEQUENCES.md UI implemented. Shared chunky ending panel,
 actual Mirror King portrait, four concise explained challenges. Short list/

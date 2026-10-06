@@ -16,8 +16,15 @@ Legacy, town/workers/Savings and other heroes persist. Synthetic API fixtures
 do not prove an earned King victory. Ending UI now implements framed explained
 choices and centered pre-reset review;39checks across phone/desktop/landscape,
 frame63/QA41 pass. Diagnostic screenshots preserve real-WASM save exactly.
-Earned King-ending playthrough and successful WASM variant transition remain
-open before claiming the full ending checkpoint verified.
+Earned ending now verified: normal TUNED seed3 first King on day4, exact
+check-in export; all four actual WASM ascensions match native and durable full
+saves. Hunted with two other live bloodlines preserves both games. Headed
+400/1440 earned ending/review/camp screenshots shown, no display overrides.
+See UX_ASCENSION_CONSEQUENCES.md; long-term variant completion and full balance
+suite remain uncertified. Next existing-content variety and optional-reset proposal.
+Earned post-ascension camp capture reveals a renewed class bar and automation
+meet-Lich gate despite retained workers. Audit retained management access vs
+reset progression before expanding content; preserve core carry/reset semantics.
 Then the audit's impact-ordered variety and optional-reset gameplay queue. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.

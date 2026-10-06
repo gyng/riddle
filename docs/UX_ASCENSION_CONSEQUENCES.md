@@ -86,3 +86,34 @@ bottom-aligned review; final art/frame/centering reuse shared components.
 Artifacts scratchpad/ending-review-20261006/. Earned King playthrough and actual
 successful WASM transition remain outstanding; core variant behavior and
 multihero reset semantics are verified separately above. Not deployed.
+
+## Earned ending verification
+
+Supersedes the outstanding earned-ending note above. Normal TUNED seed3 bot
+slays Mirror King on day4. Bounded reproduction:
+`DP_CHECKPOINT_STOP_AFTER=12 target/fast/examples/dayplayer --seeds 3 --only 3
+--bots tuned --days 5 --checkins 3 --resume`. Diagnostic exit75 intentionally
+stops at the twelfth complete check-in; not a completed five-day gate. No
+balance/seed/state overrides. Snapshot heir33/D34,173 runs,32 deaths,$2850,
+204 facts; `ended=true` and `kills` includes Mirror King. Original exact
+checkpoint preserved; decode float-bit envelope and retain integer values when
+exporting its serialized Game, with no gameplay-field changes. Provenance:
+binary SHA256 `bdd7912dda44ce13a528fc4c10b091887c6fd17d093ea9e26a91ac69af5d54f0`,
+export SHA256 `a9a3020c3eea7949e19f885e2e61f7f3be91341bd0259e0a3a8a6d7be78da469`.
+
+All four actual browser-WASM choices successfully ascend that earned save;
+each complete resulting save is byte-identical to native JSON-bridge execution
+and the persisted `riddle.save.engine`. Review/Escape preserve the complete
+save. Endings/reviews/new camps captured headed400/1440, no errors/overflow,
+viewed/shown without diagnostic display overrides. Hunted also verified after
+legally purchasing two extra bloodlines and sending both: other saved games
+and live runs preserved, full native/WASM and durable-save equality. Artifacts,
+source checkpoint, exported save, full resulting saves and scripts recorded in
+scratchpad/earned-ending-20261006/. No runtime/UI/art/balance changes this
+checkpoint; no deployment or full-suite claim.
+
+Separate14-day fixed-choice diagnostic from the earned D21 town reached at
+mostD23 across six legal tactics/Legacy cases (90.7s total); it did not earn the
+ending. Initial60-day tuned search stopped once captured; rerun above pins
+the first victory rather than using the later post-victory town. A long-term
+variant completion or general pacing verdict is not proved by this checkpoint.
