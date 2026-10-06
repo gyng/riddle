@@ -32,6 +32,7 @@ FRAMES = {
 ICON_PX = 96   # 48 CSS px at 2x
 BACKDROP_W = 720   # gfx round 1: painted backdrops behind a place (death, report), 1024×1536 opaque portraits from Codex
 PORTRAIT_PX = 256   # art pass: the well's face is 56 CSS px (168 device px at 3x); square, opaque — the CSS circle masks it
+DECO_MAX_PX = {"house_plot_v2": 384}   # small in-world overlay, not a full-size column/backdrop
 
 
 def usable(im: Image.Image) -> bool:
@@ -93,7 +94,11 @@ def main() -> None:
         if im.mode == "RGBA" and not usable(im):
             bad.append(str(p.relative_to(ROOT)))
             continue
-        im.resize((im.width * 3 // 4, im.height * 3 // 4), Image.LANCZOS).save(OUT / "deco" / f"{p.stem}.webp", quality=84, method=6)
+        size = (im.width * 3 // 4, im.height * 3 // 4)
+        if p.stem in DECO_MAX_PX:
+            scale = min(0.75, DECO_MAX_PX[p.stem] / max(im.size))
+            size = (round(im.width * scale), round(im.height * scale))
+        im.resize(size, Image.LANCZOS).save(OUT / "deco" / f"{p.stem}.webp", quality=84, method=6)
         deco.append(p.stem)
     # gfx round 10: effect art (the boss's shield and its shards, art/ui/fx): 256 px on its long side, alpha kept
     (OUT / "fx").mkdir(parents=True, exist_ok=True)

@@ -9,6 +9,8 @@ type Skin = { frames: Record<string, { w: number; h: number; slice?: number }>; 
 const S = skin as Skin;
 const ICONS = new Set(S.icons);
 const PORTRAITS = new Set(S.portraits ?? []);
+const DECO = new Set(S.deco ?? []);
+export const decorationSrc = (id: string): string | null => DECO.has(id) ? `${import.meta.env.BASE_URL}ui/deco/${id}.webp` : null;
 
 /** Art pass: a painted headshot (`hero_<class>`, `pet_<kind>`, `captive`, `boss_<kind>`) when packed, else null (the caller keeps
  *  its fallback — the atlas sprite crop). */
@@ -55,7 +57,7 @@ export function verbIcon(v: string): string | null {
 /** Moonlit character/relic silhouettes for styles/traits; action icons for extra tactics. */
 export function packageIcon(id: string): HTMLElement {
   const actions: Record<string, string> = { boss_focus: "v_attack", corridor_fighting: "v_corridor", kite_archers: "v_shoot", thief_guard: "v_shield", gas_step: "v_retreat", pack_break: "v_throw", custom: "edit" };
-  const expressive = [6, 4, 3, 2].some((version) => hasIcon(`pkg_${id}_v${version}`));
-  const name = hasIcon(`pkg_${id}_v6`) ? `pkg_${id}_v6` : hasIcon(`pkg_${id}_v4`) ? `pkg_${id}_v4` : hasIcon(`pkg_${id}_v3`) ? `pkg_${id}_v3` : hasIcon(`pkg_${id}_v2`) ? `pkg_${id}_v2` : hasIcon(`pkg_${id}`) ? `pkg_${id}` : actions[id] ?? "unlocks";
+  const expressive = [7, 6, 4, 3, 2].some((version) => hasIcon(`pkg_${id}_v${version}`));
+  const name = hasIcon(`pkg_${id}_v7`) ? `pkg_${id}_v7` : hasIcon(`pkg_${id}_v6`) ? `pkg_${id}_v6` : hasIcon(`pkg_${id}_v4`) ? `pkg_${id}_v4` : hasIcon(`pkg_${id}_v3`) ? `pkg_${id}_v3` : hasIcon(`pkg_${id}_v2`) ? `pkg_${id}_v2` : hasIcon(`pkg_${id}`) ? `pkg_${id}` : actions[id] ?? "unlocks";
   return h("span", { class: `icon-socket${expressive ? " expressive-emblem" : ""}`, "aria-hidden": "true" }, icon(name, "✦"));
 }

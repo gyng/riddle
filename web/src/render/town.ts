@@ -606,7 +606,11 @@ export function createTownView(host: HTMLElement): TownView {
     const flick = 0.9 + 0.1 * Math.sin(t * 11) * Math.sin(t * 3.7);
     if (s.home) F.lights.push({ x: f.x, y: f.y - 8, r: (46 + night * 44) * flick, c: [1.0, 0.6, 0.26].map((v) => v * (0.45 + night * 1.5) * flick) as [number, number, number] });
     flickNow = flick;
-    if (s.home) sprite(["town_house_1", "town_storehouse_1"], PLOTS.house.h, PLOTS.house.x, PLOTS.house.y);
+    if (s.home) {
+      const p = PLOTS.house, at = builtAt.get("house");
+      if (at !== undefined && t - at < 1.3) sprite("town_scaffold", p.h, p.x, p.y);
+      else sprite(["town_house_1", "town_storehouse_1"], p.h, p.x, p.y);
+    }
     if (s.home && night > 0.3) F.lights.push({ x: PLOTS.tent.x, y: PLOTS.tent.y - 6, r: 14, c: [0.9, 0.55, 0.25] });
     if (s.home) sprite("town_crate", PLOTS.crate.h, PLOTS.crate.x, PLOTS.crate.y);
     if (s.board) sprite("town_board", PLOTS.board.h, PLOTS.board.x, PLOTS.board.y);
@@ -626,7 +630,8 @@ export function createTownView(host: HTMLElement): TownView {
     }
     if (s.staked) {
       const p = PLOTS[s.staked.id];
-      sprite("town_plot", 16, p.x, p.y);
+      // The first home's larger painted foundation is a UI overlay at this plot.
+      if (s.staked.id !== "house") sprite("town_plot", 16, p.x, p.y);
     }
     // Cut 30.5: the haul chest by the mouth — full, it hops and glints; open, the lid up a moment after the tap
     if (s.chest) {
@@ -700,8 +705,8 @@ export function createTownView(host: HTMLElement): TownView {
     const dt = Math.min(0.1, t - emitT); emitT = t;
     const f = PLOTS.fire;
     const rand = Math.random;
-    if (rand() < dt * 5) parts.push({ x: f.x + (rand() - 0.5) * 4, y: f.y - 10, vx: (rand() - 0.5) * 2, vy: -10 - rand() * 4, age: 0, life: 2.4 + rand(), kind: "smoke", c: SMOKE[Math.floor(rand() * 3)]!, s: rand() < 0.5 ? 2 : 3 });
-    if (rand() < dt * 4) parts.push({ x: f.x + (rand() - 0.5) * 6, y: f.y - 6, vx: (rand() - 0.5) * 6, vy: -22 - rand() * 10, age: 0, life: 0.6 + rand() * 0.4, kind: "ember", c: EMBER[Math.floor(rand() * 3)]!, s: 1 });
+    if (state!.home && rand() < dt * 5) parts.push({ x: f.x + (rand() - 0.5) * 4, y: f.y - 10, vx: (rand() - 0.5) * 2, vy: -10 - rand() * 4, age: 0, life: 2.4 + rand(), kind: "smoke", c: SMOKE[Math.floor(rand() * 3)]!, s: rand() < 0.5 ? 2 : 3 });
+    if (state!.home && rand() < dt * 4) parts.push({ x: f.x + (rand() - 0.5) * 6, y: f.y - 6, vx: (rand() - 0.5) * 6, vy: -22 - rand() * 10, age: 0, life: 0.6 + rand() * 0.4, kind: "ember", c: EMBER[Math.floor(rand() * 3)]!, s: 1 });
     const smith = state!.buildings.find((b) => b.id === "blacksmith" && !(builtAt.has(b.id) && t - builtAt.get(b.id)! < 1.3));
     if (smith) {
       const p = PLOTS.blacksmith;
@@ -790,6 +795,7 @@ export function createTownView(host: HTMLElement): TownView {
     el,
     setState(s) {
       const prev = state; state = s;
+      if (prev?.home === false && s.home && !matchMedia("(prefers-reduced-motion: reduce)").matches) builtAt.set("house", t - 0.8);
       // a building the player has not seen yet goes up on this mount: scaffold → built
       for (const b of s.buildings) if (b.fresh && !builtAt.has(b.id) && !prev?.buildings.some((x) => x.id === b.id)) builtAt.set(b.id, t + 0.4);
       // a worker hired since the last state (he stood greyed, or nowhere): out of the tent, along the paths, to his post
@@ -802,8 +808,8 @@ export function createTownView(host: HTMLElement): TownView {
       if (!prev || key(prev) !== key(s)) build(prev?.home === false && s.home);
       if (prev?.home === false && s.home && hero && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
         const destination = NODES.tent!;
-        hero.from = t; hero.legs = [];
-        legsAlong([{ x: destination.x + 100, y: destination.y + 70 }, destination], t, 80, hero.legs);
+        hero.from = t + 0.5; hero.legs = [];
+        legsAlong([{ x: destination.x + 100, y: destination.y + 70 }, destination], t + 0.5, 100, hero.legs);
       }
       fit(); layoutDirty = true; start();
     },

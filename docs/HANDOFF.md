@@ -1,3 +1,22 @@
+**FIRST HOUSE GFX + V7 ICON READABILITY — 2026-10-06:** Owner rejected v6
+readability; all8 now broad pixel silhouettes/dark contours/bone highlights,
+unframed44–52px, no portraits/mascots. Built-in imagegen9separateassets; exact
+prompts art/prompts/readable-traits-v7/ +house_plot_v2.txt; sources art/ui/icons/
++art/ui/deco/house_plot_v2.png. Plot packed384×247WebP27056bytes/164×108CSS,
+SVG fallback. Carved existingbutton frame connects to empty foundation; entire
+plot +plaque sharemanualbusyguard and accessiblebuildlabel. House0.5s scaffold
+then dust/1.22sheroarrival/Send1.8s; reducedmotion immediate/no reveal onexisting
+town. Unbuilt campfire no longer emits smoke/embers. Realheaded320/400/1440
+manual+busy checks; night/fallback/reduced/compact320×640 clean; reloadafterflush
+(the existingsave debounce still applies). Screenshotsshown. All8decoded/no
+overlap/overflow/errors; finalfirstplot+selection28+death44+desk pass12.4s;
+validtownday0/desk4.2s. Build/typecheck/copy1535 pass,bundleadvisory. No core/
+balance/deploy/performance claim. GFX_FIRST_PLOT.md; scratchpad/house-traits-
+20261006/. Stop repacking whilebrowserQA runs (skinHMR temporarilyunmountsDOM).
+Next: follow owner feedback on the shown icons/first-town scene; don't assume
+readability without user review. Broad gameplay next uses choice-check savedtown
+comparisons ratherthan hours-long gates. Previousbossreturn work09d7f27complete.
+
 **FIRST BOSS VICTORIES VISIBLE — 2026-10-06:** Explicit boss bests now above
 Details, existing foe art/readable labels, no invented gold reward. Per-slot
 BloodlineReturn.bests defaulted, merged byowner; selected top-level compatible.

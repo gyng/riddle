@@ -1,3 +1,6 @@
+**Superseded:** Owner found v6 unreadable too. v7 replaces all eight with
+broader pixel silhouettes; see [GFX_FIRST_PLOT.md](GFX_FIRST_PLOT.md).
+
 # Moonlit combat styles and traits — 2026-10-06
 
 Owner correction: replace the sports-mascot impression with the established

@@ -212,4 +212,8 @@ with stepped painted shapes and a substantial pale silhouette. Human portrait
 expressions were also rejected: their details disappear at icon size. Animal
 team-badge faces and sports-mascot styling are superseded. Keep silhouettes without a
 surrounding tile, circle or badge; judge at44–52px in the tactics window.
-The v6 set and exact prompts are documented in GFX_GOTHIC_TRAIT_ICONS.md.
+Owner rejected v6 readability too. The v7 set reduces the icons to broad pixel
+masses, dark contours and bone-white highlights with one accent. Prefer legible
+negative spaces over fine painted detail. Keep the eight choices distinct in
+shape as well as colour; assess phone and desktop game-size captures.
+Sources/prompts: GFX_FIRST_PLOT.md. v6 history: GFX_GOTHIC_TRAIT_ICONS.md.

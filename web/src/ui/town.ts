@@ -9,7 +9,7 @@ import type { App } from "../app";
 import type { Lineage, ReturnReport } from "../engine/types";
 import { createTownView, townState, BUILDINGS, type BuildingId, type PlotId, type TownState, type TownView } from "../render/town";
 import { h, replace } from "./dom";
-import { icon } from "./skin";
+import { decorationSrc, icon } from "./skin";
 import { kitAffordable } from "./forge";
 import { openWindow as openSheet } from "./sheet";
 import { tile, paintFace } from "./frame";
@@ -68,6 +68,8 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   const foundation = h("div", { class: "town-foundation", hidden: true, "aria-hidden": "true" });
   // Presentation-only vector: an empty foundation and four stakes, no house silhouette.
   foundation.innerHTML = /* copy:none */ '<svg viewBox="0 0 104 64" xmlns="http://www.w3.org/2000/svg"><path class="chalk" d="M12 32 52 12 92 32 52 52Z"/><path class="stake" d="M12 32V22 M52 12V2 M92 32V22 M52 52V42"/><path class="stake-cap" d="M8 20h8v4H8z M48 0h8v4h-8z M88 20h8v4h-8z M48 40h8v4h-8z"/></svg>';
+  const plotArt = decorationSrc("house_plot_v2");
+  if (plotArt) foundation.append(h("img", { src: plotArt, alt: "", draggable: "false", onload: () => foundation.classList.add("painted"), onerror: () => foundation.classList.remove("painted") }));
   // Cut 30.5: the `next` pill rides the scene's top-left (the home screen's one goal); a tap opens the works on its node
   const pill = nextPill(app, (node, at) => openWorks(app, node, at));
   kwHost(pill.el, "next");   // docs/TOOLTIPS.md: its tip on long-press / hover
@@ -102,7 +104,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     const previousHome = state?.home;
     state = townState(L, absence, { seen: s0.seen, opened: s0.opened, kit: kitInfo(), absenceNew: !!absence, board: questShown(L), chestOpen: performance.now() < chestOpenUntil });
     view.setState(state);
-    if (previousHome === false && state.home) hooks.resident?.(matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1600);
+    if (previousHome === false && state.home) hooks.resident?.(matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1800);
     // seen now (a re-mount does not raise it again)
     const built = state.buildings.map((b) => b.id);
     const fresh = built.filter((b) => !s0.seen.includes(b));
@@ -138,12 +140,14 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     for (const [id, b] of btns) if (!want.some((w) => w.id === id)) { b.remove(); btns.delete(id); }
     for (const w of want) {
       let b = btns.get(w.id);
+      const label = w.id === "staked" && s.staked?.id === "house" ? /* copy:button */ "Build house" : LABEL[w.id] ?? w.id;
       if (!b) {
-        const label = w.id === "staked" ? `${LABEL.staked}` : LABEL[w.id] ?? w.id;
         b = h("button", { class: `town-hit hit-${w.id}`, "data-building": w.id, "aria-label": label, onclick: (e: Event) => tap(w.id, e) }, h("span", { class: "vh" }, label));
         if (HIT_TERM[w.id]) kwHost(b, HIT_TERM[w.id]!);
         btns.set(w.id, b); hits.appendChild(b);
       }
+      b.setAttribute("aria-label", label);
+      b.querySelector(".vh")!.textContent = label;
       // markers ride their building's target (one surface, the same panel)
       const mk = s.markers.filter((m) => m.at === w.id);
       // the lit worker carries his price (`$40` · `free`), the chest the porter's count (`2/3`)
@@ -158,8 +162,15 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       const ce = b.querySelector(".town-count"); if (cnt) { if (ce) ce.textContent = cnt; else b.appendChild(h("span", { class: "town-count num" }, cnt)); } else ce?.remove();
     }
     // c30-legible: the staked plot always wears its tag — what it becomes and what raises it (`kennel · first tame`), not only on tap
-    if (s.staked && (s.stage >= 1 || s.staked.ready)) { replace(tag, s.staked.id === "house" ? icon("works", "⚒") : null, h("span", { class: s.staked.id === "house" ? "build-copy" : "" }, h("span", { class: "build-title" }, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, LABEL[s.staked.id] ?? s.staked.id)), s.staked.id === "house" ? h("small", { class: "dim" }, /* copy:label */ "Free") : s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : "")); tag.hidden = false; tag.dataset.next = s.staked.id; }
+    if (s.staked && (s.stage >= 1 || s.staked.ready)) {
+      const firstHome = s.staked.id === "house";
+      replace(tag, firstHome ? icon("forge", "⚒") : null,
+        h("span", { class: firstHome ? "build-copy" : "" }, h("span", { class: "build-title" }, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, LABEL[s.staked.id] ?? s.staked.id)), firstHome ? h("small", { class: "dim" }, /* copy:label */ "Free") : null),
+        !firstHome && s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : null);
+      tag.hidden = false; tag.dataset.next = s.staked.id;
+    }
     else tag.hidden = true;
+    tag.classList.toggle("home-build", s.home === false && s.staked?.id === "house");
     if (s.staked?.ready && app.engine.buildTown) { tag.setAttribute("role", "button"); tag.tabIndex = 0; }
     else { tag.removeAttribute("role"); tag.removeAttribute("tabindex"); }
     layout();
@@ -172,7 +183,8 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       if (!r) { b.hidden = true; continue; }
       b.hidden = false;
       // ≥ 44 px each way, centred on the sprite (a building's box trimmed to its body: the roof's sky is not the building)
-      const w = Math.max(44, r.w * (id === "mouth" ? 0.6 : id === "chest" || id === "worker" ? 1 : 0.86)), hh = Math.max(44, r.h * (id === "mouth" ? 0.7 : id === "chest" || id === "worker" ? 1 : 0.8));
+      const firstPlot = id === "staked" && s.staked?.id === "house";
+      const w = firstPlot ? 164 : Math.max(44, r.w * (id === "mouth" ? 0.6 : id === "chest" || id === "worker" ? 1 : 0.86)), hh = firstPlot ? 108 : Math.max(44, r.h * (id === "mouth" ? 0.7 : id === "chest" || id === "worker" ? 1 : 0.8));
       const cx = r.x + r.w / 2, by = r.y + r.h;
       Object.assign(b.style, { left: `${Math.round(cx - w / 2)}px`, top: `${Math.round(by - hh + (hh > r.h ? (hh - r.h) / 2 : 0))}px`, width: `${Math.round(w)}px`, height: `${Math.round(hh)}px` });
     }
@@ -186,7 +198,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     if (first) Object.assign(foundation.style, { left: `${Math.round(cx)}px`, top: `${Math.round(r.y + r.h / 2)}px` });
     const half = tag.offsetWidth / 2;
     Object.assign(tag.style, { left: `${Math.round(Math.max(half + 8, Math.min(el.clientWidth - half - 8, cx)))}px`,
-      top: `${Math.round(first ? Math.min(el.clientHeight - 8, r.y + r.h / 2 + 42 + tag.offsetHeight) : r.y - 6)}px` });
+      top: `${Math.round(first ? Math.min(el.clientHeight - 8, r.y + r.h / 2 + 66 + tag.offsetHeight) : r.y - 6)}px` });
   }
   function tap(id: string, e: Event): void {
     view.poke();
