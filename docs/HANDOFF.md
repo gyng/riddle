@@ -1,3 +1,18 @@
+**TRAILING WATCH METER PAINT — 2026-10-06:** Source audit: log per-eventtick,
+meters final snapshot tick; prior paused hit/zero screenshot can legitimately
+sit between those ticks. Separate verified bug:400ms throttle dropped final
+paint with no later released snapshot. Mounted baseline failed paused12hp.
+Single trailing timeout reads only last reached lastMeters; coalesces, clears
+on force/dispose, no engine/poll calls. Final16mountedchecks400/1440pass7.2s:
+6→rapid12/18→paused18 while core999 queued→resume999→dispose pending888,
+detached meter unchanged. Fixture corrected to monotonic ticks; code unchanged.
+Initial combined12+watch-status+roster38pass15.5s, later fixture-only additions.
+Build/typecheck/copy1524/diffpass,bundleadvisory. Headed realWASMseed2house/send
+400/1440noerrors/overflow; desktop6hp checkpoint shown, phone compactoffdefault.
+UX_WATCH_METERS.md evidence/limits; no Rust/WASM/gameplay/deployment. Next:
+repeated policy rows still consume3line overlay; inspect coalescing consecutive
+identical decisions, preserve changed actions/targets and all damage/items.
+
 **COMPACT COMBAT HIT ROWS — 2026-10-06:** Watch-only filtering removes later
 hurt identical to positive successful attack on tick/destination/amount/source
 cause, one-to-one; known source kind or hero, never infer unknown. Modified

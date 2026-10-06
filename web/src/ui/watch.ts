@@ -399,7 +399,7 @@ export function renderWatch(app: App): Mounted {
   const busyHost = h("span", { hidden: true });   // the engine's busy label at the end (the next gem says it): not in the corner
   // Cut 29 §3: the compact meter over the stage (the fight in progress, else the run so far), toggled from the command card and
   // remembered per viewer; the desktop's right column carries the run's whole breakdown
-  let metersOn = readMetersOn(), lastMeters: SnapMeters | undefined, meterPaintAt = 0;
+  let metersOn = readMetersOn(), lastMeters: SnapMeters | undefined, meterPaintAt = 0, meterTimer = 0;
   const meterBox = h("div", { class: "meter-box", hidden: !metersOn });
   const meterTile = tile({ id: "meters", cls: "meter-btn", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
     metersOn = !metersOn; writeMetersOn(metersOn); meterTile.classList.toggle("on", metersOn); meterBox.hidden = !metersOn; paintMeters(true);
@@ -441,8 +441,15 @@ export function renderWatch(app: App): Mounted {
   const wideMeters = h("div", { class: "meters-live" });
   const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
   function paintMeters(now = false): void {
-    if (!lastMeters) return;
-    const t = performance.now(); if (!now && t - meterPaintAt < METER_PAINT_MS) return; meterPaintAt = t;
+    if (disposed || !lastMeters) return;
+    const t = performance.now(), remaining = METER_PAINT_MS - (t - meterPaintAt);
+    if (!now && remaining > 0) {
+      // Retry the latest already-reached snapshot, even if the picture pauses
+      // before another batch lands. Never read the engine's future snapshot.
+      if (!meterTimer) meterTimer = window.setTimeout(() => { meterTimer = 0; paintMeters(); }, remaining);
+      return;
+    }
+    clearTimeout(meterTimer); meterTimer = 0; meterPaintAt = t;
     if (metersOn) replace(meterBox, compactLine(lastMeters));
     if (wide.slot) replace(wideMeters, meterPanel(lastMeters.run, app.rules.rows, { title: /* copy:label */ "this run" }));
   }
@@ -2352,7 +2359,7 @@ export function renderWatch(app: App): Mounted {
   const onVisibility = (): void => { freeze(paused, document.hidden); if (!hidden) goLiveOwed = true; applySpeed(); };
   document.addEventListener("visibilitychange", onVisibility);
   return { el, dispose: () => {
-    disposed = true; audio.bed(null); clearTimeout(dockTimer); bar.dispose(); window.removeEventListener("riddle:focus-hero",focusHero); wide.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
+    disposed = true; audio.bed(null); clearTimeout(meterTimer); clearTimeout(dockTimer); bar.dispose(); window.removeEventListener("riddle:focus-hero",focusHero); wide.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
     if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
     if (prepended && !done) void app.engine.setRules(app.rules);
   } };
