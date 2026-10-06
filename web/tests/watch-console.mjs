@@ -16,7 +16,14 @@ try{for(const width of [320,360,400,840,1440]){
  });
  if(result.labels.length!==2||result.fillers||result.overlap||result.overflow||result.labels.some(x=>!x.fits||!x.touch))throw Error(JSON.stringify({width,result}));
  if(await p.locator('.watch-speed-mode').innerText()!=='Fights only')throw Error('Default mode missing');
- await p.locator('[data-tile=speed]').click();await p.locator('.sheet [data-tile=fast]').click();
+ await p.locator('[data-tile=speed]').click();
+ const selectedContrast=await p.evaluate(()=>{
+  const s=getComputedStyle(document.querySelector('.sheet-wrap .watch-options .hud-btn.on'));
+  const luminance=c=>{const rgb=c.match(/[\d.]+/g).slice(0,3).map(Number).map(x=>{x/=255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4;});return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];};
+  const a=luminance(s.color),b=luminance(s.backgroundColor);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+ });
+ if(!Number.isFinite(selectedContrast)||selectedContrast<4.5)throw Error(`Selected mode contrast ${selectedContrast} at ${width}`);
+ await p.locator('.sheet [data-tile=fast]').click();
  await p.waitForFunction(()=>document.querySelector('.watch')?.dataset.mode==='fast'&&!document.querySelector('.sheet'));
  if(await p.locator('.watch-speed-mode').innerText()!=='Fast')throw Error('Selected mode missing');
  await p.locator('.console .gem').click();await p.waitForFunction(()=>document.querySelector('.watch')?.dataset.speed==='0');

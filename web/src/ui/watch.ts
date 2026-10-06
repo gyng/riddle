@@ -818,6 +818,7 @@ export function renderWatch(app: App): Mounted {
     if (chore && text !== chore.shown) chore = null;   // Cut 14 §4: another line ends the chore streak
     lastShown = text; tickerAt = performance.now(); tickerMs = ms;
     replace(ticker, text); ticker.className = `ticker show ${cls}${whyOf.has(text) ? " has-why" : ""}`;
+    paintKeepOut(true);
     scheduleTicker();
   }
   /** The ticker's next move: the queued callout once the current has had CALLOUT_MIN_MS, else the hide at the current's end. */
@@ -1423,20 +1424,23 @@ export function renderWatch(app: App): Mounted {
   /** Cut 28 §4: the DOM over the canvas — the HUD's line, the docked fold line's head and chips, the banner, the ticker, the reason —
    *  handed to the renderer as keep-out rects (canvas CSS px) every KEEP_MS, so no pixel callout, caption or name plate lands on them. */
   let keepAt = 0;
-  function paintKeepOut(): void {
+  function paintKeepOut(force = false): void {
     const now = performance.now();
-    if (!viewer?.setKeepOut || now - keepAt < KEEP_MS) return;
+    if (!viewer?.setKeepOut || (!force && now - keepAt < KEEP_MS)) return;
     keepAt = now;
     const c = canvas.getBoundingClientRect();
     const els: Element[] = [...el.querySelectorAll(".hud.top > *"), combatLog, tactics.el];
-    if (!foldLine.hidden && foldLine.classList.contains("docked")) els.push(foldHead, ...foldChips.children);
+    if (!foldLine.hidden && foldLine.classList.contains("docked")) els.push(foldLine);
     for (const x of [banner, ticker, whyLine, whyTip]) if (x.classList.contains("show")) els.push(x);
     const rects: { x: number; y: number; w: number; h: number }[] = [];
     for (const x of els) {
       if ((x as HTMLElement).hidden) continue;
       const r = x.getBoundingClientRect();
-      if (r.width < 1 || r.height < 1 || getComputedStyle(x).opacity === "0") continue;
-      rects.push({ x: r.left - c.left - 2, y: r.top - c.top - 2, w: r.width + 4, h: r.height + 4 });
+      const appearing = x === foldLine || x === ticker || x === banner;
+      if (r.width < 1 || r.height < 1 || (!appearing && getComputedStyle(x).opacity === "0")) continue;
+      // Reserve the dock animation's full 12px travel, including its final resting position.
+      const dockTravel = x === foldLine ? 12 : 0;
+      rects.push({ x: r.left - c.left - 2, y: r.top - c.top - 2 - dockTravel, w: r.width + 4, h: r.height + 4 + 2 * dockTravel });
     }
     viewer.setKeepOut(rects);
   }
@@ -1903,6 +1907,7 @@ export function renderWatch(app: App): Mounted {
     const ms = Math.round(performance.now() - f.t0), floors = f.to - f.from + 1;
     if ("__riddle" in window) ((window as unknown as { __foldLog?: unknown[] }).__foldLog ??= []).push({ from: f.from, to: f.to, floors, ms, perFloor: Math.round(ms / floors), src: f.core ? "core" : "client", kinds: f.core ? [...new Set(f.core.beats.map((b) => b.kind))] : [...f.tally.kinds()], chips: f.core ? f.core.chips : f.tally.list().map((c) => c.text), shown: [...foldChips.children].map((c) => c.textContent), head: foldHead.textContent });   // dev
     foldLine.classList.add("docked");
+    paintKeepOut(true);
     dockTimer = window.setTimeout(() => foldLine.classList.add("faded"), FOLD_DOCK_MS);
     if (hudSnap) { hudFrom(hudSnap); }
     if (held) toEnding(); else { applyFrame(); applySpeed(); }

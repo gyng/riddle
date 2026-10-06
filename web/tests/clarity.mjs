@@ -358,7 +358,9 @@ try {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
     await sleep(500);
-    await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); });
+    await page.locator(".console [data-tile=speed]").click();
+    await page.locator(".watch-options [data-tile=skip]").click();
+    await page.keyboard.press("Escape");
     let rest = null; const t0 = Date.now();
     while (Date.now() - t0 < 40_000) {
       rest = await page.evaluate(() => {
@@ -381,12 +383,14 @@ try {
   // Cut 15 §4: the lit mode chip carries its clock as small digits (`data-rate`, drawn by `::after` with a trailing `×` — QA on 3d71c33; the chip's text stays its word):
   // `fast 16` on the travel, `fast 4` in a fight; `fights 2` in a fight; the other chip carries none
   {
-    const chip = () => page.evaluate(() => { const w = document.querySelector(".watch"), on = document.querySelector(".cmd .hud-btn.on"), off = [...document.querySelectorAll(".cmd .hud-btn")].filter((b) => b !== on && b.dataset.rate); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), card: w?.dataset.card, text: on?.textContent, rate: on?.dataset.rate ?? "", after: on ? getComputedStyle(on, "::after").content : "", others: off.length }; });
+    const chip = () => page.evaluate(() => { const w = document.querySelector(".watch"), on = document.querySelector(".sheet-wrap .watch-options .hud-btn.on"), off = [...document.querySelectorAll(".sheet-wrap .watch-options .hud-btn")].filter((b) => b !== on && b.dataset.rate); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), card: w?.dataset.card, text: on?.textContent, rate: on?.dataset.rate ?? "", after: on ? getComputedStyle(on, "::after").content : "", others: off.length }; });
     // (the chip and the clock read in one sample, as frames come: `measured` takes the run once more on a loaded machine)
     for (const mode of ["fast", "fights"]) {
       const lit = await measured(async () => {
       await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
+      await page.waitForFunction(() => document.querySelector(".watch")?.dataset.frame);
+      await page.evaluate(() => document.querySelector(".console [data-tile=speed]").click());
       const seen = new Map(); let bad = null; const t0 = Date.now();
       const word = mode === "fights" ? "fights only" : mode;   // (the mode id stays `fights`; its button reads `fights only`)
       while (Date.now() - t0 < 25_000 && !(seen.has("fight") && seen.has("map"))) {
@@ -433,8 +437,12 @@ try {
   // fake has no vaults: one engine batch after tick 20 carries a `vault_choice`.
   {
     for (const mode of ["fast", "fights"]) {
-      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
-      await waitFor((s) => s?.booted && s.screen === "watch", `the ${mode} watch`);
+      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&speed=${mode}&early=0`, { waitUntil: "domcontentloaded" });
+      await waitFor((s) => s?.booted && s.screen === "camp", `the ${mode} camp`);
+      if (await page.evaluate(() => window.__riddle.town?.home === false)) {
+        await page.locator('.town-tag[data-next="house"]').click();
+        await page.waitForFunction(() => window.__riddle.town?.home === true);
+      }
       await page.evaluate(() => {
         const r = window.__riddle, orig = r.engine.step.bind(r.engine), origChoose = r.engine.choose.bind(r.engine); let done = false;
         r.__chosen = null; window.__sheetSeen = false;
@@ -442,6 +450,8 @@ try {
         r.engine.choose = async (id) => { r.__chosen = id; return origChoose(id); };
         new MutationObserver(() => { if (document.querySelector(".sheet-wrap .vault-choice")) window.__sheetSeen = true; }).observe(document.body, { childList: true, subtree: true });
       });
+      await page.evaluate(() => document.querySelector(".console .gem.send").click());
+      await waitFor((s) => s?.screen === "watch", `the ${mode} watch`);
       const w = () => page.evaluate(() => { const x = document.querySelector(".watch"); const t = document.querySelector(".watch .ticker"); const g = document.querySelector(".sheet-wrap .vault-choice .grace i"); return { screen: window.__riddle.screen, frontier: Number(x?.dataset.frontier), tick: Number(x?.dataset.tick), beat: t?.classList.contains("cage") && t.classList.contains("show") ? t.textContent.trim() : "", sheet: !!document.querySelector(".sheet-wrap .vault-choice .chip"), bar: g ? g.style.transitionDuration : "", cage: x?.dataset.cage ?? "" }; });
       let a = null; const t0 = Date.now();
       while (Date.now() - t0 < 20_000) { a = await w(); if (a.beat || (a.screen !== "watch" && a.screen !== "exit")) break; await sleep(40); }

@@ -289,3 +289,11 @@ button.re-body { cursor: pointer; }
 .hero-action[data-activity="exploring"] .lane-beat { background: #9ac9ad; }
 .hero-action[data-activity="returning"] .lane-beat { background: #f3ce88; }
 .hero-action[data-activity="ended"] .lane-beat { background: #a9a394; box-shadow: none; }
+/* The selected watch mode remains readable on the parchment, including held fights. */
+.watch-options .hud-btn.on,
+.watch-options .hud-btn.on.slowed {
+  background: #34291f;
+  color: #f0d9a5;
+  border-color: #8c683d;
+  box-shadow: inset 0 2px 5px #16120e, 0 0 0 1px #c29a60;
+}

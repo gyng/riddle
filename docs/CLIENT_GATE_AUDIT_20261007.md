@@ -74,3 +74,81 @@ retaining20-word/rarity/exit/death/report/autodismiss checks.
 Final all-parts GPU rerun PASS125.7s (/tmp/riddle-runclear-current-final.log,
 session14943 terminal0). No simulation or numeric budget changed.
 Full baseline remains80/111, not a new full-suite verdict.
+
+## Compact watch audit — 2026-10-07
+
+`fights` initially passes all46 checks after checking the actual speed/town tile
+IDs plus Fights only annotation instead of expecting the retired bare label.
+`clarity:card` now opens Speed to inspect mode/rate chips and invokes Skip through
+its actual menu. Investigation found App.screen called any watch sheet `exit`,
+including Speed; exclude this settings sheet from that inspection status.
+
+Actual card timeout bug: a queued fight and cardWait exempted a floor card from
+its maximum, allowing1292–1348ms spans versus the unchanged1200ms bar. Remove
+those exemptions; the live map replaces the card while travel reaches the next
+fight. A repeat reads630/1110ms, but mode checks on the old cached server still
+fail. Preserve raw results, do not claim the whole module green from this.
+
+The old Send-pill persistence flow is superseded by the owner's compact watch
+contract (amendment in CUT28). Speed selection is sampled synchronously because
+Pause freezes only the picture; the world continues. Assert mode/label, active
+menu closure and unchanged lineage at the selection, then Town/flush/reload.
+Ignore the inert close-animation copy. Existing render numeric gates remain.
+
+First-load camp defers forecasts. Fold render fixtures request a genuine forecast
+with existing GOOD rules and use the supported client-fold path; a no-fold run
+cannot certify this overlay. This exposed4, then2, nameplate overlaps at the dock
+animation's end (goblin on alert1/8). Reserve the banner's whole animated travel,
+even at initial opacity0, and refresh immediately on docking. Read one banner
+rectangle rather than every chip. Core fold correctness is still cut27, unresolved.
+
+Real earned Gunner WASM watch400/1440: Speed Fast selection, Town exit and reload
+persistence PASS; no page errors/overflow/HUD overlap. Selected mode was unreadable
+against parchment; give it a dark inset background, plus4.5 contrast floor in
+watch-console. Evidence scratchpad/watch-menu-qa-20261007, final screenshots shown.
+
+IMPORTANT: no-HMR test server caches transforms across source edits. Final current
+source checks run sequentially on fresh5382, /tmp/riddle-watch-final-gates.log.
+Earlier failures remain /tmp/riddle-watch-menu-current.log,
+/tmp/riddle-clarity-card-raw-repeat.log, /tmp/riddle-clarity-card-cap.log,
+/tmp/riddle-cut28w-speed-{current,repeat,clientfold,good}.log and
+/tmp/riddle-cut28w-dock-fixed.log. A parallel intermediate fights repeat aborted
+waiting for fast map; preserve /tmp/riddle-fights-card-cap.log. Final acceptance
+must be read from the fresh run, not inferred from any partial pass above.
+
+Fresh5382 first final run /tmp/riddle-watch-final-gates.log terminal1:watch-console
+PASS all5widths (including selected contrast); clarity card rate/timing pass but
+cage fixture misses first batch; cut28w one remaining goblin/damage-ticker overlap;
+fights selector reaches an inert close ghost and fails to switch back. Fixes:
+exclude inert sheet ghosts when choosing controls; install cage injection at camp
+before Send; refresh keep-out immediately when ticker text changes and reserve
+its area during opacity transitions. Final repeat uses the runner's fresh server,
+sequential1browser, /tmp/riddle-watch-final-repeat.log. Do not use the older cached
+server results as verification of these final fixes.
+
+### Card experiment rejected; retained checkpoint scope
+
+`/tmp/riddle-watch-final-repeat.log` terminal1:cut28w6checks PASS74.0s
+(2449frames,901callouts,37captions,2391plates,1640docked,zero collisions);
+watch-console5widths PASS26.2s. Clarity still fails cage and card spans1238/1380ms.
+Fights fails the synthetic pair's second label. Two-hostile fixture now clears
+unrelated foes (the crowd-label culling contract is a different concern).
+
+Removing goLive from card expiry did not settle the problem:
+`/tmp/riddle-watch-preserve-replay.log` terminal1, clarity still has1355ms/cage
+failures; fights retains one ending-jump assertion219→219. No exceptions/bar
+changes accepted. REVERTED all cardExpired/cap runtime experiments to original
+behavior. Card pacing/cage/ending probes remain unresolved; inspect actual
+per-frame card/held/cage timeline and first engine batches before another fix.
+No claim of a successful card timeout fix from a partial repeat.
+
+Retained production work: selected mode contrast, correct Speed-menu inspection
+status, full animated fold rectangle reserved immediately, immediate keep-out
+refresh for changing ticker text. Invisible inactive UI still skips reservation;
+appearing fold/ticker/banner reserves at initial opacity0. Final retained-source
+checks: /tmp/riddle-watch-safe-checkpoint.log. Full suite is still failing;
+focused passes do not change its baseline80/111 verdict.
+
+Final retained-source focused GPU run2/2PASS102.1s:cut28w6checks75.5s,
+watch-console5widths26.2s. /tmp/riddle-watch-safe-checkpoint.log terminal0.
+TS/copy1730zero PASS. No new full-client verdict; no95score claim.

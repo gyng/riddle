@@ -114,3 +114,15 @@ sworn oath, a watched send, the exit, an absence's report, the chronicle), befor
   names the oath deed first (`kept the oath …` / `broke the oath …`).
 - Gate: `tests_cut28` (the fate said once per send and agreeing with the settle, news, notes; the board opens at a wall or plateau),
   cut28.mjs (the formula, the stake, the fate and refund, the beat words), the Cut 28 metrics rows.
+
+### Owner compact-watch amendment — 2026-10-07
+
+The owner's request for fewer speed controls (`docs/UX_SIMPLE.md`) supersedes
+§3's always-visible Send mode pill. Watch has one Speed selector plus Pause;
+its menu changes Normal/Fights only/Fast without sending and remembers the
+choice across reload. `cut28w` exercises that flow. Its render gate still
+requires >200 frames, >20 callouts/captions combined, >20 nameplates, a docked
+fold and zero text collisions. Fold fixtures use the existing surviving GOOD
+rows and request the deferred forecast explicitly; the supported client fold
+path exercises the overlay. Core folding correctness remains the separate
+`cut27` gate. This amendment does not certify that currently failing gate.

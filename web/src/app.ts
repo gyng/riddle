@@ -484,7 +484,7 @@ export class App {
   // --- dev inspection (window.__riddle in dev builds or with ?dev=1) ---
   /** The screen a rater sees: the mounted screen, or `exit` while the exit sheet is open over a run. */
   get screen(): DevScreen {
-    if (this.view.kind === "watch" && document.querySelector(".sheet-wrap")) return "exit";
+    if (this.view.kind === "watch" && document.querySelector(".sheet-wrap:not(:has(.watch-options))")) return "exit";
     return this.view.kind;
   }
   /** Is the progress bar up (offline batch, forecast, verdict)? */

@@ -1,3 +1,41 @@
+**COMPACT WATCH / READABLE SPEED / TEXT COLLISIONS — 2026-10-07 (PARTIAL):**
+
+Retained production fixes: selected Speed mode has dark inset contrast on
+parchment; inspection App.screen no longer calls the Speed menu an exit;
+renderer keep-out reserves the full fold docking animation, including opacity0,
+refreshes immediately at docking and ticker text changes. Inactive invisible
+UI still skips reservation. One fold rectangle replaces individual chip reads.
+
+Final retained-source GPU checks2/2PASS102.1s:cut28w6checks75.5s and
+watch-console5widths26.2s. Original render thresholds and zero-collision bar
+retained; selected mode contrast now >=4.5. Persistence selects Normal, checks
+unchanged lineage synchronously at selection, active menu closure, Town/reload.
+Ignore inert closing ghosts. Fold fixture explicitly requests deferred forecast,
+uses existing GOOD rules and supported client-fold path. CUT28 amendment names
+owner compact controls; core fold cut27 is still unresolved, not certified here.
+
+Real earned Gunner WASM400/1440 Speed Fast→Town→reload PASS, no pageerrors,
+overflow or HUD overlap; final readable screenshots shown. Evidence
+scratchpad/watch-menu-qa-20261007 and /tmp/riddle-watch-menu-real-final.log.
+Source CSS/inspection state matches screenshots; later ticker reservation only.
+TS/copy1730zero/build PASS. Final build /tmp/riddle-watch-safe-build.log.
+
+IMPORTANT: card timeout experiments REVERTED, not accepted. Removing queued
+fight/cardWait exemptions and then goLive produced partial timing passes but
+not repeatable acceptance. Fresh sequential repeat still failed card1355ms,
+synthetic cage and ending-jump219→219. Original pacing preserved. Cage hook
+now installs before Send; two-name renderer fixture clears unrelated crowd
+actors; controls exclude inert close ghosts. Numeric assertions remain and
+those modules are still NOT green. Inspect actual per-frame card/held/cage
+state and first engine batches next; do not blindly alter timing bounds.
+
+Raw failure history and scope: docs/CLIENT_GATE_AUDIT_20261007.md,
+/tmp/riddle-watch-{final-gates,final-repeat,preserve-replay}.log. Final accepted
+focused run /tmp/riddle-watch-safe-checkpoint.log terminal0. No new full-client
+verdict: baseline80/111, with scoped resolutions only. Core/WASM inputs unchanged.
+No deploy;95fun active/unverified. Final runner closes its owned ephemeral
+server; owned5381/5382 closed; shared5219 preserved.
+
 **SHARED WINDOW CENTERING / CURRENT RUN-CLEAR AND APPEARANCE GATES — 2026-10-07:**
 
 Actual defect fixed in chrome.css: old framed-sheet rule overrode centered

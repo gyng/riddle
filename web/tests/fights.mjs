@@ -41,7 +41,7 @@ page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
 const state = () => page.evaluate(() => {
   const r = window.__riddle, w = document.querySelector(".watch");
-  return r ? { screen: r.screen, booted: r.booted, mode: w?.dataset.mode, frame: w?.dataset.frame, card: w?.dataset.card, speed: Number(w?.dataset.speed), fights: Number(w?.dataset.fights ?? 0), tick: Number(w?.dataset.tick), ending: w?.dataset.ending === "1", held: w?.dataset.held === "1", cardText: document.querySelector(".interstitial")?.textContent ?? "", cardShown: !!document.querySelector(".interstitial:not([hidden])"), buttons: [...document.querySelectorAll(".cmd .hud-btn")].map((b) => b.textContent), on: [...document.querySelectorAll(".cmd .hud-btn.on")].map((b) => b.textContent), vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
+  return r ? { screen: r.screen, booted: r.booted, mode: w?.dataset.mode, frame: w?.dataset.frame, card: w?.dataset.card, speed: Number(w?.dataset.speed), fights: Number(w?.dataset.fights ?? 0), tick: Number(w?.dataset.tick), ending: w?.dataset.ending === "1", held: w?.dataset.held === "1", cardText: document.querySelector(".interstitial")?.textContent ?? "", cardShown: !!document.querySelector(".interstitial:not([hidden])"), buttons: [...document.querySelectorAll(".cmd .hud-btn")].map((b) => b.dataset.tile), modeLabel: document.querySelector(".watch-speed-mode")?.textContent, on: [...document.querySelectorAll(".cmd .hud-btn.on")].map((b) => b.textContent), vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
 });
 async function waitFor(pred, label, timeout = 20_000) {
   const t = Date.now(); let s = null;
@@ -55,8 +55,8 @@ async function waitFor(pred, label, timeout = 20_000) {
 }
 // Check menu exposure in simple-ui; avoid actionability waits consuming the brief floor card.
 const press = (label) => page.evaluate(l=>{
-  let button=[...document.querySelectorAll('button.hud-btn')].find(b=>b.textContent===l);
-  if(!button){document.querySelector('[data-tile=speed]')?.click();button=[...document.querySelectorAll('button.hud-btn')].find(b=>b.textContent===l);}
+  let button=[...document.querySelectorAll('button.hud-btn')].find(b=>!b.closest('.sheet-ghost')&&b.textContent===l);
+  if(!button){document.querySelector('[data-tile=speed]')?.click();button=[...document.querySelectorAll('button.hud-btn')].find(b=>!b.closest('.sheet-ghost')&&b.textContent===l);}
   if(!button)return false;
   button.click();document.querySelector('.watch-options')?.closest('.sheet-wrap')?.querySelector('button.sheet-x')?.click();
   return true;
@@ -89,7 +89,7 @@ try {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && inRun(x) && x.mode, "the watch");
   check(s.mode === "fights", `fights is the default mode (${s.mode})`);
-  check(s.buttons.join(" ") === "Speed Town menu", `two primary watch controls: Speed · Town menu (${s.buttons.join(" · ")})`);
+  check(s.buttons.join(" ") === "speed town" && s.modeLabel === "Fights only", `two primary watch controls: Speed · Town menu (${s.buttons.join(" · ")})`);
   // the card: the ambient line over the map, the clock held; then the first fight at 1×
   // Cut 15 §4: the card is short (≤ 1.2 s; 0.5 s before a beat — seed 5 opens on a situation), so the tap is made in the page the
   // frame the card is seen
@@ -343,7 +343,9 @@ try {
   const tags = await page.evaluate(async () => {
     const v = window.__viewer, hero = v.debugPos().find((e) => e.hero), t = v.tick();
     const mk = (id, x, name) => ({ t: t - 5, k: "spawn", e: { id, kind: "goblin", name, x, y: hero.y, hp: 5, max_hp: 5, tags: [] } });
-    v.apply([mk(90011, hero.x - 1, "Captain Tain"), mk(90012, hero.x - 2, "Ashar Monkey")]); v.seek(t);
+    // This is the two-hostile collision fixture; unrelated crowd labels have their own culling contract.
+    const clear = v.debugPos().filter(e => !e.hero).map(e => ({ t: t - 5, k: "die", id: e.id, cause: "tag fixture" }));
+    v.apply([...clear, mk(90011, hero.x - 1, "Captain Tain"), mk(90012, hero.x - 2, "Ashar Monkey")]); v.seek(t);
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     return { frame: document.querySelector(".watch").dataset.frame, labels: v.debugLabels() };
   });
