@@ -1,3 +1,12 @@
+**ENDGAME OWNER STEERING — 2026-10-06:**
+Owner asks endless ascensions after clear, affixes/elites/bosses, classes and
+Legacy skill trees. ENDGAME_ASCENSIONS.md is a proposal, not shipped mechanics:
+bloodline tiers first, twelve-node Legacy tree, two specializations; explicit
+reset/migration contract required, tier0 invariants preserved, performance
+budget and deterministic offline/replay checks. New loop recommends retaining
+shared gold; current old ascension still clears it. NEXT_WORK priority updated.
+Camp controls committed285484c, verified as below; no deployment.
+
 **PERSISTENT CAMP CONTROLS — 2026-10-06:**
 UX_PERSISTENT_CAMP.md. Audit corrected earlier assumption: Workers accessible,
 not gated; nextPill always opensWorks but tree.next system fallback says

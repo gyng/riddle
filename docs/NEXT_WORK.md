@@ -1,5 +1,11 @@
 # Owner queue — 2026-10-06
 
+Latest owner priority: escalating endgame after dungeon clear, deeper bloodline
+Legacy and class progression. ENDGAME_ASCENSIONS.md records the proposed loop
+and delivery order: tier/affix/elite/boss architecture, compact Legacy tree,
+then two class specializations. Not implemented; exact reset/migration and
+balance contracts come before runtime changes. No extra early prestige layer.
+
 Local UI iteration-speed and compact-depth work are implemented and pushed.
 Hero presence, tactic observability and the content/checkpoint audit are implemented.
 Catch-up slice semantics are fixed and verified within PERF_OFFLINE_SLICE_BOUNDARIES.md.
