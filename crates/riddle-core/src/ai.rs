@@ -866,8 +866,8 @@ fn verb_pray(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
 /// Cut 3: the Mirror King reflects a verb used three times running (the ring holds the last
 /// two; `verb` would be the third).
 fn mirror_reflects(run: &Run, mi: usize, verb: &str) -> bool {
-    let n = run.verb_ring.len();
-    run.monsters[mi].kind == "mirror_king" && n >= 2 && run.verb_ring[n - 1] == verb && run.verb_ring[n - 2] == verb
+    let m = &run.monsters[mi];
+    m.kind == "mirror_king" && crate::endgame::repeated(&run.verb_ring, verb, m.modifiers.is_some_and(|mods| mods.tight_mirror))
 }
 
 /// The blow comes back and the mirror keeps its measure: he heals what he sent back.
@@ -894,9 +894,9 @@ fn ally_mirror(run: &mut Run, cx: &mut Ctx, mi: usize, ti: usize, verb: &str, hi
     if run.monsters[ti].kind != "mirror_king" {
         return false;
     }
+    let tight = run.monsters[ti].modifiers.is_some_and(|mods| mods.tight_mirror);
     let ring = &mut run.monsters[mi].verb_ring;
-    let n = ring.len();
-    let third = n >= 2 && ring[n - 1] == verb && ring[n - 2] == verb;
+    let third = crate::endgame::repeated(ring, verb, tight);
     ring.push(verb.to_string());
     while ring.len() > 3 {
         ring.remove(0);
@@ -2345,7 +2345,8 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                 return false;
             }
             let n = run.verb_ring.len();
-            let repeat = n >= 2 && run.verb_ring[n - 1] == run.verb_ring[n - 2];
+            let tight = v.foes.iter().any(|&i| run.monsters[i].kind == "mirror_king" && run.monsters[i].modifiers.is_some_and(|mods| mods.tight_mirror));
+            let repeat = if tight { n >= 1 } else { n >= 2 && run.verb_ring[n - 1] == run.verb_ring[n - 2] };
             let last = run.verb_ring.last().cloned().unwrap_or_default();
             let basic = match run.hero.class {
                 Class::Caster => "bolt",
@@ -2748,7 +2749,8 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
     if !hero_in_reach || (verb == "shoot" && !can_see_hero(run, mi)) {
         if let Some(ai) = adjacent_ally(run, mi) {
             let m = &run.monsters[mi];
-            let atk = (m.atk.0 * mult, m.atk.1 * mult);
+            let a = m.effective_atk();
+            let atk = (a.0 * mult, a.1 * mult);
             let def = run.monsters[ai].effective_def();
             let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
             let (src, dst) = (run.monsters[mi].id, run.monsters[ai].id);
@@ -2763,7 +2765,8 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
         }
     }
     let m = &run.monsters[mi];
-    let atk = (m.atk.0 * mult, m.atk.1 * mult);
+    let a = m.effective_atk();
+    let atk = (a.0 * mult, a.1 * mult);
     // Cut 25 §1: armour blunts a blow, never negates it (`Hero::blunt`).
     let (hit, roll) = roll_hit(&mut run.rng, atk, 0);
     let dmg = if hit { run.hero.blunt(roll) } else { 0 };
@@ -2858,7 +2861,7 @@ fn summon_near(run: &mut Run, cx: &mut Ctx, at: Pos, kind: &str, n: usize, ttl: 
         let q = cands.remove(run.rng.below(cands.len() as u32) as usize);
         let id = run.new_id();
         let depth = run.depth;
-        let mut m = Monster::spawn(id, kind, q, depth);
+        let mut m = crate::endgame::spawn(run, id, kind, q, depth, false);
         m.awake = true;
         m.last_seen = Some(run.hero.pos);
         m.ttl = ttl;
@@ -3491,7 +3494,7 @@ pub fn monster_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
         // he warns on the first repeat, and on his first sight of the hero.
         "mirror_king" => {
             let n = run.verb_ring.len();
-            let repeat = n >= 2 && run.verb_ring[n - 1] == run.verb_ring[n - 2];
+            let repeat = if run.monsters[mi].modifiers.is_some_and(|mods| mods.tight_mirror) { n >= 1 } else { n >= 2 && run.verb_ring[n - 1] == run.verb_ring[n - 2] };
             if sees && cooldown == 0 && (repeat || !run.monsters[mi].introduced) {
                 run.monsters[mi].introduced = true;
                 run.monsters[mi].cooldown = 20;
@@ -3557,7 +3560,7 @@ fn ally_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
         .min_by_key(|(_, o)| (o.hp, o.id))
         .map(|(j, _)| j);
     if let Some(ti) = target {
-        let atk = run.monsters[mi].atk;
+        let atk = run.monsters[mi].effective_atk();
         let def = run.monsters[ti].effective_def();
         let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
         if ally_mirror(run, cx, mi, ti, "attack", hit, dmg) {
@@ -3649,6 +3652,7 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         }
         {
             let m = &mut run.monsters[mi];
+            crate::endgame::normalise_tamed(m, run.depth);
             m.ally = true;
             m.awake = true;
             m.fleeing = false;
@@ -3724,7 +3728,7 @@ fn companion_cond(run: &Run, cx: &Ctx, mi: usize, v: &View, c: &crate::rules::Co
 }
 
 fn companion_melee(run: &mut Run, cx: &mut Ctx, mi: usize, ti: usize, verb: &str, mult_num: i32) -> i32 {
-    let atk = run.monsters[mi].atk;
+    let atk = run.monsters[mi].effective_atk();
     let atk = (atk.0 * mult_num / 2, atk.1 * mult_num / 2);
     let def = run.monsters[ti].effective_def();
     let (hit, dmg) = roll_hit(&mut run.rng, atk, def);

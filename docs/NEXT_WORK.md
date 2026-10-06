@@ -4,9 +4,10 @@ Latest owner priority: escalating endgame after dungeon clear, deeper bloodline
 Legacy and class progression. ENDGAME_ASCENSIONS.md records the proposed loop
 and delivery order: tier/affix/elite/boss architecture, compact Legacy tree,
 then two class specializations. CUT31_ASCENSIONS.md now specifies the runtime
-contract; checkpoint A progression/reset/save foundation implemented, hidden
-from app until B encounter modifiers work. Next B affixes/elites/boss alteration,
-then C tier selection and D balance/performance verification. Legacy/class work
+contract; A progression/reset and B encounter modifiers/metadata implemented,
+still hidden from app tier selection. Next C tier selection/elite marking and
+D balance/performance verification. One earned Tier1 clear and native/WASM
+parity verified; this does not certify the whole cut. Legacy/class work
 remains after that loop. No extra early prestige layer.
 
 Local UI iteration-speed and compact-depth work are implemented and pushed.

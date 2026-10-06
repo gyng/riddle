@@ -1,7 +1,105 @@
 //! Numbered descent progression. Historical challenge restarts are a separate axis.
-//! Core checkpoint only: higher-tier encounter rules/UI follow in Cut31 B/C.
+//! Encounter modifiers are snapshotted on each foe; no gameplay RNG or extra mobs.
 use serde::{Deserialize, Serialize};
 use crate::Game;
+
+pub const ARMOURED: u8 = 1;
+pub const SWIFT: u8 = 2;
+pub const REGENERATING: u8 = 4;
+pub const STAT_CAP: i32 = 1_000_000;
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Elite { Shielded, Frenzied }
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Modifiers {
+    pub tier: u32,
+    pub affixes: u8,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub elite: Option<Elite>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub tight_mirror: bool,
+}
+impl Modifiers {
+    pub fn has(self, affix: u8) -> bool { self.affixes & affix != 0 }
+}
+
+/// Shared tooltip vocabulary, emitted once per snapshot rather than per foe.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModifierInfo {
+    pub id: String,
+    pub mask: u8,
+    pub name: String,
+    pub effect: String,
+    pub counter: String,
+}
+pub fn catalogue(tier: u32) -> Vec<ModifierInfo> {
+    if tier == 0 { return Vec::new(); }
+    [
+        ("armoured", ARMOURED, "Armoured", "+1 armour", "Poison or fire"),
+        ("swift", SWIFT, "Swift", "+2 speed", "Slow"),
+        ("regenerating", REGENERATING, "Regenerating", "+1 HP each second while awake and unpoisoned", "Poison or sustained damage"),
+        ("shielded", 0, "Shielded", "+2 armour unless stunned or paralysed", "Stun or paralyse"),
+        ("frenzied", 0, "Frenzied", "+2 damage and +3 speed at half HP or lower", "Slow or burst damage"),
+        ("tight_mirror", 0, "Quick mirror", "Second repeated attack reflects", "Alternate attacks"),
+    ].into_iter().map(|(id,mask,name,effect,counter)| ModifierInfo {id:id.into(),mask,name:name.into(),effect:effect.into(),counter:counter.into()}).collect()
+}
+
+/// Fixed for a tier, not rerolled on a send; at most two mechanical modifiers.
+pub fn affixes(tier: u32) -> u8 {
+    if tier == 0 { return 0; }
+    let first = 1 << ((tier - 1) % 3);
+    first | if tier >= 3 { 1 << (tier % 3) } else { 0 }
+}
+fn scaled(value: i32, tier: u32, percent: u64) -> i32 {
+    let multiplier = 100 + u64::from(tier) * percent;
+    ((value.max(0) as u64).saturating_mul(multiplier).saturating_add(99) / 100)
+        .min(STAT_CAP as u64) as i32
+}
+fn apply(m: &mut crate::monster::Monster, mods: Modifiers) {
+    m.max_hp = scaled(m.max_hp, mods.tier, 8);
+    m.hp = m.max_hp;
+    m.atk = (scaled(m.atk.0, mods.tier, 4), scaled(m.atk.1, mods.tier, 4));
+    if mods.has(ARMOURED) { m.def = m.def.saturating_add(1); }
+    if mods.has(SWIFT) { m.speed = m.speed.saturating_add(2); }
+    m.modifiers = Some(mods);
+}
+/// All calls are at birth: script overrides are applied afterwards. Companion,
+/// captive, nest and stray births deliberately use ordinary Monster::spawn.
+pub fn spawn(run: &crate::engine::Run, id: u32, kind: &str, pos: crate::geom::Pos, depth: u32, elites: bool) -> crate::monster::Monster {
+    let mut m = crate::monster::Monster::spawn(id, kind, pos, depth);
+    if run.difficulty == 0 || !m.hostile() || m.max_hp <= 0 { return m; }
+    let hash = crate::rng::splitmix(run.seed ^ (u64::from(depth) << 32) ^ u64::from(id) ^ 0x6173_6365_6e64_6564);
+    let elite = if elites && !m.is_boss() && !m.summoned && hash.is_multiple_of(8) {
+        Some(if hash & 256 == 0 { Elite::Shielded } else { Elite::Frenzied })
+    } else { None };
+    apply(&mut m, Modifiers { tier:run.difficulty, affixes:affixes(run.difficulty), elite, tight_mirror:kind == "mirror_king" });
+    m
+}
+/// A split inherits its parent's birth modifiers; never multiply modified stats
+/// again, and never reroll an elite on its newly assigned id.
+pub fn spawn_split(id: u32, kind: &str, pos: crate::geom::Pos, depth: u32, inherited: Option<Modifiers>) -> crate::monster::Monster {
+    let mut m = crate::monster::Monster::spawn(id, kind, pos, depth);
+    if let Some(mods) = inherited { apply(&mut m, mods); }
+    m
+}
+/// Taming retains wounds but removes dungeon difficulty from a persistent pet.
+pub fn normalise_tamed(m: &mut crate::monster::Monster, depth: u32) {
+    if m.modifiers.take().is_none() { return; }
+    let base = crate::monster::Monster::spawn(m.id, &m.kind, m.pos, depth);
+    let hp = (i64::from(m.hp.max(0)) * i64::from(base.max_hp) + i64::from(m.max_hp.max(1)) - 1) / i64::from(m.max_hp.max(1));
+    m.hp = (hp as i32).clamp(1, base.max_hp.max(1));
+    m.max_hp = base.max_hp;
+    m.atk = base.atk;
+    m.def = base.def;
+    m.speed = base.speed;
+}
+/// Existing cadence and the monster use the same saved rhythm rule.
+pub fn repeated(ring: &[String], verb: &str, tight: bool) -> bool {
+    let count = if tight { 1 } else { 2 };
+    ring.len() >= count && ring[ring.len()-count..].iter().all(|v| v == verb)
+}
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Progress {
@@ -270,3 +368,7 @@ mod tests {
         assert!(serde_json::to_string(&loaded.run).unwrap() == serde_json::to_string(&old.run).unwrap(), "all saved tier-zero run fields match");
     }
 }
+
+#[cfg(test)]
+#[path = "endgame_tests.rs"]
+mod encounter_tests;

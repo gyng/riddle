@@ -10,7 +10,6 @@ use crate::facts::{learn, learn_tag, tag_known};
 use crate::gen::generate;
 use crate::geom::{Pos, DIRS8};
 use crate::item::Item;
-use crate::monster::Monster;
 use crate::rules::{Cond, Verb};
 use crate::tiles::{Overlay, OverlayKind, Tile};
 use crate::wire::{Because, Ev, RowWhy, TraceTurn};
@@ -1583,6 +1582,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         run.death_short = 1 - run.hero.hp;
         run.hero.hp = 0;
         run.death_cause = Some(cause.to_string());
+        run.death_modifiers = match src { Src::Mon(i) | Src::Reflect(i) => run.monsters[*i].modifiers, _ => None };
         run.death_blow = dmg;
         run.death_t = Some(run.turn);
         cx.events.push(Ev::Die { t: run.turn, id: HERO_ID, cause: cause.into() });
@@ -1636,7 +1636,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 })?;
                 let id = run.new_id();
                 let depth = run.depth;
-                let mut g = Monster::spawn(id, "goblin", q, depth);
+                let mut g = crate::endgame::spawn(run, id, "goblin", q, depth, false);
                 g.awake = true;
                 g.last_seen = Some(run.hero.pos);
                 g.summoned = true;
@@ -1774,7 +1774,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             if let Some(q) = free {
                 let nid = run.new_id();
                 let depth = run.depth;
-                let mut child = Monster::spawn(nid, &kind, q, depth);
+                let mut child = crate::endgame::spawn_split(nid, &kind, q, depth, run.monsters[mi].modifiers);
                 child.hp = half;
                 child.max_hp = run.monsters[mi].max_hp;
                 child.awake = true;
@@ -2036,6 +2036,14 @@ fn tick_regen_and_auras(run: &mut Run, cx: &mut Ctx) {
                 learn_tag(run, cx, &kind, "regen");
             }
         }
+        // Dungeon regeneration is instance metadata, not a permanent kind fact.
+        if run.difficulty > 0 {
+            let m = &mut run.monsters[mi];
+            if m.modifiers.is_some_and(|mods| mods.has(crate::endgame::REGENERATING))
+                && !m.has_tag("regen") && m.awake && m.hostile() && m.poison.1 == 0 && m.hp < m.max_hp {
+                m.hp = (m.hp + 1).min(m.max_hp);
+            }
+        }
         let m = &run.monsters[mi];
         if m.has_tag("aura") && m.hostile() && m.awake && m.pos.cheb(hp) <= 2 && run.floor.map.los(m.pos, hp) {
             aura = true;
@@ -2153,7 +2161,7 @@ pub fn rest_clock(run: &mut Run, cx: &mut Ctx) {
         };
         let id = run.new_id();
         let depth = run.depth;
-        let mut m = Monster::spawn(id, kind, pos, depth);
+        let mut m = crate::endgame::spawn(run, id, kind, pos, depth, true);
         m.awake = true;
         m.last_seen = Some(hero);
         let e = crate::engine::monster_entity(&m, cx.facts);
@@ -2190,7 +2198,7 @@ fn tick_alert(run: &mut Run, cx: &mut Ctx) {
         let pos = *run.rng.pick(&cands);
         let id = run.new_id();
         let depth = run.depth;
-        let mut m = Monster::spawn(id, kind, pos, depth);
+        let mut m = crate::endgame::spawn(run, id, kind, pos, depth, true);
         m.awake = true;
         m.last_seen = Some(hero);
         let e = crate::engine::monster_entity(&m, cx.facts);

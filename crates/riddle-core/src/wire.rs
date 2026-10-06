@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Entity {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modifiers: Option<crate::endgame::Modifiers>,
     pub id: u32,
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -64,6 +66,10 @@ fn is_zero_i32(n: &i32) -> bool {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Snapshot {
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub difficulty: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modifier_catalogue: Vec<crate::endgame::ModifierInfo>,
     pub depth: u32,
     pub biome: String,
     pub w: i32,
@@ -1123,6 +1129,12 @@ pub struct DeathHero {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Death {
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub difficulty: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modifier_catalogue: Vec<crate::endgame::ModifierInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modifiers: Option<crate::endgame::Modifiers>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hero: Option<DeathHero>,
     /// Cut 30 §2: the package row that last acted (the verdict's row when it names one), as
@@ -2773,7 +2785,7 @@ mod tests {
     #[test]
     fn hero_snapshot_flattens_entity_and_trait() {
         let h = HeroSnap {
-            entity: Entity { id: 1, kind: "hero_fighter".into(), name: None, x: 1, y: 2, hp: 3, max_hp: 4, tags: vec![], ally: None, telegraph: None, cid: None, remembered: false },
+            entity: Entity { modifiers: None, id: 1, kind: "hero_fighter".into(), name: None, x: 1, y: 2, hp: 3, max_hp: 4, tags: vec![], ally: None, telegraph: None, cid: None, remembered: false },
             inv: vec![],
             weapon: Some("dagger".into()),
             armour: None,

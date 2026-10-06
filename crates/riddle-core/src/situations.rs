@@ -241,7 +241,7 @@ fn place_den(run: &mut Run) -> bool {
     }
     for p in chosen {
         let id = run.new_id();
-        let mut m = Monster::spawn(id, "monkey", p, run.depth);
+        let mut m = crate::endgame::spawn(run, id, "monkey", p, run.depth, true);
         m.situation = Some("den".into());
         m.dormant = true;
         m.awake = false;
@@ -308,7 +308,7 @@ fn place_lock(run: &mut Run) -> bool {
     run.monsters.retain(|m| !lock.contains(&m.pos) || m.ally);
     for p in &lock {
         let id = run.new_id();
-        let mut m = Monster::spawn(id, "bloat", *p, run.depth);
+        let mut m = crate::endgame::spawn(run, id, "bloat", *p, run.depth, true);
         m.situation = Some("lock".into());
         m.awake = false;
         run.monsters.push(m);
@@ -350,7 +350,7 @@ fn place_hunger(run: &mut Run) -> bool {
     for k in 0..3 {
         let Some(p) = spots.get(n / 4 + k * n / 4).copied() else { break };
         let id = run.new_id();
-        let mut m = Monster::spawn(id, "wraith", p, run.depth);
+        let mut m = crate::endgame::spawn(run, id, "wraith", p, run.depth, true);
         m.situation = Some("hunger".into());
         m.awake = true;
         m.last_seen = Some(hero);

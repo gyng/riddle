@@ -5,9 +5,10 @@ are ENDGAME_ASCENSIONS.md: endless harder descents, affixes/elites/boss changes,
 then branching Legacy and classes. This cut implements the endgame loop first.
 Partial checkpoints below do not certify the whole cut.
 
-Status: A implemented and verified as below; B/C/D remain open. Higher tiers
-are not exposed in the WASM/native app bridge or UI and currently have no
-encounter modifiers. This is not a playable numbered endgame yet.
+Status: A and B implemented and verified below; C/D remain open. Higher tiers
+have encounter mechanics and authoritative tooltip/death metadata, but are
+not exposed in the WASM/native app bridge or ending selection UI yet. Elite
+map marking remains part of C. This is not the completed playable endgame cut.
 
 ## Save, unlock and reset contract
 
@@ -99,3 +100,90 @@ Final clippy all workspace/all targets with warnings denied PASS; fast WASM
 size advisory); copy-lint1630/0 violations and diff clean. Full statistical
 balance gates, higher-tier profiling/completions, modifier/replay UI and UI
 screenshots remain for B/C/D. No deployment or claim of full-cut completion.
+
+## Checkpoint B mechanics contract — 2026-10-06
+
+Three fixed dungeon affixes: Armoured (+1 defence, counter damage-over-time /
+blasts that bypass hit defence); Swift (+2 speed, counter Slow); Regenerating
+(heal1 each10ticks while awake, wounded and not poisoned, counter Poison or
+sustained pressure). Tier1 Armoured, tier2 Swift, tier3 Regenerating+Armoured;
+then rotate these pairs. At most two. Enemy HP +8%/tier, attack +4%/tier,
+rounded up at spawn, bounded to1,000,000 per stat with wide integer arithmetic.
+No extra floors, population, speed scaling by tier or per-tick allocations.
+Numbers are initial tuning inputs; D still must establish balance/profiling.
+
+Two elites, deterministic hash independent of gameplay RNG,1/8 of eligible
+natural non-boss spawns: Shielded (+2 defence except while stunned/paralysed),
+Frenzied (+2 top attack roll/+3 speed while HP≤50%, counter Slow/control/burst).
+Summoned enemies carry dungeon scaling/affixes but cannot become elites.
+Scripted spawn stat overrides (e.g. brittle4HP skeletons) retain their purpose.
+Bosses/grudges do not receive random elite abilities. Captives, companion
+spawns, nests and strays remain unmodified. Split offspring inherit parent
+modifiers once; no rescaling already modified parent stats. On taming,
+remove ascension stats/abilities before companion persistence, preserve health
+fraction against ordinary kind/depth stats; no elite-to-pet power exploit.
+
+Modified Mirror King reflects the second consecutive identical damaging verb,
+including allies. Snapshot flag on that monster owns the rule, not later camp
+tier. Existing cadence alternates early enough and existing telegraph warns.
+Damage rolls remain on the original RNG stream; modifier selection consumes no
+RNG. Store compact optional modifier metadata in each affected monster, entity
+snapshot/spawn event, difficulty snapshot and exact fatal source. Avoid adding
+per-kind learned traits for a temporary affix. Death records attach exact
+fatal source modifiers for direct/reflected monster damage only; environmental
+or overridden gamble causes never guess an elite from another same-kind foe.
+
+Mechanical tests must prove counters and actual attack/regen/boss effects,
+spawn/summon/split/tame distinctions, bounded extreme tiers, metadata and
+save/replay fidelity. Compare original tier0 event/save bytes before/after on
+six earned states. B does not certify C selection UI or D playable tier balance.
+
+## Checkpoint B verification — 2026-10-06
+
+Actual birth hooks cover natural encounters, bosses, escorts, grudges, summons,
+wanderers, wraiths and scripted reinforcements. Split inheritance and taming
+normalization prevent doubled scaling or persistent elite pets. Existing slow,
+stun, paralysis and poison counter the abilities. Saved Mirror King rhythm also
+applies to ally attacks; owned cadence alternates before the second reflection.
+
+Thirteen additional mechanical tests; full workspace: 591 PASS, one existing
+ignored, 35.80 s. Tests exercise real attack, fatal-source selection, regeneration,
+split, Warlord summon, tame, companion persistence and ally reflection paths;
+1,000 tiers plus u32::MAX validate bounded stats. Tier0 wire metadata is omitted.
+Clippy all workspace/all targets with warnings denied PASS.
+
+Read-only watch boss and death tooltips consume the played encounter's Rust
+catalogue. Historical slain status cannot override a live boss. Focused tooltip
+checks cover 320/400/1440, hover/tap/keyboard/Escape, exact unchanged saves,
+missing metadata and changing encounter identity. PASS 6.0 s. Existing enemy-tip,
+unit-icon, frame (63 checks) and QA (41 checks) jobs also pass. Composite tooltip
+fixtures prove projection, not gameplay progression.
+
+Earned source: original seed3 TUNED King clear from earned-ending-20261006.
+Legal begin_descent(1), normal sends and one eight-hour check-in: 13 further runs,
+King cleared at D34, heir34, selected tier1, cleared1/unlocked2. No depth bypass,
+difficulty override or new tuning picks in that progression. Actual first-run
+D3 elite and D8 Warlord saves retained. Separately named diagnostic-tier1-king
+bypasses prior floors solely for a D33 metadata fixture; never a completion proof.
+Headed GPU screenshots of the actual D8 Warlord tooltip captured/viewed at
+400/1440: real WASM, no page errors or horizontal overflow, played tier1 and
+Armoured counter visible; phone frame paused on its normal floor card.
+Five new full saves/one-second event advances/after saves match native and WASM
+exactly, including those four earned states and the explicit King diagnostic.
+Six original tier0 old-WASM baselines still byte-identical for load, advance and
+after saves; two earlier numbered-reset native saves also match exactly.
+
+Equal-work native microbenchmark: 32 stunned enemies, frozen hero, 500 ticks,
+21 samples, seven interleaved old/new binary rounds. Median: old 354.142 ns/tick,
+new tier0 356.622 (+0.70%), new tier5 378.282 (+6.82%). Speed normalized to10 to
+exclude intended Swift action-frequency changes. This isolates scheduler/status
+cost, not active fights, pathfinding, catch-up or UI serialization; broader D
+profiles and balance remain open. No extra optimization justified by this result.
+
+Fast WASM 5,281,348 B, real pkg directory; web build and typecheck PASS, existing
+bundle-size advisory; copy-lint 1,634 tagged literals, zero violations. Artifacts:
+scratchpad/endgame-encounters-20261006/. Temporary Rust probe sources copied
+there and removed from examples. No deployment or full statistical gate claim.
+Next C: authoritative tier preview/bridge, ending selection, elite marking and
+actual consecutive clears; D: higher-tier tuning and full absence/profile checks.
+Legacy tree/classes remain subsequent content work.

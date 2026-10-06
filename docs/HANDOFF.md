@@ -1,3 +1,26 @@
+**ENDGAME ENCOUNTER MECHANICS — 2026-10-06:**
+Cut31 B implemented alongside A; C/D and overall keep-going goal remain open.
+Three bounded rotating affixes, two deterministic elite abilities, scaled births
+without gameplay RNG consumption or extra population; second-repeat King
+reflection, cadence/ally rhythm, split inheritance and tame normalization.
+Snapshot/entity/exact fatal-source metadata and Rust catalogue; read-only boss
+and death tooltips. App selection bridge and elite map marking still pending C.
+591 core tests PASS/one existing ignored; clippy alltargets PASS; focused tooltip
+320/400/1440 PASS6.0s; enemy/unit/frame63/QA41 PASS. Old six complete WASM
+save/advance baselines unchanged, two earlier reset saves exact, five new
+native/WASM full load/advance/save cases exact. Actual earned source legally
+starts tier1 and clears King in first eight-hour absence (13 runs, heir34);
+cleared1/unlocked2. Separate D33 debug fixture clearly labelled, not progression.
+Interleaved equal-work benchmark old354.142/newtier0 356.622/newtier5 378.282
+ns/tick (+0.70%/+6.82%); scheduler/status only, broader profiling open D.
+Fast WASM5281348B; typecheck/build/copy1634 clean, existing bundle advisory.
+Artifacts scratchpad/endgame-encounters-20261006/; temporary probe examples
+copied and removed. See CUT31_ASCENSIONS.md B for exact scope and provenance.
+Actual earned Warlord tooltip headed400/1440 captured/viewed; no errors or
+overflow, phone paused on floor card. Task preview5465 remains for next C;
+shared5219 retained. Do not deploy. Next C ending/tier preview bridge and UI, then D balance/absence
+checks, then deeper Legacy/classes. Shared Vite5219 retained.
+
 **NUMBERED ENDGAME CORE FOUNDATION — 2026-10-06:**
 CUT31_ASCENSIONS.md implementation contract, A only; B/C/D open, whole goal active.
 endgame.rs Progress selected/unlocked/cleared per bloodline; no inference from

@@ -289,6 +289,8 @@ pub struct Run {
     pub notes: crate::shared::Shared<Vec<(u32, String)>>,
     pub over: Option<ExitTier>,
     pub death_cause: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_modifiers: Option<crate::endgame::Modifiers>,
     pub death_blow: i32,
     /// QA on 0c6e126: the tick of the killing blow (`Trace.blow`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3882,6 +3884,7 @@ impl Game {
             notes: Vec::new().into(),
             over: None,
             death_cause: None,
+            death_modifiers: None,
             death_blow: 0,
             death_t: None,
             death_short: 0,
@@ -4515,6 +4518,7 @@ impl Game {
                 telegraph: None,
                 cid: None,
                 remembered: false,
+                modifiers: None,
             },
             inv: h.inv.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
             weapon: h.weapon.as_ref().map(|w| w.kind.clone()),
@@ -4561,6 +4565,8 @@ impl Game {
         });
         Snapshot {
             depth: run.depth,
+            difficulty: run.difficulty,
+            modifier_catalogue: crate::endgame::catalogue(run.difficulty),
             biome: run.biome().name().into(),
             w: m.w,
             h: m.h,
@@ -6788,7 +6794,7 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
                 continue;
             }
             let id = run.new_id();
-            run.monsters.push(Monster::spawn(id, kind, pos, depth));
+            run.monsters.push(crate::endgame::spawn(run, id, kind, pos, depth, true));
         }
     }
     // Boss with escorts, near the down stairs. Cut 7 §1: the D5 lieutenant is placed the same
@@ -6804,7 +6810,7 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             .collect();
         let pos = if near.is_empty() { take(&mut run.rng, &open, &mut cursor) } else { *run.rng.pick(&near) };
         let id = run.new_id();
-        let mut m = Monster::spawn(id, boss, pos, depth);
+        let mut m = crate::endgame::spawn(run, id, boss, pos, depth, false);
         // Cut 30 §1: the lineage's scars on him (every meeting −5 %, cap −30 %, gone once slain).
         if let Some((_, pct)) = run.scars.iter().find(|(k, _)| k == boss) {
             m.max_hp = (m.max_hp * (100 - *pct as i32) / 100).max(1);
@@ -6817,7 +6823,7 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
         for q in pos.neighbours8() {
             if run.floor.map.passable(q) && !run.occupied(q) && run.rng.chance(guard) {
                 let id = run.new_id();
-                run.monsters.push(Monster::spawn(id, escort, q, depth));
+                run.monsters.push(crate::endgame::spawn(run, id, escort, q, depth, true));
             }
         }
     }
@@ -6831,7 +6837,7 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             continue;
         }
         let id = run.new_id();
-        let mut m = Monster::spawn(id, &g.kind, pos, depth);
+        let mut m = crate::endgame::spawn(run, id, &g.kind, pos, depth, false);
         m.make_grudge(&g.name);
         m.avenged = g.avenged;
         if hunted.is_some_and(|h| std::ptr::eq(h, g)) {
@@ -6982,6 +6988,7 @@ pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
         telegraph: mo.telegraph.clone(),
         cid: mo.cid,
         remembered: false,
+        modifiers: mo.modifiers,
     }
 }
 

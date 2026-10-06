@@ -43,6 +43,8 @@ impl Pending {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Monster {
     pub id: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modifiers: Option<crate::endgame::Modifiers>,
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -148,6 +150,7 @@ impl Monster {
         let hp = d.hp + bonus_hp;
         Monster {
             id,
+            modifiers: None,
             kind: kind.into(),
             name: None,
             pos,
@@ -236,15 +239,25 @@ impl Monster {
         self.atk = (self.atk.0, (self.atk.1 * 11 + 9) / 10);
     }
     /// Speed after the caster's `slow` (never below 1).
+    pub fn frenzied(&self) -> bool {
+        self.modifiers.is_some_and(|m| m.elite == Some(crate::endgame::Elite::Frenzied))
+            && self.hostile() && self.hp > 0 && i64::from(self.hp) * 2 <= i64::from(self.max_hp)
+    }
+    pub fn effective_atk(&self) -> (i32, i32) {
+        (self.atk.0, self.atk.1 + if self.frenzied() { 2 } else { 0 })
+    }
     pub fn effective_speed(&self) -> i32 {
+        let speed = self.speed + if self.frenzied() { 3 } else { 0 };
         if self.slow_t > 0 {
-            (self.speed - 5).max(1)
+            (speed - 5).max(1)
         } else {
-            self.speed
+            speed
         }
     }
     pub fn effective_def(&self) -> i32 {
         self.def + if self.buff_def.1 > 0 { self.buff_def.0 } else { 0 }
+            + if self.modifiers.is_some_and(|m| m.elite == Some(crate::endgame::Elite::Shielded))
+                && self.hostile() && self.stun == 0 && self.paralysed == 0 { 2 } else { 0 }
     }
     pub fn hostile(&self) -> bool {
         !self.ally && !self.neutral

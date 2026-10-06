@@ -17,8 +17,9 @@ The end report leads with runs, deepest floor and gold; extra detail folds away.
 Owner endgame direction2026-10-06: clears unlock numbered harder descents per
 bloodline, with affixes/elites/boss changes, then branching Legacy and class
 specializations (`docs/CUT31_ASCENSIONS.md`, `docs/ENDGAME_ASCENSIONS.md`).
-Only the core progression/reset foundation is implemented so far; higher-tier
-encounters and app selection remain pending. Old challenge restarts remain available.
+Core progression/reset and actual affix/elite/boss mechanics are implemented;
+app tier selection and broader balance verification remain pending. Old challenge
+restarts remain available.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an
 automation/idle game first, never as an action roguelike (`research/idle-attraction.md` §1.1).

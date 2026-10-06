@@ -121,7 +121,7 @@ import { compactLine, meterPanel } from "./meters";
 import { combatLogEvents, telegraphText } from "./combat-log";
 import { tacticObserver } from "./tactic-observer";
 import type { App, Mounted } from "../app";
-import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
+import type { EncounterModifiers, Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
 import { flyCoins, gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
 import { icon } from "./skin";
@@ -634,7 +634,7 @@ export function renderWatch(app: App): Mounted {
   let walkingHome = false;
   const floors = new Map<number, { rooms?: number; twist?: string; biome?: string }>();
   // Cut 16 §4: the boss in view as the HUD shows it (released at the viewer's clock), and each boss's break beat once
-  let bossHud: { id: number; kind: string; hp: number; max: number } | null = null;
+  let bossHud: { id: number; kind: string; hp: number; max: number; modifiers?:EncounterModifiers } | null = null;
   const broke = new Set<string>();
   const timed: { t: number; f: () => void }[] = [];
   let lastRuleIsRow = false;   // docs/COPY.md: a row's callout has no `R2 ·` marker any more
@@ -686,7 +686,7 @@ export function renderWatch(app: App): Mounted {
     if (bossFaceKind !== bossHud.kind) {
       if (bossFaceKind) { bossCounter.hidden = true; clear(bossCounter); }   // another boss: his own counter line, when sighted
       bossFaceKind = bossHud.kind;
-      enemyHost(bossName, bossHud.kind, app.lineage);
+      enemyHost(bossName, bossHud.kind, app.lineage, false, () => ({modifiers:bossHud?.modifiers,modifier_catalogue:hudSnap?.modifier_catalogue,alive:!!bossHud&&bossHud.hp>0}));
       const k = bossHud.kind.replace(/^boss_/, "");
       if (!paintPortrait(bossFace, `boss_${k}`)) paintSprite(bossFace, `boss_${k}`, 26, k);
     }
@@ -696,7 +696,7 @@ export function renderWatch(app: App): Mounted {
   function bossFrom(s: Snapshot): void {
     const b = s.entities.find((e) => e.tags.includes("boss") && !e.ally && e.hp > 0 && !!s.visible[e.y * s.w + e.x]);
     const was = bossHud?.id;
-    bossHud = b ? { id: b.id, kind: b.kind, hp: b.hp, max: b.max_hp } : null;
+    bossHud = b ? { id: b.id, kind: b.kind, hp: b.hp, max: b.max_hp, modifiers:b.modifiers } : null;
     if (b && b.id !== was && !bossHeard.has(b.id)) { bossHeard.add(b.id); cue("boss_in"); }   // juice pass 2: a boss's entrance is a beat you hear
     if (b || was !== undefined) paintBoss();
   }

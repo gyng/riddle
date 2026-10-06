@@ -32,12 +32,16 @@ export type ComboHit = { rows: [number, number]; name: string };
 export type Tile = "floor"|"wall"|"door"|"stairs_down"|"stairs_up"|"water"|"chasm"
                  | "shrine"|"vault"|"vault_open"|"nest";                 // Cut 5 §4 situations: floor-standing props (renderer tolerates them absent)
 export type Overlay = { x: number; y: number; k: "gas"|"fire"; ttl: number };
-export type Entity = { id: number; kind: string; name?: string; x: number; y: number;
+/** Cut31 B: immutable birth modifiers; saved separately from learned kind facts. */
+export type ModifierInfo = { id:string; mask:number; name:string; effect:string; counter:string };
+export type EncounterModifiers = { tier:number; affixes:number; elite?:"shielded"|"frenzied"; tight_mirror?:boolean };
+export type Entity = { modifiers?:EncounterModifiers; id: number; kind: string; name?: string; x: number; y: number;
                        hp: number; max_hp: number; tags: string[]; ally?: boolean; telegraph?: string;
                        cid?: number;                                    // Addendum A: companions carry their companion id
                        remembered?: boolean };                          // Cut 4 §3: pursued but unseen, at its last seen tile (drawn dimmed)
 export type FloorItem = { id: number; x: number; y: number; kind: string; known: boolean; label: string };
 export type Snapshot = {
+  difficulty?:number; modifier_catalogue?:ModifierInfo[];
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
   overlays: Overlay[]; hero: Entity & { inv: InvItem[]; weapon?: string; armour?: string; class: string; trait: string };
   entities: Entity[]; items: FloorItem[]; alert: number; turn: number; loot: number;
@@ -309,7 +313,7 @@ export type PatchWhole = { reach: number; reach_pm: number; death: number; death
                            death_from?: number };  // QA 308f045 (core; qaAC: `death −100 ±1`): the death share before the patch (0..1) — print `death 100→0%`   // Cut 26 §6 (core; AP: `reach D5 −76`): the bar's reach before/after the patch (0..1) — print the move as from→to (`reach D5 90→14%`), never a signed delta                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 /** Cut 30 §2 (core) — a death's one cheapest lever before the pen opens: `kind` spend · package · wait, `text` ≤ 3 words (`sword +2`, `Hunter`, `scarred ×3`). */
 export type Lever = { kind: string; text: string };
-export type Death = { hero?: { name:string; bloodline_id:number; heir:number; class:string }; package?: string; lever?: Lever;   // Cut 30 §2 (core): the package row that acted last (`Steady · HP<20% → return`); the cheapest lever (absent once the pen is open)
+export type Death = { difficulty?:number; modifier_catalogue?:ModifierInfo[]; modifiers?:EncounterModifiers; hero?: { name:string; bloodline_id:number; heir:number; class:string }; package?: string; lever?: Lever;   // Cut 30 §2 (core): the package row that acted last (`Steady · HP<20% → return`); the cheapest lever (absent once the pen is open)
   run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order"|"route";   // route: Cut 26 (core) — the far stair the set's route took killed him (`route_cause`)
                       fight?: MeterWire;                                                    // Cut 29 §3 (core): the fight he died in, metered — the death screen's breakdown; absent for a stall
                       lean?: "dice";                                                        // Cut 26 §6 (core; AO: `GAP` beside `unpatched 10/12`): a gap/row/order most of whose unpatched replays survive (> 6/12) — stamp it beside the counts (`GAP · dice-leaning`)
