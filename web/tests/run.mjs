@@ -3,13 +3,14 @@
 // (tools/dev.sh starts or reuses it). Output is printed per test as it finishes; exit 1 if any failed.
 //   node tests/run.mjs [name…]        e.g. node tests/run.mjs fights cut12 clarity:paint
 // A name `file:parts` runs `tests/<file>.mjs --part=<parts>` (clarity's four parts run side by side: the whole walk was one
-// 4-minute test the suite waited on — docs/ITERATION_SPEED.md, round 3); a bare `clarity` runs its parts.
+// 4-minute test the suite waited on — docs/ITERATION_SPEED.md, round 3); bare `clarity` and `ui` run all their parts.
 import { spawn } from "node:child_process";
 import { failureOutput } from "./lib/failure-output.mjs";
+import { UI_PARTS } from "./lib/ui-parts.mjs";
 import { readdirSync } from "node:fs";
 import net from "node:net";
 // Every tests/*.mjs but this runner, screen-time.mjs and town-gpu.mjs (timing gates the coordinator runs on the GPU).
-const PARTS = { clarity: ["clarity:core,watch", "clarity:hold", "clarity:card", "clarity:paint", "clarity:deep"] };
+const PARTS = { ui: UI_PARTS.map(part => `ui:${part}`), clarity: ["clarity:core,watch", "clarity:hold", "clarity:card", "clarity:paint", "clarity:deep"] };
 const expand = (n) => PARTS[n] ?? [n];
 const ALL = readdirSync("tests").filter((f) => f.endsWith(".mjs") && !["run.mjs", "screen-time.mjs", "town-gpu.mjs"].includes(f)).map((f) => f.slice(0, -4)).sort().flatMap(expand);
 const names = process.argv.slice(2).length ? process.argv.slice(2).flatMap(expand) : ALL;
@@ -32,7 +33,7 @@ if (!process.env.RIDDLE_PORT) {
 // longest first (`OWN`: each test's own seconds in a quiet suite, 2026-09-26 — cut25's real-wasm watch
 // started last and ended the suite alone), sharing the remaining slots (`TEST_JOBS` overrides the width).
 const TIMING = ["fights", "cut13", "clarity:deep", "clarity:card", "clarity:core,watch"];
-const OWN = { cut25: 180, fights: 128, qaj: 88, ui: 87, "clarity:hold": 81, "clarity:deep": 66, cut13: 61, "clarity:card": 55, qa9: 52, screens: 47, "clarity:core,watch": 42, cut27: 38, cut23: 36, "clarity:paint": 30 };
+const OWN = { cut25: 180, fights: 128, qaj: 88, "ui:keep": 40, "ui:frame": 28, "ui:stall": 25, "ui:qa": 22, "ui:cut18": 19, "ui:cut19": 18, "clarity:hold": 81, "clarity:deep": 66, cut13: 61, "clarity:card": 55, qa9: 52, screens: 47, "clarity:core,watch": 42, cut27: 38, cut23: 36, "clarity:paint": 30 };
 const own = (n) => OWN[n] ?? 20;
 const SOLO = ["clarity:paint"];   // (below: last, alone)
 const order = [...names].sort((a, b) => (SOLO.includes(a) ? 1 : 0) - (SOLO.includes(b) ? 1 : 0) || (TIMING.includes(b) ? 1 : 0) - (TIMING.includes(a) ? 1 : 0) || (TIMING.includes(a) ? TIMING.indexOf(a) - TIMING.indexOf(b) : own(b) - own(a)));

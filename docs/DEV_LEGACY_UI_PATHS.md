@@ -15,7 +15,8 @@ legacy failures; targeted success does not certify the full suite.
 
 ## Targeted commands
 
-The default ui command still runs every section. Choose one or several for a
+The default runner ui command runs every section as bounded independent jobs;
+direct node tests/ui.mjs retains the serial full walk. Choose one or several for a
 local edit; these are targeted checks, not a replacement for the full suite:
 
 ```
@@ -48,3 +49,10 @@ No game truth, balance, player UI, WASM build or deployment changed in this pass
 Follow-up: watch identity fixed in UX_WATCH_HERO_IDENTITY.md. The original full
 ui command now passes all132 checks in135.4s. Its default coverage remains all
 six sections; targeted sections still do not certify the full client suite.
+
+
+2026-10-06 default dispatch follow-up: shared UI_PARTS keeps runner expansion
+and serial coverage aligned. Quiet counterbalanced serial/split/split/serial
+measurements all pass132 checks; median132.5s→40.1s (69.73% reduction). Bare
+runner ui and default suite now expand to six bounded jobs; targeted commands
+remain targeted. DEV_UI_PARTS_DEFAULT.md records scope and exact measurements.

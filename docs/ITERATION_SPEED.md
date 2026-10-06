@@ -1,3 +1,15 @@
+**DEFAULT LOCAL UI PARALLELISM — 2026-10-06:** Full UI132 checks restored,
+then measured unchanged a2e780f in quiet serial/split/split/serial order:
+serial132.6/132.5s, split41.3/38.9s, all green. Median132.5→40.1s,69.73%
+reduction/about3.30x for this UI suite alone. Shared UI_PARTS now feeds direct
+serial walk and default runner expansion; six bounded jobs, same132 checks,
+existing seven-slot pool/timing headroom/failure handling. Explicit ui:part
+remains targeted; direct node tests/ui.mjs remains full serial debugging path.
+No full-suite speed claim or gameplay/build/sim change. Contract
+DEV_UI_PARTS_DEFAULT.md; raw artifacts scratchpad/ui-parts-bench-20261006/.
+Owner next queue: compact desktop depth, rich hero presence, remaining-content
+and checkpoint comparison audit; NEXT_WORK.md records scope/code pointers.
+
 **TARGETED LEGACY UI CHECKS — 2026-10-06:** ui accepts --part=frame,qa,
 stall,keep,cut18,cut19; bareui still coversall. Each section selfinitializes;
 qa includesK/L. Updatedfixtures to establishedtowns/enginebacked packs, actual

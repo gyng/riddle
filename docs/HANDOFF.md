@@ -1,3 +1,22 @@
+**DEFAULT LOCAL UI SPEED + OWNER QUEUE — 2026-10-06:** Quiet unchanged
+serial/split/split/serial UI benchmark all132 checks green:132.6/132.5s serial,
+41.3/38.9s split. Median132.5→40.1s,69.73% reduction/about3.30x for this UI
+suite alone. Shared tests/lib/ui-parts.mjs now supplies full serial walk and
+runner ui/default discovery; six sections within existing bounded pool.
+Longest-first hints updated; timing headroom/retries/failure output/assertions
+unchanged. Implemented bare runner ui passes all132 in41.7s. Syntax/diff clean.
+No runtime/Rust/WASM/build/deploy changes; full-suite timing not measured.
+Contracts DEV_UI_PARTS_DEFAULT.md and DEV_LEGACY_UI_PATHS.md; raw benchmark
+scratchpad/ui-parts-bench-20261006/. Prior watch caption a2e780f pushed.
+Owner queued next: (1) compact desktop right depth UI, (2) rich Steam-like hero
+presence (D13/combat/etc), (3) remaining-content and checkpoint audit against
+leading idle games with current primary-source research. NEXT_WORK.md records
+scope and code pointers. HeroSlot LiveRun currently lacks phase; don't infer
+other heroes' activity from selected replay/HP deltas. Desktop watch shaft
+opener currently no-op; add a real reference path when compacting. Next work
+starts compact depth, actual screenshots, then presence/audit. No deploy until
+owner tells us. Broad goal remains active; full client/balance uncertified.
+
 **WATCH END ACTION CAPTION — 2026-10-06:** Real death screenshot retained
 HIT WEAKEST SPECTRAL above its outcome. ReplayState now clears action caption
 at watched hero death/exit and ignores later rule captions until reset; enemy

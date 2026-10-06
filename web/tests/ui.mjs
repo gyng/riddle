@@ -19,11 +19,11 @@ import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { openPanel } from "./lib/frame.mjs";
+import { UI_PARTS as PARTS } from "./lib/ui-parts.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
 const requestedParts = process.argv.find(arg => arg.startsWith('--part='))?.slice(7);
-const PARTS = ['frame', 'qa', 'stall', 'keep', 'cut18', 'cut19'];
 const parts = new Set(requestedParts === undefined ? PARTS : requestedParts.split(','));
 if (!parts.size || [...parts].some(part => !PARTS.includes(part))) throw Error(`ui parts: ${PARTS.join(',')}`);
 
