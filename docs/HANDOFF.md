@@ -1,3 +1,18 @@
+**WATCH END ACTION CAPTION — 2026-10-06:** Real death screenshot retained
+HIT WEAKEST SPECTRAL above its outcome. ReplayState now clears action caption
+at watched hero death/exit and ignores later rule captions until reset; enemy
+deaths retain actions, seek/load restore normal behavior. No core/wire change.
+New19 clock/three-exit/late-event/seek/reset checks and log/status/frame63 pass,
+four suites28.9s; build/typecheck/copy1570 clean. Actual headed WASM seed3 owned
+Bold400/1440 run66D6death: no caption, Run ended +cause/history8px gap, no
+errors/overflow, viewed2nd/engine3rd/gold8443. Fast-skip actual control; held only
+verdict presentation then released. Recaptured after closing Speed sheet.
+Contract UX_WATCH_END_CAPTION.md; scratchpad/watch-end-caption-20261006/.
+No deployment. Preview5425 cleaned/shared5219 preserved. Broad goal active;
+next measure original fullui vs all six restored sections in a bounded pool,
+then improve default local test iteration if equivalent checks remain green.
+Full client/balance suite not certified.
+
 **LIVE WATCH READING — 2026-10-06:** Speed tile now shows selected mode
 inside its face; still exactly two console actions. Run ended badge remains
 visible on the final picture. Plain combat history holds its visible older

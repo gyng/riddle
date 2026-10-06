@@ -103,6 +103,7 @@ export class ReplayState {
    *  replays the past (`bulk`) */
   onEvent: ((ev: Ev) => void) | null = null;
   private bulk = false;
+  private ended = false;
   private snap: Snapshot | null = null;
   private queue: Ev[] = [];
   private log: Ev[] = [];     // applied since load, in order (for seek)
@@ -144,6 +145,7 @@ export class ReplayState {
     this.bossFlashUntil = -Infinity;
     this.callout = null;
     this.caption = null;
+    this.ended = false;
     this.screenShake = null;
     this.leash = null;
     this.projectiles = [];
@@ -373,7 +375,7 @@ export class ReplayState {
       case "rule": {
         // Cut 8A: the firing row as a caption at the top of the fight frame: `R2 attack goblin`; a trait deviation reads as
         // its own text (`cowardly > retreat`); chores (row -2) stay silent (pillar 2)
-        if (ev.row < -1) break;
+        if (this.ended || ev.row < -1) break;
         const tail = ev.text.includes("→") ? ev.text.slice(ev.text.lastIndexOf("→") + 1).trim() : ev.text;
         // QA 23ed91f (L: `R4 PACK BREAK GOBLIN`, 4 words): a callout is ≤ 3 words — the row number and at most two of the verb's
         // (the target goes first: `R4 pack break`, `R2 attack goblin`)
@@ -382,6 +384,7 @@ export class ReplayState {
         break;
       }
       case "die": {
+        if (ev.id === this.heroId) { this.ended = true; this.caption = null; }
         const e = this.ents.get(ev.id);
         if (!e) break;
         e.dying = { t0: t };
@@ -443,6 +446,7 @@ export class ReplayState {
         this.fadeTarget = 1;
         break;
       case "exit":
+        this.ended = true; this.caption = null;
         // the run's end keeps its last frame lit: the corpse's floor, dimmed a little, never black (QA on 50bb162:
         // "map is black at death"); the next floor's load resets the fade
         this.fadeTarget = EXIT_DIM;
