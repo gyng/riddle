@@ -23,6 +23,7 @@ try{for(const width of [400,1440]){
  await p.evaluate(()=>window.__nextFloor=true);
  await p.waitForFunction(()=>window.__coreDepth===6&&Number(window.__coreTick)>Number(document.querySelector('.watch').dataset.tick)+30);
  const state=await p.evaluate(()=>({tick:Number(document.querySelector('.watch').dataset.tick),text:document.querySelector('.live-badge').textContent,depth:document.querySelector('.hud .depth').textContent}));
+ if(width>=1024){if(!await p.locator('.depth-summary').isVisible())throw Error('Missing forecast hid current depth');if(await p.locator('.depth-current b').innerText()!=='D5')throw Error('Paused depth used engine frontier');}
  if(state.tick!==held||state.depth!=='D5'||!state.text.includes('Watch paused'))throw Error(JSON.stringify({held,state}));
  const earlier=await p.evaluate(()=>{document.querySelector('.console .gem').click();return document.querySelector('.live-badge').textContent;});
  if(!earlier.includes('Watching D5')||!earlier.includes('Live D6'))throw Error(earlier);
@@ -31,6 +32,7 @@ try{for(const width of [400,1440]){
  await p.locator('.console .gem').click();await p.evaluate(()=>window.__endWatch=true);
  await p.waitForFunction(()=>document.querySelector('.live-badge')?.dataset.status==='ended');
  if(!await p.locator('.live-badge').isVisible())throw Error('End status hidden');
+ if(width>=1024&&await p.locator('.depth-current b').innerText()!=='D6')throw Error('End depth mismatch');
  const end=await p.locator('.live-badge').innerText();if(!end.includes('Run ended')||!end.includes('Watching D6'))throw Error(end);
  if(errors.length)throw Error(errors.join('\n'));console.log(width,'status/paused core progress/resume/ending PASS');await p.close();
 }}finally{await b.close();}

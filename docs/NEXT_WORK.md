@@ -1,10 +1,11 @@
 # Owner queue — 2026-10-06
 
-Continue after the current measured local UI iteration-speed work. Push approved
+Local UI iteration-speed and compact-depth work are implemented and pushed.
+Continue with hero presence/tactic observability, then the content/checkpoint audit. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.
 
-1. **Compact desktop depth column.** Replace the long right-side floor ladder
+1. **Compact desktop depth column — implemented2026-10-06.** Replace the long right-side floor ladder
    with a concise view of the watched/current floor, next important boss or
    checkpoint and nearby progress. Keep the full depth/forecast reference
    accessible when wanted. Inspect actual early/established/late states before
@@ -40,3 +41,23 @@ HeroSlot.live currently carries only run_id/heir/depth/start/hp/max_hp/turn:
 it does not expose combat/exploration phase. Rich presence for every bloodline
 needs authoritative snapshot data or a small Rust-owned phase field; HP changes
 or the selected hero's replay must not stand in for other heroes' activities.
+
+Owner follow-up: **tactic observability without text flooding**, integrated into
+hero-presence work. Keep a small set of existing tactic/style icons alongside
+presence; light the owning tactic on actual rule activation, using throttled
+or merged feedback rather than blinking on every default swing. Tie target/item
+emphasis to actual action events. Hover/tap details can show the condition and
+recent activation count; the existing plain combat history holds the trace.
+Audit row-to-bundle ownership/available event metadata before implementation;
+do not invent attribution or alter combat results. Avoid another caption feed,
+per-frame layout reads or a new always-visible rule table. Verify early-player
+simplicity, mobile access, repeated activations, default attacks and real tactics.
+
+
+Compact depth verification: UX_COMPACT_DESKTOP_DEPTH.md, all132 UI checks plus
+compact/status/console9jobs pass40.7s; actual earned WASM1440/1920 camp/watch/
+reference and400camp screenshots shown. Full forecast navigation and read-only
+watch hints now work. Phone ladder retained; paused picture depth stays stable.
+Next presence audit should reproduce the current real screenshot: watchedD4
+but hero-roster label still LiveD1. Treat that as stale presentation evidence,
+not a simulation-progress conclusion; inspect slot/snapshot update ownership.

@@ -474,7 +474,7 @@ export function renderWatch(app: App): Mounted {
     if (logFollowing) combatRows.scrollTop = combatRows.scrollHeight;
   }
   const wideMeters = h("div", { class: "meters-live" });
-  const wide = wideCols(app, wideMeters);   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
+  const wide = wideCols(app, wideMeters, () => Number(depth.dataset.floor ?? app.lineage.live?.depth ?? app.lineage.start ?? 1));   // desktop: the rules left, the shaft right (wide.css) — the run's meters under the shaft
   function paintMeters(now = false): void {
     if (disposed || !lastMeters) return;
     const t = performance.now(), remaining = METER_PAINT_MS - (t - meterPaintAt);
@@ -665,6 +665,7 @@ export function renderWatch(app: App): Mounted {
     stake.classList.toggle("warn", p < 0.4);
     replace(hpText, /* copy:callout */ `${Math.max(0, hud.hp)}/${hud.maxHp} hp`);   // docs/COPY.md pass 5: `28/36` read as XP or rooms
     replace(depth, `D${hud.depth}`);
+    depth.dataset.floor = String(hud.depth); wide.paintDepth?.();
     paintWatchStatus();
     // QA 23ed91f (K: "`!` / `!!` / `!!!` after the depth label, and `alert 1` / `alert 3`"): one name for one thing — the HUD reads
     // `alert 3`, as the callout does when it rises; nothing at 0

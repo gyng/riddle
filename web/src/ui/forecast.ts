@@ -221,7 +221,7 @@ export function lmoveLine(app: App, f: Forecast | null): HTMLElement | null {
 /** Cut 29 §6 (AX: `$81` banked under `~$260`): the waystone passage the send pays into the purse is apart from what a run brings home —
  *  `~$125/run +$135 passage`. */
 const passageEl = (p: number | undefined): HTMLElement | "" => p && p > 0 ? h("small", { class: "passage dim" }, /* copy:callout */ ` +$${Math.round(p)} passage`) : "";
-export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
+export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { el: HTMLElement; dispose(): void } {
   const bars = h("div", { class: "fc-bars" });
   const causes = h("div", { class: "fc-causes" });
   const yours = h("div", { class: "fc-yours num" });
@@ -334,7 +334,7 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
         !tr && why.length ? h("span", { class: "why num" }, ...why.map((w) => { if (w instanceof HTMLElement && w.firstChild?.nodeType === 3 && /^ · /.test(w.firstChild.textContent ?? "")) { w.firstChild.textContent = (w.firstChild.textContent ?? "").slice(3); w.prepend(h("i", { class: "sep" }, " · ")); } return w; })) : "",
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
-      bars.appendChild(tr
+      bars.appendChild(tr && !opts.readOnly
         ? h("button", { class: `bar next try${wall ? " walled" : ""}`, onclick: () => { const i = app.applyPatch({ row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }); closeAllSheets(); app.go({ kind: "camp", highlight: i }); } }, ...inner)
         : h("div", { class: `bar${cause || wall || boss ? " next" : ""}${wall ? " walled" : ""}` }, ...inner));
     }
@@ -380,7 +380,7 @@ export function bankCap(rows: Row[]): number | undefined {
  *  its reach (amber alpha = reach, the `±` a thin halo), `?` past what the forecast knows; under it (from a 3rd row on, the reveal
  *  ladder) three gems — bank · return · death — with their shares and `~$N`. The shaft is one button: it opens the forecast panel
  *  (`onOpen`), where the bars, the causes and the `try` rows live. */
-export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolean): { el: HTMLElement; vsEl: HTMLElement; dispose(): void; paint(): void } {
+export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolean, watchedDepth?: () => number): { el: HTMLElement; vsEl: HTMLElement; dispose(): void; paint(): void; paintDepth(): void } {
   const notches = h("div", { class: "notches" });
   const ends = h("div", { class: "shaft-ends num", hidden: true });
   // Cut 22 §3: the last edit's paired move, a small line under the shaft (`vs last · D8 +6 · bank +4`), cleared by the next edit. It is
@@ -397,6 +397,29 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   // on D1"): past MAX the shallow floors fold into one notch (`D1–6`, lit by its deepest floor's reach — they are the ones every run
   // passes), so the shaft always starts where the run does
   const MAX = 9;
+  const summary = h("span", { class: "depth-summary" });
+  el.appendChild(summary);
+  let summaryKey = "";
+  const paintDepth = (): void => {
+    const floor = watchedDepth ? watchedDepth() : app.lineage.live?.depth ?? forecastStart(app, last);
+    const best = app.lineage.best_depth;
+    const next = last?.depths.filter(d => d.depth > floor && (d.boss || d.bounty)).sort((a, b) => a.depth - b.depth)[0];
+    const nextFloor = next?.depth ?? Math.max(floor + 1, best + 1);
+    const label = watchedDepth ? /* copy:label */ "Watching" : app.lineage.live ? /* copy:label */ "Live floor" : /* copy:label */ "Starts at";
+    const key = JSON.stringify([floor, best, next, nextFloor, label, last?.refined, lowOf(last)]);
+    if (key === summaryKey) return;
+    summaryKey = key;
+    const milestone = next?.boss ? enemyHost(unitLabel(next.boss, wallName(next.boss), { px: 30 }), next.boss, app.lineage)
+      : next?.bounty ? h("span", { class: "depth-bonus" }, /* copy:label */ `${typeof next.bounty === "number" && next.bounty > 1 ? next.bounty : 2}× gold`)
+      : h("span", null, /* copy:label */ "New record");
+    replace(summary,
+      h("small", { class: "depth-heading" }, /* copy:label */ "Depth"),
+      h("span", { class: "depth-current depth-summary-row" }, h("small", null, label), h("b", { class: "num", "data-floor": floor }, `D${floor}`)),
+      h("span", { class: "depth-record depth-summary-row" }, h("small", null, /* copy:label */ "Record"), h("b", { class: "num" }, best > 0 ? `D${best}` : "—")),
+      h("span", { class: "depth-next depth-summary-row" }, h("small", null, /* copy:label */ "Next"), h("b", { class: "num" }, `D${nextFloor}`), milestone,
+        next ? h("small", { class: "depth-chance" }, /* copy:label */ "Floor chance", ` ${share(next.reach, lowOf(last))}${pmShown(next.reach, next.pm) !== undefined ? ` ±${pmShown(next.reach, next.pm)}` : ""}`, last?.refined === false ? /* copy:label */ " · estimate" : "") : ""),
+      h("span", { class: "depth-open" }, /* copy:button */ "Full forecast", " ›"));
+  };
   const paint = (): void => {
     // Cut 20 §5: the bounty floor (best + 2) carries a notch of its own past best + 1 — `D12 ×2`, a gold glint
     const bountyD = last?.depths.find((d) => d.bounty)?.depth ?? app.lineage.bounty?.depth;
@@ -478,6 +501,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
       h("span", { class: "end gold" }, /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), ""));
     replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
+    paintDepth();
     const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last), st = stateLine(app);
     vsHost.hidden = !line && !lm && !st; replace(vsHost, st ?? "", lm ?? "", line ?? "");
     el.dataset.vs = line ? "1" : "";
@@ -488,6 +512,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   const off = app.onForecast(() => { const f = app.lastForecast; if (!f) return; last = f; el.dataset.fc = String(app.forecastSeq); el.classList.remove("stale"); el.classList.toggle("rough", f.refined === false); paint(); });
   const offRules = app.onRules(() => { el.classList.add("stale"); paint(); });   // the bank cap follows the rows at once
   const offChange = app.onChange(paint);
+  const offLive = app.onLive(paintDepth);
   const offVs = app.onVs(paint);   // Cut 22 §3: the move lands after the paint (or clears on an edit)
-  return { el, vsEl: vsHost, paint, dispose: () => { off(); offRules(); offChange(); offVs(); } };
+  return { el, vsEl: vsHost, paint, paintDepth, dispose: () => { off(); offRules(); offChange(); offLive(); offVs(); } };
 }

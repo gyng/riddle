@@ -1,3 +1,24 @@
+**COMPACT DESKTOP DEPTH — 2026-10-06:** Desktop shaft now three rows:
+watched/live/start floor, record, next boss/bonus (else next record), unit icon/
+tooltip, probability/uncertainty/estimate label and Full forecast action.
+Phone retains old ladder. Desktop reference opens/closes/disposes; hints read
+only, no mid-run patch application. Watch source follows HUD picture, not core
+frontier or new heir. Keyed summary writes, no new frame layout reads. Missing
+forecast summary remains visible (old cut29 visibility hid it). Challenge badge
+retained; initial325px padding conflict fixed,320px gate unchanged.
+Final compact/status/console +full UI132 checks9jobs40.7s green; build/typecheck/
+copy1581/diff clean, existing bundle advisory. Actual headed WASM earnedseed3
+Steady1440/1920 camp/watch/reference +400camp: record13, watched4/summary4,
+nextD8warlord38%±34estimate, no errors/overflow. Source forecast/raw results
+scratchpad/compact-depth-20261006/; screenshots shown. No Rust/WASM/gameplay/
+deploy. Preview5427 cleaned/shared5219 preserved. UX_COMPACT_DESKTOP_DEPTH.md.
+NEXT_WORK item1 implemented; next rich hero presence plus owner's requested
+tactic observability via small icons/event reactions/tooltips/log, avoiding
+caption flood. Real screenshot still rosterLiveD1 vs watchedD4: inspect stale
+slot summary ownership before phase labels. Then remaining-content/checkpoint
+comparison audit with current primary game sources. Broad goal active; full
+client/balance suite not certified. No deploy until owner instructs.
+
 **DEFAULT LOCAL UI SPEED + OWNER QUEUE — 2026-10-06:** Quiet unchanged
 serial/split/split/serial UI benchmark all132 checks green:132.6/132.5s serial,
 41.3/38.9s split. Median132.5→40.1s,69.73% reduction/about3.30x for this UI

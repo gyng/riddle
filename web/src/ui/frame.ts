@@ -9,9 +9,9 @@ const withCap = (el: HTMLElement | "", c: Concept, words?: string): HTMLElement 
 import type { App } from "../app";
 import type { Row } from "../engine/types";
 import { h, replace } from "./dom";
-import { closeAllSheets, openSheet } from "./sheet";
+import { closeAllSheets, openSheet, openWindow } from "./sheet";
 import { heirOrd, rowLabel } from "./tokens";
-import { renderShaft } from "./forecast";
+import { renderShaft, renderForecast } from "./forecast";
 import { setHeroLook } from "../render/look";
 import { icon, portraitSrc, verbIcon } from "./skin";
 import { openSettings } from "./settings";
@@ -205,14 +205,16 @@ export const metersSlot = (content?: HTMLElement | null): HTMLElement => content
 /** Desktop: the columns around a screen's well — the rules left (the set's tablets, read-only: the camp's own are its editor) and the
  *  shaft right with the meters' slot under it. Built only on a wide screen (a phone's DOM is unchanged); `els` go straight into the
  *  screen's `main.frame` (wide.css places them), `dispose` unhooks the shaft. */
-export function wideCols(app: App, meters?: HTMLElement | null): { els: HTMLElement[]; dispose(): void; slot?: HTMLElement } {
+export function wideCols(app: App, meters?: HTMLElement | null, watchedDepth?: () => number): { els: HTMLElement[]; dispose(): void; slot?: HTMLElement; paintDepth?(): void } {
   if (!isWide()) return { els: [], dispose: () => undefined };
   const plaque = (r: Row): HTMLElement | "" => { const id = verbIcon(r.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };   // gfx round 2: as the camp's tablets
   const rows = h("div", { class: "rows" }, ...app.rules.rows.map((r, i) => h("div", { class: "row tablet compact ro", "data-i": i }, h("span", { class: "rn num" }, `${i + 1}`), h("span", { class: "rtext" }, rowLabel(r)), plaque(r))));
   const heroes=heroRoster(app);
   const left = h("aside", { class: "rules-col heroes-col" }, heroes.el, h("details",{class:"hero-rules"},h("summary",null,/* copy:button */"Rules"), h("section", { class: "editor compact" }, h("small", { class: "rows-head dim" }, /* copy:label */ "priority"), rows)));
-  const shaft = renderShaft(app, () => undefined, () => revealed(app).has("gems"));
-  shaft.el.tabIndex = -1;
+  const shaft = renderShaft(app, () => {
+    const fc = renderForecast(app, { readOnly: true });
+    openWindow(() => h("div", { class: "sheet-body depth-reference" }, fc.el), { onClose: () => fc.dispose() });
+  }, () => revealed(app).has("gems"), watchedDepth);
   const slot = metersSlot(meters);
   const right = h("aside", { class: "side-col" }, shaft.el, slot);
   // gfx round 2 (raters: "a reach of '?' clutter" on the desktop death and report): a screen booted straight into them has no forecast
@@ -223,5 +225,5 @@ export function wideCols(app: App, meters?: HTMLElement | null): { els: HTMLElem
   known();
   const off = app.onForecast(() => known());
   // Cut 30 §2: no rule tablets before the pen — the left column holds the worn packages (read-only plaques) until it opens
-  return { els: [left,right], dispose: () => { heroes.dispose();off(); shaft.dispose(); }, slot };
+  return { els: [left,right], dispose: () => { heroes.dispose();off(); shaft.dispose(); }, slot, paintDepth: shaft.paintDepth };
 }
