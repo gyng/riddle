@@ -110,9 +110,25 @@ fn wrong_style_class_level_and_targets_cannot_mutate_actions() {
         let mut g=arena(style);foe(&mut g,"goblin");let wrong=if style==Style::Sentinel {"hex"}else{"riposte"};
         let before=g.save();assert!(!act(&mut g,wrong));assert_eq!(g.save(),before);
         g.run.as_mut().unwrap().hero.level=9;let before=g.save();assert!(!act(&mut g,style.verb()));assert_eq!(g.save(),before);
+        g.run.as_mut().unwrap().hero.level=10;g.run.as_mut().unwrap().hero.class=Class::Rogue;
+        let before=g.save();assert!(!act(&mut g,style.verb()));assert_eq!(g.save(),before);
     }
     let mut g=arena(Style::Hexbinder);foe(&mut g,"goblin");g.run.as_mut().unwrap().monsters[0].pos=Pos::new(100,100);
     let before=g.save();assert!(!act(&mut g,"hex"));assert_eq!(g.save(),before);
+    for distance in [2,9] {
+        let mut g=arena(Style::Hexbinder);foe(&mut g,"goblin");
+        let r=g.run.as_mut().unwrap();let p=r.hero.pos;
+        let sign=if p.x+distance<r.floor.map.w {1}else{-1};
+        let target=Pos::new(p.x+sign*distance,p.y);assert!(r.floor.map.in_bounds(target));
+        for n in 1..=distance {r.floor.map.set(Pos::new(p.x+sign*n,p.y),crate::tiles::Tile::Floor);}
+        r.monsters[0].pos=target;let i=r.floor.map.idx(target);r.floor.map.visible[i]=true;r.floor.map.seen[i]=true;
+        if distance==2 {r.floor.map.set(Pos::new(p.x+sign,p.y),crate::tiles::Tile::Wall);}
+        assert_eq!(r.floor.map.los(p,target),distance==9);
+        assert!(!crate::turn::view(r).foes.is_empty(),"controlled visible target");
+        let (r,cx)=g.ctx();let v=crate::turn::view(r);
+        assert_eq!(crate::ai::block_reason(r,&cx,&Verb::new("hex"),&v),if distance==2 {"no sight"}else{"too far"});
+        let before=g.save();assert!(!act(&mut g,"hex"));assert_eq!(g.save(),before);
+    }
 }
 #[test]
 fn selected_styles_leave_every_other_complete_game_and_shared_town_resources_unchanged() {
@@ -193,4 +209,50 @@ fn automatic_named_row_fires_and_active_style_changes_forecast_key_and_vocabular
         let mut g=arena(style);foe(&mut g,"goblin");g.sim=false;g.run.as_mut().unwrap().hero.energy=100;
         let result=g.step(1);assert!(result.events.iter().any(|e|matches!(e,Ev::Rule{verb,..} if verb.v==style.verb())),"style {style:?}, events {:?}, rows {:?}",result.events,g.lineage.rules().rows);
     }
+}
+
+#[test]
+fn wire_choices_match_refusals_parent_xp_history_and_actual_default_rows() {
+    let mut g=qualified(Class::Fighter);
+    g.lineage.classes.get_mut("fighter").unwrap().xp=123;
+    let base=g.save();let c=g.lineage().class_styles.unwrap();assert_eq!(g.save(),base);
+    assert_eq!(c.selected,None);assert!(!c.remove_available);assert!(c.automatic_row);
+    for o in c.offers {
+        let before=g.save();let result=g.set_specialization(o.id.id());
+        assert_eq!(result.is_ok(),o.available);
+        if let Err(reason)=result {assert_eq!(Some(reason),o.blocked);assert_eq!(g.save(),before);}
+        else {assert_eq!(o.parent,"fighter");assert_eq!(o.level,10);assert_eq!(o.xp,123);
+            assert_eq!(o.deepest,23);assert_eq!(o.next,if o.level>=crate::engine::MAX_LEVEL {0}else{crate::hero::xp_to_next(o.level)});
+            assert_eq!(o.tactic,row(&g.lineage).unwrap());assert_eq!(o.duration_ticks,20);assert_eq!(o.cooldown_ticks,60);
+            g.set_specialization("none").unwrap();}
+    }
+    assert_eq!(g.save(),base);
+    g.lineage.classes.get_mut("fighter").unwrap().level=9;
+    let o=offers(&g.lineage,false).offers.remove(0);assert_eq!(o.required_level,10);assert_eq!(o.blocked.as_deref(),Some("reach class level10"));
+    g.lineage.classes.get_mut("fighter").unwrap().level=10;g.lineage.hero_legacy.last_mut().unwrap().best_depth=22;
+    let o=offers(&g.lineage,false).offers.remove(0);assert_eq!(o.required_depth,23);assert_eq!(o.blocked.as_deref(),Some("reach D23"));
+    g.lineage.hero_legacy.last_mut().unwrap().best_depth=23;g.set_specialization("sentinel").unwrap();g.send();
+    let c=g.lineage().class_styles.unwrap();assert_eq!(c.selected,Some(Style::Sentinel));assert!(!c.remove_available);
+    for o in c.offers {assert!(!o.available);assert_eq!(o.blocked.as_deref(),Some("hero away"));}
+    assert_eq!(c.remove_blocked.as_deref(),Some("hero away"));
+}
+#[test]
+fn live_roster_uses_snapshot_style_and_literal_policy_is_reported_without_claiming_auto_row() {
+    let mut s=crate::bloodlines::Session::new(1);s.active=qualified(Class::Fighter);
+    s.active.set_specialization("sentinel").unwrap();s.active.send();
+    s.active.lineage.specializations.clear();
+    assert_eq!(s.lineage().hero_slots[0].specialization,Some(Style::Sentinel));
+    let mut g=qualified(Class::Caster);crate::packages::make_literal(&mut g.lineage);
+    let before=g.lineage.rules().clone();g.set_specialization("hexbinder").unwrap();
+    let c=g.lineage().class_styles.unwrap();assert_eq!(c.selected,Some(Style::Hexbinder));assert!(!c.automatic_row);
+    assert_eq!(g.lineage.rules(),&before);
+}
+
+#[test]
+fn removal_offer_allows_clearing_unqualified_saved_choice_without_granting_ability() {
+    let mut g=qualified(Class::Fighter);g.set_specialization("sentinel").unwrap();
+    g.lineage.classes.get_mut("fighter").unwrap().level=9;
+    let c=offers(&g.lineage,false);assert_eq!(c.selected,None);assert!(c.offers[0].selected);assert!(c.remove_available);
+    assert!(!c.offers[0].available);let before=g.lineage.classes.clone();
+    g.set_specialization("none").unwrap();assert!(g.lineage.specializations.is_empty());assert_eq!(g.lineage.classes,before);
 }

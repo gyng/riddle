@@ -1473,7 +1473,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     }
     let cause = src.cause(run);
     let cause = cause.as_str();
-    let dmg=match src {Src::Mon(i) if run.monsters[*i].hostile()&&run.monsters[*i].hex_t>0=>(dmg-2).max(0),_=>dmg};
+    let dmg=match src {Src::Mon(i) if run.monsters[*i].hostile()&&run.monsters[*i].hex_t>0=>(dmg-crate::specialization::HEX_REDUCTION).max(0),_=>dmg};
     let (dmg, counter) = counter_damage(run, src, dmg, None, run.hero.pos, false);
     if let Some((a, b)) = counter {
         learn(run, cx, crate::defs::counter_fact(&a, &b));

@@ -171,6 +171,12 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    #[wasm_bindgen(js_name = setSpecialization)]
+    pub fn set_specialization(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.set_specialization(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     #[wasm_bindgen(js_name = selectSet)]
     pub fn select_set(&mut self, index: u32) -> String {
         self.inner.select_set(index as usize);

@@ -43,6 +43,7 @@ export function icon(name: string, glyph = ""): HTMLElement {
 /** gfx round 1 (camp.png: each rule tablet ends in its action's icon plaque): the icon for a rule's action — a family per icon; null
  *  when the family's icon is not packed (the tablet then has no plaque). */
 const VERB_ICON: [RegExp, string][] = [
+  [/^riposte$/, "style_sentinel"], [/^hex$/, "style_hexbinder"],
   [/^(attack|cleave|backstab|flank|ambush|feint)$/, "v_attack"], [/^(shield_bash|bulwark|ward|taunt)$/, "v_shield"],
   [/^(drink|second_wind)$/, "v_drink"], [/^read$/, "v_read"], [/^(throw|trap)$/, "v_throw"], [/^(retreat|kite)$/, "v_retreat"],
   [/^back_corridor$/, "v_corridor"], [/^descend$/, "v_descend"], [/^return$/, "bail"], [/^bank$/, "gold"], [/^(rest|hold|wait)$/, "v_rest"],

@@ -9,21 +9,24 @@ implemented. Five actual consecutive clears on one earned build; real UI and
 native/WASM/durable-save parity verified at320/400/1440 including two other
 live bloodlines. D build comparisons, one/three-slot absence parity, catch-up
 profiles and routine18-case gates now verified with the documented unchanged-
-preparation deviation; broad exhaustive balance remains uncertified. Legacy/
-class work remains next. CUT32_LEGACY_TREE.md is now implemented/verified:
+preparation deviation; broad exhaustive balance remains uncertified. CUT32_LEGACY_TREE.md is now implemented/verified:
 twelve nodes, actual effects, historic depth access, free home respec, exact
 one/three-slot8h parity and real earned desktop/phone screenshots. Nine paid
 Tier5 diagnostic builds clear in8–16h, final current18-case gate passes, scoped
 equal-work overhead stays below10%. Old save/ranks retained, no deployment.
-CUT33_CLASS_STYLES.md core checkpoint verified: Sentinel Riposte and Hexbinder
-Hex, existing parent XP, remembered bloodline choice, actual named tactic/events.
-Owned counter policies earn Caster10 in40 game-hours, no grants; generic-Bolt
-14day failure preserved. Both actual earned Tier1 campaigns clear. Current18case
-gate, exact old saves and native/WASM8h parity pass. Next: Rust-owned offers,
-native/WASM/worker choice methods, chunky UI/icons/presence/Hex tip, real-worker
-responsive earned screenshots, six paired Tier5 style/base cases and equal-work
-overhead<=10% against a39e4d7. Full Cut33 remains open. More base classes follow
-demonstrated gameplay gaps. No extra early prestige layer.
+CUT33_CLASS_STYLES.md implemented/verified2026-10-07: Sentinel Riposte and
+Hexbinder Hex, Rust-owned offers and real-worker choice UI, transparent icons,
+presence/Hex tips,320/400/1440 earned screenshots and exact8h one/three-slot
+native/WASM whole/sliced/reloaded reports/saves. Actual earned replay JSON
+matches, survives later camp removal. Twelve paired Tier5 cases clear8–24h;
+Sentinel seed5 slower than base, all selected cases within48h. Equal-work
+microbenchmark3.28–6.82% overhead against a39e4d7, current18case gates pass.
+631core/14tool tests, build/TS/copy/clippy/codegen green. No deployment.
+Next by impact: audit base-class default/training friction (preserve generic
+Bolt14day failure; owned counter policies earned Caster10 in40h without grants),
+expand higher-tier elite/boss/loot mechanics, then Rogue/Ranger specializations
+where distinct roles emerge. No extra early prestige layer. See Cut33 final
+checkpoint for synthetic Tier5 eligibility and broader audit limitations.
 
 D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h
 whole/sliced/reloaded full-state/report parity now passes after guide-quote,

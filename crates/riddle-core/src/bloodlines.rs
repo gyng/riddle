@@ -82,7 +82,7 @@ impl Session {
         let slot=|id:u32,g:&Game| {
             let live=g.run.as_ref().filter(|r|r.over.is_none());
             let xp=g.lineage.classes.get(g.lineage.class.name());
-            HeroSlot { look:g.lineage.look.clone().unwrap_or_else(||g.lineage.class.default_look().into()), hero_name:crate::legacy::hero_identity(g.lineage.seed,g.lineage.heir,id), id, name:format!("Bloodline {id}"), heir:g.lineage.heir, class:g.lineage.class.name().into(),
+            HeroSlot { specialization:live.map_or_else(||crate::specialization::current(&g.lineage),|r|r.hero.specialization), look:g.lineage.look.clone().unwrap_or_else(||g.lineage.class.default_look().into()), hero_name:crate::legacy::hero_identity(g.lineage.seed,g.lineage.heir,id), id, name:format!("Bloodline {id}"), heir:g.lineage.heir, class:g.lineage.class.name().into(),
                 level:xp.map_or(1,|x|x.level), xp:xp.map_or(0,|x|x.xp), next:xp.map(|x|if x.level>=crate::engine::MAX_LEVEL {0}else{crate::hero::xp_to_next(x.level)}),
                 state:if live.is_some(){"live"}else if g.waits(){"waits"}else{"rests"}.into(),
                 live:g.live_run(), rest_s:g.lineage.rest_left as f64 /10.0,

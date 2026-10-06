@@ -20,6 +20,7 @@ import { openChronicle } from "./chronicle";
 import { openLooks } from "./look";
 import { classList } from "./unlocks";
 import { CLASS_VERBS } from "../engine/classes";
+import {renderClassStyles,classStyleName} from "./class-styles";
 import { renderLegacy } from "./legacy";
 import { verbLabel } from "./tokens";
 import { kwHost } from "./tips";
@@ -331,7 +332,7 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
       const L = app.lineage;
       return JSON.stringify([L.selected_bloodline, L.heir, L.class, L.look,
         L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name,
-        L.bloodline, L.legacy_upgrades, L.legacy_respec, !!L.live, L.classes?.[L.class],
+        L.bloodline, L.class_styles, L.legacy_upgrades, L.legacy_respec, !!L.live, L.classes?.[L.class],
         L.hero_legacy?.find((h) => h.heir === L.heir)]);
     };
     let painted = "";
@@ -345,9 +346,13 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
       const face = h("span", { class: "hero-window-face" });
       paintFace(face, L.class, 56, L.look ?? "");
       replace(body, h("div", { class: "label row-label" }, /* copy:label */ `Bloodline ${L.selected_bloodline??1}`),
-        h("div", { class: "hero-line num" }, face, h("b", null, L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name || L.class), " ", L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name ? h("span", null, L.class) : "", " ", h("span", null, `L${lvl.level}`)),
+        h("div", { class: "hero-line num" }, face,
+          h("div",{class:"hero-identity"},h("b",{class:"hero-name"},L.hero_slots?.find((s)=>s.id===L.selected_bloodline)?.hero_name||L.class),
+            h("div",{class:"hero-class-meta"},L.hero_slots?.find((s)=>s.id===L.selected_bloodline)?.hero_name?h("span",null,L.class):null,
+              h("span",null,`L${lvl.level}`),L.class_styles?.selected?h("span",{class:"hero-class-path"},classStyleName(L.class_styles.selected)):null))),
         h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${L.bloodline?.points ?? legacy?.points ?? 0}`),
         L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
+        renderClassStyles(app,()=>{if(body.isConnected)paint();}),
         renderLegacy(app,()=>{if(body.isConnected)paint();},paths),
         h("div", { class: "hero-actions" },
           h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, /* copy:button */ "Change class"),

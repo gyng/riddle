@@ -1,7 +1,7 @@
 // Read-only descriptions from the played encounter's Rust catalogue.
 import type { EncounterModifiers, ModifierInfo } from "../engine/types";
 import { h } from "./dom";
-export type EncounterDetails = { modifiers?:EncounterModifiers; modifier_catalogue?:ModifierInfo[]; alive?:boolean };
+export type EncounterDetails = { modifiers?:EncounterModifiers; modifier_catalogue?:ModifierInfo[]; alive?:boolean; status_effects?:string[] };
 export function modifierLines(details?:EncounterDetails): Node[] {
   const m=details?.modifiers;
   if (!m || m.tier<=0) return [];

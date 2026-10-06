@@ -102,3 +102,65 @@ Earlier diagnostic variants remain retained; no claim of generic-policy success.
 Acceptance4's Tier5 pairs, acceptance5 app/art/responsive screenshot work and
 acceptance6 equal-work overhead are pending. No deployment; do not mark full
 contract complete based on this checkpoint.
+
+## Complete scoped verification — 2026-10-07
+
+Rust-owned offers now expose parent XP, level/depth gates, effect, duration,
+cooldown and default row. Native, WASM and actual worker methods choose/remove
+styles. Chunky Hero review, explicit override priority, remembered presence,
+Hex enemy status and dedicated transparent icons are implemented. First-town
+choices stay hidden. Live presence uses the sent hero snapshot. Failed Hex
+range/sight validation now preserves the remembered target exactly.
+
+Final quick:631 core PASS/one ignored,14 tool tests, TS and copy checks green
+in219s under competing work;15 focused specialization tests PASS. All-target
+fast clippy warnings denied, codegen check, fast WASM5378837B, web build and
+copy-lint1705/zero violations pass. Existing bundle advisory remains. Final
+routine18-case suite terminal0, source388e1612426bc870, no cached legs:
+wire75.4s, metrics129.3s, dayplayer226.3s/all selected bars PASS. Optional
+exhaustive/statistical/system-removal/historical audits remain uncertified.
+
+Permanent style_check.rs pairs seeds1/3/5 on the same earned parent XP, owned
+gear/policy and162 paid Legacy points; seed and Tier5 eligibility are synthetic.
+No campaign purchases or policy edits. Fighter base clears8/8/8 game-hours;
+Sentinel8/8/16, with716/627/1308 actions and460/426/758 counters. Caster base
+8/24/16; Hexbinder8/8/8 with932/1156/912 Hex actions. All twelve reachD34 and
+unlock6; all six selected cases meet48h. Sentinel is slower on seed5. This is a
+fixed-policy comparison, not an optimized base-policy search or proof of every
+higher-tier build. Final artifacts: scratchpad/class-balance-final-20261007/.
+
+Actual earned native/WASM replay JSON matches completely: Sentinel run181,
+72 exclusive actions/30 counters, hash687f35dac044b4d3; Hexbinder run244,
+27 actions, hash1b05d4e7f2d30e84. Removing the camp style preserves the entire
+existing replay. Whole8h,16 half-hour slices and uneven reloaded slices match
+entire saves/reports for both styles and one/three legally funded bloodlines;
+each native/WASM slice response/save also matches. Six older complete WASM
+baselines and two numbered native saves remain exact. Capsules are not newly
+persisted across page reload; this proof concerns existing replay capsules.
+
+Meaningful real-worker UI tests cover320/400/1440, locks, preview/cancel,
+stale class review, actual away refusal, one-call confirmation, adopted tactic,
+remove/retained XP, exact durable reload, keyboard details and inner identity
+bounds. Tactic tests cover old/new icon sizing and named style activation.
+Actual earned headed screenshots at all three widths preserve entire read-only
+saves, have no errors/overflow, and restore remove/rechoose state exactly.
+The320 identity clipping and oversized live cue icons found during QA are fixed.
+Artifacts: scratchpad/class-ui-20261006/; exact built-in imagegen prompts:
+art/prompts/class-styles-20261006.md. Sources art/ui/icons/style_*.png, packed
+web/public/ui/icons/style_*.png, existing packer validates alpha corners.
+
+Permanent style_perf.rs uses equal32-foe arenas,500 tick/damage calls,101
+samples, same9 hero resets and nine counterbalanced old/new rounds versus
+a39e4d7. Median ns/call: tier0 none492.840→509.020 (+3.28%); tier5 none
+514.762→538.822 (+4.67%); actual Riposte527.680→563.642 (+6.82%); actual Hex
+520.360→545.380 (+4.81%). All meet10%; positive effects verified. Parsing and
+map generation excluded; identical reset/clone work included. This isolates
+tick/status/damage overhead, not catch-up, rendering or whole-combat pacing.
+Source/binary hashes, full rounds and parity/replay artifacts retained alongside.
+
+Cut33 is implemented and verified within these acceptance boundaries. No
+deployment. Broader content work remains: audit base-class default/training
+friction before adding more classes, expand elite/boss/loot mechanics for higher
+tiers, then optional Rogue/Ranger specializations with demonstrated distinct
+roles. Preserve the failed generic-Bolt14day preparation; do not grant XP or
+silently replace authored rules. Keep-going goal remains active.

@@ -1,7 +1,7 @@
 // Presentation-only: metadata belongs to the watched run, counts to released events.
 import type { Ev, Packages, Row } from '../engine/types';
 import { h } from './dom';
-import { packageIcon } from './skin';
+import { packageIcon,icon } from './skin';
 import { rowLabel } from './tokens';
 import { openSheet } from './sheet';
 
@@ -12,6 +12,7 @@ export function tacticObserver(rows: Row[], packages?: Packages) {
   let ended = false, disabled = false;
   const ownership = frozen.map(row => {
     const [kind, id] = row.origin?.split(':') ?? [];
+    if(kind==='style'&&(id==='sentinel'||id==='hexbinder'))return {key:`style:${id}`,id:`style_${id}`,name:id==='sentinel'?/* copy:label */'Sentinel':/* copy:label */'Hexbinder'};
     if (kind === 'drill' && id) return { key: 'drill', id: 'boss_focus', name: /* copy:label */ 'Boss counters' };
     const p = catalog.find(p => p.id === id && (kind === 'temper' ? p.kind === 'temperament' : p.kind === kind));
     return p && ['stance', 'tactic', 'temper'].includes(kind) ? { key: `${kind}:${id}`, id: p.id, name: p.name } : undefined;
@@ -22,7 +23,7 @@ export function tacticObserver(rows: Row[], packages?: Packages) {
     /* copy:label */ `${entry.name} · ${entry.count} activations${entry.row >= 0 ? ` · ${rowLabel(frozen[entry.row])}` : ''}`;
   ownership.forEach(owner => {
     if (!owner || entries.has(owner.key)) return;
-    const button = h('button', { class: 'tactic-cue', 'data-origin': owner.key }, packageIcon(owner.id));
+    const button = h('button', { class: 'tactic-cue', 'data-origin': owner.key }, owner.key.startsWith('style:')?icon(owner.id):packageIcon(owner.id));
     const entry = { button, count: 0, row: -1, timer: 0, last: -Infinity, name: owner.name };
     button.title = describe(entry); button.setAttribute('aria-label', button.title);
     button.onclick = () => openSheet(() => h('div', { class: 'sheet-body tactic-detail' },

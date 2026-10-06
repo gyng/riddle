@@ -417,6 +417,7 @@ pub fn hunt_step(run: &mut Run, cx: &mut Ctx) -> Option<String> {
 fn class_cooldown(run: &Run, verb: &Verb) -> bool {
     let h = &run.hero;
     match verb.v.as_str() {
+        "riposte" | "hex" => h.special_cd > 0,
         "shield_bash" => h.bash_cd > 0,
         "cleave" => h.cleave_cd > 0,
         "double_shot" => h.double_cd > 0,
@@ -431,6 +432,18 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
     // potion, flavour unidentified) reads `unknown item`, not `no item`.
     let held_known = |kind: &str| run.hero.inv.iter().any(|i| i.kind == kind && i.is_known(cx.facts, cx.flavours));
     match verb.v.as_str() {
+        "riposte" | "hex" => {
+            let style=if verb.v=="riposte" {crate::specialization::Style::Sentinel}else{crate::specialization::Style::Hexbinder};
+            if !crate::specialization::has(&run.hero,style) {"class locked"}
+            else if run.hero.special_cd>0 {"cooldown"}
+            else if style==crate::specialization::Style::Sentinel {"no enemy"}
+            else if let Some(mi)=pick_target_from(run,verb.a.as_deref().unwrap_or("nearest"),&v.foes) {
+                let m=&run.monsters[mi];
+                if m.hex_t>0 {"already hexed"}else if m.pos.cheb(run.hero.pos)>BOW_RANGE {"too far"}
+                else if !run.floor.map.los(run.hero.pos,m.pos) {"no sight"}else {"no use"}
+            }else {"no enemy"}
+        }
+
         "retreat" | "back_corridor" | "blink" | "shadowstep" | "vanish" | "smoke" => "no path",
         "drink" | "read" => {
             let a = verb.a.as_deref().unwrap_or("");
@@ -712,15 +725,16 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
         "shield_bash" => class_has_verb(run.hero.class, run.hero.level, "shield_bash") && run.hero.bash_cd == 0 && verb_attack(run, cx, "nearest", v, true),
         "riposte" => {
             if crate::specialization::has(&run.hero,crate::specialization::Style::Sentinel)&&run.hero.special_cd==0&&v.adj>0 {
-                run.hero.riposte_t=20;run.hero.special_cd=60;callout(run,cx,"riposte ready");true
+                run.hero.riposte_t=crate::specialization::RIPOSTE_DURATION;run.hero.special_cd=crate::specialization::COOLDOWN;callout(run,cx,"riposte ready");true
             }else {false}
         }
         "hex" => {
             if !crate::specialization::has(&run.hero,crate::specialization::Style::Hexbinder)||run.hero.special_cd>0 {return false;}
-            let Some(mi)=pick_target(run,&a,v) else {return false;};
+            let Some(mi)=pick_target_from(run,&a,&v.foes) else {return false;};
             let m=&run.monsters[mi];
             if m.hex_t>0||!m.hostile()||m.hp<=0||m.pos.cheb(run.hero.pos)>BOW_RANGE||!run.floor.map.los(run.hero.pos,m.pos) {return false;}
-            run.monsters[mi].hex_t=40;run.hero.special_cd=60;callout(run,cx,"hexed");true
+            run.last_target=Some(run.monsters[mi].id);
+            run.monsters[mi].hex_t=crate::specialization::HEX_DURATION;run.hero.special_cd=crate::specialization::COOLDOWN;callout(run,cx,"hexed");true
         }
         "retreat" => verb_retreat(run, cx, v),
         "back_corridor" => verb_back_corridor(run, cx, v),
@@ -904,13 +918,13 @@ fn mirror_heal(run: &mut Run, mi: usize, dmg: i32) {
 /// A deterministic reactive strike still obeys the King's current rhythm and
 /// ordinary melee reflections. It does not overwrite the next hero action's verb.
 pub(crate) fn riposte_hit(run:&mut Run,cx:&mut Ctx,mi:usize) {
-    let id=run.monsters[mi].id;run.melee_used=true;
+    let id=run.monsters[mi].id;let dmg=crate::specialization::COUNTER_DAMAGE;run.melee_used=true;
     if mirror_reflects(run,mi,"riposte") {
-        cx.events.push(Ev::Attack{t:run.turn,src:id,dst:HERO_ID,dmg:8,hit:true,verb:Some("mirror".into())});
-        mirror_learn(run,cx,mi);mirror_heal(run,mi,8);damage_hero(run,cx,8,&Src::Reflect(mi));
+        cx.events.push(Ev::Attack{t:run.turn,src:id,dst:HERO_ID,dmg,hit:true,verb:Some("mirror".into())});
+        mirror_learn(run,cx,mi);mirror_heal(run,mi,dmg);damage_hero(run,cx,dmg,&Src::Reflect(mi));
     }else {
-        cx.events.push(Ev::Attack{t:run.turn,src:HERO_ID,dst:id,dmg:8,hit:true,verb:Some("riposte".into())});
-        callout(run,cx,"riposte");damage_monster(run,cx,mi,8,&Src::Hero{ranged:false});
+        cx.events.push(Ev::Attack{t:run.turn,src:HERO_ID,dst:id,dmg,hit:true,verb:Some("riposte".into())});
+        callout(run,cx,"riposte");damage_monster(run,cx,mi,dmg,&Src::Hero{ranged:false});
     }
 }
 

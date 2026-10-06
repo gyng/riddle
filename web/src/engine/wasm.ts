@@ -140,6 +140,7 @@ export class WasmEngine implements Engine {
   selectBloodline(id: number): Lineage { return this.call("selectBloodline", id); }
   addBloodline(): Lineage { return this.call("addBloodline"); }
   upgradeHero(id: string): Lineage { return this.call("upgradeHero", id); }
+  setSpecialization(id:string):Lineage { return this.call("setSpecialization",id); }
   respecLegacy():Lineage { return this.call("respecLegacy"); }
   buildTown(id: string): Lineage { return this.call("buildTown", id); }
   openChest(): Lineage { return this.call("openChest"); }

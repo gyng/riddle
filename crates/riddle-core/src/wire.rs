@@ -1557,6 +1557,8 @@ pub struct BloodlineLegacy {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct HeroSlot {
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub specialization:Option<crate::specialization::Style>,
     #[serde(default)]
     pub look: String,
     #[serde(default)]
@@ -1975,6 +1977,8 @@ pub struct Replay {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub class_styles:Option<crate::specialization::Choice>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endgame: Option<crate::endgame::Progress>,
     #[serde(default)]

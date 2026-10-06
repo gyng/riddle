@@ -14,6 +14,7 @@ export function enemyHost<E extends HTMLElement>(el: E, kind: string, L?: Pick<L
     const line = (label: string, value: string): HTMLElement => h("div", { class: "enemy-tip-line" }, h("b", null, label), " ", value);
     return [unitLabel(kind, h("b", null, nice(kind)), { px: 48, className: "kw-tip-head" }),
       ...modifierLines(encounter),
+      ...(encounter?.status_effects??[]).map(effect=>line(/* copy:label */"Hexed",effect)),
       ...(wall ? [line(/* copy:label */ "Floor", `D${wall.depth}`)] : []),
       line(/* copy:label */ "Encounter", encounter?.alive ? /* copy:label */ "Alive" : defeated || wall?.slain ? /* copy:label */ "Defeated" : !L ? /* copy:label */ "Unavailable" : row?.seen ? /* copy:label */ "Seen" : /* copy:label */ "Unseen"),
       ...(row?.studied ? [line(/* copy:label */ "Study", /* copy:label */ "Studied")] : []),
