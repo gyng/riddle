@@ -225,6 +225,7 @@ impl Game {
     }
     /// Cut 30.5: hire the lit node's worker (its price from the purse, then the chest).
     pub fn upgrade_hero(&mut self, id: &str) -> Result<(), String> { legacy::buy(self, id) }
+    pub fn respec_legacy(&mut self) -> Result<(), String> { legacy::respec(self) }
     pub fn build_town(&mut self, id: &str) -> Result<(), String> {
         town::construct(&mut self.lineage, id)
     }

@@ -20,6 +20,7 @@ import { openChronicle } from "./chronicle";
 import { openLooks } from "./look";
 import { classList } from "./unlocks";
 import { CLASS_VERBS } from "../engine/classes";
+import { renderLegacy } from "./legacy";
 import { verbLabel } from "./tokens";
 import { kwHost } from "./tips";
 import type { Term } from "./concepts";
@@ -330,13 +331,14 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
       const L = app.lineage;
       return JSON.stringify([L.selected_bloodline, L.heir, L.class, L.look,
         L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name,
-        L.bloodline, L.legacy_upgrades, !!L.live, L.classes?.[L.class],
+        L.bloodline, L.legacy_upgrades, L.legacy_respec, !!L.live, L.classes?.[L.class],
         L.hero_legacy?.find((h) => h.heir === L.heir)]);
     };
     let painted = "";
     const paint = (): void => {
       painted = identity();
       const historyOpen = body.querySelector<HTMLDetailsElement>(".hero-history")?.open ?? false;
+      const paths=body.querySelector('.legacy-tree')?new Set([...body.querySelectorAll<HTMLDetailsElement>('.legacy-path[open]')].map(el=>el.dataset.branch!)):undefined;
       const L = app.lineage, lvl = L.classes?.[L.class] ?? { level: 1, xp: 0, next: undefined as number | undefined };
       const p = Math.min(1, lvl.next ? lvl.xp / lvl.next : 0);
       const legacy = L.hero_legacy?.find((x) => x.heir === L.heir);
@@ -346,19 +348,7 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
         h("div", { class: "hero-line num" }, face, h("b", null, L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name || L.class), " ", L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name ? h("span", null, L.class) : "", " ", h("span", null, `L${lvl.level}`)),
         h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${L.bloodline?.points ?? legacy?.points ?? 0}`),
         L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
-        h("div", { class: "legacy-upgrades" }, ...(L.legacy_upgrades ?? []).map((u) =>
-          h("section", { class: "legacy-upgrade", "data-upgrade": u.id },
-            h("span", { class: "icon-socket" }, icon(({health:"v_drink",damage:"v_attack",armour:"v_shield"} as Record<string,string>)[u.id] ?? "unlocks", "✦")),
-            h("div", { class: "upgrade-copy" }, h("b", null, u.id),
-              h("small", { class: "upgrade-rank dim num" }, /* copy:label */ `Rank ${u.rank}/${u.cap}`),
-              u.rank < u.cap ? h("small", { class: "upgrade-next dim num" }, /* copy:label */ "Next", ` ${u.effect}`) : null),
-            h("button", { class: "chip legacy-buy", disabled: !u.affordable || !app.engine.upgradeHero, "data-upgrade": u.id,
-              "aria-label": u.rank >= u.cap ? /* copy:label */ `${u.id} complete` : /* copy:label */ `Upgrade ${u.id}`,
-              "aria-description": u.rank < u.cap ? `${u.price} Legacy` : undefined,
-              onclick: (e: Event) => {
-                const button = e.currentTarget as HTMLButtonElement; button.disabled = true;
-                if (app.engine.upgradeHero) void app.mutate(() => app.engine.upgradeHero!(u.id), /* copy:callout */ "Upgraded").then(() => { if (body.isConnected && (identity() !== painted || button.isConnected)) paint(); });
-              } }, u.rank >= u.cap ? /* copy:button */ "Complete" : /* copy:button */ `Upgrade ${u.price}`, h("small", null, /* copy:label */ "Legacy"))))),
+        renderLegacy(app,()=>{if(body.isConnected)paint();},paths),
         h("div", { class: "hero-actions" },
           h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, /* copy:button */ "Change class"),
           h("button", { class: "chip hero-appearance", onclick: () => openLooks(app), disabled: !app.engine.setLook }, /* copy:button */ "Appearance")),

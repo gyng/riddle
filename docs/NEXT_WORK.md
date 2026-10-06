@@ -10,7 +10,14 @@ native/WASM/durable-save parity verified at320/400/1440 including two other
 live bloodlines. D build comparisons, one/three-slot absence parity, catch-up
 profiles and routine18-case gates now verified with the documented unchanged-
 preparation deviation; broad exhaustive balance remains uncertified. Legacy/
-class work remains next under CUT32_LEGACY_TREE.md. No extra early prestige layer.
+class work remains next. CUT32_LEGACY_TREE.md is now implemented/verified:
+twelve nodes, actual effects, historic depth access, free home respec, exact
+one/three-slot8h parity and real earned desktop/phone screenshots. Nine paid
+Tier5 diagnostic builds clear in8–16h, final current18-case gate passes, scoped
+equal-work overhead stays below10%. Old save/ranks retained, no deployment.
+Next: specify and implement two class specializations, reuse class XP, distinct
+exclusive actions/tactic support and visible replay evidence. More base classes
+follow demonstrated gameplay gaps. No extra early prestige layer.
 
 D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h
 whole/sliced/reloaded full-state/report parity now passes after guide-quote,
@@ -21,8 +28,8 @@ tier/seed cases to8–16h clears. Failed bar retained, explicit justified deviat
 in CUT31; no claim of broader balance. Final quick603core/14side tests green,
 clippy/build pass. Routine18-case full gate terminalPASS; four fixed-combat
 comparisons pass. See CUT31 for the King's extended-window missed-hit amendment.
-Next CUT32_LEGACY_TREE.md branching Legacy and class specializations; preserve old purchased ranks,
-free home respec and distinct mechanical choices rather than only larger stats.
+Cut32 branching Legacy is complete within its scoped verification; next class
+specializations, with distinct actions and counters alongside the inherited tree.
 
 Local UI iteration-speed and compact-depth work are implemented and pushed.
 Hero presence, tactic observability and the content/checkpoint audit are implemented.

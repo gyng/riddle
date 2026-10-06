@@ -1573,6 +1573,26 @@ pub struct LegacyUpgrade {
     pub price: u32,
     pub effect: String,
     pub affordable: bool,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub name:Option<String>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub branch:Option<String>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub parent:Option<String>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub min_depth:Option<u32>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub blocked:Option<String>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub owned_effect:Option<String>,
+}
+
+#[derive(Clone,Debug,Serialize,Deserialize,PartialEq,Eq)]
+pub struct LegacyRespec {
+    pub refund:u32,
+    pub available:bool,
+    pub points_after:Option<u32>,
+    pub blocked:Option<String>,
 }
 
 /// Cut 30 §5: the quest on the board — one plain goal (≤ 5 words), the reward's picture, progress
@@ -1971,6 +1991,8 @@ pub struct Lineage {
     pub hero_legacy: Vec<HeroLegacy>,
     #[serde(default)]
     pub legacy_upgrades: Vec<LegacyUpgrade>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub legacy_respec:Option<LegacyRespec>,
     /// RUNS_UI: the runs log, the run under way, the run ids a replay is held for, the lineage
     /// clock and the absences counted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -1,8 +1,8 @@
 # Cut 32 — branching bloodline Legacy
 
 Implementation contract,2026-10-06. Owner asks deeper Legacy trees and class
-progression after numbered ascensions. This is the next runtime cut; none of
-the new nodes or respec below are implemented yet. Class specializations follow
+progression after numbered ascensions. The new nodes, actual effects, home
+respec and responsive Hero tree are implemented. Class specializations follow
 this tree as a separate contract. Preserve Cut30.5 and Cut31 tier0 behavior.
 
 ## Tree and choices
@@ -81,3 +81,71 @@ refund/retained points before applying, and keeps failures visible/reviewable.
 
 Do not expose selectable but inactive perks. Partial core/UI checkpoints are
 not completion of this contract. Push approved changes; do not deploy.
+
+## Implementation evidence — 2026-10-06
+
+The nine new effects are snapshotted into an omitted-when-zero Hero bitmask.
+Live history and reload retain it; later camp allocations cannot change it.
+Clear lungs uses source tags, including gas bursts/Bloat attacks; Fireward also
+uses actual fire tags. Potion healing rounds down after the existing modifiers.
+All price, prerequisite, fork, effect, refund and eligibility metadata comes
+from Rust. The worker proxy exposes respec as well as native/WASM adapters.
+The review shows refund and resulting total; failure stays visible. Three
+desktop columns and collapsible phone paths use the existing chunky UI/icons.
+
+Thirteen focused core regressions pass: catalogue/prices/depth/history, six
+fork directions, checked exact refusals, complete refund/rebuild, selected
+slots1/2/3 isolation, old nine-rank migration, nine actual effects, send/history
+snapshot, authoritative respec preview, and whole/30min/uneven/reloaded8h.
+The latter compares entire raw saves and complete reports for one/three slots;
+controlled fixtures are test scaffolding, not earned progression claims.
+Final quick:616 core passed/one existing ignored, fourteen tool tests,
+typecheck and copy-lint1678 tagged literals, no violations;143s with competing
+gate/compile work. All-target fast clippy passes. Browser tree and real-worker
+checks pass; existing hero/report/bloodline training checks pass at320/400/1440.
+
+Final fixed earned preparation, synthetic seed/Tier5 eligibility, actual paid
+108-point builds from owned814 points, no grants/new policy/floor bypass:
+
+| Seed | Mending | Venom | Fireward |
+| --- | --- | --- | --- |
+| 1 | 8h /11 runs | 8h /12 runs | 8h /8 runs |
+| 3 | 8h /11 runs | 8h /11 runs | 16h /15 runs |
+| 5 | 8h /11 runs | 16h /18 runs | 8h /13 runs |
+
+All nine clearD34/unlockTier6 within48h. These are controlled comparisons,
+not independently earned campaigns or proof each leaf fired in that policy.
+Actual distinct effects are established by paired action/damage regressions.
+Earlier pre-gas-tag-correction measurements are retained separately.
+Diagnostic: examples/legacy_check.rs; artifacts
+scratchpad/legacy-balance-final-20261006/ and /tmp/riddle-cut32-final-balance.log.
+
+Three chosen builds have exact native/WASM full lineage/send/advance/live-reload/
+respec/root-purchase parity. Six old full load/advance/after baselines plus two
+numbered native saves remain byte-exact. Headed real-WASM screenshots use an
+actual earned Tier5 start:320/400/1440,12 nodes/icons, read-only opening retains
+the entire raw save, no errors/overflow. Actual paid57-point Mending selection,
+read-only review, UI refund, durable save and real page reload verified; the
+UI-refunded full save equals the native respec result. Artifacts
+scratchpad/legacy-ui-20261006/. Fast WASM5336294 bytes, no deployment.
+
+Final routine18-case gate terminal0, source70342eb7d0cd8298/no cached legs:
+metrics111.4s, wire10 seeds76.4s, dayplayer202.4s, all selected bars pass.
+Logs /tmp/riddle-cut32-final-gates-full.log. The earlier pre-gas-tag runtime
+also passed; its result is not substituted for this final-source check.
+The exhaustive statistical/system-removal/historical audit remains separate.
+
+Equal-work native comparison against44da245: nine alternating old/new rounds,
+101 samples of500 ticks each,32 stunned enemies plus one actual10-damage gas
+call/tick. Old/new median ns/tick: tier0 no perks645.318/626.362; tier5 no perks
+683.922/655.938; tier5 selected perks677.262/667.918. All remain within the10%
+overhead bar; small negative deltas are not a general speedup claim. Benchmark
+scope is scheduler/status and gas protection, not full catch-up or FPS. Initial
+5000-tick fixture failed the32-enemy assertion (41 after natural pressure
+reinforcements); no timing accepted. Shortened to500 ticks before pressure,
+then recompiled identical example against both sources. Every sample verifies
+32 enemies/live run. No per-tick perk allocation. Example legacy_perf.rs;
+scratchpad/legacy-ui-20261006/perf.json. Final build/typecheck/copy/codegen/diff
+and all-target fast clippy pass; existing bundle-size advisory unchanged.
+This scoped contract is implemented and verified; class specializations remain
+next, with broader balance/complete catch-up profiling independent work.

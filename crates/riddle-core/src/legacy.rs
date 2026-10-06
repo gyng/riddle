@@ -1,4 +1,4 @@
-//! Explicit upgrades belonging to the current hero, independent of class XP and gold.
+//! Explicit inherited bloodline choices, independent of class XP and gold.
 use crate::{engine::{Game, LineageState}, hero::Hero, wire::{HeroLegacy, LegacyUpgrade, BloodlineLegacy}};
 
 /// Stable cosmetic identity; never consumes the game's random stream.
@@ -21,6 +21,39 @@ pub fn hero_identity(seed: u64, heir: u32, bloodline_id: u32) -> String {
 pub const CAP: u32 = 3;
 pub const IDS: [&str; 3] = ["health", "damage", "armour"];
 
+pub const RESTORATION:u16=1;
+pub const MENDING:u16=2;
+pub const RENEWAL:u16=4;
+pub const CONTROL:u16=8;
+pub const VENOM:u16=16;
+pub const DEBILITATE:u16=32;
+pub const CLEAR_LUNGS:u16=64;
+pub const FIREWARD:u16=128;
+pub const BRACE:u16=256;
+struct Node {
+    id:&'static str,name:&'static str,branch:&'static str,effect:&'static str,
+    parent:Option<&'static str>,depth:u32,other:Option<&'static str>,mask:u16,price:u32,
+}
+const NODES:[Node;12]=[
+    Node{id:"health",name:"Health",branch:"Recovery",effect:"+3 HP",parent:None,depth:0,other:None,mask:0,price:3},
+    Node{id:"damage",name:"Damage",branch:"Control",effect:"+1 damage",parent:None,depth:0,other:None,mask:0,price:3},
+    Node{id:"armour",name:"Armour",branch:"Warding",effect:"+1 armour",parent:None,depth:0,other:None,mask:0,price:3},
+    Node{id:"restoration",name:"Restoration",branch:"Recovery",effect:"+1 HP per safe rest",parent:Some("health"),depth:8,other:None,mask:RESTORATION,price:18},
+    Node{id:"control",name:"Control",branch:"Control",effect:"Stun and Slow +5 ticks",parent:Some("damage"),depth:8,other:None,mask:CONTROL,price:18},
+    Node{id:"clear_lungs",name:"Clear lungs",branch:"Warding",effect:"Gas and poison damage −2",parent:Some("armour"),depth:8,other:None,mask:CLEAR_LUNGS,price:18},
+    Node{id:"mending",name:"Mending",branch:"Recovery",effect:"Heal potions +25% HP",parent:Some("restoration"),depth:18,other:Some("renewal"),mask:MENDING,price:36},
+    Node{id:"renewal",name:"Renewal",branch:"Recovery",effect:"Natural enemy kills +1 HP",parent:Some("restoration"),depth:18,other:Some("mending"),mask:RENEWAL,price:36},
+    Node{id:"venom",name:"Venom",branch:"Control",effect:"Thrown poison +1 damage per pulse",parent:Some("control"),depth:18,other:Some("debilitate"),mask:VENOM,price:36},
+    Node{id:"debilitate",name:"Debilitate",branch:"Control",effect:"Slow +15 further ticks",parent:Some("control"),depth:18,other:Some("venom"),mask:DEBILITATE,price:36},
+    Node{id:"fireward",name:"Fireward",branch:"Warding",effect:"Fire damage halved",parent:Some("clear_lungs"),depth:18,other:Some("brace"),mask:FIREWARD,price:36},
+    Node{id:"brace",name:"Brace",branch:"Warding",effect:"Below 25% HP: damage −2",parent:Some("clear_lungs"),depth:18,other:Some("fireward"),mask:BRACE,price:36},
+];
+pub fn has(hero:&Hero,mask:u16)->bool {hero.legacy_effects&mask!=0}
+pub fn empty_effects(mask:&u16)->bool {*mask==0}
+pub fn deepest(l:&LineageState)->u32 {
+    l.hero_legacy.iter().map(|h|h.best_depth).max().unwrap_or(0).max(l.best_depth)
+}
+
 pub fn current(l: &LineageState) -> Option<&BloodlineLegacy> { l.bloodline.as_ref() }
 pub fn ensure(l: &mut LineageState) {
     if l.bloodline.is_none() {
@@ -37,23 +70,60 @@ pub fn ensure(l: &mut LineageState) {
 }
 pub fn offers(l: &LineageState, away: bool) -> Vec<LegacyUpgrade> {
     let h = current(l);
-    IDS.iter().map(|id| {
-        let rank = h.and_then(|h| h.upgrades.get(*id)).copied().unwrap_or(0);
-        let price = 3 * (rank + 1);
-        LegacyUpgrade { id: (*id).into(), rank, cap: CAP, price, effect: match *id { "health" => "+3 HP", "damage" => "+1 damage", _ => "+1 armour" }.into(), affordable: !away && l.town.home.unwrap_or(true) && rank < CAP && h.is_some_and(|h| h.points >= price) }
+    let rank_of=|id:&str|h.and_then(|h|h.upgrades.get(id)).copied().unwrap_or(0);
+    let depth=deepest(l);
+    NODES.iter().map(|node| {
+        let rank=rank_of(node.id);let cap=if node.mask==0 {CAP}else{1};
+        let price=if node.mask==0 {node.price.saturating_mul(rank.saturating_add(1))}else{node.price};
+        let blocked=if rank>=cap {Some("Complete".into())}
+            else if away {Some("Hero away".into())}
+            else if !l.town.home.unwrap_or(true) {Some("Build a house".into())}
+            else if depth<node.depth {Some(format!("Reach D{}",node.depth))}
+            else if let Some(parent)=node.parent.filter(|id|rank_of(id)==0) {
+                Some(format!("Buy {}",NODES.iter().find(|n|n.id==parent).expect("parent").name))
+            } else if let Some(other)=node.other.filter(|id|rank_of(id)>0) {
+                Some(format!("Chosen {}",NODES.iter().find(|n|n.id==other).expect("fork").name))
+            } else if h.is_none_or(|h|h.points<price) {Some("More Legacy needed".into())}
+            else {None};
+        LegacyUpgrade {id:node.id.into(),rank,cap,price,effect:node.effect.into(),affordable:blocked.is_none(),
+            name:Some(node.name.into()),branch:Some(node.branch.into()),parent:node.parent.map(str::to_owned),
+            min_depth:(node.depth>0).then_some(node.depth),blocked,
+            owned_effect:(node.mask==0&&rank>0).then(||match node.id {
+                "health"=>format!("+{} HP",3*rank.min(CAP)),
+                "damage"=>format!("+{} damage",rank.min(CAP)),
+                _=>format!("+{} armour",rank.min(CAP)),
+            })}
     }).collect()
 }
 pub fn buy(g: &mut Game, id: &str) -> Result<(), String> {
     if g.run.is_some() || !g.lineage.town.home.unwrap_or(true) { return Err("hero away".into()); }
     let offer = offers(&g.lineage, false).into_iter().find(|u| u.id == id).ok_or("unknown upgrade")?;
-    if offer.rank >= CAP { return Err("upgrade complete".into()); }
-    if !offer.affordable { return Err("more Legacy needed".into()); }
+    if offer.rank >= offer.cap { return Err("upgrade complete".into()); }
+    if !offer.affordable { return Err(offer.blocked.unwrap_or_else(||"more Legacy needed".into())); }
+    let spent=current(&g.lineage).expect("affordable bloodline").spent.checked_add(offer.price).ok_or("Legacy total overflow")?;
     ensure(&mut g.lineage);
     let h = g.lineage.bloodline.as_mut().expect("bloodline");
     h.points -= offer.price;
-    h.spent += offer.price;
+    h.spent = spent;
     h.upgrades.insert(id.into(), offer.rank + 1);
     Ok(())
+}
+fn respec_points(l:&LineageState,away:bool)->Result<u32,String> {
+    if away {return Err("hero away".into());}
+    if !l.town.home.unwrap_or(true) {return Err("build a house".into());}
+    let h=current(l).ok_or("no upgrades")?;
+    if h.upgrades.is_empty()&&h.spent==0 {return Err("no upgrades".into());}
+    h.points.checked_add(h.spent).ok_or_else(||"Legacy total overflow".into())
+}
+pub fn respec_offer(l:&LineageState,away:bool)->crate::wire::LegacyRespec {
+    let result=respec_points(l,away);
+    crate::wire::LegacyRespec{refund:current(l).map_or(0,|h|h.spent),available:result.is_ok(),
+        points_after:result.as_ref().ok().copied(),blocked:result.err()}
+}
+pub fn respec(g:&mut Game)->Result<(),String> {
+    let points=respec_points(&g.lineage,g.run.is_some())?;
+    let h=g.lineage.bloodline.as_mut().expect("bloodline");
+    h.points=points;h.spent=0;h.upgrades.clear();Ok(())
 }
 pub fn apply(l: &LineageState, hero: &mut Hero) {
     if let Some(h) = current(l) {
@@ -62,5 +132,10 @@ pub fn apply(l: &LineageState, hero: &mut Hero) {
         hero.max_hp += hp; hero.max_hp_base += hp; hero.hp += hp;
         hero.str_bonus += rank("damage");
         hero.legacy_armour = rank("armour");
+        hero.legacy_effects=NODES.iter().filter(|n|h.upgrades.get(n.id).is_some_and(|rank|*rank>0)).fold(0,|mask,n|mask|n.mask);
     }
 }
+
+#[cfg(test)]
+#[path="legacy_tests.rs"]
+mod tests;

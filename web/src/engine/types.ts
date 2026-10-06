@@ -504,7 +504,8 @@ export type Lineage = { bloodline?: BloodlineLegacy;
                         selected_loadout?: number[];
   hero_slots?: HeroSlot[]; selected_bloodline?:number; bloodline_price?:number; bloodline_cap?:number;
                         hero_legacy?: {name?:string; heir: number; points: number; runs: number; best_depth: number; class: string; spent?: number; upgrades?: Record<string, number> }[];
-                        legacy_upgrades?: { id: string; rank: number; cap: number; price: number; effect: string; affordable: boolean }[];
+                        legacy_upgrades?: { id: string; rank: number; cap: number; price: number; effect: string; affordable: boolean; name?:string; branch?:string; parent?:string; min_depth?:number; blocked?:string; owned_effect?:string }[];
+                        legacy_respec?: {refund:number;available:boolean;points_after:number|null;blocked:string|null};
                         runs?: RunRec[]; live?: LiveRun | null; replays?: number[]; clock_s?: number; absences?: number;   // RUNS_UI (core): the runs log, the run under way, the run ids a replay is held for, the lineage clock (s), the absences counted
                         heroes?: HeroLane[];                                                                     // RUNS_UI: reserved for Cut 31 (a lane per hero); the client derives the one hero's lane until then
                         age_h?: number; reveal_queue?: string[]; reveal_next?: { id: string; trigger: string; triggered: boolean; wait_h: number };   // Cut 30 (core; PROGRESSION_V2 §4): the lineage's age in hours (offline included); systems ready and waiting their turn (one opens a report); the next to come and the hours it still waits (`next · tactics · 3 h`)
@@ -666,6 +667,7 @@ export interface Engine {
   selectBloodline?(id:number):Lineage;
   addBloodline?():Lineage;
   upgradeHero?(id: string): Lineage;
+  respecLegacy?():Lineage;
   buildTown?(id: string): Lineage;
   hire?(id: string): Lineage;                           // hire the lit node's worker (`Works.lit`; its price from the purse, then the chest)
   openChest?(): Lineage;                                // the haul chest into the purse (`Works.chest` → `gold`); the porter's chore

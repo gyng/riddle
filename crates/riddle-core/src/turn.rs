@@ -1479,6 +1479,13 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     }
     // Cut 3: fire resistance shrugs off fire (hazard or fire-tagged bites).
     let dmg = if run.hero.resist_fire_t > 0 && src.has_tag(run, "fire") { 0 } else { dmg };
+    let dmg=if run.hero.legacy_effects!=0 {
+        let mut dmg=dmg;
+        if crate::legacy::has(&run.hero,crate::legacy::CLEAR_LUNGS)&&(src.has_tag(run,"gas")||src.has_tag(run,"poison")) {dmg=(dmg-2).max(0);}
+        if crate::legacy::has(&run.hero,crate::legacy::FIREWARD)&&src.has_tag(run,"fire") {dmg/=2;}
+        if crate::legacy::has(&run.hero,crate::legacy::BRACE)&&i64::from(run.hero.hp)*4<i64::from(run.hero.max_hp) {dmg=(dmg-2).max(0);}
+        dmg
+    }else{dmg};
     if dmg <= 0 {
         return;
     }
@@ -1793,6 +1800,9 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
     run.monsters[mi].hp = 0;
     cx.events.push(Ev::Die { t: run.turn, id, cause: cause.into() });
     let m = run.monsters[mi].clone();
+    if crate::legacy::has(&run.hero,crate::legacy::RENEWAL)&&m.hostile()&&!m.summoned&&matches!(src,Src::Hero{..}) {
+        run.hero.hp=(run.hero.hp+1).min(run.hero.max_hp);
+    }
     if m.ally {
         run.ally_lost.push((run.turn, kind.clone()));
         cx.events.push(Ev::Ally { t: run.turn, id, state: "lost".into() });

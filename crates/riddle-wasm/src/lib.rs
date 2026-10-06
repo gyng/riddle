@@ -562,6 +562,11 @@ impl Game {
         self.inner.upgrade_hero(id).map_err(err)?;
         Ok(js(&self.inner.lineage()))
     }
+    #[wasm_bindgen(js_name = respecLegacy)]
+    pub fn respec_legacy(&mut self) -> Result<String, JsError> {
+        self.inner.respec_legacy().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
     #[wasm_bindgen(js_name = buildTown)]
     pub fn build_town(&mut self, id: &str) -> Result<String, JsError> {
         self.inner.build_town(id).map_err(err)?;

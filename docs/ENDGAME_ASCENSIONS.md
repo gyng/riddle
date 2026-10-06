@@ -4,7 +4,8 @@ Owner steering: clearing the dungeon should unlock endless ascensions with
  affixes, elites and stronger bosses; consider more classes and deeper Legacy
 skill trees. Numbered tiers, affixes/elites/boss mechanics and selection are now
 implemented under CUT31_ASCENSIONS.md; broader verification remains open.
-The Legacy tree and specializations below remain proposed, not shipped.
+The Legacy tree is implemented and verified under CUT32_LEGACY_TREE.md.
+Specializations below remain proposed. No deployment of these cuts.
 Supersedes the queue's early-reset proposal as the next design focus;
 expedition/era/dynasty layers in PROGRESSION_V2.md remain deferred.
 
@@ -17,8 +18,9 @@ Five legally earned consecutive clears verify one build; broader tuning is open.
 The old challenge counter remains distinct from numbered tier progress.
 Classes: Fighter, Rogue,
 Ranger, Caster, with inherited class XP and verb ladders. Bloodline Legacy
-persists across heirs and ascensions, but only buys health/damage/armour,
-three ranks each. There is no branching Legacy tree or advanced class yet.
+persists across heirs and ascensions. Its twelve-node tree retains the three
+old roots/ranks and adds Recovery, Control and Warding forks, D8/D18 historical
+access and free home respec. No advanced class is implemented yet.
 Source: engine.rs Game::ascend; hero.rs Class; legacy.rs offers/apply.
 
 The older challenge ascension clears shared spendable gold and selected kit/depth.

@@ -836,7 +836,8 @@ fn verb_rest(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {
     if run.hero.hp < run.hero.max_hp && v.foes.is_empty() && run.hero.poison.1 == 0 && !in_hazard(run, run.hero.pos) {
         // Cut 30: `rested` — a live gift heals more on a rest.
         let extra = crate::traits::rest_extra_now(run, cx);
-        run.hero.hp = (run.hero.hp + 4 + extra).min(run.hero.max_hp);
+        let inherited=i32::from(crate::legacy::has(&run.hero,crate::legacy::RESTORATION));
+        run.hero.hp = (run.hero.hp + 4 + extra + inherited).min(run.hero.max_hp);
         crate::turn::rest_clock(run, cx);
         true
     } else {
@@ -1128,7 +1129,8 @@ fn verb_slow(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
     if mp.cheb(hp) > BOW_RANGE || !run.floor.map.los(hp, mp) {
         return false;
     }
-    run.monsters[mi].slow_t = 30;
+    run.monsters[mi].slow_t = 30 + 5*i32::from(crate::legacy::has(&run.hero,crate::legacy::CONTROL))
+        + 15*i32::from(crate::legacy::has(&run.hero,crate::legacy::DEBILITATE));
     callout(run, cx, "slowed");
     true
 }
@@ -1395,12 +1397,12 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
             run.monsters[mi].telegraph = None;
         }
         if bash {
-            run.monsters[mi].stun = 10;
+            run.monsters[mi].stun = 10 + 5*i32::from(crate::legacy::has(&run.hero,crate::legacy::CONTROL));
             callout(run, cx, "bash");
         }
         // Cut 3: a mace stuns one hit in ten.
         if !bash && verb != "shoot" && run.hero.weapon_kind() == "mace" && run.rng.chance(10) {
-            run.monsters[mi].stun = 10;
+            run.monsters[mi].stun = 10 + 5*i32::from(crate::legacy::has(&run.hero,crate::legacy::CONTROL));
             callout(run, cx, "stunned");
         }
         let dmg = if run.monsters[mi].marked > 0 { dmg * 3 / 2 } else { dmg };
@@ -1569,6 +1571,7 @@ fn verb_drink(run: &mut Run, cx: &mut Ctx, a: &str) -> bool {
         "heal" => {
             // Cut 30: `thin` — a heal potion heals ⅔.
             let add = run.hero.max_hp / 2 * boost / 100 * crate::traits::heal_pct(run) / 100;
+            let add = if crate::legacy::has(&run.hero,crate::legacy::MENDING) {add*125/100}else{add};
             run.hero.hp = (run.hero.hp + add).min(run.hero.max_hp);
             run.hero.poison = (0, 0);
             run.drank_heal = true;
@@ -1906,7 +1909,7 @@ fn throw_item_at(run: &mut Run, cx: &mut Ctx, ii: usize, mi: usize) -> bool {
     let outcome = match pkind.as_str() {
         "poison" => {
             // Stacks: each dose is another 8 over 40 ticks.
-            let p = (2 * boost / 100, 40);
+            let p = (2 * boost / 100 + i32::from(crate::legacy::has(&run.hero,crate::legacy::VENOM)), 40);
             if let Some(m) = victim {
                 let cur = run.monsters[m].poison;
                 run.monsters[m].poison = (p.0.max(cur.0), cur.1 + p.1);
@@ -2541,7 +2544,7 @@ fn move_monster(run: &mut Run, cx: &mut Ctx, mi: usize, q: Pos) {
     if run.monsters[mi].hostile() {
         if let Some(ii) = run.item_at(q).filter(|&ii| run.items[ii].item.kind == "trap") {
             run.items.remove(ii);
-            run.monsters[mi].stun = 20;
+            run.monsters[mi].stun = 20 + 5*i32::from(crate::legacy::has(&run.hero,crate::legacy::CONTROL));
             run.monsters[mi].pending = None;
             run.monsters[mi].telegraph = None;
             if run.floor.map.is_visible(q) {

@@ -1,3 +1,46 @@
+**CUT32 BLOODLINE LEGACY TREE IMPLEMENTED/VERIFIED — 2026-10-06:**
+Twelve Rust-owned nodes, old three roots/ranks/prices preserved, historical D8/D18
+access, three exclusive forks. Nine real effects on send-snapshotted Hero u16
+mask, omitted at0. Gas protection includes tagged bursts/Bloat attacks. Free
+home checked-refund respec, no changes to wallet/classes/history/other slots.
+Rust wire provides node/prerequisite/effect/owned-total and respec refund/total/
+eligibility; native/WASM and actual worker proxy all expose respec. Responsive
+chunky Hero tree: three desktop columns, collapsed phone paths, packed icons,
+keyboard/tap detail, visible refusal, stale review and one-call confirmation.
+
+Thirteen new meaningful core tests pass; final quick616 core/one ignored plus
+14 tool tests/typecheck/copy1678,143s under competing work. All-target fast
+clippy/build/codegen/diff pass, existing bundle advisory. Tree/worker UI checks
+and old hero/report/training checks pass320/400/1440. Exact entire native/WASM
+lineage/send/advance/live-reload/respec/purchase parity for three chosen builds;
+six old load/advance/save baselines and two numbered native saves unchanged.
+Native whole/30min/uneven/reloaded8h complete raw saves/reports match one/three
+slots with new effects. These unit fixtures are controlled, not earned campaigns.
+
+Final9 paid Tier5 build comparisons use the same earned814-point preparation,
+108 actual points per build, synthetic seed/tier eligibility, no other grants:
+Mending seeds1/3/5 all8h; Venom8/8/16h; Fireward8/16/8h. AllD34/unlock6.
+Earlier pre-gas-tag measurements retained separately. Paired action tests
+demonstrate effects; do not claim every leaf fires in that unchanged policy.
+Permanent examples legacy_check.rs and legacy_perf.rs. Actual earned Tier5
+start real-WASM headed screenshots320/400/1440: full read-only save exact,
+no errors/overflow. Actual57-point Mending purchase→review→respec→durable save→
+page reload passes; refunded full UI save equals native. Screenshots shown.
+Artifacts scratchpad/legacy-ui-20261006/, legacy-balance-final-20261006/.
+
+Final routine18-case gate terminal0 source70342eb7d0cd8298, no cached legs;
+metrics111.4s, wireQA76.4s, dayplayer202.4s/all selected bars pass. Optional
+exhaustive/system-removal/historical audit not run. Quiet equal-work old44da245/
+new tick/status+gas benchmark nine interleaved rounds,101×500ticks/32 enemies:
+tier0 645.318/626.362ns, tier5 683.922/655.938ns, selected perks677.262/667.918ns.
+Within10% bar; no general speedup/full catch-up/FPS claim. Initial5000-tick
+fixture invalid because natural pressure grew enemies32→41, no timings used;
+fixed500ticks before pressure, identical sources/sample count checks. No perk
+tick allocations. WASM5336294B. Shared5219 retained, temporary screenshot server
+5473 cleaned, no deployment. Keep-going goal remains active. Next two class
+specializations: contract/actual exclusive actions/tactics/icons/replay proof,
+reuse current class XP, preserve unselected-class and tier0 behavior. No subagents.
+
 **CUT31 SCOPED VERIFICATION + LEGACY TREE CONTRACT — 2026-10-06:**
 Previous goal turn progress: pushed27749eb income/clock continuations. This turn
 routinefull18case gate terminal0(session38577), metrics84.4s0,qa51.7s0,

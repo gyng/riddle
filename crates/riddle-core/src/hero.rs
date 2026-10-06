@@ -171,6 +171,9 @@ pub struct Hero {
     pub str_bonus: i32,
     #[serde(default)]
     pub legacy_armour: i32,
+    /// Selected inherited perks snapshotted at send; old roots alone omit it.
+    #[serde(default,skip_serializing_if="crate::legacy::empty_effects")]
+    pub legacy_effects:u16,
     pub class: Class,
     pub inv: crate::shared::Shared<Vec<Item>>,
     pub weapon: crate::shared::Shared<Option<Item>>,
@@ -247,6 +250,7 @@ impl Hero {
             base_atk: (1, 2),
             str_bonus: 0,
             legacy_armour: 0,
+            legacy_effects: 0,
             class,
             inv: Vec::new().into(),
             weapon: None.into(),
