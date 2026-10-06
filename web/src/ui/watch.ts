@@ -116,6 +116,7 @@
 // cadence above. `data-frame="map|fight"` on the element for tooling.
 import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
+import { combatLogEvents } from "./combat-log";
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
@@ -901,9 +902,15 @@ export function renderWatch(app: App): Mounted {
     let exit: Tier | null = null;
     const heroId = s.hero.id;
     for (const e of s.entities) { if (e.ally) allies.add(e.id); else if (e.id !== heroId) victims.set(e.id, (e.name ?? e.kind).replace(/_/g, " ")); if (e.tags.includes("boss")) bossIds.add(e.id); }
+    // A spawned actor can die before the batch's final snapshot. Its spawn
+    // still carries the real identity; current snapshot names take precedence.
+    for (const ev of evs) if (ev.k === "spawn") {
+      note_(ev.e);
+      logActors.set(ev.e.id, (ev.e.name || ev.e.kind).replace(/_/g, " "));
+    }
     logActors.set(heroId, s.hero.name || /* copy:label */ "Hero");
     for (const e of s.entities) logActors.set(e.id, (e.name || e.kind).replace(/_/g, " "));
-    const logged = evs.filter((ev) => ["attack", "hurt", "heal", "telegraph", "die", "use", "pickup", "rule", "descend", "exit"].includes(ev.k));
+    const logged = combatLogEvents(evs, heroId, kinds);
     if (logged.length) {
       // Capture only actors in these rows; movement-only batches copy no names.
       const actorNames = new Map<number, string>();

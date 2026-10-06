@@ -1,3 +1,20 @@
+**COMPACT COMBAT HIT ROWS — 2026-10-06:** Watch-only filtering removes later
+hurt identical to positive successful attack on tick/destination/amount/source
+cause, one-to-one; known source kind or hero, never infer unknown. Modified
+amounts/hazards/misses/zero/extra hurts/different tick or cause preserved. Raw
+events untouched for renderer/audio/meters. Spawn names/kinds captured before
+log scheduling, final snapshot names win. New ui/combat-log.ts; existing watch
+identity test expanded10→24/width (48pass29.8s); prior combined44+watch-status+
+roster38pass30.2s, final two checks fixture-only. Build/typecheck/copy1524/diff
+pass, bundle advisory. Real headed WASMseed2 house/send400/1440 each first hit
+rawHurt1→displayHurt0 while attack retained, events byte-identical, no errors/
+overflow, screenshots shown. Phone stillFoe when no snapshot/spawn identity;
+spawned-and-slain names proved controlled only. UX_COMBAT_LOG_ROWS.md evidence/
+limits; no Rust/WASM/gameplay/deployment. Next: repeated rule rows still consume
+the three-line overlay; inspect useful policy decisions versus repeated attacks
+without hiding distinct actions or hazards. Also watch meters' delayed picture
+may show zero damage beside first actual hit—inspect clock ownership first.
+
 **TRAIT PERSONALITY FOLLOW-UP — 2026-10-06:** Latest owner icon request:
 Unbowed v4 badger confident chin-up/chest tap, Light Hands v4 magpie sly gaze
 and smaller palmed coin. Two built-in imagegen edits; exact prompts/source

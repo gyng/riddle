@@ -13,7 +13,25 @@ try{for(const width of [400,1440]){
    if(phase>done){done=phase;window.__emitted=phase;
     if(phase===1)events=[{k:'attack',t,src:s.hero.id,dst:801,hit:true,dmg:3},{k:'attack',t,src:800,dst:801,hit:true,dmg:2},{k:'hurt',t,id:s.hero.id,cause:'fire',dmg:2},{k:'heal',t,id:s.hero.id,src:'heal',amount:4},{k:'pickup',t,id:s.hero.id,item:'gold $1'}];
     if(phase===2)events=[{k:'attack',t,src:800,dst:s.hero.id,hit:true,dmg:1}];
-    if(phase===3)events=Array.from({length:85},(_,i)=>({k:'pickup',t:t+i/100,id:s.hero.id,item:'gold $1'}));
+    if(phase===3)events=[
+     {k:'attack',t,src:s.hero.id,dst:801,hit:true,dmg:3},{k:'hurt',t,id:801,cause:'hero',dmg:3},
+     {k:'attack',t,src:801,dst:s.hero.id,hit:true,dmg:8},{k:'hurt',t,id:s.hero.id,cause:'goblin',dmg:8},
+     {k:'hurt',t,id:s.hero.id,cause:'goblin',dmg:8},{k:'hurt',t,id:s.hero.id,cause:'fire',dmg:8},
+     {k:'attack',t,src:801,dst:s.hero.id,hit:true,dmg:6},{k:'hurt',t,id:s.hero.id,cause:'goblin',dmg:9},
+     {k:'attack',t,src:999,dst:s.hero.id,hit:true,dmg:5},{k:'hurt',t,id:s.hero.id,cause:'goblin',dmg:5},
+     {k:'attack',t,src:800,dst:s.hero.id,hit:false,dmg:4},{k:'hurt',t,id:s.hero.id,cause:'rat',dmg:4},
+     {k:'attack',t,src:s.hero.id,dst:801,hit:true,dmg:0},{k:'hurt',t,id:801,cause:'hero',dmg:0},
+     {k:'attack',t,src:s.hero.id,dst:801,hit:true,dmg:2},{k:'hurt',t:t+1,id:801,cause:'hero',dmg:2},
+     {k:'hurt',t,id:803,cause:'hero',dmg:3},{k:'hurt',t,id:801,cause:'poison',dmg:3},
+     {k:'hurt',t,id:801,cause:'hero',dmg:10},{k:'attack',t,src:s.hero.id,dst:801,hit:true,dmg:10},
+     {k:'attack',t,src:s.hero.id,dst:801,hit:true,dmg:11},{k:'attack',t,src:s.hero.id,dst:801,hit:true,dmg:11},
+     {k:'hurt',t,id:801,cause:'hero',dmg:11},{k:'hurt',t,id:801,cause:'hero',dmg:11},
+     {k:'spawn',t,e:{...rat,id:802,name:'Bram'}},
+     {k:'attack',t,src:802,dst:801,hit:true,dmg:7},{k:'hurt',t,id:801,cause:'rat',dmg:7},
+     {k:'die',t,id:802,cause:'goblin'},
+     {k:'pickup',t:t+2,id:s.hero.id,item:'dedup checkpoint'}
+    ];
+    if(phase===4)events=Array.from({length:85},(_,i)=>({k:'pickup',t:t+i/100,id:s.hero.id,item:'gold $1'}));
    }
    const snap={...s,turn,hero:{...s.hero},entities:phase>=2?[]:s.entities};
    if(phase>=2)delete snap.hero.name;
@@ -36,7 +54,27 @@ try{for(const width of [400,1440]){
  });
  await p.evaluate(()=>window.__logPhase=2);await p.waitForFunction(()=>document.querySelector('.combat-lines')?.children.length>=6);
  const old=await p.locator('.combat-lines li').last().innerText();if(!old.includes('Nib → Hero'))throw Error(`old snapshot/remembered companion: ${old}`);checks++;
- await p.evaluate(()=>window.__logPhase=3);await p.waitForFunction(()=>document.querySelector('.combat-lines')?.children.length===80);
+ await p.evaluate(()=>window.__logPhase=3);await p.waitForFunction(()=>document.querySelector('.combat-lines')?.textContent.includes('dedup checkpoint'));
+ checks+=await p.evaluate(()=>{let n=0;const check=(ok,label)=>{if(!ok)throw Error(label);n++;};
+  const rows=[...document.querySelector('.combat-lines').children].slice(6).map(l=>l.textContent);
+  const has=s=>rows.some(r=>r.includes(s)),count=s=>rows.filter(r=>r.includes(s)).length;
+  check(count('Scarface · hero −3 hp')===0,'unchanged hero hit appears once');
+  check(count('Hero · goblin −8 hp')===1,'one-to-one matching preserves extra hurt');
+  check(has('Hero · fire −8 hp'),'same-tick same-amount environmental damage retained');
+  check(has('Scarface → Hero · −6 hp')&&has('Hero · goblin −9 hp'),'modified damage retained');
+  check(has('Foe → Hero · −5 hp')&&has('Hero · goblin −5 hp'),'unknown source cannot hide damage');
+  check(has('Nib → Hero · miss')&&has('Hero · rat −4 hp'),'miss cannot hide damage');
+  check(has('Scarface · hero −0 hp'),'zero attack cannot hide hurt');
+  check(has('Scarface · hero −2 hp'),'different tick damage retained');
+  check(has('Foe · hero −3 hp'),'different destination damage retained');
+  check(has('Scarface · poison −3 hp'),'different cause damage retained');
+  check(has('Scarface · hero −10 hp'),'earlier hurt cannot pair with later attack');
+  check(count('Hero → Scarface · −11 hp')===2&&!has('Scarface · hero −11 hp'),'two identical hits consume two matching hurts');
+  check(has('Bram → Scarface · −7 hp')&&has('Bram · fell'),'spawned-and-slain actor named');
+  check(!has('Scarface · rat −7 hp'),'spawn source kind matches duplicate hurt');
+  return n;
+ });
+ await p.evaluate(()=>window.__logPhase=4);await p.waitForFunction(()=>document.querySelector('.combat-lines')?.children.length===80);
  if(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('overflow');checks+=2;
  if(errors.length)throw Error(errors.join('\n'));console.log(width,checks,'combat identity/delayed actors/fallback/colours/bounds PASS');await p.close();
 }}finally{await b.close();}
