@@ -51,3 +51,26 @@ scratchpad/gunner-public-qa-20261007/motes-diagnostic.mjs.
 
 Final ambient-motes/live-roster targeted run2/2PASS10.3s;400/1440. Full baseline
 remains80/111; these focused corrections are not a new full-suite verdict.
+
+## Shared window fix and current opening flows
+
+`chrome` exposed an actual shared CSS defect: the old framed-sheet selector
+forced bottom padding0 after centered windows computed the HUD inset. At320px,
+window center was64px low and bottom836 crossed console top788. Centered framed
+windows now explicitly retain their computed bottom inset plus16px gutter.
+Unchanged184 checks PASS at320/400/768/1440, including content expansion, HUD
+resize and viewport resize. Actual earned WASM Tactics320/400/1440 has center
+error<2px, no overlap/overflow/pageerrors; screenshots shown. Source/evidence
+scratchpad/window-audit-20261007; final TS/copy1730zero/build PASS.
+
+`looks` now manually constructs the free opening house and uses active Hero
+Details → Appearance. All16 original appearance/headshot/save/reload/renderer
+identity checks PASS7.7s. Hidden camp portrait stud is no longer the user flow.
+
+`runclear` now manually builds a house before Send. Its first full repeat reached
+all cases and found only the retired banked/collected wording expectation.
+The check now asserts exact Rust reason in data-why AND its collected wording,
+retaining20-word/rarity/exit/death/report/autodismiss checks.
+Final all-parts GPU rerun PASS125.7s (/tmp/riddle-runclear-current-final.log,
+session14943 terminal0). No simulation or numeric budget changed.
+Full baseline remains80/111, not a new full-suite verdict.

@@ -42,10 +42,15 @@ const card = () => page.evaluate(() => {
   const words = c.innerText.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
   const rims = [...c.querySelectorAll(".item-ico")].map((i) => ({ r: i.dataset.rarity, rim: getComputedStyle(i).boxShadow, bg: getComputedStyle(i).backgroundImage }));
   return { words: words.length, text: words.join(" "), stamp: c.querySelector(".rc-stamp")?.textContent?.trim().toLowerCase(), why: c.querySelector(".rc-reason")?.textContent?.trim(),
-    depth: c.querySelector(".rc-depth")?.textContent?.trim(), gold: c.querySelector(".rc-coins")?.dataset.gold, rims, clear: document.querySelector("main.report")?.dataset.clear };
+    rawWhy: c.querySelector(".rc-reason")?.dataset.why, depth: c.querySelector(".rc-depth")?.textContent?.trim(), gold: c.querySelector(".rc-coins")?.dataset.gold, rims, clear: document.querySelector("main.report")?.dataset.clear };
 });
 /** A send by hand from the town (the gem), then the keep sheet answered as it comes, until a screen after the watch. */
 async function sendAndEnd(timeout = 150_000) {
+  // New towns follow the owner's manual house → resident → Send opening.
+  if (await page.evaluate(() => window.__riddle?.lineage.town?.home === false)) {
+    await page.locator('.town-tag[data-next="house"]').click();
+    await until(() => window.__riddle.lineage.town.home === true, "the manually built house");
+  }
   await until(() => window.__riddle?.screen === "camp" && document.querySelector(".gem.send:not([disabled])"), "the send gem");
   await page.click(".gem.send");
   await until(() => window.__riddle.screen === "watch", "the watch");
@@ -72,7 +77,7 @@ try {
       check(s === "report" && c === "report" && !!k, `a watched run's end shows the card (${s})`);
       check(STAMPS.includes(k.stamp), `the stamp is an exit word (${k.stamp})`);
       const line = await page.evaluate(() => { const r = window.__riddle.view.report; const x = r?.exits?.[r.exits.length - 1]; return x ? { reason: x.reason, end: x.end, reached: x.reached, finds: (x.finds ?? []).length } : null; });
-      check(!!line?.reason && k.why === line.reason, `the reason line is the core's (${k.why} | ${line?.reason})`);
+      check(!!line?.reason && k.rawWhy === line.reason && k.why === line.reason.replace(/\bbanked\b/g, "collected"), `the core reason retains current gold wording (${k.why} | ${line?.reason})`);
       check(!!line?.end && !!line.reached && k.depth?.startsWith(`D${line.reached}`), `the end and the floor are the core's (${line?.end} · D${line?.reached} | ${k.depth})`);
       check(k.words <= MAX_WORDS, `≤ ${MAX_WORDS} words at rest (${k.words}: ${k.text})`);
       const rimmed = k.rims.filter((x) => x.r && x.rim === "none" && x.bg === "none");

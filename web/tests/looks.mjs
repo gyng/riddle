@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Hero looks gate: the heir's cosmetic look (`Lineage.look`: male | female | cat) is swapped from the camp's portrait stud, persists
+// Hero looks gate: the heir's cosmetic look (`Lineage.look`: male | female | cat) is swapped from the active hero's Details → Appearance menu, persists
 // through the save (a reload), and every surface draws it — the camp's portrait well and the bar's mini portrait paint
 // `hero_<class>_<look>`, and the watch's renderer draws the hero entity as `hero_<class>_<look>`. Real wasm engine against the dev
 // server (tools/dev.sh, :5219).
@@ -41,6 +41,10 @@ async function until(fn, label, timeout = 10_000) {
 }
 const look = () => page.evaluate(async () => (await window.__riddle.engine.lineage()).look ?? "");
 const wellArt = (sel = "main .portrait .face") => page.evaluate((sel) => document.querySelector(sel)?.dataset.art ?? "", sel);
+const openAppearance = async () => {
+  await page.locator('.hero-mobile .hero-details').click();
+  await page.locator('.hero-sheet .hero-appearance').click();
+};
 const miniArt = () => page.evaluate(() => document.querySelector(".mini-portrait .face")?.dataset.art ?? "");
 
 try {
@@ -49,6 +53,8 @@ try {
   // a fresh camp stays ≤ 8 controls: on packages the stud is carved from the first run (a best depth; camp.ts — the Cut 30 idle
   // floor rarely dies on Steady), behind the pen at the first death
   check(!(await page.locator("main .portrait .look-stud").count()), "a fresh camp has no look stud");
+  await page.locator('.town-tag[data-next="house"]').click();
+  await page.waitForFunction(() => window.__riddle.lineage.town.home === true);
   // a 1 h absence returns runs (a best depth), which is how the real game reveals the stud now — not a death
   // (Cut 30.5: before the scout a send is one run by hand — the hero is sent, then the absence plays that run out)
   await page.evaluate(async () => { const r = window.__riddle; await r.engine.send(); await r.runOfflineChunked(3600); await r.refresh(); r.go({ kind: "camp" }); });
@@ -61,8 +67,8 @@ try {
   const w0 = await until(async () => (await wellArt()) === `hero_${cls}_${l0}` && wellArt(), "well");
   check(w0 === `hero_${cls}_${l0}`, `the camp's well paints hero_${cls}_${l0} (${w0})`);
 
-  // the stud opens the sheet: three headshots of the class
-  await page.locator("main .portrait .look-stud").click({ timeout: 5000 });
+  // The active hero's menu opens three headshots of the class.
+  await openAppearance();
   await page.waitForSelector(".look-sheet .look", { timeout: 5000 });
   const faces = await page.evaluate(() => [...document.querySelectorAll(".look-sheet .look")].map((b) => ({ look: b.dataset.look, art: b.querySelector(".face")?.dataset.art ?? "", on: b.classList.contains("on") })));
   check(faces.length === 3 && faces.every((f) => f.art === `hero_${cls}_${f.look}`), `the sheet shows three headshots (${faces.map((f) => f.art).join(", ")})`);
@@ -100,7 +106,7 @@ try {
   await page.goto(`${url}?dev=1&seed=31`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp again");
   await page.evaluate(() => window.__riddle.go?.({ kind: "camp" }));
-  await page.locator("main .portrait .look-stud").click({ timeout: 5000 });
+  await openAppearance();
   await page.locator(".look-sheet .look[data-look=female]").click({ timeout: 5000 });
   const w3 = await until(async () => (await wellArt()) === `hero_${cls}_female` && wellArt(), "well female");
   check((await look()) === "female" && w3 === `hero_${cls}_female`, `swapped back to female (${await look()} · ${w3})`);

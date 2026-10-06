@@ -109,7 +109,8 @@ html.skin-tablet .pkg-panel button.chip.pkg { border: 8px solid transparent; bor
   .game-window .settings .srow .label { flex: 1 0 90px; }
 }
 /* Centering owns the full backdrop, replacing the old console-offset sheet. */
-body.framed .sheet-wrap.centered:not(.modeless) { bottom: 0; }
+body.framed .sheet-wrap.centered:not(.modeless) { bottom: 0;
+  padding-bottom: calc(var(--window-bottom, 0px) + 16px); }
 html body .cmd .tile .tl, html body .cmd .tile .tl.two { font-size: var(--control-size); letter-spacing: .015em; }
 /* The same header plate on every management window. */
 .game-window .sheet-body > .label:first-child, .game-window .pkg-top {

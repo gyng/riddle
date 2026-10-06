@@ -1,3 +1,27 @@
+**SHARED WINDOW CENTERING / CURRENT RUN-CLEAR AND APPEARANCE GATES — 2026-10-07:**
+
+Actual defect fixed in chrome.css: old framed-sheet rule overrode centered
+window bottom padding with0. At320px it shifted window64px down and overlapped
+console (bottom836 vs console788). Explicit centered bottom HUD inset+16px
+gutter now wins. Unchanged chrome184checks PASS at320/400/768/1440 (expansion,
+HUD resize, viewport resize). Real earned WASM Tactics320/400/1440 centererror
+<2px, no overlap/overflow/pageerrors; screenshots shown. Evidence
+scratchpad/window-audit-20261007; /tmp/riddle-chrome-{audit,fixed}.log.
+
+Looks test builds house manually and uses Hero Details → Appearance rather
+than hidden camp portrait stud; all16appearance/save/reload/renderer checks
+PASS7.7s. Runclear builds house before Send, asserts exact data-why Rust reason
+and current collected wording. Allparts GPU PASS125.7s, retaining20word,
+rarity/silhouettes, exit/reason/death/report/autodismiss bars. Failed old/first
+reruns retained. TS/copy1730zero/build PASS; no Rust or WASM input changes.
+
+Full suite still not green: baseline80/111. Six formerly failing modules now
+have focused passes across the last two checkpoints; not a new full verdict.
+Next audit current Speed/editor/report/trace/replay/restock/first-load selectors
+and actual failures in docs/CLIENT_GATE_AUDIT_20261007.md; don't restore removed
+controls or weaken numeric bars. No deploy;95fun active/unverified. OwnQA5380
+closed after screenshots; shared5219 preserved. No pending owned checks.
+
 **CUT35 PUBLIC GUNNER / CLIENT FAILURE AUDIT — 2026-10-07:**
 
 UI_READY=true; missing LABEL.gunner fixed so public unowned hero picker shows
