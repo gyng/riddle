@@ -399,7 +399,7 @@ export class ReplayState {
         }
         // Cut 8A: the firing row as a caption at the top of the fight frame: `R2 attack goblin`; a trait deviation reads as
         // its own text (`cowardly > retreat`); chores (row -2) stay silent (pillar 2)
-        if (this.ended || ev.row < -1 || this.iconRows.has(ev.row)) break;
+        if (this.ended || ev.row < -1 || this.iconRows.has(ev.row) || ev.verb.v === "gunner_tactic") break;
         const tail = ev.text.includes("→") ? ev.text.slice(ev.text.lastIndexOf("→") + 1).trim() : ev.text;
         // QA 23ed91f (L: `R4 PACK BREAK GOBLIN`, 4 words): a callout is ≤ 3 words — the row number and at most two of the verb's
         // (the target goes first: `R4 pack break`, `R2 attack goblin`)

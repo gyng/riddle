@@ -1443,24 +1443,25 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
     }
 }
 
-pub fn hero_attack(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: bool) {
-    hero_attack_mult(run, cx, mi, verb, bash, 1);
+pub fn hero_attack(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: bool) -> bool {
+    hero_attack_mult(run, cx, mi, verb, bash, 1)
 }
 
-pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: bool, mult: i32) {
+pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: bool, mult: i32) -> bool {
     // Every old ranged attack path must reserve ammunition too. Dedicated gun
     // actions call the shared hit resolver after their one chamber commitment.
     if let Some(profile) = crate::firearm::Profile::of(run.hero.weapon_kind()) {
-        if !reserve_gun(run, mi, profile, false) { return; }
+        if !reserve_gun(run, mi, profile, false) { return false; }
         let prepared=profile.capacity==1&&run.gun_skills.as_ref().and_then(|s|s.aim).is_some_and(|a|
             a.target==run.monsters[mi].id&&a.from==run.hero.pos&&run.hero.weapon.as_ref().is_some_and(|w|w.id==a.item));
         if let Some(s)=run.gun_skills.as_mut() {s.aim=None;}
         let aimed=run.aimed;run.aimed|=prepared;
         hero_attack_roll(run, cx, mi, if prepared {"aimed_shot"}else{"fire"}, false, mult, Some((profile,prepared)));
         run.aimed=aimed;
-        return;
+        return true;
     }
     hero_attack_roll(run, cx, mi, verb, bash, mult, None);
+    true
 }
 
 fn reserve_gun(run: &mut Run, mi: usize, profile: crate::firearm::Profile, burst: bool) -> bool {
@@ -1531,10 +1532,13 @@ fn gunner_tactic(run:&mut Run,cx:&mut Ctx,v:&View)->bool {
     let Some(w)=run.hero.weapon.as_ref() else {return false;};
     let Some(p)=crate::firearm::Profile::of(&w.kind) else {return false;};
     let Some(chambers)=w.firearm else {return false;};
+    // Reload remains an absolute commitment while smoke buys breathing room.
+    // Safety/player rows still run first; no free movement or implicit ammo refill.
+    let hp_pct=run.hero.hp*100/run.hero.max_hp.max(1);
+    if v.adj>0&&hp_pct<35&&(run.gun_reload.is_some()||chambers.loaded>0)&&smoke_gun(run,cx,v) {return true;}
     if run.gun_reload.is_some() {return true;}
     if chambers.loaded==0 {return crate::firearm::reload_fast(run,cx)||crate::firearm::reload(run,cx);}
     if v.foes.is_empty() {return false;}
-    if run.hero.hp*100/run.hero.max_hp.max(1)<35&&v.adj>0&&smoke_gun(run,cx,v) {return true;}
     let sel=if v.foes.iter().any(|&i|run.monsters[i].is_boss()&&run.monsters[i].pos.cheb(run.hero.pos)<=p.range) {"tag:boss"}else{"nearest"};
     if let Some(mi)=pick_target_from(run,sel,&v.foes) {
         if gun_sidearm(run,cx,mi) {return true;}
@@ -2416,8 +2420,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             let gas_adj = v.foes.iter().copied().find(|&i| run.monsters[i].has_tag("gas") && run.monsters[i].pos.adjacent(hp));
             if let Some(i) = gas_adj {
                 if run.hero.ranged() {
-                    hero_attack(run, cx, i, "shoot", false);
-                    return true;
+                    return hero_attack(run, cx, i, "shoot", false);
                 }
                 let n_gas = v.foes.iter().filter(|&&j| run.monsters[j].has_tag("gas")).count();
                 if n_gas >= 1 && run.hero.hp_pct() < 60 && verb_retreat(run, cx, v) {
@@ -2430,8 +2433,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                     return verb_attack(run, cx, "tag:gas", v, false);
                 }
                 if let Some(other) = v.foes.iter().copied().find(|&i| !run.monsters[i].has_tag("gas") && run.monsters[i].pos.adjacent(hp)) {
-                    hero_attack(run, cx, other, "attack", false);
-                    return true;
+                    return hero_attack(run, cx, other, "attack", false);
                 }
                 // wait for the bloat to drift in; it dies to the next swing on open ground — Cut 27 §4: a
                 // bloat the chase gave up on (not in `engage`: no path, across water) never drifts in, and the
@@ -2512,14 +2514,12 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             let thief = v.foes.iter().copied().find(|&i| run.monsters[i].has_tag("thief"));
             let Some(i) = thief else { return false };
             if run.monsters[i].pos.adjacent(hp) {
-                hero_attack(run, cx, i, "attack", false);
-                return true;
+                return hero_attack(run, cx, i, "attack", false);
             }
             let mp = run.monsters[i].pos;
             if run.monsters[i].stolen.is_some() && mp.cheb(hp) <= BOW_RANGE && run.floor.map.los(hp, mp) {
                 if run.hero.ranged() {
-                    hero_attack(run, cx, i, "shoot", false);
-                    return true;
+                    return hero_attack(run, cx, i, "shoot", false);
                 }
                 for k in ["fire", "poison", "caustic", "confusion"] {
                     if verb_throw(run, cx, &format!("{k},tag:thief"), v) {
@@ -2565,8 +2565,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                 "lurker_queen" => {
                     let hp = run.hero.pos;
                     if let Some(i) = v.foes.iter().copied().find(|&i| run.monsters[i].summoned && run.monsters[i].kind == "lurker" && run.monsters[i].pos.adjacent(hp)) {
-                        hero_attack(run, cx, i, "attack", false);
-                        return true;
+                        return hero_attack(run, cx, i, "attack", false);
                     }
                     verb_attack(run, cx, "tag:boss", v, false)
                 }
@@ -2669,8 +2668,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             }
             if basic != "attack" && last != "attack" && v.foes.iter().any(|&i| run.monsters[i].pos.adjacent(hp)) {
                 let i = v.foes.iter().copied().find(|&i| run.monsters[i].pos.adjacent(hp)).unwrap();
-                hero_attack(run, cx, i, "attack", false);
-                return true;
+                return hero_attack(run, cx, i, "attack", false);
             }
             callout(run, cx, "feint");
             true
@@ -2701,8 +2699,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             };
             if run.hero.ranged() {
                 if let Some(i) = refl.iter().copied().find(|&i| shootable(run, i)) {
-                    hero_attack(run, cx, i, "shoot", false);
-                    return true;
+                    return hero_attack(run, cx, i, "shoot", false);
                 }
             } else if let Some(bi) = run.hero.inv.iter().position(|i| i.def().ranged) {
                 // A bow in the pack goes up (an action); it comes back down by itself once no
@@ -2740,8 +2737,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                 return true;
             }
             if let Some(other) = v.foes.iter().copied().find(|&i| !run.monsters[i].reflects_melee() && run.monsters[i].pos.adjacent(hp)) {
-                hero_attack(run, cx, other, "attack", false);
-                return true;
+                return hero_attack(run, cx, other, "attack", false);
             }
             // Nothing to throw: the mirror is not worth a swing. It is terrain now — the chores'
             // goals (the stairs, the frontier) are walked around it, never within a tile of it;

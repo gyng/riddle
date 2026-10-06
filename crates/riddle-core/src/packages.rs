@@ -536,13 +536,14 @@ pub fn compile(l: &LineageState) -> RuleSet {
     let (guard, fallback) = if p.stance == CUSTOM { (p.custom.clone(), Vec::new()) } else { stance_rows(&p.stance, level, best) };
     rows.extend(tagged(guard, &origin));
     if let Some(row)=crate::specialization::row(l) {rows.push(row);}
-    if let Some(row)=crate::firearm::row(l) {rows.push(row);}
     for t in &p.tactics {
         rows.extend(tagged(tactic_rows(t, p.level(t)), &format!("tactic:{t}")));
     }
     if let Some(t) = &p.temperament {
         rows.extend(tagged(temperament_rows(t, p.level(t)), &format!("temper:{t}")));
     }
+    // Chosen policy acts before automatic gun handling; generic stance attacks follow.
+    if let Some(row)=crate::firearm::row(l) {rows.push(row);}
     rows.extend(tagged(fallback, &origin));
     // one row per card (the pen's own card row wins), and never the same row twice
     let mut out: Vec<Row> = Vec::new();

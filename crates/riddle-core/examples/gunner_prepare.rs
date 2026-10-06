@@ -54,11 +54,11 @@ fn main() {
                 s.begin_descent(tier).expect("legally repeat owned descent");
             }
             let report=s.run_offline_mode(28800,false,true);
-            if d13.is_none()&&s.active.lineage.best_depth>=13 {d13=Some(n*8);}
+            if d13.is_none()&&report.deepest>=13 {d13=Some(n*8);}
             if mastery.is_none()&&s.active.lineage.class_level()>=10 {mastery=Some(n*8);}
             let row=serde_json::json!({"weapon":kind,"hours":n*8,"runs":report.runs,
                 "level":s.active.lineage.class_level(),"xp":s.active.lineage.classes["gunner"].xp,
-                "best":s.active.lineage.best_depth,"cleared":s.active.lineage.ended});
+                "played_deepest":report.deepest,"best":s.active.lineage.best_depth,"cleared":s.active.lineage.ended});
             println!("{row}");checks.push(row);
             if n>=6&&mastery.is_some() {break;}
         }

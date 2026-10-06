@@ -10,8 +10,11 @@ rendered. Compact played chamber/reload/aim watch and death-trace replay
 indicators are implemented with scoped real-worker QA. Public class offers remain hidden until action art and
 the complete acceptance checks pass. Initial campaign source had an explicitly
 selected bow; earlier gun-progression claims are superseded below. Corrected
-actual-kit campaigns verify real guns firing/reloading but still fail7day
-mastery on current runtime. Preserve failures and continue tuning. No deployment.
+actual-kit campaigns verify real guns firing/reloading. Normal earned paid-upkeep
+campaigns initially reached D13 within48h on all six cases. After fixing chosen
+tactic/temperament precedence, five pass; seed1 long reaches D13 at56h and
+mastery at136h. Other five miss seven-day mastery. Initial kits still expose early failures. Preserve failures
+and continue tuning/full acceptance. No deployment.
 
 ## Identity and progression
 
@@ -59,7 +62,7 @@ the same visible target; losing sight/moving cancels the aim. Close burst cannot
 activate with one chamber or masquerade as Ranger double shot at long range.
 
 A named automatic class row handles firing/reloading after safety/drills/player
-rules, before generic attacks. Default Gunner works from its first send without
+rules and chosen tactics/temperaments, before generic attacks. Default Gunner works from its first send without
 Pen edits. Authored/literal policies stay explicit; fire, reload, aim and burst
 become optional vocabulary as owned class levels unlock them. Ranger retains
 its marks, sustained shots and mobility; Gunner is defined by range choice,
@@ -307,3 +310,54 @@ uneven sliced/reloaded complete steps/saves, exact. These are explicitly arenas,
 not normal earned progression or eight-hour/multi-bloodline proof. Original A–E
 remain open: normal three-seed balance/mastery/Tier5, action icons, full eight-hour
 parity/positive performance and routine18case gates. UI_READY=false; no deployment.
+
+
+## Normal earned campaign checkpoint — 2026-10-07
+
+examples/gunner_campaign.rs earns real Tier0 unlock camps from empty towns on
+seeds1/3/5; only legal manual construction/sends/hiring and paid kit/Legacy.
+No fabricated seed, depth, currency, XP, kit, facts or authored policy. Camp record
+persists across class change: D13 measurement uses actual report.deepest, with
+first10000tick positive fire/reload and full native/WASM save/step equality.
+Reusable camps and --hours/--seed/--gun bound tuning; short/targeted jobs are
+explicit diagnostics, not full acceptance. Full mastery observations legally
+repeat owned descents after a clear. Default AI with declared paid upkeep reaches
+D13 long/short at32/16h(seed1),48/8h(seed3),16/8h(seed5). Short1 masters168h;
+remaining five miss7days. Fixed initial kit48h has three failures. Evidence:
+scratchpad/gunner-normal-{fixed,upkeep}-smoke35-20261007; all failures retained.
+This verifies the stated earned paths, not C's missing arenas/Tier5 or full A–E.
+
+Default Smoke can act below35% health during a committed reload; original deadline
+and actual action/level/cooldown costs remain. A50% trial regressed several builds
+and was rejected. Neither35% behaviour nor paid progression implies every build
+is faster. Automatic Gunner internal labels stay out of ticker/map captions;
+actual shot/log/ammo/skill cues remain, explicit fire rows retain captions,
+meters say Gun handling and unloaded chambers say Empty. Scoped real-worker
+screens/tap tips pass1440/400/320;666core/14tool quick and focused client checks
+pass. Six earned first10000tick native/WASM snapshots/events/saves exact, eight
+legacy fixtures exact. Original8h multi-slot, positive perf, action icons,
+arena/Tier5 and routine18case acceptance remain pending. Public class hidden.
+
+
+## Chosen-policy acceptance — 2026-10-07
+
+Selected tactics and temperaments must precede automatic class:gunner handling,
+which remains above generic stance fallback. Pen, counter drills and stance safety
+retain precedence. Actual gas_step actions with long/short guns must consume
+one/two chambers, then yield to the automatic reload without reporting phantom
+attacks. No fire or shortened deadline during the commitment. Actual Skittish
+retreat must act both with loaded chambers and during reload, without changing
+ammo/deadline. Non-firearm attack results and compiled policy remain unchanged.
+Recheck earned three-seed paired48h paid campaigns after the policy change;
+previous campaign numbers belong to their recorded runtime, never this change
+without a rerun. Positive actual Rule events prove choices were executed.
+
+
+Chosen-policy result: native668tests/oneignored and scoped actual browser checks
+pass. All eight direct tactic attack branches now propagate actual firearm
+refusal; no empty-gun fake success. Six earned10000tick samples and old fixtures
+remain native/WASM exact. Full current paid168h: seed1 longD13=56h (FAIL48h),
+mastery136h; other five D13=16/48/8/16/8h, mastery misses L9/7/9/9/8.
+Chosen Boss focus or no temperament does not fix seed1long48h. Preserve those
+failures; no gate weakened. Current sources gunner-chosen-policy-paid{48,168}
+-20261007. Earlier six-of-six claims describe their earlier recorded runtime.

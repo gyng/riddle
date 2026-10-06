@@ -17,7 +17,7 @@ try { for (const width of [320,400,1440]) {
   r.apply([{k:'gun',t:t+2,state:{...loaded,loaded:0}},{k:'gun',t:t+3,state:{...loaded,loaded:0,reload_ticks:8,reload_left:8,reload_until:t+11}},
    {k:'gun',t:t+11,state:loaded},{k:'gun',t:t+12,state:null},{k:'gun',t:t+13,state:{...loaded,aiming:true}}]);
   check(r.gun.loaded===2,'queued future does not spend rounds');
-  r.seek(t+2);g.paint(r.gun,r.clock);check(g.el.textContent==='0/2 · Ready','burst spends both at picture clock');
+  r.seek(t+2);g.paint(r.gun,r.clock);check(g.el.textContent==='0/2 · Empty','burst spends both at picture clock');
   r.seek(t+7);g.paint(r.gun,r.clock);check(g.el.dataset.state==='reload','saved deadline remains active');
   check(g.el.querySelector('.gun-reload-fill').style.width==='50%','actual eight tick reload halfway');
   r.seek(t+11);g.paint(r.gun,r.clock);check(g.el.textContent==='2/2 · Ready','played completion restores chambers');
@@ -28,6 +28,11 @@ try { for (const width of [320,400,1440]) {
   const {openTip,closeTip}=await import('/src/ui/tips.ts');openTip(g.el,true);
   check(document.querySelector('#kw-tip').textContent.includes('1.5s reload'),'keyboard/touch tooltip uses readable seconds');closeTip();
   r.load(snapshot);g.paint(r.gun,r.clock);check(g.el.hidden,'ordinary hero has no gun chrome');
+  r.apply([{k:'rule',t:t+1,row:0,verb:{v:'gunner_tactic'},text:'Gunner rat'}]);r.seek(t+1);
+  check(!r.caption,'automatic handler never shows implementation caption');
+  r.apply([{k:'rule',t:t+2,row:1,verb:{v:'fire'},text:'fire rat'}]);r.seek(t+2);
+  check(!!r.caption,'explicit fire row retains action caption');
+  const {verbLabel}=await import('/src/ui/tokens.ts');check(verbLabel({v:'gunner_tactic'})==='Gun handling','readable meter/rule label');
   g.el.remove();return n;
  });
  if(errors.length)throw Error(errors.join('\n'));console.log(width,count,'gun picture-clock/seek/HUD checks PASS');await page.close();

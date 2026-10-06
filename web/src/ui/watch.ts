@@ -923,6 +923,7 @@ export function renderWatch(app: App): Mounted {
     if (frame === "fight" && lastRuleIsRow && now - lastRuleAt < CAPTION_LINE_MS) ruleLine(lastRuleText);
   }
   function ruleCallout(ev: Extract<Ev, { k: "rule" }>): string | null {
+    if (ev.verb.v === "gunner_tactic") return null; // Automatic gun handling: real shot/skill/reload cues already show.
     if (tactics.owns(ev.row)) return null; // Known tactics use their icon; history retains their words.
     if (ev.row >= 0) return rowCallout(ev.row, verbLabel(ev.verb));
     if (ev.row === -1) return ev.text;                       // trait deviation, e.g. "cowardly → retreat"

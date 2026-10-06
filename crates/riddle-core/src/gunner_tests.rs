@@ -201,3 +201,80 @@ fn played_aim_and_sidearm_events_follow_real_actions() {
     for _ in 0..10 {g.tick();}
     assert!(g.events.iter().any(|e|matches!(e,Ev::Gun{state:Some(s),..} if s.loaded==1&&!s.aiming)));
 }
+
+
+#[test]
+fn default_smoke_during_dangerous_reload_spends_action_without_shortening_timer() {
+    let mut g=arena("long_gun",5);foe(&mut g,5,5);
+    assert!(act(&mut g,"fire"));assert!(act(&mut g,"reload"));
+    let at=g.run.as_ref().unwrap().gun_reload.unwrap().at;
+    let from=g.run.as_ref().unwrap().hero.pos;
+    {let r=g.run.as_mut().unwrap();r.hero.max_hp=30;r.hero.hp=9;}
+    let before=g.save();assert!(!act(&mut g,"fire"));assert_eq!(g.save(),before);
+    assert!(act(&mut g,"gunner_tactic"));
+    let r=g.run.as_ref().unwrap();assert_ne!(r.hero.pos,from);assert_eq!(r.monsters[0].blind,30);
+    assert_eq!(r.gun_reload.unwrap().at,at);assert_eq!(r.hero.weapon.as_ref().unwrap().firearm.unwrap().loaded,0);
+    assert_eq!(r.gun_skills.as_ref().unwrap().smoke_ready,90);
+    let moved=r.hero.pos;assert!(act(&mut g,"gunner_tactic"));assert_eq!(g.run.as_ref().unwrap().hero.pos,moved,"cooldown does not repeat smoke");
+    for _ in 0..at-1 {g.tick();}assert!(g.run.as_ref().unwrap().gun_reload.is_some());
+    g.tick();assert!(g.run.as_ref().unwrap().gun_reload.is_none());
+    for (level,hp) in [(4,9),(5,14),(5,30)] {
+        let mut g=arena("long_gun",level);foe(&mut g,5,5);assert!(act(&mut g,"fire"));assert!(act(&mut g,"reload"));
+        {let r=g.run.as_mut().unwrap();r.hero.max_hp=30;r.hero.hp=hp;}
+        let from=g.run.as_ref().unwrap().hero.pos;assert!(act(&mut g,"gunner_tactic"));
+        assert_eq!(g.run.as_ref().unwrap().hero.pos,from);assert_eq!(g.run.as_ref().unwrap().monsters[0].blind,0);
+    }
+}
+
+
+/// Controlled choices must affect real scheduled actions, including an empty gun.
+#[test]
+fn chosen_gas_tactic_fires_then_yields_to_reload_without_free_shots() {
+    for kind in ["long_gun","short_gun"] {
+        let mut g=arena(kind,1);
+        crate::tests::add_monster(&mut g,"bloat",5,5);
+        let r=g.run.as_mut().unwrap();r.monsters[0].hp=100;r.monsters[0].max_hp=100;r.monsters[0].stun=1000;
+        g.lineage.class=Class::Gunner;g.lineage.pkg.literal=false;
+        g.lineage.pkg.stance=crate::packages::CUSTOM.into();g.lineage.pkg.custom.clear();
+        g.lineage.pkg.tactics=vec!["gas_step".into()];
+        crate::packages::recompile(&mut g.lineage);
+        let rows=&g.lineage.rules().rows;
+        let chosen=rows.iter().position(|r|r.origin.as_deref()==Some("tactic:gas_step")).unwrap();
+        let automatic=rows.iter().position(|r|r.origin.as_deref()==Some("class:gunner")).unwrap();
+        assert!(chosen<automatic);
+        let capacity=if kind=="long_gun" {1}else{2};
+        let events=crate::tests::ticks(&mut g,30);
+        assert!(events.iter().any(|e|matches!(e,Ev::Rule{row,verb,..} if *row==chosen as i32&&verb.v=="tactic")));
+        assert_eq!(events.iter().filter(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="fire")).count(),capacity);
+        assert!(events.iter().any(|e|matches!(e,Ev::Rule{row,..} if *row==automatic as i32)),"empty card must fall through to reload");
+        assert!(g.run.as_ref().unwrap().gun_reload.is_some());
+        let deadline=g.run.as_ref().unwrap().gun_reload.unwrap().at;
+        let before=g.run.as_ref().unwrap().monsters[0].hp;
+        let remaining=deadline-g.run.as_ref().unwrap().turn-1;
+        let events=crate::tests::ticks(&mut g,remaining);
+        assert_eq!(g.run.as_ref().unwrap().monsters[0].hp,before,"no phantom card attacks during reload");
+        assert!(!events.iter().any(|e|matches!(e,Ev::Attack{..})));
+        crate::tests::ticks(&mut g,1);
+        assert!(g.run.as_ref().unwrap().gun_reload.is_none());
+    }
+}
+
+#[test]
+fn chosen_temperament_retreats_before_automatic_fire_and_during_reload() {
+    for reloading in [false,true] {
+        let mut g=arena("long_gun",1);foe(&mut g,5,5);foe(&mut g,4,6);
+        if reloading {assert!(act(&mut g,"fire"));assert!(act(&mut g,"reload"));}
+        let r=g.run.as_mut().unwrap();r.hero.hp=9;r.hero.max_hp=30;
+        let from=r.hero.pos;let timer=r.gun_reload;
+        let ammo=r.hero.weapon.as_ref().unwrap().firearm;
+        g.lineage.class=Class::Gunner;g.lineage.pkg.literal=false;
+        g.lineage.pkg.stance=crate::packages::CUSTOM.into();g.lineage.pkg.custom.clear();
+        g.lineage.pkg.temperament=Some("skittish".into());crate::packages::recompile(&mut g.lineage);
+        let chosen=g.lineage.rules().rows.iter().position(|r|r.origin.as_deref()==Some("temper:skittish")).unwrap();
+        g.events.clear();let events=crate::tests::ticks(&mut g,10);
+        assert!(events.iter().any(|e|matches!(e,Ev::Rule{row,verb,..} if *row==chosen as i32&&verb.v=="retreat")));
+        let r=g.run.as_ref().unwrap();assert_ne!(r.hero.pos,from);assert_eq!(r.gun_reload,timer);
+        assert_eq!(r.hero.weapon.as_ref().unwrap().firearm,ammo);
+        assert!(!events.iter().any(|e|matches!(e,Ev::Attack{..})));
+    }
+}

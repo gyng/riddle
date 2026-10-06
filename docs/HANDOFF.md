@@ -1,3 +1,112 @@
+**CUT35 CHOSEN POLICY ACTS / FULL EARNED HORIZON / ACTIVE-RELOAD PARITY — 2026-10-07 (PARTIAL):**
+
+Moved automatic class:gunner below selected tactics/temperaments, above generic
+stance fallback. Pen/drills/stance safety order retained. Previously automatic
+handling swallowed choices (including reload waits). Direct attack helpers now
+return actual success; all eight direct attack branches inside tactic cards
+propagate firearm refusals, so empty/reloading guns do not fake card success
+and starve the reload row. Non-firearm resolution remains true/unchanged.
+Two meaningful scheduled-action tests (both gun variants; loaded/reloading
+Skittish) verify selected Rule events, ammo spending, reload fallthrough,
+no phantom damage and original deadline. Native full quick668pass/oneignored,
+14tool checks,110s; fast workspace/alltarget clippy, TS/copy1717/zero, codegen,
+web build and focused client2/2 green. Fast actualWASM5481230bytes. No full gate
+or new performance certification. Earlier gunner_tests filter matched zero;
+correct firearm::class_tests actually ran14tests, including both new tests;
+full quick covers all668. Earlier recorded30focus tests remain historical.
+
+Permanent gunner_campaign now accepts --seed/--gun/--tactic OWNED_ID and
+--temperament OWNED_ID|none via public home actions, with explicit build fields.
+No grants, no Pen edits. All defaults still unchanged. New default paid48h
+results: seed1long FAIL(max11),short16h;seed3long48h,short8h;seed5long16h,short8h.
+Full168h: seed1long D13 at56h (FAIL48h), mastery136h (PASS7days), max32;
+other five miss mastery (levels9/7/9/9/8), depths34/17/34/34/34. Earlier
+smoke35 six-of-six/short168h numbers belong to prior runtime and are superseded
+for current balance. Preserve artifacts gunner-chosen-policy-paid{48,168}-20261007.
+Explicit owned Boss focus and removing temperament each also fail seed1long48h;
+artifacts gunner-chosen-policy-{boss-focus,no-temper}-20261007. Do not blame
+Light hands alone or claim a universal improvement. No numeric gate weakened.
+
+Six earned normal starts/send/10000tick StepResults/full saves remain exact
+native/WASM; positive shots39/42,55/63,59/65 and completions39/18,55/28,59/27.
+Eight-hour acceptance script gunner-chosen-policy-20261007/eight-hour-parity.mjs
+begins an actual reload, compares each native/WASM report/full save and reloads
+between uneven slices; whole/half-hour/uneven final saves/reports must match.
+It buys additional slots with owned gold: one Gunner plus two new Fighter slots,
+not three earned Gunners. Both guns, one/three-slot results PASS (four cases), recorded there.
+Old four-class fixtures: six full save/event cases and two numbered saves exact.
+Headed actual rebuilt worker1440/400/320: no overflow/errors, actual tap tips;
+watch screenshots/qa.json in gunner-chosen-policy-20261007, phone shown to owner.
+Own QA server5375 closed; shared5219 preserved. Class still UI_READY=false;
+no deployment;95fun remains active/unverified.
+
+Next: improve actual long-gun shot/preparation choices against close threats
+without changing20tick reload/shot stats or hiding chosen policy; measure paired
+normal campaigns, preserve failures. Seed3long D17 wall remains; arenas/Tier5,
+action icons, equal-work positive performance, current18case gate and actual
+fun evaluation still open. Read current results before using older checkpoints.
+
+**CUT35 NORMAL EARNED CAMPAIGNS / RELOAD SMOKE / QUIETER WATCH — 2026-10-07 (PARTIAL):**
+
+Permanent examples/gunner_campaign.rs begins empty Session towns on seeds1/3/5,
+manually builds houses/sends/hire workers and buys only offered paid kit/Legacy.
+No seed/depth/XP/currency/kit/fact grants or Pen edits. Earned Tier0 unlock camps
+at16/24/16 offline-checkin hours (first manual session separately logged): parent
+records19/13/19, class levels5/4/4, kits1/1/1,2/2/2,1/1/1. Files under gunner-
+normal-unlock-20261007; all before King, no prior Gunner XP. Historical record
+survives a class switch: checking lineage.best_depth is a false-pass trap.
+Both preparation tools now measure report.deepest (actual completed run depth),
+not inherited record. New campaign records paid actions, complete starts/afters,
+actual gun at send and positive first10000tick shots/reload completions. A1000tick
+assertion originally stopped the first trials because reload could occur later;
+failed directories retained, sample bounded10000 and accurately labelled. That
+proof clone never advances campaign XP/gold. Counts reports skip optional analysis.
+--unlock-only / --from earned dirs / --hours48 / --seed3 --gun long_gun give
+bounded tuning without replaying the whole unlock or every case. Diagnostic,
+not the routine gate; targeted/short horizons cannot certify three seeds/mastery.
+
+Baseline pre-smoke current earned fixed kit168h: D13 long/short1=16/16h,
+3=56/128h,5=8/none; mastery all fail. Paid upkeep baseline D13 all six<=48h,
+one short seed1 mastered160h; five builds cleared but four other mastery
+observations stopped early at clear, so do NOT call those complete7day failures.
+Rejected automatic reload-smoke below50% experiment: some gains, multiple
+regressions. Preserve patch gunner-normal-smoke-trial-20261007/smoke50.patch
+and fixed/upkeep-smoke artifacts. Accepted policy retains original35% threshold,
+permits an earned Smoke during active reload, still below safety/player/drills;
+empty uncommitted guns retain reload-first order. Real action, level/cooldown,
+blindness/movement, refusal/full-save and original20tick completion tested.
+No ammo refill, new damage/stat/XP bonus or additional scan on negative ticks.
+
+Final35% campaign also explicitly begins/repeats owned descents after a clear,
+so mastery observation continues to168h. Paid upkeep D13 long/short:
+seed1=32/16h,seed3=48/8h,seed5=16/8h (all six pass48h with declared paid choices).
+Short seed1 masters168h; remaining five fail (L9/7/9/9/8 at168h).
+First Tier0 clears short3/96h,long5/152h,short5/72h; no universal speedup claim.
+Fixed initial kit48h: only long1/16h,short1/16h,long5/8h pass; both3 andshort5
+fail. This shorter fixed run does not certify7day mastery. Exact files in gunner-
+normal-{fixed,upkeep}-smoke35-20261007. Full C also needs arenas/Tier5; A–E open.
+
+UI automatic Gun handler no longer floods ticker/map with gunner tactic/Gunner
+rat; actual damage/log/ammo and positive aim/smoke/reload callouts remain.
+Explicit fire rows retain captions. Meters/rules say Gun handling. Empty chambers
+say Empty instead of Ready. Fresh client42Gun assertions+19end-caption pass.
+Real headed Tier0 earned import1440/400/320: no overflow/errors, actual tap tips,
+map/screenshots under gunner-normal-smoke-trial-20261007/watch-*.png/qa.json.
+Full quick666core PASS/one ignored,14tool PASS,80s;30focused0.09s; fast all-target
+clippy/codegen/TS/copy1717zero/build green, real fastWASM5473711B. Six new earned
+normal camp/send/10000tick/full-save native/WASM exact, positive shots39/42,55/63,
+59/65 and completions39/18,55/28,59/27. Not8h/three-bloodline proof. Six old full
+save/event fixtures and two numbered saves exact. No new perf/routine18case audit.
+Public UI_READY=false; no deployment;95fun still active/unverified.
+
+Next highest-impact investigation: packages::compile places class:gunner before
+chosen tactics/temperaments (line539). gunner_tactic normally succeeds, including
+reload waits; this can prevent chosen cards/temperaments from acting. Inspect
+and restore meaningful chosen-policy precedence before default gun handling,
+while retaining safety/drills/player order and ammo commitments. Then explicitly
+owned boss/counter builds for seed3 long's D17 wall, arena comparisons/Tier5,
+action art/full8h one/three-slot parity/perf/routine gates and a real fun evaluation.
+
 **CUT35 PLAYED GUN STATE / COMPACT WATCH AND REPLAY — 2026-10-07 (PARTIAL):**
 
 ObservedGun compares actual worn equipment/chambers, damage, aim and absolute

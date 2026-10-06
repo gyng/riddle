@@ -12,6 +12,7 @@ const COND: Record<string, string> = {
 };
 /* copy:rule_token */
 const VERB: Record<string, string> = {
+  gunner_tactic: "Gun handling",
   attack: "attack", retreat: "retreat", back_corridor: "to corridor", drink: "drink", read: "read", throw: "throw",
   descend: "descend", bank: "bank", return: "return", rest: "rest", pick_up: "pick up", free_captive: "free captive",
   shield_bash: "shield bash", vanish: "vanish", card: "tactic", explore: "explore", stunned: "stunned",
