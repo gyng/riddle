@@ -1,3 +1,17 @@
+**TRAIT PERSONALITY FOLLOW-UP — 2026-10-06:** Latest owner icon request:
+Unbowed v4 badger confident chin-up/chest tap, Light Hands v4 magpie sly gaze
+and smaller palmed coin. Two built-in imagegen edits; exact prompts/source
+paths in GFX_TRAIT_PERSONALITY.md. RGBA1254alpha corners0, runtime96px, only two
+manifest additions; existing v4 preference, other six assets/sizing preserved.
+Headed fake all-unlocked320/400/1440 eight44–52px decoded/unframed/no overlap/
+overflow; phone+desktop screenshots shown. Selection28+death44pass3.7s,
+build/typecheck/copy1524/diffpass, existing bundle advisory. No gameplay/Rust/
+WASM/deployment. Evidence scratchpad/trait-personality-20261006/.
+Next evidence-led UI work: duplicate attack/hurt rows; source inspection shows
+counters/shields change actual Hurt amounts, so only suppress proven identical
+same-tick/destination/damage/source-cause pairs one-to-one; preserve differing
+amounts, hazards, unknown-source damage and misses. No production log edits yet.
+
 **WATCH HERO CONTAINMENT — 2026-10-06:** Actual rendered camera constrained
 by full hero sprite bounds after spring and on snapped load/seek/fight change;
 room holds/targets/spring retained in normal range, constrained axis velocity
