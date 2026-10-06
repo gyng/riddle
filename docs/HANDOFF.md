@@ -1,3 +1,16 @@
+**CAMP DIAGNOSTICS SIMPLIFIED — 2026-10-06:** Real firstreturndesktop exposed
+DPS/time/rules before nextbuildingchoice. Campmeter now nativeclosed Run details
++latestduration, carved existingbuttonframe; existingone/tworunpanelsinside.
+Phone slot remains hidden; othermeter surfaces unchanged. Headed actualWASM
+seed3firstreturn400/1440: closed7.5m/keyboardopenclose; legalsecondsend produces
+existingcomparison; cleanoverflow/errors, final screenshotshown. Townday0/desk
++selection28 pass3.8s; build/typecheck/copy1541 pass,bundleadvisory. Oldcut29:meters
+abortedatwatchtilefixture beforecamp/zeroassertions, notpassing; no broadmeter
+regressionclaim. UX_CAMP_RUN_DETAILS.md;scratchpad/camp-run-details-20261006/.
+No core/WASM/balance/art/deploy. Forecasthex is existingchancegem, deliberately
+unchanged; don't invent missingfoe icon. Keepgoalactive, next highestimpact
+actualgameplay/content ratherthan further speculative minorchrome.
+
 **TESTER DUMP → FAST CHOICE DIAGNOSTIC — 2026-10-06:** Export already built;
 choice-check now accepts versioned tester dumps directly via readDebug,
 validates before Cargo and sends exact embedded engine string to Rust (no JS

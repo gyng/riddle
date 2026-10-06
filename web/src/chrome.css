@@ -201,3 +201,14 @@ html.skin-button .town-tag.build-marker[role="button"] { border: solid transpare
 .town-tag.build-marker .ico { width: 30px; height: 30px; flex: 0 0 30px; }
 .town-tag.build-marker[role="button"]:active { filter: brightness(.9); margin-top: 2px; box-shadow: 0 2px 0 #070b14; }
 .town-tag.build-marker[aria-busy="true"] { filter: brightness(.8); }
+
+/* The camp keeps run diagnostics behind one carved, keyboard-accessible control. */
+.camp-run-details > summary.btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; width: 100%; cursor: pointer; }
+.camp-run-details > summary::before { content: '▸'; color: var(--gold); }
+.camp-run-details[open] > summary::before { content: '▾'; }
+.camp-run-details > summary::-webkit-details-marker { display: none; }
+.camp-run-details > summary small { font-size: 14px; white-space: nowrap; }
+.camp-run-details > .meters { margin-top: 12px; }
+html.skin-button .camp-run-details > summary.btn { border: solid transparent; border-width: 11px 22px; border-radius: 0;
+  border-image: url('/ui/frames/button.png') 22 78 22 78 fill / 11px 22px stretch; padding: 2px 3px; background: none; min-height: 58px; }
+.camp-run-details > summary.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

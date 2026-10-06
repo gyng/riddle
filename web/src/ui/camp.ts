@@ -18,7 +18,7 @@ import { heroRoster } from "./heroes";
 // row stands in for the class button while it is up.
 import { conceptCap, conceptIcon } from "./concepts";
 import { wallTablet } from "./wall";
-import { meterCompare, meterPanel } from "./meters";
+import { meterCompare, meterPanel, secs } from "./meters";
 import { anyNew, hasCurriculum, sysOpen } from "./systems";
 import { lookStud } from "./look";
 import type { App, Mounted } from "../app";
@@ -113,8 +113,12 @@ export const setName = (s: { name?: string }, i: number): string => (s.name ?? "
 /** Cut 29 §3: the camp's meters (the desktop's column under the shaft): the last two runs compared, else the last run's breakdown. */
 function campMeters(app: App): HTMLElement | null {
   const runs = app.lineage.meters?.runs ?? [];
-  if (runs.length >= 2) return meterCompare(runs[runs.length - 2], runs[runs.length - 1]);
-  return runs.length ? meterPanel(runs[0], app.rules.rows, { title: /* copy:label */ "last run" }) : null;
+  if (!runs.length) return null;
+  const latest = runs[runs.length - 1];
+  const body = runs.length >= 2 ? meterCompare(runs[runs.length - 2], latest)
+    : meterPanel(latest, app.rules.rows, { title: /* copy:label */ "last run" });
+  return h("details", { class: "camp-run-details" },
+    h("summary", { class: "btn" }, h("span", null, /* copy:button */ "Run details"), h("small", { class: "dim num" }, secs(latest.seconds))), body);
 }
 const SEND_ARM_MS = 800;
 /** Cut 29 §4: the exit's keep order, in the vault panel's words. */
