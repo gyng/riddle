@@ -121,8 +121,8 @@ html body .cmd .tile .tl, html body .cmd .tile .tl.two { font-size: var(--contro
 .game-window:has(.sheet-back) .sheet-body > .label:first-child { padding-left: 40px; margin-left: 0; }
 html.skin-tablet .game-window .pkg-panel .chip.pkg:not(.locked) { border: 8px solid transparent;
   border-image: url('/ui/frames/tablet.png') 24 fill / 8px stretch; padding: 6px; }
-.game-window .forge-item .item-ico { width: 44px; height: 44px; border-radius: 2px; box-shadow: inset 0 2px 5px #060a13, 0 0 0 2px #53617c; }
-.game-window .forge-item .item-pic { width: 36px; height: 36px; }
+.game-window .forge-item .item-ico { width: 44px; height: 44px; border-radius: 0; box-shadow: none; }
+.game-window .forge-item .item-pic { width: 44px; height: 44px; }
 .game-window .wnode { border: 2px solid #8390a0; border-radius: 2px; padding: 10px; background: #c6c9c344; box-shadow: inset 0 1px 3px #3e4b6555; }
 .game-window .wnode .wn-ico { border-radius: 2px; box-shadow: inset 0 2px 5px #060a13, 0 0 0 2px #53617c; }
 .game-window .wnode .hire-btn { min-height: 44px; }

@@ -6,6 +6,7 @@ fn arena(kind: &str) -> Game {
     let r=g.run.as_mut().unwrap();r.hero.weapon=Some(Item::new(900,kind)).into();
     r.hero.armour=None.into();r.hero.str_bonus=0;r.hero.gift=Default::default();
     r.hero.level=3;r.hero.hp=1000;r.hero.max_hp=1000;r.hero.max_hp_base=1000;
+    r.hero.class=crate::hero::Class::Gunner;r.gun_skills=Some(Default::default());
     r.floor.map.update_vision(r.hero.pos,8);g.events.clear();g
 }
 fn foe(g:&mut Game,kind:&str,p:Pos)->u32 {

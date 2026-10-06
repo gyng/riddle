@@ -37,6 +37,7 @@ pub fn roll_hit_pct(rng: &mut crate::rng::Rng, atk: (i32, i32), def: i32, pct: u
 // ---------------------------------------------------------------- hero movement
 
 pub fn move_hero(run: &mut Run, cx: &mut Ctx, q: Pos) {
+    if q!=run.hero.pos {crate::firearm::cancel_aim(run,cx);}
     run.hero.pos = q;
     cx.events.push(Ev::Move { t: run.turn, id: HERO_ID, x: q.x, y: q.y });
     pickup_here(run, cx);
@@ -474,6 +475,28 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
                 "no line"
             }
         }
+        "smoke_retreat" => {
+            if !class_has_verb(run.hero.class,run.hero.level,"smoke_retreat") {"class locked"}
+            else if run.gun_skills.as_ref().is_some_and(|s|s.smoke_ready>run.turn) {"cooldown"}else {"no path"}
+        }
+        "aimed_shot" => {
+            if !class_has_verb(run.hero.class,run.hero.level,"aimed_shot") {"class locked"}
+            else if crate::firearm::Profile::of(run.hero.weapon_kind()).is_none_or(|p|p.capacity!=1) {"long gun only"}
+            else if run.gun_reload.is_some() {"reloading"}
+            else if run.gun_skills.as_ref().and_then(|s|s.aim).is_some() {"aim held"}else {"no target"}
+        }
+        "fast_reload" => {
+            if !class_has_verb(run.hero.class,run.hero.level,"fast_reload") {"class locked"}
+            else if run.gun_skills.as_ref().is_some_and(|s|s.fast_ready>run.turn) {"cooldown"}
+            else if run.gun_reload.is_some() {"reloading"}else {"gun full"}
+        }
+        "finishing_shot" => {
+            if !class_has_verb(run.hero.class,run.hero.level,"finishing_shot") {"class locked"}
+            else if run.gun_skills.as_ref().is_some_and(|s|s.finish_ready>run.turn) {"cooldown"}
+            else if let Some(mi)=pick_target_from(run,verb.a.as_deref().unwrap_or("nearest"),&v.foes) {
+                if i64::from(run.monsters[mi].hp)*4>i64::from(run.monsters[mi].max_hp) {"foe too healthy"}else {"no line"}
+            }else {"no enemy"}
+        }
         "fire" | "close_burst" => {
             if crate::firearm::Profile::of(run.hero.weapon_kind()).is_none() { "no gun" }
             else if run.gun_reload.is_some() { "reloading" }
@@ -740,7 +763,12 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
         "attack" => verb_attack(run, cx, &a, v, false),
         "fire" => fire_gun(run, cx, &a, v, false),
         "reload" => crate::firearm::reload(run, cx),
-        "close_burst" => run.hero.level >= 3 && fire_gun(run, cx, &a, v, true),
+        "close_burst" => class_has_verb(run.hero.class,run.hero.level,"close_burst") && fire_gun(run, cx, &a, v, true),
+        "aimed_shot" => aim_gun(run,cx,&a,v),
+        "smoke_retreat" => smoke_gun(run,cx,v),
+        "fast_reload" => crate::firearm::reload_fast(run,cx),
+        "finishing_shot" => class_has_verb(run.hero.class,run.hero.level,"finishing_shot")&&fire_gun_mode(run,cx,&a,v,false,true),
+        "gunner_tactic" => gunner_tactic(run,cx,v),
         "shield_bash" => class_has_verb(run.hero.class, run.hero.level, "shield_bash") && run.hero.bash_cd == 0 && verb_attack(run, cx, "nearest", v, true),
         "riposte" => {
             if crate::specialization::has(&run.hero,crate::specialization::Style::Sentinel)&&run.hero.special_cd==0&&v.adj>0 {
@@ -1421,7 +1449,12 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
     // actions call the shared hit resolver after their one chamber commitment.
     if let Some(profile) = crate::firearm::Profile::of(run.hero.weapon_kind()) {
         if !reserve_gun(run, mi, profile, false) { return; }
-        hero_attack_roll(run, cx, mi, "fire", false, mult, Some(profile));
+        let prepared=profile.capacity==1&&run.gun_skills.as_ref().and_then(|s|s.aim).is_some_and(|a|
+            a.target==run.monsters[mi].id&&a.from==run.hero.pos&&run.hero.weapon.as_ref().is_some_and(|w|w.id==a.item));
+        if let Some(s)=run.gun_skills.as_mut() {s.aim=None;}
+        let aimed=run.aimed;run.aimed|=prepared;
+        hero_attack_roll(run, cx, mi, if prepared {"aimed_shot"}else{"fire"}, false, mult, Some((profile,prepared)));
+        run.aimed=aimed;
         return;
     }
     hero_attack_roll(run, cx, mi, verb, bash, mult, None);
@@ -1443,9 +1476,65 @@ fn reserve_gun(run: &mut Run, mi: usize, profile: crate::firearm::Profile, burst
 /// Pure target selection and complete validation precede chamber/RNG/memory
 /// mutation. Spread has a fixed three-entry list and resolves ordinary hits.
 pub(crate) fn fire_gun(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View, burst: bool) -> bool {
+    fire_gun_mode(run,cx,sel,v,burst,false)
+}
+
+fn aim_gun(run:&mut Run,cx:&mut Ctx,sel:&str,v:&View)->bool {
+    if !class_has_verb(run.hero.class,run.hero.level,"aimed_shot")||run.gun_reload.is_some() {return false;}
+    let Some(w)=run.hero.weapon.as_ref() else {return false;};
+    let Some(p)=crate::firearm::Profile::of(&w.kind).filter(|p|p.capacity==1) else {return false;};
+    let Some(mi)=pick_target_from(run,sel,&v.foes) else {return false;};
+    let m=&run.monsters[mi];
+    let aim=crate::firearm::Aim {item:w.id,target:m.id,from:run.hero.pos};
+    if run.gun_skills.as_ref().and_then(|s|s.aim)==Some(aim) {return false;}
+    let Some(mut c)=w.firearm else {return false;};
+    if c.fire(p,crate::firearm::ShotTarget {from:run.hero.pos,to:m.pos,hostile_alive:m.hp>0&&m.hostile()&&!m.dormant,
+        visible:run.floor.map.is_visible(m.pos),los:run.floor.map.los(run.hero.pos,m.pos)},false).is_err() {return false;}
+    run.gun_skills.get_or_insert_with(Default::default).aim=Some(aim);
+    run.last_target=Some(m.id);callout(run,cx,"aim steady");true
+}
+
+fn smoke_gun(run:&mut Run,cx:&mut Ctx,v:&View)->bool {
+    if !class_has_verb(run.hero.class,run.hero.level,"smoke_retreat")||
+        run.gun_skills.as_ref().is_some_and(|s|s.smoke_ready>run.turn) {return false;}
+    let Some(mi)=v.nearest else {return false;};
+    let Some(q)=clear_step(run,mi) else {return false;};
+    let Some(at)=run.turn.checked_add(crate::firearm::SMOKE_COOLDOWN) else {return false;};
+    let hp=run.hero.pos;
+    for m in &mut run.monsters {if m.hp>0&&m.hostile()&&m.pos.cheb(hp)<=2 {m.blind=m.blind.max(30);m.last_seen=None;}}
+    run.gun_skills.get_or_insert_with(Default::default).smoke_ready=at;
+    move_hero(run,cx,q);callout(run,cx,"smoke retreat");true
+}
+
+fn gunner_tactic(run:&mut Run,cx:&mut Ctx,v:&View)->bool {
+    if run.hero.class!=Class::Gunner {return false;}
+    let Some(w)=run.hero.weapon.as_ref() else {return false;};
+    let Some(p)=crate::firearm::Profile::of(&w.kind) else {return false;};
+    let Some(chambers)=w.firearm else {return false;};
+    if run.gun_reload.is_some() {return true;}
+    if chambers.loaded==0 {return crate::firearm::reload_fast(run,cx)||crate::firearm::reload(run,cx);}
+    if v.foes.is_empty() {return false;}
+    if run.hero.hp*100/run.hero.max_hp.max(1)<35&&v.adj>0&&smoke_gun(run,cx,v) {return true;}
+    let sel=if v.foes.iter().any(|&i|run.monsters[i].is_boss()&&run.monsters[i].pos.cheb(run.hero.pos)<=p.range) {"tag:boss"}else{"nearest"};
+    if class_has_verb(run.hero.class,run.hero.level,"finishing_shot")&&fire_gun_mode(run,cx,sel,v,false,true) {return true;}
+    if p.capacity==2&&v.foes.len()>=2&&class_has_verb(run.hero.class,run.hero.level,"close_burst")&&fire_gun(run,cx,sel,v,true) {return true;}
+    if p.capacity==1&&run.gun_skills.as_ref().and_then(|s|s.aim).is_none()&&aim_gun(run,cx,sel,v) {return true;}
+    fire_gun(run,cx,sel,v,false)||verb_attack(run,cx,sel,v,false)
+}
+
+fn fire_gun_mode(run:&mut Run,cx:&mut Ctx,sel:&str,v:&View,burst:bool,finish:bool)->bool {
     let Some(profile) = crate::firearm::Profile::of(run.hero.weapon_kind()) else { return false; };
     let Some(mi) = pick_target_from(run, sel, &v.foes) else { return false; };
+    let finish_ready=if finish {
+        let m=&run.monsters[mi];
+        if i64::from(m.hp)*4>i64::from(m.max_hp)||run.gun_skills.as_ref().is_some_and(|s|s.finish_ready>run.turn) {return false;}
+        let Some(at)=run.turn.checked_add(crate::firearm::FINISH_COOLDOWN) else {return false;};Some(at)
+    }else {None};
     if !reserve_gun(run, mi, profile, burst) { return false; }
+    let prepared=profile.capacity==1&&run.gun_skills.as_ref().and_then(|s|s.aim).is_some_and(|a|
+        a.target==run.monsters[mi].id&&a.from==run.hero.pos&&run.hero.weapon.as_ref().is_some_and(|w|w.id==a.item));
+    if let Some(s)=run.gun_skills.as_mut() {s.aim=None;}
+    if let Some(at)=finish_ready {run.gun_skills.get_or_insert_with(Default::default).finish_ready=at;}
     run.last_target = Some(run.monsters[mi].id);
     let mut targets = [None; 3];
     targets[0] = Some(mi);
@@ -1463,25 +1552,27 @@ pub(crate) fn fire_gun(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View, burst: 
         }
     }
     let aimed = run.aimed;
-    let verb = if burst { "close_burst" } else { "fire" };
+    let verb = if finish {"finishing_shot"}else if prepared {"aimed_shot"}else if burst { "close_burst" } else { "fire" };
     for i in targets.into_iter().flatten() {
         if run.over.is_some() { break; }
         // A deliberate boss target cannot make incidental scatter pellets
         // aimed too: a secondary Warlord still has his ordinary shield wall.
-        run.aimed = i == mi && sel == "tag:boss";
-        hero_attack_roll(run, cx, i, verb, false, if burst { 2 } else { 1 }, Some(profile));
+        run.aimed = i == mi && (sel == "tag:boss"||prepared);
+        hero_attack_roll(run, cx, i, verb, false, if burst||finish { 2 } else { 1 }, Some((profile,prepared)));
     }
     run.aimed = aimed;
     true
 }
 
-fn hero_attack_roll(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: bool, mult: i32, gun: Option<crate::firearm::Profile>) {
+fn hero_attack_roll(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: bool, mult: i32, gun: Option<(crate::firearm::Profile,bool)>) {
     let ranged = gun.is_some() || verb == "shoot";
     let atk = run.hero.atk();
     let atk = (atk.0 * mult, atk.1 * mult);
+    let prepared=gun.is_some_and(|(_,prepared)|prepared);
+    let atk=if prepared {(atk.0*3/2,atk.1*3/2)}else{atk};
     let def = run.monsters[mi].effective_def();
-    let def = gun.map_or(def, |p| (def - p.armour_piercing).max(0));
-    let (hit, dmg) = roll_hit_pct(&mut run.rng, atk, def, run.hero.hit_pct());
+    let def = gun.map_or(def, |(p,_)| (def - p.armour_piercing).max(0));
+    let (hit, dmg) = roll_hit_pct(&mut run.rng, atk, def, if prepared {100}else{run.hero.hit_pct()});
     let id = run.monsters[mi].id;
     run.last_hit_verb = Some(verb.into());
     if ranged {
@@ -2211,6 +2302,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
     let foes = v.foes.len() as i32;
     let in_corr = run.floor.map.is_corridor(run.hero.pos);
     match card {
+        "gunslinger" => run.hero.class==Class::Gunner&&run.hero.level>=10&&gunner_tactic(run,cx,v),
         "corridor_fighting" => {
             if foes >= 2 && !in_corr && verb_back_corridor(run, cx, v) {
                 return true;
@@ -2476,6 +2568,24 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
         "cadence" => {
             if v.foes.is_empty() {
                 return false;
+            }
+            // Preserve an authored cadence rule across a class switch. Guns
+            // alternate actual shot verbs and reload instead of borrowing bow
+            // skills whose old helpers assume unlimited ammunition.
+            if run.hero.class==Class::Gunner {
+                if let Some(p)=crate::firearm::Profile::of(run.hero.weapon_kind()) {
+                    if run.gun_reload.is_some() {return true;}
+                    let loaded=run.hero.weapon.as_ref().and_then(|w|w.firearm).map_or(0,|c|c.loaded);
+                    if loaded==0 {return crate::firearm::reload_fast(run,cx)||crate::firearm::reload(run,cx);}
+                    let sel=if v.foes.iter().any(|&i|run.monsters[i].is_boss()) {"tag:boss"}else{"nearest"};
+                    if run.verb_ring.last().is_some_and(|s|s=="fire")&&run.hero.level>=3 {
+                        if p.capacity==1 {
+                            if run.gun_skills.as_ref().and_then(|s|s.aim).is_none() {return aim_gun(run,cx,sel,v);}
+                        }else if loaded<2 {return crate::firearm::reload_fast(run,cx)||crate::firearm::reload(run,cx);}
+                        else {return fire_gun(run,cx,sel,v,true);}
+                    }
+                    return fire_gun(run,cx,sel,v,false);
+                }
             }
             let n = run.verb_ring.len();
             let tight = v.foes.iter().any(|&i| run.monsters[i].kind == "mirror_king" && run.monsters[i].modifiers.is_some_and(|mods| mods.tight_mirror));
@@ -4020,7 +4130,7 @@ fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &V
                 return false;
             }
             match run.hero.class {
-                Class::Ranger | Class::Caster => {
+                Class::Ranger | Class::Caster | Class::Gunner => {
                     let target = v.foes.iter().copied().find(|&i| {
                         let tp = run.monsters[i].pos;
                         (1..=BOW_RANGE).contains(&tp.cheb(mp)) && run.floor.map.los(mp, tp)
@@ -4028,7 +4138,7 @@ fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &V
                     let Some(ti) = target else { return false };
                     let (src, dst, tp) = (run.monsters[mi].id, run.monsters[ti].id, run.monsters[ti].pos);
                     projectile(run, cx, src, dst, mp, tp);
-                    companion_melee(run, cx, mi, ti, if run.hero.class == Class::Ranger { "shoot" } else { "bolt" }, 2);
+                    companion_melee(run, cx, mi, ti, if run.hero.class == Class::Caster { "bolt" } else { "shoot" }, 2);
                     true
                 }
                 Class::Fighter => {

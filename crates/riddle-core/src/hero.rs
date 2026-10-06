@@ -13,16 +13,18 @@ pub enum Class {
     Rogue,
     Ranger,
     Caster,
+    Gunner,
 }
 
 impl Class {
-    pub const ALL: [Class; 4] = [Class::Fighter, Class::Rogue, Class::Ranger, Class::Caster];
+    pub const ALL: [Class; 5] = [Class::Fighter, Class::Rogue, Class::Ranger, Class::Caster, Class::Gunner];
     pub fn name(self) -> &'static str {
         match self {
             Class::Fighter => "fighter",
             Class::Rogue => "rogue",
             Class::Ranger => "ranger",
             Class::Caster => "caster",
+            Class::Gunner => "gunner",
         }
     }
     /// Hero looks: the cosmetic looks a heir may wear (`Game::set_look`); never read by a run.
@@ -30,7 +32,7 @@ impl Class {
     /// Hero looks: the look a lineage that never picked one wears (the class's first painting).
     pub fn default_look(self) -> &'static str {
         match self {
-            Class::Fighter | Class::Caster => "male",
+            Class::Fighter | Class::Caster | Class::Gunner => "male",
             Class::Rogue | Class::Ranger => "female",
         }
     }
@@ -40,6 +42,7 @@ impl Class {
             "rogue" => Some(Class::Rogue),
             "ranger" => Some(Class::Ranger),
             "caster" => Some(Class::Caster),
+            "gunner" => Some(Class::Gunner),
             _ => None,
         }
     }
@@ -50,6 +53,7 @@ impl Class {
             Class::Rogue => Some("rogue"),
             Class::Ranger => Some("ranger"),
             Class::Caster => Some("caster"),
+            Class::Gunner => Some("gunner"),
         }
     }
     /// Cut 16 §2: the class's one signature verb, on its chip at the wake (`rogue · vanish`).
@@ -59,6 +63,7 @@ impl Class {
             Class::Rogue => "vanish",
             Class::Ranger => "mark",
             Class::Caster => "slow",
+            Class::Gunner => "aimed_shot",
         }
     }
     /// Cut 16 §2: the class level the signature opens at (`class_ladder`).
@@ -71,6 +76,7 @@ impl Class {
             Class::Fighter => "sword",
             Class::Rogue | Class::Caster => "dagger",
             Class::Ranger => "bow",
+            Class::Gunner => "long_gun",
         }
     }
     pub fn base_hp(self) -> i32 {
@@ -79,6 +85,7 @@ impl Class {
             Class::Rogue => 28,
             Class::Ranger => 30,
             Class::Caster => 24,
+            Class::Gunner => 30,
         }
     }
 }
@@ -90,6 +97,7 @@ pub fn class_ladder(class: Class) -> &'static [(&'static str, u32)] {
         Class::Rogue => &[("vanish", 1), ("throw", 1), ("backstab", 3), ("smoke", 5), ("ambush", 7), ("shadowstep", 9)],
         Class::Ranger => &[("shoot", 1), ("kite", 1), ("volley", 3), ("trap", 5), ("mark", 7), ("double_shot", 9)],
         Class::Caster => &[("bolt", 1), ("ward", 1), ("blink", 3), ("slow", 5), ("nova", 7), ("drain", 9)],
+        Class::Gunner => &[("fire",1),("reload",1),("aimed_shot",3),("close_burst",3),("smoke_retreat",5),("fast_reload",7),("finishing_shot",9)],
     }
 }
 
@@ -113,6 +121,7 @@ pub fn mastery_card(class: Class) -> &'static str {
         Class::Rogue => "hit_and_fade",
         Class::Ranger => "hawkeye",
         Class::Caster => "archmage",
+        Class::Gunner => "gunslinger",
     }
 }
 
@@ -374,6 +383,14 @@ impl Hero {
     pub fn auto_equip(&mut self, item: Item) -> Option<Item> {
         match item.cat() {
             Cat::Weapon => {
+                if self.class==Class::Gunner {
+                    let new_gun=crate::firearm::Profile::of(&item.kind).is_some();
+                    let current_gun=self.weapon.as_ref().filter(|w|crate::firearm::Profile::of(&w.kind).is_some());
+                    if !new_gun||current_gun.is_some_and(|w|w.kind!=item.kind) {
+                        if !self.inv_full()||crate::kit::is_kit_id(item.id) {self.inv.push(item);}
+                        return None;
+                    }
+                }
                 let cur = self.weapon.as_ref().map(|w| w.atk().0 + w.atk().1).unwrap_or(0);
                 let new = item.atk().0 + item.atk().1;
                 if new > cur {

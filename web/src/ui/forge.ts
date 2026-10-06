@@ -89,9 +89,26 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
     } }, /* copy:button */ "Forecast");
     const paint = (): void => {
       const ladders = app.lineage.kit ?? [];
-      replace(kit, ...ladders.map((lad) => {
+      const guns = (app.lineage.guns ?? []).map((gun) => {
+        const label = gun.kind === "long_gun" ? /* copy:label */ "Long gun" : /* copy:label */ "Short gun";
+        const button = h("button", { class: "chip forge-buy", disabled: gun.selected || !gun.available || !app.engine.buyKit,
+          "data-gun": gun.kind, "aria-pressed": String(gun.selected), title: gun.blocked ?? label, onclick: () => {
+            if (!app.engine.buyKit) return;
+            button.disabled = true;
+            void app.mutate(() => app.engine.buyKit!(gun.kind), /* copy:callout */ "Equipped").then((ok) => {
+              if (ok) audio.cue("unlock"); if (kit.isConnected) paint();
+            });
+          } }, gun.selected ? /* copy:button */ "Equipped" : gun.owned ? /* copy:button */ "Equip" : /* copy:button */ `Forge $${gun.price}`);
+        return h("section", { class: "kit-slot tablet", "data-gun-choice": gun.kind },
+          h("div", { class: "forge-action" }, h("div", { class: "forge-item" },
+            itemIcon({ kind: gun.kind, label }, { size: "s" }), itemName({ kind: gun.kind, label })), button),
+          h("small", { class: "num dim" }, /* copy:label */ `${gun.damage[0]}–${gun.damage[1]} damage`, " · ",
+            /* copy:label */ `Range ${gun.range}`, " · ", gun.capacity === 1 ? /* copy:label */ "1 shot" : /* copy:label */ `${gun.capacity} shots`, " · ",
+            /* copy:label */ `Reload ${gun.reload_ticks / 10}s`));
+      });
+      replace(kit, ...guns, ...ladders.map((lad) => {
         const next = lad.next;
-        const item = lad.steps[lad.owned];
+        const item = lad.steps[lad.owned] ?? lad.steps[lad.owned - 1];
         const current = lad.owned > 0 ? lad.steps[lad.owned - 1]?.label : null;
         const button = h("button", { class: "chip forge-buy", disabled: !next?.affordable || !app.engine.buyKit, "data-slot": lad.slot, onclick: () => {
           if (!app.engine.buyKit || !next) return;

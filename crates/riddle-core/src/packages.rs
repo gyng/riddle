@@ -536,6 +536,7 @@ pub fn compile(l: &LineageState) -> RuleSet {
     let (guard, fallback) = if p.stance == CUSTOM { (p.custom.clone(), Vec::new()) } else { stance_rows(&p.stance, level, best) };
     rows.extend(tagged(guard, &origin));
     if let Some(row)=crate::specialization::row(l) {rows.push(row);}
+    if let Some(row)=crate::firearm::row(l) {rows.push(row);}
     for t in &p.tactics {
         rows.extend(tagged(tactic_rows(t, p.level(t)), &format!("tactic:{t}")));
     }
@@ -589,7 +590,7 @@ pub fn absorb(l: &mut LineageState, set: &RuleSet) {
     let is_ours = |row: &Row| row.is_pkg() && compiled.rows.iter().any(|c| c == row && c.origin == row.origin);
     if l.pkg.stance == CUSTOM {
         // the custom stance is the pen's own set: every row but the drills
-        l.pkg.custom = set.rows.iter().filter(|row| !row.origin.as_deref().is_some_and(|o| o.starts_with("drill:") || (o.starts_with("style:")&&is_ours(row)))).cloned().map(|mut row| {
+        l.pkg.custom = set.rows.iter().filter(|row| !row.origin.as_deref().is_some_and(|o| o.starts_with("drill:") || ((o.starts_with("style:")||o=="class:gunner")&&is_ours(row)))).cloned().map(|mut row| {
             if row.origin.as_deref().is_some_and(|o| o.starts_with("stance:")) {
                 row.origin = None;
             }
@@ -1099,6 +1100,7 @@ pub fn row_label(row: &Row) -> Option<String> {
         "stance" | "tactic" | "temper" => Some(name(id).to_string()),
         "drill" => Some(format!("drill · {}", crate::sifter::boss_short(id))),
         "style" => crate::specialization::Style::parse(id).map(|s|s.name().into()),
+        "class" if id=="gunner" => Some("Gunner".into()),
         _ => None,
     }
 }

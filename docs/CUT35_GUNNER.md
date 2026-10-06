@@ -3,9 +3,13 @@
 Owner request2026-10-07: add a Gunner class, with long and short guns, distinct
 from archery. This becomes the next class priority, before proposed Rogue/
 Ranger specializations. Finish Cut34's live verification without abandoning it.
-Status: firearm combat and reload scheduling now implemented in controlled
-fixtures, with played weapon/chamber metadata. The Gunner class/unlock/forge/
-default tactics and UI remain unfinished and not selectable. No deployment.
+Status: fifth class, paid unlock, per-class XP, weapon ownership/forge choice,
+named default tactics and all five skill rungs implemented. Forge choice is
+verified in the actual WASM worker at320/400/1440. Public class offers remain
+hidden until art/watch/replay and the complete acceptance checks pass. Initial
+earned progression reaches D13 in8h for both guns on one source camp, but fails
+the7day mastery requirement. Preserve those failures and tune an explicitly
+owned build next. No deployment.
 
 ## Identity and progression
 
@@ -95,6 +99,49 @@ overhead excluding intentional combat work; bound fanout, state and event
 history. Full quick/clippy/codegen/build/WASM and routine18case gates pass;
 optional exhaustive statistical audit stays separate. Push approved changes,
 never deploy. Partial checkpoints do not certify a complete playable class.
+
+## Class/progression/forge checkpoint — 2026-10-07 (partial A/B/D)
+
+Actual Gunner unlock costs8marks at historicalD13, at home with a built house.
+Missing old Gunner XP stays absent until paid unlock/selection. Class changes
+involving Gunner refuse for the entire live run. Starting long gun and purchased
+short gun use existing kit forging; short ownership costs one forge unit once,
+then owned switches are free. Automatic equipment retains the gun variant;
+explicit worn finds remain authoritative. New sends start loaded, live saves
+retain weapon-instance chambers and commitments.
+
+Named class:gunner policy runs below authored/drilled/safety rules, above ordinary
+tactics. L3 long preparation costs one action, then a stationary same-target
+shot hits accurately at1.5× attack; movement/lost sight cancels. L3 short burst
+uses both chambers. L5 smoke retreats one legal step and blinds nearby hostiles
+30ticks, cooldown90. L7 fast reload takes10/8ticks, cooldown100. L9 finisher
+requires foeHP<=25%, uses one chamber at2× attack, cooldown60. Mastery owns
+gunslinger atL10. Refusals preserve ammo/RNG/cooldowns/save. Authored cadence
+retains its row and uses actual aim/burst/reload after switching class.
+
+Permanent examples/gunner_prepare.rs loads an earned camp, pays unlock/short
+purchase and advances21 eight-hour check-ins without XP/kit/currency grants or
+removing authored rules. Source class-prepare-core-final-20261006/sentinel-start
+has inherited paid equipment/Legacy and earned marks/gold, seed3, tier1. Both
+guns reachD13 in8h andD18 later; long endsL7/1262XP, shortL8/4178XP at168h.
+Both mastery_hours are null: this fails C, not a success redefinition. Artifacts
+scratchpad/gunner-earned-20261007/{results,*-start,*-after}.json. This source
+does not prove seeds1/5, no-inherited-kit starts, Tier5 or matchup superiority.
+
+Forge shows actual Rust damage/range/chambers/reload, existing chunky framing
+around choices, unframed equipment silhouettes, readable gun names and correct
+icons for completed upgrades. Actual earned save imported through app import,
+real WASM worker; headed browser320/400/1440 has no horizontal overflow/page
+errors, exact price225 paid once and free owned switch. Captures forge-*.png,
+QA forge-qa.json and script in the same earned artifact directory. Gunner
+portrait/sprite/actions, watch chamber progress, played replay/trace metadata
+and full D still pending. UI_READY=false keeps class offers hidden.
+
+Final checkpoint checks:661core PASS/one ignored,14tool PASS, TS/copy1716/zero;
+fast all-target clippy warnings denied, codegen and web build PASS. Rebuilt
+real fastWASM5466844bytes. Six old tier0/challenge event/save baselines and two
+numbered migration saves exact. No fresh routine18case/full positive perf or
+native/WASM8h one/three-bloodline certification in this partial checkpoint.
 
 Architecture audit starting points: hero.rs Class::ALL/ladder/starting_weapon,
 meta.rs class unlocks, defs.rs/item.rs weapons and drop weights, ai.rs ranged

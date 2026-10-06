@@ -152,7 +152,7 @@ pub fn combo_slug(name: &str) -> String {
 }
 
 /// Cut 30 §2: the origins of package rows (`Row::is_pkg`).
-pub const PKG_ORIGINS: [&str; 5] = ["stance:", "tactic:", "temper:", "drill:", "style:"];
+pub const PKG_ORIGINS: [&str; 6] = ["stance:", "tactic:", "temper:", "drill:", "style:", "class:"];
 
 pub const COND_KEYS: &[&str] = &[
     "hp<", "hp>", "foes>=", "adj>=", "foe_tag", "foe_hp<", "item", "unknown_item", "floor_seen>=", "depth>=",
@@ -178,6 +178,7 @@ pub const VERB_KEYS: &[&str] = &[
     "kite", "volley", "trap", "mark", "double_shot", "bolt", "ward", "blink", "slow", "nova",
     "riposte", "hex",
     "fire", "reload", "close_burst",
+    "aimed_shot", "smoke_retreat", "fast_reload", "finishing_shot", "gunner_tactic",
     // hold position (always executes; not offered by the editor)
     "hold",
     // Cut 5 §4: the shrine (`pray row` / `pray trait`)
@@ -268,6 +269,11 @@ impl Verb {
             "free_captive" => "free".into(),
             "double_shot" => "double shot".into(),
             "close_burst" => "burst".into(),
+            "aimed_shot" => "aim".into(),
+            "smoke_retreat" => "smoke retreat".into(),
+            "fast_reload" => "fast reload".into(),
+            "finishing_shot" => "finishing shot".into(),
+            "gunner_tactic" => "Gunner".into(),
             "tactic" => a.replace('_', " "),
             "pray" => format!("pray {a}").trim().to_string(),
             other => other.to_string(),

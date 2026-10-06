@@ -239,6 +239,8 @@ pub struct FloorItem {
 pub struct Run {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gun_reload: Option<crate::firearm::Reload>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gun_skills: Option<crate::firearm::Skills>,
     pub id: u32,
     pub heir: u32,
     pub started_turn: u64,
@@ -1663,6 +1665,8 @@ impl LineageState {
         let trait_ = offer[0];
         let mut classes = BTreeMap::new();
         for c in Class::ALL {
+            // Keep old zero-XP class maps exact until Gunner is chosen/unlocked.
+            if c == Class::Gunner { continue; }
             classes.insert(c.name().to_string(), ClassProg { level: 1, xp: 0, next: 0 });
         }
         let mut l = LineageState {
@@ -2088,6 +2092,7 @@ impl LineageState {
             start_pass: self.night_passes.contains(&self.start.max(1)),
             renamed: self.renamed(),
             kit: crate::kit::ladders(self),
+            guns:Vec::new(),
             row_why: self.row_why(),
             forks: self.fork_chips(),
             lanes: self.lane_list(),
@@ -2171,7 +2176,7 @@ impl LineageState {
         if self.trait_offer.is_empty() {
             return Vec::new();
         }
-        let mut owned: Vec<Class> = Class::ALL.iter().copied().filter(|c| c.unlock().is_none_or(|u| self.unlocks.contains(u))).collect();
+        let mut owned: Vec<Class> = Class::ALL.iter().copied().filter(|c|(*c!=Class::Gunner||crate::firearm::UI_READY)&&c.unlock().is_none_or(|u| self.unlocks.contains(u))).collect();
         if owned.len() < 2 {
             return Vec::new();
         }
@@ -3188,6 +3193,7 @@ impl Game {
         }
         // RUNS_UI: the run under way and the runs a replay is held for
         l.live = self.live_run();
+        l.guns=crate::firearm::offers(&self.lineage,self.run.is_some());
         l.class_styles=Some(crate::specialization::offers(&self.lineage,self.run.is_some()));
         l.legacy_upgrades = crate::legacy::offers(&self.lineage, self.run.is_some());
         l.legacy_respec = Some(crate::legacy::respec_offer(&self.lineage,self.run.is_some()));
@@ -3383,13 +3389,18 @@ impl Game {
 
     pub fn set_class(&mut self, class: &str) -> Result<(), String> {
         let c = Class::parse(class).ok_or("unknown class")?;
+        if (c==Class::Gunner||self.lineage.class==Class::Gunner)&&self.run.is_some() {
+            return Err("hero away".into());
+        }
         if let Some(u) = c.unlock() {
             if !self.lineage.unlocks.contains(u) {
                 return Err(format!("{u} not unlocked"));
             }
         }
+        let was_gunner=self.lineage.class==Class::Gunner;
         self.lineage.class = c;
-        if !self.lineage.specializations.is_empty() {crate::packages::recompile(&mut self.lineage);}
+        if c==Class::Gunner {self.lineage.classes.entry("gunner".into()).or_insert(ClassProg{level:1,xp:0,next:0});}
+        if was_gunner||c==Class::Gunner||!self.lineage.specializations.is_empty() {crate::packages::recompile(&mut self.lineage);}
         Ok(())
     }
 
@@ -3863,11 +3874,21 @@ impl Game {
             if let Some(i) = self.lineage.vault.iter().position(|v| v.id == id) {
                 let it = self.lineage.vault.remove(i);
                 brought.push(it.id);
-                hero.auto_equip(it);
+                if hero.class==Class::Gunner&&it.cat()==Cat::Weapon {
+                    if let Some(old)=hero.weapon.replace(it) {hero.inv.push(old);}
+                }else {hero.auto_equip(it);}
+            }
+        }
+        // A fresh send starts guns loaded; live saves and ordinary swaps retain
+        // their own chamber state. Kept equipment may come from an earlier run.
+        if hero.class==Class::Gunner {
+            for item in hero.inv.iter_mut().chain(hero.weapon.iter_mut()) {
+                if let Some(p)=crate::firearm::Profile::of(&item.kind) {item.firearm=Some(crate::firearm::Chambers::loaded(p));}
             }
         }
         let mut run = Run {
             gun_reload: None,
+            gun_skills: (hero.class==Class::Gunner).then(Default::default),
             id,
             heir: self.lineage.heir,
             started_turn: self.lineage.total_turns,

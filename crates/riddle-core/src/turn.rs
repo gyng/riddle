@@ -309,6 +309,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     // Cut 7 §3: the thief's den pounces on a hero at the stairs.
     crate::situations::before_action(run, cx);
     let v = view(run);
+    crate::firearm::on_view(run,cx,&v);
     // Cut 30 §1: which of the heir's gifts are live at this action (never a verb).
     crate::traits::on_action(run, cx, &v.foes);
     // Cut 5 §3: the fight clock (no hero lines in a fight's first ten ticks).
@@ -713,6 +714,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
 /// sense`, `paralysed`, `confused`, `bail`.
 pub const ROW_REASONS: &[&str] = &[
     "reloading", "empty gun", "gun full",
+    "aim held", "long gun only", "class locked", "foe too healthy",
     "hp not <", "hp not >", "foes not ≥", "foes fleeing", "foes appeared after", "adj not ≥", "not in view", "no weak foe", "none held", "no unknown", "seen not ≥",
     "depth not ≥", "alert not ≥", "not corridor", "no path", "no ally", "loot not ≥", "turns not >", "not hurt", "no kill",
     "nothing new", "no ", "party hp ok", "locked cond", "no target", "no line", "no bow", "cooldown", "no item", "no use",
@@ -843,6 +845,9 @@ pub const WHY_GLOSS: &[(&str, &str)] = &[
     ("gun full", "already loaded"),
     ("no short gun", "needs short gun"),
     ("no gun", "needs a gun"),
+    ("aim held", "aim already prepared"),
+    ("long gun only", "needs long gun"),
+    ("foe too healthy", "needs wounded foe"),
     ("no path", "way blocked"),
     ("no target", "no foe reachable"),
     ("no line", "shot blocked"),
@@ -1338,7 +1343,7 @@ pub fn targets_foes(verb: &Verb) -> bool {
     matches!(
         verb.v.as_str(),
         "attack" | "shield_bash" | "throw" | "tame" | "cleave" | "backstab" | "ambush" | "shadowstep" | "send" | "taunt"
-            | "shoot" | "volley" | "mark" | "double_shot" | "bolt" | "slow" | "drain" | "fire" | "close_burst"
+            | "shoot" | "volley" | "mark" | "double_shot" | "bolt" | "slow" | "drain" | "fire" | "close_burst" | "aimed_shot" | "finishing_shot" | "gunner_tactic"
             // a tactic card acts on the foes it sees; while stuck it must yield like any targeting row
             | "tactic" | "back_corridor" | "retreat"
     )

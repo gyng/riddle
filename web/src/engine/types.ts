@@ -7,7 +7,7 @@ export type Verb = { v: string; a?: string };                      // {v:"drink"
 /** Cut 7 §2 — where a row came from (optional; the core may tag, else the client infers: the shipped rows at boot are
  *  `preset`, `applyPatch` rows `patch`, bought card rows `card`, anything the player adds or edits a token of `player`). */
 export type RowOrigin = "preset" | "patch" | "card" | "player"
-  | `${"stance" | "tactic" | "temper" | "drill"}:${string}`;   // Cut 30 §2 (core): a package's compiled row (`stance:steady`, `drill:lich`), outside the row cap
+  | `${"stance" | "tactic" | "temper" | "drill" | "class"}:${string}`;   // Compiled rows sit outside the player row cap.
 export type Row  = { conds: Cond[]; verb: Verb; origin?: RowOrigin };
 export type RuleSet = { rows: Row[]; name?: string;
                         /** Cut 26 §2 (core): the set's route — the fork depths (5 · 9 · 14 · 19 · 24) whose FAR stair the hero takes; absent/[] = the
@@ -507,6 +507,8 @@ export type ReturnReport = {
   fallen?: Fallen[];                                                          // Cut 29 §6 (core; AX: Greth gone with only `party −1 ogre`): each companion that fell, named — `Greth · ogre L5 · fell D12 to lurker`
 };
 export type Lineage = { bloodline?: BloodlineLegacy;
+  guns?:{kind:string;selected:boolean;owned:boolean;price:number;available:boolean;blocked:string|null;
+    capacity:number;range:number;damage:[number,number];armour_piercing:number;reload_ticks:number}[];
                         selected_loadout?: number[];
   hero_slots?: HeroSlot[]; selected_bloodline?:number; bloodline_price?:number; bloodline_cap?:number;
                         hero_legacy?: {name?:string; heir: number; points: number; runs: number; best_depth: number; class: string; spent?: number; upgrades?: Record<string, number> }[];

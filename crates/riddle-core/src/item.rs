@@ -261,7 +261,8 @@ pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (
         Cat::Gold => (true, "gold".into(), format!("gold ${}", item.amount)),
         Cat::Misc => (true, item.kind.clone(), if item.amount > 1 { format!("{} ({})", item.kind, item.amount) } else { item.kind.clone() }),
         Cat::Weapon | Cat::Armour => {
-            let label = if item.enchant > 0 { format!("{} +{}", item.kind, item.enchant) } else { item.kind.clone() };
+            let name=item.kind.replace('_'," ");
+            let label = if item.enchant > 0 { format!("{} +{}", name, item.enchant) } else { name };
             (true, item.kind.clone(), label)
         }
         Cat::Potion | Cat::Scroll => {

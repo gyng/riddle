@@ -74,6 +74,7 @@ pub const UNLOCKS: &[UnlockDef] = &[
     // T3 · the Mother met (D13).
     m("row7", 5, Some("row6"), 3),
     m("ranger", 6, None, 3),
+    m("gunner",8,None,3),
     m("boss_focus", 4, None, 3),
     m("vault3", 5, Some("vault2"), 3),
     m("oath_slot_2", 6, None, 3),
@@ -185,7 +186,7 @@ pub const OATH_DRAW_TIER: u32 = 2;
 
 /// The eight tactic cards (Cut 2 §3) plus the four mastery cards (class L10).
 pub const TACTIC_CARDS: [&str; 8] = ["corridor_fighting", "kite_archers", "stair_dance", "gas_step", "pack_break", "thief_guard", "boss_focus", "last_stand"];
-pub const MASTERY_CARDS: [&str; 4] = ["phalanx", "hit_and_fade", "hawkeye", "archmage"];
+pub const MASTERY_CARDS: [&str; 5] = ["phalanx", "hit_and_fade", "hawkeye", "archmage", "gunslinger"];
 /// Cut 3: the tier-2 tactic cards.
 pub const TIER2_CARDS: [&str; 4] = ["cadence", "noise_discipline", "reflect_read", "deep_march"];
 
@@ -212,6 +213,7 @@ pub fn unlock_cost(id: &str) -> u32 {
 /// The fact/trophy gate of an unlock: `None` when open, else the human-readable need.
 pub fn gate(l: &LineageState, id: &str) -> Option<String> {
     let need = |ok: bool, text: &str| if ok { None } else { Some(text.to_string()) };
+    if id=="gunner" {return need(crate::legacy::deepest(l)>=13,"reach D13");}
     // Cut 29 §1: the tier first (a boss met opens it), then the unlock's own fact gate.
     if let Some(d) = def(id) {
         if tier(l) < d.tier {
@@ -304,6 +306,7 @@ pub fn catalogue(l: &LineageState) -> Vec<UnlockInfo> {
     let mut cat: Vec<UnlockInfo> = UNLOCKS
         .iter()
         .filter(|u| sold(u))
+        .filter(|u|u.id!="gunner"||crate::firearm::UI_READY)
         .map(|u| {
             let owned = l.unlocks.contains(u.id);
             // Cut 9 §2: every card that is not `available` says why (a shut gate, a missing
@@ -398,6 +401,7 @@ pub fn unlock_rows(id: &str) -> Option<Vec<Row>> {
         "hit_and_fade" => Some(vec![row(vec![n("adj>=", 1)], "backstab"), row(vec![n("adj>=", 1)], "vanish"), rowa(vec![n("adj>=", 1)], "attack", "nearest")]),
         "hawkeye" => Some(vec![row(vec![n("adj>=", 1)], "kite"), row(vec![n("foes>=", 2)], "volley"), rowa(vec![n("foes>=", 1)], "double_shot", "nearest"), rowa(vec![n("foes>=", 1)], "shoot", "nearest")]),
         "archmage" => Some(vec![row(vec![n("adj>=", 2)], "nova"), row(vec![n("adj>=", 1)], "ward"), row(vec![n("adj>=", 1), n("hp<", 50)], "blink"), rowa(vec![n("foes>=", 1)], "bolt", "nearest")]),
+        "gunslinger" => Some(vec![row(vec![],"fast_reload"),rowa(vec![n("foes>=",1)],"finishing_shot","lowest"),rowa(vec![n("foes>=",1)],"aimed_shot","nearest"),rowa(vec![n("foes>=",1)],"fire","nearest")]),
         "quartermaster" => auto("keeps best weapon+armour"),
         "auto_supply" => auto("rebuys last supplies"),
         "auto_insure" => auto("insures brought items"),
@@ -709,6 +713,10 @@ pub fn delta_row(l: &LineageState, id: &str) -> Option<(Row, usize)> {
 }
 
 pub fn buy(game: &mut Game, id: &str) -> Result<(), String> {
+    if id=="gunner" {
+        if game.run.is_some() {return Err("hero away".into());}
+        if !game.lineage.town.home.unwrap_or(true) {return Err("build a house".into());}
+    }
     let def = UNLOCKS.iter().find(|u| u.id == id).ok_or("unknown unlock")?;
     let l = &mut game.lineage;
     if l.unlocks.contains(id) {
@@ -732,6 +740,7 @@ pub fn buy(game: &mut Game, id: &str) -> Result<(), String> {
     }
     l.marks -= def.cost;
     l.unlocks.insert(id.into());
+    if id=="gunner" {l.classes.entry("gunner".into()).or_insert(crate::wire::ClassProg{level:1,xp:0,next:0});}
     // Cut 28 §1: an oath whose reward was just bought leaves the board.
     crate::oath::refresh(l);
     Ok(())
@@ -882,7 +891,11 @@ mod tests {
     fn catalogue_matches_the_contract() {
         // Cut 29 §1 (docs/PROGRESSION.md §4): 44 − quartermaster − auto_insure (the default now)
         // + the two oath slots + three oath rewards of their own (`hold`, `route2`, `heir_pick`).
-        assert_eq!(UNLOCKS.len(), 47);
+        // Cut 35 adds the fifth base class without changing earlier prices.
+        assert_eq!(UNLOCKS.len(), 48);
+        let gunner=def("gunner").unwrap();
+        assert_eq!((gunner.cost,gunner.tier),(8,3));
+        assert_eq!(gunner.via,Via::Marks);
         let ids: Vec<&str> = UNLOCKS.iter().map(|u| u.id).collect();
         for c in TACTIC_CARDS.iter().chain(TIER2_CARDS.iter()) {
             assert!(ids.contains(c), "{c}");

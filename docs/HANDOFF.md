@@ -1,3 +1,45 @@
+**CUT35 GUNNER CLASS/PROGRESSION/FORGE — 2026-10-07 (PARTIAL):**
+
+Fifth Class::Gunner, paid8marks/historicalD13/home/house unlock, inherited
+separate classXP (missing old maps unchanged), home-only class switches. Real
+long/short owned kit preference/forge selection; short costs one existing unit
+once, owned switches free, explicit loadout wins. Named class:gunner default
+below authored/drill/stance guards and above ordinary tactics. Actual L3aim/
+burst, L5smoke, L7fast reload, L9finisher and L10gunslinger; all have numeric
+effects/gates/refusal coverage. Authored cadence preserved across switching,
+uses real firearm commitments, never Ranger ammunition-free helpers.
+
+New permanent gunner_prepare example uses actual earned seed3/tier1 source
+scratchpad/class-prepare-core-final-20261006/sentinel-start.json. No grants or
+authored-row deletion;21x8h. Both gunsD13 at8h, D18 later. Seven-day mastery
+FAIL: longL7/1262XP, shortL8/4178XP. Evidence scratchpad/gunner-earned-20261007/
+results.json and full start/after saves. Do not overwrite these failures or
+claim three-seed, Tier5, arena comparisons or full CUT35 acceptance. Next tune
+explicitly owned builds/progression and investigate common stuck returns from
+saved traces; then class portrait/sprite/action art, actual watch/replay chamber/
+aim/reload UI, 8h native/WASM one/three slots, perf and routine18case gates.
+
+Forge UI uses actual Rust offers; unframed silhouettes, readable gun names,
+completed kit uses actual owned icon. Headed real-worker earned import QA at
+1440/400/320: no page errors/horizontal overflow,225 gold short purchase exact,
+free owned switch. Screenshots forge-{1440,400,320}.png, forge-qa.json/script
+in earned artifact directory. Temporary QA5373 closed after checks,5219 retained.
+Gun UI_READY remains false: public offers hidden until complete art/UI/acceptance.
+No deployment;95fun goal active and unverified.
+
+Final quick661core PASS/one ignored,14tool PASS, TS/copy1716/zero,145s including
+compilation. Fast all-workspace/all-target clippy warnings denied, native
+codegen check, web build PASS (existing bundle-size advisory). Real fastWASM
+5466844bytes. Six old tier0/challenge complete event/save fixtures and two
+numbered migration saves exact; no new Tier5 or routine18case full gate here.
+Logs /tmp/riddle-gunner-progression-final2-{quick,clippy,wasm,web}.log,
+progression-{codegen,old-compat}.log and /tmp/riddle-gunner-forge-final-qa.log.
+New gunner_tests include positive normal first-send fire/reload, numeric real
+skills/refusals and authored cadence aim/burst/reload. Initial catalogue47
+assert legitimately updated48 plus Gunner8/tier3/marks price assertions. An
+earlier sandbox tool-host check failed; final complete quick ran with permitted
+native-host process access and passes. No gate/XP threshold weakened.
+
 **CUT35 FIREARM COMBAT/SCHEDULER CHECKPOINT — 2026-10-07 (PARTIAL):**
 
 Real firearm actions now fire/reload/L3 close_burst on actual equipped items.

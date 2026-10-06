@@ -15,6 +15,13 @@ pub fn preset(class: Class) -> RuleSet {
 
 fn preset_rows(class: Class) -> RuleSet {
     match class {
+        Class::Gunner => RuleSet {
+            name:Some("gunner".into()),route:Vec::new(),rows:vec![
+                Row::new(vec![Cond::n("hp<",30)],Verb::arg("drink","heal")),
+                Row::new(vec![],Verb::new("reload")),
+                Row::new(vec![Cond::n("foes>=",1)],Verb::arg("fire","nearest")),
+            ],
+        },
         Class::Fighter => RuleSet {
             name: Some("fighter".into()),
             rows: vec![

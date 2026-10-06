@@ -98,7 +98,7 @@ pub fn owned(l: &LineageState, slot: &str) -> u32 {
 /// The kit at step `i` (0-based) of a ladder: `sword +1`, `mail`, `pack 4`.
 pub fn step_label(l: &LineageState, slot: &str, i: usize) -> String {
     match slot {
-        "weapon" => format!("{} +{}", l.class.starting_weapon(), i + 1),
+        "weapon" => format!("{} +{}", crate::firearm::starting_kind(l).replace('_'," "), i + 1),
         "armour" => {
             let (k, e) = ARMOUR_STEPS[i.min(ARMOUR_STEPS.len() - 1)];
             if e > 0 {
@@ -115,7 +115,7 @@ pub fn step_label(l: &LineageState, slot: &str, i: usize) -> String {
 /// `None` for the pack's steps (no item).
 pub fn step_item(l: &LineageState, slot: &str, i: usize) -> Option<(String, crate::item::Rarity)> {
     let (kind, e) = match slot {
-        "weapon" => (l.class.starting_weapon().to_string(), i as i32 + 1),
+        "weapon" => (crate::firearm::starting_kind(l).to_string(), i as i32 + 1),
         "armour" => {
             let (k, e) = ARMOUR_STEPS[i.min(ARMOUR_STEPS.len() - 1)];
             (k.to_string(), e)
@@ -186,6 +186,7 @@ pub fn ladders(l: &LineageState) -> Vec<KitLadder> {
 /// Buy the next step of `slot` by hand (the ledger reads `forge <label>`; Cut 30.5: it counts toward the
 /// apprentice).
 pub fn buy(game: &mut Game, slot: &str) -> Result<(), String> {
+    if crate::firearm::Profile::of(slot).is_some() {return crate::firearm::choose(game,slot);}
     buy_step(&mut game.lineage, slot)?;
     crate::tree::did(&mut game.lineage, "forge");
     Ok(())
@@ -227,9 +228,9 @@ pub fn buy_all(l: &mut LineageState) {
 /// The heir's starting kit: the class arm at the weapon ladder's enchant, the armour step's
 /// piece (none before the first step). Items with the kit's ids are never loot.
 pub fn equip(l: &LineageState, hero: &mut Hero) {
-    let mut w = Item::new(WEAPON_ID, l.class.starting_weapon());
+    let mut w = Item::new(WEAPON_ID, crate::firearm::starting_kind(l));
     w.enchant = owned(l, "weapon") as i32;
-    hero.auto_equip(w);
+    if hero.class==crate::hero::Class::Gunner {hero.weapon=Some(w).into();}else {hero.auto_equip(w);}
     let a = owned(l, "armour") as usize;
     if a > 0 {
         let (k, e) = ARMOUR_STEPS[a - 1];

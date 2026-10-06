@@ -24,6 +24,9 @@ pub struct Profile {
 #[cfg(test)]
 #[path = "firearm_combat_tests.rs"]
 mod combat_tests;
+#[cfg(test)]
+#[path="gunner_tests.rs"]
+mod class_tests;
 
 impl Profile {
     pub fn of(kind: &str) -> Option<Self> {
@@ -52,10 +55,96 @@ pub struct Reload {
     pub at: u32,
 }
 
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Aim { pub item:u32, pub target:u32, pub from:Pos }
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Skills {
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub aim:Option<Aim>,
+    #[serde(default)]
+    pub smoke_ready:u32,
+    #[serde(default)]
+    pub fast_ready:u32,
+    #[serde(default)]
+    pub finish_ready:u32,
+}
+pub const SMOKE_COOLDOWN:u32=90;
+pub const FAST_COOLDOWN:u32=100;
+pub const FINISH_COOLDOWN:u32=60;
+/// The core class is implemented first; expose the paid offer after app/art QA.
+pub const UI_READY:bool=false;
+pub fn starting_kind(l:&crate::engine::LineageState)->&'static str {
+    if l.class==crate::hero::Class::Gunner&&l.kit.get("gun_choice")==Some(&1)&&l.kit.get("short_gun")==Some(&1) {"short_gun"}
+    else {l.class.starting_weapon()}
+}
+pub fn choose(game:&mut crate::Game,kind:&str)->Result<(),String> {
+    if Profile::of(kind).is_none() {return Err("unknown gun".into());}
+    if game.lineage.class!=crate::hero::Class::Gunner||!game.lineage.unlocks.contains("gunner") {return Err("choose Gunner".into());}
+    if game.run.is_some() {return Err("hero away".into());}
+    if !game.lineage.town.home.unwrap_or(true) {return Err("build a house".into());}
+    let price=if kind=="short_gun"&&game.lineage.kit.get("short_gun")!=Some(&1) {crate::kit::unit_of(&game.lineage)}else{0};
+    let price=i32::try_from(price).map_err(|_|"price too high")?;
+    if crate::tree::purse(&game.lineage)<price {return Err("not enough gold".into());}
+    if price>0 {
+        crate::kit::lock_unit(&mut game.lineage);
+        game.lineage.gold_move(-price,"forge short gun");
+        game.lineage.kit.insert("short_gun".into(),1);
+        crate::tree::did(&mut game.lineage,"forge");
+    }
+    if kind=="short_gun" {game.lineage.kit.insert("gun_choice".into(),1);}else {game.lineage.kit.remove("gun_choice");}
+    Ok(())
+}
+
+pub fn row(l:&crate::engine::LineageState)->Option<crate::rules::Row> {
+    (l.class==crate::hero::Class::Gunner).then(||
+        crate::rules::Row::new(vec![],crate::rules::Verb::new("gunner_tactic")).from("class:gunner"))
+}
+
+pub fn offers(l:&crate::engine::LineageState,away:bool)->Vec<crate::wire::GunOffer> {
+    if l.class!=crate::hero::Class::Gunner||!l.unlocks.contains("gunner") {return Vec::new();}
+    ["long_gun","short_gun"].into_iter().map(|kind| {
+        let p=Profile::of(kind).unwrap();let owned=kind=="long_gun"||l.kit.get("short_gun")==Some(&1);
+        let price=if owned {0}else{crate::kit::unit_of(l)};
+        let blocked=if away {Some("hero away".into())}else if !l.town.home.unwrap_or(true) {Some("build a house".into())}
+            else if i64::from(crate::tree::purse(l))<i64::from(price) {Some("not enough gold".into())}else{None};
+        let mut weapon=crate::item::Item::new(crate::kit::WEAPON_ID,kind);weapon.enchant=crate::kit::owned(l,"weapon") as i32;
+        let a=weapon.atk();let bonus=(l.class_level()/3) as i32;
+        crate::wire::GunOffer {kind:kind.into(),selected:starting_kind(l)==kind,owned,price,available:blocked.is_none(),blocked,
+            capacity:p.capacity,range:p.range,damage:(a.0+bonus,a.1+bonus),armour_piercing:p.armour_piercing,reload_ticks:p.reload_ticks}
+    }).collect()
+}
+pub fn cancel_aim(run:&mut crate::engine::Run,cx:&mut crate::engine::Ctx) {
+    if run.gun_skills.as_mut().is_some_and(|s|s.aim.take().is_some()) {
+        crate::chronicle::callout(run,cx,"aim lost");
+    }
+}
+/// Validate prepared aim only at an action's existing visibility pass, never
+/// by adding enemy scans to the tick scheduler.
+pub fn on_view(run:&mut crate::engine::Run,cx:&mut crate::engine::Ctx,v:&crate::turn::View) {
+    let Some(aim)=run.gun_skills.as_ref().and_then(|s|s.aim) else {return;};
+    if run.hero.pos!=aim.from || run.hero.weapon.as_ref().is_none_or(|w|w.id!=aim.item) ||
+        !v.foes.iter().any(|&i|run.monsters[i].id==aim.target&&run.floor.map.los(run.hero.pos,run.monsters[i].pos)&&run.hero.pos.cheb(run.monsters[i].pos)<=8) {
+        cancel_aim(run,cx);
+    }
+}
+
+pub fn reload_fast(run:&mut crate::engine::Run,cx:&mut crate::engine::Ctx)->bool {
+    if !crate::hero::class_has_verb(run.hero.class,run.hero.level,"fast_reload") ||
+        run.gun_skills.as_ref().is_some_and(|s|s.fast_ready>run.turn) {return false;}
+    let Some(ready)=run.turn.checked_add(FAST_COOLDOWN) else {return false;};
+    if !reload_at_speed(run,cx,true) {return false;}
+    run.gun_skills.get_or_insert_with(Default::default).fast_ready=ready;
+    true
+}
+
 pub fn reload(run: &mut crate::engine::Run, cx: &mut crate::engine::Ctx) -> bool {
+    reload_at_speed(run,cx,false)
+}
+fn reload_at_speed(run:&mut crate::engine::Run,cx:&mut crate::engine::Ctx,fast:bool)->bool {
     if run.gun_reload.is_some() { return false; }
     let Some(weapon) = run.hero.weapon.as_ref() else { return false; };
-    let Some(profile) = Profile::of(&weapon.kind) else { return false; };
+    let Some(mut profile) = Profile::of(&weapon.kind) else { return false; };
+    if fast {profile.reload_ticks=profile.reload_ticks.div_ceil(2);}
     let Some(mut chambers) = weapon.firearm else { return false; };
     let Ok(at) = chambers.reload(profile, run.turn) else { return false; };
     let item = weapon.id;

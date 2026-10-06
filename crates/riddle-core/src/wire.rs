@@ -2218,6 +2218,8 @@ pub struct Lineage {
     /// Cut 23 §1: the forge — the heir's starting kit, a ladder per slot (`meta::kit_ladders`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kit: Vec<KitLadder>,
+    #[serde(default,skip_serializing_if="Vec::is_empty")]
+    pub guns:Vec<GunOffer>,
     /// Cut 23 §3: per row of the active set (by index), its why-not over the recent sends
     /// (`LineageState::row_stats`); `null` before any send under that row.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -2601,6 +2603,13 @@ pub struct UnlockInfo {
     /// Cut 29 §1: an automation — gold only (`gold` its price, `needs: $N more` when short).
     #[serde(default, skip_serializing_if = "is_false")]
     pub gold_only: bool,
+}
+
+#[derive(Clone,Debug,Serialize,Deserialize,PartialEq,Eq)]
+pub struct GunOffer {
+    pub kind:String, pub selected:bool, pub owned:bool, pub price:u32,
+    pub available:bool, pub blocked:Option<String>, pub capacity:u8,
+    pub range:i32, pub damage:(i32,i32), pub armour_piercing:i32, pub reload_ticks:u32,
 }
 
 /// Cut 23 §1: one step of a forge ladder (`sword +1`, `mail`, `pack 4`) and its gold price.
