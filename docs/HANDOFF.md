@@ -1,3 +1,20 @@
+**BOSS APPROACH FRAMING — 2026-10-06:** Recorded desktopWarlord settledsprite
+clippedy−128/645px. Boss-aware natural spritebounds choosewiderfightscale,
+lockwidestbodyframeforencounter; drop gets temporary36unitspace thenclosecut.
+Actualcamera constrainedjointbounds+top96px+existinghero margin; hidden/
+remembered/allybossesexcluded, fixedfocuspreserved. Resetonfloorload/resize.
+Pairedrecord desktopk16→10,bossy93.3h160/heroy440h80; phonek8unchanged.
+DebugRect addsdrawn lift/squashbounds, naturaldiagnosticsretained. Newtool
+boss-framing-check46cases/124GPUcontainedsamples, expectedbaselinefailsreal
+record; hero30cases/174samples, fights46+warning34pass157s. Build/typecheck/
+copy1528/diffpass,bundleadvisory. RealheadedWASM fromadvancedpreboss save:
+phone7917/desktop7906,k8, bothfigurescontainedwithfullHUD/log;noerrors/overflow,
+screenshotsshown. Differentticks/notpairedFPS/notfresh-playerbalance.
+GFX_BOSS_FRAMING.md + scratchpad/boss-framing-20261006/; noRust/WASM/deploy.
+Next: first-boss defeat choices/content review usingfreshlegal player path;
+actualadvancedWarlordvictoryalreadyrecorded8154 lastturn, don'trepeatentryQA
+unlessnew evidence. Temporary5394 cleaned; shared5219preserved.
+
 **BOSS WARNING WORDS — 2026-10-06:** Real headed WASM advanced savedcamp,
 legalD5start/diagnostic steppingtoD8 thennormalwatch at400/1440: Warlord rally
 7862/7902, break8109, die8154; noerrors/overflow. Notfresh-playerbalance orfull

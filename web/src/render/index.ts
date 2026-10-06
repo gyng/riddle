@@ -98,7 +98,7 @@ export type Viewer = {
   preload?(snap: Snapshot): void;   // add unknown entities before a batch's events
 };
 
-export type DebugRect = { id: number; kind: string; hero: boolean; x: number; y: number; w: number; h: number; stack: number; z: number };   // CSS px; `stack`: members on its tile; `z`: its depth (higher draws in front)
+export type DebugRect = { id: number; kind: string; hero: boolean; x: number; y: number; w: number; h: number; stack: number; z: number; drawn?: {x:number;y:number;w:number;h:number} };   // CSS px; drawn includes lift/squash, natural bounds retained for existing probes
 export type DebugLabel = { text: string; x: number; y: number; id: number; w?: number; h?: number };   // CSS px: the label's centre x and its cell's bottom y; w · h its box (Cut 15 §4)
 
 export type ViewerStats = {
@@ -207,6 +207,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   let k = 1, kMap = 1, iw = 1, ih = 1, W = 3, H = 3, devW = 0, devH = 0, dpr = 1;
   let lastCss = "";
   let mode: Frame = "map", fixedFocus: Focus | null = null, cutFrames = 0; // Cut 8A
+  let bossScale: number | null = null, bossScaleDepth = -1, bossScaleSize = "";
   let camSX = 0, camSY = 0; // the snapped camera centre this frame (build() places the caption from it)
   // Cut 14 §3: the hero's room, lit whole once seen — a flood from the hero's tile over room tiles (index → 1), recomputed when
   // the hero's logical tile changes (or the floor reloads); empty in a corridor
@@ -289,15 +290,16 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   function measure(): boolean {
     const cw = canvas.clientWidth || canvas.width, ch = canvas.clientHeight || canvas.height;
     const d = window.devicePixelRatio || 1;
-    const key = `${cw}x${ch}@${d}`;
-    if (key === lastCss) return false;
-    lastCss = key;
     dpr = d;
     blit.material.uniforms.uWashDpr!.value = d;   // the wash look's grain and dots in CSS px (wash.ts)
     devW = Math.max(1, Math.round(cw * d));
     devH = Math.max(1, Math.round(ch * d));
     kMap = Math.max(1, Math.floor(Math.min(devW, devH) / baseTexels));
-    k = mode === "fight" ? fightK() : kMap;
+    const nextK = mode === "fight" ? fightK() : kMap;
+    const key = `${cw}x${ch}@${d}:${nextK}`;
+    if (key === lastCss) return false;
+    lastCss = key;
+    k = nextK;
     iw = Math.floor(devW / k);
     ih = Math.floor(devH / k);
     W = iw + 2; H = ih + 2;
@@ -323,7 +325,23 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // (raters Q, R on the scene's inset: "zoom the inset so the hero and foe are twice their size" — ui/viewer.ts halves a small view's texels; under 480 CSS px 1.5×)
     const most = small ? 2 * kMap : (canvas.clientHeight || 1000) < 480 ? Math.round(kMap * 1.5) : Math.max(kMap, Math.round(kMap * 1.25));
     const kf = Math.max(kMap, Math.min(most - (most & 1), cap - (cap & 1)));
-    if (!fixedFocus) return kf;
+    if (!fixedFocus) {
+      const size = `${devW}x${devH}`;
+      if (bossScaleDepth !== st.depth || bossScaleSize !== size) { bossScaleDepth = st.depth; bossScaleSize = size; bossScale = null; }
+      const bounds = bossBounds();
+      const fitScale = (box: [number, number, number, number]): number => {
+        const fit = Math.floor(Math.min((devW * 0.88 - 24 * dpr) / (box[2] - box[0]), (devH * 0.86 - 96 * dpr) / (box[3] - box[1])));
+        return Math.max(1, Math.min(kf, fit > 1 ? fit - (fit & 1) : 1));
+      };
+      if (bounds) {
+        // Hold the widest body framing through the encounter. The entrance
+        // temporarily needs more space, then cuts to this closer fight scale.
+        const scale = fitScale(bounds);
+        bossScale = Math.min(bossScale ?? scale, scale);
+      }
+      const entrance = bossBounds(true);
+      return Math.min(kf, bossScale ?? kf, entrance ? fitScale(entrance) : kf);
+    }
     const fit = Math.floor(Math.min(devW, devH) / ((2 * Math.max(1, fixedFocus.radius) + 1) * TILE));
     return Math.max(kMap, Math.min(kf, fit - (fit & 1)));
   }
@@ -339,6 +357,22 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   function feet(e: EntState): [number, number] {
     const [lx, ly] = st.lungeOffset(e);
     return [Math.round(e.px * TILE) + TILE / 2 + lx, -Math.round(e.py * TILE) - TILE + 1 - ly];
+  }
+
+  /** Full hero and visible hostile boss bodies; optionally reserve entrance lift. */
+  function bossBounds(entrance = false): [number, number, number, number] | null {
+    const h = st.hero; if (!h) return null;
+    const [hx, hy] = feet(h), hs = atlas.entity(h.kind);
+    let x0 = hx - hs.w / 4, x1 = hx + hs.w / 4, y0 = hy, y1 = hy + hs.h / 2, found = false;
+    for (const e of st.ents.values()) {
+      if (!e.boss || e.hero || e.ally || e.neutral || e.dying || e.remembered || !st.visible[e.y * st.w + e.x]) continue;
+      const [x, y] = feet(e), s = atlas.entity(e.kind);
+      x0 = Math.min(x0, x - s.w / 4); x1 = Math.max(x1, x + s.w / 4);
+      const dropping = entrance && fxLevel > 0 && ((!bossTitled.has(e.id) && st.speed > 0) || juice.lift(e.id, st.clock) > 0);
+      y0 = Math.min(y0, y); y1 = Math.max(y1, y + s.h / 2 + (dropping ? 36 : 0));
+      found = true;
+    }
+    return found ? [x0, y0, x1, y1] : null;
   }
 
   // the nearest hostile the player can see (in view, or remembered at its last seen tile); dying ones let the camera go
@@ -425,8 +459,17 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const halfW = sprite.w / 4, height = sprite.h / 2;
       const fit = (value: number, low: number, high: number): number => low > high ? (low + high) / 2 : Math.max(low, Math.min(high, value));
       const padX = Math.max(2, iw * 0.12), padY = Math.max(2, ih * 0.14);
-      const x = fit(cam.x, hx + halfW + padX - iw / 2, hx - halfW - padX + iw / 2);
-      const y = fit(cam.y, hy + height + padY - ih / 2, hy - padY + ih / 2);
+      let xLow = hx + halfW + padX - iw / 2, xHigh = hx - halfW - padX + iw / 2;
+      let yLow = hy + height + padY - ih / 2, yHigh = hy - padY + ih / 2;
+      const bounds = mode === "fight" && !fixedFocus ? bossBounds(true) : null;
+      if (bounds) {
+        const bxLow = bounds[2] + 2 - iw / 2, bxHigh = bounds[0] - 2 + iw / 2;
+        const byLow = bounds[3] + Math.max(2, 96 * dpr / k) - ih / 2, byHigh = bounds[1] - 2 + ih / 2;
+        if (Math.max(xLow, bxLow) <= Math.min(xHigh, bxHigh)) { xLow = Math.max(xLow, bxLow); xHigh = Math.min(xHigh, bxHigh); }
+        if (Math.max(yLow, byLow) <= Math.min(yHigh, byHigh)) { yLow = Math.max(yLow, byLow); yHigh = Math.min(yHigh, byHigh); }
+      }
+      const x = fit(cam.x, xLow, xHigh);
+      const y = fit(cam.y, yLow, yHigh);
       if (x !== cam.x) { cam.x = x; cam.vx = 0; }
       if (y !== cam.y) { cam.y = y; cam.vy = 0; }
     }
@@ -892,6 +935,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const lift = juice.lift(e.id, st.clock) + step;   // gfx round 5: a boss drops into his arena
       const ghost = fxLevel > 0 && !e.hero && ETHEREAL.has(e.kind);
       if (ghost) ghostAt.push([fx, fy + h / 2]);
+      const dw = Math.round(s.w * sqx) / 2, dh = Math.round(s.h * sqy) / 2;
+      const drawY = fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0);
+      const [drawXCss, drawYCss] = toCss(fx - dw / 2, drawY + dh);
+      rects[rects.length - 1]!.drawn = { x: drawXCss, y: drawYCss, w: dw * k / dpr, h: dh * k / dpr };
       (ghost ? L.ghosts : L.ents).push(fx, fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0), z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.hero ? 1.12 : e.ally ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);   // (round 16: the hero a touch brighter — "muddy on the ochre floor")
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
@@ -1026,10 +1073,10 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     // the `performance.now()` the viewer was created at, which at 8× would wind the clock back seconds)
     const dt = Math.max(0, Math.min(250, now - last));
     last = now;
-    const resized = measure();
     quality.sample(dt, stats.cpuMs, now); applyFx();
     simDt = dt;
     st.tick(dt * juice.timeScale(now), now);   // juice: a hit-stop holds the clock, a death's slow-mo slows it (med+, motion on)
+    const resized = measure();
     const snapCam = st.cameraSnap || (resized && !st.hero);
     st.cameraSnap = false;
     updateCamera(dt / 1000, snapCam);
@@ -1136,6 +1183,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   return {
     load(snap) {
       st.load(snap);
+      bossScale = null; bossScaleDepth = st.depth;
+      lastCss = ""; measure();
       updateCamera(0, true);
     },
     apply(evs) { st.apply(evs); },
