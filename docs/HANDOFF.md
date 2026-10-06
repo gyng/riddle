@@ -1,3 +1,24 @@
+**OFFLINE SLICE REGRESSION BASELINE — 2026-10-06:** New contract
+PERF_OFFLINE_SLICE_BOUNDARIES.md and tools/offline-slice-check.mjs compare full
+canonical saves for one final slice,30min,uneven,reloaded30min and complete API;
+record input/WASM SHA256, full reports, differences, additive elapsed/runs.
+Nonzero mismatch exit intentional; diagnostic, not performance/balance gate.
+Earned seed3 eight-hour save +8h: whole/30min both16runs/gold3837 but
+renown708/rank2 vs2149/rank4. Uneven18runs/gold4041/rank4. Renown/report
+side effects require whole-absence scope, not just stopping extra run finishes.
++160h: whole203runs/heir20/rank4;30min480/heir47/rank33;uneven572/heir73/rank33.
+All clock_s606920. Reload30min totals same but batch.bounty and
+lineage.row_stats[9][1].sends differ from uninterrupted. Zero allfivePASS.
+Artifacts scratchpad/offline-boundaries-20261006-{8h,160h,zero}/, final8h
+rerun -8h-final verifies added reload comparison. Current WASM unchanged.
+No Rust/UI/gameplay fix yet. Next implement true resumable absence context,
+including saved/rest/run/day/report state; keep complete/count APIs distinct
+from transport controls. report_with mutates renown,systems,reel_pairs;
+advance clears in_absence each call; save::load refreshes oath/bounty and
+recompiles at home. Native bindings generated from WASM lib via native-codegen.
+Do not fake parity by filtering gameplay fields or weaken idle-d23 bar.
+Push authorized; no deployment; shared5219 preserved; broad goal remains active.
+
 **CONTENT/CHECKPOINT AUDIT — 2026-10-06:** Document
 CONTENT_CHECKPOINT_AUDIT_20261006.md enumerates7biomes/37unit definitions/
 6band bosses/43item definitions/4classes/14packages/11workers/3bloodlines/
