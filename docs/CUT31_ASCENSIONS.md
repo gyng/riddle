@@ -259,3 +259,87 @@ those saved states or sampled advance responses. Fast WASM5,320,487B; build/
 typecheck/copy1659/diff clean, existing bundle-size advisory. No deployment.
 Next D fixed-seed balance/build comparisons, whole/sliced/reloaded one/three
 bloodline absence checks and full catch-up profiling; then Legacy tree/classes.
+
+## Checkpoint D verification contract — 2026-10-06
+
+Before the Legacy tree changes runtime: compare all saved state and final reports
+for earned tier1/3/5 starts, one and three bloodlines, eight-hour whole,30-minute,
+uneven and checkpoint/reloaded calls plus the complete API. No approximate
+integer conversion for RNG or seeds; retain raw save JSON/hash as evidence.
+Add a bounded Rust regression for positive-tier solo and mixed-tier shared-wallet
+slots, including interrupted fights. Same elapsed time must produce zero state/
+report differences, and at most one finalization/unlock per selected slot.
+
+Fixed-seed tuning diagnostic uses the same earned preparation at tiers1/3/5
+with controlled alternate RNG seeds1/3/5; this is explicitly a seeded diagnostic
+fixture, not three independently earned campaigns. All inherited unchanged
+prepared builds must clear within14 game-days on these nine cases; never grant
+further gear/Legacy or bypass floors to pass. Supplement with real combat policy
+comparisons over fixed seeds: Shielded counter via control, Regenerating counter
+via poison, Swift/Frenzied counter via slow, and King cadence versus repeats.
+Measure actual actions/health/damage, not only formula assertions; define each
+comparison's inputs and numeric bar before running it. Existing actual five
+consecutive clears remain the earned loop proof. Initial balance bars are new
+content's contract, not replacements for tier0 gates.
+
+Profile actual headed-WASM eight-hour catch-up from tier1/3/5 earned starts,
+report repeated deterministic outcomes, absolute times and CPU attribution.
+Retain the equal-work native <=10% modifier overhead check; full catch-up times
+are workload-dependent and cannot substitute for equal-work overhead. Run the
+normal required checks after fixes. Broad exhaustive migration/statistical
+audit remains separate from the routine18-case current-player suite.
+
+## D findings and explicit preparation-gate deviation — 2026-10-06
+
+The unchanged-preparation14-day bar above **failed**, not green. One earned
+Tier1 preparation, controlled seeds1/3/5 and tiers1/3/5: Tier1 clears in8h for
+all three; Tier3 in104/24/16h; Tier5 reaches only D31/D30/D33 after336h.
+This is a common-preparation diagnostic, not three earned campaigns. The build
+has814 unspent Legacy, no Legacy upgrades, forged armour7/pack4/weapon6,
+Guarded and no equipped tactics; its authored boss counters remain unchanged.
+Artifacts: scratchpad/endgame-balance-d-20261006/, including failed saves.
+
+Explicit deviation: unchanged builds are not required to clear every higher
+tier. Higher difficulties may demand a build choice. Keep the failed result;
+do not certify the original bar or weaken existing tier0 gates. This is justified
+by the same nine cases purchasing all nine **existing** Legacy ranks at home
+for54 of the source's814 earned points: all nine clear in8–16h. No granted
+currency/equipment, depth bypass, new authored policy or difficulty tuning.
+Artifact: scratchpad/endgame-balance-d-legacy-20261006/; reproducible with
+`ascension_check -- SAVE NEW_OUT_DIR --spend-legacy`. This isolates a meaningful
+owned build choice; it does not establish broad balance or new-tree viability.
+
+The stronger exact-integer transport check exposed two solo continuation bugs:
+guide quotes refreshed during an absence were not saved, losing passage income
+after reload; a split inside camp rest inserted an hourly worker action, changing
+its ledger timestamp. Current quote and rest-continuation state now persist.
+Earned Tier1/3/5 eight-hour whole/30-minute/uneven/reloaded/complete API paths
+match every saved field and final report, with exact u64 RNG comparison and
+original raw saves retained. Tier1/Tier5 previously failed reload; Tier1 also
+failed uninterrupted30-minute partitions. Whole outcomes remain unchanged.
+Artifacts: scratchpad/endgame-parity-d-fixed2-tier{1,3,5}/; old failures retained.
+
+Mixed1/3/5 diagnostic Rust transport exposed discarded fractional clock state
+on reload; `advance_rem` now saves nonzero millisecond/subsecond remainders,
+defaulting to zero for old saves. Six previous tier0 WASM save/advance baselines
+and two numbered reset saves remain byte-exact. Real earned reset with selected
+Tier1 and two legally added/live tier0 bloodlines: all five eight-hour WASM
+transport paths match full saves/reports exactly,40 completed runs each.
+Artifact: scratchpad/endgame-parity-d-fixed-multi/. Full Rust run598 PASS/one
+existing ignored37.60s; the subsequently added fractional-clock regression
+also passes. Headed Chromium, rebuilt fast WASM5321443B, actual earned Tier1/3/5
+eight-hour catch-up, three fresh-load/cache repetitions each: median0.8082 /
+0.6912 /0.9980 seconds; complete raw save and report hashes match each repeat
+and transport references. Profile includes load/save while timings cover only
+runOfflineQuick, excluding compilation/warm-up; engine timing, not app FPS or
+shipping-WASM performance. Tier1/Tier5 passage forecast inclusive samples42.4% /
+27.3% of total profile respectively; no extra modifier allocation hotspot.
+Artifacts: scratchpad/endgame-profile-d-tier{1,3,5}/summary.json and CPU profiles.
+The prior equal-work native modifier overhead remains6.82%, within10% target;
+these different encounter workloads do not establish an equal-work speedup.
+Final routine quick green39s:599 core PASS/one existing ignored35.47s, typecheck,
+copy1659 and14 side tests; initial restricted-sandbox native-host failure passes
+both isolated and whole-suite host execution. Clippy workspace/alltargets fast
+warnings-denied and webbuild PASS, existing bundle-size advisory. Routine
+18-case current-game full gate is running, not yet certified.
+D remains open, including fixed-combat comparisons and routine gates.

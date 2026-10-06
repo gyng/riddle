@@ -241,3 +241,74 @@ fn difficulty_stat_cap_still_holds_after_grudge_bonus() {
     assert_eq!(m.max_hp,STAT_CAP);assert_eq!(m.hp,STAT_CAP);
     assert!(m.atk.1<=STAT_CAP);assert!(m.atk.0<=m.atk.1);
 }
+
+// Diagnostic positive-tier fixtures; these test absence transport, not earned clears.
+fn absence_fixture(tier:u32) -> crate::bloodlines::Session {
+    let mut s=crate::bloodlines::Session::new(3);
+    s.active=Game::new_resident(3);
+    s.active.lineage.gold=10000;s.active.lineage.tree.ledger=10000;
+    crate::tree::grant(&mut s.active.lineage,&["porter","scout"]);
+    s.active.lineage.endgame=Some(Progress{tier,unlocked:tier,cleared:Some(tier-1)});
+    s.active.lineage.clock_s=crate::engine::DAY_S-17;
+    s.send();s.step(11);s
+}
+fn partition_absence(base:&crate::bloodlines::Session,total:u64,widths:&[u64],reload:bool)->(crate::bloodlines::Session,crate::wire::ReturnReport) {
+    let mut s=base.clone();let mut left=total;let mut i=0;
+    loop {
+        let n=left.min(widths[i%widths.len()]);let last=n==left;
+        let report=s.run_offline_slice(n,last);
+        if last {return(s,report);}
+        assert!(report.slice_pending&&report.elapsed_s==0&&report.runs==0);
+        assert!(s.active.offline_absence.is_some());left-=n;i+=1;
+        if reload {s=crate::bloodlines::Session::load(&s.save()).unwrap();}
+    }
+}
+fn saved_differences(a:&serde_json::Value,b:&serde_json::Value,path:&str,out:&mut Vec<String>) {
+    if a==b{return;}
+    match (a,b) {
+        (serde_json::Value::Object(a),serde_json::Value::Object(b))=>{
+            for key in a.keys().chain(b.keys()).collect::<std::collections::BTreeSet<_>>() {
+                saved_differences(&a[key],&b[key],&format!("{path}/{key}"),out);
+            }
+        }
+        (serde_json::Value::Array(a),serde_json::Value::Array(b)) if a.len()==b.len()=>{
+            for (i,(a,b)) in a.iter().zip(b).enumerate(){saved_differences(a,b,&format!("{path}/{i}"),out);}
+        }
+        _=>out.push(format!("{path}: {a} != {b}")),
+    }
+}
+#[test]
+fn modified_absence_full_save_and_report_are_partition_and_reload_independent() {
+    for tier in [1,3,5] {
+        let base=absence_fixture(tier);
+        assert_eq!(base.active.run.as_ref().unwrap().difficulty,tier);
+        assert!(base.active.run.as_ref().unwrap().monsters.iter().any(|m|m.modifiers.is_some()));
+        let mut whole=base.clone();let expected=whole.run_offline_mode(7200,false,true);
+        for (widths,reload) in [(&[1800][..],false),(&[1,719,1280][..],false),(&[719][..],true)] {
+            let (actual,report)=partition_absence(&base,7200,widths,reload);
+            assert_eq!(report,expected,"tier{tier}: complete final report");
+            assert!(serde_json::to_value(&actual).unwrap()==serde_json::to_value(&whole).unwrap(),"tier{tier}: every saved field including RNG/modifiers");
+        }
+    }
+}
+#[test]
+fn mixed_tier_bloodlines_keep_exact_shared_wallet_and_saved_absence() {
+    let mut base=absence_fixture(1);base.add_bloodline().unwrap();base.add_bloodline().unwrap();
+    for (id,tier) in [(2,3),(3,5)] {
+        base.select_bloodline(id).unwrap();
+        base.active.lineage.endgame=Some(Progress{tier,unlocked:tier,cleared:Some(tier-1)});
+        base.active.lineage.clock_s=crate::engine::DAY_S-17;
+    }
+    for id in [2,3] {base.select_bloodline(id).unwrap();base.send();base.step(11);}
+    base.select_bloodline(1).unwrap();
+    assert_eq!(base.others[&2].run.as_ref().unwrap().difficulty,3);
+    assert_eq!(base.others[&3].run.as_ref().unwrap().difficulty,5);
+    let mut whole=base.clone();let expected=whole.run_offline_mode(7200,false,true);
+    for reload in [false,true] {
+        let(actual,report)=partition_absence(&base,7200,&[1,719,1280],reload);
+        assert_eq!(report,expected,"all three slots in one final report");
+        let mut differences=Vec::new();saved_differences(&serde_json::to_value(&whole).unwrap(),&serde_json::to_value(&actual).unwrap(),"",&mut differences);
+        assert!(differences.is_empty(),"all three complete games and shared town, reload{reload}: {differences:?}");
+        assert_eq!(actual.active.lineage.gold as i64+actual.active.lineage.town.bank as i64,actual.active.lineage.tree.ledger);
+    }
+}

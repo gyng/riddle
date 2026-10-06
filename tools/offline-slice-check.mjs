@@ -2,6 +2,7 @@
 // Exact saved-state diagnostic for transport partitions of ONE absence.
 // Separate real check-ins are deliberately not compared here.
 import { createHash } from "node:crypto";
+import { parseExactJSON } from "./exact-json.mjs";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -61,13 +62,15 @@ async function main(args) {
       do {
         const n = Math.min(left, spec.widths[calls % spec.widths.length]);
         const last = left === n;
-        reports.push(JSON.parse(spec.complete ? game.runOfflineQuick(n) : game.runOfflineSlice(n, last)));
+        reports.push(parseExactJSON(spec.complete ? game.runOfflineQuick(n) : game.runOfflineSlice(n, last)));
         left -= n; calls++;
         if (spec.reload && !last) {
           const checkpoint = game.save(); game.free(); game = new Game(1); game.load(checkpoint);
         }
       } while (left > 0);
-      const state = JSON.parse(game.save());
+      const saved = game.save();
+      writeFileSync(join(out, `${spec.id}-save.json`), saved);
+      const state = parseExactJSON(saved);
       const finalReport = reports.filter((r) => !r.slice_pending).at(-1);
       reportReference ??= finalReport;
       const reportDiff = differences(reportReference, finalReport);
@@ -77,7 +80,7 @@ async function main(args) {
       const reloadDiff = spec.reload ? differences(uninterrupted, state) : undefined;
       const file = `${spec.id}.json`;
       writeFileSync(join(out, file), JSON.stringify({ state, reports, differences: diff, reportDifferences: reportDiff, reloadDifferences: reloadDiff }));
-      const row = { id: spec.id, calls, file, stateSha256: sha(canonical(state)),
+      const row = { id: spec.id, calls, file, rawSaveSha256: sha(saved), stateSha256: sha(canonical(state)),
         mismatches: diff.length, firstPaths: diff.slice(0, 12).map((d) => d.path),
         reportMismatches: reportDiff.length, reportPaths: reportDiff.slice(0, 12).map((d) => d.path),
         ...(reloadDiff ? { reloadMismatches: reloadDiff.length, reloadPaths: reloadDiff.slice(0, 12).map((d) => d.path) } : {}),
@@ -87,7 +90,7 @@ async function main(args) {
     } finally { game.free(); }
   }
   const pass = cases.every((c) => c.mismatches === 0 && c.reportMismatches === 0 && c.reportedSeconds === seconds);
-  writeFileSync(join(out, "manifest.json"), JSON.stringify({ version: 1, scope: "exact state parity; not a balance gate or timing claim",
+  writeFileSync(join(out, "manifest.json"), JSON.stringify({ version: 2, comparisonIntegers: "exact decimal tags; raw saves retained separately", scope: "exact state parity; not a balance gate or timing claim",
     source: resolve(save), sourceSha256: sha(source), wasmSha256: sha(wasm), seconds, pass, cases }, null, 2));
   if (!pass) process.exitCode = 1;
 }

@@ -1,3 +1,37 @@
+**ENDGAME CATCH-UP CONTINUATIONS + BUILD COMPARISON — 2026-10-06:**
+Cut31 D remains open; overall keep-going goal active, Legacy/classes next.
+Exact-integer offline checker (raw saves preserved) caught stale guide quotes
+losing passage gold after reload and inserted hourly-worker actions during a
+transport-split rest. Save current quote for solo/multi, persist rest continuation;
+whole-path outcomes unchanged. Mixed1/3/5 Rust test found fractional-clock loss
+after reload: save nonzero advance_rem, omitted/default0 otherwise. Five new
+meaningful core regressions. Earned solo Tier1/3/5 plus real legally added
+three-slot Tier1/0/0: whole/30min/uneven/reload/complete API8h all full raw saves
+and final reports exact (including u64 RNG); solo runs12/7/12,multi40.
+Artifacts endgame-parity-d-fixed2-tier{1,3,5}/ and endgame-parity-d-fixed-multi/.
+Six old complete WASM save/advance baselines +two numbered native saves exact.
+Headed actual fast-WASM8h profiles3reps/tier: medians0.8082/0.6912/0.9980s;
+save/report hashes identical. Engine calls, not FPS/shipping/equal-work claim.
+Passage forecasts Tier1/5 inclusive42.4/27.3% of entire load/run/save profile.
+Artifacts endgame-profile-d-tier{1,3,5}/. Previous native6.82% overhead retained.
+Unchanged common earned preparation9seed/tier cases: Tier5failsall after14days
+(D31/30/33); barFAILED, explicit justified deviation recorded inCut31, never
+call original barPASS. Comparative owned54of814Legacy points buys existing9
+ranks; same9casesallclear8–16h, no stat/currency grant/new policy/floor bypass.
+Permanent diagnostic ascension_check.rs -- SAVE NEW_DIR [--spend-legacy].
+Artifacts endgame-balance-d[-legacy]-20261006/. Five successive earned clears
+frompreviouscheckpoint remain actual campaign proof; altered seeds/tier
+eligibility in common-build diagnostic explicitly synthetic.
+Final verify--quick599corePASS/oneignored35s +TS/copy1659 +14side tests green39s;
+restricted sandbox native-host test failed initially, same test and whole quick
+suite pass host environment. Clippy alltargets/profilefastPASS, webbuildPASS
+existing bundle advisory, fastWASM5321443B, diffclean. No runtime/UI release.
+Routine18-case current-game fullgate RUNNING session38577, log
+/tmp/riddle-cut31-d-gates-full.log; do not infer result, poll before more core
+changes. D fixed-combat numeric comparisons still pending. Exhaustive audit
+not run. No UI changes/no new screenshot milestone; shared5219HTTP200, no new
+task servers, no deploy. Then branch Legacy migration/respec,2specializations.
+
 **NUMBERED ENDGAME UI + FIVE EARNED CLEARS — 2026-10-06:**
 Cut31 A/B/C implemented; D/overall keep-going goal remains active. WASM/native
 preview and beginDescent, optional eligible Lineage.endgame, main next-tier

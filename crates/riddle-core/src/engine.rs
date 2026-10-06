@@ -3024,9 +3024,13 @@ pub struct Game {
     #[serde(skip)]
     pub clock_at: Option<u64>,
     /// RUNS_UI: `advance`'s remainders — ms short of a tick, ticks short of a second.
-    #[serde(skip)]
+    // Milliseconds and fractional clock ticks are continuation state, including
+    // background bloodlines saved between 100 ms scheduler steps.
+    #[serde(default, skip_serializing_if = "advance_remainder_empty")]
     pub advance_rem: (u64, u64),
 }
+
+fn advance_remainder_empty(value: &(u64,u64)) -> bool { *value == (0,0) }
 
 /// Cut 28 §2: the camp state a send left from (`Game::sent_state`) — the lineage less its history
 /// (the chronicle, the ledger, the row tallies: nothing a sim reads) and the loadout.

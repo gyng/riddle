@@ -11,6 +11,17 @@ live bloodlines. Next D balance/build comparisons, one/three-slot absence
 parity and broader catch-up profiling; whole-cut verification remains open. Legacy/class work
 remains after that loop. No extra early prestige layer.
 
+D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h
+whole/sliced/reloaded full-state/report parity now passes after guide-quote,
+partial-rest worker and fractional-clock continuation fixes. Fast-WASM8h
+medians0.81/0.69/1.00s, three identical outcomes each. Unchanged Tier5 diagnostic
+fails all three seeds14days; spending54 existing earned Legacy changes all nine
+tier/seed cases to8–16h clears. Failed bar retained, explicit justified deviation
+in CUT31; no claim of broader balance. Quick599core/14side tests green, clippy/
+build pass. Routine18-case gate running; fixed-combat comparisons pending.
+Next branching Legacy and class specializations; preserve old purchased ranks,
+free home respec and distinct mechanical choices rather than only larger stats.
+
 Local UI iteration-speed and compact-depth work are implemented and pushed.
 Hero presence, tactic observability and the content/checkpoint audit are implemented.
 Catch-up slice semantics are fixed and verified within PERF_OFFLINE_SLICE_BOUNDARIES.md.

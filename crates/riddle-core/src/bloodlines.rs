@@ -160,6 +160,10 @@ impl Session {
         begin(&mut self.active);
         for g in self.others.values_mut() { town_from(&self.active.lineage,&mut g.lineage);begin(g); }
         self.advance(seconds.saturating_mul(1000));
+        // Guide moves during an absence replace the quote captured at its start.
+        // Keep the saved continuation current for every independently running slot.
+        self.active.offline_absence.as_mut().unwrap().passage = self.active.passage;
+        for g in self.others.values_mut() { g.offline_absence.as_mut().unwrap().passage = g.passage; }
         self.active.lineage.in_absence=true;
         for g in self.others.values_mut() { g.lineage.in_absence=true; }
         if !final_slice { return ReturnReport { slice_pending:true,..Default::default() }; }

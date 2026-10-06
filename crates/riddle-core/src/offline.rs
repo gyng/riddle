@@ -22,8 +22,13 @@ pub struct Absence {
     pub rank_before: u32,
     pub acts_before: crate::shared::Shared<BTreeMap<String, u32>>,
     pub chest_before: i32,
+    /// Current guide quote, refreshed at transport boundaries for exact reloads.
     pub passage: Option<(u32, i32)>,
     pub bounty_seen: Option<u32>,
+    /// A transport boundary interrupted a camp rest. Workers already acted at
+    /// its entrance; resuming the same rest must not add another hourly pass.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub resting: bool,
 }
 
 pub(crate) fn begin_absence(game: &mut Game) -> Absence {
@@ -53,7 +58,7 @@ pub(crate) fn begin_absence(game: &mut Game) -> Absence {
         facts_before: game.lineage.facts.clone(), grew_before: crate::town::snap(&game.lineage),
         class: game.lineage.class.name().into(), rank_before: game.lineage.rank,
         acts_before: game.lineage.tree.acts.clone(), chest_before: game.lineage.tree.chest,
-        passage: game.passage, bounty_seen: game.bounty_seen,
+        passage: game.passage, bounty_seen: game.bounty_seen, resting: false,
     }
 }
 
@@ -119,7 +124,7 @@ fn run_offline_partition(game: &mut Game, elapsed_s: u64, full: bool, with_stall
     let mut sampled = false;
     while consumed < budget {
         let now = (game.lineage.clock_s + consumed / TICKS_PER_SECOND) / 3600;
-        if now > hour && game.run.as_ref().is_none_or(|r| r.turn == 0) {
+        if !absence.resting && now > hour && game.run.as_ref().is_none_or(|r| r.turn == 0) {
             hour = now;
             crate::tree::at_hour(game);
         }
@@ -137,9 +142,11 @@ fn run_offline_partition(game: &mut Game, elapsed_s: u64, full: bool, with_stall
             let used = game.rest_tick((budget - consumed).min(u32::MAX as u64) as u32);
             consumed += used as u64;
             if game.lineage.rest_left > 0 {
+                absence.resting = true;
                 break;
             }
         }
+        absence.resting = false;
         if game.run.is_none() {
             game.start_run(None);
             crate::tree::scout_sent(game);
@@ -261,6 +268,7 @@ fn run_offline_partition(game: &mut Game, elapsed_s: u64, full: bool, with_stall
     if !last {
         absence.consumed = consumed;
         absence.hour = hour;
+        absence.passage = game.passage;
         game.offline_absence = Some(absence);
         return ReturnReport { slice_pending: true, ..Default::default() };
     }
@@ -886,6 +894,48 @@ mod slice_tests {
         equal(&whole,&sliced,"zero-second final boundary");
         let mut a=Game::new(3);let (b,r)=partition(&a,0,&[1],false);
         assert_eq!(run_offline_quick(&mut a,0),r);equal(&a,&b,"empty zero absence");
+    }
+    #[test]
+    fn interrupted_rest_does_not_insert_an_hourly_worker_action() {
+        let mut base=camp(3);
+        crate::tree::grant(&mut base.lineage,&["clerk"]);
+        base.lineage.town.built.push(("bank".into(),0));
+        base.lineage.gold_move(10000,"fixture income");
+        base.lineage.last_night_net=1000;
+        base.lineage.clock_s=3590;base.lineage.rest_left=6000;
+        let mut whole=base.clone();let expected=run_offline_quick(&mut whole,601);
+        assert!(whole.lineage.gold_ledger.iter().any(|m|m.why=="bank deposit"));
+        for reload in [false,true] {
+            let(actual,report)=partition(&base,601,&[60],reload);
+            equal(&whole,&actual,"worker timestamp across a partially consumed rest");
+            assert_eq!(report,expected);
+        }
+    }
+    #[test]
+    fn changed_guide_quote_is_saved_with_the_absence_continuation() {
+        let mut g=camp(3);
+        crate::tree::grant(&mut g.lineage,&["guide"]);
+        g.lineage.gold_move(10000,"fixture income");
+        g.lineage.best_depth=12;g.lineage.light_waystones(9);
+        assert!(run_offline_slice(&mut g,0,false).slice_pending);
+        assert_eq!(g.passage,None);
+        crate::tree::at_hour(&mut g);
+        assert!(g.lineage.start>1);
+        let quote=g.passage;assert!(quote.is_some());
+        assert!(run_offline_slice(&mut g,0,false).slice_pending);
+        assert_eq!(Game::load(&g.save()).unwrap().passage,quote);
+    }
+    #[test]
+    fn live_clock_keeps_partial_milliseconds_and_seconds_after_reload() {
+        let mut whole=camp(3);whole.send();let mut interrupted=whole.clone();
+        whole.advance(1000);
+        interrupted.advance(175);
+        assert_eq!(interrupted.advance_rem,(75,1));
+        let mut restored=Game::load(&interrupted.save()).unwrap();
+        assert_eq!(restored.advance_rem,(75,1));
+        interrupted.advance(825);restored.advance(825);
+        equal(&whole,&interrupted,"continuous fractional scheduler step");
+        equal(&whole,&restored,"saved fractional scheduler step");
     }
 }
 

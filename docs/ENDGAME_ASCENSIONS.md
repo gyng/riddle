@@ -1,22 +1,29 @@
-# Endless ascensions and bloodline growth — proposed 2026-10-06
+# Endless ascensions and bloodline growth — direction 2026-10-06
 
 Owner steering: clearing the dungeon should unlock endless ascensions with
  affixes, elites and stronger bosses; consider more classes and deeper Legacy
-skill trees. This document is a proposed implementation direction, not shipped
-behavior or measured balance. The current implementation contract remains
-CUT30_5.md. Supersedes the queue's early-reset proposal as the next design focus;
+skill trees. Numbered tiers, affixes/elites/boss mechanics and selection are now
+implemented under CUT31_ASCENSIONS.md; broader verification remains open.
+The Legacy tree and specializations below remain proposed, not shipped.
+Supersedes the queue's early-reset proposal as the next design focus;
 expedition/era/dynasty layers in PROGRESSION_V2.md remain deferred.
 
 ## Current game
 
-Mirror King on D33, ending at D34; four repeatable challenge variants. The
-ascension counter does not scale enemy difficulty. Classes: Fighter, Rogue,
+Mirror King on D33, ending at D34; optional numbered harder descents plus four
+older repeatable challenge variants. Numbered tiers scale encounters and rotate
+up to two affixes, with deterministic elites and a tighter King attack rhythm.
+Five legally earned consecutive clears verify one build; broader tuning is open.
+The old challenge counter remains distinct from numbered tier progress.
+Classes: Fighter, Rogue,
 Ranger, Caster, with inherited class XP and verb ladders. Bloodline Legacy
 persists across heirs and ascensions, but only buys health/damage/armour,
 three ranks each. There is no branching Legacy tree or advanced class yet.
 Source: engine.rs Game::ascend; hero.rs Class; legacy.rs offers/apply.
 
-Existing ascension also clears shared spendable gold and selected kit/depth.
+The older challenge ascension clears shared spendable gold and selected kit/depth.
+The new numbered path retains gold, equipment, Legacy and class progression,
+resetting the selected descent while preserving other bloodlines/live runs.
 Do not silently reinterpret existing saves or these verified consequences.
 The new progression needs an explicit migration and revised pre-descent review.
 
