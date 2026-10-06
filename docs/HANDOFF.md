@@ -1,3 +1,20 @@
+**EARNED EARLY STYLE AUDIT — 2026-10-06:** Predeterminedseeds1/3/5 actual
+shippedWASM newhouse/3manualsends/earnedporter+scout, then8hcheckins; allBold/
+BossFocus/KiteArchers ownedby32h. No gold/unlocks/stats forged, noextra buildings/
+upgrades/hires. Sparseplayerstates best11/13/18. Fiveindependentnext8hcases each
+baseline/Guarded/BossFocus/KiteArchers/Bold; all15reports +exactfinalsaves match
+native/WASM; immutableinput/executable/outputSHA bound. Nativebatches1.99/1.35/
+2.88s,warmbuild0.04–0.06 (fixtureonly). Bold11–13deaths/$0in2towns, stillMother
+winseeds1/3 and$5781seed1; Guardednewboss/goldall3, deeperthanbaseline1/5.
+Threecaseaudit notgeneralbalance; no tune/nerf/gatechanges. Headedseed3reports
+clean/screenshotBoldshown: Mother+Gold0, deathsunderDetails. EARLY_STYLE_AUDIT.md
++scratchpad/early-style-audit-20261006/. WASM7554108…unchanged. No app/core/WASM/
+balance/deploychanges. Next: recovery/supply experiment on immutablestates and
+broader earlywalltargetedfullseedrequirements beforecontentedit. Also audit
+reportTraining presentation against existingicon requirement (BoldL2 currently
+text-only), if owner continues graphics; do not regenerate traitart speculatively.
+Keepgoalactive.
+
 **METER QA CURRENT PATH RESTORED — 2026-10-06:** Old cut29meters queried
 removedcommandbar meter tile; now opens Speed→Run controls, retains units/
 toggle assertions and closes sheet. Two completedmeters fixturehadbest0 so
