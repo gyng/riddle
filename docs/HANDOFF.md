@@ -1,3 +1,34 @@
+**CONTENT/CHECKPOINT AUDIT — 2026-10-06:** Document
+CONTENT_CHECKPOINT_AUDIT_20261006.md enumerates7biomes/37unit definitions/
+6band bosses/43item definitions/4classes/14packages/11workers/3bloodlines/
+Legacy/D34+4ascension variants. All37sprite candidates packed; gold/bones/trap
+itemIcon glyph fallback remains. Months-long expedition/glory/era/dynasty,
+advanced classes/relic sets are reserved/deferred design, not implemented.
+Primary-source Melvor/Idleon/Stone Story comparisons fetched today, no rank or
+invented timings. Code/test evidence distinguished from actual earned checks.
+3fresh WASM no-choice towns seed1/3/5, house+3manualsend+porter/scout, longcalls
+8/24/72/168/336h: allD21 at336h, no other builds/picks. Canonical targeted
+idle-d23 --seeds3 --fresh PASS10s,seed1/2/3 allby12d/median6.33; not gate.
+Controlled same earnedseed3 eight-hour save +exact160h: wholeD21/heir20,
+24hD22/heir23,8hD28/heir28,client0.5h runOfflineSlice320callsD28/heir47.
+Wallclock168.59h all; total_turns/10 hours169.23/169.91/191.60/305.52.
+ROOT: offline::run_offline_with finishes a live run beyond budget each call;
+app::runOfflineChunked uses30min slices, so gifting whole run completions at
+each transport boundary, plus rest clamp/reveal_left reset. last flag currently
+only suppresses stall verdict, not simulation boundary. age_h=max(clock_s,
+total_turns/10) accelerates age gates as a consequence. This is next P0 fix;
+write contract and verify one boundary/reveal budget per actual absence,
+intermediate live/rest persistence, exact simulation state parity/age,
+1/3bloodlines/pre-scout/load/day/worker/quest/report merge and real-return
+convenience. Do not weakenD23 bar, claim this is forecast noise, or certify
+full balance. Profile equivalent outcomes before speed claims.
+Actual earned400/1440 empty/day1/coarseweek2 and exact client-sizedweek1
+screens captured, viewed/shown; no errors/overflow. ArtifactJSON/rawsaves/
+hashes/scripts scratchpad/content-audit-20261006/. Preview5433 cleaned;
+shared5219 preserved. Doc-only repo changes/no deployment. NEXT_WORK points
+toP0 then readable milestone/reward/preparation/icons/ending/variety/one scoped
+optional early reset. Broad goal remains active.
+
 **TACTIC OBSERVABILITY — 2026-10-06:** Small existing-art icon row above plain
 history, style/tactic/personality/boss-counter order. Known origins only;
 snapshot rows/catalog at mount. Counts/cues release at picture clock; fallback
