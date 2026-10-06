@@ -438,7 +438,10 @@ now downloads a versioned diagnostic JSON with fresh complete Rust Session
 save, all bloodlines, build/engine identity, separate UI drafts/screen/replay
 context and bounded errors/actions. Save-only capture, no stale fallback;
 changing state retries and failure stays explicit. Copy/manual fallback remains
-available. tools/debug-export.mjs extracts an importable save + context file
+available. `tools/choice-check.mjs` also accepts this tester dump directly,
+validates it and retains capture/build provenance alongside the current native
+executable hash (docs/DEV_DUMP_CHOICE_CHECK.md).
+`tools/debug-export.mjs` extracts an importable save + context file
 without overwriting. Actual shipping-WASM400/1440 tests cover exact multihero
 and in-flight restore, subsequent offline results, immediate purchase/catch-up,
 error/retry/fallback/optional metadata; export gate ~5s. Settings stack/report,

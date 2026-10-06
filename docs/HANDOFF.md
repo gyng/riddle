@@ -1,3 +1,16 @@
+**TESTER DUMP → FAST CHOICE DIAGNOSTIC — 2026-10-06:** Export already built;
+choice-check now accepts versioned tester dumps directly via readDebug,
+validates before Cargo and sends exact embedded engine string to Rust (no JS
+integer roundtrip). Rawsave behavior retained. Manifest sourceSHA +engineSHA,
+capture/build metadata and current native binarySHA; runs current code, does
+not recreate captured executable. Actual2hero/exportselected2 in-flightbefore
+scout: baseline/Steady1h report/finalsave exact vsraw; source/runtime hashpass.
+Warmdump0.09s(build0.06)/raw0.08s; pre-scout1run, no general timingclaim.
+Badformat/schema/missingengine reject beforecompile/output; syntax/diff pass.
+DEV_DUMP_CHOICE_CHECK.md; scratchpad/dump-choice-check-20261006/. No app/core/
+WASM/deploy, CLI-only no screenshot. Keep broad goal active; next actualearned
+content comparisons can start directly from tester reports.
+
 **CONSTRUCTION FINISH / REDUCED MOTION — 2026-10-06:** House now shares
 later buildings' completion glint. All construction timers skip reduced motion,
 so later buildings no longer play scaffold/dust/glint against that preference.

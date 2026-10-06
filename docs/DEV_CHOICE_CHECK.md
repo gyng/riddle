@@ -14,7 +14,11 @@ timings. Warm feedback should finish in seconds for the first-boss fixture;
 verify outcomes against the real WASM diagnostic, plus a multihero save and
 invalid choices. Don't generalise one saved-town result into a balance verdict.
 
-SAVE is the game's raw saved JSON. Each case changes the saved Session's
+SAVE can be the game's raw saved JSON or a Settings → Debug export dump.
+Dumps are validated before running; the embedded engine string is loaded exactly.
+The manifest retains source capture/build metadata, source and engine SHA-256,
+and the current native executable SHA. This runs the current code against the
+captured state; it does not restore the tester's older executable. Each case changes the saved Session's
 selected hero, while every active bloodline continues its normal absence.
 An optional `:SLOT` is the **tactic equipment slot**, not a bloodline id; it
 defaults to0. Each listed choice is an independent comparison, not a combined

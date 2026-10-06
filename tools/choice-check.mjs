@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
+import { readDebug } from './debug-export.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..'), sha = b => createHash('sha256').update(b).digest('hex');
 function run(cmd, args, env) {
     const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env });
@@ -17,7 +18,7 @@ function run(cmd, args, env) {
 async function main() {
     const args = process.argv.slice(2);
     if (args.includes('--help')) {
-        console.log('usage: node tools/choice-check.mjs SAVE --choices ID[:SLOT],... [--hours 8] [--out NEW_DIR] [--balance PROFILE]\nBaseline and each choice replay the same saved Session. Diagnostic only; not a balance gate.');
+        console.log('usage: node tools/choice-check.mjs SAVE_OR_DUMP --choices ID[:SLOT],... [--hours 8] [--out NEW_DIR] [--balance PROFILE]\nBaseline and each choice replay the same saved Session. Diagnostic only; not a balance gate.');
         return;
     }
     const save = args.shift();
@@ -50,7 +51,16 @@ async function main() {
         throw Error('duplicate choice');
     if (out && existsSync(out))
         throw Error('output directory already exists; refusing to replace it');
-    const input = readFileSync(save), inputHash = sha(input), env = { ...process.env };
+    const source = readFileSync(save), inputHash = sha(source), env = { ...process.env };
+    const header = JSON.parse(source.toString('utf8'));
+    let input = source, provenance = null;
+    if (header && typeof header === 'object' && 'format' in header) {
+        const { bundle } = readDebug(source.toString('utf8'));
+        input = Buffer.from(bundle.save.engine, 'utf8');
+        provenance = { format: bundle.format, schema: bundle.schema, build: bundle.build,
+            capture: bundle.capture, captured_at: bundle.captured_at };
+    }
+    const engineInputHash = sha(input);
     if (balance)
         env.RIDDLE_BALANCE_JSON = readFileSync(balance, 'utf8');
     else
@@ -87,7 +97,7 @@ async function main() {
                 writeFileSync(join(out, file), body);
                 files.push({ file, sha256: sha(body) });
             }
-            writeFileSync(join(out, 'manifest.json'), JSON.stringify({ version: 1, input: resolve(save), inputSha256: inputHash, binarySha256: binaryHash, balanceSha256: balance ? sha(env.RIDDLE_BALANCE_JSON) : null, selected: result.selected, slots: result.slots, hours, choices: parsed, cases: files, buildSeconds, totalSeconds: (performance.now() - started) / 1000 }, null, 2));
+            writeFileSync(join(out, 'manifest.json'), JSON.stringify({ version: 1, input: resolve(save), inputSha256: inputHash, engineInputSha256: engineInputHash, sourceCapture: provenance, binarySha256: binaryHash, balanceSha256: balance ? sha(env.RIDDLE_BALANCE_JSON) : null, selected: result.selected, slots: result.slots, hours, choices: parsed, cases: files, buildSeconds, totalSeconds: (performance.now() - started) / 1000 }, null, 2));
         }
         console.log(`choice-check: ${result.slots} active ${result.slots === 1 ? 'hero' : 'heroes'} · build ${buildSeconds.toFixed(2)}s · total ${((performance.now() - started) / 1000).toFixed(2)}s · diagnostic only`);
     }
