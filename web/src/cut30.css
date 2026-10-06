@@ -133,3 +133,9 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .report-choice-copy { display: flex; flex-direction: column; min-width: 0; }
 .report-choice-copy small { font-size: 13px; line-height: 1.3; opacity: .8; overflow-wrap: anywhere; }
 .training-lineage { font: 600 14px/1.2 var(--control-font); }
+
+/* Earned training uses the same silhouettes as choices, with unboxed art. */
+.run-training .beat-plaque { padding: 5px 8px; }
+.run-training .beat-plaque > :first-child { width: 32px; height: 32px; flex: 0 0 32px; }
+.run-training .beat-plaque .icon-socket { padding: 0; background: none; border: 0; box-shadow: none; }
+.run-training .beat-plaque .icon-socket .ico { width: 100%; height: 100%; object-fit: contain; }

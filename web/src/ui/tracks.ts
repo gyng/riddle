@@ -4,7 +4,8 @@
 import "../cut30.css";
 import type { GrewLine, Lineage, ReturnReport } from "../engine/types";
 import { h } from "./dom";
-import { icon, portraitSrc } from "./skin";
+import { icon, packageIcon, portraitSrc } from "./skin";
+import { unitLabel } from "./unit-icon";
 import { kwText } from "./tips";
 
 export const TRACK_IDS = ["character", "items", "scale", "town"] as const;
@@ -71,9 +72,21 @@ export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: str
 
 /** Already-earned core level/drill beats, surfaced without exposing routine details. */
 export const trainingBeats = (beats: string[] | undefined): string[] => (beats ?? []).filter((b) => /^DRILLED\b/.test(b) || / L\d+$/.test(b));
-const trainingBadges = (earned: string[]): HTMLElement =>
-  h("div", { class: "beats" }, ...earned.map((b) => h("span", { class: `beat-plaque${/^DRILLED/.test(b) ? " drill" : ""}`, "data-training": b },
-    b.replace(/^DRILLED · (.+)$/, /* copy:label */ "$1 tactic"))));
+// Reverse the core's sifter::boss_short labels, not the selected hero's knowledge.
+const TRAINING_BOSSES: Record<string, string> = { Warlord: "goblin_warlord", Mother: "bloat_mother", Lich: "lich", Master: "foundry_master", Queen: "lurker_queen", King: "mirror_king" };
+function trainingBadge(beat: string): HTMLElement {
+  const drill = /^DRILLED · (.+)$/.exec(beat);
+  const boss = drill ? TRAINING_BOSSES[drill[1]] : undefined;
+  const level = /^(.*) L\d+$/.exec(beat);
+  const id = level?.[1].toLowerCase().replace(/ /g, "_");
+  const label = beat.replace(/^DRILLED · (.+)$/, /* copy:label */ "$1 tactic");
+  const badge = unitLabel(boss ?? "", label, { px: 32,
+    art: boss ? undefined : id ? packageIcon(id) : icon("unlocks", "✦"),
+    className: `beat-plaque${drill ? " drill" : ""}` });
+  badge.dataset.training = beat;
+  return badge;
+}
+const trainingBadges = (earned: string[]): HTMLElement => h("div", { class: "beats" }, ...earned.map(trainingBadge));
 export function trainingBlock(beats: string[] | undefined): HTMLElement | null {
   const earned = trainingBeats(beats);
   return earned.length ? h("section", { class: "run-training" },

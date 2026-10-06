@@ -1,3 +1,16 @@
+**EARNED TRAINING ICONS — 2026-10-06:** Closed text-only Training gap from
+style audit. Report/death badges now shared unitLabel32px/8px gap; existing
+unboxed packageIcon silhouettes for levels, own canonical boss_short portrait
+for drill. Unknown future names generic progress art/exact text; no selected
+loadout/facts borrowing. Six boss mappings verified against Rust; long labels
+wrap. Trainingicons +runtraining/bloodlinetraining/reportbosses/deathhero5/5
+pass7.7s; build/typecheck/copy1556/diff clean. Prior actual earned seed3 Guarded/
+Bold8h reports rendered in current WASM400/1440: save byte-identical onopen,
+art decoded/bounded/noerrors; screenshots shown. GFX_TRAINING_ICONS.md;
+scratchpad/training-icons-20261006/. No core/balance/newart/deploy. Keep broad
+goal active; next gameplay evidence remains recovery/supply experiment from
+immutable earned towns before any content tuning.
+
 **INTERACTIVE AMBIENT MOTES + FRAMED DEATH PORTRAITS — 2026-10-06:** Owner
 asked for moving air/pointer interaction and bigger framed death portraits.
 Replaced uniform CSS tile with16–36 prepainted transform sprites at~30Hz,
