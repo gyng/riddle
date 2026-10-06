@@ -190,6 +190,8 @@
   "v_descend",
   "v_drink",
   "v_explore",
+  "v_gun_aim",
+  "v_gun_burst",
   "v_magic",
   "v_read",
   "v_rest",

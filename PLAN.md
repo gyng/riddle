@@ -48,8 +48,13 @@ normal earned paid-upkeep paths now pass D13 within48h on all six seed/gun
 cases; two seed1 builds master at168/152h and the other four miss seven-day
 mastery. All six clear Tier0 within seven days. Ordinary reload retreat preserves
 actual action costs/deadlines; paired fixtures verify distinct gun/bow strengths. Chosen tactics/temperaments now precede automatic
-gun handling, with actual empty-gun refusal/reload fallthrough. Initial-kit/Tier5 balance,
-action icons and full parity/performance acceptance remain open. Earlier bow-
+gun handling, with actual empty-gun refusal/reload fallthrough. A neutral captive
+validation mismatch caused full-health navigation bailouts; gun/aim targeting now
+honours the same adjacent chained-gate rule as ordinary attacks. All six normal
+earned builds reach ownedTier5; five clear it within48h, seed5long still fails.
+Six Tier5 send/replay/save samples and a full positive gate replay match WASM
+exactly. Aim/burst action icons are packed. Remaining action art, Tier5 balance,
+and full parity/performance acceptance remain open. Earlier bow-
 override progression claims were corrected; see CUT35/HANDOFF. No deployment.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an

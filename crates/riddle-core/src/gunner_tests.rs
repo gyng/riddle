@@ -20,6 +20,33 @@ fn foe(g:&mut Game,x:i32,y:i32) {
 fn act(g:&mut Game,verb:&str)->bool {let(r,mut cx)=g.ctx();let v=crate::turn::view(r);crate::ai::try_verb(r,&mut cx,&Verb::new(verb),&v)}
 fn cadence(g:&mut Game)->bool {let(r,mut cx)=g.ctx();let v=crate::turn::view(r);crate::ai::try_verb(r,&mut cx,&Verb::arg("tactic","cadence"),&v)}
 #[test]
+fn chained_stairs_gate_accepts_actual_gun_shots_but_neutrals_and_allies_do_not() {
+    for kind in ["long_gun","short_gun"] {
+        let mut g=arena(kind,3);
+        crate::tests::add_monster(&mut g,"captive",5,5);
+        let m=&mut g.run.as_mut().unwrap().monsters[0];
+        m.neutral=true;m.situation=Some("captive".into());m.hp=1;
+        let mut restored=Game::load(&g.save()).unwrap();
+        assert!(act(&mut g,"gunner_tactic"));assert!(act(&mut restored,"gunner_tactic"));
+        assert_eq!(g.save(),restored.save());
+        assert!(g.run.as_ref().unwrap().monsters[0].hp<=0);
+        assert!(g.events.iter().any(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="fire")));
+        assert!(g.events.iter().any(|e|matches!(e,Ev::Callout{text,..} if text=="no friends")));
+        for (x,chained,ally) in [(6,true,false),(5,false,false),(5,false,true)] {
+            let mut g=arena(kind,3);crate::tests::add_monster(&mut g,"captive",x,5);
+            let m=&mut g.run.as_mut().unwrap().monsters[0];
+            m.neutral= !ally;m.ally=ally;m.situation=chained.then(||"captive".into());
+            let before=g.save();assert!(!act(&mut g,"fire"));assert_eq!(g.save(),before);
+        }
+        if kind=="long_gun" {
+            let mut g=arena(kind,3);crate::tests::add_monster(&mut g,"captive",5,5);
+            let m=&mut g.run.as_mut().unwrap().monsters[0];m.neutral=true;m.situation=Some("captive".into());m.hp=100;
+            assert!(act(&mut g,"aimed_shot"));assert!(act(&mut g,"fire"));
+            assert!(g.events.iter().any(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="aimed_shot")));
+        }
+    }
+}
+#[test]
 fn known_ranged_reflection_draws_sidearm_and_restores_saved_gun() {
     let mut g=arena("long_gun",3);crate::tests::add_monster(&mut g,"lich",6,5);
     g.run.as_mut().unwrap().monsters[0].stun=1000;

@@ -1464,11 +1464,18 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
     true
 }
 
+// Match the ordinary attack view: an adjacent chained gate is attackable,
+// while distant captives and freed allies remain protected. Otherwise a gun
+// can reach the stairs at full health and repeatedly refuse the only target.
+fn gun_target_alive(run: &Run, m: &Monster) -> bool {
+    let chained=m.neutral&&m.situation.as_deref()==Some("captive")&&m.pos.adjacent(run.hero.pos);
+    m.hp>0&&(m.hostile()||chained)&&!m.dormant
+}
 fn reserve_gun(run: &mut Run, mi: usize, profile: crate::firearm::Profile, burst: bool) -> bool {
     if run.gun_reload.is_some() { return false; }
     let Some(m) = run.monsters.get(mi) else { return false; };
     let target = crate::firearm::ShotTarget {
-        from: run.hero.pos, to: m.pos, hostile_alive: m.hp > 0 && m.hostile() && !m.dormant,
+        from: run.hero.pos, to: m.pos, hostile_alive: gun_target_alive(run,m),
         visible: run.floor.map.is_visible(m.pos), los: run.floor.map.los(run.hero.pos, m.pos),
     };
     let Some(mut chambers) = run.hero.weapon.as_ref().and_then(|w| w.firearm) else { return false; };
@@ -1492,7 +1499,7 @@ fn aim_gun(run:&mut Run,cx:&mut Ctx,sel:&str,v:&View)->bool {
     let aim=crate::firearm::Aim {item:w.id,target:m.id,from:run.hero.pos};
     if run.gun_skills.as_ref().and_then(|s|s.aim)==Some(aim) {return false;}
     let Some(mut c)=w.firearm else {return false;};
-    if c.fire(p,crate::firearm::ShotTarget {from:run.hero.pos,to:m.pos,hostile_alive:m.hp>0&&m.hostile()&&!m.dormant,
+    if c.fire(p,crate::firearm::ShotTarget {from:run.hero.pos,to:m.pos,hostile_alive:gun_target_alive(run,m),
         visible:run.floor.map.is_visible(m.pos),los:run.floor.map.los(run.hero.pos,m.pos)},false).is_err() {return false;}
     run.gun_skills.get_or_insert_with(Default::default).aim=Some(aim);
     run.last_target=Some(m.id);callout(run,cx,"aim steady");true

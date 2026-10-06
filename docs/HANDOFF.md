@@ -1,3 +1,38 @@
+**CUT35 CHAINED-GATE FIX / EARNED TIER5 / AIM-BURST ART — 2026-10-07 (PARTIAL):**
+
+Authoritative new baseline/captive-fix descent results are in scratchpad/
+gunner-earned-descents-{baseline,captive-fix}-20261007. Six unchanged baseline
+336h climbs all failed to ownTier5. Five camps' recent60runs had53–56 stuck
+returns. Actual seed1long full replay: D10 return at57/57HP, chained captive
+blocking stairs. Firearm/aim required hostile, although ordinary attack view
+admits adjacent chained captives. gun_target_alive now matches that exact gate
+rule; distant/un-chained neutrals/allies remain protected. No stats/timers/grants
+changed. Test verifies both guns, actual killed gate/no-friends event, restore
+exactness, refused protected targets exact, real prepared shot. Initial fixture
+was two tiles away; next attempt tried prepare twice rather than prepare/fire;
+both corrected. Full quick671corePASS/oneignored, TS/copy1721zero. Native-host
+tool test sandbox failure; local-server rerun2/2PASS. Other6tool filesPASS.
+Final workspace/alltarget fast clippyPASS (initial spacing lint corrected).
+Build/focused client3/3PASS. No new full/current18gate or perf certification.
+
+Same seed1 saved replay now reachesD18/deathLich. All4632events/finalsave
+native/WASM exact. Six real earned Tier5 send/10000tick/fullsave samples exact;
+fastWASM5473814bytes. All six now actually earnTier5: climb long/short hours
+seed1=80/144,3=88/152,5=88/112 (partially played initialTier1, not fresh times).
+Fixed paidTier5 clears long/short:1=40/32,3=24/8,5=FAIL48/24. Five-of-six,
+not full acceptance. Next investigate seed5long real Lich counter/build behavior.
+Permanent gunner_descents retains public earned tier choices/failures;
+gunner_trace records actual saved run events. Existing paid camp moved verbatim
+to examples/gunner_support/mod.rs, verified against HEAD source.
+
+Aim/burst built-in generated masters copied to art/ui/icons/v_gun_{aim,burst}.png,
+packed96px, wired verbIcon; basefire uses existing it_long_gun. 115oldicons
+pixel-identical. Prompt/source provenance art/prompts/gunner-actions-20261007.md;
+32px dark-background inspection. Remaining4action icons pending. Actual headed
+Tier5 worker1440/400/320 nooverflow/errors/tipsPASS; screenshots shown. Own5375
+closed, shared5219 preserved. UI screenshot Rules chores113% needs accounting
+investigation; do not call it resolved. UI_READY=false; no deploy;95fun unverified.
+
 **CUT35 RELOAD RETREAT / GUN-BOW MATCHUPS / QUIET ACTUAL COMBAT LOG — 2026-10-07 (PARTIAL):**
 
 Accepted change: active default Gunner reload spends its ordinary scheduled

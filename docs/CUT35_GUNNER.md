@@ -1,5 +1,44 @@
 # Cut 35 — Gunner, long guns and short guns
 
+## Earned-descent navigation correction — 2026-10-07
+
+The unchanged six-build 336h diagnostic failed to earn Tier5 in every case:
+seed1 long/Tier2, short/Tier1; seed3 long/Tier2, short/Tier1;
+seed5 long/Tier1, short/Tier2. Five camps' last60 runs contained53–56
+`stuck · went home` exits. Actual seed1long replay returned at D10 with57/57HP,
+the trace naming `captive chained the way`. Ordinary targeting admits adjacent
+chained captives, while gun/aim validation rejected every neutral. Aligning
+gun validation with that existing adjacent-only gate rule fixes the mismatch;
+ordinary neutrals, distant captives and freed allies remain protected.
+No damage, HP, reload timing, stance, generation or tier grants changed.
+
+Same saved run now passes the captive and reachesD18, dying to the Lich.
+Full event stream4632events and final save match WASM exactly.
+Rerunning from the same real7day sources, all6 actually earnTier5:
+climb hours long/short: seed1=80/144, seed3=88/152, seed5=88/112.
+These timings begin from partially playedTier1 camps. Fixed paidTier5 clear
+hours: seed1=40/32, seed3=24/8, seed5=FAIL48/24. Five-of-six acceptance,
+not a full Tier5 pass. Preserve the seed5long Lich failures and investigate
+actual counter/build behavior next. Source/results: scratchpad/
+gunner-earned-descents-{baseline,captive-fix}-20261007; replay evidence:
+gunner-swift-trace{,-fixed}-20261007.
+
+Paid camp helper moved verbatim into examples/gunner_support/mod.rs;
+gunner_descents and gunner_trace retain earned sources and diagnostic failures.
+671corePASS/oneignored, fast all-target clippy, TS/copy and web build;
+focused client3/3; native host2/2 passes with local-server access after sandbox
+failure. Rebuilt realWASM5473814bytes: all6 earnedTier5 send/10000tick/full
+saves exact, plus positive full captive-gate replay above. Headed actual earned
+Tier5 worker1440/400/320 has no overflow/pageerror and correct gun tap tips.
+Screenshots shown. Not a new full-gate or general performance certification.
+
+Aim/burst bitmap masters and96px packed action icons now use the existing
+verbIcon module; basefire uses existing long-gun art. All115 old icons remain
+pixel-identical. Prompts/provenance: art/prompts/gunner-actions-20261007.md.
+Reload/fast-reload/Smoke/finisher art and full choice/death/replay acceptance
+remain pending. UI_READY remains false; no deployment. Screenshot caught
+an unrelated Rules share over100%; investigate meter event/action accounting.
+
 Owner request2026-10-07: add a Gunner class, with long and short guns, distinct
 from archery. This becomes the next class priority, before proposed Rogue/
 Ranger specializations. Finish Cut34's live verification without abandoning it.
@@ -430,3 +469,17 @@ Full670tests and old fixtures pass; four8h one/three-slot positive-reload parity
 cases and two actual one-tick retreat nativeWASM cases exact. Scoped equal-work
 native firing/reload overhead+1.41/+1.98%, intentional new retreat work excluded.
 Artifacts and limitations in HANDOFF. Tier5/action art/full UI/routine gate open.
+
+
+## Earned harder-descent acceptance — 2026-10-07
+
+Start from the saved normal seven-day campaigns, which have actually cleared
+Tier0 and begun Tier1. No depth/XP/kit/currency/fact/tier grants. Continue public
+paid upkeep and actual clears through Tier4, explicitly select the newly owned
+Tier5 at home. Save the earned chain. Measure each selected gun/seed1/3/5 at
+Tier5 for48h after explicit paid preparation, with no further home purchases
+inside that fixed-build observation. Preserve all failures, including failure
+to reach ownedTier5 within the separate declared climb budget. Report historical
+partialTier1 timing separately, never as a fresh clear. Source seed/weapon/class
+and actual positive firing/reload sample must match. Shared paid camp helper
+must preserve existing48h results exactly. Diagnostic, not routine gate/fun score.
