@@ -41,7 +41,7 @@ export type Entity = { modifiers?:EncounterModifiers; id: number; kind: string; 
                        remembered?: boolean };                          // Cut 4 §3: pursued but unseen, at its last seen tile (drawn dimmed)
 export type FloorItem = { id: number; x: number; y: number; kind: string; known: boolean; label: string };
 export type GunSnap = { item:number; kind:string; loaded:number; capacity:number; range:number;
-  damage:[number,number]; armour_piercing:number; reload_ticks:number; reload_left:number };
+  damage:[number,number]; armour_piercing:number; reload_ticks:number; reload_left:number; reload_until?:number; aiming?:boolean };
 export type Snapshot = {
   difficulty?:number; modifier_catalogue?:ModifierInfo[];
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
@@ -158,6 +158,7 @@ export type InvItem = { id: number; kind: string; known: boolean; label: string;
 export type Rarity = "common" | "uncommon" | "rare" | "epic" | "legendary";
 
 export type Ev =
+  | { t:number; k:"gun"; state:GunSnap|null }
   | { t: number; k: "move"; id: number; x: number; y: number }
   | { t: number; k: "attack"; src: number; dst: number; dmg: number; hit: boolean; verb?: string }
   | { t: number; k: "hurt"; id: number; dmg: number; hp: number; cause: string }

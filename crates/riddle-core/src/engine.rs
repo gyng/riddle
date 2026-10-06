@@ -4383,7 +4383,12 @@ impl Game {
         // Cut 29 §3: the hero's and the pets' hp before the tick (the meters' healing).
         let hero_hp0 = run.hero.hp;
         let pets_hp0: Vec<(u32, i32)> = if cx.sim { Vec::new() } else { run.monsters.iter().filter(|m| m.ally && m.hp > 0).map(|m| (m.id, m.hp)).collect() };
+        let gun_before = crate::firearm::ObservedGun::of(run);
         crate::turn::tick(run, &mut cx);
+        let gun_after = crate::firearm::ObservedGun::of(run);
+        if gun_before != gun_after {
+            cx.events.push(Ev::Gun { t:run.turn, state:gun_after.map(|g|Box::new(g.snapshot(run.turn))) });
+        }
         if !cx.sim {
             crate::meters::heals(run, &mut cx, before, std::iter::once((HERO_ID, hero_hp0)).chain(pets_hp0));
             run.meters.tick(&cx.events[before..], run.monsters.iter().filter(|m| m.ally).map(|m| m.id));
@@ -4548,16 +4553,7 @@ impl Game {
         let m = &run.floor.map;
         let h = &run.hero;
         let hero = HeroSnap {
-            gun: h.weapon.as_ref().and_then(|w| {
-                let profile = crate::firearm::Profile::of(&w.kind)?;
-                let chambers = w.firearm?;
-                Some(crate::wire::GunSnap {
-                    item: w.id, kind: w.kind.clone(), loaded: chambers.loaded,
-                    capacity: profile.capacity, range: profile.range, damage: h.atk(),
-                    armour_piercing: profile.armour_piercing, reload_ticks: profile.reload_ticks,
-                    reload_left: run.gun_reload.map_or(0, |r| r.at.saturating_sub(run.turn)),
-                })
-            }),
+            gun: crate::firearm::ObservedGun::of(run).map(|g|g.snapshot(run.turn)),
             entity: Entity {
                 id: HERO_ID,
                 kind: format!("hero_{}", h.class.name()),

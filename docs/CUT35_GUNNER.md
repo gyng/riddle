@@ -6,7 +6,8 @@ Ranger specializations. Finish Cut34's live verification without abandoning it.
 Status: fifth class, paid unlock, per-class XP, weapon ownership/forge choice,
 named default tactics and all five skill rungs implemented. Forge choice is
 verified in the actual WASM worker at320/400/1440. Sprite/portrait packed and
-rendered. Public class offers remain hidden until action art/watch/replay and
+rendered. Compact played chamber/reload/aim watch and death-trace replay
+indicators are implemented with scoped real-worker QA. Public class offers remain hidden until action art and
 the complete acceptance checks pass. Initial campaign source had an explicitly
 selected bow; earlier gun-progression claims are superseded below. Corrected
 actual-kit campaigns verify real guns firing/reloading but still fail7day
@@ -284,3 +285,25 @@ positive firing/reload cases have complete native/WASM whole and each uneven
 sliced/reloaded StepResult/save equality. Six old tier0/challenge full event/
 save fixtures and12older Tier5 campaigns exact. No fresh routine18case or full
 positive-performance gate at this partial checkpoint. Full A–E remains open.
+
+
+## Played-state observability checkpoint — 2026-10-07
+
+Actual tick-boundary Gun events carry worn chambers, aim and reload deadline;
+null clears a parked/stolen gun. Event payload boxed: Ev remains80bytes. Absolute
+reload duration records actual fast reload10/8ticks, with default omission for old
+prototype saves. Snapshot and played events use one Rust calculation. Negative
+checks allocate nothing or scan inventories/enemies; countdown ticks add no events.
+Shared watch/death-trace replay component shows chambers, Ready/Aim/Reload and
+progress. Actual rendered gun state follows replay clock including backward seek;
+GPU and2D fallback expose the same state. Existing hover/focus/tap stat tooltip
+shows damage, tile range, reload seconds and armour piercing. No new speed panel.
+Real headed earned seed3Tier1 app1440/400/320 has no overflow/page errors; actual
+400px firing/reload and replay show0/1 Reload. Evidence gunner-observer-20261007.
+29focused tests and665core/14tool quick checks pass; clippy/codegen/TS/copy/build/
+fastWASM pass. Six old full-save/event fixtures and two numbered saves remain
+exact. Both controlled61tick positive native/WASM firearm fixtures, including
+uneven sliced/reloaded complete steps/saves, exact. These are explicitly arenas,
+not normal earned progression or eight-hour/multi-bloodline proof. Original A–E
+remain open: normal three-seed balance/mastery/Tier5, action icons, full eight-hour
+parity/positive performance and routine18case gates. UI_READY=false; no deployment.

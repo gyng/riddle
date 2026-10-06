@@ -40,8 +40,13 @@ Cut34 adds Leeching elites at Tier6+, poison/range counter and actual replay/log
 recovery. Six fixed-build Tier6 cases clear16–24h; older Tier5 outcomes remain
 byte-exact. Hot event208→80bytes, positive recovery overhead1.12%, scoped
 parity/UI/current18case checks pass. Owner's next class is Gunner with actual
-long/short guns, chambers and reload timing (`docs/CUT35_GUNNER.md`). Contract
-and equipment art prepared; Gunner gameplay is not implemented yet.
+long/short guns, chambers and reload timing (`docs/CUT35_GUNNER.md`). Fifth class/paid unlock/classXP and real long/short gun chambers, reloads,
+aim/burst/smoke/fast reload/finisher are implemented, with forge choices and
+portrait/sprite. Compact played chamber/reload/aim watch and death-trace replay
+indicators have scoped real-worker QA. Public class offers remain hidden:
+current actual-gun seven-day mastery fails; normal three-seed/Tier5 balance,
+action icons and full parity/performance acceptance remain open. Earlier bow-
+override progression claims were corrected; see CUT35/HANDOFF. No deployment.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an
 automation/idle game first, never as an action roguelike (`research/idle-attraction.md` §1.1).

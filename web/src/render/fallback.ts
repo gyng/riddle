@@ -40,6 +40,7 @@ export function createFallbackViewer(canvas: HTMLCanvasElement): Viewer {
     sync(snap) { st.sync(snap); },
     setFrame(f) { mode = f; st.fight = f === "fight"; stats.frame = f; },
     frame() { return mode; },
+    gun() { return st.gun; },
     tick() { return st.tickNow(); },
     idle() { return st.idle(); },
     resize() { /* the view fits the canvas each frame */ },

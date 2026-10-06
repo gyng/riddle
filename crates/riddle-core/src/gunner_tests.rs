@@ -172,3 +172,32 @@ fn fast_reload_and_finisher_use_real_level_timer_ammo_and_hp_gates() {
     assert_eq!(g.run.as_ref().unwrap().hero.weapon.as_ref().unwrap().firearm.unwrap().loaded,0);
     assert!(g.events.iter().any(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="finishing_shot")));
 }
+
+
+#[test]
+fn played_aim_and_sidearm_events_follow_real_actions() {
+    let mut g=arena("long_gun",3);foe(&mut g,6,5);
+    crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("aimed_shot"))]);
+    g.run.as_mut().unwrap().hero.energy=crate::engine::ACT_ENERGY;g.tick();
+    assert!(g.events.iter().any(|e|matches!(e,Ev::Gun{state:Some(s),..} if s.aiming&&s.loaded==1)));
+    let mut saved=Game::load(&g.save()).unwrap();
+    assert!(saved.snapshot().hero.gun.unwrap().aiming);
+    g.events.clear();saved.events.clear();
+    crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("fire"))]);
+    crate::tests::rules(&mut saved,vec![Row::new(vec![],Verb::new("fire"))]);
+    g.run.as_mut().unwrap().hero.energy=crate::engine::ACT_ENERGY;
+    saved.run.as_mut().unwrap().hero.energy=crate::engine::ACT_ENERGY;
+    g.tick();saved.tick();assert_eq!(g.events,saved.events);
+    assert!(g.events.iter().any(|e|matches!(e,Ev::Gun{state:Some(s),..} if !s.aiming&&s.loaded==0)));
+    let mut g=arena("long_gun",3);
+    crate::tests::add_monster(&mut g,"lich",6,5);g.run.as_mut().unwrap().monsters[0].stun=1000;
+    g.run.as_mut().unwrap().hero.inv.push(Item::new(901,"sword"));
+    g.lineage.facts.insert("foe:lich:reflect".into());
+    crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("gunner_tactic"))]);
+    g.run.as_mut().unwrap().hero.energy=crate::engine::ACT_ENERGY;g.tick();
+    assert!(g.events.iter().any(|e|matches!(e,Ev::Gun{state:None,..})),"stowing clears gun display");
+    g.run.as_mut().unwrap().monsters[0].hp=0;
+    crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("hold"))]);g.events.clear();
+    for _ in 0..10 {g.tick();}
+    assert!(g.events.iter().any(|e|matches!(e,Ev::Gun{state:Some(s),..} if s.loaded==1&&!s.aiming)));
+}

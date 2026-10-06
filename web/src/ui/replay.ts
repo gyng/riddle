@@ -6,6 +6,7 @@
 // disposed or cleared until the sheet closes), and the floor's fade-to-dark events are not replayed.
 import type { Because, Ev, Snapshot } from "../engine/types";
 import { h } from "./dom";
+import { gunStatus } from "./gun-status";
 import { clipWindow, floorFor, floorSnapshot, floorStart, type RunLog } from "./runlog";
 import { openSheet } from "./sheet";
 import { makeViewer, type Viewer } from "./viewer";
@@ -20,16 +21,18 @@ export function openReplay(log: RunLog, b: Because): void {
   const { from, to } = clipWindow(floor, b.t, LEAD, WINDOW);   // QA on 3d71c33: the link's tick inside the window, on its own floor
   openSheet(() => {
     const canvas = h("canvas", { class: "replay-view" });
+    const gun = gunStatus();
     const named = new RegExp(/* copy:none */ `\\bD${b.depth}\\b`).test(b.text);   // `found sword on D4` names its floor (QA on 56f2a1d: `on D4 D4 · t3930`)
     const at = h("span", { class: "num dim" }, /* copy:none */ `${named ? "" : `D${b.depth} · `}t${b.t}`);
     const body = h("div", { class: "sheet-body replay", "data-t": b.t, "data-depth": floor.snap.depth, "data-from": from, "data-to": to },
-      h("div", { class: "label row-label" }, h("span", { class: "because" }, "← ", b.text), " ", at),
+      h("div", { class: "label row-label" }, h("span", { class: "because" }, "← ", b.text), " ", at, gun.el),
       canvas);
     let viewer: SeekViewer | null = null, timer = 0, playing = false;
     const play = (): void => {
       if (!viewer) return;
       if (viewer.seek) { viewer.seek(from); viewer.setSpeed(1); playing = true; }
       else viewer.setSpeed(0);                                   // placeholder: no clock; the floor stands at the window's end
+      gun.paint(viewer.gun?.() ?? null, viewer.tick?.() ?? from);
     };
     const stop = (): void => { clearInterval(timer); viewer?.dispose(); viewer = null; if ("__replay" in window) delete (window as { __replay?: unknown }).__replay; };
     // the sheet mounts after build returns: the canvas needs its layout size before the renderer measures it
@@ -47,6 +50,7 @@ export function openReplay(log: RunLog, b: Because): void {
         if ("__riddle" in window) (window as unknown as { __replay: Viewer }).__replay = v;   // dev: tests read `tick()`
         timer = window.setInterval(() => {
           if (!document.contains(canvas)) { stop(); return; }          // closed by backdrop / Escape: the sheet has no close hook
+          gun.paint(viewer?.gun?.() ?? null, viewer?.tick?.() ?? from);
           if (playing && viewer?.tick && viewer.tick() >= to) { viewer.setSpeed(0); playing = false; }
         }, POLL_MS);
       });

@@ -1,6 +1,6 @@
 // Viewer bridge: the renderer track exports createViewer(canvas) from src/render/index.ts; until it
 // exists (or if it throws) a Canvas-2D placeholder stands in. Structural type = the CUT1 contract.
-import type { Ev, Snapshot } from "../engine/types";
+import type { Ev, GunSnap, Snapshot } from "../engine/types";
 import { createPlaceholderViewer } from "./placeholder-view";
 
 export interface Viewer {
@@ -11,6 +11,7 @@ export interface Viewer {
   dispose(): void;
   resize?(): void;
   idle?(): boolean;   // queue drained and tails played out (real renderer)
+  gun?(): GunSnap | null;
   tick?(): number;    // current tick of the playback clock (real renderer)
   sync?(snap: Snapshot): void; // Cut 4 §3: adopt `remembered` flags (and last-seen tiles) from a step's snapshot
   setKeepOut?(rects: { x: number; y: number; w: number; h: number }[]): void;   // Cut 28 §4: the DOM over the canvas (CSS px) — no pixel text on it

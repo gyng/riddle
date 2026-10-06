@@ -1798,3 +1798,12 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .descent-tier { width:100px; min-height:44px; text-align:center; font-size:22px; color:var(--bone); background:#15151e; border:2px solid #5c6072; box-shadow:inset 0 2px 6px #000; border-radius:3px; }
 .descent-modifier { display:grid; gap:3px; padding:8px 0; border-bottom:1px solid #54515f; line-height:1.4; }
 .descent-review p { line-height:1.5; }
+
+/* Played chambers share the portrait plate; no extra watch control panel. */
+.watch-vitals { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.gun-hud { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:11px; line-height:1.1; color:var(--bone); }
+.gun-hud[hidden], .gun-reload-track[hidden] { display:none; }
+.gun-hud[data-state="aim"] { color:var(--acc); }
+.gun-hud[data-state="reload"] { color:var(--dim); }
+.gun-reload-track { width:44px; height:3px; background:#17131c; box-shadow:0 1px 0 #75634d; border-radius:2px; overflow:hidden; }
+.gun-reload-fill { display:block; height:100%; background:var(--gilt); }

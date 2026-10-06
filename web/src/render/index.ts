@@ -55,7 +55,7 @@ import { SpriteNormals } from "./normals";
 import { Juice } from "./fx";
 import { View2D } from "./view2d";
 export { createFallbackViewer } from "./fallback";
-import type { Ev, Snapshot } from "./types";
+import type { Ev, GunSnap, Snapshot } from "./types";
 
 /** deterministic per-tile hash in [0, 1) (render-only dressing; never game truth) */
 function hash2(x: number, y: number, s: number): number {
@@ -80,6 +80,7 @@ export type Viewer = {
   sync(snap: Snapshot): void;   // Cut 4 §3: adopt `remembered` flags from a step's snapshot (no reload)
   setFrame(frame: Frame, focus?: Focus): void; // Cut 8A: cut between the map and the fight frame (focus: fix the fight camera)
   frame(): Frame;
+  gun(): GunSnap | null;
   tick(): number;               // current tick
   idle(): boolean;              // queue drained and tails played out
   resize(): void;
@@ -1205,6 +1206,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       updateCamera(0, true);
     },
     frame() { return mode; },
+    gun() { return st.gun; },
     tick() { return st.tickNow(); },
     idle() { return st.idle(); },
     resize() { lastCss = ""; measure(); },

@@ -121,7 +121,8 @@ import { compactLine, meterPanel } from "./meters";
 import { combatLogEvents, telegraphText } from "./combat-log";
 import { tacticObserver } from "./tactic-observer";
 import type { App, Mounted } from "../app";
-import type { EncounterModifiers, Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
+import { gunStatus } from "./gun-status";
+import type { EncounterModifiers, GunSnap, Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
 import { flyCoins, gem, paintPortrait, paintSprite, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
 import { icon } from "./skin";
@@ -343,7 +344,13 @@ export function renderWatch(app: App): Mounted {
   const canvas = h("canvas", { class: "view" });
   // Cut 17 §1: the hero's hp is the ring around the console's portrait (its numbers on the plate under it)
   const hpText = h("span", { class: "num hp-text" });
-  const face = portrait(app, { hp: 1, label: hpText });
+  const gun = gunStatus();
+  const face = portrait(app, { hp: 1, label: h("span", { class: "watch-vitals" }, hpText, gun.el) });
+  let playedGun: GunSnap | null = null;
+  function paintGun(): void {
+    if (viewer?.gun) playedGun = viewer.gun();
+    gun.paint(playedGun, viewer ? viewerTick() : 0);
+  }
   // Cut 16 §4: the boss's bar under the hero's while one is in view (`warlord` + a thin track)
   const bossFill = h("span", { class: "fill" }), bossName = h("span", { class: "name" });
   const bossFace = h("span", { class: "face" });   // art pass: the boss's painted headshot (else its sprite crop)
@@ -700,7 +707,7 @@ export function renderWatch(app: App): Mounted {
     if (b && b.id !== was && !bossHeard.has(b.id)) { bossHeard.add(b.id); cue("boss_in"); }   // juice pass 2: a boss's entrance is a beat you hear
     if (b || was !== undefined) paintBoss();
   }
-  function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); if (!disposed) audio.bed(s.biome); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
+  function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); if (!disposed) audio.bed(s.biome); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); playedGun = s.hero.gun ?? null; paintGun(); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0, lootWhy = "";
   let lastLootTurn = -Infinity, lastSwapped = 0, lastSecured = 0;   // counters of the snapshot the strip shows
@@ -981,6 +988,7 @@ export function renderWatch(app: App): Mounted {
       else if (drainOn && (ev.k === "hurt" || ev.k === "max_hp") && ev.id === heroId) drainEvs.add(ev);
       if (ev.k === "telegraph" || ev.k === "attack" || ev.k === "use" || (ev.k === "hurt" && ev.id === heroId && !isDrain(ev))) near(ev.t);   // Cut 25 §3: a drain is no fight   // Cut 5 §5: always at 1×
       switch (ev.k) {
+        case "gun": at(ev.t, () => { playedGun = ev.state; paintGun(); }); break;
         // Cut 10 §3: the core's companion-death callout (`Ashar fell`) gets its kind in front: `jackal Ashar fell`
         case "callout": {
           if (ev.text === "explore") break;
@@ -1433,6 +1441,7 @@ export function renderWatch(app: App): Mounted {
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
     paintWatchStatus();
+    paintGun();
     paintKeepOut();
     // Cut 27 §1: while a stretch folds the world stands under its line (the fold steps it); the line holds its minimum, then docks
     if (folding) { paintScrub(viewerTick()); if (!folding.stepping && performance.now() >= folding.holdUntil) endFold(); return; }

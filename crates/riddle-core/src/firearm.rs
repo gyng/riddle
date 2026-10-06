@@ -53,7 +53,10 @@ pub struct Chambers {
 pub struct Reload {
     pub item: u32,
     pub at: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub duration: u32,
 }
+fn is_zero(n: &u32) -> bool { *n == 0 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Aim { pub item:u32, pub target:u32, pub from:Pos }
@@ -151,7 +154,7 @@ fn reload_at_speed(run:&mut crate::engine::Run,cx:&mut crate::engine::Ctx,fast:b
     let Ok(at) = chambers.reload(profile, run.turn) else { return false; };
     let item = weapon.id;
     run.hero.weapon.as_mut().unwrap().firearm = Some(chambers);
-    run.gun_reload = Some(Reload { item, at });
+    run.gun_reload = Some(Reload { item, at, duration: profile.reload_ticks });
     crate::chronicle::callout(run, cx, "reloading");
     true
 }
@@ -364,6 +367,37 @@ mod tests {
             assert_eq!(gun.atk(), profile.damage);
             assert_eq!(gun.def().weight, 0);
             assert!(!crate::defs::ITEMS.iter().any(|d| d.kind == kind));
+        }
+    }
+}
+
+/// Allocation-free comparison at real tick boundaries. Countdown is derived
+/// from the absolute deadline, so quiet ticks emit no duplicate state events.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ObservedGun {
+    item:u32, short:bool, loaded:u8, damage:(i32,i32),
+    reload_until:Option<u32>, reload_ticks:u32, aiming:bool,
+}
+impl ObservedGun {
+    pub(crate) fn of(run:&crate::engine::Run)->Option<Self> {
+        let w=run.hero.weapon.as_ref()?;
+        let chambers=w.firearm?;
+        let p=Profile::of(&w.kind)?;
+        let reload=run.gun_reload.filter(|r|r.item==w.id);
+        Some(Self {item:w.id,short:w.kind=="short_gun",loaded:chambers.loaded,
+            damage:run.hero.atk(),reload_until:reload.map(|r|r.at),
+            reload_ticks:reload.filter(|r|r.duration>0).map_or(p.reload_ticks,|r|r.duration),
+            aiming:run.gun_skills.as_ref().and_then(|s|s.aim).is_some_and(|a|a.item==w.id),
+        })
+    }
+    pub(crate) fn snapshot(self,turn:u32)->crate::wire::GunSnap {
+        let kind=if self.short {"short_gun"}else{"long_gun"};
+        let p=Profile::of(kind).unwrap();
+        crate::wire::GunSnap {item:self.item,kind:kind.into(),loaded:self.loaded,
+            capacity:p.capacity,range:p.range,damage:self.damage,
+            armour_piercing:p.armour_piercing,reload_ticks:self.reload_ticks,
+            reload_left:self.reload_until.map_or(0,|at|at.saturating_sub(turn)),
+            reload_until:self.reload_until,aiming:self.aiming,
         }
     }
 }

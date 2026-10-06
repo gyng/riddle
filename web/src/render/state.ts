@@ -10,7 +10,7 @@
 // ticks (10 fps cadence at 1×). Callouts stay on a real-time 1 s cadence.
 import { heroKind } from "./look";
 import { nameRefs } from "../ui/tokens";   // docs/COPY.md: a rule by its words on the canvas too
-import type { Ev, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
+import type { Ev, GunSnap, Overlay, Snapshot, Tile, FloorItem, Entity } from "./types";
 import { KNOWN_ENTITY_KINDS } from "./palette";
 
 export const TICKS_PER_S = 10;
@@ -80,6 +80,7 @@ export class ReplayState {
   overlays: Overlay[] = [];
   items: FloorItem[] = [];
   ents = new Map<number, EntState>();
+  gun: GunSnap | null = null;
   heroId = -1;
   clock = 0;          // ticks (float)
   speed = 1;
@@ -126,6 +127,7 @@ export class ReplayState {
   }
 
   private reset(s: Snapshot): void {
+    this.gun = s.hero.gun ? { ...s.hero.gun } : null;
     this.w = s.w; this.h = s.h; this.biome = s.biome; this.depth = s.depth;
     // (the fork's other stair is not a tile of the floor: it is drawn at (x, y) beside the real one — render-only, never game truth)
     this.stairs = [];
@@ -343,6 +345,7 @@ export class ReplayState {
       return;
     }
     switch (ev.k) {
+      case "gun": this.gun = ev.state ? { ...ev.state } : null; break;
       case "move": {
         const e = this.ents.get(ev.id);
         if (!e) break;

@@ -59,6 +59,10 @@ pub struct GunSnap {
     pub armour_piercing: i32,
     pub reload_ticks: u32,
     pub reload_left: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reload_until: Option<u32>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub aiming: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -512,6 +516,8 @@ pub enum RecoverySource { Leeching }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "k", rename_all = "snake_case")]
 pub enum Ev {
+    /// Played equipment/chambers only when changed; null means the gun was stowed/lost.
+    Gun { t:u32, state:Option<Box<GunSnap>> },
     Move { t: u32, id: u32, x: i32, y: i32 },
     Attack { t: u32, src: u32, dst: u32, dmg: i32, hit: bool, #[serde(default, skip_serializing_if = "Option::is_none")] verb: Option<String> },
     Hurt { t: u32, id: u32, dmg: i32, hp: i32, cause: String },
@@ -586,7 +592,8 @@ pub enum Ev {
 impl Ev {
     pub fn t(&self) -> u32 {
         match self {
-            Ev::Move { t, .. }
+            Ev::Gun { t, .. }
+            | Ev::Move { t, .. }
             | Ev::Attack { t, .. }
             | Ev::Hurt { t, .. }
             | Ev::Die { t, .. }
@@ -620,7 +627,7 @@ impl Ev {
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
     pub fn renderable(&self) -> bool {
-        !matches!(self, Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. } | Ev::Ending { .. } | Ev::Oath { .. } | Ev::Heal { .. })
+        !matches!(self, Ev::Gun { .. } | Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. } | Ev::Ending { .. } | Ev::Oath { .. } | Ev::Heal { .. })
     }
 }
 

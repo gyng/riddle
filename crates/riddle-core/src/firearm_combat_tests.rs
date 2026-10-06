@@ -176,3 +176,34 @@ fn aimed_primary_does_not_bypass_secondary_warlord_shield_wall() {
     }
     assert!(intercepted,"must include a positive ordinary shield interception");
 }
+
+
+#[test]
+fn played_gun_events_bound_burst_fanout_and_reload_countdown() {
+    let mut g=arena("short_gun");
+    foe(&mut g,"goblin",Pos::new(6,5));foe(&mut g,"goblin",Pos::new(6,6));
+    crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("close_burst"))]);
+    g.run.as_mut().unwrap().hero.energy=crate::engine::ACT_ENERGY;
+    g.tick();
+    assert!(g.events.iter().filter(|e|matches!(e,Ev::Attack{..})).count()>=2);
+    let states:Vec<_>=g.events.iter().filter_map(|e|if let Ev::Gun{state:Some(s),..}=e {Some(s)}else{None}).collect();
+    assert_eq!(states.len(),1);assert_eq!(states[0].loaded,0);
+    assert!(!g.events.iter().find(|e|matches!(e,Ev::Gun{..})).unwrap().renderable());
+    crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("fast_reload"))]);
+    g.run.as_mut().unwrap().hero.level=7;
+    g.run.as_mut().unwrap().hero.energy=crate::engine::ACT_ENERGY;
+    g.events.clear();g.tick();
+    let reload=g.snapshot().hero.gun.unwrap();
+    assert_eq!(reload.reload_ticks,8);assert_eq!(reload.reload_left,8);
+    assert_eq!(reload.reload_until,Some(g.run.as_ref().unwrap().turn+8));
+    let save=g.save();let mut restored=Game::load(&save).unwrap();
+    crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("hold"))]);
+    crate::tests::rules(&mut restored,vec![Row::new(vec![],Verb::new("hold"))]);
+    g.events.clear();restored.events.clear();
+    for _ in 0..7 {g.tick();restored.tick();}
+    assert!(!g.events.iter().any(|e|matches!(e,Ev::Gun{..})),"no per-tick countdown events");
+    g.tick();restored.tick();assert_eq!(g.events,restored.events);
+    let states:Vec<_>=g.events.iter().filter_map(|e|if let Ev::Gun{state:Some(s),..}=e {Some(s)}else{None}).collect();
+    assert_eq!(states.len(),1);assert_eq!(states[0].loaded,2);assert_eq!(states[0].reload_until,None);
+    assert_eq!(std::mem::size_of::<Ev>(),80);
+}

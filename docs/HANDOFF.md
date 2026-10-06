@@ -1,3 +1,43 @@
+**CUT35 PLAYED GUN STATE / COMPACT WATCH AND REPLAY — 2026-10-07 (PARTIAL):**
+
+ObservedGun compares actual worn equipment/chambers, damage, aim and absolute
+reload deadline around real ticks. Copy-only negative path; no allocation,
+inventory/enemy scan or per-tick countdown event. Positive changes emit boxed
+Ev::Gun (explicit null when stowed/lost); Ev remains80B, metadata events excluded
+from renderable-density gates. Snapshot/event share Rust-owned metadata.
+Reload duration saved with default/zero omission for old prototypes; fast reload
+reports actual10/8 ticks rather than20/15. Existing absolute commitment unchanged.
+29focused firearm/class tests PASS: burst fanout produces one chamber event,
+quiet countdown emits none, actual completion/aim/fire/sidearm clear/restore,
+save/load event equality and80B event size. These arenas are not earned progression.
+
+Shared gunStatus component under watch portrait and beside death-trace replay
+caption:1/1 or2/2, Ready/Aim/Reload and tiny reload track. Renderer stores played
+Gun state and rebuilds it on forward/backward seek; watch/replay read the picture
+clock, never later camp gear. Same state getter in GPU and2D fallback. Rich existing
+stat tooltip supplies damage, tile range, reload seconds and armour piercing;
+hover/focus/tap through detailHost. Replay indicator initialized immediately.
+Headed real-WASM earned seed3/tier1 app at1440/400/320: no overflow/page errors,
+visible portrait chambers and actual tap tooltips. Fresh no-HMR client checks:
+33gun state/HUD/tooltip and19existing end-caption assertions pass. Actual played reload captured in400px watch/replay:
+0/1 Reload in both. Artifacts scratchpad/gunner-observer-20261007/{watch-*,reload-
+400,replay-400}.png, qa.json/reload-qa.json; not normal pre-King campaign proof.
+Synthetic browser state/clock checks are separately labelled web/tests/gunner-
+observer.mjs; run via tests/run.mjs fresh no-HMR server (shared HMR server may
+hold multiple tooltip module instances after edits). Retain failed QA artifacts.
+
+Full quick665core PASS/one ignored,14tool PASS, TS/copy1716/zero,149s. Fast
+all-target clippy warnings denied, codegen/build PASS; real fastWASM5473673B.
+Six old tier0/challenge loaded/advanced/events and two numbered saves exact.
+New controlled native/WASM61tick both-gun steps/saves and every uneven3/7/1/10/
+5/17/18 slice/save/reload exact (gunner-observer-combat-20261007), not8h/three
+bloodline acceptance. No new positive<=10% perf profile or routine18case suite.
+Public Gunner UI_READY remains false; original C35 A–E/mastery failures remain.
+No deployment;95fun active/unverified. Next actually earned normal pre-King camps,
+class balance/matchups/mastery/Tier5, action icons, full8h parity/perf/gates.
+Investigated wall-preparation-20261006/early-outcomes: actual seed3Tier0 homes
+but bestD8, so cannot legally unlock Gunner yet; do not relabel as D13 camps.
+
 **CUT35 GUNNER OPPORTUNITIES/SIDEARM/ART — 2026-10-07 (PARTIAL):**
 
 IMPORTANT CORRECTION: the original earned source camp explicitly selected
