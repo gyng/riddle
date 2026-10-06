@@ -126,7 +126,7 @@ export class View2D {
     const ents = [...st.ents.values()].filter((e) => e.kind !== "bones" && (e.hero || st.visible[e.y * st.w + e.x] || (e.remembered && st.seen[e.y * st.w + e.x])));
     ents.sort((a, c) => (a.hero ? 1 : 0) - (c.hero ? 1 : 0) || a.py - c.py);
     const s = T / 16;
-    for (const e of ents) this.ent(g, e, ox, oy, T, s, blit);
+    for (const e of ents) this.ent(g, e, ox, oy, T, s, blit, st.tacticMarked(e));
     // the hero's light: the room around him lit, the edges falling to dark
     if (hero) {
       const hx = ox + (hero.px + 0.5) * T, hy = oy + (hero.py + 0.5) * T, r = T * Math.max(4, st.vision + 1);
@@ -138,12 +138,16 @@ export class View2D {
   }
 
   private ent(g: CanvasRenderingContext2D, e: EntState, ox: number, oy: number, T: number, s: number,
-              blit: (id: string, dx: number, dy: number, dw: number, dh: number, flip?: boolean) => boolean): void {
+              blit: (id: string, dx: number, dy: number, dw: number, dh: number, flip?: boolean) => boolean, marked = false): void {
     const ids = [e.kind, `boss_${e.kind}`, heroBase(e.kind) ?? "", e.hero ? "hero_fighter" : ""].filter(Boolean);
     const f = ids.map((id) => this.frame(id)).find(Boolean);
     const fx = ox + (e.px + 0.5) * T, fy = oy + (e.py + 1) * T;
     g.globalAlpha = e.remembered ? 0.5 : Math.max(0.12, 1 - e.fade * 0.9);
     let top = fy - T;
+    if (marked) {
+      g.strokeStyle = '#eac77c'; g.lineWidth = Math.max(1, s);
+      g.beginPath(); g.ellipse(fx, fy - s, T * .4, s * 2.5, 0, 0, Math.PI * 2); g.stroke();
+    }
     if (f) {
       // the sprite's runtime height (atlas `texel_h` sprite texels, the masters are 2×) × the GL view's scale for its kind
       const id = ids.find((x) => this.frame(x))!, th = sheet?.texelH[id] ?? f.h / 2;

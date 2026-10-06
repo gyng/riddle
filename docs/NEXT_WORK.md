@@ -1,7 +1,7 @@
 # Owner queue — 2026-10-06
 
 Local UI iteration-speed and compact-depth work are implemented and pushed.
-Hero presence is implemented; continue with tactic observability, then the content/checkpoint audit. Push approved
+Hero presence and tactic observability are implemented; continue with the content/checkpoint audit. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.
 
@@ -11,7 +11,7 @@ UI checkpoints. Keep simulation truth in Rust and manual town construction.
    accessible when wanted. Inspect actual early/established/late states before
    choosing the layout; preserve forecast uncertainty and mobile access.
    Verify desktop spacing, watch/camp identity, tooltips, overflow and snapshots.
-2. **Rich hero presence — implemented2026-10-06; tactic observability next.** Active hero entries should communicate an immediate
+2. **Rich hero presence — implemented2026-10-06; tactic observability implemented2026-10-06.** Active hero entries should communicate an immediate
    status such as D13 · In combat, exploring, collecting loot, heading home or
    ready in town, using the existing portrait/thumbnail and a concise indicator.
    Audit available engine snapshots/events first; avoid inventing live facts
@@ -32,7 +32,7 @@ UI checkpoints. Keep simulation truth in Rust and manual town construction.
    autonomous roguelike identity and absence invariants.
 
 Compact depth and presence are implemented and verified within their documented scope.
-Tactic observability and the content/checkpoint audit remain open.
+The content/checkpoint audit remains open.
 
 Initial code pointers: desktop right column is wideCols in ui/frame.ts, using
 renderShaft in ui/forecast.ts (currently up to9 notches and a folded range).
@@ -75,3 +75,14 @@ Next: light the owning existing package icon at the watched event clock;
 merge repeats, keep default swings quiet, put condition/action/count on
 hover/tap. Snapshot current-run rule/source metadata rather than reattributing
 old replay events to newly selected heroes/equipment. No extra caption feed.
+
+Tactic observability implemented: UX_TACTIC_OBSERVABILITY.md. Snapshot exact
+row origins/catalog at mount, small fixed-order icons at picture clock, merged
+850ms cues with1200ms cooldown; routine swings quiet, preserve last meaningful
+choice. Hover counts/condition, tap read-only existing parchment. Known-row
+floating captions replaced; literal/unknown paths retained, history intact.
+Actual matched attack destination uses existing contact ring (Canvas2D ellipse),
+never non-attack/enemy/ended/dying/remembered guesses.13jobs/all132UI checks
+pass; final28observer checks each320/400/1440 +end/spacing pass14.1s. Actual
+owned Guarded early400/1440 and Hunter3bloodlineD8/ranged surviving archer,
+pause holds counts; screenshots shown. No gameplay/WASM/deploy changes.

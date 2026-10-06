@@ -1,3 +1,26 @@
+**TACTIC OBSERVABILITY — 2026-10-06:** Small existing-art icon row above plain
+history, style/tactic/personality/boss-counter order. Known origins only;
+snapshot rows/catalog at mount. Counts/cues release at picture clock; fallback
+attacks (including stance foes>=1) quiet and do not replace last meaningful
+choice.850ms glow/1200ms cooldown, hover count/condition, tap read-only existing
+parchment. Known floating row captions replaced; unknown/literal/trait/chore
+behavior/history intact. Death/exit ends cues; legacy bail prepend disables
+mapping. Exact same-tick meaningful attack row +hero attack destination gets
+5tick contact ring/WebGL or ellipse/Canvas2D; excludes non-attacks, wrong ticks,
+enemy attacks, ended/dying/remembered. No extra RPC/forced layout reads.
+13related jobs45.4s/all132UI green; final28observer checks each320/400/1440
++end19/spacing3jobs14.1s pass. Build/typecheck/copy1591/diff clean, existing
+bundle advisory. Actual earned earlyGuarded400/1440D7 icons/tap details, paused
+counts hold1.4s; late3bloodlineHunter1440D8 real ranged archerid71 survives,
+Hunter lit/counter12/target marked, no errors/overflow. Screens shown. Early
+Bold target60s attempt failed to observe; later earnedHunter provides success.
+No synthetic gameplay screenshot. UX_TACTIC_OBSERVABILITY.md; artifacts
+scratchpad/tactic-observer-20261006/. Preview5431 cleaned/shared5219 preserved.
+No Rust/WASM/gameplay/deploy changes; full client/balance uncertified.
+NEXT_WORK content/checkpoint audit now next. Broad goal active. Compare real
+implemented/earned content against contracts/owner amendments and selected
+idle games using current primary sources; impact-ordered scoped queue.
+
 **HERO PRESENCE — 2026-10-06:** Rust LiveRun presentation activity now combat/
 exploring/returning from existing run state. Roster shows D13 In combat etc,
 quiet colour, HP/run tooltip; rests0 Ready. Selected watch snapshots update

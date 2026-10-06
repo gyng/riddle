@@ -98,6 +98,12 @@ export class ReplayState {
   // Cut 8A: the fight frame (index.ts sets it). While up: hits flash longer, hurts shake the screen, the firing row is a caption.
   fight = false;
   caption: Callout | null = null;
+  private iconRows = new Set<number>();
+  private meaningfulRows = new Set<number>();
+  private tacticTick = -Infinity;
+  private heroAttack: { t: number; dst: number } | null = null;
+  tacticTarget: { t: number; id: number } | null = null;
+  setTacticRows(rows: number[], meaningful: number[]): void { this.iconRows = new Set(rows); this.meaningfulRows = new Set(meaningful); }
   screenShake: ScreenShake | null = null;
   /** juice (docs/JUICE.md): every event applied in play, for render-only feedback (fx.ts); never called while a seek or a skip
    *  replays the past (`bulk`) */
@@ -145,6 +151,7 @@ export class ReplayState {
     this.bossFlashUntil = -Infinity;
     this.callout = null;
     this.caption = null;
+    this.tacticTick = -Infinity; this.heroAttack = null; this.tacticTarget = null;
     this.ended = false;
     this.screenShake = null;
     this.leash = null;
@@ -352,6 +359,10 @@ export class ReplayState {
         break;
       }
       case "attack": {
+        if (ev.src === this.heroId && !this.ended) {
+          this.heroAttack = { t, dst: ev.dst };
+          if (this.tacticTick === t) this.tacticTarget = { t, id: ev.dst };
+        }
         const s = this.ents.get(ev.src), d = this.ents.get(ev.dst);
         if (!s) break;
         const dx = d ? Math.sign(d.x - s.x) : 0, dy = d ? Math.sign(d.y - s.y) : 0;
@@ -373,9 +384,13 @@ export class ReplayState {
         break;
       }
       case "rule": {
+        if (!this.ended && ev.verb.v === 'attack' && this.meaningfulRows.has(ev.row)) {
+          this.tacticTick = t;
+          if (this.heroAttack?.t === t) this.tacticTarget = { t, id: this.heroAttack.dst };
+        }
         // Cut 8A: the firing row as a caption at the top of the fight frame: `R2 attack goblin`; a trait deviation reads as
         // its own text (`cowardly > retreat`); chores (row -2) stay silent (pillar 2)
-        if (this.ended || ev.row < -1) break;
+        if (this.ended || ev.row < -1 || this.iconRows.has(ev.row)) break;
         const tail = ev.text.includes("→") ? ev.text.slice(ev.text.lastIndexOf("→") + 1).trim() : ev.text;
         // QA 23ed91f (L: `R4 PACK BREAK GOBLIN`, 4 words): a callout is ≤ 3 words — the row number and at most two of the verb's
         // (the target goes first: `R4 pack break`, `R2 attack goblin`)
@@ -569,6 +584,7 @@ export class ReplayState {
     return [f % 2 === 0 ? s.amp : -s.amp, f % 4 === 1 ? s.amp : f % 4 === 3 ? -s.amp : 0];
   }
   ringShown(e: EntState): boolean { return e.ally && !e.hero && this.clock >= e.ringFrom; }
+  tacticMarked(e: EntState): boolean { return !this.ended && !e.dying && !e.remembered && this.tacticTarget?.id === e.id && this.clock >= this.tacticTarget.t && this.clock < this.tacticTarget.t + 5; }
 
   // Leash progress 0..1 while the arc is being drawn, or null.
   leashProgress(): number | null {

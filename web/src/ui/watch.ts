@@ -119,6 +119,7 @@ import { unitLabel } from "./unit-icon";
 import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
 import { combatLogEvents, telegraphText } from "./combat-log";
+import { tacticObserver } from "./tactic-observer";
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
@@ -338,6 +339,7 @@ export function watchStatus(picture: number, live: number, paused: boolean, ende
 
 export function renderWatch(app: App): Mounted {
   setRefRows(() => app.rules.rows);
+  const tactics = tacticObserver(app.rules.rows, app.lineage.packages);
   const canvas = h("canvas", { class: "view" });
   // Cut 17 §1: the hero's hp is the ring around the console's portrait (its numbers on the plate under it)
   const hpText = h("span", { class: "num hp-text" });
@@ -495,7 +497,7 @@ export function renderWatch(app: App): Mounted {
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
-      meterBox, banner, h("div", { class: "watch-messages" }, whyTip, ticker, whyLine, combatLog)),
+      meterBox, banner, h("div", { class: "watch-messages" }, whyTip, ticker, whyLine, tactics.el, combatLog)),
     cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
@@ -914,6 +916,7 @@ export function renderWatch(app: App): Mounted {
     if (frame === "fight" && lastRuleIsRow && now - lastRuleAt < CAPTION_LINE_MS) ruleLine(lastRuleText);
   }
   function ruleCallout(ev: Extract<Ev, { k: "rule" }>): string | null {
+    if (tactics.owns(ev.row)) return null; // Known tactics use their icon; history retains their words.
     if (ev.row >= 0) return rowCallout(ev.row, verbLabel(ev.verb));
     if (ev.row === -1) return ev.text;                       // trait deviation, e.g. "cowardly → retreat"
     return CHORE_CALLOUT[ev.verb.v] ?? null;                  // chores are silent (pillar 2)
@@ -1005,6 +1008,7 @@ export function renderWatch(app: App): Mounted {
           break;
         }
         case "rule": {
+          at(ev.t, () => tactics.fire(ev));
           const text = ruleCallout(ev);
           if (ev.row >= 0) rowFires[ev.row] = (rowFires[ev.row] ?? 0) + 1;   // Cut 14 §4
           // Cut 14 §4: a chore (`pick up`) coalesces on its line with a count; a row's callout repeats after 4 s
@@ -1039,6 +1043,7 @@ export function renderWatch(app: App): Mounted {
           break;
         // the kill gets its own line (cohort 5: "−3 goblin" was still up after the goblin had dissolved)
         case "die": {
+          if (ev.id === heroId) at(ev.t, () => tactics.end());
           if (ev.id === heroId) { heroCause = ev.cause; break; }
           // Cut 10 §3: a companion's death (the snapshot's ally flag) is the core's callout to name; the kill line is for hostiles
           if (allies.has(ev.id)) {
@@ -1111,6 +1116,7 @@ export function renderWatch(app: App): Mounted {
           else if (PET_NOTE_RE.test(ev.text)) { const line = petNoteLine(ev.text); at(ev.t, () => petLine(line)); }   // QA e75ec29: `Skog joins.` · `Skog: level 3.`
           break;
         case "exit": {
+          at(ev.t, () => tactics.end());
           exit = ev.tier; exitLine = ev.line ?? exitLine; exitTrace = ev.trace ?? ev.line?.trace ?? exitTrace;
           if (exitLine && tollShort && exitLine.start_short === undefined) exitLine = { ...exitLine, start: 1, start_short: true };   // `· from D1 · toll short` on the line
           markEnd(runId, ev.t);   // Cut 11 §2: the run log's last replayable tick
@@ -1412,7 +1418,7 @@ export function renderWatch(app: App): Mounted {
     if (!viewer?.setKeepOut || now - keepAt < KEEP_MS) return;
     keepAt = now;
     const c = canvas.getBoundingClientRect();
-    const els: Element[] = [...el.querySelectorAll(".hud.top > *"), combatLog];
+    const els: Element[] = [...el.querySelectorAll(".hud.top > *"), combatLog, tactics.el];
     if (!foldLine.hidden && foldLine.classList.contains("docked")) els.push(foldHead, ...foldChips.children);
     for (const x of [banner, ticker, whyLine, whyTip]) if (x.classList.contains("show")) els.push(x);
     const rects: { x: number; y: number; w: number; h: number }[] = [];
@@ -2042,6 +2048,7 @@ export function renderWatch(app: App): Mounted {
     callout(/* copy:callout */ "returning", "", 1800);
     app.engine.bail().catch((e) => {
       console.warn("bail", e); prepended = true;
+      tactics.disable(); viewer?.setTacticRows?.([], []); // Legacy prepend changes every row index.
       void app.engine.setRules({ rows: [{ conds: [], verb: { v: "return" } }, ...app.rules.rows] }).catch((e2) => console.warn("bail", e2));
     });
     setMode(mode);
@@ -2391,6 +2398,7 @@ export function renderWatch(app: App): Mounted {
     if (disposed) { v0.dispose(); return; }
     // Cut 11 §2: every floor load and event batch is kept in the run log, so the death screen's chain can scrub a replay
     const v = recordRun(v0, runId, s.run.started_turn);
+    v.setTacticRows?.(tactics.observedRows, tactics.meaningfulRows);
     syncLook(app); viewer = v; v.resize?.(); v.load(s); el.dataset.frame = frame; fbTick = s.turn; fbAt = performance.now();
     worldT = s.turn; lastPumpMs = performance.now(); scrub.hidden = false; paintScrub(s.turn);   // Cut 14 §6: the world clock starts; the strip shows
     speed = -1; applyFrame(); applySpeed();   // Cut 10 §1: the card and the mode's rate (fights: 16× under it) from the first frame
@@ -2408,6 +2416,7 @@ export function renderWatch(app: App): Mounted {
   return { el, dispose: () => {
     disposed = true; audio.bed(null); clearTimeout(meterTimer); clearTimeout(dockTimer); bar.dispose(); window.removeEventListener("riddle:focus-hero",focusHero); wide.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
     if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
+    tactics.dispose();
     if (prepended && !done) void app.engine.setRules(app.rules);
   } };
 }

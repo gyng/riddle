@@ -27,9 +27,11 @@ try{for(const width of [320,400,1440]){
   await p.waitForTimeout(250);
   const geometry=await p.evaluate(()=>{
    const stack=window.messages, rect=e=>{const r=e.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,height:r.height};};
-   return {rows:[...stack.children].filter(e=>getComputedStyle(e).display!=='none').map(rect),stage:rect(document.querySelector('.stage')),background:getComputedStyle(stack).backgroundColor,log:getComputedStyle(stack.querySelector('.combat-log')).backgroundColor,overflow:document.documentElement.scrollWidth>innerWidth};
+   const cues=stack.querySelector('.tactic-observer'),visibleCues=!!cues&&getComputedStyle(cues).display!=='none';
+   return {rows:[...stack.children].filter(e=>getComputedStyle(e).display!=='none').map(rect),visibleCues,cueCount:cues?.children.length??0,cueHeight:visibleCues?rect(cues).height:0,stage:rect(document.querySelector('.stage')),background:getComputedStyle(stack).backgroundColor,log:getComputedStyle(stack.querySelector('.combat-log')).backgroundColor,overflow:document.documentElement.scrollWidth>innerWidth};
   });
-  assert.equal(geometry.rows.length,4);
+  assert.equal(geometry.rows.length,4+(geometry.visibleCues?1:0));
+  assert.ok(geometry.cueCount<=5&&geometry.cueHeight<=44);
   for(let i=1;i<geometry.rows.length;i++)assert.ok(geometry.rows[i].top-geometry.rows[i-1].bottom>=7.5,JSON.stringify(geometry));
   for(const r of geometry.rows)assert.ok(r.left>=geometry.stage.left&&r.right<=geometry.stage.right&&r.top>=geometry.stage.top&&r.bottom<=geometry.stage.bottom,JSON.stringify(geometry));
   assert.equal(geometry.background,'rgba(0, 0, 0, 0)');assert.equal(geometry.log,'rgba(0, 0, 0, 0)');assert.equal(geometry.overflow,false);

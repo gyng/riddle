@@ -48,6 +48,7 @@ export function createFallbackViewer(canvas: HTMLCanvasElement): Viewer {
     preload(snap) { st.preload(snap); },
     setKeepOut() { /* no pixel text drawn */ },
     setQuiet() { /* no pixel text drawn */ },
+    setTacticRows(rows, meaningful) { st.setTacticRows(rows, meaningful); },
     debugBiome() { return st.biome; },
     debugRects() { return []; },
     debugLabels() { return []; },

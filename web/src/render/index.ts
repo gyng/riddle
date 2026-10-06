@@ -93,6 +93,7 @@ export type Viewer = {
   debugText?(): { kind: "callout" | "caption"; text: string; x?: number; y?: number; w?: number; h?: number }[];   // Cut 18 §2: the lines of text drawn over the fight this frame (Cut 28 §4: + its box, CSS px)
   setKeepOut?(rects: { x: number; y: number; w: number; h: number }[]): void;   // Cut 28 §4: the DOM's chips and plates over the canvas (CSS px, the canvas's) — no pixel text lands on them
   setQuiet?(on: boolean): void;   // Cut 22: a held beat's line is the one line — no callout or caption drawn over the fight meanwhile
+  setTacticRows?(rows: number[], meaningful: number[]): void;
   atlasInfo?(): unknown;
   debugBiome?(): string;          // Cut 16 §3: the biome the floor draws in (its palette)
   preload?(snap: Snapshot): void;   // add unknown entities before a batch's events
@@ -918,7 +919,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       if (!e.dying) {
         // contact shadow; companions (ally + cid, or tamed this run) get a 1-texel light ring
-        const ring = st.ringShown(e);
+        const ring = st.ringShown(e) || st.tacticMarked(e);
         const sh = atlas.shadow(Math.min(w - 2, 12), ring);
         L.shadows.push(fx, fy - (ring ? 2 : 1), 1.5, sh.w, sh.h, sh.u0, sh.v0, sh.u1, sh.v1, 1, 0, e.fade >= 0.75 ? 1 : 0);
       }
@@ -1229,10 +1230,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     debugStairs() { return stairPlates.map((p) => ({ ...p })); },
     debugText() { return texts.map((t) => ({ ...t })); },
     setQuiet(on) { quiet = on; },
+    setTacticRows(rows, meaningful) { st.setTacticRows(rows, meaningful); },
     setKeepOut(r) { keepOut = r; },
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */
-    debugEnts() { return [...st.ents.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.x, y: e.y, hero: !!e.hero, rem: !!e.remembered, dying: !!e.dying, vis: !!st.visible[e.y * st.w + e.x], seen: !!st.seen[e.y * st.w + e.x], flash: st.flashing(e), fade: e.fade, px: e.px, py: e.py })); },
+    debugEnts() { return [...st.ents.values()].map((e) => ({ id: e.id, kind: e.kind, x: e.x, y: e.y, hero: !!e.hero, rem: !!e.remembered, dying: !!e.dying, vis: !!st.visible[e.y * st.w + e.x], seen: !!st.seen[e.y * st.w + e.x], flash: st.flashing(e), tactic: st.tacticMarked(e), fade: e.fade, px: e.px, py: e.py })); },
   };
 }

@@ -166,6 +166,14 @@ button.re-body { cursor: pointer; }
 .watch[data-frame="fight"] .watch-messages > .ticker.show:not(.hurt):not(.ambient):not(.beat):not(.rule) { display: none; }
 .watch .watch-messages .ticker, .watch .watch-messages .beat-why { padding: 0; }
 .watch .watch-messages .combat-log { pointer-events: auto; }
+.watch .tactic-observer { display: flex; gap: 5px; pointer-events: auto; align-self: flex-start; }
+.watch .tactic-observer[hidden] { display: none; }
+.watch .tactic-cue { width: 36px; height: 36px; padding: 2px; background: #15151ad9; border: 2px ridge #686572;
+  box-shadow: inset 0 0 5px #000; border-radius: 4px; opacity: .65; transition: border-color .15s, opacity .15s; }
+.watch .tactic-cue .icon-socket { width: 28px; height: 28px; background: none; border: 0; box-shadow: none; }
+.watch .tactic-cue .icon { width: 100%; height: 100%; }
+.watch .tactic-cue:is(.acting, :hover, :focus-visible) { opacity: 1; border-color: #eac77c; box-shadow: inset 0 0 5px #000, 0 0 8px #eac77c55; }
+@media (max-width: 600px) { .watch .tactic-cue { width: 44px; height: 44px; } .watch .tactic-cue .icon-socket { width: 34px; height: 34px; } }
 .watch .hud .live-badge { font-size: 13px; border-radius: 3px; }
 .watch-options .chips { margin: 12px 0 20px; }
 .report-summary h2 { margin: 0 0 18px; color: var(--bone); font-size: 25px; font-weight: 400; }
