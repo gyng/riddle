@@ -35,3 +35,6 @@ html[data-juice="off"] .kw-tip { animation: none; }
 .enemy-tip-face { width: 48px; height: 48px; object-fit: contain; image-rendering: pixelated; }
 .enemy-tip-line { margin-top: 5px; color: var(--mist); }
 .enemy-tip-line b { color: var(--bone); }
+
+.kw-tip-head.unit-label { gap: 8px; }
+.kw-tip-head.unit-label .unit-icon { object-fit: contain; image-rendering: pixelated; }

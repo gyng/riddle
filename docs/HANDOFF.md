@@ -1,3 +1,15 @@
+**SHARED UNIT LABEL COMPONENT — 2026-10-06:** Owner asked for uniticon next
+to text elsewhere and spacing verification. Added unitLabel to unit-icon.ts:
+8px gap, fixed art +wrapping text,min-width0,max-width100%; optional existingart,
+hero class andsurfaceclass. Migrated guide, reportbosses, historicalheroidentity,
+enemytipheaders, forecastkillers/bosses/walls/shaft andliveboss(existingportrait).
+Deathkiller remains centered ABOVEtext. Guideunseen/environment untouched.
+Component48geometry checks320/400/1440; targeted9/9pass23.1s; finalcomponent+
+claritypaint2/2pass29.4s (5paintchecks). ActualheadedWASM phone14/desktop18
+visiblelabels gap8px/center±1px/bounds verified; screenshots shown. Build/
+typecheck/copy1556/diff clean. UX_UNIT_LABEL_COMPONENT.md;
+scratchpad/unit-label-20261006/. No core/newart/deploy.
+
 **DEATH BANNER PROPORTIONS — 2026-10-06:** Owner correction: cloth squashed,
 enemy above text centered. Restored3:4 native384×512 aspect, background100% auto
 avoids stretching; centered vertical portrait/name stack inside cause trace

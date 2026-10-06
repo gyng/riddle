@@ -115,6 +115,7 @@
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
 import { enemyHost } from "./enemy-tips";
+import { unitLabel } from "./unit-icon";
 import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
 import { combatLogEvents, telegraphText } from "./combat-log";
@@ -349,7 +350,7 @@ export function renderWatch(app: App): Mounted {
   // the hero's callout keeps the middle, the ticker's beat the bottom, and the renderer draws only the boss's plate while he is in view
   const bossCounter = h("span", { class: "counter num", hidden: true });
   let counterTimer = 0, quietTimer = 0;
-  const bossBar = h("div", { class: "boss-hp", hidden: true }, h("span", { class: "boss-face", "aria-hidden": "true" }, bossFace), bossName, h("span", { class: "track" }, bossFill), bossCounter);
+  const bossBar = h("div", { class: "boss-hp", hidden: true }, unitLabel("", bossName, { art: h("span", { class: "boss-face", "aria-hidden": "true" }, bossFace) }), h("span", { class: "track" }, bossFill), bossCounter);
   let bossFaceKind = "";
   const depth = h("span", { class: "num depth" });
   const alert = h("span", { class: "alert num" });

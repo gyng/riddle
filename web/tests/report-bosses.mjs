@@ -45,7 +45,7 @@ try{for(const width of [400,1440]){
   show(merged);check(rows().length===3,'merged owner victories all render');
   const old=mergeReports({...base,bloodlines:[slot(1,'Old',undefined)]},{...base,bloodlines:[slot(1,'Old',undefined)]});
   check(old.bloodlines[0].bests===undefined,'unknown old fields stay unknown');
-  show({...base,bests:['boss: ancient_clockwork']});check(text().includes('Ancient Clockwork')&&!rows()[0].querySelector('.report-boss-face')&&rows()[0].querySelector('.ico-unlocks'),'unknown explicit boss has readable fallback icon');
+  show({...base,bests:['boss: ancient_clockwork']});check(text().includes('Ancient Clockwork')&&rows()[0].querySelector('.unit-icon[data-glyph="?"]'),'unknown explicit boss has readable fallback icon');
   show(base);check(rows().length===0,'later empty report does not repeat old victory');
   return n;
  });if(errors.length)throw Error(errors.join('\n'));console.log(width,n,'boss victories/ownership/slice merge/old wire checks PASS');await p.close();

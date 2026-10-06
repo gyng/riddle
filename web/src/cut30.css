@@ -122,7 +122,7 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .bloodline-training { margin-top: 8px; }
 .report-choices { margin: 16px 0; }
 .report-bosses { margin: 12px 0; }
-.report-boss-row { display: flex; align-items: center; gap: 10px; min-height: 52px; margin-top: 6px; }
+.report-boss-row { display: flex; align-items: center; gap: 8px; min-height: 52px; margin-top: 6px; }
 .report-boss-row > img, .report-boss-row > .ico { width: 44px; height: 44px; flex: 0 0 44px; object-fit: contain; }
 .report-boss-copy { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .report-boss-copy small { font-size: 13px; line-height: 1.3; opacity: .8; }

@@ -1,7 +1,7 @@
 import type { Lineage } from "../engine/types";
 import { h } from "./dom";
 import { detailHost } from "./tips";
-import { foeSrc } from "./skin";
+import { unitLabel } from "./unit-icon";
 const nice = (s: string): string => s.replace(/_/g, " ").replace(/\b[a-z]/g, c => c.toUpperCase());
 export function enemyHost<E extends HTMLElement>(el: E, kind: string, L?: Pick<Lineage, "facts" | "ledger" | "walls" | "counters">, defeated = false): E {
   return detailHost(el, () => {
@@ -9,9 +9,8 @@ export function enemyHost<E extends HTMLElement>(el: E, kind: string, L?: Pick<L
     const row = L?.ledger?.find(r => r.kind === kind), wall = L?.walls?.find(w => w.boss === kind);
     const counter = row?.counter?.text ?? L?.counters?.find(c => c.boss === kind)?.text ?? (wall?.known ? wall.counter ?? wall.fact.replace(/^[^:]+:\s*/, "") : undefined);
     const traits = (L?.facts ?? []).filter(f => f.startsWith(`foe:${kind}:`)).map(f => nice(f.slice(`foe:${kind}:`.length)));
-    const src = foeSrc(kind);
     const line = (label: string, value: string): HTMLElement => h("div", { class: "enemy-tip-line" }, h("b", null, label), " ", value);
-    return [h("div", { class: "kw-tip-head" }, src ? h("img", { class: "enemy-tip-face", src, alt: "" }) : "", h("b", null, nice(kind))),
+    return [unitLabel(kind, h("b", null, nice(kind)), { px: 48, className: "kw-tip-head" }),
       ...(wall ? [line(/* copy:label */ "Floor", `D${wall.depth}`)] : []),
       line(/* copy:label */ "Encounter", defeated || wall?.slain ? /* copy:label */ "Defeated" : !L ? /* copy:label */ "Unavailable" : row?.seen ? /* copy:label */ "Seen" : /* copy:label */ "Unseen"),
       ...(row?.studied ? [line(/* copy:label */ "Study", /* copy:label */ "Studied")] : []),

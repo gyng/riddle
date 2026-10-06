@@ -1,7 +1,7 @@
 import type { Lineage, ReturnReport } from "../engine/types";
 import { enemyHost } from "./enemy-tips";
 import { h } from "./dom";
-import { foeSrc, icon } from "./skin";
+import { unitLabel } from "./unit-icon";
 
 export const bossName = (kind: string): string => kind.replace(/_/g, " ").replace(/\b[a-z]/g, c => c.toUpperCase());
 
@@ -17,11 +17,11 @@ export function reportBosses(r: Pick<ReturnReport, "bests" | "bloodlines">, line
   if (!victories.length) return null;
   return h("section", { class: "report-bosses" }, h("b", { class: "row-label" }, /* copy:label */ "Boss defeated"),
     ...victories.map(v => {
-      const src = foeSrc(v.boss);
-      return enemyHost(h("div", { class: "report-boss-row", "data-boss": v.boss, ...(v.owner === undefined ? {} : { "data-bloodline": String(v.owner) }) },
-        src ? h("img", { class: "report-boss-face", src, alt: "", "aria-hidden": "true", draggable: "false" }) : icon("unlocks", "✦"),
-        h("span", { class: "report-boss-copy" }, h("b", null, bossName(v.boss)),
-          v.name ? h("small", null, v.name) : "")), v.boss,
+      const row = unitLabel(v.boss, h("span", { class: "report-boss-copy" }, h("b", null, bossName(v.boss)), v.name ? h("small", null, v.name) : ""), { px: 44 });
+      row.classList.add("report-boss-row"); row.dataset.boss = v.boss;
+      if (v.owner !== undefined) row.dataset.bloodline = String(v.owner);
+      row.querySelector(".unit-icon")!.classList.add("report-boss-face");
+      return enemyHost(row, v.boss,
           v.knowledge ? { facts: v.knowledge.facts, ledger: v.knowledge.ledger ? [v.knowledge.ledger] : [], walls: v.knowledge.wall ? [v.knowledge.wall] : [], counters: [] }
             : v.owner === undefined || v.owner === (lineage?.selected_bloodline ?? 1) ? lineage : undefined, true);
     }));

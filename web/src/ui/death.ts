@@ -29,7 +29,7 @@ import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
 import { foeSrc, packageIcon } from "./skin";
 import { enemyHost } from "./enemy-tips";
-import { unitIcon } from "./unit-icon";
+import { unitIcon, unitLabel } from "./unit-icon";
 import { itemIcon } from "./items";
 import { penOpen } from "./packages";
 import { openForge } from "./forge";
@@ -336,7 +336,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
   const well = h("div", { class: "well death-well" },
-    d.hero?.name ? h("div", { class: "death-hero num dim" }, unitIcon(d.hero.class, 34, true), d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`) : null,
+    d.hero?.name ? unitLabel(d.hero.class, h("span", null, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`), { hero: true, className: "death-hero num dim" }) : null,
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerPortrait ? " has-killer" : ""}` },
       // The killer icon lives beside the cause name inside its trace control.
       luckLead, line)),

@@ -12,3 +12,8 @@ export function unitIcon(kind: string, px = 34, hero = false): HTMLElement {
   paintSprite(face, id, px);
   return face;
 }
+
+/** A fixed icon beside a wrapping label; callers keep ownership of its text. */
+export function unitLabel(kind: string, text: Node | string, options: { px?: number; hero?: boolean; art?: HTMLElement; className?: string } = {}): HTMLElement {
+  return h("span", { class: `unit-label${options.className ? ` ${options.className}` : ""}` }, options.art ?? unitIcon(kind, options.px ?? 34, options.hero), h("span", { class: "unit-label-text" }, text));
+}

@@ -3,7 +3,7 @@
 // Cut 7 §1: a boss row of the ledger whose counter is known carries the counter row as a chip; a tap inserts it at
 // the top of the active set the way a patch does (overflow rules apply) and opens the camp on it.
 import { enemyHost } from "./enemy-tips";
-import { unitIcon } from "./unit-icon";
+import { unitLabel } from "./unit-icon";
 import type { App } from "../app";
 import type { Companion, Row, RuleSet } from "../engine/types";
 import { h, clear, twoTap } from "./dom";
@@ -102,7 +102,7 @@ export function openLedger(app: App): void {
     const dot = (on: boolean): HTMLElement => h("span", { class: `dot${on ? " on" : ""}` }, on ? "●" : "○");
     const rows = L.ledger.flatMap((r) => {
       const row = h("div", { class: `lrow${r.seen ? "" : " dim"}` },
-        r.seen ? enemyHost(h("span", { class: "k unit-name" }, unitIcon(r.kind), h("span", { class: "unit-name-text" }, nice(r.kind))), r.kind, L) : h("span", { class: "k" }, "?"), dot(r.seen), dot(r.known), dot(!!r.studied), dot(r.tamed), dot(r.bred));
+        r.seen ? enemyHost(unitLabel(r.kind, nice(r.kind), { className: "k unit-name" }), r.kind, L) : h("span", { class: "k" }, "?"), dot(r.seen), dot(r.known), dot(!!r.studied), dot(r.tamed), dot(r.bred));
       if (!r.counter) return [row];
       // Cut 7 §1: the counter row as a chip; lit when the active set already holds it
       const c = r.counter; const held = app.rules.rows.some((x) => sameRow(x, c.row));
