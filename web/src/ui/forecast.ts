@@ -27,6 +27,7 @@ import { h, clear, pct, replace } from "./dom";
 import { closeAllSheets } from "./sheet";
 import { pickedLine } from "./report";
 import { shaftOath } from "./oaths";
+import { progressGoal, progressGoalRow } from "./progress-goal";
 import { kw } from "./tips";
 
 const sameRow = (a: Row, b: Row): boolean =>
@@ -398,26 +399,31 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
   // passes), so the shaft always starts where the run does
   const MAX = 9;
   const summary = h("span", { class: "depth-summary" });
-  el.appendChild(summary);
+  const mobileGoal = h("span", { class: "depth-mobile-goal" });
+  el.append(summary, mobileGoal);
   let summaryKey = "";
   const paintDepth = (): void => {
     const floor = watchedDepth ? watchedDepth() : app.lineage.live?.depth ?? forecastStart(app, last);
     const best = app.lineage.best_depth;
     const next = last?.depths.filter(d => d.depth > floor && (d.boss || d.bounty)).sort((a, b) => a.depth - b.depth)[0];
     const nextFloor = next?.depth ?? Math.max(floor + 1, best + 1);
+    const goal = progressGoal(app.lineage);
     const label = watchedDepth ? /* copy:label */ "Watching" : app.lineage.live ? /* copy:label */ "Live floor" : /* copy:label */ "Starts at";
-    const key = JSON.stringify([floor, best, next, nextFloor, label, last?.refined, lowOf(last)]);
+    const key = JSON.stringify([floor, best, next, nextFloor, label, goal, last?.refined, lowOf(last)]);
     if (key === summaryKey) return;
     summaryKey = key;
-    const milestone = next?.boss ? enemyHost(unitLabel(next.boss, wallName(next.boss), { px: 30 }), next.boss, app.lineage)
+    replace(mobileGoal, ...(goal ? [progressGoalRow(goal)] : []));
+    mobileGoal.hidden = !goal;
+    const milestone = next?.boss ? enemyHost(unitLabel(next.boss, wallName(next.boss), { px: 24 }), next.boss, app.lineage)
       : next?.bounty ? h("span", { class: "depth-bonus" }, /* copy:label */ `${typeof next.bounty === "number" && next.bounty > 1 ? next.bounty : 2}× gold`)
       : h("span", null, /* copy:label */ "New record");
     replace(summary,
       h("small", { class: "depth-heading" }, /* copy:label */ "Depth"),
       h("span", { class: "depth-current depth-summary-row" }, h("small", null, label), h("b", { class: "num", "data-floor": floor }, `D${floor}`)),
       h("span", { class: "depth-record depth-summary-row" }, h("small", null, /* copy:label */ "Record"), h("b", { class: "num" }, best > 0 ? `D${best}` : "—")),
-      h("span", { class: "depth-next depth-summary-row" }, h("small", null, /* copy:label */ "Next"), h("b", { class: "num" }, `D${nextFloor}`), milestone,
+      h("span", { class: "depth-next depth-summary-row" }, h("small", null, next ? /* copy:label */ "Next encounter" : /* copy:label */ "Next record"), h("b", { class: "num" }, `D${nextFloor}`), milestone,
         next ? h("small", { class: "depth-chance" }, /* copy:label */ "Floor chance", ` ${share(next.reach, lowOf(last))}${pmShown(next.reach, next.pm) !== undefined ? ` ±${pmShown(next.reach, next.pm)}` : ""}`, last?.refined === false ? /* copy:label */ " · estimate" : "") : ""),
+      ...(goal ? [progressGoalRow(goal)] : []),
       h("span", { class: "depth-open" }, /* copy:button */ "Full forecast", " ›"));
   };
   const paint = (): void => {

@@ -1,3 +1,19 @@
+**PROGRESSION GOAL — 2026-10-06:** UX_PROGRESS_GOAL.md implemented.
+Separate Next encounter from selected bloodline Goal and actual Rust bounty
+reward, fallback next record; no goal before house/first record or after ending.
+Shared row desktop depth/phone shaft/phone report, no unseen boss names or RPC.
+Goal updates without forecast change and independently of watched floor.
+Original320px including challenge kept by reducing spacing, portrait24px,
+unchanged fonts. Final9client jobs42.2s/all132UI +compact/watch-status/report
+PASS; build/typecheck/copy1594/diff clean, existing bundle advisory. Actual
+headed earned WASM earlyD7/goal8,lateD21/goal23,multiD20/goal22;400/1440 camp,
+400report no errors/overflow. Screens shown scratchpad/progress-goal-20261006/.
+No Rust/WASM/simulation changes; full balance uncertified. User tactic question:
+existing cb1c4f8 quiet icon/target cues verified and screenshot shown again.
+Next direct useful preparation from actual obstacle, then remaining icons,
+ending/variety/scoped optional reset queue. Push approved, no deployment.
+Broad keep-going scope remains open.
+
 **OFFLINE SLICE FIX — 2026-10-06:** PERF_OFFLINE_SLICE_BOUNDARIES.md
 implemented. Saved Game.offline_absence cumulative budget/consumed/hour/report
 baselines; actual boundary initializes once and settles rewards/reel once.

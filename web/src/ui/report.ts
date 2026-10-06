@@ -41,6 +41,7 @@ import { bossName, reportBosses } from "./report-bosses";
 import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
+import { progressGoal, progressGoalRow } from "./progress-goal";
 import { kwHost, kwText } from "./tips";
 import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
 import { mountClear } from "./runclear";   // run-clear: the run's card before the town
@@ -590,13 +591,14 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const offUpgrade = app.onChange(paintUpgrade), offLiveUpgrade = app.onLive(paintUpgrade);
   paintUpgrade();
   const firstActs = (r.workers ?? []).filter((a) => a.first && (a.n > 0 || a.what));
+  const goal = progressGoal(L);
   const newChoices = reportChoices(app, r);
   const firstWorkers = firstActs.length ? h("section", { class: "report-first-workers" },
     h("b", { class: "row-label" }, /* copy:label */ "Workers started"),
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage), classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage), classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop

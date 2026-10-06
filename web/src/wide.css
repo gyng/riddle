@@ -181,18 +181,27 @@
 
 /* Desktop depth is a summary plate; the full forecast remains one press away. */
 .depth-summary { display: none; }
+.progress-goal { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; }
+.progress-goal > small { font: 13px/1.3 var(--sans); color: #bfb6a5; }
+.progress-goal > b { font-size: 20px; color: #f3ce88; }
+.progress-reward { grid-column: 1 / -1; display: flex; align-items: center; gap: 5px; color: #e8ca87; font: 14px/1.3 var(--sans); }
+.progress-reward .ico { width: 18px; height: 18px; object-fit: contain; }
+.depth-mobile-goal { display: block; border-top: 1px solid #384254; padding-top: 4px; }
+.report-progress-goal { margin: 8px 0; padding: 8px; border: 6px solid transparent;
+  border-image: url('/ui/frames/tablet.png') 24 fill / 6px stretch; background: #141923; }
 @media (min-width: 1024px) {
+  .depth-mobile-goal, .report-progress-goal { display: none; }
   html .shaft > :is(.shaft-head, .notches, .shaft-ends) { display: none; }
-  html .shaft .depth-summary { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+  html .shaft .depth-summary { display: flex; flex-direction: column; gap: 2px; width: 100%; }
   html .side-col .shaft { pointer-events: auto; }
   html main.watch .side-col .shaft.unknown { display: flex; }
   html .side-col > .shaft.unknown { visibility: visible; }
   html main.camp .camp-main > .shaft { align-self: start; }
-  html .shaft:has(.depth-summary), html main.camp .camp-main > .shaft { gap: 4px; padding: 10px; border: 8px solid transparent;
+  html .shaft:has(.depth-summary), html main.camp .camp-main > .shaft { gap: 2px; padding: 6px; border: 8px solid transparent;
     border-image: url('/ui/frames/tablet.png') 24 fill / 8px stretch; background: #141923; }
   .depth-heading { color: #ead4a5; font: 600 16px/1.2 var(--display); letter-spacing: .06em; }
-  .depth-summary-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 8px;
-    padding: 2px 0; border-bottom: 1px solid #384254; }
+  .depth-summary-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px;
+    padding: 1px 0; border-bottom: 1px solid #384254; }
   .depth-summary-row > small { font: 13px/1.3 var(--sans); color: #bfb6a5; }
   .depth-summary-row > b { font-size: 20px; color: #eadfc5; }
   .depth-current > b { font-size: 30px; color: #f3ce88; }
