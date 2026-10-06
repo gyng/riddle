@@ -10,6 +10,7 @@ import { renderWatch } from "./ui/watch";
 import { renderDeath } from "./ui/death";
 import { renderReport } from "./ui/report";
 import { mergeWorkers } from "./ui/works";   // Cut 30.5
+import { mergeClassXp } from "./ui/class-xp";
 import { renderEnding } from "./ui/ending";
 import { closeAllSheets, onEscapeIdle } from "./ui/sheet";
 import { lastRun, type RunLog } from "./ui/runlog";
@@ -1019,7 +1020,8 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     bloodlines: [...new Set([...(a.bloodlines??[]),...(b.bloodlines??[])].map(s=>s.id))].map(id=>{
       const rows=[...(a.bloodlines??[]),...(b.bloodlines??[])].filter(s=>s.id===id),last=rows[rows.length-1]!;
       const progression = rows.reduce<Pick<ReturnReport, "packages" | "grew">>((merged,s)=>mergeGrew(merged,s),{});
-      return {...last,...progression,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
+      const xp = rows.reduce<ReturnReport["xp"][] | undefined>((merged,s)=>mergeClassXp(merged,s.xp),undefined);
+      return {...last,...progression,xp,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
     }),
     rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled), driven: sum(a.driven, b.driven),
     bones_found: cat(a.bones_found, b.bones_found),

@@ -1267,6 +1267,10 @@ pub struct DeathCount {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct BloodlineReturn {
     pub id:u32, pub name:String, pub runs:u32, pub deepest:u32, pub gold:i32,
+    /// This slot's class gains; arrays allow clients to merge class changes
+    /// across report slices without assigning everything to the latest class.
+    #[serde(default)]
+    pub xp: Vec<XpReport>,
     /// Bounded training/unlock beats from this slot's own report (empty is known empty).
     #[serde(default)]
     pub packages: Vec<String>,

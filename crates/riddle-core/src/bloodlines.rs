@@ -152,7 +152,7 @@ impl Session {
             crate::offline::report_with(g,seconds,&before.0,&before.1,before.2,false,full,last)
         };
         let mut r=finish(&mut self.active,&active_before,full,last);
-        let summary=|id:u32,r:&ReturnReport|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),packages:r.packages.clone(),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
+        let summary=|id:u32,r:&ReturnReport|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
         if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r));}
         for (id,g) in &mut self.others {
             town_from(&self.active.lineage,&mut g.lineage);
@@ -231,6 +231,27 @@ mod tests {
         let mut old=serde_json::to_value(&s).unwrap();old["others"]["2"]["lineage"].as_object_mut().unwrap().remove("look");
         let loaded=Session::load(&old.to_string()).unwrap();assert_eq!(loaded.others[&2].lineage.look,None);
         assert_eq!(loaded.lineage().hero_slots[1].look,"male","old saves keep their old default");
+    }
+    #[test]
+    fn away_class_xp_belongs_to_each_reported_slot() {
+        for selected_runs in [false,true] {
+        let mut s=resident();s.add_bloodline().unwrap();
+        s.select_bloodline(2).unwrap();s.lineage.class=crate::hero::Class::Rogue;s.send();
+        s.select_bloodline(1).unwrap();if selected_runs {s.send();}
+        let r=s.run_offline_mode(3600,false,true);
+        let selected=r.bloodlines.iter().find(|b|b.id==1).unwrap();
+        let other=r.bloodlines.iter().find(|b|b.id==2).unwrap();
+        assert_eq!(selected.xp,vec![r.xp.clone()]);
+        assert_eq!(selected.xp[0].class,"fighter");assert_eq!(other.xp[0].class,"rogue");
+        assert_eq!(selected.xp[0].gained>0,selected_runs);assert!(other.xp[0].gained>0);
+        assert_eq!(other.xp[0].gained,s.others[&2].lineage.classes["rogue"].xp);
+        let wire=serde_json::to_value(&r).unwrap();
+        let restored:ReturnReport=serde_json::from_value(wire).unwrap();assert_eq!(restored.bloodlines,r.bloodlines);
+        let mut old=serde_json::to_value(other).unwrap();old.as_object_mut().unwrap().remove("xp");
+        assert!(serde_json::from_value::<crate::wire::BloodlineReturn>(old).unwrap().xp.is_empty());
+        let later=s.run_offline_mode(3600,false,true);
+        assert!(later.bloodlines.iter().flat_map(|b|&b.xp).all(|x|x.gained==0&&x.level_ups==0));
+        }
     }
     #[test]
     fn away_training_retains_each_slot_even_when_selected_hero_waits() {

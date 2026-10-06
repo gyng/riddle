@@ -1,3 +1,21 @@
+**CLASS GROWTH VISIBLE ON RETURN — 2026-10-06:** Freshreal seed3 firstreport
+hid39FighterXP underdetails. CompactClassXP rewardnowbeforefold; earnedXP/level
+counts only, separateLegacy/noinferredcurrentlevel. BloodlineReturn.xp arrays
+fromeachslotRustreport; selectedtopXPunchanged. Clientmerges slot+class deltas,
+never rewritesoldclassto latestselection. Oldmissingwiredefaultempty/rawclient
+fallbacktopXPwithoutinferredowner; knownslotarrayssuppressfallback.
+Core Fighter/Rogue gainownership+selectedwaits/roundtrip/old/no-repeat pass;
+workspace559pass33.34s/1ignored, clippyclean. Selectedwaits fixtureaddedafterfull
+suite, expandedtarget0.07spass. WASM5236591/hashae07e9503204d65d236072dbe0183b8fd
+8608d0376dfd70f6411fc41528047c6. Final40UIchecks400/1440pass3.0s; initial34+
+report32+progress40pass3.6s. Build/typecheck/copy1527/diffpass,bundleadvisory.
+RealrebuiltWASM phone400/desktop1280firstreport+39XP,8h+372XP/+1level, screenshots
+shown,10checkpointwalks30.7/31.9s/noerrors. Scouttrunk two extra engine sends/
+hiring scripted, no humanfun/performance/fullbalance/deployclaim. UX_REPORT_CLASS_XP.md
+scope/evidence; scratchpad/report-class-xp-20261006/. Next: actual content/gameplay
+review of first boss encounter/reward choices; report growth now visible, stop
+polishing low-impact report chrome unless fresh play evidence demands it.
+
 **CHECKPOINT GOLD IS NOT A SWAP — 2026-10-06:** Verifiedrealphone703carry6/
 secured0→747carry0/secured6, swapped0omitted; UIblamedrecentfoldedscrollpickup.
 Rustcheckpoint transfersrun.loot→secured, snapshotdeath_keep=keptDeath. Watch
