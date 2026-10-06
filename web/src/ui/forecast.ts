@@ -10,8 +10,8 @@
 // engine's `try`, or the client's read of `Lineage.counters` against the set); tapping the bar inserts the row at the top.
 // Cut 12 §1: `yours: n of m rows` counts own rows (card rows sit outside `max_rows`); §3: one line under the depths says how a
 // send ends when the engine sends `ends` (`bank 40% · return 35% · death 25% · ~$54`); §6: a combo is named, not counted.
-// Cut 13 §5: the first paint (`Forecast.refined` false) carries `…` after each `±` so the refine's landing does not read as a
-// re-roll; the ends line has its own `±` on the death share (`death 5% ±4`, `ForecastEnds.pm`).
+// The first paint (`Forecast.refined` false) has rough state and an explicit quality label.
+// Uncertainty remains a numeric band on both passes; refine clears the rough state and label.
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
 import { conceptCap, conceptIcon } from "./concepts";
 import { foeSrc } from "./skin";

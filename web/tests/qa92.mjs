@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // QA on 92eb880 (players M and N; eval/qa/92eb880.qaM.md, .qaN.md) — the client batch, on the fake engine, headless at 400 × 800:
-//   · the core's hand-offs: a first-pass forecast reads rough (dim, `…`) on the shaft and the panel; `Death.nothing_beats_base` heads the
+//   · the core's hand-offs: a first-pass forecast has rough state and explicit quality, with exact uncertainty bands; `Death.nothing_beats_base` heads the
 //     patch block `nothing beats base · base 100%` and no patch reads `below bar`; a shadowed row is a dim tablet with `↑ R1`
 //   · the death: the camp's reach lands on the patches (QA 778fa1b: the order and the lit tablet stay; a loss dim); `+0%` inside the ±, not `~0`; no
 //     `saved him` / cage-loot note; the bar names the hero who died; a lost ally is a line, not a chip
@@ -74,12 +74,12 @@ try {
   const depths = (rs) => rs.map((reach, i) => ({ depth: i + 1, reach, pm: 0.04 }));
   await paintForecast({ depths: depths([1, 0.95, 0.8, 0.6, 0.4, 0.2, 0]), known_to: 7, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0.2, return: 0.3, death: 0.5, gold: 20, pm: 0.05 }, refined: false });
   await sleep(150);
-  let f = await page.evaluate(() => ({ rough: document.querySelector(".shaft")?.classList.contains("rough"), pm: [...document.querySelectorAll(".shaft .notch .pm")].map((x) => x.textContent), panel: document.querySelector(".forecast")?.classList.contains("rough"), panelPm: [...document.querySelectorAll(".forecast .fc-bars .pm")].map((x) => x.textContent) }));
-  check(f.rough && f.pm.length > 0 && f.pm.every((x) => x.endsWith("…")) && f.panel && f.panelPm.every((x) => x.endsWith("…")), `a first-pass forecast reads rough on the shaft and the panel, each ± trailing \`…\` (${f.pm.join(" ")} · panel ${f.panel})`);
+  let f = await page.evaluate(() => ({ rough: document.querySelector(".shaft")?.classList.contains("rough"), pm: [...document.querySelectorAll(".shaft .notch .pm")].map((x) => x.textContent.trim()), panel: document.querySelector(".forecast")?.classList.contains("rough"), panelPm: [...document.querySelectorAll(".forecast .fc-bars .pm")].map((x) => x.textContent.trim()), quality: document.querySelector('.fc-quality')?.textContent, qualityHidden: document.querySelector('.fc-quality')?.hidden, refined: document.querySelector('.forecast')?.dataset.refined }));
+  check(f.rough && f.pm.length > 0 && f.pm.every((x) => x === "±4") && f.panel && f.panelPm.length > 0 && f.panelPm.every((x) => x === "±4") && f.quality === "rough estimate" && f.qualityHidden === false && f.refined === "0", `first pass is explicitly rough with exact uncertainty on shaft and panel (${JSON.stringify(f)})`);
   await paintForecast({ refined: true });
   await sleep(150);
-  f = await page.evaluate(() => ({ rough: document.querySelector(".shaft")?.classList.contains("rough"), pm: [...document.querySelectorAll(".shaft .notch .pm")].map((x) => x.textContent), panel: document.querySelector(".forecast")?.classList.contains("rough") }));
-  check(!f.rough && !f.panel && f.pm.every((x) => !x.includes("…")), `the refine lands plain: no \`…\`, not dim (${f.pm.join(" ")})`);
+  f = await page.evaluate(() => ({ rough: document.querySelector(".shaft")?.classList.contains("rough"), pm: [...document.querySelectorAll(".shaft .notch .pm")].map((x) => x.textContent.trim()), panel: document.querySelector(".forecast")?.classList.contains("rough"), qualityHidden: document.querySelector('.fc-quality')?.hidden, refined: document.querySelector('.forecast')?.dataset.refined }));
+  check(!f.rough && !f.panel && f.pm.length > 0 && f.pm.every((x) => x === "±4") && f.qualityHidden === true && f.refined === "1", `refined pass preserves uncertainty and clears rough state (${JSON.stringify(f)})`);
   // ---- N5: a 0 % notch dims, label and all
   const z = await page.evaluate(() => { const n = document.querySelector('.shaft .notch[data-d="7"]'); return { zero: n?.classList.contains("zero"), color: n ? getComputedStyle(n.querySelector(".dl")).color : "", acc: getComputedStyle(document.documentElement).getPropertyValue("--acc").trim() }; });
   check(z.zero && !/255, 2[0-9]{2}, /.test(z.color), `the next floor at 0 % is dim, not gold (${z.color})`);
@@ -166,7 +166,7 @@ try {
   await openPanel(page, "unlocks"); await sleep(200);
   const tiles = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card")].map((c) => ({ label: c.querySelector(".card-main > span")?.textContent, needs: c.querySelector(".needs")?.textContent ?? "", cost: c.querySelector(".cost")?.textContent })));
   const tt = (l) => tiles.find((x) => x.label === l);
-  check(tt("auto: restock")?.needs === "◆2 more", `a marks shortfall the gold covers carries no \`⊘\` ("${tt("auto: restock")?.needs}")`);
+  check(tt("Restock supplies")?.needs === "◆2 more", `a marks shortfall the gold covers carries no \`⊘\` ("${tt("Restock supplies")?.needs}")`);
   const corr = await page.evaluate(() => [...document.querySelectorAll(".unlocks .card")].find((c) => /corridor/.test(c.textContent))?.querySelector(".stall-risk")?.textContent);
   check(corr === "stall +11", `a card that raises the stall share says so on its tile ("${corr}")`);
   check(tt("class: rogue")?.cost === "free", `a door that costs nothing reads \`free\` ("${tt("class: rogue")?.cost}")`);
@@ -177,7 +177,7 @@ try {
   const vmax = await page.evaluate(() => window.__riddle.vocab.max_rows);
   check(eff.join() === `rows ${vmax} → ${vmax + 1}`, `the \`+1 rule slot\` sheet says what it gives ("${eff.join()}")`);
   await page.keyboard.press("Escape"); await sleep(100);
-  await page.locator(".unlocks .card", { hasText: "auto: restock" }).first().click({ timeout: 5000 }); await sleep(200);
+  await page.locator(".unlocks .card", { hasText: "Restock supplies" }).first().click({ timeout: 5000 }); await sleep(200);
   const needsLine = await text(".sheet-wrap .unlock-sheet .needs-line:not(.gold-short)");
   check(needsLine.join() === "◆2 more", `the sheet's marks line drops its \`⊘\` while \`$ buy\` is on ("${needsLine.join()}")`);
   await page.keyboard.press("Escape"); await sleep(100);

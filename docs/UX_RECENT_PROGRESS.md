@@ -46,3 +46,6 @@ Source/report payload, patch/drop/buy handlers, old text fallback and threshold
 values preserved. No balance/FPS claim/deployment. Earlier forecast optimisation
 docs overstated report-actions count as48: corrected to32 (two widths), while
 report-hero-upgrade remains57 (three widths).
+
+Follow-up: the historical qa92 camp failures above are now resolved; see
+DEV_QA92.md. Full40checks and report-only8checks pass with all sections kept.

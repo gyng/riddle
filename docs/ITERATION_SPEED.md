@@ -1,3 +1,16 @@
+**HISTORICAL CAMP QA RESTORED — 2026-10-06:** qa92 full40checks passes
+13.9s; report-only8checks3.0s, combined13.9s. Explicit rough-estimate label,
+rough/refined classes+data flags and exact uncertainty bands replace obsolete
+ellipsis expectations; normalize panel leading whitespace. Current Restock
+supplies label/selector restores complete walk. Original timeout was restock
+lookup, not counted rule card. All prior behaviors retained, no checks removed,
+timeouts raised or default sections skipped; advanced legacy fake fixture
+unchanged. Build/typecheck/copy1523/diff/JS syntax pass, chunk advisory. Updated
+stale forecast source comment only; no runtime/gameplay changes. DEV_QA92.md
+records scope; not a full client-suite/balance/real-playtest certification.
+Prior qa92 failure queue resolved. No deployment. Next: resume real first-session
+content/gameplay/gfx evaluation; avoid more harness/UI work without evidence.
+
 **RECENT PROGRESS CLARITY — 2026-10-06:** Report Details now labels
 stored record and recent-window best separately; actual record20/recent13.
 Known bank/return causes read collected gold/returned home with original
