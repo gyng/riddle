@@ -1473,6 +1473,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     }
     let cause = src.cause(run);
     let cause = cause.as_str();
+    let dmg=match src {Src::Mon(i) if run.monsters[*i].hostile()&&run.monsters[*i].hex_t>0=>(dmg-2).max(0),_=>dmg};
     let (dmg, counter) = counter_damage(run, src, dmg, None, run.hero.pos, false);
     if let Some((a, b)) = counter {
         learn(run, cx, crate::defs::counter_fact(&a, &b));
@@ -1501,6 +1502,11 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
             return;
         }
     }
+    let riposte=if run.hero.riposte_t>0&&crate::specialization::has(&run.hero,crate::specialization::Style::Sentinel) {
+        match src {Src::Mon(i) if run.monsters[*i].hp>0&&run.monsters[*i].hostile()
+            &&!run.monsters[*i].has_tag("ranged")&&run.monsters[*i].pos.cheb(run.hero.pos)<=1=>Some(*i),_=>None}
+    }else {None};
+    let dmg=if riposte.is_some() {run.hero.riposte_t=0;dmg/2+dmg%2}else{dmg};
     run.hero.hp -= dmg;
     // Cut 24 §1: the hero's HP moved — the fight is going somewhere, unless a summon drew it
     // (a boss's endless reserves are no progress either way).
@@ -1599,6 +1605,9 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         let sight = run.vision(cx.unlocks);
         trace_seen(run, Some(sight));
         end_run(run, cx, ExitTier::Death);
+    }
+    if let Some(i)=riposte.filter(|i|run.hero.hp>0&&run.over.is_none()&&run.monsters[*i].hp>0) {
+        crate::ai::riposte_hit(run,cx,i);
     }
 }
 

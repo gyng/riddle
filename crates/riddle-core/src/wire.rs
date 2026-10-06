@@ -39,6 +39,8 @@ pub struct HeroSnap {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub armour: Option<String>,
     pub class: String,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub specialization:Option<crate::specialization::Style>,
     #[serde(rename = "trait")]
     pub trait_: String,
 }
@@ -2814,6 +2816,7 @@ mod tests {
             weapon: Some("dagger".into()),
             armour: None,
             class: "fighter".into(),
+            specialization:None,
             trait_: "brave".into(),
         };
         let s = serde_json::to_string(&h).unwrap();

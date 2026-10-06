@@ -144,6 +144,9 @@ pub fn vocabulary(l: &LineageState) -> Vocabulary {
         verbs.push(Verb::new(v));
     }
     let level = l.class_level();
+    if let Some(style)=crate::specialization::current(l) {
+        verbs.push(if style==crate::specialization::Style::Sentinel {Verb::new(style.verb())}else{Verb::arg(style.verb(),"nearest")});
+    }
     for (verb, lvl) in crate::hero::class_ladder(l.class) {
         if level < *lvl || *verb == "throw" {
             continue;

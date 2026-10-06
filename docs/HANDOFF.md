@@ -2715,3 +2715,46 @@ the fake engine (`web/src/engine/fake.ts` ~2082–2195) already has Cut 29 stand
   client timing suites flaky — rerun a failing timing suite alone before believing it.
 - `tools/playtest.mjs` right after `tools/ship.sh` can abort (the pkg rebuild reloads Vite) — rerun it.
 - Agents sharing the tree: give each an owned area, "targeted edits only, re-read before editing".
+**CUT33 CLASS SPECIALIZATION CORE CHECKPOINT — 2026-10-06:**
+Sentinel/Fighter and Hexbinder/Caster implemented in Rust only. Parent level10,
+historical D23, explicit free home choice/remove, per-parent bloodline memory,
+send-snapshotted abilities. Named automatic style row below guards/drills/pen;
+custom player overrides remain explicit. Riposte20ticks/CD60 halves one melee
+hit (ceil), counters8 if alive; respects normal reflection and King rhythm.
+Hex40ticks/CD60 reduces that enemy's attacks2. Zero/empty new save fields omitted.
+Forecast cache includes only current active style; remove restores base key.
+No new base classes, XP grants, currency or automatic style assignment.
+
+Final quick628 core PASS/one ignored plus14 tool tests/TS/copy,141s under
+competing work. Twelve new meaningful tests include numeric actual damage,
+exclusions, King reflection, choice/refusal/memory, one/three-slot full8h
+whole/sliced/reloaded raw saves/reports for both parent classes. Controlled
+fixtures, not earned campaigns. Clippy all-target warnings denied, web build,
+fast WASM5357456B and codegen checks pass; existing bundle advisory retained.
+Final routine18-case gate terminal0 source596967ebcc35f5eb, no cached legs:
+metrics113.2s, wire80.5s, dayplayer191.1s/all selected bars PASS. Exhaustive,
+system-removal and historical audits not run. Six old complete WASM save/advance
+baselines and two numbered native saves exact. Both earned styles: complete
+native/WASM load/send/uneven advance/reload/8h report-save parity passes.
+
+Permanent diagnostic examples/style_prepare.rs spends existing points/marks
+and uses owned rules only. Preserve failed generic-Bolt baseline: Caster level9
+after14days; paid Recovery/Warding alone level10 at296h. Owned boss counters
+80h, added known ranged reflection counter40h. Final latter preparation earns
+Caster10 in40 game-hours with no XP/gear/currency grants, root upgrades54 plus
+Recovery/Warding108 actual Legacy, Caster unlock8 owned marks. Explicitly
+removing ordinary training Bolt override after10 lets selected Hex default fire;
+never delete player overrides automatically on style choice. Final8h Tier1
+earned campaigns: Sentinel656 actions/296 counters/8runs/clear; Hexbinder774
+actions/11runs/clear. Raw saves and full earned event streams retained in
+scratchpad/class-prepare-core-final-20261006/; parity script/artifacts in
+scratchpad/class-core-20261006/. Failed variants retained alongside.
+
+CUT33_CLASS_STYLES.md remains OPEN: no app bridge/class-choice UI/icons yet,
+no Tier5 paired style/base comparisons or equal-work class overhead result.
+Next implement Rust-owned offers and native/WASM/worker methods, chunky choice
+review/parent XP/default tactic preview, readable icons/presence/Hex tooltips,
+real-worker responsive320/400/1440 earned screenshot checkpoint, six paired
+Tier5 cases and <=10% equal-work benchmark against a39e4d7. Do not call this
+core checkpoint full contract completion. Shared5219 retained, no deployment.
+Keep-going goal active; no subagents. mine.bars/scratchpad remain unstaged.

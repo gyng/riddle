@@ -174,6 +174,12 @@ pub struct Hero {
     /// Selected inherited perks snapshotted at send; old roots alone omit it.
     #[serde(default,skip_serializing_if="crate::legacy::empty_effects")]
     pub legacy_effects:u16,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub specialization:Option<crate::specialization::Style>,
+    #[serde(default,skip_serializing_if="crate::specialization::zero")]
+    pub special_cd:i32,
+    #[serde(default,skip_serializing_if="crate::specialization::zero")]
+    pub riposte_t:i32,
     pub class: Class,
     pub inv: crate::shared::Shared<Vec<Item>>,
     pub weapon: crate::shared::Shared<Option<Item>>,
@@ -251,6 +257,9 @@ impl Hero {
             str_bonus: 0,
             legacy_armour: 0,
             legacy_effects: 0,
+            specialization:None,
+            special_cd:0,
+            riposte_t:0,
             class,
             inv: Vec::new().into(),
             weapon: None.into(),
@@ -406,6 +415,8 @@ impl Hero {
         self.tick_statuses_by(1);
     }
     pub(crate) fn tick_statuses_by(&mut self, ticks: i32) {
+        if self.special_cd>0 {self.special_cd=(self.special_cd-ticks).max(0);}
+        if self.riposte_t>0 {self.riposte_t=(self.riposte_t-ticks).max(0);}
         if self.speed_t > 0 {
             self.speed_t = (self.speed_t - ticks).max(0);
         }
@@ -455,6 +466,7 @@ impl Hero {
     }
     pub fn status_tags(&self) -> Vec<String> {
         let mut t = Vec::new();
+        if self.riposte_t>0 {t.push("riposte ready".into());}
         if self.speed_t > 0 {
             t.push("fast".into());
         }

@@ -26,7 +26,12 @@ Twelve-node bloodline Legacy tree and free home respec are implemented under
 `docs/CUT32_LEGACY_TREE.md`: Recovery, Control and Warding, historical D8/D18
 access, exclusive leaves and live-send effect snapshots. Nine controlled paid
 Tier5 builds clear within8–16h; exact parity, responsive UI and current18-case
-gate pass. No deployment. Next: two class specializations using existing class XP.
+gate pass. No deployment. Two class specializations now have verified Rust core
+under `docs/CUT33_CLASS_STYLES.md`: Fighter/Sentinel Riposte and Caster/Hexbinder
+Hex, earned parent level10 plus historical D23, existing class XP and remembered
+bloodline choices. Both earned Tier1 campaigns clear; native/WASM parity and
+current18-case suite pass. App choice/art, Tier5 paired balance and class
+performance verification remain open; this is a core checkpoint only.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an
 automation/idle game first, never as an action roguelike (`research/idle-attraction.md` §1.1).

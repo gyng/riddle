@@ -1235,6 +1235,8 @@ pub struct LineageState {
     pub supplies: Vec<Item>,
     // Addendum C
     pub classes: BTreeMap<String, ClassProg>,
+    #[serde(default,skip_serializing_if="BTreeMap::is_empty")]
+    pub specializations:BTreeMap<String,crate::specialization::Style>,
     // Addendum D
     pub forge: BTreeMap<String, ForgeRow>,
     pub renown: u32,
@@ -1694,6 +1696,7 @@ impl LineageState {
             gold_carry: 0,
             supplies: Vec::new(),
             classes,
+            specializations:BTreeMap::new(),
             forge: BTreeMap::new(),
             renown: 0,
             rank: 0,
@@ -3383,6 +3386,7 @@ impl Game {
             }
         }
         self.lineage.class = c;
+        if !self.lineage.specializations.is_empty() {crate::packages::recompile(&mut self.lineage);}
         Ok(())
     }
 
@@ -3784,6 +3788,7 @@ impl Game {
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
         hero.apply_level(self.lineage.class_level());
         crate::legacy::apply(&self.lineage, &mut hero);
+        hero.specialization=crate::specialization::current(&self.lineage);
         // Starting arms by class, at the forge's steps (Cut 23 §1; the kit's ids are never loot).
         crate::kit::equip(&self.lineage, &mut hero);
         let mut brought = Vec::new();
@@ -4472,10 +4477,13 @@ impl Game {
         let hero_speed = run.hero.speed();
         quiet = before_action(quiet, run.hero.energy, hero_speed);
         if run.hero.speed_t > 0 { quiet = quiet.min(run.hero.speed_t as u32); }
+        if run.hero.special_cd>0 {quiet=quiet.min(run.hero.special_cd as u32);}
+        if run.hero.riposte_t>0 {quiet=quiet.min(run.hero.riposte_t as u32);}
         if quiet == 0 { self.tick(); return 1; }
         for m in &run.monsters {
             quiet = before_action(quiet, m.energy, m.effective_speed());
             if m.slow_t > 0 { quiet = quiet.min(m.slow_t as u32); }
+            if m.hex_t>0 {quiet=quiet.min(m.hex_t as u32);}
             if let Some(ttl) = m.ttl { quiet = quiet.min(ttl.saturating_sub(1).max(0) as u32); }
             if quiet == 0 { break; }
         }
@@ -4531,6 +4539,7 @@ impl Game {
             weapon: h.weapon.as_ref().map(|w| w.kind.clone()),
             armour: h.armour.as_ref().map(|a| a.kind.clone()),
             class: h.class.name().into(),
+            specialization:h.specialization,
             trait_: run.trait_.name().into(),
         };
         let mut entities: Vec<Entity> = run
@@ -6970,6 +6979,7 @@ pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
     if mo.stun > 0 {
         tags.push("stunned".into());
     }
+    if mo.hex_t>0 {tags.push("hexed".into());}
     if mo.paralysed > 0 {
         tags.push("paralysed".into());
     }

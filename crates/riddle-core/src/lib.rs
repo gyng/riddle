@@ -17,6 +17,7 @@ pub mod hero;
 pub mod item;
 pub mod kit;
 pub mod legacy;
+pub mod specialization;
 pub mod bloodlines;
 pub mod meta;
 pub mod monster;
@@ -48,6 +49,7 @@ pub use rules::{Cond, Row, RuleSet, Verb, Vocabulary};
 pub use wire::*;
 
 impl Game {
+    pub fn set_specialization(&mut self,id:&str)->Result<(),String> {specialization::choose(self,id)}
     pub fn forecast(&self) -> Forecast {
         forecast::forecast(self)
     }

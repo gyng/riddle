@@ -106,6 +106,8 @@ pub struct Monster {
     pub marked: i32,
     #[serde(default)]
     pub slow_t: i32,
+    #[serde(default,skip_serializing_if="crate::specialization::zero")]
+    pub hex_t:i32,
     /// Cut 3: the warden's current face — reflecting ranged (true) or melee (false).
     #[serde(default)]
     pub warden_ranged: bool,
@@ -190,6 +192,7 @@ impl Monster {
             acts_since_hero: 0,
             marked: 0,
             slow_t: 0,
+            hex_t:0,
             warden_ranged: false,
             introduced: false,
             rallies: 0,
@@ -284,6 +287,7 @@ impl Monster {
         self.tick_statuses_by(1);
     }
     pub(crate) fn tick_statuses_by(&mut self, ticks: i32) {
+        if self.hex_t>0 {self.hex_t=(self.hex_t-ticks).max(0);}
         if self.stun > 0 {
             self.stun = (self.stun - ticks).max(0);
         }

@@ -152,7 +152,7 @@ pub fn combo_slug(name: &str) -> String {
 }
 
 /// Cut 30 §2: the origins of package rows (`Row::is_pkg`).
-pub const PKG_ORIGINS: [&str; 4] = ["stance:", "tactic:", "temper:", "drill:"];
+pub const PKG_ORIGINS: [&str; 5] = ["stance:", "tactic:", "temper:", "drill:", "style:"];
 
 pub const COND_KEYS: &[&str] = &[
     "hp<", "hp>", "foes>=", "adj>=", "foe_tag", "foe_hp<", "item", "unknown_item", "floor_seen>=", "depth>=",
@@ -176,6 +176,7 @@ pub const VERB_KEYS: &[&str] = &[
     "cleave", "taunt", "second_wind", "bulwark", "backstab", "smoke", "ambush", "shadowstep",
     // Cut 2 §4 (ranger and caster ladders; `shoot` and `drain` above)
     "kite", "volley", "trap", "mark", "double_shot", "bolt", "ward", "blink", "slow", "nova",
+    "riposte", "hex",
     // hold position (always executes; not offered by the editor)
     "hold",
     // Cut 5 §4: the shrine (`pray row` / `pray trait`)

@@ -15,9 +15,15 @@ twelve nodes, actual effects, historic depth access, free home respec, exact
 one/three-slot8h parity and real earned desktop/phone screenshots. Nine paid
 Tier5 diagnostic builds clear in8–16h, final current18-case gate passes, scoped
 equal-work overhead stays below10%. Old save/ranks retained, no deployment.
-Next: specify and implement two class specializations, reuse class XP, distinct
-exclusive actions/tactic support and visible replay evidence. More base classes
-follow demonstrated gameplay gaps. No extra early prestige layer.
+CUT33_CLASS_STYLES.md core checkpoint verified: Sentinel Riposte and Hexbinder
+Hex, existing parent XP, remembered bloodline choice, actual named tactic/events.
+Owned counter policies earn Caster10 in40 game-hours, no grants; generic-Bolt
+14day failure preserved. Both actual earned Tier1 campaigns clear. Current18case
+gate, exact old saves and native/WASM8h parity pass. Next: Rust-owned offers,
+native/WASM/worker choice methods, chunky UI/icons/presence/Hex tip, real-worker
+responsive earned screenshots, six paired Tier5 style/base cases and equal-work
+overhead<=10% against a39e4d7. Full Cut33 remains open. More base classes follow
+demonstrated gameplay gaps. No extra early prestige layer.
 
 D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h
 whole/sliced/reloaded full-state/report parity now passes after guide-quote,
