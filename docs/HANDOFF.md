@@ -1,3 +1,19 @@
+**NAMED COMBAT ACTORS — 2026-10-06:** Snapshot.hero.name now Rust stable
+identity from run.heir+game bloodline, existing optional Entity.name wire.
+Watch remembers companions as well as foes; immutable actor names captured for
+delayed rows (only referenced actors; movement batches copy no map). No inference
+from current selected heir.558 fast tests36.77s/1ignored, clippy, rebuiltWASM
+5240576, final build/typecheck/copy1524/diff pass; bundle advisory. Final isolated
+combat20+watch-status pass24.4s. Headed real seed2 manual house/send400/1440
+named attack/pickups, pause, no page errors/overflow, screenshots shown. Companion
+identity tested controlled stream, not real pet walkthrough. Unknown first-batch
+slain actor retainsFoe; overlay scrolled to named row for screenshot. Harness
+wrong engine.version and uppercaseSend lookups corrected; final runs terminalPASS.
+UX_COMBAT_IDENTITY.md for limits/evidence. Temporary5382 confirmed/killed.
+No gameplay/deployment. Next: actual desktop watch roster still Ready during
+live run; inspect onLive/state ownership and fix. Later: first-batch missing foe
+identity/duplicate damage rows and first-watch hero framing from screenshots.
+
 **STYLE EXPRESSIONS AT GAME SIZE — 2026-10-06:** Owner follow-up: stronger
 Guarded suspicious side-eye and Hunter plotting gesture via two individual
 built-in imagegen v4 edits. Other six expressive v3 assets preserved. All eight

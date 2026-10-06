@@ -799,3 +799,32 @@ fn bloodline_families_distinguish_colliding_given_names_and_preserve_archives() 
     let mut old=serde_json::to_value(death).unwrap();old["hero"]["name"]=serde_json::json!("Wren");
     let kept:crate::wire::Death=serde_json::from_value(old).unwrap();assert_eq!(kept.hero.unwrap().name,"Wren");
 }
+
+#[test]
+fn snapshot_actor_identity_survives_load_heir_advance_and_slot_switch() {
+    let mut s = crate::bloodlines::Session::new(2);
+    s.build_town("house").unwrap();
+    s.active.lineage.gold = 500;
+    s.active.lineage.tree.ledger = 500;
+    s.add_bloodline().unwrap();
+    let first = s.send();
+    let first_name = first.hero.entity.name.clone().unwrap();
+    assert_eq!(first_name, s.lineage().hero_slots[0].hero_name);
+    let before = s.save();
+    assert_eq!(s.snapshot().hero.entity.name.as_deref(), Some(first_name.as_str()));
+    assert_eq!(s.save(), before, "snapshot identity never mutates save or RNG");
+    assert_eq!(crate::bloodlines::Session::load(&before).unwrap().snapshot().hero.entity.name, first.hero.entity.name);
+    s.select_bloodline(2).unwrap();
+    let second = s.send();
+    assert_eq!(second.hero.entity.name.as_deref(), Some(s.lineage().hero_slots[1].hero_name.as_str()));
+    assert_ne!(first.hero.entity.name, second.hero.entity.name);
+    s.select_bloodline(1).unwrap();
+    s.active.lineage.heir += 1;
+    assert_eq!(s.snapshot().hero.entity.name, first.hero.entity.name, "a retained run uses its own heir");
+    let replay = s.replay(first.run.id).unwrap();
+    assert!(replay.floors.iter().all(|f| f.snapshot.hero.entity.name == first.hero.entity.name));
+    let mut old = serde_json::to_value(first).unwrap();
+    old["hero"].as_object_mut().unwrap().remove("name");
+    let old: crate::wire::Snapshot = serde_json::from_value(old).unwrap();
+    assert!(old.hero.entity.name.is_none(), "old snapshots still decode");
+}

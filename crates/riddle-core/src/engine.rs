@@ -4488,7 +4488,7 @@ impl Game {
             entity: Entity {
                 id: HERO_ID,
                 kind: format!("hero_{}", h.class.name()),
-                name: None,
+                name: Some(crate::legacy::hero_identity(l.seed, run.heir, l.bloodline_id)),
                 x: h.pos.x,
                 y: h.pos.y,
                 hp: h.hp,

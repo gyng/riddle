@@ -417,9 +417,9 @@ export function renderWatch(app: App): Mounted {
   const combatRows = h("ol", { class: "combat-lines", "aria-live": "off" });
   const combatLog = h("div", { class: "combat-log", "aria-label": /* copy:label */ "Combat log" }, combatRows);
   let logDepth = app.lineage.live?.depth ?? 1;
-  function logEvent(ev: Ev, heroId: number): void {
+  function logEvent(ev: Ev, heroId: number, names: ReadonlyMap<number, string>): void {
     let text: (string | HTMLElement)[] | undefined;
-    const who = (id: number): string => id === heroId ? /* copy:label */ "Hero" : victims.get(id) ?? /* copy:label */ "Foe";
+    const who = (id: number): string => names.get(id) ?? (id === heroId ? /* copy:label */ "Hero" : /* copy:label */ "Foe");
     const damage = (amount: number, id: number): HTMLElement => h("span", { class: amount < 0 ? "log-heal" : id === heroId ? "log-hurt" : "log-damage" }, `${amount < 0 ? "+" : "−"}${Math.abs(amount)} hp`);
     const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, itemIcon({kind:name, label:name}, {size:"xs"}), name);
     if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · `, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
@@ -895,13 +895,26 @@ export function renderWatch(app: App): Mounted {
     timed.length = 0; timed.push(...keep);
   }
   const victims = new Map<number, string>();   // id → label, remembered across batches so a kill inside a batch still has a name
+  const logActors = new Map<number, string>(); // includes companions; captured per batch for delayed display
   let exitOath = "";   // Cut 28b: an oath decided at the run's end, for the exit's beat
   function absorb(evs: Ev[], s: Snapshot): Tier | null {
     let exit: Tier | null = null;
     const heroId = s.hero.id;
     for (const e of s.entities) { if (e.ally) allies.add(e.id); else if (e.id !== heroId) victims.set(e.id, (e.name ?? e.kind).replace(/_/g, " ")); if (e.tags.includes("boss")) bossIds.add(e.id); }
+    logActors.set(heroId, s.hero.name || /* copy:label */ "Hero");
+    for (const e of s.entities) logActors.set(e.id, (e.name || e.kind).replace(/_/g, " "));
+    const logged = evs.filter((ev) => ["attack", "hurt", "heal", "telegraph", "die", "use", "pickup", "rule", "descend", "exit"].includes(ev.k));
+    if (logged.length) {
+      // Capture only actors in these rows; movement-only batches copy no names.
+      const actorNames = new Map<number, string>();
+      const capture = (id: number): void => { const name = logActors.get(id); if (name) actorNames.set(id, name); };
+      for (const ev of logged) {
+        if (ev.k === "attack") { capture(ev.src); capture(ev.dst); }
+        else if ("id" in ev) capture(ev.id);
+      }
+      for (const ev of logged) at(ev.t, () => logEvent(ev, heroId, actorNames));
+    }
     for (const ev of evs) {
-      if (["attack", "hurt", "heal", "telegraph", "die", "use", "pickup", "rule", "descend", "exit"].includes(ev.k)) at(ev.t, () => logEvent(ev, s.hero.id));
       if (ev.k === "drain") drainOn = drainWord(ev.cause);
       else if (ev.k === "descend" || ev.k === "exit" || (ev.k === "attack" && ev.dst === heroId)) drainOn = null;   // the stairs, the end, a blow: the stretch is over
       else if (drainOn && (ev.k === "hurt" || ev.k === "max_hp") && ev.id === heroId) drainEvs.add(ev);
