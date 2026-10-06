@@ -237,6 +237,11 @@ impl Monster {
         self.max_hp = (self.max_hp * 11 + 9) / 10;
         self.hp = self.max_hp;
         self.atk = (self.atk.0, (self.atk.1 * 11 + 9) / 10);
+        if self.modifiers.is_some() {
+            self.max_hp = self.max_hp.min(crate::endgame::STAT_CAP);
+            self.hp = self.max_hp;
+            self.atk.1 = self.atk.1.min(crate::endgame::STAT_CAP);
+        }
     }
     /// Speed after the caster's `slow` (never below 1).
     pub fn frenzied(&self) -> bool {

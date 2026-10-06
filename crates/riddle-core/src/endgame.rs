@@ -7,6 +7,8 @@ pub const ARMOURED: u8 = 1;
 pub const SWIFT: u8 = 2;
 pub const REGENERATING: u8 = 4;
 pub const STAT_CAP: i32 = 1_000_000;
+const HP_PERCENT: u64 = 8;
+const ATTACK_PERCENT: u64 = 4;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -58,9 +60,9 @@ fn scaled(value: i32, tier: u32, percent: u64) -> i32 {
         .min(STAT_CAP as u64) as i32
 }
 fn apply(m: &mut crate::monster::Monster, mods: Modifiers) {
-    m.max_hp = scaled(m.max_hp, mods.tier, 8);
+    m.max_hp = scaled(m.max_hp, mods.tier, HP_PERCENT);
     m.hp = m.max_hp;
-    m.atk = (scaled(m.atk.0, mods.tier, 4), scaled(m.atk.1, mods.tier, 4));
+    m.atk = (scaled(m.atk.0, mods.tier, ATTACK_PERCENT), scaled(m.atk.1, mods.tier, ATTACK_PERCENT));
     if mods.has(ARMOURED) { m.def = m.def.saturating_add(1); }
     if mods.has(SWIFT) { m.speed = m.speed.saturating_add(2); }
     m.modifiers = Some(mods);
@@ -124,9 +126,21 @@ impl Progress {
         Ok(())
     }
 }
+/// Read-only preview of the actual next dungeon, never a forecast simulation.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DescentOffer {
+    pub tier: u32,
+    pub hp_bonus_percent: u64,
+    pub attack_bonus_percent: u64,
+    pub stat_cap: i32,
+    pub affixes: Vec<ModifierInfo>,
+    pub elites: Vec<ModifierInfo>,
+    pub elite_rate_denominator: u32,
+    pub boss: Option<ModifierInfo>,
+}
 impl Game {
     /// Eligibility without mutating old saves or inventing harder clears from
-    /// their old ascension count. Not exposed by the client bridge yet.
+    /// their old challenge count.
     pub fn descent_progress(&self) -> Progress {
         let mut p = self.lineage.endgame.clone().unwrap_or_default();
         if self.lineage.endgame.is_none() && self.lineage.ended {
@@ -136,9 +150,25 @@ impl Game {
         p
     }
 
+    pub fn descent_offer(&self, tier: u32) -> Result<DescentOffer, String> {
+        if !self.lineage.ended { return Err("clear the dungeon first".into()); }
+        let p = self.descent_progress();
+        p.validate()?;
+        if tier > p.unlocked { return Err("difficulty locked".into()); }
+        let catalogue = catalogue(tier);
+        Ok(DescentOffer {
+            tier, hp_bonus_percent: u64::from(tier) * HP_PERCENT,
+            attack_bonus_percent: u64::from(tier) * ATTACK_PERCENT, stat_cap: STAT_CAP,
+            affixes: catalogue.iter().filter(|m| m.mask > 0 && affixes(tier) & m.mask != 0).cloned().collect(),
+            elites: catalogue.iter().filter(|m| matches!(m.id.as_str(), "shielded" | "frenzied")).cloned().collect(),
+            elite_rate_denominator: if tier > 0 { 8 } else { 0 },
+            boss: catalogue.into_iter().find(|m| m.id == "tight_mirror"),
+        })
+    }
+
     /// Begin a separately numbered descent after an ending. Keeps the survivor,
-    /// the town wallet, equipment and all other bloodlines. Encounter modifiers
-    /// must be complete before exposing this API in the app.
+    /// the town wallet, equipment and all other bloodlines. Historical challenge
+    /// rules are removed; their separate restart API retains its old behavior.
     pub fn begin_descent(&mut self, tier: u32) -> Result<(), String> {
         if !self.lineage.ended { return Err("clear the dungeon first".into()); }
         if self.pending_exit.is_some() || self.offline_absence.is_some() || self.offline {
@@ -153,6 +183,7 @@ impl Game {
         p.tier = tier;
         // All validation precedes the first mutation.
         self.lineage.endgame = Some(p);
+        self.lineage.variant.clear();
         self.lineage.ended = false;
         self.lineage.best_depth = 0;
         self.lineage.heir_best = 0;

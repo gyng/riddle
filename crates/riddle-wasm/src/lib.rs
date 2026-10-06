@@ -621,6 +621,19 @@ impl Game {
         js(&riddle_core::kit::estimates(&self.inner))
     }
 
+    /// Numbered dungeon preview, computed without changing the selected bloodline.
+    #[wasm_bindgen(js_name = descentOffer)]
+    pub fn descent_offer(&self, tier: u32) -> Result<String, JsError> {
+        Ok(js(&self.inner.descent_offer(tier).map_err(err)?))
+    }
+
+    /// Begin an unlocked numbered dungeon; all validation precedes mutation.
+    #[wasm_bindgen(js_name = beginDescent)]
+    pub fn begin_descent(&mut self, tier: u32) -> Result<String, JsError> {
+        self.inner.begin_descent(tier).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     // ---- Cut 3: ascension
 
     /// After the ending: a new lineage under `variant` (`no_rest | short_list | bones_only |

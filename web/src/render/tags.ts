@@ -4,7 +4,7 @@
 // The layer is a sibling of the canvas with the canvas's offset box, so the viewer's CSS coordinates (`toCss`) are its own.
 // Pooled elements; a frame writes only what changed. The faces are the chrome's tokens (styles.css, docs/ART_DIRECTION.md §Typography).
 
-export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number; ally?: boolean; boss?: boolean; warning?: boolean;
+export type Tag = { id: number; text: string; x: number; y: number; w: number; hp: number; ally?: boolean; boss?: boolean; warning?: boolean; elite?:boolean;
                     stair?: "taken" | "other" };   // Cut 26 §2: a fork floor's stair plate (its lane), the route's stair lit   // x centre, y bottom (CSS px); hp 0..1, <0 = no bar; ally: the green plate
 
 /** QA e75ec29: an ally's plate — its kind's last word and its name (`jackal Skog`), a nameless (summoned) ally its kind alone. */
@@ -37,6 +37,8 @@ const CSS = `
 .rtag.boss b { font-size: 14px; color: #eadfc5; letter-spacing: .06em; font-variant-caps: all-small-caps; }
 .rtag.boss i { width: 84px; height: 8px; border: 1px solid #000; box-shadow: 0 0 0 1px #b89448, 0 0 0 2px #14060a, 0 0 10px rgba(192, 21, 48, .45); }
 .rtag.boss i > s { background: linear-gradient(#e0354a, #c01530 55%, #5c0b1c); box-shadow: inset 0 1px 0 rgba(234, 223, 197, .45); }
+.rtag.elite b { color:#d8b875; }
+.rtag.elite i { box-shadow:0 0 0 1px #a9894c; }
 .rtag.warning b { color: #f2b067; }
 .rtag.ally b { color: #a4bcd6; }
 .rtag.ally i { box-shadow: 0 0 0 1px rgba(164,188,214,.55); }
@@ -160,13 +162,13 @@ export class TagLayer {
       const e = this.els[i]!, t = tags[i];
       if (!t) { if (e.key !== "") { e.el.style.display = "none"; e.key = ""; } continue; }
       const hp = t.hp < 0 ? -1 : Math.max(0, Math.min(1, t.hp));
-      const key = `${t.ally ? 1 : 0}${t.boss ? 1 : 0}${t.warning ? 1 : 0}|${t.stair ?? ""}|${t.text}|${Math.round(t.x)}|${Math.round(t.y)}|${Math.round(t.w)}|${hp.toFixed(2)}`;
+      const key = `${t.ally ? 1 : 0}${t.boss ? 1 : 0}${t.warning ? 1 : 0}${t.elite ? 1 : 0}|${t.stair ?? ""}|${t.text}|${Math.round(t.x)}|${Math.round(t.y)}|${Math.round(t.w)}|${hp.toFixed(2)}`;
       if (key === e.key) continue;
       e.key = key;
       e.el.style.display = "";
       if (e.name.textContent !== t.text) e.name.textContent = t.text;
       e.el.classList.toggle("nobar", hp < 0);
-      e.el.classList.toggle("ally", !!t.ally); e.el.classList.toggle("boss", !!t.boss); e.el.classList.toggle("warning", !!t.warning);
+      e.el.classList.toggle("ally", !!t.ally); e.el.classList.toggle("boss", !!t.boss); e.el.classList.toggle("warning", !!t.warning);e.el.classList.toggle("elite",!!t.elite);
       e.el.classList.toggle("stair", !!t.stair); e.el.classList.toggle("taken", t.stair === "taken"); e.el.classList.toggle("other", t.stair === "other");
       if (hp >= 0) e.fill.style.width = `${Math.round(hp * 100)}%`;
       e.el.style.width = `${Math.round(t.w)}px`;

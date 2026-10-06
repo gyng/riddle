@@ -2050,6 +2050,7 @@ impl LineageState {
             rest_left_s: self.rest_left.div_ceil(crate::offline::TICKS_PER_SECOND as u32),
             bones: self.bones.iter().map(|b| BonesPile { depth: b.depth, heir: b.heir, items: b.items.len() as u32 }).collect(),
             ascension: Ascension { level: self.ascension, variant: self.variant.clone() },
+            endgame: self.endgame.clone(),
             ascended: self.ascended.clone(),
             chronicle: self.chronicle.clone(),
             vault_pref: self.vault_pref.clone(),
@@ -3164,6 +3165,7 @@ impl Game {
 
     pub fn lineage(&self) -> Lineage {
         let mut l = self.lineage.to_wire();
+        if self.lineage.endgame.is_some() || self.lineage.ended { l.endgame = Some(self.descent_progress()); }
         let (kinds, gold) = self.repeat_plan();
         l.repeat_kinds = kinds;
         l.repeat_gold = gold;

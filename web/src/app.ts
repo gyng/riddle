@@ -561,6 +561,21 @@ export class App {
 
   /** After the ending, the core owns the next variant and its carry/reset rules.
    *  Refusal preserves the current town. */
+  async beginDescent(tier: number): Promise<boolean> {
+    if (this.ascensionBusy || !this.engine.beginDescent) return false;
+    this.ascensionBusy = true;
+    try {
+      try { this.lineage = await this.engine.beginDescent(tier); }
+      catch (e) { console.warn("descent refused", e); return false; }
+      this.loadout = [...(this.lineage.selected_loadout ?? [])];
+      this.adoptSets();
+      try { this.vocab = await this.engine.vocabulary(); }
+      catch (e) { console.warn("descent metadata unavailable", e); }
+      try { await this.flush(); } catch (e) { console.warn("descent save unavailable", e); }
+      this.go({ kind: "camp" });
+      return true;
+    } finally { this.ascensionBusy = false; }
+  }
   async ascend(variant: string): Promise<boolean> {
     if (this.ascensionBusy) return false;
     this.ascensionBusy = true;

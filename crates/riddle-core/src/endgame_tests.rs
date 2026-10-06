@@ -206,3 +206,38 @@ fn ally_mirror_uses_the_saved_boss_rhythm_too() {
         assert_eq!(reflect,tier>0);
     }
 }
+
+#[test]
+fn preview_is_read_only_matches_birth_and_removes_old_challenge_on_new_path() {
+    let mut g=game(5);g.run=None;g.lineage.ended=true;g.lineage.variant="hunted".into();
+    let before=g.save();
+    for tier in 0..=5 {
+        let offer=g.descent_offer(tier).unwrap();
+        assert_eq!(offer.hp_bonus_percent,u64::from(tier)*8);
+        assert_eq!(offer.attack_bonus_percent,u64::from(tier)*4);
+        assert_eq!(offer.affixes.iter().fold(0,|mask,m|mask|m.mask),affixes(tier));
+        assert_eq!(offer.elites.len(),if tier>0 {2}else{0});
+        assert_eq!(offer.boss.is_some(),tier>0);
+    }
+    assert!(g.descent_offer(6).is_err());assert_eq!(g.save(),before);
+    g.begin_descent(5).unwrap();assert!(g.lineage.variant.is_empty());
+    let wire=g.lineage();assert_eq!(wire.endgame.unwrap().tier,5);
+    assert!(g.descent_offer(0).is_err());
+}
+#[test]
+fn old_ending_offers_numbered_progress_without_save_mutation() {
+    let mut g=Game::new_literal(2);let before=g.save();
+    assert!(g.lineage().endgame.is_none());assert_eq!(g.save(),before);
+    g.lineage.ended=true;g.lineage.ascension=37;let before=g.save();
+    let wire=g.lineage();assert_eq!(wire.endgame.unwrap(),Progress{tier:0,unlocked:1,cleared:Some(0)});
+    assert_eq!(g.descent_offer(1).unwrap().affixes.len(),1);
+    assert!(g.descent_offer(2).is_err());assert_eq!(g.save(),before);
+}
+
+#[test]
+fn difficulty_stat_cap_still_holds_after_grudge_bonus() {
+    let g=game(u32::MAX);let r=g.run.as_ref().unwrap();
+    let mut m=spawn(r,100,"goblin",near(r),33,false);m.make_grudge("Morog");
+    assert_eq!(m.max_hp,STAT_CAP);assert_eq!(m.hp,STAT_CAP);
+    assert!(m.atk.1<=STAT_CAP);assert!(m.atk.0<=m.atk.1);
+}

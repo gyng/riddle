@@ -5,10 +5,11 @@ are ENDGAME_ASCENSIONS.md: endless harder descents, affixes/elites/boss changes,
 then branching Legacy and classes. This cut implements the endgame loop first.
 Partial checkpoints below do not certify the whole cut.
 
-Status: A and B implemented and verified below; C/D remain open. Higher tiers
-have encounter mechanics and authoritative tooltip/death metadata, but are
-not exposed in the WASM/native app bridge or ending selection UI yet. Elite
-map marking remains part of C. This is not the completed playable endgame cut.
+Status: A/B/C implemented and verified below; D remains open. The app now
+exposes numbered descents, authoritative previews, encounter modifiers and elite
+map marking. Five consecutive actual clears demonstrate the loop on one earned
+build. Broader balance, build comparisons, catch-up parity and profiling remain
+required before calling the whole cut verified.
 
 ## Save, unlock and reset contract
 
@@ -187,3 +188,74 @@ there and removed from examples. No deployment or full statistical gate claim.
 Next C: authoritative tier preview/bridge, ending selection, elite marking and
 actual consecutive clears; D: higher-tier tuning and full absence/profile checks.
 Legacy tree/classes remain subsequent content work.
+
+## Checkpoint C interface contract — 2026-10-06
+
+Rust supplies optional read-only progression on Lineage and a descentOffer(tier)
+preview matching its spawn rules: scaling, bounded cap, affixes, elite abilities,
+frequency and boss rhythm. No forecast sims or guessed difficulty from old
+challenge counts. beginDescent validates atomically and preserves selected kit/
+loadout; the client persists the actual result, never recreates a town on refusal.
+Numbered descents remove the previous historical challenge's active rules;
+historical challenge count/unlocks remain intact. Their separate restarts retain
+old verified reset semantics. This explicitly amends A's variant retention.
+Ending foregrounds the next unlocked ascension, allows replay0 through highest
+unlocked without constructing a growing list, and folds challenge restarts away.
+Preview/cancel must preserve exact saves; failure remains in the review, no retry
+of a successful core mutation if metadata refresh fails. Stale preview responses
+cannot enable another tier or bloodline. Elite map plates get a gold diamond,
+reusing existing density/placement limits; never mark an ally as an elite.
+
+## Checkpoint C verification — 2026-10-06
+
+WASM/native adapters and generated bridge expose descentOffer/beginDescent.
+Optional Lineage.endgame grants eligible old endings only tier1 regardless of
+historical challenge count; normal old non-ending wire remains unchanged.
+Preview reads never mutate the save. Numbered path clears active old challenge
+rules and retains kit/loadout; original challenge API and its reset semantics
+still pass their refusal/preservation checks. Extreme grudge bonuses now also
+respect the advertised difficulty stat cap; original tier0 grudges unchanged.
+
+Ending foregrounds the next tier, folds old challenges, and provides a constant
+size 0..unlocked stepper. Rust owns all scaling/affix/elite/boss descriptions.
+Cancel, stale responses, locked input, refusals, duplicate clicks and failed
+metadata refresh verified at320/400/1440; focused client job PASS6.0s. Original
+ascension refusal/review39checks at four viewports PASS; frame63/QA41 PASS.
+These injected fake-engine UI cases prove presentation/control behavior, not
+actual harder victories. Elite map plates reuse existing placement/density and
+add a gold diamond only for hostile elite metadata. A fresh natural Tier1 send
+stepped to turn5667 captures the actual visible D3 Frenzied jackal. Isolated GPU
+renderer diagnostic at normal scale confirms the gold diamond within viewport
+(x438/y183,w59/h19), exact unchanged engine save, no errors; an explicit ally
+projection fixture removes the mark. This is a rendering proof, not a new tame
+or completion claim. Diagnostic screenshot viewed; actual tame is covered in B.
+
+Earned normal TUNED seed3 King source, no depth bypass or difficulty overrides:
+five successive legally started tiers cleared with normal eight-hour check-ins,
+no new manual tuning purchases. Per-tier check-ins/runs:1:1/12,2:2/25,3:4/51,
+4:16/319,5:10/183. Each ends atD34 and unlocks exactly the next tier. Tier4 takes
+128 game-hours, tier5 80; one build/seed is proof of the loop, not balance.
+The clear probe sources/artifacts are endgame-loop-20261006; temporary example
+removed. The first B tier1 probe had13runs because it sampled a watched first
+run before catch-up; this C probe goes straight into offline play.
+
+Actual headed real-WASM UI:320/400 original earned ending to tier1;1440 tier1
+with two other legally added/live bloodlines;1440 earned tier5 ending to tier6.
+Preview/cancel leave full saves byte-identical. All four confirmed transitions
+match complete native expected saves and durable local storage exactly. Shared
+gold stays2850(single),450(multi after their send costs),263506(tier6); selected
+heirs33/273 survive, depth resets0, both other complete live games unchanged.
+No page errors or horizontal overflow. Ending/review/camp screenshots viewed,
+app run count restored from the source's real counters alongside raw save; no
+gameplay/display depth overrides. Artifacts endgame-selection-20261006.
+
+594 core tests PASS/one existing ignored39.04s; clippy all workspace/all targets
+with warnings denied PASS. Native code-generation/adapter coverage PASS.
+Six original pre-foundation WASM complete loaded/advanced saves and advance
+responses remain exactly equal; two earlier numbered resets also exact. Five B
+positive encounter load/advance/after saves still match rebuilt native/WASM.
+The explicit lineage/preview APIs add intended eligibility data without changing
+those saved states or sampled advance responses. Fast WASM5,320,487B; build/
+typecheck/copy1659/diff clean, existing bundle-size advisory. No deployment.
+Next D fixed-seed balance/build comparisons, whole/sliced/reloaded one/three
+bloodline absence checks and full catch-up profiling; then Legacy tree/classes.

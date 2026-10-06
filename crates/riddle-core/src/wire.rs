@@ -1953,6 +1953,8 @@ pub struct Replay {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endgame: Option<crate::endgame::Progress>,
     #[serde(default)]
     pub selected_loadout: Vec<u32>,
     #[serde(default)]

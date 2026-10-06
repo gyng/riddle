@@ -1787,3 +1787,14 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .unit-portrait > .unit-icon { position: absolute; left: 11%; top: 11%; width: 78%; height: 78%; border-radius: 50%; background-color: var(--umbra); box-shadow: inset 0 0 12px var(--ink); }
 .unit-portrait-rim { position: absolute; inset: 0; border-radius: 50%; border: 6px solid #323e5e; box-shadow: inset 0 0 0 1px var(--mist), 0 2px 6px var(--ink); pointer-events: none; }
 .skin-well .unit-portrait-rim { border: 0; box-shadow: none; background: url(/ui/frames/well.png) center / 100% 100% no-repeat; }
+
+/* Numbered descents use the shared chunky controls and a compact review. */
+.ending .descent-choice { width:100%; min-height:76px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+.ending-challenges { margin-top:14px; }
+.ending-challenges summary, .descent-elites summary { cursor:pointer; color:var(--bone); font:600 17px/1.4 var(--control-font); padding:6px 0; }
+.ending-challenges .variants { margin-top:10px; }
+.descent-stepper { display:flex; align-items:center; justify-content:center; gap:10px; margin:12px 0; }
+.descent-stepper .chip { min-width:48px; }
+.descent-tier { width:100px; min-height:44px; text-align:center; font-size:22px; color:var(--bone); background:#15151e; border:2px solid #5c6072; box-shadow:inset 0 2px 6px #000; border-radius:3px; }
+.descent-modifier { display:grid; gap:3px; padding:8px 0; border-bottom:1px solid #54515f; line-height:1.4; }
+.descent-review p { line-height:1.5; }

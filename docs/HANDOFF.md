@@ -1,3 +1,32 @@
+**NUMBERED ENDGAME UI + FIVE EARNED CLEARS — 2026-10-06:**
+Cut31 A/B/C implemented; D/overall keep-going goal remains active. WASM/native
+preview and beginDescent, optional eligible Lineage.endgame, main next-tier
+ending choice and constant-size replay stepper; old challenge restarts folded.
+Rust previews actual modifiers/counters; numbered path removes old active
+challenge rules (explicit contract amendment), retains survivor/kit/loadout/
+gold/Legacy/classes/town/other games. Gold diamond on hostile elite map plates
+within existing density/placement limits; no ally elite markings. Grudge bonus
+also capped at extreme positive tiers; ordinary tier0 behavior unchanged.
+594 core PASS/one existing ignored39.04s; clippy alltargets PASS; adapter codegen
+PASS; new UI320/400/1440 preview/cancel/stale/locked/refusal/duplicate/metadata
+failure PASS6.0s; old ascension39/frame63/QA41 PASS. Six old complete WASM
+load/advance/after baselines exact, two numbered reset saves exact, five B
+positive encounter native/WASM parity cases exact. Fast WASM5320487B; build/
+typecheck/copy1659/diff clean, existing bundle advisory.
+Normal earned seed3 TUNED source ->five legally started/cleared tiers, no depth
+bypass or new manual tuning. Tier/check-ins/runs:1/1/12,2/2/25,3/4/51,4/16/319,
+5/10/183. Actual D34 unlocks next each time; one build/seed, not balance claim.
+Headed real-WASM earned ending/preview/camp320/400/1440 transitions tier1 and
+tier6: full native and durable save bytes exact; selected hero/gold retained,
+both other full live games untouched. Screenshots viewed; source counters
+restored with raw engine state for accurate UI, no display/gameplay overrides.
+Artifacts endgame-loop-20261006/ and endgame-selection-20261006/; temp example
+source copied/removed. Next D fixed-seed/build comparisons, whole/sliced/
+reloaded absence parity one/three bloodlines, full catch-up profiles, then
+branching Legacy/classes. No deploy. Visible D3 Frenzied jackal from natural Tier1 send (turn5667) GPU render
+diagnostic: gold diamond within viewport, ally projection removes mark, exact
+save unchanged/no errors; screenshot viewed. Task preview groups2401891(5465)/2480098(5467) cleaned; shared5219 HTTP200.
+
 **ENDGAME ENCOUNTER MECHANICS — 2026-10-06:**
 Cut31 B implemented alongside A; C/D and overall keep-going goal remain open.
 Three bounded rotating affixes, two deterministic elite abilities, scaled births

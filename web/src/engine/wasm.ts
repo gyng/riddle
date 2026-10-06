@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption, Advance, Replay } from "./types";
+  CageOption, Death, DescentOffer, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption, Advance, Replay } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
 type GameCtor = (new (seed: number) => GameObj) & { fromSave?: (save: string) => GameObj };
@@ -76,6 +76,8 @@ export class WasmEngine implements Engine {
   setClass(cls: string): Lineage { return this.call("setClass", cls); }
   selectSet(i: number): Lineage { return this.call("selectSet", i); }
   // Cut 3
+  descentOffer(tier:number): DescentOffer { return this.call("descentOffer", tier); }
+  beginDescent(tier:number): Lineage { return this.call("beginDescent", tier); }
   ascend(variant: string): Lineage { return this.call("ascend", variant); }
   // Cut 5
   bail(): void { this.game.bail(); }

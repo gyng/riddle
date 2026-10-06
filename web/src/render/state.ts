@@ -41,6 +41,7 @@ export type EntState = {
   fresh?: boolean;                 // preloaded from a snapshot before its events: the first move places it
   neutral: boolean;                // a captive: not a hostile, so the leading camera (index.ts) ignores it
   boss: boolean;
+  elite?: "shielded" | "frenzied";
   name: string;                    // Cut 8A: the label under a hostile in the fight frame (`goblin`, `Morog`), ≤ NAME_MAX chars
 };
 
@@ -188,7 +189,7 @@ export class ReplayState {
       ringFrom: -Infinity, remembered: !!e.remembered,
       neutral: e.kind === "captive" || (e.tags ?? []).includes("captive"),
       boss: (e.tags ?? []).includes("boss"),
-      name: entityName(e),
+      name: entityName(e), elite:e.modifiers?.elite,
     };
     this.ents.set(e.id, st);
     return st;

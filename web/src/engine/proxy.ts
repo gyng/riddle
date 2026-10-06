@@ -7,7 +7,7 @@ import { debugNote } from "../debug";
 const METHODS: (keyof Engine)[] = [
   "newLineage", "load", "save", "vocabulary", "setRules", "loadout", "forecast", "forecastEstimate", "send", "step", "runOffline", "death",
   "buy", "lineage", "exportRules", "importRules", "setParty", "setCompanionRules", "breed", "hatch", "companionVocabulary",
-  "buySupply", "clearSupplies", "supplyCatalogue", "keep", "setKeepPref", "insure", "sellVault", "runOfflineQuick", "unlocks", "unlockDeltas", "setClass", "selectSet", "ascend",
+  "buySupply", "clearSupplies", "supplyCatalogue", "keep", "setKeepPref", "insure", "sellVault", "runOfflineQuick", "unlocks", "unlockDeltas", "setClass", "selectSet", "ascend", "descentOffer", "beginDescent",
   "bail", "choose", "setVaultPref",
   "forecastRefine",   // Cut 6: optional on the engine; the proxy rejects when the engine lacks it (the client treats that as "no refine")
   "dropSupply",       // Cut 12 §6: optional likewise (the client falls back to clear + rebuy)

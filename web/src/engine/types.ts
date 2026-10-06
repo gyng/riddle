@@ -450,6 +450,8 @@ export type Replay = { run_id: number; floors: ReplayFloor[]; hash: string; tick
 /** RUNS_UI (client; Cut 31's heroes on the wire later) — one lane: a hero's run state. `state` live · rests · waits. */
 export type BloodlineLegacy = { points:number; spent:number; upgrades:Record<string,number> };
 export type BossKnowledge = { boss: string; facts: string[]; ledger?: LedgerRow | null; wall?: BossWall | null };
+export type DescentProgress = { tier:number; unlocked:number; cleared:number|null };
+export type DescentOffer = { tier:number; hp_bonus_percent:number; attack_bonus_percent:number; stat_cap:number; affixes:ModifierInfo[]; elites:ModifierInfo[]; elite_rate_denominator:number; boss:ModifierInfo|null };
 export type HeroSlot = { look?:string; hero_name?:string; id:number; name:string; heir:number; class:string; level:number; xp:number; next?:number; state:"live"|"rests"|"waits"; live?:Lineage["live"]; rest_s:number; legacy:BloodlineLegacy; notice:boolean; chronicle?:string[] };
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
@@ -533,6 +535,7 @@ export type Lineage = { bloodline?: BloodlineLegacy;
                         renown: number; rank: number; keep_pref: string;                                               // Addendum D
                         keep_auto?: string[];                                                                          // QA 23ed91f: what an unwatched exit keeps, in order, after the brought vault items (`["armour"]`, `["armour","weapon"]` with quartermaster, `[]` for none); a keep replaces only a weaker vault item of its own category
                         rest_left_s?: number; bones?: BonesPile[];                                                      // Cut 2 §1–2
+                        endgame?: DescentProgress;
                         ascension?: Ascension;                                                                         // Cut 3
                         chronicle?: string[];                                                                          // Cut 5 §2: one line per ended heir, oldest first (cap 40)
                         vault_pref?: string;                                                                           // Cut 5 §4: what an unwatched vault choice takes (`weapon | armour | potion | scroll`)
@@ -742,6 +745,8 @@ export interface Engine {
   unlockDeltas(): UnlockInfo[];         // Cut 4: same catalogue with forecast `delta` computed (0.3–2 s); call after paint
   setClass(cls: string): Lineage;       // switch class (rogue needs the `rogue` unlock)
   selectSet(i: number): Lineage;        // pick one of the three saved sets; setRules writes the active one
+  descentOffer?(tier:number): DescentOffer;
+  beginDescent?(tier:number): Lineage;
   ascend(variant: string): Lineage;     // Cut 3: after the ending, a new lineage under a variant (keeps classes, kennel, vault, facts, rules)
   // Cut 5
   bail(): void;                         // §5: a `return` fires on the hero's next action as a chore; the rules are untouched
