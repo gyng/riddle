@@ -1,0 +1,18 @@
+// Presentation fixtures; real first-return construction is verified separately.
+import {execFileSync} from 'node:child_process';
+import {launchBrowser} from '../../tools/browser.mjs';
+import assert from 'node:assert/strict';
+const url=execFileSync('bash',['tools/dev.sh'],{cwd:new URL('../../',import.meta.url),encoding:'utf8'}).trim();
+const b=await launchBrowser();let checks=0;
+try{for(const fallback of [false,true]){
+const p=await b.newPage({viewport:{width:400,height:900}}),errors=[];p.on('pageerror',e=>errors.push(e.message));if(fallback)await p.route('**/house_plot_v2.webp',r=>r.abort());
+await p.goto(`${url}?fresh=1&engine=fake`);await p.waitForFunction(()=>window.__riddle?.booted);
+await p.evaluate(async()=>{const {renderTown}=await import('/src/ui/town.ts'),base=structuredClone(window.__riddle.lineage);document.body.replaceChildren();window.fixture=(id,ready)=>{window.ui?.dispose();document.body.replaceChildren();const order=['blacksmith','storehouse','kennel','bank'],lineage=structuredClone(base);lineage.town={...lineage.town,home:true,buildings:order.slice(0,order.indexOf(id)).map(id=>({id,level:1,trigger:''})),next:id,next_ready:ready,next_trigger:'first tame'};window.calls=0;const app={lineage,lastAbsence:null,engine:{buildTown:async()=>{window.calls++;}},mutate:async fn=>fn()};window.ui=renderTown(app,{});window.ui.el.style.height='640px';window.ui.el.style.margin='0';document.body.append(window.ui.el);window.ui.paint();};});
+for(const id of ['blacksmith','storehouse','kennel','bank']){
+await p.evaluate(id=>window.fixture(id,true),id);if(!fallback)await p.waitForFunction(()=>document.querySelector('.town-foundation').classList.contains('painted'));
+for(const width of [400,320,1440]){await p.setViewportSize({width,height:900});await p.evaluate(()=>{window.ui.view.resize();window.ui.paint();});await p.waitForTimeout(300);
+const d=await p.evaluate(()=>{const f=document.querySelector('.town-foundation'),t=document.querySelector('.town-tag'),r=f.getBoundingClientRect(),s=t.getBoundingClientRect(),h=document.querySelector('.hit-staked').getBoundingClientRect(),town=document.querySelector('.town').getBoundingClientRect(),inside=q=>q.left>=town.left-1&&q.right<=town.right+1&&q.top>=town.top-1&&q.bottom<=town.bottom+1;return{rects:[r.toJSON(),s.toJSON(),town.toJSON()],inside:inside(r)&&inside(s),separate:r.bottom<=s.top||s.bottom<=r.top,hit:Math.abs(h.width-r.width)<=1&&Math.abs(h.height-r.height)<=1&&Math.abs(h.x-r.x)<=1&&Math.abs(h.y-r.y)<=1,min:h.width>=44&&h.height>=44,label:t.textContent,hidden:f.hidden,painted:f.classList.contains('painted'),svg:getComputedStyle(f.querySelector('svg')).visibility,overflow:document.documentElement.scrollWidth>innerWidth,calls:window.calls};});
+assert.ok(d.inside,JSON.stringify({id,width,...d}));assert.ok(d.separate);assert.ok(d.hit,JSON.stringify({id,width,...d}));assert.ok(d.min);assert.equal(d.hidden,false);assert.match(d.label,/Build.*Free/);assert.equal(d.overflow,false,JSON.stringify({id,width,...d}));assert.equal(d.calls,0);if(fallback){assert.equal(d.painted,false);assert.equal(d.svg,'visible');}checks++;
+}}
+await p.evaluate(()=>window.fixture('kennel',false));await p.waitForTimeout(150);assert.equal(await p.locator('.town-foundation').evaluate(e=>e.hidden),true);assert.match(await p.locator('.town-tag').textContent(),/first tame/);assert.equal(await p.locator('.town-tag').getAttribute('role'),null);await p.locator('.town-tag').click();assert.equal(await p.evaluate(()=>window.calls),0);assert.deepEqual(errors,[]);await p.evaluate(()=>window.ui.dispose());await p.close();
+}console.log(`${checks} ready-plot geometry/resize/fallback cases and locked construction PASS`);}finally{await b.close();}

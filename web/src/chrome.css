@@ -187,16 +187,17 @@ html.skin-tablet .pkg-panel .pkg-drill { border: 8px solid transparent; border-i
 .town-foundation img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
 .town-foundation:not(.painted) img { visibility: hidden; }
 .town-foundation.painted svg { visibility: hidden; }
-html .town-tag.home-build[role="button"] { min-height: 64px; min-width: 168px; gap: 8px; padding: 4px 10px;
+html .town-tag.build-marker[role="button"] { min-height: 64px; min-width: 168px; gap: 8px; padding: 4px 10px;
   border: 3px solid #60718b; border-radius: 2px; background: #182034; color: var(--bone);
   box-shadow: 0 4px 0 #070b14, 0 7px 12px #050914cc, inset 0 2px 0 #a4bcd6; }
-html.skin-button .town-tag.home-build[role="button"] { border: solid transparent; border-width: 11px 28px;
+html.skin-button .town-tag.build-marker[role="button"] { border: solid transparent; border-width: 11px 28px;
   border-image: url('/ui/frames/button.png') 22 78 22 78 fill / 11px 28px stretch; padding: 0 2px; background: none; }
-.town-tag.home-build::before { content: ''; position: absolute; left: calc(50% - 1px); bottom: calc(100% + 2px);
+.town-tag.build-marker::before { content: ''; position: absolute; left: calc(50% + var(--build-anchor-offset, 0px) - 1px); bottom: calc(100% + 2px);
   height: 13px; width: 2px; background: #b89448; box-shadow: 0 0 0 1px #0d0c14; pointer-events: none; }
-.town-tag.home-build .build-copy { align-items: flex-start; gap: 0; }
-.town-tag.home-build .build-title { font: 700 22px/1.05 var(--display); letter-spacing: .01em; }
-.town-tag.home-build .dim { font: 600 13px/1.3 var(--control-font); color: #c5b998; }
-.town-tag.home-build .ico { width: 30px; height: 30px; flex: 0 0 30px; }
-.town-tag.home-build[role="button"]:active { filter: brightness(.9); margin-top: 2px; box-shadow: 0 2px 0 #070b14; }
-.town-tag.home-build[aria-busy="true"] { filter: brightness(.8); }
+.town-tag.build-marker.marker-above::before { bottom: auto; top: calc(100% + 2px); }
+.town-tag.build-marker .build-copy { align-items: flex-start; gap: 0; }
+.town-tag.build-marker .build-title { font: 700 22px/1.05 var(--display); letter-spacing: .01em; }
+.town-tag.build-marker .dim { font: 600 13px/1.3 var(--control-font); color: #c5b998; }
+.town-tag.build-marker .ico { width: 30px; height: 30px; flex: 0 0 30px; }
+.town-tag.build-marker[role="button"]:active { filter: brightness(.9); margin-top: 2px; box-shadow: 0 2px 0 #070b14; }
+.town-tag.build-marker[aria-busy="true"] { filter: brightness(.8); }

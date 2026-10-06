@@ -37,6 +37,8 @@ export type TownHooks = {
 };
 /* copy:label */
 const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "supplies", blacksmith: "blacksmith", storehouse: "stored gear", kennel: "companions", bank: "savings", staked: "next plot", board: "quest board", chest: "chest", worker: "next worker" };
+/* copy:label */
+const BUILD_NAME: Record<string, string> = { house: "house", blacksmith: "forge", storehouse: "storehouse", kennel: "kennel", bank: "bank" };
 /** a building's tile on the bar: its id (the old console ids, kept: tests and badges key on them), icon and word */
 /* copy:button */
 export const BUILDING_TILE: Record<BuildingId, { id: string; icon: string; label: string; glyph: string }> = {
@@ -140,7 +142,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     for (const [id, b] of btns) if (!want.some((w) => w.id === id)) { b.remove(); btns.delete(id); }
     for (const w of want) {
       let b = btns.get(w.id);
-      const label = w.id === "staked" && s.staked?.id === "house" ? /* copy:button */ "Build house" : LABEL[w.id] ?? w.id;
+      const label = w.id === "staked" && s.staked?.ready ? /* copy:button */ `Build ${BUILD_NAME[s.staked.id] ?? s.staked.id}` : LABEL[w.id] ?? w.id;
       if (!b) {
         b = h("button", { class: `town-hit hit-${w.id}`, "data-building": w.id, "aria-label": label, onclick: (e: Event) => tap(w.id, e) }, h("span", { class: "vh" }, label));
         if (HIT_TERM[w.id]) kwHost(b, HIT_TERM[w.id]!);
@@ -163,14 +165,15 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     }
     // c30-legible: the staked plot always wears its tag — what it becomes and what raises it (`kennel · first tame`), not only on tap
     if (s.staked && (s.stage >= 1 || s.staked.ready)) {
-      const firstHome = s.staked.id === "house";
-      replace(tag, firstHome ? icon("forge", "⚒") : null,
-        h("span", { class: firstHome ? "build-copy" : "" }, h("span", { class: "build-title" }, s.staked.ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, LABEL[s.staked.id] ?? s.staked.id)), firstHome ? h("small", { class: "dim" }, /* copy:label */ "Free") : null),
-        !firstHome && s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : null);
+      const ready = s.staked.ready;
+      const buildIcon = s.staked.id === "house" ? "forge" : BUILDING_TILE[s.staked.id]?.icon ?? "forge";
+      replace(tag, ready ? icon(buildIcon, "⚒") : null,
+        h("span", { class: ready ? "build-copy" : "" }, h("span", { class: "build-title" }, ready ? h("span", { class: "build-ready" }, /* copy:button */ "Build", " ") : null, h("b", null, ready ? BUILD_NAME[s.staked.id] ?? s.staked.id : LABEL[s.staked.id] ?? s.staked.id)), ready ? h("small", { class: "dim" }, /* copy:label */ "Free") : null),
+        !ready && s.staked.trigger ? h("span", { class: "dim" }, ` · ${s.staked.trigger}`) : null);
       tag.hidden = false; tag.dataset.next = s.staked.id;
     }
     else tag.hidden = true;
-    tag.classList.toggle("home-build", s.home === false && s.staked?.id === "house");
+    tag.classList.toggle("build-marker", s.staked?.ready === true);
     if (s.staked?.ready && app.engine.buildTown) { tag.setAttribute("role", "button"); tag.tabIndex = 0; }
     else { tag.removeAttribute("role"); tag.removeAttribute("tabindex"); }
     layout();
@@ -183,22 +186,32 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       if (!r) { b.hidden = true; continue; }
       b.hidden = false;
       // ≥ 44 px each way, centred on the sprite (a building's box trimmed to its body: the roof's sky is not the building)
-      const firstPlot = id === "staked" && s.staked?.id === "house";
-      const w = firstPlot ? 164 : Math.max(44, r.w * (id === "mouth" ? 0.6 : id === "chest" || id === "worker" ? 1 : 0.86)), hh = firstPlot ? 108 : Math.max(44, r.h * (id === "mouth" ? 0.7 : id === "chest" || id === "worker" ? 1 : 0.8));
+      const readyPlot = id === "staked" && s.staked?.ready === true;
       const cx = r.x + r.w / 2, by = r.y + r.h;
+      const size = plotSize(cx);
+      const w = readyPlot ? size.w : Math.max(44, r.w * (id === "mouth" ? 0.6 : id === "chest" || id === "worker" ? 1 : 0.86)), hh = readyPlot ? size.h : Math.max(44, r.h * (id === "mouth" ? 0.7 : id === "chest" || id === "worker" ? 1 : 0.8));
       Object.assign(b.style, { left: `${Math.round(cx - w / 2)}px`, top: `${Math.round(by - hh + (hh > r.h ? (hh - r.h) / 2 : 0))}px`, width: `${Math.round(w)}px`, height: `${Math.round(hh)}px` });
     }
     if (!tag.hidden) placeTag();
-    foundation.hidden = state?.home !== false || state?.staked?.id !== "house";
+    foundation.hidden = state?.staked?.ready !== true;
   }
   view.onLayout(layout);
+  function plotSize(cx: number): { w: number; h: number } {
+    const w = Math.min(164, Math.max(44, 2 * Math.min(cx - 8, el.clientWidth - cx - 8)));
+    return { w, h: Math.max(44, w * 108 / 164) };
+  }
   function placeTag(): void {
     const r = view.rectOf("staked"); if (!r) { tag.hidden = true; return; }
-    const first = state?.home === false && state?.staked?.id === "house", cx = r.x + r.w / 2;
-    if (first) Object.assign(foundation.style, { left: `${Math.round(cx)}px`, top: `${Math.round(r.y + r.h / 2)}px` });
+    const ready = state?.staked?.ready === true, cx = r.x + r.w / 2;
+    const size = plotSize(cx), cy = r.y + r.h / 2;
+    if (ready) Object.assign(foundation.style, { left: `${Math.round(cx)}px`, top: `${Math.round(cy)}px`, width: `${size.w}px`, height: `${size.h}px` });
     const half = tag.offsetWidth / 2;
-    Object.assign(tag.style, { left: `${Math.round(Math.max(half + 8, Math.min(el.clientWidth - half - 8, cx)))}px`,
-      top: `${Math.round(first ? Math.min(el.clientHeight - 8, r.y + r.h / 2 + 66 + tag.offsetHeight) : r.y - 6)}px` });
+    const tagCx = Math.max(half + 8, Math.min(el.clientWidth - half - 8, cx));
+    const above = ready && cy + size.h / 2 + 12 + tag.offsetHeight > el.clientHeight - 8;
+    tag.classList.toggle("marker-above", above);
+    tag.style.setProperty("--build-anchor-offset", `${cx - tagCx}px`);
+    Object.assign(tag.style, { left: `${Math.round(tagCx)}px`,
+      top: `${Math.round(ready ? above ? cy - size.h / 2 - 12 : cy + size.h / 2 + 12 + tag.offsetHeight : r.y - 6)}px` });
   }
   function tap(id: string, e: Event): void {
     view.poke();

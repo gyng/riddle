@@ -1,3 +1,20 @@
+**READY PLOT GRAPHICS CONSISTENT — 2026-10-06:** Actual seed3 first return
+D4/143 gold exposed old tiny forge plot/long trigger tablet. All ready plots now
+reuse painted foundation + carved Build/name/Free marker; forge matches menu
+name. Rust construction remains free/manual; readiness comes from wire only.
+Scale foundation near edges, clamp marker, flip above when needed, connector
+points to physical plot. Full foundation click area/keyboard/busy/prepaint save
+preserved; locked plots retain trigger. Headed actual400/1440 legal first return,
+free forge build and menu pass, screenshots shown. Layout fixtures24 across
+all4 later positions/320/400/1440/resize/art failure, locked construction pass;
+explicit renderer resize settles fixtures. Firstplot separation permits either
+side/no overlap; persistence39/selection28/town day0+desk pass. Build/typecheck/
+copy1540 pass, existing bundle advisory. GFX_READY_PLOTS.md and scratchpad/
+ready-plots-20261006/. No Rust/WASM/balance/deploy/performance claim. Actualfirst
+session walk37.9s/10dumps clean; worker/absence portion accelerated by engine,
+not human fun study. Keep broader goal active; next gameplay uses fast savedtown
+choice diagnostics rather than full balance gates.
+
 **MANUAL CONSTRUCTION SAVED BEFORE COMPLETION — 2026-10-06:** Reproduced
 realWASM immediate navigation from firsthomechange: restoredempty/0heroes before
 1sdebouncedsave. App.mutate optional saveBeforePaint checkpoint; townbuild opts
