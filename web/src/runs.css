@@ -259,3 +259,9 @@ button.re-body { cursor: pointer; }
 .watch .log-latest { display: block; margin: 0 0 4px auto; padding: 3px 6px;
   border: 0; background: none; box-shadow: none; color: #f5cf79; font: 600 12px/18px var(--sans); text-shadow: 0 1px 3px #000; }
 .watch .log-latest[hidden] { display: none; }
+
+/* Hero presence uses a quiet activity light, separate from the watched frame. */
+.hero-action[data-activity="combat"] .lane-beat { background: #e7867d; box-shadow: 0 0 5px #a83e42; }
+.hero-action[data-activity="exploring"] .lane-beat { background: #9ac9ad; }
+.hero-action[data-activity="returning"] .lane-beat { background: #f3ce88; }
+.hero-action[data-activity="ended"] .lane-beat { background: #a9a394; box-shadow: none; }

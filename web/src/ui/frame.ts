@@ -7,7 +7,7 @@ import { conceptCap, type Concept, type Term } from "./concepts";
 import { kwHost, kwText } from "./tips";
 const withCap = (el: HTMLElement | "", c: Concept, words?: string): HTMLElement | "" => { if (el) { const cap = conceptCap(c, words); if (cap) el.appendChild(cap); } return el; };
 import type { App } from "../app";
-import type { Row } from "../engine/types";
+import type { Row, Snapshot } from "../engine/types";
 import { h, replace } from "./dom";
 import { closeAllSheets, openSheet, openWindow } from "./sheet";
 import { heirOrd, rowLabel } from "./tokens";
@@ -205,7 +205,7 @@ export const metersSlot = (content?: HTMLElement | null): HTMLElement => content
 /** Desktop: the columns around a screen's well — the rules left (the set's tablets, read-only: the camp's own are its editor) and the
  *  shaft right with the meters' slot under it. Built only on a wide screen (a phone's DOM is unchanged); `els` go straight into the
  *  screen's `main.frame` (wide.css places them), `dispose` unhooks the shaft. */
-export function wideCols(app: App, meters?: HTMLElement | null, watchedDepth?: () => number): { els: HTMLElement[]; dispose(): void; slot?: HTMLElement; paintDepth?(): void } {
+export function wideCols(app: App, meters?: HTMLElement | null, watchedDepth?: () => number): { els: HTMLElement[]; dispose(): void; slot?: HTMLElement; paintDepth?(): void; setPresence?(snap: Snapshot, ended: boolean): void } {
   if (!isWide()) return { els: [], dispose: () => undefined };
   const plaque = (r: Row): HTMLElement | "" => { const id = verbIcon(r.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };   // gfx round 2: as the camp's tablets
   const rows = h("div", { class: "rows" }, ...app.rules.rows.map((r, i) => h("div", { class: "row tablet compact ro", "data-i": i }, h("span", { class: "rn num" }, `${i + 1}`), h("span", { class: "rtext" }, rowLabel(r)), plaque(r))));
@@ -225,5 +225,9 @@ export function wideCols(app: App, meters?: HTMLElement | null, watchedDepth?: (
   known();
   const off = app.onForecast(() => known());
   // Cut 30 §2: no rule tablets before the pen — the left column holds the worn packages (read-only plaques) until it opens
-  return { els: [left,right], dispose: () => { heroes.dispose();off(); shaft.dispose(); }, slot, paintDepth: shaft.paintDepth };
+  return { els: [left,right], dispose: () => { heroes.dispose();off(); shaft.dispose(); }, slot, paintDepth: shaft.paintDepth, setPresence: (s, ended) => heroes.setPresence({
+    run_id: s.run.id, heir: s.run.heir, depth: s.depth, start: s.run.start ?? 1,
+    hp: s.hero.hp, max_hp: s.hero.max_hp, turn: s.turn,
+    activity: s.stake?.returning ? "returning" : typeof s.meters?.fighting === "boolean" ? s.meters.fighting ? "combat" : "exploring" : undefined,
+  }, ended) };
 }

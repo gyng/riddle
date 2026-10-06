@@ -1901,6 +1901,9 @@ pub struct RunRec {
 /// RUNS_UI: the run under way (`Lineage.live`; absent at home).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct LiveRun {
+    /// Presentation only; older wire data has no activity.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub activity: String,
     pub run_id: u32,
     pub heir: u32,
     pub depth: u32,

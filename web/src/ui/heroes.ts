@@ -1,6 +1,6 @@
 // Active bloodlines only; each row describes an actual Rust-owned hero slot.
 import type { App } from '../app';
-import type { HeroSlot } from '../engine/types';
+import type { HeroSlot, LiveRun } from '../engine/types';
 import { h, replace, spanOf } from './dom';
 import { paintFace } from './frame';
 import { openHero } from './town';
@@ -9,9 +9,23 @@ import { openChronicle } from './chronicle';
 import { kwHost } from './tips';
 import { penOpen } from './packages';
 import { heirOrd } from './tokens';
+export type ObservedPresence = { slot: number; live: LiveRun; ended: boolean };
+/** Presentation data may replace an older summary only for the exact live hero/run. */
+export function heroPresence(s: HeroSlot, observed?: ObservedPresence) {
+  const useObserved = s.state === 'live' && observed?.slot === s.id && observed.live.heir === s.heir
+    && (!s.live || observed.live.run_id === s.live.run_id && observed.live.turn >= s.live.turn);
+  const live = useObserved ? observed!.live : s.live;
+  const activity = s.state !== 'live' ? s.state : useObserved && observed!.ended ? 'ended' : live?.activity ?? 'unknown';
+  const names: Record<string, string> = { combat: /* copy:label */ 'In combat', returning: /* copy:label */ 'Heading home', exploring: /* copy:label */ 'Exploring', ended: /* copy:label */ 'Run ended', unknown: /* copy:label */ 'Delving' };
+  const text = s.state === 'live' ? live ? `D${live.depth} · ${names[activity] ?? names.unknown}` : /* copy:label */ 'Starting run'
+    : s.state === 'rests' && s.rest_s > 0 ? /* copy:label */ `Resting ${spanOf(s.rest_s)}` : /* copy:label */ 'Ready';
+  return { text, activity, detail: live ? /* copy:label */ `${live.hp}/${live.max_hp} hp · run ${live.run_id}` : text };
+}
 export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   const el=h('section',{class:'hero-roster','aria-label':/* copy:label */'Active heroes'});
   let key='';
+  let observed: ObservedPresence | undefined;
+  const observedSlot = app.lineage.selected_bloodline ?? 1;
   const focus=async(s:HeroSlot):Promise<void>=>{
     closeAllSheets();if(!await app.selectBloodline(s.id))return;
     if(s.state==='live'){if(app.screen==='watch')window.dispatchEvent(new Event('riddle:focus-hero'));else app.go({kind:'watch'});}
@@ -20,12 +34,12 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   const details=async(s:HeroSlot,anchor:HTMLElement):Promise<void>=>{if(await app.selectBloodline(s.id)){closeAllSheets();openHero(app,anchor.isConnected?anchor:null);}};
   const row=(s:HeroSlot):HTMLElement=>{
     const face=h('span',{class:'hero-thumb','aria-hidden':'true'});paintFace(face,s.class,44,s.look);
-    const action=s.state==='live'?/* copy:label */`Live D${s.live?.depth??1}`:s.state==='rests'?/* copy:label */`Resting ${spanOf(s.rest_s)}`:/* copy:label */'Ready';
+    const presence=heroPresence(s,observed),action=presence.text;
     const xp=s.next===0?/* copy:label */`L${s.level} · MAX`:/* copy:label */`L${s.level} · XP ${s.xp}/${s.next??'—'}`;
     const name=s.hero_name||s.name;
     const body=h('button',{class:'hero-jump','aria-label':`${name} · ${s.name} · ${heirOrd(s.heir)} · ${action}`,'data-hero':s.id,onclick:()=>void focus(s)},face,
       h('span',{class:'hero-info'},h('b',null,name),h('span',{class:'hero-class-name'},`${s.hero_name?s.name:heirOrd(s.heir)} · ${s.class}`),h('small',{class:'hero-xp num'},xp),
-        h('span',{class:'hero-action'},h('i',{'aria-hidden':'true',class:`lane-beat ${s.state}`}),action),s.notice?h('small',{class:'hero-notice'},/* copy:callout */'Upgrade ready'):''));
+        h('span',{class:'hero-action','data-activity':presence.activity,title:presence.detail},h('i',{'aria-hidden':'true',class:`lane-beat ${s.state}`}),action),s.notice?h('small',{class:'hero-notice'},/* copy:callout */'Upgrade ready'):''));
     kwHost(body,'bloodline');
     return h('article',{class:`hero-row${s.id===app.lineage.selected_bloodline?' selected':''}`,'data-slot':s.id,'data-state':s.state},body,
       h('button',{class:'hero-details','aria-label':/* copy:label */`${s.name} details`,onclick:(e:Event)=>void details(s,e.currentTarget as HTMLElement)},/* copy:button */'Details'));
@@ -41,7 +55,7 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   };
   const paint=():void=>{
     const L=app.lineage;const slots=L.hero_slots??[];
-    const next=JSON.stringify([slots.map(s=>[s.id,s.name,s.hero_name,s.look,s.heir,s.class,s.level,s.xp,s.next,s.state,s.live?.depth,s.live?.hp,spanOf(s.rest_s),s.notice]),L.gold,L.town?.home,L.selected_bloodline]);
+    const next=JSON.stringify([slots.map(s=>[s.id,s.name,s.hero_name,s.look,s.heir,s.class,s.level,s.xp,s.next,s.state,s.live?.depth,s.live?.hp,heroPresence(s,observed),spanOf(s.rest_s),s.notice]),L.gold,L.town?.home,L.selected_bloodline]);
     if(next===key)return;key=next;
     const current=slots.find(s=>s.id===L.selected_bloodline);
     replace(el,h('header',{class:'hero-roster-head'},h('h2',null,/* copy:label */'Heroes'),hooks.rules&&penOpen(L)?h('button',{class:'chip',onclick:hooks.rules},/* copy:button */'Rules'):''),
@@ -49,5 +63,5 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
       h('div',{class:'hero-mobile'},current?row(current):'',h('button',{class:'hero-expand',onclick:()=>openSheet(()=>h('div',{class:'sheet-body heroes-sheet'},h('div',{class:'label row-label'},/* copy:label */'Active heroes'),full()))},/* copy:button */'Heroes')));
   };
   const off=app.onChange(paint),offLive=app.onLive(paint),timer=window.setInterval(paint,1000);paint();
-  return {el,paint,dispose:()=>{off();offLive();clearInterval(timer);}};
+  return {el,paint,setPresence:(live:LiveRun,ended=false)=>{if(observed&&live.run_id===observed.live.run_id&&live.heir===observed.live.heir&&live.turn<observed.live.turn)return;observed={slot:observedSlot,live,ended};paint();},dispose:()=>{off();offLive();clearInterval(timer);}};
 }

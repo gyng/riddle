@@ -1,7 +1,7 @@
 # Owner queue — 2026-10-06
 
 Local UI iteration-speed and compact-depth work are implemented and pushed.
-Continue with hero presence/tactic observability, then the content/checkpoint audit. Push approved
+Hero presence is implemented; continue with tactic observability, then the content/checkpoint audit. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.
 
@@ -11,7 +11,7 @@ UI checkpoints. Keep simulation truth in Rust and manual town construction.
    accessible when wanted. Inspect actual early/established/late states before
    choosing the layout; preserve forecast uncertainty and mobile access.
    Verify desktop spacing, watch/camp identity, tooltips, overflow and snapshots.
-2. **Rich hero presence.** Active hero entries should communicate an immediate
+2. **Rich hero presence — implemented2026-10-06; tactic observability next.** Active hero entries should communicate an immediate
    status such as D13 · In combat, exploring, collecting loot, heading home or
    ready in town, using the existing portrait/thumbnail and a concise indicator.
    Audit available engine snapshots/events first; avoid inventing live facts
@@ -31,7 +31,8 @@ UI checkpoints. Keep simulation truth in Rust and manual town construction.
    with concrete evidence and scoped acceptance checks. Preserve Riddle's
    autonomous roguelike identity and absence invariants.
 
-This records requested work; none of these three items is certified complete.
+Compact depth and presence are implemented and verified within their documented scope.
+Tactic observability and the content/checkpoint audit remain open.
 
 Initial code pointers: desktop right column is wideCols in ui/frame.ts, using
 renderShaft in ui/forecast.ts (currently up to9 notches and a folded range).
@@ -61,3 +62,16 @@ watch hints now work. Phone ladder retained; paused picture depth stays stable.
 Next presence audit should reproduce the current real screenshot: watchedD4
 but hero-roster label still LiveD1. Treat that as stale presentation evidence,
 not a simulation-progress conclusion; inspect slot/snapshot update ownership.
+
+Presence checkpoint: UX_HERO_PRESENCE.md; core owns combat/exploring/returning
+for every live slot. Selected roster receives engine snapshots without added
+RPCs; pause does not freeze live presence. Exact4case8h raw save/report parity;
+actual combat/multi/phone captures;132 legacy UI checks plus focused tests.
+Tactic audit: PackagesWire.rows RowSource.label names each compiled rule's
+origin, with shadowed_by; rule events carry row and verb. packages::compile
+assigns origins before deduplication/truncation. Existing desktop lightRow
+looks for rule tablets, which are usually folded under the hero roster.
+Next: light the owning existing package icon at the watched event clock;
+merge repeats, keep default swings quiet, put condition/action/count on
+hover/tap. Snapshot current-run rule/source metadata rather than reattributing
+old replay events to newly selected heroes/equipment. No extra caption feed.

@@ -1,3 +1,23 @@
+**HERO PRESENCE — 2026-10-06:** Rust LiveRun presentation activity now combat/
+exploring/returning from existing run state. Roster shows D13 In combat etc,
+quiet colour, HP/run tooltip; rests0 Ready. Selected watch snapshots update
+presence without extra RPCs; mounted slot/run/heir/turn checks reject stale
+or misattributed updates. Older wire falls back Delving/Starting run. Presence
+is live-core frontier, independently of paused footage. No gameplay/save/RNG
+mutation. Core563 tests pass/1ignored, clippy/wasm/build/typecheck/copy1587 clean;
+quick native-host localhost sandbox failure rerun authorized2/2 pass (original
+quick invocation not green). All132 UI checks plus focused10jobs41.5s; final
+Ready presence16checks each320/400/1440 +appearance18each2jobs5.1s pass.
+Four8h old/new WASM exact raw save AND report parity (3early +3bloodline camp),
+not timing evidence. Actual headed WASM combat1440 D4 In combat and400/1440
+single/multi camp/watch no pageerrors/overflow; two other slots Ready. Screens
+shown. Artifacts scratchpad/hero-presence-20261006/; UX_HERO_PRESENCE.md.
+No deploy; full client/balance suite uncertified. Next tactic observability:
+real rule-row ownership already in PackagesWire.rows labels/shadowing, event
+row/verb. Small icon glow/repeat merge/condition-action-count tooltip at picture
+clock; no default swing flood or new captions. Metadata must belong to watched
+run, not newer hero/equipment. Then content/checkpoint comparison audit.
+
 **COMPACT DESKTOP DEPTH — 2026-10-06:** Desktop shaft now three rows:
 watched/live/start floor, record, next boss/bonus (else next record), unit icon/
 tooltip, probability/uncertainty/estimate label and Full forecast action.

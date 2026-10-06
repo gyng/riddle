@@ -3170,7 +3170,7 @@ impl Game {
 
     /// RUNS_UI: the run under way (begun, not over).
     pub fn live_run(&self) -> Option<crate::wire::LiveRun> {
-        self.run.as_ref().filter(|r| r.turn > 0 && r.over.is_none()).map(|r| crate::wire::LiveRun { run_id: r.id, heir: r.heir, depth: r.depth, start: r.start.max(1), hp: r.hero.hp, max_hp: r.hero.max_hp, turn: r.turn })
+        self.run.as_ref().filter(|r| r.turn > 0 && r.over.is_none()).map(|r| crate::wire::LiveRun { activity: if r.homeward.is_some() { "returning" } else if r.meters.quiet < crate::meters::FIGHT_GAP && r.meters.run.fights > 0 { "combat" } else { "exploring" }.into(), run_id: r.id, heir: r.heir, depth: r.depth, start: r.start.max(1), hp: r.hero.hp, max_hp: r.hero.max_hp, turn: r.turn })
     }
 
     /// RUNS_UI: the open app's clock (`offline::advance`).

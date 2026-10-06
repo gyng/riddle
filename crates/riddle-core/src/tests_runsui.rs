@@ -209,3 +209,28 @@ fn the_log_folds_by_absence_and_keeps_sixty() {
     assert_eq!(l.run_log.len(), RUN_LOG_CAP);
     assert_eq!(l.run_log[0].id, 11);
 }
+
+
+#[test]
+fn live_presence_is_read_only_and_follows_run_state() {
+    let mut g = with_scout(37);
+    assert!(g.live_run().is_none());
+    g.send();
+    g.run.as_mut().unwrap().turn = 1;
+    let before = g.save();
+    assert_eq!(g.live_run().unwrap().activity, "exploring");
+    assert_eq!(g.save(), before, "presence reads never mutate saved truth");
+    let r = g.run.as_mut().unwrap();
+    r.meters.run.fights = 1;
+    r.meters.quiet = 0;
+    assert_eq!(g.live_run().unwrap().activity, "combat");
+    g.run.as_mut().unwrap().homeward = Some(1);
+    assert_eq!(g.live_run().unwrap().activity, "returning");
+    g.run.as_mut().unwrap().homeward = None;
+    g.run.as_mut().unwrap().meters.quiet = crate::meters::FIGHT_GAP;
+    assert_eq!(g.live_run().unwrap().activity, "exploring");
+    let mut wire = serde_json::to_value(g.live_run().unwrap()).unwrap();
+    wire.as_object_mut().unwrap().remove("activity");
+    let old: crate::wire::LiveRun = serde_json::from_value(wire).unwrap();
+    assert!(old.activity.is_empty(), "old live-run wire data stays readable");
+}

@@ -1338,6 +1338,7 @@ export function renderWatch(app: App): Mounted {
   function toEnding(): void { const t = Math.max(viewerTick(), endingFrom); if (t > viewerTick()) { release(t); seekTo(t); } applyFrame(); applySpeed(); }
   function handle(r: StepResult): void {
     const s = r.snapshot;
+    wide.setPresence?.(s, r.run_over);
     engineTick = s.turn;
     floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome });
     for (const e of s.entities) note_(e);
@@ -2375,6 +2376,7 @@ export function renderWatch(app: App): Mounted {
     if (disposed) return;
     await app.syncWatchLineage();
     if (disposed) return;
+    wide.setPresence?.(s, false);
     snap = s; logDepth = s.depth; runId = s.run.id; engineTick = startTick = s.turn;
     // QA a946e04 (T: `start → D5 · $50` at $32 — the run began on D1, no toll, nothing said so): a waystone start the purse could not pay
     // starts on D1, and the watch says so as it opens (the exit's line carries it on: `· from D1 · toll short`)

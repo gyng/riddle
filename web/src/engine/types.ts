@@ -434,7 +434,7 @@ export type RunRec = { id: number; heir: number; via: "away" | "town" | "watched
   finds?: InvItem[];     // RUNS_UI × run-clear (core): the run's finds, rarest first, ≤ 6 — the entry's rarity mark and its card
   secured?: number };    // RUNS_UI × Cut 30.5 (core): of `gold`, the checkpoints' (kept whole at any exit) — `$212 · $80 safe`
 /** RUNS_UI (core) — the run under way right now (`Lineage.live`; absent at home): the hero's floor, hp, and the run's tick. */
-export type LiveRun = { run_id: number; heir: number; depth: number; start: number; hp: number; max_hp: number; turn: number };
+export type LiveRun = { activity?: "combat" | "returning" | "exploring"; run_id: number; heir: number; depth: number; start: number; hp: number; max_hp: number; turn: number };
 /** RUNS_UI (core) — `advance(ms)`: the open app's clock run on the lineage (rest, then the next run, unwatched; a run in flight stays in
  *  flight at the budget's end). `ended` the runs it finished (refresh the lineage then), `live` the run under way after it. */
 export type Advance = { ended: number[]; live?: LiveRun };
