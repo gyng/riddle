@@ -1,3 +1,19 @@
+**CHECKPOINT GOLD IS NOT A SWAP — 2026-10-06:** Verifiedrealphone703carry6/
+secured0→747carry0/secured6, swapped0omitted; UIblamedrecentfoldedscrollpickup.
+Rustcheckpoint transfersrun.loot→secured, snapshotdeath_keep=keptDeath. Watch
+now offsets netcarryfall bysame-runsecuredincrease; positiveswapcounterdelta
+stillauthoritative, genuine residual losses/oldwirefallback preserved. Prior
+legitloss mayretain2.5slifetime. TScomment documentsomitted0. Final18mounted
+checks400/1440pass7.7s; initial14+meter16+decisions30+watchstatuspass18.0s,
+latercasesfixtureonly, finalproductionchangescomments. Build/typecheck/copy1524/
+diffpass,bundleadvisory. RealnormalbatchedD2newcarry9/11secured6noswaploss;
+exactphoneQAone-tickstepping+syncpauseviewer745core740carry0secured6 shows
+clean`Carried$0·Secured$6`, screenshots shown/noerrors/overflow. Exactstepping
+harnessonly, no performance/gameplay/Rust/WASM/deployclaim. UX_CHECKPOINT_GOLD.md
+limits/evidence; scratchpad/checkpoint-gold-20261006/. Next: return to a full
+first-session content/gameplay/gfx review now the concrete watch clarity bugs
+are handled; use actual new-town path and inspect report/reward/hero growth.
+
 **COUNTED COMBAT DECISIONS — 2026-10-06:** Consecutive identical displayed
 policy rows share×N byfloor/row/text/verb/arg; anyotherlogged event inclhidden
 negative-row rule breaksgroup. Acrossbatches, onlyreleaseattheviewertick;first/

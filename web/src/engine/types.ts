@@ -100,7 +100,7 @@ export type Stake = { loot: number; brought: { label: string; insured: boolean }
                       returning?: boolean;                                           // QA 1a2a4a9: a return/bank row acted — the walk home replaces the chores until the exit (`returning`)
                       swap_left?: string;                                            // QA 0c6e126 (qaY; core): what the last costly swap left on the floor — the strip's fall reads `−$5 left axe`
                       death_keep?: number;                                           // Cut 20 §4 (below)
-                      swapped?: number };                                            // QA 912e135 (core): the carry the run's pack swaps took so far — the strip names a fall `swap` by its rise (`Run.swapped`; the exit line's `swapped` at the end)
+                      swapped?: number };                                            // Omitted when zero (also absent on older wires). QA 912e135: the carry the run's pack swaps took so far — the strip names a fall `swap` by its rise (`Run.swapped`; the exit line's `swapped` at the end)
                                                                                      // Cut 20 §4: what a death now would keep (the death tier's share) — `carry $78 · bank keeps $78 · death $0`
 /** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
  *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */

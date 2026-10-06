@@ -679,7 +679,7 @@ export function renderWatch(app: App): Mounted {
   function hudFrom(s: Snapshot): void { if (s.depth !== hud.depth) hideBeat(); if (!disposed) audio.bed(s.biome); bossFrom(s); floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome }); hud.hp = s.hero.hp; hud.maxHp = s.hero.max_hp; hud.depth = s.depth; deepest = Math.max(deepest, s.depth); paintHud(); paintStake(s); }
   // Cut 2 §7: `$47 · sword⚠ · return at D4`; `death: lose all` when no row would bank or return
   let lastLoot: number | undefined, lastLootRun = -1, lootDrop = 0, lootDropUntil = 0, lootWhy = "";
-  let lastLootTurn = -Infinity, lastSwapped = 0;   // QA 912e135: the tick and the core's swap counter of the snapshot the strip shows
+  let lastLootTurn = -Infinity, lastSwapped = 0, lastSecured = 0;   // counters of the snapshot the strip shows
   let lastPickT = -Infinity, lastStealT = -Infinity, lastPickItem = "", lootItem = "";   // engine ticks of the last `pickup` / `steal` (the loot's fall names which)
   let tollShort = false;   // QA a946e04 (T): the send's waystone start fell back to D1 (the purse could not pay the toll)
   let stolenGold = 0;   // QA a946e04 (T: `−$36 stolen` on the strip, nothing in STOLEN): what the run's thefts took off the carry (the `steal` amounts)
@@ -697,9 +697,14 @@ export function renderWatch(app: App): Mounted {
     // QA 912e135: a `swap` is the core's own counter rising (`Stake.swapped`, the exit line's `swapped` at the end) — one source for the
     // strip and the death line, its size the counter's rise; an older core falls back to the pickup's window
     const swapD = st.swapped !== undefined && s.run.id === lastLootRun ? st.swapped - lastSwapped : 0;
+    const secured = st.death_keep ?? 0;
+    const securedD = s.run.id === lastLootRun ? Math.max(0, secured - lastSecured) : 0;
+    // A record checkpoint transfers carry into secured gold. Only the net fall
+    // beyond that transfer is a loss; explicit swap deltas remain authoritative.
+    const carryDrop = lastLoot !== undefined && s.run.id === lastLootRun ? Math.max(0, lastLoot - st.loot - securedD) : 0;
     // QA 92eb880 (M: "gold `$77 → $65` in the den with only `snatched …` lines"): a fall in the loot shows its size beside it for 2.5 s
     // (`$65 −$12`) — a theft of an item takes its worth with it
-    if (lastLoot !== undefined && s.run.id === lastLootRun && (swapD > 0 || st.loot < lastLoot)) {
+    if (lastLoot !== undefined && s.run.id === lastLootRun && (swapD > 0 || carryDrop > 0)) {
       // QA 0c6e126 (qaY: `−$5 swap → waxen scroll?` read as a price to pay): a swap's fall names what it left on the floor (the core's
       // `Stake.swap_left`) — `−$5 left axe`: the carry fell because a dearer item stayed behind; an older core keeps the find
       const why = swapD > 0 ? (st.swap_left ? /* copy:label */ "left" : /* copy:label */ "swap") : s.turn - lastStealT <= 20 ? /* copy:label */ "stolen"
@@ -707,18 +712,17 @@ export function renderWatch(app: App): Mounted {
       // QA 778fa1b (qaV: `−$33 → −$42 → −$58 swapped` — "swapped for what?"): a swap's fall is its own, beside the find it made room for
       // (`−$37 swap → leather +1`); only falls of one cause and one find inside the window add up
       const same = performance.now() < lootDropUntil && why === lootWhy && item === lootItem;
-      const fell = (why === "swap" || why === "left") && st.swapped !== undefined ? swapD : lastLoot - st.loot;
+      const fell = (why === "swap" || why === "left") && st.swapped !== undefined ? swapD : carryDrop;
       lootDrop = fell + (same ? lootDrop : 0); lootDropUntil = performance.now() + 2500; lootItem = item;
       // QA 1a2a4a9 (O, P: `$46 −$8`, `$283 −$100` — "minuses that don't match any line"): the fall says what took it — a thief, or an
       // item used up (the loot counts what he carries at its worth)
-      // QA a946e04 (S, T: `−$32`, `−$20`, `−$13 used` with no line): the carry falls on two things only (the core's `loot_add`): a theft,
-      // and a swap — a spare weapon or armour dropped for a find (a pickup; the spare counted more). A use never takes from it.
+      // After excluding checkpoint transfers, a loss is theft or a pack swap — a spare weapon or armour dropped for a find.
+      // Item use never subtracts from carry (the core's loot_add).
       lootWhy = why; }
-    lastLoot = st.loot; lastLootRun = s.run.id; lastLootTurn = s.turn; lastSwapped = st.swapped ?? 0;
+    lastLoot = st.loot; lastLootRun = s.run.id; lastLootTurn = s.turn; lastSwapped = st.swapped ?? 0; lastSecured = secured;
     // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
     const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "Carried"), ` $${st.loot}`];
     if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? `${lootWhy === "left" ? " " : " → "}${lootItem.replace(/_/g, " ")}` : ""}`));
-    const secured = st.death_keep ?? 0;
     parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `Secured $${secured}`));
     if (st.returning ?? walkingHome) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "Heading home"));
     if (st.stalling && s.depth >= hud.depth && !overridden) parts.push(" · ", h("span", { class: "stalling" }, /* copy:callout */ "Path blocked"));
