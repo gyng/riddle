@@ -1,3 +1,18 @@
+**LEGACY UI PATHS + TARGETED ITERATION — 2026-10-06:** cut21 shelf now
+enginebacked establishedcamp and actualhealrule;19checks pass. ui firstadvanced
+hidden, currentHeroChronicle/Class/Edit/Speed navigation, currentcopy/numeric
+spacing and realforecastEstimate interception. Splitoptionalparts frame/qa/
+stall/keep/cut18/cut19, baredefaultall unchanged; independentfixtures, qaK/L
+both included. Directassertionsstream; runner prioritizesblockinglocator/cause
+and stripsANSI/bounds20lines, formattertests pass. Independentqa41/stall3/keep2/
+cut18 11/cut19 12/cut21 19 allpass; sevenjobs39.3s, notpairedspeedbenchmark.
+Frame retainsoneFAIL5th→6thheir onfinalwatch; do not weaken. renderWatch uses
+renderBar watch:true only, so currentL.heir repaint changes identity afterdeath.
+Next captureviewedrun identity throughrefresh, realWASM checkpoint. Current
+firstplot/heroappearance/supplyreport3/3pass10.8s, syntax/diffclean. Contract
+DEV_LEGACY_UI_PATHS.md; docsITERATION_SPEED updated. No playerUI/core/balance/
+WASM/deploy changes. Broadgoalactive; fullclient suite notcertified.
+
 **AWAY SUPPLY BUDGET FEEDBACK — 2026-10-06:** Auto sustain skips now set
 existing restock_capped flag like manual repeat; no spending/purchase/RNG change.
 Report says Supplies limited + reported budget, tooltip/ledger link; knownzero

@@ -22,12 +22,17 @@ import { openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
+const requestedParts = process.argv.find(arg => arg.startsWith('--part='))?.slice(7);
+const PARTS = ['frame', 'qa', 'stall', 'keep', 'cut18', 'cut19'];
+const parts = new Set(requestedParts === undefined ? PARTS : requestedParts.split(','));
+if (!parts.size || [...parts].some(part => !PARTS.includes(part))) throw Error(`ui parts: ${PARTS.join(',')}`);
+
 const shotsArg = process.argv.indexOf("--shots"), shots = shotsArg > 0 ? process.argv[shotsArg + 1] : null;
 if (shots) mkdirSync(shots, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const errors = [], out = [];
 let failed = 0;
-const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
+const check = (ok, what) => { const line = `${ok ? "ok  " : "FAIL"} ${what}`; out.push(line); console.log(line); if (!ok) failed++; };
 
 const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 1 });
@@ -175,7 +180,7 @@ await page.evaluate(() => document.querySelector('.death .death-more[aria-expand
   const bests = await page.evaluate(() => [...[...document.querySelectorAll(".report .rsec")].find((x) => /bests/i.test(x.querySelector(".label")?.textContent ?? ""))?.querySelectorAll("li") ?? []].map((l) => l.textContent));
   check(/^returned \$41/.test(d.lines[0] ?? "") && /^returned \$34/.test(d.lines[7] ?? "") && /earlier/.test(d.lines[8] ?? ""), `the run rows read newest first, \`· N earlier\` under them (${d.lines[0]?.slice(0, 12)} … ${d.lines[7]?.slice(0, 12)} · ${d.lines[8]})`);
   check(bests.join(" | ") === "new best D8 | ★ rank 3 | no heal to D5", `BESTS names its depth and its rank (${bests.join(" | ")})`);
-  check(d.patch === "reach D8 92% · was 9% +83", `a stall patch's numbers add up, \`reach\` once ("${d.patch}")`);
+  check(/^reach D8 92% · was 9%\s*\+83$/.test(d.patch ?? ""), `a stall patch's numbers add up, \`reach\` once ("${d.patch}")`);
 
   // ---- 3. strings: the hp lost names hp; the alert HUD
   check(await mod("/src/ui/watch.ts", (m) => m.hurtText(1, "monkey")) === "−1 hp · monkey", "the hero's hurt callout reads `−1 hp · monkey` (not a kill count)");
@@ -274,12 +279,13 @@ async function qaL() {
   }
   check(killer.length === 1 && killer[0] !== "D9", `the killer sits on the floor where the reach falls, not on D9 (${killer.join(",") || "none"})`);
   await page.keyboard.press("Escape"); await sleep(100);
+  await quietForecast();
   const stale = await page.evaluate(async () => {
-    const r = window.__riddle, orig = r.engine.forecast.bind(r.engine); let n = 0; const got = [];
-    r.engine.forecast = () => new Promise((res) => setTimeout(() => orig().then((f) => res({ ...f, __n: ++n })), 300));
+    const r = window.__riddle, method = r.engine.forecastEstimate ? "forecastEstimate" : "forecast", orig = r.engine[method].bind(r.engine); let n = 0; const got = [];
+    r.engine[method] = () => new Promise((res) => setTimeout(() => orig().then((f) => res({ ...f, __n: ++n })), 300));
     const off = r.onForecast((f) => got.push(f.__n ?? "refine"));
     const a = r.emitForecast(); await new Promise((x) => setTimeout(x, 60)); r.emitForecast(); await a;
-    await new Promise((x) => setTimeout(x, 50)); off(); r.engine.forecast = orig; return got;
+    await new Promise((x) => setTimeout(x, 50)); off(); r.engine[method] = orig; return got;
   });
   check(stale.join(",") === "2", `a forecast whose rules changed while it ran is not painted; the next one is (painted: ${stale.join(",")})`);
   const rest = await page.evaluate(() => { const e = document.querySelector(".rest-line .rest"); return e && !e.hidden ? { tag: e.tagName, border: getComputedStyle(e).borderTopStyle } : null; });
@@ -330,7 +336,8 @@ async function stallSkip() {
   const res = [];
   for (let k = 0; k < 2; k++) {
     const t0 = await tick(), w0 = Date.now();
-    await page.locator(".cmd .tile[data-tile=skip]").click({ timeout: 5000 });
+    if (!(await page.locator('.watch-options [data-tile=skip]').isVisible())) await page.locator('.cmd [data-tile=speed]').click({ timeout: 5000 });
+    await page.locator(".watch-options [data-tile=skip]").click({ timeout: 5000 });
     await page.waitForFunction((t0) => Number(document.querySelector("main.watch")?.dataset.tick ?? 0) > t0 + 300, t0, { timeout: 9000 }).catch(() => {});
     res.push({ dt: (await tick()) - t0, ms: Date.now() - w0 });
   }
@@ -338,7 +345,8 @@ async function stallSkip() {
   await sleep(600);
   const sp = await page.evaluate(() => Number(document.querySelector("main.watch")?.dataset.speed ?? 0));
   check(sp >= 16, `a stalling run plays at the flat rate (${sp}×)`);
-  await page.locator(".cmd .tile[data-tile=fast]").click({ timeout: 5000 }); await sleep(600);
+  if (!(await page.locator('.watch-options [data-tile=fast]').isVisible())) await page.locator('.cmd [data-tile=speed]').click({ timeout: 5000 });
+  await page.locator(".watch-options [data-tile=fast]").click({ timeout: 5000 }); await sleep(600);
   const sp2 = await page.evaluate(() => Number(document.querySelector("main.watch")?.dataset.speed ?? 0));
   check(sp2 >= 16, `\`fast\` runs flat through a stall (${sp2}×)`);
 }
@@ -389,10 +397,11 @@ async function autoKeepCheck() {
  *  the `row` verdict (seal ROW, the headline names R2); `+ drop R5` on a full set; the stake's `returning` on a return row. */
 async function cut19() {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
-  await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 19"); await settle();
+  await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 19");
+  await patchSave(e => { e.lineage.best_depth = 1; }); await settle();
   // ---- §1: no cage seen, no tablet; a `vault` fact carves it (`cage pick → weapon`)
   const cageTab = () => page.evaluate(() => { const t = document.querySelector(".camp .cage-tab"); return t && !t.hidden && t.getClientRects().length ? t.textContent.replace(/\s+/g, " ").trim() : null; });
-  await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, facts: r.lineage.facts.filter((f) => f !== "vault") }; r.go({ kind: "camp" }); }); await sleep(250);
+  await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, best_depth: 1, facts: r.lineage.facts.filter((f) => f !== "vault") }; r.go({ kind: "camp" }); }); await sleep(250);
   const before = await cageTab();
   await page.evaluate(() => {
     const r = window.__riddle; r.__prefs = [];
@@ -495,12 +504,14 @@ await page.evaluate(() => document.querySelector('.death .death-more[aria-expand
   });
   let st = ""; const t1 = Date.now(), seen = [];
   while (Date.now() - t1 < 15_000) { st = await page.evaluate(() => document.querySelector(".watch .stake")?.textContent ?? ""); if (st && !seen.includes(st)) seen.push(st); if (/returning/.test(st) || !["watch"].includes((await state())?.screen)) break; await sleep(60); }
-  check(seen.some((x) => /return at 20%/.test(x)) && /returning/.test(st), `the stake reads \`return at 20%\`, then \`returning\` once the row fires (${seen.slice(0, 2).join(" | ")} → ${st})`);
+  check(seen.some(x => /^Carried \$\d+ · Secured \$\d+ · Heading home$/.test(x)), `the stake names carried and secured gold, then Heading home when the return row fires (${seen.slice(0, 2).join(" | ")} → ${st})`);
 }
 
 async function cut18() {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
-  await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 18"); await settle();
+  await waitFor((s) => s?.booted && s.screen === "camp", "the camp for Cut 18");
+  await patchSave(e => { e.lineage.best_depth = 1; e.lineage.heir = 2; }); await settle();
+  await page.locator('.cmd [data-tile=edit]').click({ timeout: 5000 });
   // ---- APPLY: two quick taps on the gem slot
   const rows0 = await page.evaluate(() => window.__riddle.rules.rows.length);
   await page.evaluate(() => window.__riddle.go({ kind: "death", death: { run_id: 0, depth: 3, cause: "goblin", margin: "", verdict: "gap", baseline: 0.3, trace: { turns: [] }, morgue: "t1",
@@ -529,7 +540,7 @@ async function cut18() {
       { id: "cond_alert", cost: 2, owned: false, available: false, needs: "fact: alert", gold: 300 },
     ];
     r.engine.unlocks = async () => cat; r.engine.unlockDeltas = async () => cat;
-    r.lineage = { ...r.lineage, gold: 400, marks: 0, unlocks: [...r.lineage.unlocks, "row5"] };
+    r.lineage = { ...r.lineage, best_depth: 1, gold: 400, marks: 0, unlocks: [...r.lineage.unlocks, "row5"] };
     localStorage.setItem("riddle.unlocks.all", "1");
     r.go({ kind: "camp" });
   });
@@ -538,8 +549,8 @@ async function cut18() {
   await sleep(300);
   const tiles = await page.evaluate(() => [...document.querySelectorAll(".unlocks .cards .card")].map((c) => ({ label: c.querySelector(".card-main > span")?.textContent, cost: c.querySelector(".cost")?.textContent, cls: c.className, delta: c.querySelector(".delta")?.textContent ?? "" })));
   const t = (label) => tiles.find((x) => x.label === label);
-  check(t("rule: kite archers")?.cost === "◆3 or $450" && t("+1 vault")?.cost === "◆3 or $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
-  check(/\bbuyable\b/.test(t("+1 vault")?.cls ?? "") && !/\bbuyable\b/.test(t("rule: kite archers")?.cls ?? "") && !/\bbuyable\b/.test(t("condition: alert")?.cls ?? ""), `a tile the gold buys glows like one the marks buy; one short of gold or gated does not (${tiles.map((x) => `${x.label}: ${x.cls}`).join(" · ")})`);
+  check(t("rule: kite archers")?.cost === "◆3 or $450" && t("+1 storage slot")?.cost === "◆3 or $300", `an unlock tile shows both prices (${tiles.map((x) => `${x.label} ${x.cost}`).join(" · ")})`);
+  check(/\bbuyable\b/.test(t("+1 storage slot")?.cls ?? "") && !/\bbuyable\b/.test(t("rule: kite archers")?.cls ?? "") && !/\bbuyable\b/.test(t("condition: alert")?.cls ?? ""), `a tile the gold buys glows like one the marks buy; one short of gold or gated does not (${tiles.map((x) => `${x.label}: ${x.cls}`).join(" · ")})`);
   check(t("rule: kite archers")?.delta === "vs archers", `a card's \`~0\` names its situation ("${t("rule: kite archers")?.delta}")`);
   await shot("ui-cut18-unlocks");
   // ---- §3: a wall says it is a wall — `ForecastDepth.wall` on D9 (best D8): the notch `D9 · warlord`, the panel's row `D9 0% · sealed by warlord`
@@ -583,6 +594,7 @@ async function cut18() {
 
 const t0 = Date.now();
 try {
+  if (parts.has("frame")) {
   // ---- a fresh lineage: heir 1, nothing earned (the fake seeds a chronicle and a free unlock; strip them)
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
@@ -611,14 +623,14 @@ try {
     check(f.stats.length === 1 && /\bgold\b/.test(f.stats[0]), `the bar shows $ only (${f.stats.join(", ")})`);
     check(f.tablets === 2 && f.notches.join(",") === "D1" && !f.ends, `two compact tablets, the shaft at D1 alone, no gems (${f.tablets} tablets, notches ${f.notches.join(",")}, ends ${f.ends})`);
     check(/^send(▸ fights only)?$/i.test(f.gem ?? "") && f.tiles === 0 && !f.tabs && !f.cls, `the gem SEND and nothing else: no tile, no set tab, no class picker (gem "${f.gem}", ${f.tiles} tiles)`);
-    // a tablet is one tap: it opens the tablets for editing at that row
-    await page.locator(".editor .row.tablet.compact").first().click({ timeout: 5000 }); await sleep(200);
-    check(await page.locator(".editor .row .chip.cond").count() > 0, "a tap on a compact tablet opens it for editing (its chips)");
+    // FIRST_LOAD/HERO_SLOTS: the town and heroes lead; advanced rule controls
+    // stay hidden until progress. The old tablet-first interaction is retired.
+    check(!(await page.locator(".editor .row.tablet.compact").first().isVisible()), "a fresh camp keeps advanced rule tablets hidden");
   }
 
   // ---- the ladder: each tile on its trigger, not before; the first appearance glints
   const steps = [
-    ["edit", "first death", (e) => { e.lineage.graveyard.push({ heir: 1, depth: 1, cause: "rat", deeds: [] }); }],
+    ["edit", "first death", (e) => { e.lineage.best_depth = 1; e.lineage.graveyard.push({ heir: 1, depth: 1, cause: "rat", deeds: [] }); }],
     ["loadout", "first gold home", (e) => { e.lineage.gold = 40; e.lineage.gold_ledger = [{ t: 10, delta: 40, why: "returned D1" }]; }],
     ["unlocks", "first mark", (e) => { e.lineage.marks = 1; }],
     ["vault", "an item worth keeping", (e) => { e.lineage.vault = [{ id: 901, kind: "sword", label: "sword +1" }]; }],
@@ -649,14 +661,16 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "attack", a: "nearest" } }, 2); r.go({ kind: "camp" }); });
   await page.waitForFunction(() => document.querySelector(".shaft .shaft-ends")?.hidden === false, null, { timeout: 15_000 }).catch(() => {});
   const ends = await page.evaluate(() => [...document.querySelectorAll(".shaft .shaft-ends .end")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));
-  check(ends.length === 4 && /^bank <?\d+%$/.test(ends[0]) && /^return <?\d+%$/.test(ends[1]) && /^death [<>]?\d+%$/.test(ends[2]) && /^avg \$\d+\/run…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
+  check(ends.length === 4 && /^full haul <?\d+%$/.test(ends[0]) && /^return <?\d+%$/.test(ends[1]) && /^death [<>]?\d+%$/.test(ends[2]) && /^avg \$\d+\/run…?$/.test(ends[3]), `a 3rd row lights the shaft's gems (QA 778fa1b: \`…\` on the first pass): ${ends.join(" · ")}`);
   // 5 heirs: ledger, chronicle, the set tabs
   check(!(await tileIds()).includes("ledger") && !(await page.locator(".tabs:not([hidden]) .tab").count()), "before the 5th heir: no ledger, no chronicle, no set tabs");
   check(await patchSave((e) => { e.lineage.heir = 5; }), "the lineage took its 5th heir");
   await waitFor((s) => s?.screen === "camp", "camp"); await settle();
   const ids = await tileIds();
   // RUNS_UI: the chronicle is the runs log's `heirs` (the lane's log stud, shown from the 5th heir as from the first run)
-  const logStud = await page.evaluate(() => { const b = document.querySelector(".lanes .lanes-log"); return !!b && !b.hidden; });
+  await page.locator('.hero-mobile .hero-expand').click();
+  const logStud = await page.locator('.heroes-sheet button.hero-history').isVisible();
+  await page.keyboard.press('Escape');
   check(ids.includes("ledger") && logStud && (await page.locator(".tabs:not([hidden]) .tab").count()) >= 3, `the 5th heir carves the ledger, the log (the chronicle's heirs) and the set tabs (${ids.join(" · ")}; log ${logStud})`);
   check(ids.length === 7, `the command card at the ladder's top: 7 tiles, the chronicle's slot gone to the log (${ids.length} tiles)`);
   await shot("ui-ladder-camp");
@@ -689,9 +703,12 @@ try {
   check(!(await page.locator(".panel-host .panel").count()), "Escape closes the open panel");
   const sheets = [
     ["settings", "button.gear"], ["gold", ".strip button.gold"], ["forge", ".cmd .tile[data-tile=forge]"], ["ledger", ".cmd .tile[data-tile=ledger]"],
-    ["log", ".lanes .lanes-log"], ["class", "button.cls"], ["cond picker", ".editor .row .chip.cond"], ["verb picker", ".editor .row .chip.verb"], ["rename", ".tabs .tab.edit"],
+    ["log", ".heroes-sheet button.hero-history"], ["class", ".hero-sheet .hero-class"], ["cond picker", ".editor .row .chip.cond"], ["verb picker", ".editor .row .chip.verb"], ["rename", ".tabs .tab.edit"],
   ];
   for (const [name, sel] of sheets) {
+    if (name === "log") await page.locator('.hero-mobile .hero-expand').click();
+    if (name === "class") { await page.locator('.town-hit[data-building="tent"]').click(); }
+    if (name === "cond picker") await page.locator('.cmd .tile[data-tile=edit]').click({ timeout: 5000 });
     await page.locator(sel).first().click({ timeout: 5000 }); await sleep(200);
     const s = await page.evaluate(() => { const w = [...document.querySelectorAll(".sheet-wrap")].pop(); return w ? { stud: w.querySelectorAll(".sheet > .close-stud, .sheet .sheet-x").length } : null; });
     if (s?.stud) { await page.locator(".sheet-wrap .sheet > .close-stud, .sheet-wrap .sheet .sheet-x").last().click({ timeout: 5000 }); await sleep(150); }
@@ -726,7 +743,7 @@ try {
     return { main: m?.className ?? "", bar: !!m?.querySelector(":scope > header.topbar"), console: !!m?.querySelector(":scope > footer.console"), gem: g ? { text: g.textContent.trim(), cls: g.className, visible: !!g.getClientRects().length && getComputedStyle(g).visibility !== "hidden" } : null };
   });
   let f = await frame();
-  check(f.bar && f.console && f.gem?.visible && /\bsend\b/.test(f.gem.cls) && /^send▸ (fights only|fast|normal)$/.test(f.gem.text), `camp: bar + console, \`send\` in the gem (${JSON.stringify(f.gem)})`);
+  check(f.bar && f.console && f.gem?.visible && /\bsend\b/.test(f.gem.cls) && /^send$/.test(f.gem.text), `camp: bar + console, \`send\` in the gem (${JSON.stringify(f.gem)})`);
   await page.locator("button.send").click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "watch", "the watch"); await sleep(1500);
   // QA 23ed91f: the last frame — record the bar's heir and the gem the moment the run is over (the exit's refresh follows)
@@ -739,7 +756,7 @@ try {
   f = await frame();
   check(f.bar && f.console && f.gem?.visible && ["⏸", "▶"].includes(f.gem.text), `watch: bar + console, ⏸ in the gem (${JSON.stringify(f.gem)})`);
   const cmd = await page.evaluate(() => [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((b) => b.textContent.trim()));
-  check(cmd.join(" · ") === "fights only · fast · normal · ▶▶| · bail · meters · town", `watch: the command card is fights only · fast · normal · ▶▶| · bail · meters · town (Cut 25 §3, Cut 29 §3, RUNS_UI: back to the town, the run goes on) (${cmd.join(" · ")})`);
+  check(cmd.join(" · ") === "Speed · Town menu", `watch: Speed groups controls and Town menu stays visible (${cmd.join(" · ")})`);
   await shot("ui-watch");
   let s = await state(); const tw = Date.now();
   while (s?.screen === "watch" && Date.now() - tw < 90_000) { await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); await sleep(250); s = await state(); }
@@ -761,7 +778,7 @@ try {
   }
   if (s.screen !== "death") {   // a report: the gem is `camp`; then a fabricated death for the death's frame
     f = await frame();
-    check(f.bar && f.console && f.gem?.visible && f.gem.text === "camp", `report: bar + console, \`camp\` in the gem (${JSON.stringify(f.gem)})`);
+    check(f.bar && f.console && f.gem?.visible && f.gem.text === "town", `report: bar + console, \`camp\` in the gem (${JSON.stringify(f.gem)})`);
     const r = await page.evaluate(async () => { const r = window.__riddle; const L = await r.engine.lineage(); const g = L.graveyard.at(-1); return g?.death_id; });
     if (r !== undefined) { await page.evaluate(async (id) => { const r = window.__riddle; r.go({ kind: "death", death: await r.engine.death(id), kept: true }); }, r); await waitFor((x) => x?.screen === "death", "a death"); await settle(); }
   }
@@ -770,7 +787,7 @@ try {
     const patch = await page.locator("button.patch.top").count();
     check(f.bar && f.console && f.gem?.visible && (patch ? /\bpatch-gem\b/.test(f.gem.cls) : f.gem.text === "edit"), `death: bar + console, the top patch in the gem (${JSON.stringify(f.gem)}, ${patch} lit patch)`);
     const d = await page.evaluate(() => ({ banner: !!document.querySelector(".banner-cloth .death-line"), seal: !!document.querySelector(".banner-cloth .death-line .verdict"), tiles: [...document.querySelectorAll(".console .cmd .tile:not(.empty)")].map((t) => t.textContent.trim()), morgue: !!document.querySelector(".death .death-details .death-morgue") }));
-    check(d.banner && d.seal && d.morgue && d.tiles.includes("camp"), `death: the line on the banner, the verdict in the seal, camp on the card, the morgue under details (${d.tiles.join(" · ")}; morgue ${d.morgue})`);
+    check(d.banner && d.seal && d.morgue && d.tiles.includes("town"), `death: the line on the banner, the verdict in the seal, camp on the card, the morgue under details (${d.tiles.join(" · ")}; morgue ${d.morgue})`);
     await shot("ui-death");
     // the morgue's sheet carries its stud too
     await page.evaluate(() => document.querySelector('.death .death-more[aria-expanded="false"]')?.click());   // death v2: the trace, the ledger and every tablet fold under `details`
@@ -782,7 +799,7 @@ try {
   s = await waitFor((x) => x?.booted && (x.screen === "report" || x.screen === "ending"), "the report", 120_000); await settle();
   f = await frame();
   const plaques = await page.locator(".report .parchment .tile.plaque").count();
-  check(f.bar && f.console && f.gem?.visible && f.gem.text === "camp" && plaques >= 4, `report: bar + console, \`camp\` in the gem, the counts as plaques on parchment (${plaques} plaques)`);
+  check(f.bar && f.console && f.gem?.visible && f.gem.text === "town" && plaques >= 4, `report: bar + console, \`camp\` in the gem, the counts as plaques on parchment (${plaques} plaques)`);
   await shot("ui-report");
   // QA 23ed91f (K: the walk printed `(no worst death to open)` over 16 deaths): the report's `open` tile opens the worst death
   if (await page.evaluate(() => !!document.querySelector(".cmd .tile[data-tile=open]"))) {
@@ -790,18 +807,26 @@ try {
     const o = await waitFor((x) => x?.screen === "death", "the worst death", 10_000).catch(() => null);
     check(o?.screen === "death", "the report's `open` tile opens the worst death");
   } else check(await page.evaluate(() => { const r = window.__riddle; return r.view?.report ? !r.view.report.worst_death : true; }), "no `open` tile: the report has no worst death");
-  await qaK();
-  await stallSkip();
-  await autoKeepCheck();
-  await cut18();
-  await cut19();
+  }
+  if (parts.has("qa")) {
+    if (!parts.has("frame")) {
+      await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`);
+      await waitFor(s => s?.booted && s.screen === 'camp', 'QA camp');
+      await patchSave(e => { e.lineage.best_depth = 1; });
+      await settle();
+    }
+    await qaK();
+  }
+  if (parts.has("stall")) await stallSkip();
+  if (parts.has("keep")) await autoKeepCheck();
+  if (parts.has("cut18")) await cut18();
+  if (parts.has("cut19")) await cut19();
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {
   await browser.close().catch(() => {});
 }
 
-for (const l of out) console.log(l);
 for (const e of errors) console.error(e);
 const secs = ((Date.now() - t0) / 1000).toFixed(1);
 if (failed || errors.length) { console.error(`ui: FAIL (${failed} assertion(s), ${errors.length} error(s), ${secs}s)`); process.exit(1); }

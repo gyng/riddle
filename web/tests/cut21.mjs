@@ -106,7 +106,7 @@ try {
   check(tolls[9] ? toll?.delta === -tolls[9] || gold0 - gold1 === tolls[9] : !toll, `the send pays the toll the wire named (${tolls[9] ?? 0}) (${toll ? `${toll.delta} ${toll.why}` : `$${gold0} → $${gold1}`})`);
 
   // ---- §2: found supplies to the shelf; `no row`
-  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=22`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=22&rules=${encodeURIComponent("hp<30 → drink heal\nfoes>=1 → attack nearest")}`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp");
   const x = (text, kept, pct, extra = {}) => ({ carried: 80, keep_pct: pct, kept, spent: 0, spent_on: [], text, run_id: 1, ...extra });
   const report = { elapsed_s: 100, runs: 2, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, tamed: [], hatched: [], lost: [],
@@ -130,14 +130,12 @@ try {
   check(goldSheet, "a tap on it opens the gold sheet");
   await closeSheets();
   // the loadout: a shelved line `· found`; a kind no row names `· no row`
-  await page.evaluate(() => {
-    const r = window.__riddle; const L = r.lineage;
-    r.lineage = { ...L, gold: 300, repeat: true, repeat_kinds: ["heal"], repeat_gold: 40, supplies: [
-      { id: 9001, kind: "heal", known: true, label: "heal" }, { id: 9002, kind: "strength", known: true, label: "strength" }, { id: 9003, kind: "heal", known: true, label: "heal", found: true }] };
-    r.go({ kind: "camp" });
-  });
+  // Advanced camp controls appear after progress. Keep the shelf in engine state
+  // so a live refresh cannot replace the fixture with the original empty pack.
+  await patchLineage({ best_depth: 1, gold: 300, repeat: true, repeat_kinds: ["heal"], repeat_gold: 40, supplies: [
+    { id: 9001, kind: "heal", known: true, label: "heal" }, { id: 9002, kind: "strength", known: true, label: "strength" }, { id: 9003, kind: "heal", known: true, label: "heal", found: true }] });
   await sleep(300);
-  await page.locator(".cmd .tile[data-tile=loadout]").click({ timeout: 5000 }).catch(() => {}); await sleep(250);
+  await page.locator(".cmd .tile[data-tile=loadout]").click({ timeout: 5000 }); await sleep(250);
   const sup = await page.evaluate(() => [...document.querySelectorAll(".panel .supplies .chip.item")].map((c) => c.textContent.replace(/\s+/g, " ").replace(/\s*×$/, "").trim()));
   check(sup.join(" | ") === "heal | strength · no row | heal · found", `the shelf: \`· no row\` on a kind the repeat skips, \`· found\` on a shelved one (${sup.join(" | ")})`);
   await shot("cut21-loadout");

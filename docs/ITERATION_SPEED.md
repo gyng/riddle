@@ -1,3 +1,13 @@
+**TARGETED LEGACY UI CHECKS — 2026-10-06:** ui accepts --part=frame,qa,
+stall,keep,cut18,cut19; bareui still coversall. Each section selfinitializes;
+qa includesK/L. Updatedfixtures to establishedtowns/enginebacked packs, actual
+healrule, currentHeroChronicle/Class/Edit/Speed paths and forecastEstimate.
+No forcedhiddencontrols. Directchecks stream; runner retains blockinglocator/
+cause even withlongassertionlist. qa41/stall3/keep2/cut18 11/cut19 12/cut21 19
+pass independently, sevenjobrun39.3s (notpairedspeedclaim). Frame retainsone
+historicalidentityFAIL5th→6thheir; fullsuite notcertified. Nextactualwatchfix,
+notweakenassertion. DEV_LEGACY_UI_PATHS.md hascommands/scope.
+
 **2026-10-06 — Direct Legacy comparison setup:** choice-check --upgrades
 health,armour,damage,all now prepares legal paths in Rust and crosses each with
 requested package choices. Five invocations→one, browser preparation removed.

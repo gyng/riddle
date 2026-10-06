@@ -5,6 +5,7 @@
 // A name `file:parts` runs `tests/<file>.mjs --part=<parts>` (clarity's four parts run side by side: the whole walk was one
 // 4-minute test the suite waited on — docs/ITERATION_SPEED.md, round 3); a bare `clarity` runs its parts.
 import { spawn } from "node:child_process";
+import { failureOutput } from "./lib/failure-output.mjs";
 import { readdirSync } from "node:fs";
 import net from "node:net";
 // Every tests/*.mjs but this runner, screen-time.mjs and town-gpu.mjs (timing gates the coordinator runs on the GPU).
@@ -76,7 +77,7 @@ for (const r of results) {
   const last = r.out.trim().split("\n").at(-1) ?? "";
   // (the time it ended at, and its own time from its start)
   console.log(`${r.code === 0 ? "ok  " : "FAIL"} ${r.n.padEnd(15)} ${(r.ms / 1000).toFixed(1)}s (${(r.own / 1000).toFixed(1)}s)  ${last}`);
-  if (r.code !== 0) { failed++; console.log(r.out.split("\n").filter((l) => /^(FAIL|fail|not ok|Error|\s+at )/.test(l) || /error|aborted/i.test(l)).slice(0, 20).map((l) => "     " + l).join("\n")); }
+  if (r.code !== 0) { failed++; console.log(failureOutput(r.out).map((l) => "     " + l).join("\n")); }
 }
 console.log(`${failed ? "FAIL" : "ok"}: ${results.length - failed}/${results.length} client gates in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 vite?.kill();
