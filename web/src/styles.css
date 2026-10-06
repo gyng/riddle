@@ -1756,7 +1756,7 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .ledger .unit-name { padding: 5px 4px 5px 0; }
 .death-hero { align-self: center; justify-content: center; }
 .death-line .cause-btn.has-unit-icon { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
-.cause-btn > .killer { flex: none; width: 48px; height: 48px; object-fit: cover; border-radius: 0; }
+.cause-btn > .killer { flex: none; }
 .cause-btn.has-unit-icon > .cause { min-width: 0; }
 @media (max-width: 420px) {
   .ledger .lrow { grid-template-columns: minmax(0, 1fr) repeat(5, 32px); }
@@ -1767,3 +1767,9 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .chronicle button.cline.kept { display: flex; align-items: center; gap: 8px; }
 .chronicle .cline.kept > .unit-label { flex: 1; }
 .chronicle .cline.kept > small { flex: none; }
+
+/* Prominent unit portraits reuse the chunky iron well; compact labels stay plain. */
+.unit-portrait { position: relative; display: inline-block; flex: none; width: var(--portrait-size, 96px); height: var(--portrait-size, 96px); vertical-align: middle; filter: drop-shadow(0 4px 5px var(--ink)); }
+.unit-portrait > .unit-icon { position: absolute; left: 11%; top: 11%; width: 78%; height: 78%; border-radius: 50%; background-color: var(--umbra); box-shadow: inset 0 0 12px var(--ink); }
+.unit-portrait-rim { position: absolute; inset: 0; border-radius: 50%; border: 6px solid #323e5e; box-shadow: inset 0 0 0 1px var(--mist), 0 2px 6px var(--ink); pointer-events: none; }
+.skin-well .unit-portrait-rim { border: 0; box-shadow: none; background: url(/ui/frames/well.png) center / 100% 100% no-repeat; }

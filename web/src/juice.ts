@@ -5,6 +5,7 @@
 import "./juice.css";
 import { softwareGl, reducedMotion } from "./render/quality";
 import { audio } from "./audio";
+import { ambientMotes } from "./ambient-motes";
 
 function decide(): boolean {
   try {
@@ -119,6 +120,7 @@ if (typeof MutationObserver !== "undefined") {
  *  plaques draw at rest before that and stamp after it (juice.css). */
 function arrivals(): void {
   const app = document.getElementById("app"); if (!app) return;
+  ambientMotes(app);
   const mark = (el: Element): void => { if (el.tagName === "MAIN" && !el.classList.contains("arrived")) requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("arrived"))); };
   new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n instanceof Element) mark(n); }).observe(app, { childList: true });
   for (const el of app.children) mark(el);

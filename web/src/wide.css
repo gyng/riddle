@@ -99,7 +99,7 @@
 
   /* --- death and report: the well centred, wide enough to breathe, never a stretched phone --- */
   main.death > .well, main.report > .well { padding: 18px max(24px, calc((100% - 820px) / 2)) 28px; }
-  .death .banner-cloth { width: min(100%, 320px); }
+  .death .banner-cloth { width: min(100%, 290px); }
   .death .patch { font-size: 18px; }
   .death .patch .patch-nums { font-size: 15px; }
   .death :is(.news, .notes, .ledger, .forecast-line, .bones-line) { font-size: 16px; }
@@ -127,7 +127,7 @@
       radial-gradient(circle, transparent 0 30%, rgba(136, 161, 194, .25) 31% 32%, transparent 33% 60%, rgba(136, 161, 194, .3) 61% 63%, transparent 64%),
       conic-gradient(from 45deg, rgba(13, 12, 20, .35) 0 25%, rgba(223, 217, 200, .06) 0 50%, rgba(13, 12, 20, .35) 0 75%, rgba(223, 217, 200, .06) 0);
     box-shadow: inset 0 2px 6px rgba(13, 12, 20, .9), 0 1px 0 rgba(234, 223, 197, .08); }
-  .death .banner-cloth { width: min(100%, 390px); }
+  .death .banner-cloth { width: min(100%, 290px); }
   .death .death-line { font-size: 24px; }
   .cmd .tile .tl { font-size: 16px; }
   .cmd .tile .ico { width: 46px; height: 46px; }

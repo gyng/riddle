@@ -114,20 +114,12 @@
    pulse". Embers drift up over the well, the vista's fire breathes, the death banner sways on its rod and the seal catches a glint,
    the forecast's troughs fill in turn and a sheen runs along them. Opacity/transform/background only; nothing text reads moves. ===== */
 @media (prefers-reduced-motion: no-preference) {
-  /* (a compositor-only drift: the layer is one pattern tile taller than the frame and slides up by it — a background-position animation
-     with a blend repainted the whole frame every frame: camp p95 16.8 → 33 ms) */
+  /* Individually drifting motes: tiny prepainted sprites, transform updates only.
+     No animated background, blend, blur or full-frame canvas repaint. */
   html[data-juice="on"] main.frame:not(.watch) { overflow: hidden; }
-  html[data-juice="on"] main.frame:not(.watch)::after {
-    content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 660px); z-index: 3; pointer-events: none; opacity: .75; will-change: transform;
-    background-image:
-      radial-gradient(2.4px 2.4px at 20% 30%, rgba(190, 200, 208, 1), rgba(164, 188, 214, .35) 60%, transparent 75%),
-      radial-gradient(1.8px 1.8px at 70% 60%, rgba(229, 220, 198, .95), transparent 72%),
-      radial-gradient(3px 3px at 45% 80%, rgba(164, 188, 214, .9), rgba(164, 188, 214, .3) 60%, transparent 75%),
-      radial-gradient(1.8px 1.8px at 85% 15%, rgba(216, 213, 202, .9), transparent 72%),
-      radial-gradient(1.5px 1.5px at 10% 70%, rgba(240, 231, 212, .85), transparent 72%);
-    background-size: 210px 330px, 170px 220px, 260px 660px, 140px 165px, 230px 330px;
-    animation: j-embers 12s linear infinite; }
-  @keyframes j-embers { from { transform: translate3d(0, 0, 0); } 50% { transform: translate3d(14px, -330px, 0); } to { transform: translate3d(0, -660px, 0); } }
+  .ambient-motes { position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none; contain: strict; }
+  .ambient-mote { position: absolute; left: 0; top: 0; border-radius: 50%; will-change: transform;
+    background: radial-gradient(circle, #e5dcc6 0%, rgba(164,188,214,.65) 30%, transparent 72%); }
 
   /* the camp's vista: the fire under the stair breathes and the air above it glows */
   html[data-juice="on"] .vista { position: relative; overflow: hidden; }
@@ -306,18 +298,6 @@
   /* the boss stamps: steady under reduced motion (below) */
 }
 @media (prefers-reduced-motion: reduce) { .rstamp { animation: none !important; } }
-
-/* gfx round 14 (raters, desktop report and camp: "static across all four frames"): at 1440 the strip is a quarter size — the embers draw
-   larger there so their drift reads (tile heights still divide the 660 px loop) */
-@media (prefers-reduced-motion: no-preference) and (min-width: 1024px) {
-  html[data-juice="on"] main.frame:not(.watch)::after { background-size: 320px 330px, 260px 220px, 390px 660px, 210px 165px, 350px 330px; opacity: 1;
-    background-image:
-      radial-gradient(4.5px 4.5px at 20% 30%, rgba(203, 207, 205, 1), rgba(164, 188, 214, .45) 55%, transparent 75%),
-      radial-gradient(3.5px 3.5px at 70% 60%, rgba(229, 220, 198, .95), transparent 72%),
-      radial-gradient(5.5px 5.5px at 45% 80%, rgba(164, 188, 214, .95), rgba(164, 188, 214, .35) 55%, transparent 75%),
-      radial-gradient(3.5px 3.5px at 85% 15%, rgba(216, 213, 202, .9), transparent 72%),
-      radial-gradient(3px 3px at 10% 70%, rgba(240, 231, 212, .85), transparent 72%); }
-}
 
 /* gfx round 24 (the coordinator approved; raters: "the stamp is soft — a dust puff and a small shake as each plaque lands"): each plaque
    drops from above and slams, a puff of parchment dust spreads under it on impact, and the plaque grid thuds with the first landing */

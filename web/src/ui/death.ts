@@ -29,7 +29,7 @@ import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
 import { foeSrc, packageIcon } from "./skin";
 import { enemyHost } from "./enemy-tips";
-import { unitIcon, unitLabel } from "./unit-icon";
+import { unitLabel, unitPortrait } from "./unit-icon";
 import { itemIcon } from "./items";
 import { penOpen } from "./packages";
 import { openForge } from "./forge";
@@ -300,7 +300,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const killerSrc = drove || d.verdict === "stall" ? null : foeSrc(d.cause);
   const enemyKnowledge = (kept && !d.hero) || (d.hero?.bloodline_id !== undefined && d.hero.bloodline_id !== (app.lineage.selected_bloodline ?? 1)) ? undefined : app.lineage;
   const knownKiller = killerSrc || (!drove && d.verdict !== "stall" && app.lineage.ledger?.some(r => r.kind === d.cause));
-  const killerPortrait = knownKiller ? enemyHost(unitIcon(d.cause, 48), d.cause, enemyKnowledge) : null;
+  const killerPortrait = knownKiller ? enemyHost(unitPortrait(d.cause, 112), d.cause, enemyKnowledge) : null;
   if (killerPortrait) {
     killerPortrait.classList.add("killer");
     killerPortrait.removeAttribute("aria-hidden");
@@ -336,9 +336,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
   const well = h("div", { class: "well death-well" },
-    d.hero?.name ? unitLabel(d.hero.class, h("span", null, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`), { hero: true, className: "death-hero num dim" }) : null,
+    d.hero?.name ? unitLabel(d.hero.class, h("span", null, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`), { hero: true, art: unitPortrait(d.hero.class, 64, true), className: "death-hero num dim" }) : null,
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerPortrait ? " has-killer" : ""}` },
-      // The killer icon lives beside the cause name inside its trace control.
+      // The framed killer portrait stays centered above the cause text.
       luckLead, line)),
     // run-clear: the death screen is a death's card — its header carries the floor, a new best, the finds left in the bones
     kept || from ? null : clearStrip(d.line),

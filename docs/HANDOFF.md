@@ -1,3 +1,18 @@
+**INTERACTIVE AMBIENT MOTES + FRAMED DEATH PORTRAITS — 2026-10-06:** Owner
+asked for moving air/pointer interaction and bigger framed death portraits.
+Replaced uniform CSS tile with16–36 prepainted transform sprites at~30Hz,
+independent inertial currents/rise speeds and100px mouse wake fading1.2s.
+No per-frame layout, game writes or input interception. Hidden/reduced-motion/
+watch/off remove layer and cancel loop; screen replacement cancels old sprites.
+Enemy112px/hero64px shared unitPortrait uses packed iron well; historical art,
+centered-above-cause and tooltip/trace preserved. Stale desktop banner widths
+removed:290px/native3:4 keeps lever visible. Six UI suites pass14.2s; build/
+typecheck/copy1556/diff clean. Actual WASM400/1440 screenshots +motion WebM.
+RTX3080 D3D12, unrecorded desktop5s: both old/new16.8ms p95, zero layouts;
+new adds~191ms whole-page JS/5s. Brief single-machine sample only. Contracts
+GFX_AMBIENT_MOTES.md/GFX_DEATH_PORTRAITS.md; scratchpad respective20261006 dirs.
+No core/newart/deploy.
+
 **CHRONICLE HISTORICAL PORTRAITS — 2026-10-06:** Continued unitlabel audit.
 Archivedhero entries use32px sharedunitLabel from own hero_legacy.class/name;
 old/other-slot entries parse only canonical printedheader class (verified Rust

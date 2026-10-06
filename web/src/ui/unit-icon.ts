@@ -17,3 +17,9 @@ export function unitIcon(kind: string, px = 34, hero = false): HTMLElement {
 export function unitLabel(kind: string, text: Node | string, options: { px?: number; hero?: boolean; art?: HTMLElement; className?: string } = {}): HTMLElement {
   return h("span", { class: `unit-label${options.className ? ` ${options.className}` : ""}` }, options.art ?? unitIcon(kind, options.px ?? 34, options.hero), h("span", { class: "unit-label-text" }, text));
 }
+
+/** A prominent portrait in the same iron well as the game's hero portrait. */
+export function unitPortrait(kind: string, px = 96, hero = false): HTMLElement {
+  return h("span", { class: "unit-portrait", style: `--portrait-size:${px}px`, "aria-hidden": "true" },
+    unitIcon(kind, Math.round(px * .78), hero), h("span", { class: "unit-portrait-rim" }));
+}
