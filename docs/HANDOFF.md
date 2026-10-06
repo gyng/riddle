@@ -1,3 +1,7 @@
+**ENCOUNTER FALLBACK FIX — 2026-10-06:** Missing enemy knowledge now says
+Encounter Unavailable rather than Unseen. Final enemy-surfaces/enemy-tips2/2
+pass18.1s; build/typecheck/copy1555 pass. Same actualWASM screenshot recaptured.
+
 **LIVE/DEATH ENEMY TOOLTIPS — 2026-10-06:** Extended enemyHost to live boss
 name (once per kind, not per HP tick) and death killer portrait/cause button.
 Normal cause tap still opens trace; hover/longpress details; unknown historical

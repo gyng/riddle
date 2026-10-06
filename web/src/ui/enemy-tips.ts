@@ -13,7 +13,7 @@ export function enemyHost<E extends HTMLElement>(el: E, kind: string, L?: Pick<L
     const line = (label: string, value: string): HTMLElement => h("div", { class: "enemy-tip-line" }, h("b", null, label), " ", value);
     return [h("div", { class: "kw-tip-head" }, src ? h("img", { class: "enemy-tip-face", src, alt: "" }) : "", h("b", null, nice(kind))),
       ...(wall ? [line(/* copy:label */ "Floor", `D${wall.depth}`)] : []),
-      line(/* copy:label */ "Encounter", defeated || wall?.slain ? /* copy:label */ "Defeated" : row?.seen ? /* copy:label */ "Seen" : /* copy:label */ "Unseen"),
+      line(/* copy:label */ "Encounter", defeated || wall?.slain ? /* copy:label */ "Defeated" : !L ? /* copy:label */ "Unavailable" : row?.seen ? /* copy:label */ "Seen" : /* copy:label */ "Unseen"),
       ...(row?.studied ? [line(/* copy:label */ "Study", /* copy:label */ "Studied")] : []),
       line(/* copy:label */ "Traits", traits.length ? traits.join(" · ") : !L ? /* copy:label */ "Unavailable" : /* copy:label */ "Not learned"),
       line(/* copy:label */ "Counter", counter?.replace(/, boss$/, " at boss") ?? (!L ? /* copy:label */ "Unavailable" : /* copy:label */ "Not learned"))];

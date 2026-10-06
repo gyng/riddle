@@ -19,3 +19,6 @@ copy1554 and diff checks pass. Headed real WASM historical Warlord death
 screenshots400/1440 show the deliberate unavailable fallback for old ownerless
 records, no console warnings or page overflow. Art/simulation untouched.
 Evidence: scratchpad/enemy-surfaces-20261006/ and enemy-surfaces-regression.log.
+
+Screenshot follow-up: unavailable encounter knowledge says Unavailable, never
+Unseen. Defeated report evidence continues to take precedence.
