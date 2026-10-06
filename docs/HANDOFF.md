@@ -1,3 +1,15 @@
+**METER QA CURRENT PATH RESTORED — 2026-10-06:** Old cut29meters queried
+removedcommandbar meter tile; now opens Speed→Run controls, retains units/
+toggle assertions and closes sheet. Two completedmeters fixturehadbest0 so
+currentfirstload intentionallyhidcampmain; fixturebest4 now representsprogress.
+Originalnumericmerge/death/report/phone checksunchanged; fivedesktopfold/
+duration/keyboard/opencomparisonchecksadded. Finalisolatedmeters+merge12checks
+and townday0/desk pass4.4s. Watchsyntheticzero checksunits/toggle, notactual
+throughput. PreviousactualWASMfirst/secondreturncamp evidence remainsseparate.
+Syntax/diffpass; test-only noappbuild/art/core/WASM/deploy/screenshot.
+QA_METERS_PATH.md;scratchpad/meter-qa-path-20261006/. Keepgoalactive; next actual
+content/gameplay work should use legalearned fixture andfastchoicecheck.
+
 **CAMP DIAGNOSTICS SIMPLIFIED — 2026-10-06:** Real firstreturndesktop exposed
 DPS/time/rules before nextbuildingchoice. Campmeter now nativeclosed Run details
 +latestduration, carved existingbuttonframe; existingone/tworunpanelsinside.

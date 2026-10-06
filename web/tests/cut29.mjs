@@ -152,13 +152,16 @@ try {
   if (part("meters")) {
     await boot(2903, "&systems=all");   // Cut 30: the death's fight meter sits under `details`, which comes with the pen
     await page.evaluate(() => { localStorage.removeItem("riddle.meters"); window.__riddle.go({ kind: "watch" }); });
-    await until(() => window.__riddle.screen === "watch" && document.querySelector(".cmd .tile[data-tile=meters]"), "the watch's meters tile");
+    await until(() => window.__riddle.screen === "watch" && document.querySelector(".cmd .tile[data-tile=speed]"), "the watch's speed control");
+    await page.locator('.cmd .tile[data-tile="speed"]').click();
+    await until(() => document.querySelector('.watch-options .tile[data-tile="meters"]'), "meters inside run controls");
     const off = await page.evaluate(() => document.querySelector(".meter-box")?.hidden);
-    await page.locator(".cmd .tile[data-tile=meters]").click();
+    await page.locator(".watch-options .tile[data-tile=meters]").click();
     const line = await until(() => { const b = document.querySelector(".meter-box"); return b && !b.hidden && b.textContent.trim() ? b.textContent.replace(/\s+/g, " ").trim() : null; }, "the compact meter", 20_000);
     check(off === true && /^(fight|run) dealt [\d.]+ dps.* taken [\d.]+ dps/.test(line), `the watch's meter is off until toggled, then one line with its units ("${line}")`);
     const kept = await page.evaluate(() => localStorage.getItem("riddle.meters"));
     check(kept === "1", `the toggle is remembered (${kept})`);
+    await page.evaluate(async () => { const { closeAllSheets } = await import("/src/ui/sheet.ts"); closeAllSheets(); });
     await shot("cut29-watch-meter");
     const fightM = { seconds: 8.4, dealt: { hero: 31, pets: 0, foes: 44 }, taken: { hero: 38, pets: 0, foes: 31 }, dps_dealt: { hero: 3.7, pets: 0, foes: 5.2 }, dps_taken: { hero: 4.5, pets: 0, foes: 3.7 },
       healed: [{ src: "potion", total: 12, per_s: 1.4 }], hps: 1.4, time: { fight: 84, travel: 0, chores: 0, rest: 0 }, time_s: { fight: 8.4, travel: 0, chores: 0, rest: 0 },
@@ -178,12 +181,28 @@ try {
     await withState((e) => { e.sys29 ??= { open: ["send", "dial", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true };
       const m = (dps, g) => ({ seconds: 60, dealt: { hero: dps * 60, pets: 0, foes: 10 }, taken: { hero: 30, pets: 0, foes: 10 }, dps_dealt: { hero: dps, pets: 0, foes: 0.2 }, dps_taken: { hero: 0.5, pets: 0, foes: 0.2 }, healed: [], hps: 0,
         time: { fight: 100, travel: 500, chores: 0, rest: 0 }, time_s: { fight: 10, travel: 50, chores: 0, rest: 0 }, rows: [], actions: 0, supplies: {}, gold: g, gold_per_min: g, hits_hero: 3, hits_pets: 0, fights: 2 });
+      // Two completed runs belong to a progressed camp, not the empty first load.
+      e.lineage.best_depth = 4;
       e.sys29.meters = [m(4, 20), m(6, 35)]; });
     await camp();
     await page.locator(".shaft").first().click();
     const cmp = await until(() => { const x = document.querySelector(".forecast .mcmp"); return x ? [...x.querySelectorAll(".mcmp-row")].map((r) => r.textContent.replace(/\s+/g, " ").trim()) : null; }, "the two-run comparison");
     check(cmp.some((x) => /^dealt 4 → 6 dps \+2$/.test(x)) && cmp.some((x) => /^gold 20 → 35 \$\/min \+15$/.test(x)), `the camp compares the last two runs (${cmp.join(" | ")})`);
     await shot("cut29-camp-compare");
+    await page.evaluate(async () => { const { closeAllSheets } = await import("/src/ui/sheet.ts"); closeAllSheets(); });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const fold = page.locator(".camp-run-details"), summary = fold.locator("summary");
+    await fold.waitFor({ state: "visible" });
+    check(await fold.getAttribute("open") === null && !await fold.locator(".mcmp").isVisible(), "desktop camp diagnostics start folded");
+    check((await summary.textContent()).includes("Run details") && (await summary.textContent()).includes("1m"), "desktop summary names details and latest run duration");
+    await summary.focus(); await page.keyboard.press("Enter");
+    check(await fold.locator(".mcmp").isVisible(), "keyboard opens the original desktop two-run comparison");
+    const desktop = await fold.locator(".mcmp").textContent();
+    check(/dealt.*4.*6.*dps.*\+2/.test(desktop) && /gold.*20.*35.*\$\/min.*\+15/.test(desktop), "desktop comparison retains values and units");
+    await page.keyboard.press("Enter");
+    check(!await fold.locator(".mcmp").isVisible(), "keyboard closes run details");
+    await shot("cut29-desktop-run-details");
+    await page.setViewportSize({ width: 400, height: 800 });
   }
   // ---- §4: the standing orders in one panel (setOrders)
   if (part("orders")) {
