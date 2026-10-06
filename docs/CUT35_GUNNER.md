@@ -45,6 +45,37 @@ certification. UI_READY=false; full initial-kit/mastery, class/death/replay,
 8h one/three-bloodline parity/perf and routine18-case checks still pending.
 95fun goal remains unverified.
 
+## Current campaign/catch-up acceptance — 2026-10-07
+
+Remeasured from real normal unlock camps with current runtime, paid ordinary
+upkeep and no optional backup: all six actually shoot/reload, reach D13 at8h
+and earn mastery within7days. Mastery long/short: seed1=136/96h,3=128/104h,
+5=104/96h. These supersede the pre-captive-fix misses, not their recorded files.
+All six clear Tier0 (16/24h,48/56h,40/32h); campaign progression proof is earned,
+not controlled arena or inherited records. Evidence gunner-campaign-current-20261007.
+
+Current selected paid-backup Tier5 one/three-slot8h acceptance starts during
+actual reload. Every whole/half-hour/uneven slice report and full save is
+native/WASM exact; save/reload between uneven slices and final cross-mode
+reports/saves match. Extra two slots are legally bought new Fighters, not three
+earned Gunners. Equal-work firing/reload profile versus50016d8 uses alternating
+order,4warmups/256samples: long170ticks5shots/4reloads +5.61%, short160ticks
+5shots/3reloads +4.69%. Complete Step/save exact; controlled L3 no-adjacent-
+retreat fixtures, not general offline-performance certification. Both <10%.
+Six old four-class fixture loaded/advanced saves exact; advance gameplay
+matches with only intentional meter-denominator field excluded. Focused class,
+XP and Gunner HUD client3/3 PASS. Evidence gunner-backup-acceptance-20261007.
+
+RoutineFULL18 current-player cases, metrics and10wire seeds PASS on source
+0928ba96bca640dd; broad statistical/system-removal audit remains separate.
+Actual earned death and first-floor gun reload replay320/400/1440 PASS with
+no overflow/pageerrors and keyboard sheet closure. Replay status now has a
+dark inset plate to contrast against parchment, verified on fresh5377 with
+actual computed background and screenshots. Initial QA closure assertions
+mistook the inert150ms close-animation ghost for an open sheet; retained logs.
+Final web build PASS. Full105-file client run still pending at this checkpoint;
+public UI_READY remains false until the remaining acceptance is completed.
+
 ## Complete action art and observable skills — 2026-10-07
 
 All six distinct action masters are now packed: aim, burst, reload, fast reload,

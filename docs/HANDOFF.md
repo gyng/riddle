@@ -1,3 +1,32 @@
+**CUT35 CURRENT CAMPAIGNS / CATCH-UP / ROUTINE GATE — 2026-10-07 (PARTIAL):**
+
+Backup/Forge pushed as7e59c96. Current normal earned unlock camps with paid
+ordinary upkeep, no optional backup: all6 actualD13 at8h; mastery long/short
+seed1=136/96h,3=128/104h,5=104/96h. All6 within7days, superseding old pre-
+captive-fix misses. Tier0 clears16/24h,48/56h,40/32h. Evidence
+scratchpad/gunner-campaign-current-20261007/results.json.
+
+Bothguns1/3-slot8h actual reload-start: native/WASM report/save exact at every
+whole/half-hour/uneven slice and save/reload boundary; final acrossmode reports
+and saves exact. ExtraFighters legally bought, not3earnedGunners. Alternating
+equal-work controlledL3 profile versus50016d8,4warmups/256samples: long+5.61%,
+short+4.69%; completeStep/save exact, noadjacentretreat. Not generalperf claim.
+Sixoldfourclassfixture loaded/advanced saves exact, advance gameplay exact
+excluding intentionalmetersfield. Evidence gunner-backup-acceptance-20261007.
+
+Routine18caseFULL PASS/source0928ba96bca640dd; session49806 terminal0,
+/tmp/riddle-gunner-current-full-gates.log. Broad statistical/system-removal
+audit separate. Focusedclass/XP/GunHUD3/3PASS. Earned death/replay1440/400/320
+PASS, real worker/screens-confirmed log/json. Initial QA assertions counted
+inert150ms sheet-closing ghost; actual sheet closure now checked separately.
+Replay gunHUD contrast on parchment fixed with dark inset; fresh5377 computed
+style/screens1440/400/320 PASS and web build PASS. Fullclient session65678
+still pending (/tmp/riddle-gunner-current-all-client.log). OwnQA5376 closed;
+own5377 closed after fresh screenshots; shared5219preserved.
+
+PublicUI_READY=false. Finish fullclient/latest polishedscreens then legal public
+unlock/choice flow before exposing Gunner. No deploy;95fun unverified.
+
 **CUT35 OPTIONAL PAID MELEE BACKUP / REVERSIBLE PACK / COMPACT FORGE — 2026-10-07 (PARTIAL):**
 
 Home-only Gunner `gun_sidearm` costs one locked kit unit once. Free Pack/Stow

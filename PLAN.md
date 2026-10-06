@@ -45,8 +45,8 @@ aim/burst/smoke/fast reload/finisher are implemented, with forge choices and
 portrait/sprite. Compact played chamber/reload/aim watch and death-trace replay
 indicators have scoped real-worker QA. Public class offers remain hidden:
 normal earned paid-upkeep paths now pass D13 within48h on all six seed/gun
-cases; two seed1 builds master at168/152h and the other four miss seven-day
-mastery. All six clear Tier0 within seven days. Ordinary reload retreat preserves
+cases; current paid-upkeep campaigns reach D13 at8h and all six master
+within96–136h (pre-captive-fix mastery misses remain historical evidence). All six clear Tier0 within seven days. Ordinary reload retreat preserves
 actual action costs/deadlines; paired fixtures verify distinct gun/bow strengths. Chosen tactics/temperaments now precede automatic
 gun handling, with actual empty-gun refusal/reload fallthrough. A neutral captive
 validation mismatch caused full-health navigation bailouts; gun/aim targeting now
@@ -60,8 +60,10 @@ free home Pack/Stow now lets all six earned fixed Tier5 builds clear at the
 first8h check-in; unbought seed5long still fails48h. Full-pack gun restoration
 retains permanent kit, while ordinary found weapons still drop. Six full actual
 first-run native/WASM saves/events match exactly; compact Forge and responsive
-purchase/toggle QA pass. Initial-kit/mastery remeasurement and complete class
-choice/death/replay, catch-up/performance and current18-case acceptance remain open. Earlier bow-
+purchase/toggle QA pass. Current paid-upkeep campaigns and selected-backup one/three-slot8h
+catch-up parity pass; equal-work positive gun/reload overhead4.69–5.61% is
+within the10% bar. Final class choice/death/replay and broad client/current18-case
+acceptance are being completed before the public class offer is enabled. Earlier bow-
 override progression claims were corrected; see CUT35/HANDOFF. No deployment.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an

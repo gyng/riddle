@@ -1806,5 +1806,8 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .gun-hud[hidden], .gun-reload-track[hidden] { display:none; }
 .gun-hud[data-state="aim"] { color:var(--acc); }
 .gun-hud[data-state="reload"] { color:var(--dim); }
+.replay .gun-hud { padding:4px 7px; border:1px solid #75634d; border-radius:3px; background:#211c24; box-shadow:inset 0 1px 3px #08070b; color:var(--bone); }
+.replay .gun-hud[data-state="aim"] { color:var(--acc); }
+.replay .gun-hud[data-state="reload"] { color:#cfbf9f; }
 .gun-reload-track { width:44px; height:3px; background:#17131c; box-shadow:0 1px 0 #75634d; border-radius:2px; overflow:hidden; }
 .gun-reload-fill { display:block; height:100%; background:var(--gilt); }
