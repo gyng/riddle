@@ -95,10 +95,10 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
           "data-gun": gun.kind, "aria-pressed": String(gun.selected), title: gun.blocked ?? label, onclick: () => {
             if (!app.engine.buyKit) return;
             button.disabled = true;
-            void app.mutate(() => app.engine.buyKit!(gun.kind), /* copy:callout */ "Equipped").then((ok) => {
+            void app.mutate(() => app.engine.buyKit!(gun.kind), /* copy:callout */ "Selected").then((ok) => {
               if (ok) audio.cue("unlock"); if (kit.isConnected) paint();
             });
-          } }, gun.selected ? /* copy:button */ "Equipped" : gun.owned ? /* copy:button */ "Equip" : /* copy:button */ `Forge $${gun.price}`);
+          } }, gun.selected ? /* copy:button */ "Selected" : gun.owned ? /* copy:button */ "Select" : /* copy:button */ `Forge $${gun.price}`);
         return h("section", { class: "kit-slot tablet", "data-gun-choice": gun.kind },
           h("div", { class: "forge-action" }, h("div", { class: "forge-item" },
             itemIcon({ kind: gun.kind, label }, { size: "s" }), itemName({ kind: gun.kind, label })), button),

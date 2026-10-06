@@ -20,6 +20,56 @@ fn foe(g:&mut Game,x:i32,y:i32) {
 fn act(g:&mut Game,verb:&str)->bool {let(r,mut cx)=g.ctx();let v=crate::turn::view(r);crate::ai::try_verb(r,&mut cx,&Verb::new(verb),&v)}
 fn cadence(g:&mut Game)->bool {let(r,mut cx)=g.ctx();let v=crate::turn::view(r);crate::ai::try_verb(r,&mut cx,&Verb::arg("tactic","cadence"),&v)}
 #[test]
+fn known_ranged_reflection_draws_sidearm_and_restores_saved_gun() {
+    let mut g=arena("long_gun",3);crate::tests::add_monster(&mut g,"lich",6,5);
+    g.run.as_mut().unwrap().monsters[0].stun=1000;
+    g.run.as_mut().unwrap().hero.inv.push(Item::new(901,"sword"));
+    g.lineage.facts.insert("foe:lich:reflect".into());
+    assert!(act(&mut g,"gunner_tactic"));
+    assert_eq!(g.run.as_ref().unwrap().hero.weapon_kind(),"sword");
+    assert_eq!(g.run.as_ref().unwrap().bow_swap.as_ref().unwrap().firearm.unwrap().loaded,1);
+    assert!(!g.events.iter().any(|e|matches!(e,Ev::Attack{..})));
+    let save=g.save();let mut g=Game::load(&save).unwrap();assert_eq!(g.save(),save);
+    assert!(act(&mut g,"gunner_tactic"));assert!(act(&mut g,"gunner_tactic"));
+    assert!(g.events.iter().any(|e|matches!(e,Ev::Attack{src:crate::engine::HERO_ID,verb:Some(v),..} if v=="attack")));
+    assert!(!g.events.iter().any(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="reflect")));
+    g.run.as_mut().unwrap().monsters[0].hp=0;for _ in 0..10 {g.tick();}
+    assert_eq!(g.run.as_ref().unwrap().hero.weapon_kind(),"long_gun");
+    assert_eq!(g.run.as_ref().unwrap().hero.weapon.as_ref().unwrap().firearm.unwrap().loaded,1);
+    assert!(g.events.iter().any(|e|matches!(e,Ev::Callout{text,..} if text=="gun ready")));
+    let mut g=arena("long_gun",3);crate::tests::add_monster(&mut g,"lich",6,5);
+    g.run.as_mut().unwrap().monsters[0].stun=1000;
+    g.run.as_mut().unwrap().hero.inv.push(Item::new(901,"sword"));
+    assert!(act(&mut g,"fire"));assert!(act(&mut g,"reload"));assert!(act(&mut g,"attack"));
+    assert_eq!(g.run.as_ref().unwrap().hero.weapon_kind(),"sword");
+    let mut g=Game::load(&g.save()).unwrap();for _ in 0..19 {g.tick();}
+    assert!(g.run.as_ref().unwrap().gun_reload.is_some());g.tick();
+    assert!(g.run.as_ref().unwrap().gun_reload.is_none());
+    assert_eq!(g.run.as_ref().unwrap().bow_swap.as_ref().unwrap().firearm.unwrap().loaded,1);
+    let mut g=arena("long_gun",3);crate::tests::add_monster(&mut g,"lich",6,5);
+    g.run.as_mut().unwrap().hero.inv.push(Item::new(901,"sword"));
+    assert!(act(&mut g,"gunner_tactic"));assert!(g.run.as_ref().unwrap().bow_swap.is_none());
+    g.lineage.facts.insert("foe:lich:reflect".into());assert!(act(&mut g,"fire"));
+    assert!(g.run.as_ref().unwrap().bow_swap.is_none(),"explicit fire retains the player's reflection risk");
+}
+#[test]
+fn automatic_gun_choices_skip_unneeded_aim_and_illegal_or_weak_spread() {
+    let mut g=arena("long_gun",3);foe(&mut g,6,5);g.run.as_mut().unwrap().monsters[0].hp=1;
+    assert!(act(&mut g,"gunner_tactic"));
+    assert!(g.events.iter().any(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="fire")));
+    assert!(g.run.as_ref().unwrap().gun_skills.as_ref().unwrap().aim.is_none());
+    let mut g=arena("long_gun",3);foe(&mut g,6,5);
+    assert!(act(&mut g,"gunner_tactic"));assert!(g.run.as_ref().unwrap().gun_skills.as_ref().unwrap().aim.is_some());
+    assert!(!g.events.iter().any(|e|matches!(e,Ev::Attack{..})));
+    for (second_x,weak,expected,left) in [(10,true,"fire",1),(7,true,"fire",1),(7,false,"close_burst",0),(10,false,"close_burst",0)] {
+        let mut g=arena("short_gun",3);foe(&mut g,6,5);foe(&mut g,second_x,5);
+        if weak {for m in g.run.as_mut().unwrap().monsters.iter_mut() {m.hp=1;}}
+        assert!(act(&mut g,"gunner_tactic"));
+        assert!(g.events.iter().any(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v==expected)),"{second_x}/{weak}");
+        assert_eq!(g.run.as_ref().unwrap().hero.weapon.as_ref().unwrap().firearm.unwrap().loaded,left);
+    }
+}
+#[test]
 fn authored_cadence_uses_real_aim_burst_and_reload_commitments() {
     for kind in ["long_gun","short_gun"] {
         let mut g=arena(kind,3);foe(&mut g,6,5);
@@ -63,7 +113,11 @@ fn owned_short_gun_costs_once_switches_freely_and_inherits_forge_steps() {
     assert_eq!(g.lineage().guns[1].price,0);assert!(g.lineage().guns[1].selected);
     crate::kit::buy(&mut g,"long_gun").unwrap();crate::kit::buy(&mut g,"short_gun").unwrap();assert_eq!(g.lineage.gold,900);
     let save=g.save();let mut g=Game::load(&save).unwrap();assert_eq!(g.save(),save);
+    g.lineage.bloodline.as_mut().unwrap().upgrades.insert("damage".into(),3);
+    g.lineage.classes.get_mut("gunner").unwrap().level=3;
+    let damage=g.lineage().guns[1].damage;
     let snap=g.send();let gun=snap.hero.gun.unwrap();assert_eq!((gun.kind.as_str(),gun.capacity,gun.loaded),("short_gun",2,2));
+    assert_eq!(damage,gun.damage,"forge includes inherited damage and actual class level bonus");
     assert_eq!(g.run.as_ref().unwrap().hero.weapon.as_ref().unwrap().enchant,4);
     let before=g.save();assert!(crate::kit::buy(&mut g,"long_gun").is_err());assert!(g.set_class("fighter").is_err());assert_eq!(g.save(),before);
     assert!(g.lineage().guns.iter().all(|o|!o.available&&o.blocked.as_deref()==Some("hero away")));

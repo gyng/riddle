@@ -31,8 +31,8 @@ mod class_tests;
 impl Profile {
     pub fn of(kind: &str) -> Option<Self> {
         match kind {
-            "long_gun" => Some(Self { capacity: 1, range: 8, damage: (6, 10), armour_piercing: 2, reload_ticks: 20 }),
-            "short_gun" => Some(Self { capacity: 2, range: 3, damage: (4, 7), armour_piercing: 0, reload_ticks: 15 }),
+            "long_gun" => Some(Self { capacity: 1, range: 8, damage: LONG_GUN.a, armour_piercing: 2, reload_ticks: 20 }),
+            "short_gun" => Some(Self { capacity: 2, range: 3, damage: SHORT_GUN.a, armour_piercing: 0, reload_ticks: 15 }),
             _ => None,
         }
     }
@@ -108,9 +108,11 @@ pub fn offers(l:&crate::engine::LineageState,away:bool)->Vec<crate::wire::GunOff
         let blocked=if away {Some("hero away".into())}else if !l.town.home.unwrap_or(true) {Some("build a house".into())}
             else if i64::from(crate::tree::purse(l))<i64::from(price) {Some("not enough gold".into())}else{None};
         let mut weapon=crate::item::Item::new(crate::kit::WEAPON_ID,kind);weapon.enchant=crate::kit::owned(l,"weapon") as i32;
-        let a=weapon.atk();let bonus=(l.class_level()/3) as i32;
+        let mut hero=crate::hero::Hero::new(crate::hero::Class::Gunner,Pos::new(0,0));
+        hero.apply_level(l.class_level());crate::legacy::apply(l,&mut hero);
+        hero.weapon=Some(weapon).into();
         crate::wire::GunOffer {kind:kind.into(),selected:starting_kind(l)==kind,owned,price,available:blocked.is_none(),blocked,
-            capacity:p.capacity,range:p.range,damage:(a.0+bonus,a.1+bonus),armour_piercing:p.armour_piercing,reload_ticks:p.reload_ticks}
+            capacity:p.capacity,range:p.range,damage:hero.atk(),armour_piercing:p.armour_piercing,reload_ticks:p.reload_ticks}
     }).collect()
 }
 pub fn cancel_aim(run:&mut crate::engine::Run,cx:&mut crate::engine::Ctx) {

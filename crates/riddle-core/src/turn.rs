@@ -331,7 +331,8 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     let inv_before = run.hero.inv.len() + run.hero.weapon.is_some() as usize + run.hero.armour.is_some() as usize;
     run.last_hit_verb = None;
     // Cut 3 `reflect_read`: the bow goes back in the pack once no mirror is in view (free).
-    if run.bow_swap.is_some() && !v.foes.iter().any(|&i| run.monsters[i].reflects_melee()) {
+    let parked_gun=run.hero.class==crate::hero::Class::Gunner&&run.bow_swap.as_ref().is_some_and(|w|crate::firearm::Profile::of(&w.kind).is_some());
+    if run.bow_swap.is_some() && !v.foes.iter().any(|&i| if parked_gun {run.monsters[i].reflects_ranged()}else{run.monsters[i].reflects_melee()}) {
         let melee = run.bow_swap.take().unwrap();
         if let Some(bow) = run.hero.weapon.replace(melee) {
             if run.hero.inv_full() {
@@ -342,6 +343,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
                 run.hero.inv.push(bow);
             }
         }
+        if parked_gun {callout(run,cx,"gun ready");}
     }
     // Cut 27 §3: a return walks from anywhere — `RETURN_TICKS` after it committed he is out
     // where he stands (the stairs, if he reaches them first, as before); a bank still walks to

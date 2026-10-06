@@ -1313,6 +1313,9 @@ fn pick_target_from(run: &Run, a: &str, foes: &[usize]) -> Option<usize> {
 
 fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bool {
     if !bash && crate::firearm::Profile::of(run.hero.weapon_kind()).is_some() {
+        if let Some(mi)=pick_target_from(run,a,&v.foes) {
+            if gun_sidearm(run,cx,mi) {return true;}
+        }
         if fire_gun(run, cx, a, v, false) { return true; }
         // Authored attack may approach; it never silently refills an empty gun.
         let Some(mi) = pick_target_from(run, a, &v.foes) else { return false; };
@@ -1506,8 +1509,25 @@ fn smoke_gun(run:&mut Run,cx:&mut Ctx,v:&View)->bool {
     move_hero(run,cx,q);callout(run,cx,"smoke retreat");true
 }
 
+fn gun_sidearm(run:&mut Run,cx:&mut Ctx,mi:usize)->bool {
+    if run.hero.class!=Class::Gunner||run.bow_swap.is_some()||
+        crate::firearm::Profile::of(run.hero.weapon_kind()).is_none() {return false;}
+    let m=&run.monsters[mi];
+    if !m.reflects_ranged()||!cx.facts.contains(&format!("foe:{}:reflect",m.kind)) {return false;}
+    let Some(i)=run.hero.inv.iter().enumerate().filter(|(_,w)|w.cat()==Cat::Weapon&&!w.def().ranged)
+        .max_by_key(|(_,w)|{let(a,b)=w.atk();a+b}).map(|(i,_)|i) else {return false;};
+    run.last_target=Some(m.id);
+    crate::firearm::cancel_aim(run,cx);
+    let sidearm=run.hero.inv.remove(i);
+    run.bow_swap=run.hero.weapon.replace(sidearm);
+    callout(run,cx,"sidearm");true
+}
 fn gunner_tactic(run:&mut Run,cx:&mut Ctx,v:&View)->bool {
     if run.hero.class!=Class::Gunner {return false;}
+    if run.bow_swap.as_ref().is_some_and(|w|crate::firearm::Profile::of(&w.kind).is_some()) {
+        let sel=if v.foes.iter().any(|&i|run.monsters[i].is_boss()) {"tag:boss"}else{"nearest"};
+        return verb_attack(run,cx,sel,v,false);
+    }
     let Some(w)=run.hero.weapon.as_ref() else {return false;};
     let Some(p)=crate::firearm::Profile::of(&w.kind) else {return false;};
     let Some(chambers)=w.firearm else {return false;};
@@ -1516,9 +1536,26 @@ fn gunner_tactic(run:&mut Run,cx:&mut Ctx,v:&View)->bool {
     if v.foes.is_empty() {return false;}
     if run.hero.hp*100/run.hero.max_hp.max(1)<35&&v.adj>0&&smoke_gun(run,cx,v) {return true;}
     let sel=if v.foes.iter().any(|&i|run.monsters[i].is_boss()&&run.monsters[i].pos.cheb(run.hero.pos)<=p.range) {"tag:boss"}else{"nearest"};
+    if let Some(mi)=pick_target_from(run,sel,&v.foes) {
+        if gun_sidearm(run,cx,mi) {return true;}
+    }
     if class_has_verb(run.hero.class,run.hero.level,"finishing_shot")&&fire_gun_mode(run,cx,sel,v,false,true) {return true;}
-    if p.capacity==2&&v.foes.len()>=2&&class_has_verb(run.hero.class,run.hero.level,"close_burst")&&fire_gun(run,cx,sel,v,true) {return true;}
-    if p.capacity==1&&run.gun_skills.as_ref().and_then(|s|s.aim).is_none()&&aim_gun(run,cx,sel,v) {return true;}
+    // Spend preparation/chambers on a shot opportunity, not on every sighting.
+    // A normal shot already finishing a weak foe needs no setup; spread only
+    // counts the same legal forward neighbours the actual shot can hit.
+    if let Some(mi)=pick_target_from(run,sel,&v.foes) {
+        let min_damage=|i:usize| (run.hero.atk().0-(run.monsters[i].effective_def()-p.armour_piercing).max(0)).max(1);
+        let needs_damage=run.monsters[mi].hp>min_damage(mi);
+        if p.capacity==2&&class_has_verb(run.hero.class,run.hero.level,"close_burst") {
+            let primary=run.monsters[mi].pos;
+            let spread=needs_damage||v.foes.iter().copied().any(|i|i!=mi&&run.monsters[i].hp>0&&run.monsters[i].hostile()&&
+                !run.monsters[i].dormant&&crate::firearm::in_spread(run.hero.pos,primary,run.monsters[i].pos)&&
+                run.floor.map.is_visible(run.monsters[i].pos)&&run.floor.map.los(run.hero.pos,run.monsters[i].pos)&&
+                run.monsters[i].hp>min_damage(i));
+            if spread&&fire_gun(run,cx,sel,v,true) {return true;}
+        }
+        if p.capacity==1&&needs_damage&&run.gun_skills.as_ref().and_then(|s|s.aim).is_none()&&aim_gun(run,cx,sel,v) {return true;}
+    }
     fire_gun(run,cx,sel,v,false)||verb_attack(run,cx,sel,v,false)
 }
 

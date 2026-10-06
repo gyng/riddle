@@ -44,6 +44,7 @@ export const ENTITY_COLOURS: Record<string, [string, string]> = {
   hero_rogue:     ["#c9c2b0", "#2f4d8c"],
   hero_ranger:    ["#b8c49a", "#3a5a2a"],
   hero_caster:    ["#c8b8e0", "#4a2a7a"],
+  hero_gunner:    ["#eadfc5", "#c01530"],
   rat:            ["#8a7460", "#2a1f16"],
   jackal:         ["#c29a5a", "#3a2a12"],
   goblin:         ["#6d9a3c", "#1f3312"],
@@ -82,12 +83,14 @@ export const spriteScale = (kind: string): number => (BOSS_KINDS.has(kind.replac
 export const ENTITY_SIZE: Record<string, [number, number]> = {
   // sprite texels; 48 tall = 3 tiles, 32 tall = 2 tiles
   hero_fighter: [24, 48], hero_rogue: [24, 48], hero_ranger: [24, 48], hero_caster: [24, 48],
+  hero_gunner: [24, 48],
   ogre: [24, 48], goblin_warlord: [32, 48], bloat_mother: [32, 48], lich: [32, 48],
 };
 
 // Max box (sprite texels) an atlas frame is fitted into, per kind; default 32×32.
 export const ENTITY_BOX: Record<string, [number, number]> = {
   hero_fighter: [36, 48], hero_rogue: [36, 48], hero_ranger: [36, 48], hero_caster: [36, 48],
+  hero_gunner: [36, 48],
   ogre: [40, 48], goblin_warlord: [48, 48], bloat_mother: [48, 48], lich: [48, 48],
   skeleton: [32, 40], wraith: [40, 40], captive: [32, 40],
 };

@@ -5,11 +5,12 @@ from archery. This becomes the next class priority, before proposed Rogue/
 Ranger specializations. Finish Cut34's live verification without abandoning it.
 Status: fifth class, paid unlock, per-class XP, weapon ownership/forge choice,
 named default tactics and all five skill rungs implemented. Forge choice is
-verified in the actual WASM worker at320/400/1440. Public class offers remain
-hidden until art/watch/replay and the complete acceptance checks pass. Initial
-earned progression reaches D13 in8h for both guns on one source camp, but fails
-the7day mastery requirement. Preserve those failures and tune an explicitly
-owned build next. No deployment.
+verified in the actual WASM worker at320/400/1440. Sprite/portrait packed and
+rendered. Public class offers remain hidden until action art/watch/replay and
+the complete acceptance checks pass. Initial campaign source had an explicitly
+selected bow; earlier gun-progression claims are superseded below. Corrected
+actual-kit campaigns verify real guns firing/reloading but still fail7day
+mastery on current runtime. Preserve failures and continue tuning. No deployment.
 
 ## Identity and progression
 
@@ -102,6 +103,10 @@ never deploy. Partial checkpoints do not certify a complete playable class.
 
 ## Class/progression/forge checkpoint — 2026-10-07 (partial A/B/D)
 
+The original campaign source selected bow100253. Numerical results in this
+section remain historical class-progression results and are not certification
+of actual gun use. Corrected current checkpoint follows below.
+
 Actual Gunner unlock costs8marks at historicalD13, at home with a built house.
 Missing old Gunner XP stays absent until paid unlock/selection. Class changes
 involving Gunner refuse for the entire live run. Starting long gun and purchased
@@ -142,6 +147,47 @@ fast all-target clippy warnings denied, codegen and web build PASS. Rebuilt
 real fastWASM5466844bytes. Six old tier0/challenge event/save baselines and two
 numbered migration saves exact. No fresh routine18case/full positive perf or
 native/WASM8h one/three-bloodline certification in this partial checkpoint.
+
+## Opportunity, counter and character checkpoint — 2026-10-07
+
+Gun choice metadata now includes inherited Legacy damage through the same
+Hero::apply_level/legacy::apply/atk calculation as send. Selected/Select labels
+describe starting kit preference; explicit found loadout remains authoritative.
+Automatic aim is reserved for targets a normal minimum roll cannot finish;
+burst for a tough primary or useful legal forward spread. Authored fire/aim/
+cadence remains explicit. Known ranged reflection selects an owned carried
+melee sidearm in one announced action, preserving parked gun chambers and
+absolute reload state via existing bow_swap. Actual ordinary melee hits counter
+reflection, not a bypass of ranged-hit handling. Direct fire still reflects;
+unknown traits aren't silently known. Gun restores when ranged reflection leaves
+view, with gun ready callout. Positive save/park/reload/restore tests pass.
+
+Permanent earned harness deselects the inherited weapon through public loadout,
+retains all other finds/authored rules, verifies real loaded gun at send and
+actual firing/reload completion over1000ticks. Optional --renewal-brace pays
+existing Legacy respec/upgrades; --steady equips an explicit owned stance. All
+earlier failures retained. Current seed3/tier1 inherited baseline: longD13/40h,
+bestD23/L8 at168h; shortD13/8h, bestD15/L7. Renewal/Brace: longD13/48h,
+bestD13/L7; shortD13/24h, bestD23/L8. Current mastery fails. This is one earned
+post-King camp, not independently earned normal seeds1/3/5. Long14–22 damage
+experiment failed D13/7day (D13 at64/160h); rejected, retained artifacts,6–10
+restored. Original numeric gates remain intact. Need real normal unlock camps,
+appropriate owned builds/counters and full C/E before public exposure.
+
+Character sprite and portrait generated through built-in imagegen in existing
+style, default/male aliases, actual alpha on sprite. Sources/prompts in
+art/prompts/gunner-character-20261007.md. Existing pack pipeline495frames passes
+QC, old493 frame pixels/dimensions exact. Real-worker headed1440/400/320 earned
+loadout forge/watch captures have correct portrait and visible Gunner sprite,
+no page errors/horizontal overflow. Full D remains open for action icons,
+class choice, chamber/reload/aim cues and played death/replay state.
+
+Final quick663core/14tool PASS, one ignored, TS/copy1716/zero;27focused tests
+and fast all-target clippy warnings denied PASS; codegen/web build/WASM rebuilt
+5467369bytes. Native/WASM full loaded camp, send and1000tick StepResult bytes
+exact, long3shots/3reloads, short5shots/2reloads. Six old event/save fixtures/two
+numbered saves exact. These scoped checks don't replace8h one/three slots,
+routine18cases or equal-work perf. No deployment;95fun target remains unverified.
 
 Architecture audit starting points: hero.rs Class::ALL/ladder/starting_weapon,
 meta.rs class unlocks, defs.rs/item.rs weapons and drop weights, ai.rs ranged

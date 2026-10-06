@@ -4167,6 +4167,26 @@
       "texel_h": 35,
       "description": "the SAME haul chest as town_haul_chest.png (open it first) but OPEN and EMPTY: the lid thrown back upright behind it, the INK-dark inside empty but for one coin, the front and bands as the closed chest. (Cut 30.5, docs/AUTOMATION_TREE.md §C; art/town-ids.md.)",
       "brief3": "the SAME haul chest as town_haul_chest.png (open it first) but OPEN and EMPTY: the lid thrown back upright behind it, the INK-dark inside empty but for one coin, the front and bands as the closed chest."
+    },
+    {
+      "id": "hero_gunner",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1536",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "Gunner: full-body moonlit ink-and-wash hunter, broad dark hat, blood cloak, long antique rifle aimed right. Actual alpha; default/male share one generated sprite.",
+      "brief3": "GUNNER. Long adult figure in dark leather coat and broad hunter hat, pale bone face patch, blood-red cloak trailing left, two hands holding a long wood-and-steel flintlock rifle to the right. No bow or quiver. Sharp moonlit barrel edge and hard ink outline; actual transparent alpha."
+    },
+    {
+      "id": "hero_gunner_male",
+      "kind": "hero",
+      "bg": "keyed",
+      "gen": "1024x1536",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "Gunner: full-body moonlit ink-and-wash hunter, broad dark hat, blood cloak, long antique rifle aimed right. Actual alpha; default/male share one generated sprite.",
+      "brief3": "GUNNER. Long adult figure in dark leather coat and broad hunter hat, pale bone face patch, blood-red cloak trailing left, two hands holding a long wood-and-steel flintlock rifle to the right. No bow or quiver. Sharp moonlit barrel edge and hard ink outline; actual transparent alpha."
     }
   ]
 }

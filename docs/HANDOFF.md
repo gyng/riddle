@@ -1,4 +1,63 @@
-**CUT35 GUNNER CLASS/PROGRESSION/FORGE — 2026-10-07 (PARTIAL):**
+**CUT35 GUNNER OPPORTUNITIES/SIDEARM/ART — 2026-10-07 (PARTIAL):**
+
+IMPORTANT CORRECTION: the original earned source camp explicitly selected
+bow100253. Earlier gunner-earned/opportunities/renewal/steady results measured
+Gunner-class play with a selected bow overriding the starting gun; they do not
+certify sustained firearm progression. Preserve all artifacts/failures. Permanent
+gunner_prepare now legally deselects only selected weapons via public loadout,
+retains non-weapon finds/authored rows, asserts real selected gun at first send,
+and records positive1000tick shots/reload completions. No XP/currency/stat grants.
+
+Default Gunner skips preparation when ordinary minimum damage finishes a foe;
+burst uses a tough primary or an actual legal forward neighbour needing damage,
+not unrelated visibility. Authored cadence/fire precedence unchanged. Forge
+offers derive damage through real Hero level/Legacy calculation (previously
+omitted inherited damage); button wording Selected/Select accurately refers to
+starting gun preference, with explicit selected finds still authoritative.
+
+Known ranged reflection now draws an owned carried melee sidearm for automatic
+Gunner/generic attack (one named sidearm action), using existing bow_swap parked
+weapon storage. No new save field. Direct authored fire retains reflection risk;
+unknown reflection does not silently know its counter. Same gun/chambers return
+once no ranged reflector is visible, gun ready callout; absolute reload survives
+parking, save/load and completion. Other classes retain old restore semantics.
+27focused tests pass, including real melee hits, unknown/direct-fire precedence,
+parked ammo, save/load, restoration and active20tick completion while parked.
+
+Current actual-kit earned seed3/tier1 campaigns, not normal pre-King seed1/3/5
+acceptance: gunner-sidearm-baseline longD13/40h, bestD23/L8 at168h; shortD13/8h,
+bestD15/L7. Paid Renewal/Brace respec: longD13/48h bestD13/L7; shortD13/24h,
+bestD23/L8. Mastery remains FAIL for both on current runtime. Sidearm opens D23
+for specific builds; no universal speedup claim. Earlier actual-kit short reached
+mastery160h before sidearm but current state does not. Rejected long14–22 damage
+trial worsened D13 to64/160h and missed mastery; damage restored6–10. All failed
+trials retained under gunner-{actual-kit,long14-kit,sidearm}-{baseline,renewal}
+directories. Need appropriate actually earned normal unlock camps and measured
+build/counter tuning; never weaken48h/7day/three-seed/Tier5 A–E acceptance.
+
+New built-in-imagegen Gunner sprite and portrait, distinct hunter hat/long gun,
+existing moonlit ink-and-wash direction. Source default/male aliases copied
+into art/generated and art/ui/portraits; exact prompts/provenance
+art/prompts/gunner-character-20261007.md. Atlas495frames QC zero warnings/fails;
+all493old frame dimensions/RGBA pixels exact.115icons/25portraits; primitive
+Gun size/colour fallback added. Real headed worker QA1440/400/320, actual earned
+loadout import, correct Gunner portrait/live sprite, no overflow/page errors;
+art-{forge,watch}-*.png and art-qa.json in gunner-actual-kit-baseline-20261007.
+Action icons/chamber-reload HUD/played replay updates/full D still pending.
+Class UI_READY=false, no deployment,95fun goal active/unverified.
+
+Current full quick663core PASS/one ignored,14tool PASS, TS/copy1716/zero,120s;
+latest27focused0.08s, fast all-target clippy warnings denied, codegen/web build
+green (existing bundle advisory), real fastWASM5467369bytes. Native/WASM
+complete loaded camp, send snapshot and1000tick full StepResult bytes exact:
+long3shots/3completions, short5shots/2completions, artifacts gunner-sidearm-
+baseline-20261007/parity.{mjs,json}. Not8h/multihero acceptance. Six old tier0/
+challenge event/save fixtures and two numbered migration saves exact. No new
+routine18case/full perf audit. Logs /tmp/riddle-gunner-sidearm-* and art-*.
+Temporary QA5373 closed after checks; shared5219 retained. Next complete actual
+normal progression/matchups, action art and observable played gun state.
+
+**CUT35 GUNNER CLASS/PROGRESSION/FORGE — 2026-10-07 (PARTIAL, EARNED GUN CLAIMS SUPERSEDED ABOVE):**
 
 Fifth Class::Gunner, paid8marks/historicalD13/home/house unlock, inherited
 separate classXP (missing old maps unchanged), home-only class switches. Real
