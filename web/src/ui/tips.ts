@@ -59,12 +59,19 @@ export function kwHost<E extends HTMLElement>(el: E, t: Term): E {
   if (!inControl(el) && el.tabIndex < 0) el.tabIndex = 0;
   return el;
 }
+const detailBodies = new WeakMap<HTMLElement, () => Node[]>();
+/** Rich game-object details share the existing tooltip's input and placement. */
+export function detailHost<E extends HTMLElement>(el: E, body: () => Node[]): E {
+  detailBodies.set(el, body); el.dataset.detailTip = "";
+  if (!inControl(el) && el.tabIndex < 0) el.tabIndex = 0;
+  return el;
+}
 const CONTROL = "button, a[href], [role=button], input, select, textarea, label, summary";
 const inControl = (el: Element): boolean => !!el.closest(CONTROL);
 const termAt = (el: Element): Term => ((el as HTMLElement).dataset.kw ?? (el as HTMLElement).dataset.kwh) as Term;
-const trigger = (t: EventTarget | null): HTMLElement | null => (t instanceof Element ? t.closest<HTMLElement>(".kw, [data-kwh]") : null);
+const trigger = (t: EventTarget | null): HTMLElement | null => (t instanceof Element ? t.closest<HTMLElement>(".kw, [data-kwh], [data-detail-tip]") : null);
 /** The trigger answers a tap: a marked keyword, or a stat host, outside any control. */
-const tappable = (el: HTMLElement): boolean => !inControl(el.parentElement ?? el) && !(el.matches("[data-kwh]") && el.matches(CONTROL)) && (el.classList.contains("kw-on") || el.matches("[data-kwh]"));
+const tappable = (el: HTMLElement): boolean => !inControl(el.parentElement ?? el) && !(el.matches("[data-kwh]") && el.matches(CONTROL)) && (el.classList.contains("kw-on") || el.matches("[data-kwh], [data-detail-tip]"));
 
 // ---- the plate ----
 let plate: HTMLElement | null = null, owner: HTMLElement | null = null, openTimer = 0, closeTimer = 0, ownerTop = 0, byFocus = false;
@@ -87,12 +94,14 @@ function body(t: Term): Node[] {
  *  long-press's or a focus's plate takes the pointer (its keywords can be opened). */
 export function openTip(el: HTMLElement, focus = false, how: "hover" | "pin" = "pin"): void {
   clearTimeout(openTimer); clearTimeout(closeTimer);
-  const t = termAt(el); if (!t || !(t in TIP)) return;
+  const t = termAt(el), details = detailBodies.get(el);
+  if (!details && (!t || !(t in TIP))) return;
   if (owner === el && plate && !plate.hidden) { if (how === "pin") plate.classList.add("kw-pin"); return; }
   closeTip();
   const p = plateEl();
-  p.replaceChildren(...body(t));
-  p.dataset.kw = t;
+  p.replaceChildren(...(details ? details() : body(t)));
+  if (details) delete p.dataset.kw; else p.dataset.kw = t;
+  p.classList.toggle("detail-tip", !!details);
   p.classList.toggle("kw-pin", how === "pin");
   p.hidden = false;
   owner = el; byFocus = focus;
@@ -100,7 +109,7 @@ export function openTip(el: HTMLElement, focus = false, how: "hover" | "pin" = "
   el.classList.add("kw-open");
   place(p, el);
   ownerTop = el.getBoundingClientRect().top;
-  const r = rec(t); r.o++; save();
+  if (!details) { const r = rec(t); r.o++; save(); }
 }
 export function closeTip(): void {
   clearTimeout(openTimer); clearTimeout(closeTimer);
@@ -198,7 +207,7 @@ function install(): void {
   d.addEventListener("pointerdown", () => { tabbed = false; }, true);
   d.addEventListener("focusin", (e) => {
     const el = e.target as HTMLElement;
-    const t = trigger(el) ?? el.querySelector?.<HTMLElement>(".kw, [data-kwh]") ?? null;
+    const t = trigger(el) ?? el.querySelector?.<HTMLElement>(".kw, [data-kwh], [data-detail-tip]") ?? null;
     // (only a focus the keyboard moved: Tab — a script's focus after a key, a tap's focus, never open a plate)
     if (!t || plate?.contains(t) || !tabbed || !el.matches?.(":focus-visible")) return;
     clearTimeout(openTimer); openTimer = window.setTimeout(() => { if (t.isConnected && el.contains(document.activeElement)) openTip(t, true, "hover"); }, inControl(t) ? HOVER_MS : 0);

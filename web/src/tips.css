@@ -29,3 +29,9 @@
 @keyframes kwtip { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .kw-tip { animation: none; } .kw { transition: none; } }
 html[data-juice="off"] .kw-tip { animation: none; }
+[data-detail-tip] { cursor: help; -webkit-touch-callout: none; }
+[data-detail-tip]:focus-visible { outline: 2px dotted var(--gilt); outline-offset: 3px; }
+.kw-tip.detail-tip { max-width: min(320px, calc(100vw - 16px)); }
+.enemy-tip-face { width: 48px; height: 48px; object-fit: contain; image-rendering: pixelated; }
+.enemy-tip-line { margin-top: 5px; color: var(--mist); }
+.enemy-tip-line b { color: var(--bone); }

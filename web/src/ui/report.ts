@@ -596,7 +596,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, reportBosses(r), classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, reportBosses(r, app.lineage), classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop

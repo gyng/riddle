@@ -1,3 +1,17 @@
+**DETAILED ENEMY TOOLTIPS — 2026-10-06:** Owner asked hoverBloatMother/etc.
+Addedshared detailHost WeakMap callbacks to existing singletooltipplate/input/
+placement; no perrowlisteners. Reportbossportrait/name, seenenemyguidenames,
+forecastkillers/bosses/walls now show art/name, knownfloor, encounter/study,
+learnedtraits/counter fromLineage. Otherbloodlinereward knowledgeUnavailable,
+notselectedherofacts; explicitvictoryDefeated. Counter“throw fire, boss”→“throw
+fire at boss”. NoinventedHP/attack/floortable. Hover/tap/longpress/focus/Escape
+reuseexistingbehavior. Headedactualearnedseed3Mother400/1440 clean/finalscreens
+shown. Enemyfixtures320/400/1440input/bounds/ownerisolationpass; boss54pass;
+existingtips70/70pass123.1s; finalenemy+boss7.7s. Finalbuild/typecheck/copy1554
+pass,bundleadvisory. UX_ENEMY_TOOLTIPS.md;scratchpad/enemy-tooltips-20261006/.
+No core/balance/newart/WASM/deploy. Keep broadergoalactive; followownerfeedback
+on depthofdetails ratherthan inventingstats, preserve separatebloodlineknowledge.
+
 **EARNED EARLY STYLE AUDIT — 2026-10-06:** Predeterminedseeds1/3/5 actual
 shippedWASM newhouse/3manualsends/earnedporter+scout, then8hcheckins; allBold/
 BossFocus/KiteArchers ownedby32h. No gold/unlocks/stats forged, noextra buildings/

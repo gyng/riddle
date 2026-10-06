@@ -13,6 +13,7 @@
 // The first paint (`Forecast.refined` false) has rough state and an explicit quality label.
 // Uncertainty remains a numeric band on both passes; refine clears the rough state and label.
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
+import { enemyHost } from "./enemy-tips";
 import { conceptCap, conceptIcon } from "./concepts";
 import { foeSrc } from "./skin";
 import { meterCompare } from "./meters";
@@ -314,9 +315,9 @@ export function renderForecast(app: App): { el: HTMLElement; dispose(): void } {
       const why = [
         // QA 524827b (qaAB: a bare `goblin` under D7, `warlord wall` — unexplained): the name says it is the floor's top killer, and the
         // wall says what it does (the boss above seals the stairs)
-        cause ? h("small", { class: "dim" }, /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`) : "",
-        boss ? h("small", { class: "boss-here" }, ` · ${boss}`) : "",
-        wall ? h("small", { class: "wall" }, /* copy:callout */ ` · behind ${wall}`) : "",
+        cause ? enemyHost(h("small", { class: "dim" }, /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`), cause, app.lineage) : "",
+        boss ? enemyHost(h("small", { class: "boss-here" }, ` · ${boss}`), d.boss!, app.lineage) : "",
+        wall ? enemyHost(h("small", { class: "wall" }, /* copy:callout */ ` · behind ${wall}`), d.wall!, app.lineage) : "",
         wall && sysOpen(app.lineage, "walls") ? h("small", { class: "wall-counter" }, ` · ${wallCounter(app, d.wall!, d as { counter?: string; counter_hint?: string })}`) : "",   // Cut 28 §1: the wall's path
         // Cut 20 §5: the bounty floor; Cut 28 §1: what it pays and needs (`bounty · $×2 · item · reach`)
         d.bounty ? h("small", { class: "bounty-x" }, ` · ${app.lineage.bounty?.depth === d.depth && (app.lineage.bounty.pays || app.lineage.bounty.needs) ? bountyText({ ...app.lineage.bounty, depth: d.depth }).replace(/^bounty · D\d+ · /, /* copy:callout */ "bounty · ") : bountyMult(d.bounty)}`) : "",
@@ -450,7 +451,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       const capped = cap !== undefined && depth > cap, bankHere = cap === depth && !wall;
       const bounty = depth === bountyD;
       const n = h("span", { class: `notch${!d && depth > known ? " unknown" : ""}${depth === next ? " next" : ""}${depth === start && start > 1 ? " start" : ""}${wall ? " walled" : ""}${zero ? " zero" : ""}${capped ? " capped" : ""}${bounty ? " bounty" : ""}`, "data-d": depth },
-        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, lane ? h("i", { class: "lane", "data-biome": lane }, ` ${lane}`) : "", lane && laneEnd(depth) ? h("i", { class: "lane-to dim" }, ` → D${laneEnd(depth)}`) : "", bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`, conceptCap("bounty")) : "", wall ? h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? h("i", { class: "boss-here" }, ` · ${bossHere}`) : ""),   // (the set's own bank floor keeps its word)
+        h("span", { class: "hex" }), h("span", { class: "dl" }, `D${depth}`, lane ? h("i", { class: "lane", "data-biome": lane }, ` ${lane}`) : "", lane && laneEnd(depth) ? h("i", { class: "lane-to dim" }, ` → D${laneEnd(depth)}`) : "", bounty ? h("i", { class: "bounty-x" }, ` ${bountyMult(d?.bounty)}`, conceptCap("bounty")) : "", wall ? enemyHost(h("i", { class: "wall" }, /* copy:callout */ ` · ${wallText}`), d!.wall!, app.lineage) : bankHere ? h("i", { class: "cap" }, /* copy:callout */ " · bank") : bossHere ? enemyHost(h("i", { class: "boss-here" }, ` · ${bossHere}`), d!.boss!, app.lineage) : ""),   // (the set's own bank floor keeps its word)
         h("small", { class: "dp" }, d ? share(d.reach, lowOf(last)) : "?", d && pmShown(d.reach, d.pm) !== undefined ? h("i", { class: "pm band", style: bandW(pmShown(d.reach, d.pm)!), title: `±${pmShown(d.reach, d.pm)}` }, /* copy:none */ `±${pmShown(d.reach, d.pm)}`) : "",
           d ? moveMark(vsBy.get(depth)) : ""));   // Cut 22 §3: the edit's move on the notch (`▲6`, `≈`)
       n.style.setProperty("--reach", reach.toFixed(3));
