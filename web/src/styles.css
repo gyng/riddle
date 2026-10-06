@@ -1747,3 +1747,19 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .wall-edit .wall-rule > .chips { min-width: 0; }
 .wall-edit .wall-rule .chip { min-height: 28px; padding: 3px 6px; }
 @media (min-width: 1024px) { .wall-edit .wall-compare { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Unit identity art sits with its name; undiscovered guide rows stay anonymous. */
+.unit-icon { display: inline-block; flex: 0 0 var(--unit-size, 34px); width: var(--unit-size, 34px); height: var(--unit-size, 34px); object-fit: cover; vertical-align: middle; background-repeat: no-repeat; }
+.unit-icon[data-glyph]:not([data-art])::before { content: attr(data-glyph); display: grid; place-items: center; height: 100%; color: var(--dim); }
+.ledger .unit-name { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 4px 5px 0; }
+.ledger .unit-name-text { min-width: 0; overflow-wrap: anywhere; }
+.death-hero { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; }
+.death-line .cause-btn.has-unit-icon { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.cause-btn > .killer { flex: 0 0 48px; width: 48px; height: 48px; object-fit: cover; border-radius: 0; }
+.cause-btn.has-unit-icon > .cause { min-width: 0; }
+@media (max-width: 420px) {
+  .ledger .lrow { grid-template-columns: minmax(0, 1fr) repeat(5, 32px); }
+  .ledger .lrow.head { font-size: 8px; letter-spacing: -.02em; }
+  .ledger .unit-name { gap: 5px; }
+  .cause-btn > .killer { flex-basis: 40px; width: 40px; height: 40px; }
+}

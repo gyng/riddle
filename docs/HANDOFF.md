@@ -1,3 +1,13 @@
+**UNIT ICONS BESIDE NAMES — 2026-10-06:** Owner requested death screens and
+unit reference art icons. Added unitIcon shared packedportrait→atlas→primitive.
+Seen enemyguide names now carry34px art; unseen rows stay ?. Killer48px (40phone)
+moved into death causebutton beside name; hero identity34px uses recordedclass,
+never currentheir. Same tooltip/trace input retained; nonunit causes nofakeart.
+Guide narrow columns32px, nameswrap. New uniticons checks320/400/1440 +death
+input/identity/action4/4 pass13.1s; build/typecheck/copy1555/diff clean. Headed
+actualWASM guide/Warlorddeath400/1440 no warnings/overflow; screenshots shown.
+UX_UNIT_ICONS.md;scratchpad/unit-icons-20261006/. No core/newart/deploy.
+
 **ENCOUNTER FALLBACK FIX — 2026-10-06:** Missing enemy knowledge now says
 Encounter Unavailable rather than Unseen. Final enemy-surfaces/enemy-tips2/2
 pass18.1s; build/typecheck/copy1555 pass. Same actualWASM screenshot recaptured.

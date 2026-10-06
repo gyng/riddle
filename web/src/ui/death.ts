@@ -29,6 +29,7 @@ import { traceTable } from "./trace";
 import { mergeFinds, renamer } from "./report";
 import { foeSrc, packageIcon } from "./skin";
 import { enemyHost } from "./enemy-tips";
+import { unitIcon } from "./unit-icon";
 import { itemIcon } from "./items";
 import { penOpen } from "./packages";
 import { openForge } from "./forge";
@@ -298,8 +299,18 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   ] });
   const killerSrc = drove || d.verdict === "stall" ? null : foeSrc(d.cause);
   const enemyKnowledge = (kept && !d.hero) || (d.hero?.bloodline_id !== undefined && d.hero.bloodline_id !== (app.lineage.selected_bloodline ?? 1)) ? undefined : app.lineage;
-  const killerPortrait = killerSrc ? enemyHost(h("img", { class: "killer", src: killerSrc, alt: d.cause.replace(/_/g, " "), draggable: "false" }), d.cause, enemyKnowledge) : null;
-  if (killerSrc) enemyHost(line.querySelector<HTMLElement>(".cause-btn")!, d.cause, enemyKnowledge);
+  const knownKiller = killerSrc || (!drove && d.verdict !== "stall" && app.lineage.ledger?.some(r => r.kind === d.cause));
+  const killerPortrait = knownKiller ? enemyHost(unitIcon(d.cause, 48), d.cause, enemyKnowledge) : null;
+  if (killerPortrait) {
+    killerPortrait.classList.add("killer");
+    killerPortrait.removeAttribute("aria-hidden");
+    killerPortrait.setAttribute("role", "img");
+    killerPortrait.setAttribute("aria-label", d.cause.replace(/_/g, " "));
+    const causeBtn = line.querySelector<HTMLElement>(".cause-btn")!;
+    causeBtn.prepend(killerPortrait);
+    causeBtn.classList.add("has-unit-icon");
+    enemyHost(causeBtn, d.cause, enemyKnowledge);
+  }
   const tracePanel = h("div", { class: "parchment trace-panel", hidden: !!drove && !d.trace.turns.length }, ...trace);   // a drive-off's line may carry no trace
   // death screen v2 — the three questions, in order: what killed him (the banner), why (one line, the player's words), what now (the
   // lit fix and at most two others, each its short name and its effect; `send again` beside them for a luck death or none to offer);
@@ -325,10 +336,10 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
   const well = h("div", { class: "well death-well" },
-    d.hero?.name ? h("div", { class: "death-hero num dim" }, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`) : null,
-    h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerSrc ? " has-killer" : ""}` },
-      // gfx round 10 (raters, every round: "show the killer behind the banner"): the killer's portrait in an iron medallion on the cloth
-      killerPortrait, luckLead, line)),
+    d.hero?.name ? h("div", { class: "death-hero num dim" }, unitIcon(d.hero.class, 34, true), d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`) : null,
+    h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerPortrait ? " has-killer" : ""}` },
+      // The killer icon lives beside the cause name inside its trace control.
+      luckLead, line)),
     // run-clear: the death screen is a death's card — its header carries the floor, a new best, the finds left in the bones
     kept || from ? null : clearStrip(d.line),
     ...(prePen ? [whyEl, trainingBlock(d.line?.packages), now] : [whyEl, trainingBlock(d.line?.packages), details, now, more, tail]));
