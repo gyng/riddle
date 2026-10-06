@@ -1762,3 +1762,8 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
   .ledger .lrow { grid-template-columns: minmax(0, 1fr) repeat(5, 32px); }
   .ledger .lrow.head { font-size: 8px; letter-spacing: -.02em; }
 }
+
+/* Historical identity and its kept-death link share a row without overlap. */
+.chronicle button.cline.kept { display: flex; align-items: center; gap: 8px; }
+.chronicle .cline.kept > .unit-label { flex: 1; }
+.chronicle .cline.kept > small { flex: none; }

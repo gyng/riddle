@@ -1,3 +1,14 @@
+**CHRONICLE HISTORICAL PORTRAITS — 2026-10-06:** Continued unitlabel audit.
+Archivedhero entries use32px sharedunitLabel from own hero_legacy.class/name;
+old/other-slot entries parse only canonical printedheader class (verified Rust
+chronicle_heir_at), never selectedliveclass. Unknownold entries textonly.
+Keptdeath links andotherslotbuttons unchanged; caret has separateflexspace.
+Checks320/400/1440 metadata/owner/fallback/input/id17/gap8/center±1px pass;
+unitlabel/deathidentity/report3/3pass4.6s; build/typecheck/copy1556/diff clean.
+ActualheadedWASM15entries400/1440 correctclass/gap/center/bounds; immediate
+save/selected2 unchangedonopen; screenshots shown. UX_CHRONICLE_UNIT_LABELS.md;
+scratchpad/chronicle-unit-labels-20261006/. No core/newart/deploy.
+
 **SHARED UNIT LABEL COMPONENT — 2026-10-06:** Owner asked for uniticon next
 to text elsewhere and spacing verification. Added unitLabel to unit-icon.ts:
 8px gap, fixed art +wrapping text,min-width0,max-width100%; optional existingart,
