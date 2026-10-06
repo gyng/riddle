@@ -7,9 +7,10 @@ then two class specializations. CUT31_ASCENSIONS.md now specifies the runtime
 contract; A progression/reset, B encounters and C tier selection/elite marking
 implemented. Five actual consecutive clears on one earned build; real UI and
 native/WASM/durable-save parity verified at320/400/1440 including two other
-live bloodlines. Next D balance/build comparisons, one/three-slot absence
-parity and broader catch-up profiling; whole-cut verification remains open. Legacy/class work
-remains after that loop. No extra early prestige layer.
+live bloodlines. D build comparisons, one/three-slot absence parity, catch-up
+profiles and routine18-case gates now verified with the documented unchanged-
+preparation deviation; broad exhaustive balance remains uncertified. Legacy/
+class work remains next under CUT32_LEGACY_TREE.md. No extra early prestige layer.
 
 D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h
 whole/sliced/reloaded full-state/report parity now passes after guide-quote,
@@ -17,9 +18,10 @@ partial-rest worker and fractional-clock continuation fixes. Fast-WASM8h
 medians0.81/0.69/1.00s, three identical outcomes each. Unchanged Tier5 diagnostic
 fails all three seeds14days; spending54 existing earned Legacy changes all nine
 tier/seed cases to8–16h clears. Failed bar retained, explicit justified deviation
-in CUT31; no claim of broader balance. Quick599core/14side tests green, clippy/
-build pass. Routine18-case gate running; fixed-combat comparisons pending.
-Next branching Legacy and class specializations; preserve old purchased ranks,
+in CUT31; no claim of broader balance. Final quick603core/14side tests green,
+clippy/build pass. Routine18-case full gate terminalPASS; four fixed-combat
+comparisons pass. See CUT31 for the King's extended-window missed-hit amendment.
+Next CUT32_LEGACY_TREE.md branching Legacy and class specializations; preserve old purchased ranks,
 free home respec and distinct mechanical choices rather than only larger stats.
 
 Local UI iteration-speed and compact-depth work are implemented and pushed.

@@ -5,11 +5,14 @@ are ENDGAME_ASCENSIONS.md: endless harder descents, affixes/elites/boss changes,
 then branching Legacy and classes. This cut implements the endgame loop first.
 Partial checkpoints below do not certify the whole cut.
 
-Status: A/B/C implemented and verified below; D remains open. The app now
+Status: A/B/C implemented; D scoped checks completed with the explicit
+unchanged-preparation deviation below. The app now
 exposes numbered descents, authoritative previews, encounter modifiers and elite
 map marking. Five consecutive actual clears demonstrate the loop on one earned
-build. Broader balance, build comparisons, catch-up parity and profiling remain
-required before calling the whole cut verified.
+build. Fixed-preparation/build comparisons, exact absence parity, profiling and
+the routine18-case suite are verified below. These do not certify the optional
+exhaustive balance/migration audit or arbitrary higher-tier build viability.
+The branching Legacy tree and class specializations remain separate work.
 
 ## Save, unlock and reset contract
 
@@ -342,4 +345,63 @@ copy1659 and14 side tests; initial restricted-sandbox native-host failure passes
 both isolated and whole-suite host execution. Clippy workspace/alltargets fast
 warnings-denied and webbuild PASS, existing bundle-size advisory. Routine
 18-case current-game full gate is running, not yet certified.
-D remains open, including fixed-combat comparisons and routine gates.
+D findings above were a checkpoint; final comparisons/gates follow below.
+
+### Fixed-combat comparison inputs and bars
+
+Diagnostic arenas, not earned progression: RNG seeds1/3/5, one awake adjacent
+goblin, identical paired starts, normalized large HP to measure actions without
+an early death. Shielded Tier1: Fighter's two attacks versus bash then attack;
+aggregate extra damage >=2, with actual successful bash/stun evidence. No mace
+random stun. Regenerating Tier3: forty real status ticks, frozen actors, wounded
+enemy; throw one known poison versus leave it unused. Counter enemy HP at least
+10 lower per seed, poison actually consumed/applied. Swift/Frenzied Tier5:
+wounded elite, base speed10, atk2, hero waits thirty ticks; owned Caster L5 slow
+versus no slow. At least one fewer hostile attack each seed and no greater total
+damage to the hero. King Tier1: two attack actions versus two owned cadence
+actions, manually recording each actual damaging verb just as hero_action does;
+repeat causes one reflection, cadence zero, and higher retained HP per seed.
+King arena amendment before rerun: the initial two-action health bar failed
+seed1 because the reflected attack missed (0/0 HP loss), while both reflection
+event counts were correct. Keep that failure, not a mechanics regression.
+Extend this arena to20 actions, requiring19 repeat reflections versus zero
+cadence reflections and strictly higher retained HP on every seed. Ordinary
+hit RNG remains enabled; feints record their actual tactic verb. This observes
+enough real attempts to measure health without assuming every attack hits;
+it does not weaken the original per-seed health bar or change encounter stats.
+
+All comparisons exercise actual verbs/events/status ticks; no assertion of
+general build balance, whole-run viability or an earned encounter from arenas.
+
+### D completion evidence and remaining broader scope
+
+Routine `node tools/gates.mjs --full` terminal exit0: metrics exit0 in84.4s,
+wire QA exit0 in51.7s,18 current-player fortnight cases all selected barsPASS.
+Source keya21a8fdf0ffd38a6; no cached legs. Broader system-removal/statistical/
+historical migration audits explicitly not run. Current tier0 requirements unchanged.
+
+Four new paired combat comparisons PASS on seeds1/3/5. Shielded extra damage
+0/0/2 across two verb pairs (at least one actual successful bash, total+2);
+poison lowers regenerating enemy HP by12 each; Swift/Frenzied hostile attacks
+3→2 each, hero damage6/6,6/3,7/5 (plain/Slow). Twenty King actions: nineteen
+reflections versus zero cadence reflections on every seed, HP loss288/306/324
+versus0. These are normalized arenas: only Slow and poison comparisons advance
+the tick scheduler; bash/King compare actual verb pairs/sequences, not whole
+combat pacing. Initial two-action King's missed-hit result is retained above.
+Logs /tmp/riddle-endgame-counter-comparisons{,2}.log.
+
+Final quick suite603 corePASS/one existing ignored35.74s,14 side tests,
+typecheck/copy1659 green79s including compilation. Final clippy alltargets/fast
+warnings deniedPASS after fixing suspicious negative-assignment spacing.
+Runtime and WASM unchanged since the earlier transport/profile proof; only
+diagnostic tests/docs added. D's owned-build comparison, full transport parity,
+equal-work overhead target, actual catch-up profiles and routine checks complete.
+Fresh headed actual earned Tier5ending→Tier6review screenshots at400/1440 on
+shared5219: realWASM, exact complete read-only source save, noerrors/overflow;
+viewed and shown. Artifacts scratchpad/endgame-d-checkpoint-20261006/.
+Original unchanged-preparation14-day bar remainsFAILED, with the explicit
+design deviation justified above. Do not describe every original bar as green.
+
+Next CUT32_LEGACY_TREE.md: twelve branching nodes, old purchases preserved,
+free home respec, snapshots, meaningful builds and real UI; then two class
+specializations. This endgame checkpoint does not certify that later scope.

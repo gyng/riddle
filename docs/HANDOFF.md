@@ -1,3 +1,40 @@
+**CUT31 SCOPED VERIFICATION + LEGACY TREE CONTRACT — 2026-10-06:**
+Previous goal turn progress: pushed27749eb income/clock continuations. This turn
+routinefull18case gate terminal0(session38577), metrics84.4s0,qa51.7s0,
+dayplayer all selected barsPASS; sourcea21a8fdf0ffd38a6/no cached legs. Optional
+system-removal/statistical/historical/exhaustive audit not run. Current-tier0
+requirements unchanged; original unchanged-build14dayfail has explicit justified
+deviation inCut31, never certify that barPASS. D scoped checks completed;
+overall keep-going goal remains active. Four new actual counter comparisons
+seeds1/3/5 PASS: Shielded verbpair extra0/0/2; poison40ticks HPdifference12 each;
+Swift/Frenzied30ticks attacks3→2 each, damage6/6,6/3,7/5; King20actions repeats
+19reflections/HP−288,306,324 vs cadence0reflections/0damage. Bash/King direct
+verb sequences, not scheduler/pacing; Slow/poison use actualticks. Initial
+King2actionseed1HP0/0 was a missed reflected hit, documented extended-window
+amendment before rerun, ordinary RNG/stats unchanged. First tests didn't
+compile Shared<Option> assignment, fixed .into; clippy negative-assignment
+spacingfixed. Final quick603corePASS/oneignored35.74s+14side/TS/copy1659 green79s;
+clippy alltargets fast warningsdeniedPASS. Onlytests/docs changed, runtimeWASM
+unchanged. Logs /tmp/riddle-endgame-counter-comparisons{,2}.log,
+/tmp/riddle-cut31-d-counter-quick.log and-clippy2.log. Fresh headed real-WASM
+earnedTier5ending→Tier6review400/1440 screenshotcheckpoint on shared5219,
+fullsource-saveexact read-only/noerrors/overflow; screenshots viewed/shown.
+Artifacts scratchpad/endgame-d-checkpoint-20261006/. No new server/deploy/UI.
+Next **implement CUT32_LEGACY_TREE.md**: new12node contract, not shipped.
+Three old roots kept,3one-rankfollowups18points,6one-rankleaves36points,
+two mutuallyexclusiveleaves/branch; historicalD8/D18 gates from retained
+hero_legacy bests, parentrank1. Nineeffects: rest+1, heal+25%, naturalherokill+1,
+stun/slow+5, poison+1/pulse, slow+15 further, gas/poison−2, firehalf, lowHP−2.
+Snapshot neweffects onHero atsend (suggest u16mask default/omit0; oldroots
+unchanged), no per-tickalloc/Ctx additions needed. Freehomecheckedrefundrespec,
+preserveold9ranks/points/spent, fork/away/locked/refused exactsaveproofs.
+Then12offerwire/groupedchunkyHeroUI, newrespec bridge(native/WASM/codegen),
+realphone/desktop screenshots, threeearnedbuild comparisons, parity/perf/gates.
+Do not expose inactive nodes. Two classspecializations follow separately.
+No pending gate process; don't redo Cut31 checks without new reason. Shared
+5219 retained, no deploy. All authored changes pushed; mine.bars/scratchpad
+remain unstaged. Inspect final git status before continuing.
+
 **ENDGAME CATCH-UP CONTINUATIONS + BUILD COMPARISON — 2026-10-06:**
 Cut31 D remains open; overall keep-going goal active, Legacy/classes next.
 Exact-integer offline checker (raw saves preserved) caught stale guide quotes

@@ -18,8 +18,12 @@ Owner endgame direction2026-10-06: clears unlock numbered harder descents per
 bloodline, with affixes/elites/boss changes, then branching Legacy and class
 specializations (`docs/CUT31_ASCENSIONS.md`, `docs/ENDGAME_ASCENSIONS.md`).
 Core progression/reset, affix/elite/boss mechanics and app tier selection are
-implemented; broader balance/catch-up profiling remain pending. Five consecutive
-actual clears verify one earned build. Old challenge restarts remain available.
+implemented; fixed-build comparisons, exact catch-up parity/profiles and the
+routine18-case suite are verified with an explicit unchanged-build deviation.
+Five consecutive actual clears verify one earned build. Broader exhaustive
+balance remains uncertified. Old challenge restarts remain available.
+Next: twelve-node branching Legacy tree/free home respec under
+`docs/CUT32_LEGACY_TREE.md`, then two class specializations; neither shipped yet.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an
 automation/idle game first, never as an action roguelike (`research/idle-attraction.md` §1.1).

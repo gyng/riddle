@@ -312,3 +312,87 @@ fn mixed_tier_bloodlines_keep_exact_shared_wallet_and_saved_absence() {
         assert_eq!(actual.active.lineage.gold as i64+actual.active.lineage.town.bank as i64,actual.active.lineage.tree.ledger);
     }
 }
+
+// Paired verb/status arenas. Normalized stats are diagnostic controls, never
+// campaign grants; the scheduler comparison below uses real ticks/actions.
+fn counter_arena(seed:u64,tier:u32,kind:&str,elite:Option<Elite>)->Game {
+    let mut g=game(tier);let r=g.run.as_ref().unwrap();
+    let mut m=spawn(r,100,kind,near(r),33,false);
+    m.modifiers.as_mut().unwrap().elite=elite;
+    m.max_hp=1000;m.hp=400;m.awake=true;m.energy=0;m.speed=10;m.atk=(2,2);
+    let r=g.run.as_mut().unwrap();r.rng=crate::rng::Rng::new(seed);r.monsters=vec![m];
+    r.hero.hp=10000;r.hero.max_hp=10000;r.hero.max_hp_base=10000;
+    r.hero.weapon=None.into();r.hero.armour=None.into();r.hero.inv.clear();r.hero.legacy_armour=0;
+    r.hero.base_atk=(20,20);r.hero.str_bonus=0;r.hero.class=crate::hero::Class::Fighter;r.hero.level=10;
+    r.hero.energy = -100000;g.events.clear();g
+}
+fn arena_verb(g:&mut Game,verb:&str,arg:Option<&str>) {
+    let(r,mut cx)=g.ctx();let v=crate::turn::view(r);
+    assert!(crate::ai::try_verb(r,&mut cx,&crate::Verb{v:verb.into(),a:arg.map(str::to_owned)},&v),"owned counter must execute: {verb}");
+}
+fn hostile_attacks(g:&Game)->usize {
+    g.events.iter().filter(|e|matches!(e,Ev::Attack{src:100,dst:HERO_ID,..})).count()
+}
+#[test]
+fn paired_shielded_bash_followup_deals_more_damage_than_repeated_attacks() {
+    let mut extra=0;let mut bashes=0;
+    for seed in [1,3,5] {
+        let mut plain=counter_arena(seed,1,"goblin",Some(Elite::Shielded));let mut control=plain.clone();
+        arena_verb(&mut plain,"attack",Some("nearest"));arena_verb(&mut plain,"attack",Some("nearest"));
+        arena_verb(&mut control,"shield_bash",Some("nearest"));
+        bashes+=usize::from(control.run.as_ref().unwrap().monsters[0].stun>0);
+        arena_verb(&mut control,"attack",Some("nearest"));
+        let difference=plain.run.as_ref().unwrap().monsters[0].hp-control.run.as_ref().unwrap().monsters[0].hp;
+        assert!(difference>=0);extra+=difference;
+        println!("Shielded seed{seed}: extra damage {difference}");
+    }
+    assert!(bashes>0&&extra>=2,"actual bash/follow-up must beat repeated attacks: stun{bashes}, extra{extra}");
+}
+#[test]
+fn paired_regenerating_poison_throw_changes_forty_tick_health_outcome() {
+    for seed in [1,3,5] {
+        let mut plain=counter_arena(seed,3,"goblin",None);
+        plain.run.as_mut().unwrap().monsters[0].stun=1000;
+        let mut poison=crate::item::Item::new(900,"poison");poison.known=true;
+        plain.run.as_mut().unwrap().hero.inv.push(poison);plain.lineage.unlocks.insert("throw".into());
+        let mut control=plain.clone();arena_verb(&mut control,"throw",Some("poison,nearest"));
+        assert!(control.run.as_ref().unwrap().hero.inv.is_empty());
+        assert!(control.run.as_ref().unwrap().monsters[0].poison.1>0);
+        for _ in 0..40 {plain.tick();control.tick();}
+        let difference=plain.run.as_ref().unwrap().monsters[0].hp-control.run.as_ref().unwrap().monsters[0].hp;
+        println!("Regenerating seed{seed}: extra health lost {difference}");
+        assert!(difference>=10,"poison must suppress regeneration and damage: {difference}");
+    }
+}
+#[test]
+fn paired_swift_frenzied_slow_reduces_actual_attacks_over_thirty_ticks() {
+    for seed in [1,3,5] {
+        let mut plain=counter_arena(seed,5,"goblin",Some(Elite::Frenzied));
+        plain.run.as_mut().unwrap().hero.class=crate::hero::Class::Caster;
+        plain.run.as_mut().unwrap().hero.level=5;
+        let mut control=plain.clone();arena_verb(&mut control,"slow",Some("nearest"));
+        for _ in 0..30 {plain.tick();control.tick();}
+        let(a,b)=(hostile_attacks(&plain),hostile_attacks(&control));
+        let(p,c)=(plain.run.as_ref().unwrap().hero.hp,control.run.as_ref().unwrap().hero.hp);
+        println!("Swift/Frenzied seed{seed}: attacks {a}/{b}, damage {}/{}",10000-p,10000-c);
+        assert!(a>b,"slowed elite must attack less often: {a}/{b}");assert!(c>=p);
+    }
+}
+#[test]
+fn paired_king_cadence_prevents_repeat_reflection_and_preserves_health() {
+    for seed in [1,3,5] {
+        let mut plain=counter_arena(seed,1,"mirror_king",None);plain.lineage.unlocks.insert("cadence".into());
+        let mut control=plain.clone();
+        for _ in 0..20 {
+            arena_verb(&mut plain,"attack",Some("nearest"));
+            let r=plain.run.as_mut().unwrap();r.verb_ring.push(r.last_hit_verb.take().unwrap());
+            arena_verb(&mut control,"tactic",Some("cadence"));
+            let r=control.run.as_mut().unwrap();r.verb_ring.push(r.last_hit_verb.take().unwrap_or_else(||"tactic".into()));
+        }
+        let reflections=|g:&Game|g.events.iter().filter(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="mirror")).count();
+        assert_eq!(reflections(&plain),19);assert_eq!(reflections(&control),0);
+        let(p,c)=(plain.run.as_ref().unwrap().hero.hp,control.run.as_ref().unwrap().hero.hp);
+        println!("King seed{seed}: reflected damage {}/{}",10000-p,10000-c);
+        assert!(c>p,"cadence must preserve health: {p}/{c}");
+    }
+}
