@@ -1,0 +1,21 @@
+import {execFileSync} from 'node:child_process';import {launchBrowser} from '../../tools/browser.mjs';
+const url=execFileSync('bash',['tools/dev.sh'],{cwd:new URL('../../',import.meta.url),encoding:'utf8'}).trim(),b=await launchBrowser();
+try{for(const width of [400,1440]){const p=await b.newPage({viewport:{width,height:900}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(`${url}?engine=fake&fresh=1&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);
+ const n=await p.evaluate(async()=>{
+  const a=window.__riddle,tick=()=>new Promise(r=>setTimeout(r,30));let n=0,advances=0;const check=(ok,label)=>{if(!ok)throw Error(label);n++;};
+  const slot={id:1,name:'Bloodline 1',hero_name:'Wren Ash',heir:1,class:'fighter',level:1,xp:0,next:60,state:'waits',rest_s:0,legacy:{points:7,spent:0,upgrades:{}},notice:true};
+  const other={...structuredClone(slot),id:2,name:'Bloodline 2',hero_name:'Dara Thorn',class:'ranger',xp:12,legacy:{points:3,spent:6,upgrades:{health:1}}};
+  a.lineage={...a.lineage,selected_bloodline:1,hero_slots:[slot,other]};const original=structuredClone(a.lineage),jobs=[];
+  a.engine.lineage=()=>new Promise((resolve,reject)=>jobs.push({resolve,reject}));a.engine.advance=async()=>{advances++;throw Error('watch refresh must not advance');};
+  const wire=(state='live',depth=1)=>{const L=structuredClone(original),h=L.hero_slots[0];h.state=state;h.live=state==='live'?{run_id:1,heir:1,depth,start:1,hp:36,max_hp:36,turn:0}:null;h.rest_s=state==='rests'?20:0;L.live=h.live;return L;};
+  a.go({kind:'watch'});const {heroRoster}=await import('/src/ui/heroes.ts');const roster=heroRoster(a);document.querySelector('.watch').append(roster.el);await tick();check(jobs.length===1,'send starts one slot read before viewer');
+  const action=()=>roster.el.querySelector('.hero-desktop [data-slot="1"] .hero-action')?.textContent;
+  check(action()==='Ready','pending send retains last authoritative state');const same=a.syncWatchLineage();check(jobs.length===1,'same watch shares pending read');jobs[0].resolve(wire());await same;await tick();
+  check(action()==='Live D1','first watch refresh replaces Ready');check(JSON.stringify(a.lineage.hero_slots[1])===JSON.stringify(other),'other bloodline values untouched');check(a.lineage.hero_slots[0].xp===0&&a.lineage.hero_slots[0].legacy.points===7,'XP and Legacy not invented');
+  const poll=a.runTick(true);await tick();check(jobs.length===2,'existing watch poll asks only once');jobs[1].resolve(wire('live',7));await poll;check(action()==='Live D7','periodic Rust depth paints through onLive');check(advances===0,'watch refresh performs no clock advance');
+  const stale=a.syncWatchLineage();a.lineage={...wire(),selected_bloodline:2};jobs[2].resolve(wire('live',99));await stale;check(a.lineage.selected_bloodline===2,'late selected-slot reply cannot restore old slot');
+  a.lineage=wire('live',7);const old=a.syncWatchLineage();a.view={kind:'watch'};const next=a.syncWatchLineage();check(jobs.length===5,'replacement watch owns new request');jobs[3].resolve(wire('live',99));await old;check(a.lineage.hero_slots[0].live.depth===7,'departed watch reply ignored');const shared=a.syncWatchLineage();check(jobs.length===5,'old completion does not clear new read');jobs[4].resolve(wire('rests'));await next;await shared;check(action()==='Resting 20s','Rust rest state paints');
+  const failed=a.syncWatchLineage();jobs[5].reject(Error('expected read failure'));await failed;const recovered=a.syncWatchLineage();check(jobs.length===7,'failed read can retry');jobs[6].resolve(wire('waits'));await recovered;check(action()==='Ready','Rust wait state paints');
+  const departing=a.syncWatchLineage();a.view={kind:'camp'};jobs[7].resolve(wire('live',99));await departing;check(a.lineage.hero_slots[0].state==='waits','leaving watch rejects late reply');await a.syncWatchLineage();check(jobs.length===8,'camp never starts watch refresh');
+  check(document.documentElement.scrollWidth<=innerWidth,'no overflow');roster.dispose();roster.el.remove();a.go({kind:'camp'});return n;
+ });if(errors.length)throw Error(errors.join('\n'));console.log(width,n,'live roster/send/poll/dedup/late reply/recovery PASS');await p.close();}}finally{await b.close();}

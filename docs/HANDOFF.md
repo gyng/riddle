@@ -1,3 +1,19 @@
+**LIVE ROSTER AFTER SEND — 2026-10-06:** Immediate Rust slot read after send,
+before viewer load. Existing1s human watch poll reuses same guarded method;
+no extra polling timer/clock advance. In-flight same-view/selection read shared;
+late departed-watch/changed-selection replies rejected, old completion cannot
+clear newer read.38 controlled checks400/1440pass2.6s; existing hero-names30
+and watch-statuspass15.5s in initial run. Fixture initially queried nonexistent
+mobile watch roster/camp container; explicit roster mounted, final allpass.
+Real seed2WASM house/send400/1440 runs=1: first viewer slot live/desktopLiveD1;
+paused picturedD1/currentrosterD2 correct; no errors/overflow, desktopshot shown.
+Mobile underlying slot verified, no roster added to mobile watch. Build/typecheck/
+copy1524/diffpass,bundleadvisory. UX_LIVE_ROSTER.md for scope. No Rust/deployment.
+Prior screenshot's persistent Ready was amplified by webdriver clock-off;
+human app already polled1s, concrete gap immediate send stale state+reply race.
+Next: GPU camera/actor audit of first-watch framing; screenshots show scenery
+with hero near/beyond edge. Also known first-batch Foe fallback/duplicate damage.
+
 **NAMED COMBAT ACTORS — 2026-10-06:** Snapshot.hero.name now Rust stable
 identity from run.heir+game bloodline, existing optional Entity.name wire.
 Watch remembers companions as well as foes; immutable actor names captured for

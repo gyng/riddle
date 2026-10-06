@@ -2314,6 +2314,8 @@ export function renderWatch(app: App): Mounted {
     if (app.seenPending && app.engine.seenSystems) { app.seenPending = false; try { app.lineage = await app.engine.seenSystems(); } catch { /* the glint repeats */ } }   // Cut 29 §2
     try { s = await app.engine.send(); } catch (e) { console.warn("send failed", e); if (!disposed) app.go({ kind: "camp" }); return; }
     if (disposed) return;
+    await app.syncWatchLineage();
+    if (disposed) return;
     snap = s; logDepth = s.depth; runId = s.run.id; engineTick = startTick = s.turn;
     // QA a946e04 (T: `start → D5 · $50` at $32 — the run began on D1, no toll, nothing said so): a waystone start the purse could not pay
     // starts on D1, and the watch says so as it opens (the exit's line carries it on: `· from D1 · toll short`)

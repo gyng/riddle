@@ -85,6 +85,21 @@ export class App {
   private liveListeners = new Set<() => void>();
   onLive(fn: () => void): () => void { this.liveListeners.add(fn); return () => this.liveListeners.delete(fn); }
   private emitLive(): void { for (const fn of this.liveListeners) fn(); }
+  private watchRead: { view: Screen; selected: number | undefined; promise: Promise<void> } | null = null;
+  /** Slots come from Rust after the send, without advancing the town clock.
+   * Reuse the same read; a late reply cannot restore a departed watch/selection. */
+  syncWatchLineage(): Promise<void> {
+    const view = this.view, selected = this.lineage.selected_bloodline;
+    if (view.kind !== "watch" || !this.lineage.hero_slots?.length) return Promise.resolve();
+    if (this.watchRead?.view === view && this.watchRead.selected === selected) return this.watchRead.promise;
+    const read = { view, selected, promise: Promise.resolve() };
+    read.promise = this.engine.lineage().then((L) => {
+      if (this.view !== view || this.lineage.selected_bloodline !== selected || L.selected_bloodline !== selected) return;
+      this.lineage = L; this.emitLive();
+    }).catch((e) => console.warn("watch lineage", e)).finally(() => { if (this.watchRead === read) this.watchRead = null; });
+    this.watchRead = read;
+    return read.promise;
+  }
   get runnerOn(): boolean {
     const q = new URLSearchParams(location.search).get("runs");
     if (q === "0") return false;
@@ -97,8 +112,8 @@ export class App {
     if (this.view.kind === "watch") {
       this.runnerAt=now;
       if(this.lineage.hero_slots?.length&&!document.hidden){
-        this.runnerBusy=true;const selected=this.lineage.selected_bloodline;
-        try{const L=await this.engine.lineage();if(L.selected_bloodline===selected){this.lineage=L;this.emitLive();}}
+        this.runnerBusy=true;
+        try{await this.syncWatchLineage();}
         finally{this.runnerBusy=false;}
       }
       return;
