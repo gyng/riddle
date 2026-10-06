@@ -1,3 +1,77 @@
+**CUT35 RELOAD RETREAT / GUN-BOW MATCHUPS / QUIET ACTUAL COMBAT LOG — 2026-10-07 (PARTIAL):**
+
+Accepted change: active default Gunner reload spends its ordinary scheduled
+otherwise-idle action on retreat only when an adjacent hostile/legal step exists.
+No movement on reload-start, no early fire/refill, no new stat/field or shortened
+20/15timer. Safety/player/drills/chosen policy retain precedence. Earned L5 Smoke
+remains distinct/higher priority with its blindness/cooldown; normal retreat grants
+neither. Blocked/distant reload waits retain full save exactly. Two meaningful
+tests: actual tick10 moves, tick19fire refuses/full-save unchanged, tick20loads/
+fires; restored execution exact; blocked/distant quiet waits. Updated existing
+Smoke test differentiates ordinary movement from blindness. Focused34 firearm
+PASS; initial test log included setup shot/failed assertion before event buffer
+was cleared, retained in close-aim-20261007/reload-test-initial.log; finalPASS.
+
+Both close-aim experiments rejected/preserved: all-adjacent skip helps seed1/3
+but regresses5; normal-max finishing skip regresses1/5. Patches/data under
+close-aim*, close-finish*. Production aiming policy restored. Explicit owned
+Corridor fighting and Unbowed also fail seed1long48h; artifacts owned-{corridor,
+unbowed}-20261007. Do not hide failures or claim those builds solve the wall.
+
+Permanent examples/gunner_matchups.rs: controlled open-room paired32seed tests,
+L3/L10, long/short guns and BOTH sustained/kite-first bows. Explicit fixture
+HP/armour/light/class levels, no grant-free campaign claim. Living unstunned foes,
+1200tick timeout, separate failures/conditional clear medians, paired ranking
+(clear first, time then harm; all failures tie). First kite-only bow comparator
+was weak (close pack0/32); sustained policy added, old results retained.
+Final reload-retreat L3 close-pack clears long27/32 vs prior21, short32vs30;
+median clear harm22vs26 /9vs12, long time130vs100ticks (safer/slower).
+AtL10 all sustained builds clear all fixtures: armoured median long90/short170/
+bow330; close pack90/30/70; crossfire50/80/40ticks. Long wins armour29/32 vs
+short, short wins close30/32 vs long, bow beats long20/32 and short32/32 in
+crossfire. Scoped distinct strengths/non-dominance, not optimal Ranger/Tier5.
+Final files gunner-matchups-retreat-l{3,10}-20261007, baseline policies-l{3,10}.
+
+Current paid earned48/168h: D13 seed1 long/short16/16h, seed3=48/8,seed5=48/8:
+ALL6PASS48h. Mastery1long168h and1short152h, other4miss7days/L9. All6 Tier0
+actually clear within7days at128/144/128/80/136/88h, then explicitly restart
+owned descents at check-in, reaching playedD34. Seed5long slower than prior16h;
+no universal speedup. Data gunner-reload-retreat-paid{48,168}-20261007, paid
+choices unchanged/no grants. Earlier five-of-six/one136h numbers superseded.
+
+Full quick670corePASS/oneignored,14toolsPASS,115s; workspace/alltarget fast
+clippyPASS. Rebuilt realWASM5481152bytes. Six earned send/10000tick/full save
+nativeWASM exact, shots31/58,36/44,59/56 and completions31/26,35/20,59/25.
+Four full8h active-reload parity cases PASS: both guns one/threebloodlines;
+extra slots are legally bought Fighters, not three earned Gunners. Whole,
+half-hour, uneven/save-reload: every report/fullsave exact nativeWASM and final
+variants exact. Actual one-tick L3 close-pack retreat positive nativeWASM exact:
+long tick40 x4→3 deadline50/20; short tick30 y6→5 deadline35/15. Controlled
+fixtures, not earned progression. Old6save/event+2numbered fixtures exact.
+Equal-work native256alternating samples pergun vs retained50016d8 native-before
+(hash saved): real shots/aim/reload, identical fullStep/save; long+1.41%,short
++1.98% dispatch medians incl serialization, no transport/load. Excludes new
+intentional close-retreat work; not a universal/fresh shipping perf audit.
+Evidence scripts/results under gunner-reload-retreat-qa-20261007.
+
+Actual screenshot caught remaining automatic rules in plain log and ordinary
+Gunner✗no target fallthrough warnings. TS now suppresses automatic handler logs
+and routine fallback warnings in watch/render, retains authored fire refusals,
+actual shot/aimed/burst/finisher names and selected rules; whitelist real reload/
+completion/aim/Smoke callouts; hit/hurt dedup and basic colours intact. Native
+truth/events unchanged by display cleanup. Focused gun/HUD/clock/log63, combat
+rule coalescing30 and end-caption19 assertions PASS3/3 after this edit; latest
+TS/copy1721zero/buildPASS.
+Headed actual earned worker1440/400/320 QA: no overflow/errors/tap tips. Initial
+QA transient interstitial click raced animation/intercepted, log retained;
+use stable pause after card naturally hides, not forced clicks. Latest desktop
+and phone checkpoints shown to owner; ownQA5375 closed/shared5219 preserved.
+
+Next: Tier5 preparations/owned descent climbs, action art/readability, full
+class choice/death/replay UI and routine18-case acceptance before public class
+exposure. UI_READY=false, no deployment.95fun active/unverified. Do not equate
+these controlled/scoped checks with full A–E or actual fun evaluation.
+
 **CUT35 CHOSEN POLICY ACTS / FULL EARNED HORIZON / ACTIVE-RELOAD PARITY — 2026-10-07 (PARTIAL):**
 
 Moved automatic class:gunner below selected tactics/temperaments, above generic

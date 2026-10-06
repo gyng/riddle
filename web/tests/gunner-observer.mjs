@@ -32,7 +32,22 @@ try { for (const width of [320,400,1440]) {
   check(!r.caption,'automatic handler never shows implementation caption');
   r.apply([{k:'rule',t:t+2,row:1,verb:{v:'fire'},text:'fire rat'}]);r.seek(t+2);
   check(!!r.caption,'explicit fire row retains action caption');
+  r.apply([{k:'callout',t:t+3,text:'Gunner ✗ no target'}]);r.seek(t+3);check(!r.callout,'ordinary gun fallback never warns over the map');
+  r.apply([{k:'callout',t:t+4,text:'fire ✗ no target'}]);r.seek(t+4);check(!!r.callout,'explicit fire refusal remains observable');
   const {verbLabel}=await import('/src/ui/tokens.ts');check(verbLabel({v:'gunner_tactic'})==='Gun handling','readable meter/rule label');
+  const {combatLogEvents,gunShotText}=await import('/src/ui/combat-log.ts');
+  const actual=[{k:'rule',t,row:0,verb:{v:'gunner_tactic'},text:'always → Gunner'},
+   {k:'rule',t,row:1,verb:{v:'fire'},text:'chosen fire'},
+   {k:'callout',t,text:'aim steady'},{k:'callout',t,text:'reloading'},{k:'callout',t,text:'loaded'},
+   {k:'callout',t,text:'unrelated flavour'},
+   {k:'attack',t,src:snapshot.hero.id,dst:99,hit:true,dmg:7,verb:'close_burst'},
+   {k:'hurt',t,id:99,dmg:7,cause:'hero'}];
+  const log=combatLogEvents(actual,snapshot.hero.id,new Map());
+  check(!log.some(e=>e.k==='rule'&&e.verb.v==='gunner_tactic'),'automatic handler removed from plain log');
+  check(log.some(e=>e.k==='rule'&&e.verb.v==='fire'),'explicit chosen fire retained in log');
+  check(log.filter(e=>e.k==='callout').length===3,'actual aim/reload/completion retained without flavour flood');
+  check(log.filter(e=>e.k==='attack').length===1&&!log.some(e=>e.k==='hurt'),'burst damage remains once');
+  check(gunShotText(log.find(e=>e.k==='attack').verb)==='burst','actual burst is named');
   g.el.remove();return n;
  });
  if(errors.length)throw Error(errors.join('\n'));console.log(width,count,'gun picture-clock/seek/HUD checks PASS');await page.close();

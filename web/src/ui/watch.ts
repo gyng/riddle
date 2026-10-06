@@ -118,7 +118,7 @@ import { enemyHost } from "./enemy-tips";
 import { unitLabel } from "./unit-icon";
 import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
-import { combatLogEvents, telegraphText } from "./combat-log";
+import { combatLogEvents, gunShotText, telegraphText } from "./combat-log";
 import { tacticObserver } from "./tactic-observer";
 import type { App, Mounted } from "../app";
 import { gunStatus } from "./gun-status";
@@ -457,13 +457,14 @@ export function renderWatch(app: App): Mounted {
     const who = (id: number): string => names.get(id) ?? (id === heroId ? /* copy:label */ "Hero" : /* copy:label */ "Foe");
     const damage = (amount: number, id: number): HTMLElement => h("span", { class: amount < 0 ? "log-heal" : id === heroId ? "log-hurt" : "log-damage" }, `${amount < 0 ? "+" : "−"}${Math.abs(amount)} hp`);
     const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, itemIcon({kind:name, label:name}, {size:"xs"}), name);
-    if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · `, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
+    if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · ${ev.src === heroId && gunShotText(ev.verb) ? `${gunShotText(ev.verb)} ` : ""}`, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
     else if (ev.k === "hurt") text = [`${who(ev.id)} · ${ev.cause.replace(/_/g, " ")} `, damage(ev.dmg, ev.id)];
     else if (ev.k === "heal" || ev.k === "recover") text = [`${who(ev.id)} · ${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id)];
     else if (ev.k === "telegraph") text = [h("span", { class: "log-warning" }, `${who(ev.id)} · ${warningText ?? ev.what}`)];
     else if (ev.k === "die") text = [h("span", { class: "log-fell" }, `${who(ev.id)} · fell`)];
     else if (ev.k === "use") text = [item(ev.item), ` · ${ev.outcome}`];
     else if (ev.k === "pickup") text = [`${who(ev.id)} · `, item(ev.item)];
+    else if (ev.k === "callout") text = [ev.text];
     else if (ev.k === "rule" && ev.row >= 0) text = [ev.text];
     else if (ev.k === "descend") { logDepth = ev.depth; text = [h("span", { class: "log-floor" }, /* copy:callout */ `Floor ${ev.depth}`)]; }
     else if (ev.k === "exit") text = [ev.line?.text ?? `${ev.tier} · $${ev.loot_kept}`];
@@ -992,7 +993,7 @@ export function renderWatch(app: App): Mounted {
         case "gun": at(ev.t, () => { playedGun = ev.state; paintGun(); }); break;
         // Cut 10 §3: the core's companion-death callout (`Ashar fell`) gets its kind in front: `jackal Ashar fell`
         case "callout": {
-          if (ev.text === "explore") break;
+          if (ev.text === "explore" || /^Gunner\s+✗/.test(ev.text)) break; // Default gun handling yields to chores without a warning.
           // Cut 26 §2: once a floor. QA 308f045 (qaAD: `TWO STAIRS` seen once in ten runs, inside a `▶▶|`; fights and fast runs crossed D4 → D5
           // without it): the fork is a beat, cut in as the situations are (the fight frame, its line), in every mode — not a callout the mode drops
           if (/^two stairs$/i.test(ev.text)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); beatAt(ev.t, /* copy:callout */ "TWO STAIRS"); } break; }

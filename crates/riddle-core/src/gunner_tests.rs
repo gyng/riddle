@@ -222,7 +222,7 @@ fn default_smoke_during_dangerous_reload_spends_action_without_shortening_timer(
         let mut g=arena("long_gun",level);foe(&mut g,5,5);assert!(act(&mut g,"fire"));assert!(act(&mut g,"reload"));
         {let r=g.run.as_mut().unwrap();r.hero.max_hp=30;r.hero.hp=hp;}
         let from=g.run.as_ref().unwrap().hero.pos;assert!(act(&mut g,"gunner_tactic"));
-        assert_eq!(g.run.as_ref().unwrap().hero.pos,from);assert_eq!(g.run.as_ref().unwrap().monsters[0].blind,0);
+        assert_ne!(g.run.as_ref().unwrap().hero.pos,from,"ordinary reload retreat is distinct from smoke");assert_eq!(g.run.as_ref().unwrap().monsters[0].blind,0);
     }
 }
 
@@ -276,5 +276,35 @@ fn chosen_temperament_retreats_before_automatic_fire_and_during_reload() {
         let r=g.run.as_ref().unwrap();assert_ne!(r.hero.pos,from);assert_eq!(r.gun_reload,timer);
         assert_eq!(r.hero.weapon.as_ref().unwrap().firearm,ammo);
         assert!(!events.iter().any(|e|matches!(e,Ev::Attack{..})));
+    }
+}
+
+
+#[test]
+fn reload_retreat_spends_scheduled_action_and_keeps_absolute_completion() {
+    let mut g=arena("long_gun",1);foe(&mut g,5,5);
+    crate::tests::rules(&mut g,vec![Row::new(vec![],Verb::new("gunner_tactic"))]);
+    assert!(act(&mut g,"fire"));assert!(act(&mut g,"reload"));
+    let r=g.run.as_ref().unwrap();let from=r.hero.pos;let at=r.gun_reload.unwrap().at;
+    assert_eq!(at,20);g.events.clear();let events=crate::tests::ticks(&mut g,10);
+    let r=g.run.as_ref().unwrap();assert_ne!(r.hero.pos,from);assert_eq!(r.gun_reload.unwrap().at,at);
+    assert_eq!(r.hero.weapon.as_ref().unwrap().firearm.unwrap().loaded,0);
+    assert_eq!(r.monsters[0].blind,0);assert_eq!(r.gun_skills.as_ref().unwrap().smoke_ready,0);
+    assert_eq!(events.iter().filter(|e|matches!(e,Ev::Move{id,..} if *id==crate::engine::HERO_ID)).count(),1);
+    assert!(!events.iter().any(|e|matches!(e,Ev::Attack{..})));
+    crate::tests::ticks(&mut g,9);let before=g.save();assert!(!act(&mut g,"fire"));assert_eq!(g.save(),before);
+    let mut restored=Game::load(&before).unwrap();restored.sim=true;
+    let a=crate::tests::ticks(&mut g,1);let b=crate::tests::ticks(&mut restored,1);assert_eq!(a,b);assert_eq!(g.save(),restored.save());
+    assert!(a.iter().any(|e|matches!(e,Ev::Callout{text,..} if text=="loaded")));
+    assert!(a.iter().any(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="fire")),"ordinary shot becomes legal only at the original deadline");
+}
+
+#[test]
+fn reload_retreat_waits_when_blocked_and_leaves_distant_reload_quiet() {
+    for blocked in [false,true] {
+        let mut g=arena("long_gun",1);foe(&mut g,if blocked {5}else{7},5);
+        assert!(act(&mut g,"fire"));assert!(act(&mut g,"reload"));
+        if blocked {let r=g.run.as_mut().unwrap();for q in r.hero.pos.neighbours8(){r.floor.map.set(q,crate::tiles::Tile::Wall);}}
+        let before=g.save();assert!(act(&mut g,"gunner_tactic"));assert_eq!(g.save(),before,"no legal close step means a quiet wait, no RNG/ammo/timer mutations");
     }
 }

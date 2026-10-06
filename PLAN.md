@@ -44,9 +44,10 @@ long/short guns, chambers and reload timing (`docs/CUT35_GUNNER.md`). Fifth clas
 aim/burst/smoke/fast reload/finisher are implemented, with forge choices and
 portrait/sprite. Compact played chamber/reload/aim watch and death-trace replay
 indicators have scoped real-worker QA. Public class offers remain hidden:
-normal earned paid-upkeep paths currently pass D13 within48h on five of six
-seed/gun cases; seed1 long reaches D13 at56h and mastery136h, while the other
-five miss seven-day mastery. Chosen tactics/temperaments now precede automatic
+normal earned paid-upkeep paths now pass D13 within48h on all six seed/gun
+cases; two seed1 builds master at168/152h and the other four miss seven-day
+mastery. All six clear Tier0 within seven days. Ordinary reload retreat preserves
+actual action costs/deadlines; paired fixtures verify distinct gun/bow strengths. Chosen tactics/temperaments now precede automatic
 gun handling, with actual empty-gun refusal/reload fallthrough. Initial-kit/Tier5 balance,
 action icons and full parity/performance acceptance remain open. Earlier bow-
 override progression claims were corrected; see CUT35/HANDOFF. No deployment.

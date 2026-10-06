@@ -476,6 +476,7 @@ export class ReplayState {
         this.fadeTarget = EXIT_DIM;
         break;
       case "callout":
+        if (/^Gunner\s+✗/.test(ev.text)) break; // Ordinary automatic fallback is not a combat failure.
         if (ev.text === "choose one") break;   // Cut 19 §1: the cage is the watch's beat (`took mail`), never a `CHOOSE ONE` over the hero
         // Cut 22 (AH: the boss moment's "clutter of overlapping text"): a boss's break is the watch's beat (`WARLORD BREAKS` on the line
         // under the fight) — one line wins, never a second `WARLORD BREAKS` over the hero at once

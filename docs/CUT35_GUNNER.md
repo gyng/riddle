@@ -11,9 +11,10 @@ indicators are implemented with scoped real-worker QA. Public class offers remai
 the complete acceptance checks pass. Initial campaign source had an explicitly
 selected bow; earlier gun-progression claims are superseded below. Corrected
 actual-kit campaigns verify real guns firing/reloading. Normal earned paid-upkeep
-campaigns initially reached D13 within48h on all six cases. After fixing chosen
-tactic/temperament precedence, five pass; seed1 long reaches D13 at56h and
-mastery at136h. Other five miss seven-day mastery. Initial kits still expose early failures. Preserve failures
+campaigns initially reached D13 within48h on all six cases. After chosen
+policy and reload-retreat fixes, all six pass48h; two owned seed1 builds master
+at168/152h. The other four miss seven-day mastery. All six clear Tier0 within
+seven days. Initial kits still expose early failures. Preserve failures
 and continue tuning/full acceptance. No deployment.
 
 ## Identity and progression
@@ -361,3 +362,71 @@ mastery136h; other five D13=16/48/8/16/8h, mastery misses L9/7/9/9/8.
 Chosen Boss focus or no temperament does not fix seed1long48h. Preserve those
 failures; no gate weakened. Current sources gunner-chosen-policy-paid{48,168}
 -20261007. Earlier six-of-six claims describe their earlier recorded runtime.
+
+
+## Close-threat shot experiment — 2026-10-07
+
+Hypothesis: automatic long-gun preparation spends an exposed action when a
+hostile is already adjacent. Trial suppresses automatic preparation at adj>0,
+retaining explicit aimed_shot, already committed aim, shot damage/range,
+chambers,20tick reload, safety and selected-policy precedence. No stat/XP grants.
+Compare paid48h seeds1/3/5, both guns against50016d8. Positive controlled checks
+must show adjacent automatic fire consuming one chamber, distant preparation
+spending one action, authored adjacent preparation still legal. Preserve failed
+trials; accept only with evidence of useful balance, not just passing code tests.
+
+First trial rejected: skipping all adjacent preparation passes seeds1/3 long
+at40/8h but regresses seed5 long to FAIL48h. Data close-aim-paid48-20261007.
+Narrower trial: only skip preparation under adjacent threat when target HP is
+within an ordinary maximum shot after armour; sturdy foes still prepare.
+Damage/range/reload and authored aim remain unchanged. Test covers both close
+weak and strong cases plus an already prepared foe closing, not just a fire call.
+
+Second trial also rejected: narrow normal-max finishing rule makes both seed1
+and seed5 long fail48h (seed3 passes48h), versus baseline5/6. Code/tests patches
+preserved under gunner-close-aim-20261007; production restores50016d8 policy.
+No accepted combat-policy improvement from these trials. Stop guessing against
+three campaign seeds; measure controlled gun/Ranger matchups next to identify
+where preparation/range/reload tradeoffs actually pay. Native baseline retained
+in native-before (hash recorded) for scoped equal-work future comparisons.
+
+
+Controlled comparison contract: permanent gunner_matchups records per-seed
+clears/time/damage/shots/reloads/aims for long gun, short gun and Ranger bow.
+32 paired seeds, L3 first, open24x14, equal light and class-level HP/attack;
+no forged kit, armour, heals or Legacy. Fixtures explicitly declare modified
+foe HP/armour and are not earned campaign proof. Living enemies use actual AI;
+no stuns. Death, exit and1200tick timeout fail. Ranger uses real level-gated
+kite/volley/double-shot/shoot, Gunner its actual class handler. Report clear
+count and time/damage conditional on clears separately; do not hide failures
+inside a median or claim fixture success certifies default progression/Tier5.
+
+Ranger policy audit: the first kite-first fixture has0/32 close-pack clears even
+atL10, so comparing guns only against it would exaggerate their strength.
+Retain the original artifacts; permanent driver now reports both sustained bow
+(volley/double-shot/shoot) and kite-first bow explicitly. Neither is a claim of
+an optimal Ranger build. A bow win against both guns is required for the scoped
+non-dominance observation, not a weak kite-only comparator.
+
+
+Reload-step trial: close-pack fixtures reveal the long gun's vulnerable wait.
+During an active reload only, default class handling may spend its scheduled
+action on ordinary retreat when a hostile is adjacent. No free movement on the
+reload-start action; no fire/refill/timer change, no added range/stat or new
+save field. Safety/authored/chosen rows retain precedence. Existing earned L5
+Smoke remains separate and higher priority; normal movement has no blindness
+or cooldown grant. Blocked steps wait. Positive full-save/action/deadline tests,
+paired32-seed arenas and all six paid48h campaigns decide whether to retain it.
+
+
+Reload-retreat accepted checkpoint: earned paid D13 long/short seed1=16/16h,
+seed3=48/8h, seed5=48/8h, all6PASS48h. One longer first gate than baseline is
+preserved: seed5long16→48h. Mastery1long168h/1short152h, other4L9miss; all6
+actual Tier0 clears128/144/128/80/136/88h. No grants/relaxed numeric gate.
+Controlled L3 close-pack long27/32vs21,short32vs30; long clears more safely but
+slower130vs100ticks. L10 median armour90/170/330, close90/30/70, cross50/80/40
+(long/short/sustained bow); each gun has a win and bow does not lose everywhere.
+Full670tests and old fixtures pass; four8h one/three-slot positive-reload parity
+cases and two actual one-tick retreat nativeWASM cases exact. Scoped equal-work
+native firing/reload overhead+1.41/+1.98%, intentional new retreat work excluded.
+Artifacts and limitations in HANDOFF. Tier5/action art/full UI/routine gate open.

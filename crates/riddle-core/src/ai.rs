@@ -1536,7 +1536,12 @@ fn gunner_tactic(run:&mut Run,cx:&mut Ctx,v:&View)->bool {
     // Safety/player rows still run first; no free movement or implicit ammo refill.
     let hp_pct=run.hero.hp*100/run.hero.max_hp.max(1);
     if v.adj>0&&hp_pct<35&&(run.gun_reload.is_some()||chambers.loaded>0)&&smoke_gun(run,cx,v) {return true;}
-    if run.gun_reload.is_some() {return true;}
+    if run.gun_reload.is_some() {
+        // Spend the otherwise idle action on ordinary breathing room. This
+        // neither completes the reload nor adds Smoke's blindness/cooldown.
+        if v.adj>0 {verb_retreat(run,cx,v);}
+        return true;
+    }
     if chambers.loaded==0 {return crate::firearm::reload_fast(run,cx)||crate::firearm::reload(run,cx);}
     if v.foes.is_empty() {return false;}
     let sel=if v.foes.iter().any(|&i|run.monsters[i].is_boss()&&run.monsters[i].pos.cheb(run.hero.pos)<=p.range) {"tag:boss"}else{"nearest"};

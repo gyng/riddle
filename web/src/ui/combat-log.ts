@@ -5,6 +5,17 @@ export function telegraphText(kind: string | undefined, what: string): string {
   return what === "rallies" && (kind === "goblin_warlord" || kind === "goblin_captain") ? /* copy:callout */ "calls goblins" : what;
 }
 
+/** Actual firearm attacks, rather than the automatic handler's implementation name. */
+export function gunShotText(verb: string | undefined): string | undefined {
+  switch (verb) {
+    case "fire": return /* copy:label */ "shot";
+    case "aimed_shot": return /* copy:label */ "aimed shot";
+    case "close_burst": return /* copy:label */ "burst";
+    case "finishing_shot": return /* copy:label */ "finisher";
+    default: return undefined;
+  }
+}
+
 /** The overlay describes an unchanged hit once. Rust's hurt amount may differ
  * after counters/shields, so matching the attack alone is insufficient. */
 export function combatLogEvents(events: readonly Ev[], heroId: number, kinds: ReadonlyMap<number, string>): Ev[] {
@@ -12,6 +23,11 @@ export function combatLogEvents(events: readonly Ev[], heroId: number, kinds: Re
   const rows: Ev[] = [];
   const key = (tick: number, victim: number, damage: number, cause: string): string => `${tick}:${victim}:${damage}:${cause}`;
   for (const ev of events) {
+    if (ev.k === "rule" && ev.verb.v === "gunner_tactic") continue;
+    if (ev.k === "callout") {
+      if (["reloading", "loaded", "aim steady", "aim lost", "smoke retreat"].includes(ev.text)) rows.push(ev);
+      continue;
+    }
     if (ev.k === "attack" && ev.hit && ev.dmg > 0) {
       const cause = ev.src === heroId ? "hero" : kinds.get(ev.src);
       if (cause) {

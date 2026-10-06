@@ -1,3 +1,20 @@
+**FAST FIREARM CONTENT CHECK — 2026-10-07:** gunner_matchups runs384
+controlled cases (32 paired seeds ×3 arenas ×4 explicit gun/bow policies) per
+level, with clear counts, conditional time/harm medians, paired wins and full
+seed1 start/end/events. Examples/gunner_campaign separately reuses normally
+earned camps via --from, filters --seed/--gun and records explicitly owned
+--tactic/--temperament choices. Use the fixture table to reject bad cadence/range
+ideas before doing six earned48h campaigns; mastery still needs168h. Both are
+diagnostics, never substitutions for the routine/exhaustive gates or human fun
+score. Failed close-aim trials preserved, actual reload-retreat improvement
+measured against their retained baseline; see CUT35/HANDOFF.
+
+```sh
+cargo build -q --profile fast -p riddle-core --example gunner_matchups --example gunner_campaign
+target/fast/examples/gunner_matchups NEW_OUT_DIR --level 3
+target/fast/examples/gunner_campaign NEW_OUT_DIR --from EARNED_CAMPS --upkeep --hours 48 --seed 3 --gun long_gun
+```
+
 **DEFAULT LOCAL UI PARALLELISM — 2026-10-06:** Full UI132 checks restored,
 then measured unchanged a2e780f in quiet serial/split/split/serial order:
 serial132.6/132.5s, split41.3/38.9s, all green. Median132.5→40.1s,69.73%
