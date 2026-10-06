@@ -44,3 +44,7 @@ passes only watch:true to renderBar, whose repaint reads the newly inherited
 Lineage.heir. Next: retain the viewed run's identity across that refresh and
 verify real-WASM final-frame behavior. Full client suite remains uncertified.
 No game truth, balance, player UI, WASM build or deployment changed in this pass.
+
+Follow-up: watch identity fixed in UX_WATCH_HERO_IDENTITY.md. The original full
+ui command now passes all132 checks in135.4s. Its default coverage remains all
+six sections; targeted sections still do not certify the full client suite.

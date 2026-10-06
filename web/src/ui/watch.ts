@@ -397,7 +397,8 @@ export function renderWatch(app: App): Mounted {
   // Cut 17: along the console's top edge
   const scrubHead = h("div", { class: "head" }), scrubDot = h("div", { class: "dot" });
   const scrub = h("div", { class: "scrub", hidden: true }, scrubHead, scrubDot);
-  const bar = renderBar(app, { watch: true });
+  // The exit's explicit resource repaint must still name the hero in this replay.
+  const bar = renderBar(app, { watch: true, heir: app.lineage.live?.heir ?? app.lineage.heir, trait: app.lineage.trait });
   const busyHost = h("span", { hidden: true });   // the engine's busy label at the end (the next gem says it): not in the corner
   // Cut 29 §3: the compact meter over the stage (the fight in progress, else the run so far), toggled from the command card and
   // remembered per viewer; the desktop's right column carries the run's whole breakdown

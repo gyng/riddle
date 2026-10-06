@@ -1,3 +1,18 @@
+**WATCH FINAL-FRAME IDENTITY — 2026-10-06:** Explicit exitbar.paint reread
+nextheir despite freeze. Bar now captures mountedliveheir orselectedheir +trait;
+current resources/exit flow unchanged. Originalframe63checks nowgreen; full
+legacyui132checks135.4s, watchconsole/metersgreen; priorfive watchstatus/log/
+deathhero/slotlooks/frame26.7s green. Build/typecheck/copy1562/diffclean; WASM
+85366c7b… unchanged. ActualheadedWASM earnedseed3 legalBold run66 diesD6:
+400/1440 engine2→3, watchedheader2nd, gold8443matchesrefresh, no pageerrors/
+overflow. Held onlyverdictpresentation forcapture, thenrealdeathscreen2nd while
+lineage3; screenshots shown. ContractUX_WATCH_HERO_IDENTITY.md, scratchpad/watch-
+identity-20261006/. InitialQA ordinalassertincorrect2th fixedcanonicalheirOrd;
+repeatedboth. No core/balance/deploy. Preview5419 cleaned; shared5219 preserved.
+Broadgoalactive; next observedphone finalcause text overlapscombatlog atbottom:
+fixspacing preservingplainoverlay andcause, thencontinuegameplay evidence.
+Fullclient suite notcertified bytargeted/legacyui checks.
+
 **LEGACY UI PATHS + TARGETED ITERATION — 2026-10-06:** cut21 shelf now
 enginebacked establishedcamp and actualhealrule;19checks pass. ui firstadvanced
 hidden, currentHeroChronicle/Class/Edit/Speed navigation, currentcopy/numeric
