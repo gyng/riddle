@@ -1,3 +1,19 @@
+**WATCH MESSAGE SPACING — 2026-10-06:** Phone endcause overlappedlog from
+independentbottom offsets. Transparentflexstack nowholds tip/ticker/cause/log,
+wrappedheight +8px gaps; inactive/suppressedfight/cut/emptylog rows collapse.
+Existingcolours/3visible80retainedhistory/pointerhandlers preserved. Renderer
+keepout includescause; no perframe layoutread/state/wire/Rust changes. New
+320/400/1440 tests wrapped4rows/gaps/bounds/plainstyles/hide/ticker/historywheel/
+Speed; fivewatchsuites27.8s, QA41/stall3/meters24.5s pass. Finalnew+console14.1s
+passafterhiddenrowedit; build/typecheck/copy1562/diffclean, existingbundleadvisory.
+ActualheadedWASM seed3 ownedBold run66D6death400/1440:8px gap, no errors/overflow,
+header2nd/engine3rd/gold8443; heldonlyverdictpresentation forcapture thenreleased.
+Screenshots shown. UX_WATCH_MESSAGE_SPACING.md; scratchpad/watch-message-spacing-
+20261006/. WASM unchanged. No deploy. Preview5421 cleaned/shared5219 preserved.
+Broadgoalactive; next localiterationspeed: consider defaultui partparallelism
+now all132legacychecks are restored, measure quiet paired runs first; then
+broader stance/gameplay evidence beforetuning. Fullclientsuite notcertified.
+
 **WATCH FINAL-FRAME IDENTITY — 2026-10-06:** Explicit exitbar.paint reread
 nextheir despite freeze. Bar now captures mountedliveheir orselectedheir +trait;
 current resources/exit flow unchanged. Originalframe63checks nowgreen; full

@@ -478,7 +478,7 @@ export function renderWatch(app: App): Mounted {
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
-      meterBox, banner, ticker, whyLine, whyTip, combatLog),
+      meterBox, banner, h("div", { class: "watch-messages" }, whyTip, ticker, whyLine, combatLog)),
     cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
@@ -1395,7 +1395,7 @@ export function renderWatch(app: App): Mounted {
     const c = canvas.getBoundingClientRect();
     const els: Element[] = [...el.querySelectorAll(".hud.top > *"), combatLog];
     if (!foldLine.hidden && foldLine.classList.contains("docked")) els.push(foldHead, ...foldChips.children);
-    for (const x of [banner, ticker, whyTip]) if (x.classList.contains("show")) els.push(x);
+    for (const x of [banner, ticker, whyLine, whyTip]) if (x.classList.contains("show")) els.push(x);
     const rects: { x: number; y: number; w: number; h: number }[] = [];
     for (const x of els) {
       if ((x as HTMLElement).hidden) continue;

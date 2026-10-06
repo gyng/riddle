@@ -155,8 +155,17 @@ button.re-body { cursor: pointer; }
 .watch .log-warning { color: #edb978; }
 .watch .log-fell { color: #c5b9b0; }
 .watch .log-floor { color: #bdd7bb; }
-.watch .ticker { bottom: 74px; }
-.watch .why-line, .watch .why-tip { bottom: 106px; }
+/* One transparent stack lets wrapped causes and history share the map safely. */
+.watch .watch-messages { position: absolute; left: 12px; right: 12px; bottom: 8px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 8; pointer-events: none; }
+.watch.frame .watch-messages > :is(.ticker, .beat-why, .why-tip, .combat-log) {
+  position: static; inset: auto; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.watch.frame .watch-messages > :is(.ticker, .beat-why, .why-tip):not(.show),
+.watch .combat-log:has(.combat-lines:empty) { display: none; }
+.watch .watch-messages > .ticker.cut,
+.watch[data-frame="fight"] .watch-messages > .ticker.show:not(.hurt):not(.ambient):not(.beat):not(.rule) { display: none; }
+.watch .watch-messages .ticker, .watch .watch-messages .beat-why { padding: 0; }
+.watch .watch-messages .combat-log { pointer-events: auto; }
 .watch .hud .live-badge { font-size: 13px; border-radius: 3px; }
 .watch-options .chips { margin: 12px 0 20px; }
 .report-summary h2 { margin: 0 0 18px; color: var(--bone); font-size: 25px; font-weight: 400; }
