@@ -326,7 +326,13 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
   let off = (): void => {};
   openSheet(() => {
     const body = h("div", { class: "sheet-body hero-sheet" });
-    const identity = (): string => JSON.stringify([app.lineage.selected_bloodline, app.lineage.heir, app.lineage.class, app.lineage.look, app.lineage.hero_slots?.find((s) => s.id === app.lineage.selected_bloodline)?.hero_name]);
+    const identity = (): string => {
+      const L = app.lineage;
+      return JSON.stringify([L.selected_bloodline, L.heir, L.class, L.look,
+        L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name,
+        L.bloodline, L.legacy_upgrades, !!L.live, L.classes?.[L.class],
+        L.hero_legacy?.find((h) => h.heir === L.heir)]);
+    };
     let painted = "";
     const paint = (): void => {
       painted = identity();
@@ -343,11 +349,15 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
         h("div", { class: "legacy-upgrades" }, ...(L.legacy_upgrades ?? []).map((u) =>
           h("section", { class: "legacy-upgrade", "data-upgrade": u.id },
             h("span", { class: "icon-socket" }, icon(({health:"v_drink",damage:"v_attack",armour:"v_shield"} as Record<string,string>)[u.id] ?? "unlocks", "✦")),
-            h("div", { class: "upgrade-copy" }, h("b", null, u.id), h("small", { class: "dim num" }, ` ${u.rank}/${u.cap} · ${u.effect}`)),
+            h("div", { class: "upgrade-copy" }, h("b", null, u.id),
+              h("small", { class: "upgrade-rank dim num" }, /* copy:label */ `Rank ${u.rank}/${u.cap}`),
+              u.rank < u.cap ? h("small", { class: "upgrade-next dim num" }, /* copy:label */ "Next", ` ${u.effect}`) : null),
             h("button", { class: "chip legacy-buy", disabled: !u.affordable || !app.engine.upgradeHero, "data-upgrade": u.id,
+              "aria-label": u.rank >= u.cap ? /* copy:label */ `${u.id} complete` : /* copy:label */ `Upgrade ${u.id}`,
+              "aria-description": u.rank < u.cap ? `${u.price} Legacy` : undefined,
               onclick: (e: Event) => {
-                (e.currentTarget as HTMLButtonElement).disabled = true;
-                if (app.engine.upgradeHero) void app.mutate(() => app.engine.upgradeHero!(u.id), /* copy:callout */ "Upgraded").then(() => { if (body.isConnected) paint(); });
+                const button = e.currentTarget as HTMLButtonElement; button.disabled = true;
+                if (app.engine.upgradeHero) void app.mutate(() => app.engine.upgradeHero!(u.id), /* copy:callout */ "Upgraded").then(() => { if (body.isConnected && (identity() !== painted || button.isConnected)) paint(); });
               } }, u.rank >= u.cap ? /* copy:button */ "Complete" : /* copy:button */ `Upgrade ${u.price}`, h("small", null, /* copy:label */ "Legacy"))))),
         h("div", { class: "hero-actions" },
           h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, /* copy:button */ "Change class"),

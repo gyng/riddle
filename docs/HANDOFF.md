@@ -1,3 +1,20 @@
+**LEGACY GAMEPLAY + UPGRADE FEEDBACK — 2026-10-06:** Earned seed1/3/5 towns:
+none/health3/armour3/damage3/all3 via legal core purchases (18single/54all),
+Steady/Bold next8h:30 native cases exactly equal WASM complete reports/rawsaves;
+all artifact/inputSHA verified; unchanged six controls reproduce prior audit.
+Damage lets seed3 BoldD18/$4660 vsD13/$0; full upgrades seed3D18/$6170 and
+seed5D20/$2377/Lich. Still9/10 and8/9deaths; no universalranking/nerf from3towns.
+Steady full upgrades improves depth/gold all3. Warmnative batch0.54–1.29s.
+Actualhero sheet exposed ambiguous rank/effect and repeatedaccessible actions;
+now Rank/Next distinct, own upgrade names/price descriptions. Also fixed stale
+sheet: watches points/offers/away/classprogress/currenthistory besides identity,
+preserves Details, turn-only no repaint, refusedbuy re-enables.5UI suites pass
+7.9s; build/typecheck/copy1560/diff clean. ActualWASM400/1440 open no savewrite,
+health88→85Legacy/rank1/nextprice6/goldunchanged; screenshots shown. Contracts
+GAMEPLAY_LEGACY_CHOICE_AUDIT.md +UX_LEGACY_UPGRADE_FEEDBACK.md;
+scratchpad/legacy-choice-20261006/. No core/balance/newart/WASM/deploy. Broadgoal
+active; broader stance evidence beforecontent edits and away sustainbudget audit.
+
 **RECOVERY/SUPPLY GAMEPLAY EXPERIMENT — 2026-10-06:** Followed earlystyle
 seed1/3/5 immutable towns. Bold heal25/35/45 crossed with original/legal-filled
 packs;18 native two-case batches/36absences plus6 WASM supplied cases. All6
