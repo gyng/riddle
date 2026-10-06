@@ -12,6 +12,7 @@ export const CLASS_VERBS: Record<string, Record<number, string[]>> = {
   rogue:   { 1: ["vanish", "throw"], 3: ["backstab"], 5: ["smoke"], 7: ["ambush"], 9: ["shadowstep"] },
   ranger:  { 1: ["shoot", "kite"], 3: ["volley"], 5: ["trap"], 7: ["mark"], 9: ["double_shot"] },
   caster:  { 1: ["bolt", "ward"], 3: ["blink"], 5: ["slow"], 7: ["nova"], 9: ["drain"] },
+  gunner:  { 1: ["fire", "reload"], 3: ["aimed_shot", "close_burst"], 5: ["smoke_retreat"], 7: ["fast_reload"], 9: ["finishing_shot"] },
 };
 export function verbsUpTo(cls: string, level: number): string[] {
   const t = CLASS_VERBS[cls] ?? {}; const out: string[] = [];

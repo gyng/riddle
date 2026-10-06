@@ -248,5 +248,6 @@ export const supplyCap = (owned: string[]): number => (owned.includes("supply_ca
  *  catalogue. `owned` = the free class or its unlock bought. */
 export function classList(L: Lineage, catalogue: UnlockInfo[] = []): { cls: string; owned: boolean; level: number }[] {
   const ids = new Set<string>([...CLASSES, ...Object.keys(L.classes ?? {}), ...catalogue.filter((u) => /^class:/.test(LABEL[u.id] ?? "")).map((u) => u.id)]);
-  return [...ids].map((cls) => ({ cls, owned: isFreeClass(cls) || L.unlocks.includes(cls), level: L.classes?.[cls]?.level ?? 1 }));
+  return [...ids].map((cls) => ({ cls, owned: isFreeClass(cls) || L.unlocks.includes(cls), level: L.classes?.[cls]?.level ?? 1 }))
+    .sort((a, b) => Number(b.cls === L.class) - Number(a.cls === L.class));
 }

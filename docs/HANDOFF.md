@@ -1,3 +1,36 @@
+**CUT35 ALL ACTION ART / SKILL CHIPS / VALID RULE SHARES — 2026-10-07 (PARTIAL):**
+
+Six action bitmap masters/packed96px icons complete; existing fire equipment
+icon used. Four new built-in images (reload,fast_reload,smoke,finish) truealpha,
+24/32px dark-background inspected; all117 prioricons pixel-identical. Sources/
+full prompts art/prompts/gunner-actions-20261007.md. Shared classSkillChip now
+used by both class pickers; Gunner display ladder added (was missing, initial
+QA caught zerochips). Activeclassfirst keeps all7Gunnerchips above the fold.
+CLASSES remains4/defaultcatalogue and coreUI_READY=false. Initial TS unused
+verbLabel removed. Actual earnedTier5 worker1440/400/320 all7icons/nooverflow/
+pageerror/tap tipsPASS; screenshots shown. Art QA under gunner-actions-final-
+20261007; temporary5375closed/shared5219preserved.
+
+Rule counts can exceed actions (guard/chore events in one action). Corewire and
+clientmerge now divide fires by ALLrule fires, preserving everycount/action and
+oldrawsaves. Rawactivation denominator, no clamp or sim-input change. Hover
+shows counts/denominator; desktopactualchores100% replaces113%. Coretest for
+multi-rule/action+restoredcounts; clientmerge3checks PASS. Fullquick672corePASS/
+oneignored,14toolsPASS108s; fastworkspace/alltargetclippyPASS; final TS/copy1721
+zero/buildPASS. Focused merge/Gunner2/2PASS. RealWASM5479094bytes. SixFULLearned
+Tier5 native/WASM event+save comparisons exact, each positive firing/reloading.
+Events long/short:1=7471/7052,3=6949/11053,5=6488/6427. Pre-change first10000
+tick gameplay events exact after removing only meters. No new generalperf/full
+current18gate certification. Preserved scripts/evidence gunner-meter-replays-
+20261007 and gunner-actions-final-20261007.
+
+Remaining seed5long actualTier5-after replay D18deathLich:5 reflected shots,
+no sidearm/gun-ready. Initialinv fire/heal/heal/leash; no carriedmelee; vaultonly
+bow. Existing correct sidearm counter requires carriedowned melee. Next make
+earned backup preparation accessible/observable; don't grantstats or bypass
+reflection to forcebaselinepass. Full classchoice/death/replay/initialkit+18gate
+acceptance stillopen. Current5/6Tier5pass retained. No deploy;95fun unverified.
+
 **CUT35 CHAINED-GATE FIX / EARNED TIER5 / AIM-BURST ART — 2026-10-07 (PARTIAL):**
 
 Authoritative new baseline/captive-fix descent results are in scratchpad/

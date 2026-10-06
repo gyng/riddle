@@ -44,6 +44,8 @@ export function icon(name: string, glyph = ""): HTMLElement {
  *  when the family's icon is not packed (the tablet then has no plaque). */
 const VERB_ICON: [RegExp, string][] = [
   [/^(fire|gunner_tactic)$/, "it_long_gun"], [/^aimed_shot$/, "v_gun_aim"], [/^close_burst$/, "v_gun_burst"],
+  [/^reload$/, "v_gun_reload"], [/^fast_reload$/, "v_gun_fast_reload"],
+  [/^smoke_retreat$/, "v_gun_smoke"], [/^finishing_shot$/, "v_gun_finish"],
   [/^riposte$/, "style_sentinel"], [/^hex$/, "style_hexbinder"],
   [/^(attack|cleave|backstab|flank|ambush|feint)$/, "v_attack"], [/^(shield_bash|bulwark|ward|taunt)$/, "v_shield"],
   [/^(drink|second_wind)$/, "v_drink"], [/^read$/, "v_read"], [/^(throw|trap)$/, "v_throw"], [/^(retreat|kite)$/, "v_retreat"],

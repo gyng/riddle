@@ -661,13 +661,14 @@ export type WallEdit = { depth: number; edits: string[]; rules: RuleSet; before:
 export type Fallen = { name: string; kind: string; level: number; depth: number; why: string; heir: number };
 /** Cut 29 §3 (core) — a meter (a fight, a run, a night): totals by side (`dealt`/`taken`: hero · pets · foes), per game second (`dps_*`),
  *  healing by source (`healed[].per_s`, `hps` all of it), the time split in ticks and seconds (fight · travel · chores · rest), each row's
- *  fires and share of the hero's actions (`row` 0-based; −1 a trait's or card's own step, −2 a chore), supplies used by kind, gold home
+ *  fires and share of all rule activations (`row` 0-based; −1 a trait's or card's own step, −2 a chore), supplies used by kind, gold home
  *  and per game minute, blows taken by the hero and by his pets, fights begun. Units: always print them (`12 dps`, `3 hp/s`, `$40/min`). */
 export type MeterSides = { hero: number; pets: number; foes: number };
 export type MeterWire = { seconds: number; dealt: MeterSides; taken: MeterSides; dps_dealt: MeterSides; dps_taken: MeterSides;
                           healed: { src: string; total: number; per_s: number }[]; hps: number;
                           time: { fight: number; travel: number; chores: number; rest: number }; time_s: { fight: number; travel: number; chores: number; rest: number };
-                          rows: { row: number; fires: number; share: number }[]; actions: number; supplies: { [kind: string]: number };
+                          rows: { row: number; fires: number; share: number }[]; // share of rule activations; several can belong to one action
+                          actions: number; supplies: { [kind: string]: number };
                           gold: number; gold_per_min: number; hits_hero: number; hits_pets: number; fights: number };
 export type SnapMeters = { run: MeterWire; fight?: MeterWire; fighting?: boolean };
 export interface Engine {

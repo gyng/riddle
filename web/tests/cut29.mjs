@@ -113,7 +113,11 @@ try {
       const a = base({ night_marks: 1, systems_opened: ["edit", "death"], oaths_kept: [{ kind: "card", id: "x", label: "slay Warlord" }], fallen: [{ name: "Greth", kind: "ogre", level: 5, depth: 12, why: "fell D12 to lurker", heir: 3 }], meters: meter(10, 30, 6, [[0, 3], [1, 1]], 40) });
       const b = base({ night_marks: 0, systems_opened: ["death", "exits"], fallen: [{ name: "Ashar", kind: "jackal", level: 2, depth: 4, why: "fell D4 to rat", heir: 4 }], meters: meter(30, 60, 0, [[1, 4], [2, 2]], 20) });
       const r = mergeReports(a, b);
-      return { marks: r.night_marks, sys: r.systems_opened, oaths: r.oaths_kept?.length, fallen: r.fallen?.map((f) => f.name), m: r.meters };
+      const { mergeMeters } = await import("/src/ui/meters.ts");
+      // A single action can announce a guard and a chore. Loaded older meters
+      // retain all fires; merging recomputes their proportions from counts.
+      const multi = mergeMeters({ ...meter(1, 0, 0, [[-2, 2]], 0), actions: 1 }, { ...meter(1, 0, 0, [[0, 1]], 0), actions: 1 });
+      return { marks: r.night_marks, sys: r.systems_opened, oaths: r.oaths_kept?.length, fallen: r.fallen?.map((f) => f.name), m: r.meters, multi };
     });
     check(m.marks === 1 && JSON.stringify(m.sys) === JSON.stringify(["edit", "death", "exits"]) && m.oaths === 1 && JSON.stringify(m.fallen) === JSON.stringify(["Greth", "Ashar"]),
       `merge: marks ${m.marks}, systems ${m.sys?.join(" · ")}, kept oaths ${m.oaths}, fallen ${m.fallen?.join(" · ")}`);
@@ -121,6 +125,8 @@ try {
     check(mm && mm.seconds === 40 && mm.dealt.hero === 90 && mm.dps_dealt.hero === 2.25 && mm.actions === 10 && JSON.stringify(mm.rows.map((x) => [x.row, x.fires, x.share])) === JSON.stringify([[0, 3, 0.3], [1, 5, 0.5], [2, 2, 0.2]])
       && mm.healed[0].total === 6 && mm.hps === 0.15 && mm.gold === 60 && mm.gold_per_min === 90 && mm.supplies.heal === 2 && mm.fights === 2,
       `merge: the meters add up and their rates are the summed totals' (${mm && `${mm.seconds} s · dealt ${mm.dealt.hero} · ${mm.dps_dealt.hero} dps · rows ${mm.rows.map((x) => `${x.row}:${x.fires}/${x.share}`).join(" ")} · ${mm.hps} hp/s · $${mm.gold_per_min}/min`})`);
+    check(m.multi.actions === 2 && JSON.stringify(m.multi.rows.map((x) => [x.row, x.fires, x.share])) === JSON.stringify([[-2, 2, 0.667], [0, 1, 0.333]]),
+      "merge: multiple Rule events per action preserve counts and use rule-activation shares");
   }
 
   // ---- §4: the keep sheet only when it is a decision

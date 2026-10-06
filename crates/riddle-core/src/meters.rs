@@ -1,6 +1,6 @@
 //! Cut 29 §3: the diagnostics meters — per fight, per run, per night: damage dealt and taken per
 //! second by the hero, his pets and the foes; healing per second by source; the time split
-//! (fighting · travel · chores · rest); each row's fires and share of the hero's actions; the
+//! (fighting · travel · chores · rest); each row's fires and share of rule activations; the
 //! supplies used; gold per minute; the hits taken by the hero and by his pets. Pure reads of the
 //! event stream (`fold`, one tick's events at a time): nothing here feeds the sim, so a run's
 //! outcome is the same with the meters or without (the replay hash holds). The one event the
@@ -54,8 +54,9 @@ pub struct Meter {
     /// Healing by source (`potion`, `rest`, `regen`, `skill`, `pet`).
     pub healed: BTreeMap<String, i64>,
     pub time: Split,
-    /// Fires by row (−1: a trait's or a card's own step), and the hero's actions (fires + chores).
+    /// Fires by row (−1: a trait's or a card's own step). One action may emit multiple rules.
     pub rows: BTreeMap<i32, u32>,
+    /// Ticks containing a rule activation or pickup; retained separately from rule fires.
     pub actions: u32,
     /// Supplies used by kind (`Ev::Use`).
     pub supplies: BTreeMap<String, u32>,
@@ -285,7 +286,7 @@ pub struct RowShare {
     /// The row (0-based; −1 a trait's or a card's own step).
     pub row: i32,
     pub fires: u32,
-    /// Of the hero's actions (0..1).
+    /// Of all recorded rule activations (0..1). Several may belong to one action.
     pub share: f64,
 }
 
@@ -333,7 +334,7 @@ pub fn wire(m: &Meter) -> MeterWire {
     let s = secs(m.ticks).max(0.1);
     let rate = |x: &Sides| Rates { hero: r3(x.hero as f64 / s), pets: r3(x.pets as f64 / s), foes: r3(x.foes as f64 / s) };
     let healed: Vec<HealRate> = m.healed.iter().map(|(k, v)| HealRate { src: k.clone(), total: *v, per_s: r3(*v as f64 / s) }).collect();
-    let acts = m.actions.max(1) as f64;
+    let fires = m.rows.values().map(|n|u64::from(*n)).sum::<u64>().max(1) as f64;
     MeterWire {
         seconds: secs(m.ticks),
         dealt: m.dealt.clone(),
@@ -344,7 +345,7 @@ pub fn wire(m: &Meter) -> MeterWire {
         healed,
         time: m.time.clone(),
         time_s: SplitSeconds { fight: secs(m.time.fight), travel: secs(m.time.travel), chores: secs(m.time.chores), rest: secs(m.time.rest) },
-        rows: m.rows.iter().map(|(r, n)| RowShare { row: *r, fires: *n, share: r3(*n as f64 / acts) }).collect(),
+        rows: m.rows.iter().map(|(r, n)| RowShare { row: *r, fires: *n, share: r3(*n as f64 / fires) }).collect(),
         actions: m.actions,
         supplies: m.supplies.clone(),
         gold: m.gold,
@@ -375,3 +376,22 @@ pub fn stream_sums(evs: &[Ev]) -> (i64, i64, i64, u32, u32, i64) {
 
 // (a wire line derives `Eq`; the rates are finite by construction — `seconds` ≥ 0.1)
 impl Eq for MeterWire {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn rule_shares_use_activations_when_one_action_emits_multiple_rules() {
+        let mut m=RunMeters::default();
+        let rule=|row|Ev::Rule{t:10,row,verb:crate::rules::Verb::new("explore"),text:"chore".into()};
+        m.tick(&[rule(-2),rule(-2),rule(0)],std::iter::empty());
+        assert_eq!(m.run.actions,1);assert_eq!(m.run.rows.get(&-2),Some(&2));
+        let w=wire(&m.run);
+        assert_eq!(w.rows[0].share,0.667);assert_eq!(w.rows[1].share,0.333);
+        // Historical saved totals with more fires than actions derive the same
+        // proportions; no lost counts, save mutation or presentation clamp.
+        let mut restored:Meter=serde_json::from_str(&serde_json::to_string(&m.run).unwrap()).unwrap();
+        restored.actions=0;assert_eq!(wire(&restored).rows,w.rows);
+        assert!(wire(&Meter::default()).rows.is_empty());
+    }
+}

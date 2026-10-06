@@ -11,7 +11,7 @@ const addSides = (a: MeterSides, b: MeterSides): MeterSides => ({ hero: a.hero +
 const rate = (x: MeterSides, s: number): MeterSides => ({ hero: r3(x.hero / s), pets: r3(x.pets / s), foes: r3(x.foes / s) });
 
 /** Two meters as one (slices of one absence): totals add, rates are recomputed from the summed totals and seconds the way
- *  the core's `meters::wire` derives them (per game second, floor 0.1 s; a row's share of the summed actions). */
+ *  the core's `meters::wire` derives them (per game second, floor 0.1 s; a row's share of all rule activations). */
 export function mergeMeters(a?: MeterWire, b?: MeterWire): MeterWire | undefined {
   if (!a) return b;
   if (!b) return a;
@@ -23,6 +23,7 @@ export function mergeMeters(a?: MeterWire, b?: MeterWire): MeterWire | undefined
   const rows = new Map<number, number>();
   for (const r of [...a.rows, ...b.rows]) rows.set(r.row, (rows.get(r.row) ?? 0) + r.fires);
   const actions = a.actions + b.actions;
+  const firesTotal = Math.max(1, [...rows.values()].reduce((sum, n) => sum + n, 0));
   const supplies: { [k: string]: number } = { ...a.supplies };
   for (const [k, n] of Object.entries(b.supplies)) supplies[k] = (supplies[k] ?? 0) + n;
   const gold = a.gold + b.gold;
@@ -33,7 +34,7 @@ export function mergeMeters(a?: MeterWire, b?: MeterWire): MeterWire | undefined
     healed, hps: r3(healed.reduce((x, h) => x + h.total, 0) / s),
     time: { fight: T("fight"), travel: T("travel"), chores: T("chores"), rest: T("rest") },
     time_s: { fight: TS("fight"), travel: TS("travel"), chores: TS("chores"), rest: TS("rest") },
-    rows: [...rows].sort((x, y) => x[0] - y[0]).map(([row, fires]) => ({ row, fires, share: r3(fires / Math.max(1, actions)) })),
+    rows: [...rows].sort((x, y) => x[0] - y[0]).map(([row, fires]) => ({ row, fires, share: r3(fires / firesTotal) })),
     actions, supplies, gold, gold_per_min: r3(gold / (s / 60)),
     hits_hero: a.hits_hero + b.hits_hero, hits_pets: a.hits_pets + b.hits_pets, fights: a.fights + b.fights,
   };
@@ -84,7 +85,7 @@ export function meterPanel(m: MeterWire, rows: Row[], o: { title?: string; cls?:
     line(/* copy:label */ "taken", h("b", null, rate1(m.dps_taken.hero)), " dps", pets ? h("small", { class: "dim" }, ` · ${/* copy:label */ "pets"} ${rate1(m.dps_taken.pets)} dps`) : "", h("small", { class: "dim" }, ` · ${m.taken.hero} hp · ${m.hits_hero} hits`)),
     m.hps > 0 ? line(/* copy:label */ "healed", h("b", null, rate1(m.hps)), " hp/s", h("small", { class: "dim" }, ` · ${[...m.healed].sort((a, b) => b.total - a.total).map((x) => `${x.src} ${x.total} hp`).join(" · ")}`)) : "",
     tot > 0.001 ? h("div", { class: "mrow mtime" }, h("span", { class: "mlab" }, /* copy:label */ "time"), " ", h("span", { class: "mval" }, split, splitKey)) : "",
-    top.length ? line(/* copy:label */ "rules", ...top.flatMap((r, i) => [i ? h("i", { class: "sep dim" }, " · ") : "", h("span", { class: "mrule", "data-row": r.row }, rowOf(r.row, rows), " ", h("b", null, `${Math.round(r.share * 100)}%`))])) : "",
+    top.length ? line(/* copy:label */ "rules", ...top.flatMap((r, i) => [i ? h("i", { class: "sep dim" }, " · ") : "", h("span", { class: "mrule", "data-row": r.row, title: `${r.fires} rule activations · ${Math.round(r.share * 100)}% of recorded activations` }, rowOf(r.row, rows), " ", h("b", null, `${Math.round(r.share * 100)}%`))])) : "",
     sup.length ? line(/* copy:label */ "used", sup.map(([k, n]) => `${k.replace(/_/g, " ")} ×${n}`).join(" · ")) : "",
     m.gold > 0 ? line(/* copy:label */ "gold", h("b", null, `$${rate1(m.gold_per_min)}`), "/min", h("small", { class: "dim" }, ` · $${m.gold}`)) : "",
   );

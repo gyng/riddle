@@ -1,5 +1,40 @@
 # Cut 35 — Gunner, long guns and short guns
 
+## Complete action art and observable skills — 2026-10-07
+
+All six distinct action masters are now packed: aim, burst, reload, fast reload,
+Smoke and finisher. Fire uses existing long-gun equipment art. Built-in imagegen,
+true alpha,96px packing,24/32px dark-background inspection; all117 previous
+icons remain pixel-identical. Full prompt/source record is in
+art/prompts/gunner-actions-20261007.md.
+
+Both class pickers share classSkillChip; the selected class appears first and
+the seven Gunner rungs are now present in the client display ladder. CLASSES
+still excludes Gunner from the default catalogue and coreUI_READY=false.
+Actual earned Tier5 screenshots1440/400/320 show all7icons, no overflow/errors,
+correct gun tap tips. Initial QA caught missing CLASS_VERBS.gunner; corrected
+and full responsive rerun passed. Initial TS caught unused verbLabel import;
+removed, final TS/copy1721zero/build green. Focused client merge/Gunner2/2PASS.
+
+Rules percentages now use each row's share of all recorded Rule activations,
+not action count. One action may announce several rules; counts/actions remain
+exact. Core test covers multiple events in one action and restored old totals;
+client test covers merging those slices. Actual desktop now reads chores100%
+instead of113%; hover retains counts and explains the denominator. Fast quick
+672corePASS/oneignored,14toolsPASS108s; workspace/alltarget fast clippyPASS.
+RealWASM5479094bytes. Six full earned Tier5 native/WASM runs match every
+event/fullsave exactly (7471/7052,6949/11053,6488/6427events long/short byseed).
+Their first10000tick gameplay events match pre-change data with only `meters`
+removed; no new gameplay/pacing or general performance certification.
+
+Remaining seed5long fixedTier5 replay dies toLich atD18 with5reflections and
+zero sidearm/gun-ready callouts. Earned send carries fire/heal/heal/leash,
+no melee weapon; vault has only a bow. Existing sidearm counter requires an
+owned carried melee weapon. Next make that earned preparation accessible and
+observable, retaining this failed baseline. No free damage/reflection bypass.
+Full choice/death/replay, initial-kit balance and current18gate remain pending;
+no deployment.95fun still active/unverified.
+
 ## Earned-descent navigation correction — 2026-10-07
 
 The unchanged six-build 336h diagnostic failed to earn Tier5 in every case:

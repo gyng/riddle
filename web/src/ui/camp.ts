@@ -36,7 +36,8 @@ import { afterOf, labelOf, stallLabel, classList, deltaClass, deltaLabel, deltaP
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
-import { isFreeSupply, ownRowCount, setRefRows, verbLabel } from "./tokens";
+import { classSkillChip } from "./class-skills";
+import { isFreeSupply, ownRowCount, setRefRows } from "./tokens";
 import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
 import { AUTO, autoDismiss } from "./autodismiss";
 import { setBusyHost } from "./progress";
@@ -390,7 +391,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       const paint = (cat: Parameters<typeof classList>[1]): void => {
         clear(grid);
         for (const { cls, owned, level } of classList(L, cat)) {
-          const ladder = Object.entries(CLASS_VERBS[cls] ?? {}).flatMap(([l, vs]) => vs.map((v) => h("span", { class: `chip rung num${Number(l) <= level && owned ? " on" : ""}` }, `L${l} `, verbLabel({ v }))));
+          const ladder = Object.entries(CLASS_VERBS[cls] ?? {}).flatMap(([l, vs]) => vs.map((v) => classSkillChip(v, Number(l), Number(l) <= level && owned)));
           const u = owned ? undefined : cat?.find((x) => x.id === cls);
           const door = u ? h("small", { class: "num dim door" }, u.cost ? ` ◆${u.cost}` : "", u.needs ? `${u.cost ? " · " : " "}${u.available ? "" : "⊘ "}${u.needs.replace(/_/g, " ")}` : "") : "";   // no `◆0` (QA 23ed91f); QA 0c6e126 (qaY: `rogue L1 · bank once` — no hint it is a condition): a gate still shut carries the lock mark, `⊘ bank once`
           const take = async (): Promise<void> => { if (u && !(await app.buy(cls))) return; void app.setClass(cls); close(); };

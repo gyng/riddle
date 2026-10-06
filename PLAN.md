@@ -53,7 +53,9 @@ validation mismatch caused full-health navigation bailouts; gun/aim targeting no
 honours the same adjacent chained-gate rule as ordinary attacks. All six normal
 earned builds reach ownedTier5; five clear it within48h, seed5long still fails.
 Six Tier5 send/replay/save samples and a full positive gate replay match WASM
-exactly. Aim/burst action icons are packed. Remaining action art, Tier5 balance,
+exactly. All six action icons are packed; shared class skill chips display every
+Gunner rung and put the selected class first. Rules shares now consistently
+use activation counts, preserving raw totals. Tier5 balance,
 and full parity/performance acceptance remain open. Earlier bow-
 override progression claims were corrected; see CUT35/HANDOFF. No deployment.
 

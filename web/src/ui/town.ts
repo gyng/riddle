@@ -20,9 +20,9 @@ import { openChronicle } from "./chronicle";
 import { openLooks } from "./look";
 import { classList } from "./unlocks";
 import { CLASS_VERBS } from "../engine/classes";
+import { classSkillChip } from "./class-skills";
 import {renderClassStyles,classStyleName} from "./class-styles";
 import { renderLegacy } from "./legacy";
-import { verbLabel } from "./tokens";
 import { kwHost } from "./tips";
 import type { Term } from "./concepts";
 /** docs/TOOLTIPS.md: a building's tip (long-press / hover; its tap stays its panel) */
@@ -396,7 +396,7 @@ export function openHeroClass(app: App): void {
         const u=owned?undefined:cat?.find(x=>x.id===cls);
         return h("div",{class:"class-row"},h("button",{class:`chip${cls===app.lineage.class?" on":""}`,disabled:!(owned||u?.available)||!!app.lineage.live,
           onclick:()=>void(async()=>{if(u&&!(await app.buy(cls)))return;await app.setClass(cls);close();})()},cls,` L${level}`,u?.cost?` ◆${u.cost}`:""),
-          h("div",{class:"chips ladder"},...Object.entries(CLASS_VERBS[cls]??{}).flatMap(([l,verbs])=>verbs.map(v=>h("span",{class:`chip rung${Number(l)<=level&&owned?" on":""}`},`L${l} `,verbLabel({v}))))));
+          h("div",{class:"chips ladder"},...Object.entries(CLASS_VERBS[cls]??{}).flatMap(([l,verbs])=>verbs.map(v=>classSkillChip(v,Number(l),Number(l)<=level&&owned)))));
       }));
     };
     paint();void app.engine.unlocks().then(paint);
