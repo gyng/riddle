@@ -1,3 +1,18 @@
+**NATIVE LEGACY COMPARISON ITERATION — 2026-10-06:** choice-check now takes
+--upgrades health,armour,damage,all: Rust actual offers/purchases independently
+cap requested paths for selected slot, validates fullcrossproduct before sim,
+then original +requestedchoices for everypath. Original modev1/filenames/shape
+preserved; expandedv2 has spend/before-after ownership metadata and all hashes.
+30 expandedreport/rawsave pairs exactly equal priorWASM audit; final10rechecked.
+Native3tests partial/cap/refusal/selected1+2; CLI2 tests malformed/duplicates/
+missing/overwrite; actual insufficientnegative has no artifacts/sourcewrite.
+Clippy/syntax/diff clean; WASM rebuilt hash47e7a896… unchanged. Fivecommands→one,
+no browserpreparation;3paired warm10case medians5.74→5.36s (~6.6%); first build
+15.33s excluded. No simshortcut/gateclaim/balance/playerUI/deploy. Contracts
+DEV_LEGACY_CHOICE_CHECK.md, updatedDEV_CHOICE_CHECK.md; scratchpad/native-legacy-
+choice-20261006/. Broadgoalactive; next away sustainbudget audit againstabsence
+contract, and broader stance evidence before anycontent tuning.
+
 **LEGACY GAMEPLAY + UPGRADE FEEDBACK — 2026-10-06:** Earned seed1/3/5 towns:
 none/health3/armour3/damage3/all3 via legal core purchases (18single/54all),
 Steady/Bold next8h:30 native cases exactly equal WASM complete reports/rawsaves;

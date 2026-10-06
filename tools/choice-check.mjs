@@ -18,13 +18,13 @@ function run(cmd, args, env) {
 async function main() {
     const args = process.argv.slice(2);
     if (args.includes('--help')) {
-        console.log('usage: node tools/choice-check.mjs SAVE_OR_DUMP --choices ID[:SLOT],... [--hours 8] [--out NEW_DIR] [--balance PROFILE]\nBaseline and each choice replay the same saved Session. Diagnostic only; not a balance gate.');
+        console.log('usage: node tools/choice-check.mjs SAVE_OR_DUMP --choices ID[:SLOT],... [--hours 8] [--out NEW_DIR] [--balance PROFILE] [--upgrades health,armour,damage,all]\nBaseline and each choice replay the same saved Session. Diagnostic only; not a balance gate.');
         return;
     }
     const save = args.shift();
     if (!save || save.startsWith('-'))
         throw Error('supply a saved town');
-    let choices, hours = 8, out, balance;
+    let choices, hours = 8, out, balance, upgrades;
     for (let i = 0; i < args.length; i += 2) {
         const k = args[i], v = args[i + 1];
         if (!v || v.startsWith('--'))
@@ -37,6 +37,8 @@ async function main() {
             out = resolve(v);
         else if (k === '--balance')
             balance = v;
+        else if (k === '--upgrades')
+            upgrades = v.split(',');
         else
             throw Error(`unknown option ${k}`);
     }
@@ -49,6 +51,8 @@ async function main() {
         throw Error('invalid slot'); return `${id}:${Number(slot)}`; });
     if (new Set(parsed).size !== parsed.length)
         throw Error('duplicate choice');
+    if (upgrades && (upgrades.some(id => !['health', 'armour', 'damage', 'all'].includes(id)) || new Set(upgrades).size !== upgrades.length))
+        throw Error('unknown or duplicate upgrade path');
     if (out && existsSync(out))
         throw Error('output directory already exists; refusing to replace it');
     const source = readFileSync(save), inputHash = sha(source), env = { ...process.env };
@@ -78,26 +82,26 @@ async function main() {
         // may replace the shared target path while comparisons are running.
         writeFileSync(executable, binary);
         chmodSync(executable, 0o755);
-        run(executable, [snapshot, String(hours), parsed.join(','), resultPath], env);
+        run(executable, [snapshot, String(hours), parsed.join(','), resultPath, ...(upgrades ? [upgrades.join(',')] : [])], env);
         const result = JSON.parse(readFileSync(resultPath));
         if (sha(readFileSync(save)) !== inputHash)
             throw Error('input changed during diagnostic');
-        if (result.version !== 1 || result.cases.length !== parsed.length + 1)
+        if (result.version !== (upgrades ? 2 : 1) || result.cases.length !== (parsed.length + 1) * (1 + (upgrades?.length ?? 0)))
             throw Error('incomplete diagnostic');
         for (const c of result.cases) {
             const r = c.report, deaths = r.deaths.reduce((n, d) => n + d.n, 0);
-            console.log(`${c.choice ? `${c.choice.id}:${c.choice.slot}` : 'baseline'}: ${r.runs} runs · D${r.deepest ?? '—'} · $${r.gold?.home ?? 0} home · ${deaths} ${deaths === 1 ? 'death' : 'deaths'} · ${c.seconds.toFixed(3)}s`);
+            console.log(`${c.upgrade ? `${c.upgrade.path} (${c.upgrade.spent} Legacy) / ` : ''}${c.choice ? `${c.choice.id}:${c.choice.slot}` : 'baseline'}: ${r.runs} runs · D${r.deepest ?? '—'} · $${r.gold?.home ?? 0} home · ${deaths} ${deaths === 1 ? 'death' : 'deaths'} · ${c.seconds.toFixed(3)}s`);
         }
         if (out) {
             mkdirSync(dirname(out), { recursive: true });
             mkdirSync(out, { recursive: false });
             const files = [];
             for (const [i, c] of result.cases.entries()) {
-                const file = `${i}-${c.choice?.id ?? 'baseline'}.json`, body = JSON.stringify(c);
+                const file = `${i}-${c.upgrade ? `${c.upgrade.path}-` : ''}${c.choice?.id ?? 'baseline'}.json`, body = JSON.stringify(c);
                 writeFileSync(join(out, file), body);
                 files.push({ file, sha256: sha(body) });
             }
-            writeFileSync(join(out, 'manifest.json'), JSON.stringify({ version: 1, input: resolve(save), inputSha256: inputHash, engineInputSha256: engineInputHash, sourceCapture: provenance, binarySha256: binaryHash, balanceSha256: balance ? sha(env.RIDDLE_BALANCE_JSON) : null, selected: result.selected, slots: result.slots, hours, choices: parsed, cases: files, buildSeconds, totalSeconds: (performance.now() - started) / 1000 }, null, 2));
+            writeFileSync(join(out, 'manifest.json'), JSON.stringify({ version: result.version, ...(upgrades ? { upgrades } : {}), input: resolve(save), inputSha256: inputHash, engineInputSha256: engineInputHash, sourceCapture: provenance, binarySha256: binaryHash, balanceSha256: balance ? sha(env.RIDDLE_BALANCE_JSON) : null, selected: result.selected, slots: result.slots, hours, choices: parsed, cases: files, buildSeconds, totalSeconds: (performance.now() - started) / 1000 }, null, 2));
         }
         console.log(`choice-check: ${result.slots} active ${result.slots === 1 ? 'hero' : 'heroes'} · build ${buildSeconds.toFixed(2)}s · total ${((performance.now() - started) / 1000).toFixed(2)}s · diagnostic only`);
     }

@@ -1,3 +1,11 @@
+**2026-10-06 — Direct Legacy comparison setup:** choice-check --upgrades
+health,armour,damage,all now prepares legal paths in Rust and crosses each with
+requested package choices. Five invocations→one, browser preparation removed.
+30 outputs exactly equal previous WASM audit; selected-only and refusal tests.
+Three paired warm ten-case medians5.74→5.36s (~6.6%, modest); first rebuild15.33s
+excluded from warm comparison. No simulation/gate shortcut. Details:
+docs/DEV_LEGACY_CHOICE_CHECK.md. No player/core-library/deployment change.
+
 **HISTORICAL CAMP QA RESTORED — 2026-10-06:** qa92 full40checks passes
 13.9s; report-only8checks3.0s, combined13.9s. Explicit rough-estimate label,
 rough/refined classes+data flags and exact uncertainty bands replace obsolete
