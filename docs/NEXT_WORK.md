@@ -13,7 +13,11 @@ Carry/reset audit now verified in UX_ASCENSION_CONSEQUENCES.md: 12 variant/slot
 transitions, six exact-save refusals, existing four variant behavior checks.
 Selected slot resets; shared spendable gold clears with its ledger adjustment;
 Legacy, town/workers/Savings and other heroes persist. Synthetic API fixtures
-do not prove an earned King victory. Ending UI work remains open.
+do not prove an earned King victory. Ending UI now implements framed explained
+choices and centered pre-reset review;39checks across phone/desktop/landscape,
+frame63/QA41 pass. Diagnostic screenshots preserve real-WASM save exactly.
+Earned King-ending playthrough and successful WASM variant transition remain
+open before claiming the full ending checkpoint verified.
 Then the audit's impact-ordered variety and optional-reset gameplay queue. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.

@@ -1,3 +1,22 @@
+**EXPLAINED ENDING + ASCENSION REVIEW — 2026-10-06:**
+UX_ASCENSION_CONSEQUENCES.md UI implemented. Shared chunky ending panel,
+actual Mirror King portrait, four concise explained challenges. Short list/
+Bones only display as Six rules/No vault, IDs unchanged. Selection read-only;
+centered existing parchment review shows bloodline, carry/reset and actual
+shared gold→0, other heroes continue when multi. Cancel focused/close restores
+choice focus; explicit Start again retains app/UI refusal+single-flight.
+Shared centering now works outside framed camp, gold text contrast corrected.
+Final39checks each320×568/400×900/1440×900/800×400 +frame63/QA41 PASS3jobs24.9s;
+build/typecheck/copy1630/diff clean, existing bundle advisory. Headed400/1440
+real-WASM diagnostic ending/review captures viewed/shown; full save exact after
+open/cancel, noerrors/overflow. Labelled simulated ending: only app display
+overrides ended/D34 on earned D21; actual223 runs from source exit counters.
+Visual review fixed wrong king key, transparent panel and bottom-aligned sheet.
+No Rust/WASM/balance/deploy changes; earned King/successful actual WASM ascension
+proof remains outstanding. Next obtain earned ending then content variety and
+scoped optional-reset proposal; goal active. Artifacts scratchpad/ending-review-
+20261006/. Task preview5453 group2145362 cleaned; shared5219 HTTP200.
+
 **ASCENSION CONSEQUENCES AUDIT — 2026-10-06:**
 UX_ASCENSION_CONSEQUENCES.md source matrix and two new Session regression tests.
 All four variants × three selected slots: Legacy/upgrades, class XP, facts,

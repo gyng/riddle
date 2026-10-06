@@ -46,6 +46,13 @@ selected-bloodline and shared-gold consequences before the irreversible action.
 Use the existing chunky parchment component; cancellation must preserve the
 complete save and refusal must retain the current safe retry behavior.
 
+UI acceptance: four explained choices, selection opens a centered review without
+calling the engine; close/Escape/cancel preserve the save. Explicit Start again
+calls once; refusal restores controls, success reaches camp. Verify all variants
+and320/400/1440 widths, short landscape, keyboard focus, shared chunky frames,
+word budget and screenshots. If a legally earned King state is unavailable,
+label layout captures diagnostic and leave earned-ending proof outstanding.
+
 Verification: two new Session tests cover 12 successful variant/selected-slot
 combinations and six full-save refusals. Persistent fields use nonempty Legacy,
 class XP, facts, package training, forge salvage, vault, kit and Savings fixtures.
@@ -56,3 +63,26 @@ First attempts caught a mistaken ledger expectation and an omitted zero clock
 fixture; both corrected without changing runtime behavior. Diff check clean.
 Tests/documentation only: no runtime/WASM/UI changes, full gate certification,
 earned King claim or deployment. Shared dev server5219 remains HTTP200.
+
+UI implemented: framed ending panel and Mirror King portrait, four explained
+challenge choices (Six rules/No vault replace the opaque Short list/Bones only
+display names; wire IDs unchanged). Selecting opens the existing centered
+parchment window, not the engine. Review names selected bloodline, actual shared
+gold→0, carried Legacy/class XP/training/town/Savings/forge progress and reset
+heir/depth/supplies/gear upgrades. Multiple heroes get a continuation note.
+Cancel receives focus, closing returns it to the choice. Explicit Start again
+retains single-flight/refusal protection. Shared centered-window CSS now also
+centers windows outside the camp frame. No balance/Rust/WASM changes.
+
+Final39review/cancel/budget/bounds/center/refusal/single-flight/success checks
+each320×568/400×900/1440×900/800×400 PASS; shared frame63+QA41 PASS3jobs24.9s.
+Build/typecheck/copy1630/diff clean; existing bundle-size advisory. Headed GPU
+400/1440 ending/review captures viewed/shown, no errors/overflow, full real-WASM
+save exact after review and cancellation. Layout fixture explicitly labelled
+simulated ending; source earned D21 town remains unchanged. Run count223 comes
+from source's actual exit counters; D34/ended display is a diagnostic override.
+First visual review corrected missing portrait key, background contrast and
+bottom-aligned review; final art/frame/centering reuse shared components.
+Artifacts scratchpad/ending-review-20261006/. Earned King playthrough and actual
+successful WASM transition remain outstanding; core variant behavior and
+multihero reset semantics are verified separately above. Not deployed.
