@@ -116,7 +116,7 @@
 // cadence above. `data-frame="map|fight"` on the element for tooling.
 import "../legible.css";
 import { compactLine, meterPanel } from "./meters";
-import { combatLogEvents } from "./combat-log";
+import { combatLogEvents, telegraphText } from "./combat-log";
 import type { App, Mounted } from "../app";
 import type { Ev, ExitLine, FoldLine, Highlight, InvItem, ReturnReport, Snapshot, SnapMeters, StepResult, Trace, VaultChoice } from "../engine/types";
 import { h, clear, items, replace, spanOf } from "./dom";
@@ -419,7 +419,7 @@ export function renderWatch(app: App): Mounted {
   const combatLog = h("div", { class: "combat-log", "aria-label": /* copy:label */ "Combat log" }, combatRows);
   let logDepth = app.lineage.live?.depth ?? 1;
   let repeatedRule: { key: string; el: HTMLElement; count: number; badge: HTMLElement } | undefined;
-  function logEvent(ev: Ev, heroId: number, names: ReadonlyMap<number, string>): void {
+  function logEvent(ev: Ev, heroId: number, names: ReadonlyMap<number, string>, warningText?: string): void {
     const ruleKey = ev.k === "rule" && ev.row >= 0 ? JSON.stringify([logDepth, ev.row, ev.text, ev.verb?.v, ev.verb?.a]) : undefined;
     if (ruleKey && repeatedRule?.key === ruleKey && combatRows.lastElementChild === repeatedRule.el) {
       repeatedRule.count++;
@@ -436,7 +436,7 @@ export function renderWatch(app: App): Mounted {
     if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · `, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
     else if (ev.k === "hurt") text = [`${who(ev.id)} · ${ev.cause.replace(/_/g, " ")} `, damage(ev.dmg, ev.id)];
     else if (ev.k === "heal") text = [`${who(ev.id)} · ${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id)];
-    else if (ev.k === "telegraph") text = [h("span", { class: "log-warning" }, `${who(ev.id)} · ${ev.what}`)];
+    else if (ev.k === "telegraph") text = [h("span", { class: "log-warning" }, `${who(ev.id)} · ${warningText ?? ev.what}`)];
     else if (ev.k === "die") text = [h("span", { class: "log-fell" }, `${who(ev.id)} · fell`)];
     else if (ev.k === "use") text = [item(ev.item), ` · ${ev.outcome}`];
     else if (ev.k === "pickup") text = [`${who(ev.id)} · `, item(ev.item)];
@@ -945,7 +945,10 @@ export function renderWatch(app: App): Mounted {
         if (ev.k === "attack") { capture(ev.src); capture(ev.dst); }
         else if ("id" in ev) capture(ev.id);
       }
-      for (const ev of logged) at(ev.t, () => logEvent(ev, heroId, actorNames));
+      for (const ev of logged) {
+        const warning = ev.k === "telegraph" ? telegraphText(kinds.get(ev.id), ev.what) : undefined;
+        at(ev.t, () => logEvent(ev, heroId, actorNames, warning));
+      }
     }
     for (const ev of evs) {
       if (ev.k === "drain") drainOn = drainWord(ev.cause);

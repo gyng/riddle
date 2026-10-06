@@ -29,6 +29,12 @@ try{for(const width of [400,1440]){
      {k:'spawn',t,e:{...rat,id:802,name:'Bram'}},
      {k:'attack',t,src:802,dst:801,hit:true,dmg:7},{k:'hurt',t,id:801,cause:'rat',dmg:7},
      {k:'die',t,id:802,cause:'goblin'},
+     {k:'spawn',t,e:{...foe,id:904,kind:'goblin_warlord',name:'Warlord'}},
+     {k:'telegraph',t,id:904,what:'rallies'},
+     {k:'spawn',t,e:{...foe,id:905,kind:'goblin_captain',name:'Captain'}},
+     {k:'telegraph',t,id:905,what:'rallies'},
+     {k:'telegraph',t,id:999,what:'rallies'},
+     {k:'telegraph',t,id:904,what:'winds up'},
      {k:'pickup',t:t+2,id:s.hero.id,item:'dedup checkpoint'}
     ];
     if(phase===4)events=Array.from({length:85},(_,i)=>({k:'pickup',t:t+i/100,id:s.hero.id,item:'gold $1'}));
@@ -72,6 +78,8 @@ try{for(const width of [400,1440]){
   check(count('Hero → Scarface · −11 hp')===2&&!has('Scarface · hero −11 hp'),'two identical hits consume two matching hurts');
   check(has('Bram → Scarface · −7 hp')&&has('Bram · fell'),'spawned-and-slain actor named');
   check(!has('Scarface · rat −7 hp'),'spawn source kind matches duplicate hurt');
+  check(has('Warlord · calls goblins')&&has('Captain · calls goblins'),'known goblin warnings name summons');
+  check(has('Foe · rallies')&&has('Warlord · winds up'),'unknown actors and other mechanics retain raw words');
   return n;
  });
  await p.evaluate(()=>window.__logPhase=4);await p.waitForFunction(()=>document.querySelector('.combat-lines')?.children.length===80);

@@ -1,5 +1,10 @@
 import type { Ev } from "../engine/types";
 
+/** Display the known goblin summon plainly; preserve other mechanics verbatim. */
+export function telegraphText(kind: string | undefined, what: string): string {
+  return what === "rallies" && (kind === "goblin_warlord" || kind === "goblin_captain") ? /* copy:callout */ "calls goblins" : what;
+}
+
 /** The overlay describes an unchanged hit once. Rust's hurt amount may differ
  * after counters/shields, so matching the attack alone is insufficient. */
 export function combatLogEvents(events: readonly Ev[], heroId: number, kinds: ReadonlyMap<number, string>): Ev[] {

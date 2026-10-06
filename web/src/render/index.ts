@@ -47,6 +47,7 @@ import { GpuTimer, Hist } from "./gputimer";
 import { ETHEREAL, paletteFor, SPRITE_SCALE } from "./palette";
 import { CALL_CHAR, CALL_H, CALL_PAD, TAG_CHAR, TAG_H, TAG_PAD, TagLayer, allyName, type Plate, type Tag } from "./tags";
 import { PROPS, ReplayState, type EntState } from "./state";
+import { telegraphText } from "../ui/combat-log";
 import { Quality } from "./quality";
 import { LightField, MAX_FIELD, type FieldLight } from "./light";
 import { Bloom, EMISSIVE_TAG } from "./bloom";
@@ -899,7 +900,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // (`jackal Skog`; a summoned ally, unnamed, its kind), with the same short hp bar
       const tagged = !e.hero && !e.neutral && !e.dying && (!bossInView || e.boss || !!e.ally) && (e.boss || !!e.ally || plated.has(e.id));
       const warning = !e.ally && !!e.glyph && !!e.telegraph;
-      const tagText = e.ally ? allyName(e.kind, e.name) : warning ? /* copy:callout */ `${e.name} · ${e.telegraph}` : e.name;
+      const tagText = e.ally ? allyName(e.kind, e.name) : warning ? /* copy:callout */ `${e.name} · ${telegraphText(e.kind, e.telegraph!)}` : e.name;
       if (fight && barBg && barFg && !tagged && !e.dying && !e.neutral && e.maxHp > 0) {
         const fill = Math.max(0, Math.min(BAR_W, Math.round((BAR_W * e.hp) / e.maxHp)));
         L.hud.push(fx, fy + h + 1, 3.7, BAR_W, 1, barBg.u0, barBg.v0, barBg.u1, barBg.v1);

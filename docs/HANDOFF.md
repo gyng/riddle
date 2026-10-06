@@ -1,3 +1,19 @@
+**BOSS WARNING WORDS — 2026-10-06:** Real headed WASM advanced savedcamp,
+legalD5start/diagnostic steppingtoD8 thennormalwatch at400/1440: Warlord rally
+7862/7902, break8109, die8154; noerrors/overflow. Notfresh-playerbalance orfull
+run/rewardcoverage. Known Warlord/Captain nameplates+combatlogs now `calls goblins`
+instead of `rallies`; sharedformatter, otheractors/mechanicsraw, warning words
+capturedperbatchbeforedelayedrelease. Coreevents/flavourcallouts/countersunchanged.
+Renderer34+combatidentity52checks pass29.6s; initialfixture reuseddamageID,
+correcteduniqueIDs, no production workaround. Build/typecheck/copy1528/diffpass,
+bundleadvisory. Headed400/1440 recordedactualrally snapshot labels verified,
+screenshotshown; isolatedrendererwithoutappchrome, notnewliveplaythrough.
+UX_BOSS_WARNING_WORDS.md; scratchpad/warlord-watch-20261006/. NoRust/WASM/deploy.
+Next actualgfxissue: desktop boss entrance at7889 extendsabovecanvas; hero is
+contained but spriteunion682.7CSSpx atcurrentzoom. Lateradjacentfight fits.
+Investigatezoom/framing duringbossapproach with paired recordedreal replay;
+keep hero visible and don't confuse entrance lift with camera clipping.
+
 **CLASS GROWTH VISIBLE ON RETURN — 2026-10-06:** Freshreal seed3 firstreport
 hid39FighterXP underdetails. CompactClassXP rewardnowbeforefold; earnedXP/level
 counts only, separateLegacy/noinferredcurrentlevel. BloodlineReturn.xp arrays
