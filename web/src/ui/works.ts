@@ -64,17 +64,20 @@ export function worksView(W: Works): { done: WorkNode[]; focus?: WorkNode; next:
 export type Pill = { el: HTMLElement; paint(): void };
 /** The `next` pill (docs/AUTOMATION_TREE.md §3A): `kind` buy glows gold; a bar under it when the wire gives `have/need`. */
 export function nextPill(app: App, anchorOpen: (node?: string, at?: HTMLElement) => void): Pill {
-  const el: HTMLButtonElement = h("button", { class: "next-pill", hidden: true, onclick: (e: Event) => { e.stopPropagation(); anchorOpen(app.lineage.tree?.next?.node, el); } });
+  const el: HTMLButtonElement = h("button", { class: "next-pill", hidden: true, onclick: (e: Event) => { e.stopPropagation(); anchorOpen(el.dataset.node || undefined, el); } });
   let last = "";
   const paint = (): void => {
     const W = app.lineage.tree;
     if (!W) { el.hidden = true; return; }
     const p = W.next ?? { kind: "none", text: "" };
-    const text = p.text || /* copy:label */ "workers";
     const node = W.nodes.find((n) => n.id === p.node);
-    const frac = p.kind === "buy" || p.kind === "chest" ? 1 : p.have !== undefined && p.need ? Math.max(0, Math.min(1, p.have / p.need)) : undefined;
+    const hired = workerNodes(W).filter(n => n.state === 'done').length;
+    // This shortcut opens Workers; an unrelated curriculum goal is not its gate.
+    const management = hired > 0 && !node && (p.kind === 'system' || p.kind === 'none');
+    const text = management ? /* copy:label */ `Workers · ${hired} hired` : p.text || /* copy:label */ "workers";
+    const frac = management ? undefined : p.kind === "buy" || p.kind === "chest" ? 1 : p.have !== undefined && p.need ? Math.max(0, Math.min(1, p.have / p.need)) : undefined;
     const key = JSON.stringify([p, text]);
-    el.hidden = false; el.dataset.kind = p.kind; el.dataset.node = p.node ?? "";
+    el.hidden = false; el.dataset.kind = management ? 'management' : p.kind; el.dataset.node = management ? "" : p.node ?? "";
     el.classList.toggle("gold", p.kind === "buy");
     if (key === last) return;
     const moved = !!last; last = key;

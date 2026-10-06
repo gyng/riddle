@@ -22,9 +22,12 @@ saves. Hunted with two other live bloodlines preserves both games. Headed
 400/1440 earned ending/review/camp screenshots shown, no display overrides.
 See UX_ASCENSION_CONSEQUENCES.md; long-term variant completion and full balance
 suite remain uncertified. Next existing-content variety and optional-reset proposal.
-Earned post-ascension camp capture reveals a renewed class bar and automation
-meet-Lich gate despite retained workers. Audit retained management access vs
-reset progression before expanding content; preserve core carry/reset semantics.
+Post-ascension audit/fix complete in UX_PERSISTENT_CAMP.md: workers were
+accessible; their shortcut mislabeled an unrelated curriculum fallback. Now
+Workers/count; class offers moved out of topbar, Details choices retained.
+Actual earned400/1440 fullsave read-only proof. Existing Cut305 day0 surface
+assertion fails identically on previous UI source; next audit first-home fixture/
+above-fold visibility without weakening manual-build or density invariants.
 Then the audit's impact-ordered variety and optional-reset gameplay queue. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.

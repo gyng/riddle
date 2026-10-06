@@ -48,7 +48,6 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 .chip.trait, .chip.cls-offer { flex-direction: column; align-items: flex-start; gap: 0; min-height: 36px; padding: 3px 10px; line-height: 1.15; font-size: 13px; }
 .chip.trait .rule, .chip.cls-offer .rule { font-size: 10px; letter-spacing: .02em; }
 .chip.trait:disabled, .chip.cls-offer:disabled { opacity: 1; }
-.strip .chips.classes-offer { display: inline-flex; gap: 4px; }   /* Cut 16 §2: the wake's class chips (`rogue · vanish`) */
 .chip.cls-offer .rule.locked { opacity: .55; }
 .gear { min-width: 36px; min-height: var(--tap); font-size: 20px; color: var(--dim); }
 

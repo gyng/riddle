@@ -340,7 +340,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintStrip(): void {
     const L = app.lineage; const lvl: { level: number; xp: number; next?: number } = L.classes?.[L.class] ?? { level: 1, xp: 0 };
     bar.paint();
-    // Cut 13 §2: the offer as chips while it stands (the bar's plain trait otherwise); Cut 16 §2: the class chips beside them
+    // Legacy trait offers remain here; class offers belong to Hero Details.
     // Cut 30 §2: on packages the old two-trait chips leave the wake (the temperaments, from heir 3, are the packages panel's cards)
     const traits = (L.trait_offer?.length ?? 0) >= 2 && !onPackages(L)
       // QA 524827b (qaAA: a bare `✓` over the first chip, "the trait is picked for you"): the row says what it picks (`trait`) — the ✓ is
@@ -349,19 +349,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           // QA 1a2a4a9 (O: "the ✓ is only visual; the text shows no selection"): the mark is text, not a CSS `::before`
           t === L.trait ? h("b", { class: "tick" }, "✓ ") : "", h("span", null, t), traitRule(L, t) ? h("small", { class: "rule dim" }, traitRule(L, t)) : "")))
       : "";
-    const offer = (L.class_offer?.length ?? 0) >= 2;
-    const classes = offer
-      ? h("span", { class: "chips classes-offer" }, h("small", { class: "dim offer-label" }, /* copy:label */ "class"), ...L.class_offer!.map((c) => h("button", { class: `chip cls-offer${c.class === L.class ? " on" : ""}`, disabled: c.class === L.class, "data-class": c.class, onclick: () => void app.setClass(c.class), "aria-pressed": c.class === L.class ? "true" : "false" },
-          c.class === L.class ? h("b", { class: "tick" }, "✓ ") : "", h("span", null, c.class, " ", h("b", { class: "num" }, `L${c.level}`)),
-          c.signature ? h("small", { class: `rule dim${c.level < c.opens ? " locked" : ""}` }, verbLabel({ v: c.signature }), c.level < c.opens ? ` ⊘L${c.opens}` : "") : "")))   // QA 1a2a4a9 (P: "`mark L7` under an L1 ranger"): locked until L7
-      : "";
-    replace(bar.offers, traits, classes);
-    bar.offers.hidden = !traits && !classes;
-    // the portrait: the class and its level, the xp under it; a tap opens the class picker once classes can be had (the chip
-    // row stands in for it while the wake's class offer is up)
+    // Class choices belong to selected Hero Details, including inherited offers.
+    replace(bar.offers, traits);
+    bar.offers.hidden = !traits;
+    // The portrait keeps the class, level and XP, with access to the class picker.
     const R = revealed(app);
-    // Cut 28 §4 (AV: "couldn't open the class picker (portrait)"): the portrait opens it whenever classes can be had — while the wake's
-    // class chips stand too (the portrait was inert then, and it is where a player looks for the class)
+    // The portrait remains available when classes can be changed.
     const picker = R.has("edit") || R.has("unlocks") || (onPackages(L) && sysOpen(L, "class"));   // from the first death (a second heir may take another class)
     const next = portrait(app, { hp: 1, cls: picker ? "cls" : "", onclick: picker ? () => pickClass() : undefined,
       label: h("span", { class: "plabel-in" }, h("span", null, L.class, " ", h("b", { class: "num" }, `L${lvl.level}`)),

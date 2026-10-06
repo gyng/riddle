@@ -1,3 +1,24 @@
+**PERSISTENT CAMP CONTROLS — 2026-10-06:**
+UX_PERSISTENT_CAMP.md. Audit corrected earlier assumption: Workers accessible,
+not gated; nextPill always opensWorks but tree.next system fallback says
+automations/meetLich. Render Workers+actual hired count for unrelated system/
+none fallback only; real worker/send/chest/early goals intact, managementfocus
+undefined. Remove alltopbar class-offer chips/orphanCSS, preserve HeroDetails
+Changeclass/XP/coreoffer/portraitaccess. Presentation-only, no Rust/WASM/balance.
+15checks each320/400/1440 +owner-amendedCut16 17 PASS2jobs6.8s; Cut28 27,
+frame63/QA41 pass. Initialsuite missingfile/oldclass assertions corrected.
+Cut305 singleexisting day0 failure (missing crate/works abovefold, fouractual
+mouth/tent/Heroes/send) reproduced identically isolated previousHEAD camp/works;
+remainingchecks pass107.8s; no gate weakened/fullsuiteclaim. Actual earned
+Hunted3bloodline400/1440 Workers11hired, no classbar, worker/classpanels read-only
+fullsaveexact/noerrors/overflow; headed screenshots viewed/shown artifacts
+scratchpad/persistent-camp-20261006/. Next first-home day0 visibility/fixture
+audit remains queued. Owner now prioritizes escalating endgame and deeper
+bloodline/class progression; see ENDGAME_ASCENSIONS.md (proposal, not runtime).
+Notdeployed; goalactive. Final build/typecheck/copy1630/diff clean.
+Task preview5457 group2167170; diagnosticdev5459 group2168328 and5461 group
+2171421; actualbaseline5463 group2172850 all cleaned; shared5219 HTTP200.
+
 **EARNED ENDING + REAL ASCENSION PROOF — 2026-10-06:**
 Normal TUNED seed3 kills Mirror King on day4. Bounded dayplayer5day job stopped
 at check-in12 via DP_CHECKPOINT_STOP_AFTER (exit75 diagnostic, not gatePASS).
