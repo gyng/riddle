@@ -1290,8 +1290,11 @@ pub struct BloodlineReturn {
     pub boss_knowledge: Vec<BossKnowledge>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct ReturnReport {
+    /// Transport acknowledgement only. The final call returns the whole absence once.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub slice_pending: bool,
     #[serde(default, skip_serializing_if="Vec::is_empty")]
     pub bloodlines: Vec<BloodlineReturn>,
     pub elapsed_s: u64,

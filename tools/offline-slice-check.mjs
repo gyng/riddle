@@ -45,7 +45,7 @@ async function main(args) {
   // Refuse to overwrite earlier evidence or a user's directory.
   out = resolve(out); mkdirSync(out);
   const cases = [];
-  let reference, uninterrupted;
+  let reference, uninterrupted, reportReference;
   for (const spec of [
     { id: "whole", widths: [Math.max(1, seconds)] },
     { id: "30min", widths: [1800] },
@@ -68,21 +68,25 @@ async function main(args) {
         }
       } while (left > 0);
       const state = JSON.parse(game.save());
+      const finalReport = reports.filter((r) => !r.slice_pending).at(-1);
+      reportReference ??= finalReport;
+      const reportDiff = differences(reportReference, finalReport);
       reference ??= state;
       const diff = differences(reference, state);
       if (spec.id === "30min") uninterrupted = state;
       const reloadDiff = spec.reload ? differences(uninterrupted, state) : undefined;
       const file = `${spec.id}.json`;
-      writeFileSync(join(out, file), JSON.stringify({ state, reports, differences: diff, reloadDifferences: reloadDiff }));
+      writeFileSync(join(out, file), JSON.stringify({ state, reports, differences: diff, reportDifferences: reportDiff, reloadDifferences: reloadDiff }));
       const row = { id: spec.id, calls, file, stateSha256: sha(canonical(state)),
         mismatches: diff.length, firstPaths: diff.slice(0, 12).map((d) => d.path),
+        reportMismatches: reportDiff.length, reportPaths: reportDiff.slice(0, 12).map((d) => d.path),
         ...(reloadDiff ? { reloadMismatches: reloadDiff.length, reloadPaths: reloadDiff.slice(0, 12).map((d) => d.path) } : {}),
         reportedSeconds: reports.reduce((n, r) => n + r.elapsed_s, 0),
         reportedRuns: reports.reduce((n, r) => n + r.runs, 0) };
       cases.push(row); console.log(JSON.stringify(row));
     } finally { game.free(); }
   }
-  const pass = cases.every((c) => c.mismatches === 0 && c.reportedSeconds === seconds);
+  const pass = cases.every((c) => c.mismatches === 0 && c.reportMismatches === 0 && c.reportedSeconds === seconds);
   writeFileSync(join(out, "manifest.json"), JSON.stringify({ version: 1, scope: "exact state parity; not a balance gate or timing claim",
     source: resolve(save), sourceSha256: sha(source), wasmSha256: sha(wasm), seconds, pass, cases }, null, 2));
   if (!pass) process.exitCode = 1;

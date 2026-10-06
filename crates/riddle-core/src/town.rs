@@ -310,7 +310,7 @@ pub fn stage_set(l: &LineageState) -> Vec<(String, String)> {
 }
 
 /// A lineage's state as `grew` compares it (before and after an absence).
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Snap {
     pub xp: u64,
     pub class_level: u32,

@@ -107,13 +107,12 @@ impl Game {
         js(&self.inner.run_offline_mode(elapsed_s.max(0.0) as u64, false, true))
     }
 
-    /// One slice of a chunked absence (`runOfflineQuick`); a slice before the `last` carries no
-    /// stall verdict (the client reads the last slice's: its patch forecasts were most of an
-    /// absence's time on a plateaued lineage — 3 of the D11 fixture's 16 slices paid ~2 s each).
+    /// Resumable transport slice. Before `last`, returns `slice_pending` only;
+    /// the final call settles one report for the whole absence.
     #[wasm_bindgen(js_name = runOfflineSlice)]
     pub fn run_offline_slice(&mut self, elapsed_s: f64, last: bool) -> String {
         let secs = elapsed_s.max(0.0) as u64;
-        js(&self.inner.run_offline_mode(secs, false, last))
+        js(&self.inner.run_offline_slice(secs, last))
     }
 
     pub fn death(&mut self, run_id: u32) -> Result<String, JsError> {

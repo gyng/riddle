@@ -450,6 +450,7 @@ export type HeroSlot = { look?:string; hero_name?:string; id:number; name:string
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
+  slice_pending?: boolean; // acknowledgement only; final slice reports the whole absence once
   bloodlines?: {id:number;name:string;runs:number;deepest:number;gold:number;packages?:string[];bests?:string[];boss_knowledge?:BossKnowledge[];xp?:ReturnReport["xp"][]}[];
   workers?: WorkerAct[];                                                       // Cut 30.5 (core): the workers' acts this absence (porter's hauls, apprentice's steps, clerk's deposits, …)
   chest?: number;                                                              // Cut 30.5 (core): the haul gold this absence left in the chest (before the porter; the chest's badge)
@@ -703,7 +704,7 @@ export interface Engine {
   step(turns: number): StepResult;     // advance live view
   runOffline(elapsedS: number): ReturnReport;
   runOfflineQuick(elapsedS: number): ReturnReport;   // no worst-death verdict (~3 s saved per slice)
-  runOfflineSlice?(elapsedS: number, last: boolean): ReturnReport;   // round 3: `runOfflineQuick`, and no stall verdict before the `last` slice
+  runOfflineSlice?(elapsedS: number, last: boolean): ReturnReport;   // pending acknowledgements before `last`; final report contains the whole absence
   death(runId: number): Death;
   /** QA 23ed91f: the death's shown patches (same order as `death(id).patches`) with the camp's own reach: `forecast_delta` is
    *  the camp forecast's bar move at `forecast_depth` once the patch is applied (same insert, same lineage state), `forecast_pm`

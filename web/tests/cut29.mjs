@@ -50,6 +50,57 @@ const boot = async (seed, q = "") => {
 };
 
 try {
+  if (part("catchup")) {
+    await boot(2920);
+    const result = await page.evaluate(async () => {
+      const app=window.__riddle, engine=app.engine;
+      const slice=engine.runOfflineSlice, quick=engine.runOfflineQuick, save=engine.save;
+      const template=await engine.runOfflineQuick(1);
+      const clean={...template,worst_death:undefined,worst_death_id:undefined};
+      const calls=[];const before=app.totalRuns();
+      const {readBlob}=await import("/src/store.ts");await app.flush();const durable=JSON.stringify(readBlob());
+      let saveCalls=0, durableKept=true;
+      let final, midFailure, fallbackCalls=0, legacy;
+      try {
+        engine.save=async ()=>{saveCalls++;return save();};
+        engine.runOfflineSlice=async (seconds,last)=>{
+          calls.push([seconds,last]);
+          await app.flush();app.flushSync();durableKept &&= JSON.stringify(readBlob())===durable;
+          return last ? {...clean,elapsed_s:seconds===0?0:5401,runs:seconds===0?0:7} : {...clean,slice_pending:true,elapsed_s:0,runs:0};
+        };
+        final=await app.runOfflineChunked(5401);
+        const zero=await app.runOfflineChunked(0);
+        const newRuns=app.totalRuns()-before;
+        const skippedSaves=saveCalls===0;await app.flush();const finalSaved=saveCalls===1;
+        engine.runOfflineSlice=async (_seconds,last)=>{
+          if(last)throw new Error("transport stopped after progress");
+          return {...clean,slice_pending:true,elapsed_s:0,runs:0};
+        };
+        engine.runOfflineQuick=async ()=>{fallbackCalls++;return clean;};
+        try {await app.runOfflineChunked(1801);midFailure=false;} catch(e){midFailure=e.message.includes("transport stopped");}
+        const cleaned=!app.root.inert && !app.offlineRunning;
+        const afterFailure=JSON.stringify(readBlob()),savesAfterFailure=saveCalls;
+        await app.flush();app.flushSync();
+        const failureKept=saveCalls===savesAfterFailure && JSON.stringify(readBlob())===afterFailure;
+        engine.runOfflineSlice=async ()=>{throw new Error("first-call runtime failure");};
+        let firstFailure=false;
+        try {await app.runOfflineChunked(1801);} catch(e){firstFailure=e.message.includes("first-call runtime failure");}
+        const noFirstFallback=fallbackCalls===0;
+        engine.runOfflineSlice=async ()=>{throw new Error("wasm: runOfflineSlice");};
+        engine.runOfflineQuick=async (seconds)=>({...clean,elapsed_s:seconds,runs:1});
+        legacy=await app.runOfflineChunked(1801);
+        return {calls,elapsed:final.elapsed_s,runs:final.runs,newRuns,pending:!!final.slice_pending,zeroSeconds:zero.elapsed_s,zeroRuns:zero.runs,midFailure,fallbackCalls,cleaned,durableKept,skippedSaves,finalSaved,failureKept,firstFailure,noFirstFallback,
+          legacySeconds:legacy.elapsed_s,legacyRuns:legacy.runs};
+      } finally {engine.runOfflineSlice=slice;engine.runOfflineQuick=quick;engine.save=save;}
+    });
+    check(JSON.stringify(result.calls)===JSON.stringify([[1800,false],[1800,false],[1800,false],[1,true],[0,true]]),"catch-up: only the real final boundary is marked last");
+    check(result.zeroSeconds===0 && result.zeroRuns===0,"catch-up: zero seconds returns a valid final report");
+    check(result.durableKept && result.skippedSaves && result.finalSaved,"catch-up: autosave/pagehide preserve durable absence timestamp until completion");
+    check(result.elapsed===5401 && result.runs===7 && result.newRuns===7 && !result.pending,"catch-up: pending acknowledgements excluded, final report counted once");
+    check(result.midFailure && result.fallbackCalls===0 && result.cleaned,"catch-up: failure after progress cannot replay elapsed time via fallback; UI restored");
+    check(result.failureKept && result.firstFailure && result.noFirstFallback,"catch-up: failed batches preserve durable save; runtime errors cannot masquerade as unsupported APIs");
+    check(result.legacySeconds===1801 && result.legacyRuns===2,"catch-up: old additive report cores retain their merge path");
+  }
   // ---- merge: the offline report's slices carry the Cut 29 fields
   if (part("merge")) {
     await boot(2900);

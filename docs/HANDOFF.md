@@ -1,3 +1,44 @@
+**OFFLINE SLICE FIX — 2026-10-06:** PERF_OFFLINE_SLICE_BOUNDARIES.md
+implemented. Saved Game.offline_absence cumulative budget/consumed/hour/report
+baselines; actual boundary initializes once and settles rewards/reel once.
+Intermediate pending acknowledgements have zero counts; final whole report once.
+Single clock commits final; run stamps use consumed ticks. Multi shared-clock
+advance retains wallet order; final completes at most one outstanding run/slot
+in sorted slot order, all return to camp. Save/load restores passage/bounty,
+serializes row_tally and skips mid-absence oath refresh/home recompilation.
+Complete/count APIs remain distinct from new Session::run_offline_slice; bridge,
+native generated methods/API rebuilt. Literal direct harness alone keeps old
+sampling; current-game and transport simulation exact. No bar edits.
+Client skips pending reports, missing-method-only fallback (not runtime failures),
+zero returns valid report. Autosave/pagehide and failed-batch guards retain
+previous durable absence timestamp; open ticks halt on failed batch; normal
+absence persists after adoption. Raw engine slices resumable. Current stale
+ordinary additive-report cores still merge. New five Rust tests cover seeds1/3/5,
+manual home/run/rest/zero/day/worker/quest/reveal groups/three-wallet slots.
+Final quick568tests/1ignored +12tool checks green90s, clippy/build/typecheck/
+copy1591/diff green; first incorrect one-feature reveal assertion corrected
+against systems trigger-group contract. Final8client jobs50.5s all132UI plus
+catchup/merge9checks/scout/report PASS. Picker test timer race fixed by explicit
+mock release, same assertions. Cut30.5 report test updated to owner simpler
+layout: first worker announcement lead, growth before recurring workers Details.
+Intermediate selector mistakenly targeted button, corrected to report-details.
+FinalWASM5233480bytes SHA96fabde7c726366d23ee582a882b028a414171b37eb776270ba83578e1b1d8e1.
+Earned seed3+160h all5paths exact complete saves AND final reports:203runs,
+heir20,D21, rank4, oldwhole hash601715d83abccaac4d75358d15b7a7d6baec35cf6025ddcdd25869060344473b;
+320/378slice/reload and complete API now identical. Candidate+8h16runs exact.
+Final earned3bloodline+8h42runs exact all5; finalemptyzero all5 exact. Diagnostic
+now checks complete final reports too, no field normalization. Artifacts
+scratchpad/offline-boundaries-final-20261006-{160h,multi,zero}/; previousbaseline
+retained. Fresh targeted idle-d23 s1/2/3 PASS11s/median6.33day/allby12d, notgate.
+Actual headed WASM app320calls1440/400 return203/heir20/D21 noerrors/overflow;
+screens viewed/shown scratchpad/offline-boundaries-20261006/. No timing claims,
+full client/balance suites uncertified. Push authorized, no deployment.
+Next audit queue: readable milestone/wall reward/preparation; distinguish next
+travel encounter (currentlyD8 beside recordD21) from progress goal. Then icons,
+ending presentation, variety and one scoped optional early-reset proposal.
+Broad keep-going goal remains active. Task preview5435 process group2033261
+cleaned; shared5219 verified HTTP200.
+
 **OFFLINE SLICE REGRESSION BASELINE — 2026-10-06:** New contract
 PERF_OFFLINE_SLICE_BOUNDARIES.md and tools/offline-slice-check.mjs compare full
 canonical saves for one final slice,30min,uneven,reloaded30min and complete API;

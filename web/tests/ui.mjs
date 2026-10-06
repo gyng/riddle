@@ -407,7 +407,9 @@ async function cut19() {
     const r = window.__riddle; r.__prefs = [];
     const opts = (cur) => ["weapon", "armour", "potion", "scroll"].map((pref) => { const d = { weapon: 0, armour: 0.36, potion: 0.004, scroll: -0.05 }[pref] - ({ weapon: 0, armour: 0.36, potion: 0.004, scroll: -0.05 }[cur]);
       return { pref, current: pref === cur, depth: 7, reach: 0.5, reach_delta: d, bank: 0.54 + d, bank_delta: d, gold: 100, gold_delta: 0, delta: d, pm: 0.03 }; });
-    r.engine.cageForecast = () => new Promise((res) => setTimeout(() => res(opts(r.lineage.vault_pref ?? "weapon")), 400));
+    // Hold the answer until the test has observed pending UI. A wall-clock
+    // delay can expire during Playwright's click under a busy parallel suite.
+    r.engine.cageForecast = () => new Promise((res) => { r.__resolveCageForecast = () => res(opts(r.lineage.vault_pref ?? "weapon")); });
     const setPref = r.engine.setVaultPref.bind(r.engine); r.engine.setVaultPref = async (p) => { r.__prefs.push(p); return setPref(p); };
     r.lineage = { ...r.lineage, facts: [...r.lineage.facts, "vault"], vault_pref: "weapon" }; r.go({ kind: "camp" });
   });
@@ -419,7 +421,8 @@ async function cut19() {
   await page.locator(".camp .cage-tab").click({ timeout: 5000 }); await sleep(120);
   const opt = () => page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .cage-picker .cage-opt")].map((b) => `${b.textContent.replace(/\s+/g, " ").trim()}${b.classList.contains("on") ? "*" : ""}`));
   const pending = await opt();
-  await sleep(600);
+  await page.evaluate(() => window.__riddle.__resolveCageForecast());
+  await page.waitForFunction(() => document.querySelector(".cage-opt[data-pref=armour]")?.textContent.includes("bank 90%"));
   const landed = await opt();
   check(pending.includes("armour …") && landed.join(" · ") === "weapon bank 54%* · armour bank 90% ▲36 · potion bank 54% · scroll bank 49% ▼5", `the picker shows each preference's level on one scale, its move a mark (QA 0c6e126, qaZ) (${pending.join(" · ")} → ${landed.join(" · ")})`);
   await shot("ui-cut19-cage-picker");

@@ -146,27 +146,48 @@ impl Session {
     }
     pub fn run_offline_mode(&mut self,seconds:u64,full:bool,last:bool)->ReturnReport {
         if self.others.is_empty(){return if full {self.active.run_offline(seconds)}else if last{crate::offline::run_offline_quick(&mut self.active,seconds)}else{crate::offline::run_offline_counts(&mut self.active,seconds)};}
+        self.run_offline_multi(seconds,full,true,last)
+    }
+    pub fn run_offline_slice(&mut self, seconds:u64, last:bool)->ReturnReport {
+        if self.others.is_empty() { return crate::offline::run_offline_slice(&mut self.active,seconds,last); }
+        self.run_offline_multi(seconds,false,last,last)
+    }
+    fn run_offline_multi(&mut self,seconds:u64,full:bool,final_slice:bool,with_stall:bool)->ReturnReport {
         let begin=|g:&mut Game|{
-            g.settle_renown(0);g.lineage.reveal_left=1;g.batch=Default::default();g.events.clear();g.offline=true;g.watched=false;
-            if !g.lineage.in_absence {g.lineage.absences+=1;g.lineage.in_absence=true;}
-            if g.lineage.rest_watched{g.lineage.rest_left=0;g.lineage.rest_watched=false;}
-            if !g.lineage.pkg.literal{g.lineage.rest_left=g.lineage.rest_left.min(crate::offline::REST_CARRY_TICKS);}
-            let rules=g.lineage.rules().clone();g.passage=crate::forecast::sim_passage(g,&rules);
-            (g.lineage.facts.clone(),g.lineage.class.name().to_string(),g.lineage.rank)
+            if g.offline_absence.is_none() { g.offline_absence=Some(crate::offline::begin_absence(g)); }
+            let a=g.offline_absence.as_mut().unwrap();a.elapsed_s=a.elapsed_s.saturating_add(seconds);
         };
-        let active_before=begin(&mut self.active);
-        let others_before:BTreeMap<_,_>=self.others.iter_mut().map(|(id,g)|{town_from(&self.active.lineage,&mut g.lineage);(*id,begin(g))}).collect();
+        begin(&mut self.active);
+        for g in self.others.values_mut() { town_from(&self.active.lineage,&mut g.lineage);begin(g); }
         self.advance(seconds.saturating_mul(1000));
-        let finish=|g:&mut Game,before:&(crate::shared::Shared<std::collections::BTreeSet<String>>,String,u32),full:bool,last:bool|{
-            g.offline=false;g.lineage.in_absence=true;
-            crate::offline::report_with(g,seconds,&before.0,&before.1,before.2,false,full,last)
+        self.active.lineage.in_absence=true;
+        for g in self.others.values_mut() { g.lineage.in_absence=true; }
+        if !final_slice { return ReturnReport { slice_pending:true,..Default::default() }; }
+        if self.active.offline_absence.as_ref().is_some_and(|a|a.elapsed_s>0) {
+            let mut ids:Vec<_>=self.others.keys().copied().chain(std::iter::once(self.selected)).collect();ids.sort_unstable();
+            for id in ids {
+                if id==self.selected { crate::offline::finish_return_run(&mut self.active); }
+                else {
+                    let g=self.others.get_mut(&id).unwrap();town_from(&self.active.lineage,&mut g.lineage);
+                    crate::offline::finish_return_run(g);town_from(&g.lineage,&mut self.active.lineage);
+                }
+            }
+        }
+        let finish=|g:&mut Game,full:bool,with_stall:bool|{
+            let before=g.offline_absence.take().expect("absence initialized");
+            g.offline=false;
+            let mut r=crate::offline::report_with(g,before.elapsed_s,&before.facts_before,&before.class,before.rank_before,false,full,with_stall);
+            r.grew=crate::town::grew(&before.grew_before,&crate::town::snap(&g.lineage));
+            r.workers=crate::tree::report_acts(&before.acts_before,&g.lineage.tree.acts);
+            r.chest=(g.lineage.tree.chest-before.chest_before).max(0);
+            r
         };
-        let mut r=finish(&mut self.active,&active_before,full,last);
+        let mut r=finish(&mut self.active,full,with_stall);
         let summary=|id:u32,r:&ReturnReport,g:&Game|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),boss_knowledge:Self::victory_knowledge(g,&r.bests),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
         if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r,&self.active));}
         for (id,g) in &mut self.others {
             town_from(&self.active.lineage,&mut g.lineage);
-            let other=finish(g,&others_before[id],false,false);
+            let other=finish(g,false,false);
             r.bloodlines.push(summary(*id,&other,g));
             r.runs+=other.runs; r.banked+=other.banked; r.returned+=other.returned;r.deepest=r.deepest.max(other.deepest);
             for death in other.deaths {if let Some(d)=r.deaths.iter_mut().find(|d|d.cause==death.cause){d.n+=death.n;}else{r.deaths.push(death);}}
@@ -184,6 +205,32 @@ impl Session {
 mod tests {
     use super::*;
     fn resident()->Session { let mut s=Session::new(1);s.active.build_town("house").unwrap();s.active.lineage.gold_move(1000,"test income");s }
+    #[test]
+    fn offline_slice_multi_preserves_wallet_each_hero_and_complete_report() {
+        for automated in [false,true] {
+            let mut base=resident();base.add_bloodline().unwrap();base.add_bloodline().unwrap();
+            if automated {crate::tree::grant(&mut base.active.lineage,&["porter","scout"]);}
+            base.active.lineage.clock_s=crate::engine::DAY_S-60;
+            for id in 1..=3 {base.select_bloodline(id).unwrap();base.active.lineage.clock_s=crate::engine::DAY_S-60;base.send();}
+            base.select_bloodline(1).unwrap();
+            let mut whole=base.clone();let expected=whole.run_offline_mode(7200,false,true);
+            for reload in [false,true] {
+                let mut sliced=base.clone();let widths=[1,719,1280];let mut left=7200;let mut i=0;
+                let report=loop {
+                    let seconds=left.min(widths[i%widths.len()]);let last=left==seconds;
+                    let r=sliced.run_offline_slice(seconds,last);
+                    if last {break r;}
+                    assert!(r.slice_pending && r.elapsed_s==0 && r.runs==0);
+                    left-=seconds;i+=1;
+                    if reload {sliced=Session::load(&sliced.save()).unwrap();}
+                };
+                assert!(serde_json::to_value(&sliced).unwrap()==serde_json::to_value(&whole).unwrap(),"all saved fields: automated{automated}, reload{reload}");
+                assert_eq!(report,expected,"whole absence report, with each slot's XP and shared gold");
+                assert!(sliced.active.run.is_none() && sliced.others.values().all(|g|g.run.is_none()),"real return ends at camp, with at most one completion per slot");
+                assert_eq!(sliced.active.lineage.gold as i64+sliced.active.lineage.town.bank as i64,sliced.active.lineage.tree.ledger);
+            }
+        }
+    }
     #[test]
     fn worker_maps_detach_before_writes_and_synchronize_in_slot_order() {
         let mut s=resident();s.add_bloodline().unwrap();s.add_bloodline().unwrap();

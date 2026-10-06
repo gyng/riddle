@@ -22,9 +22,10 @@ pub fn load(text: &str) -> Result<Game, String> {
     // Cut 9 §7: the graveyard's last five deaths stay answerable.
     g.max_deaths = g.max_deaths.max(crate::engine::KEPT_DEATHS);
     // QA on e75ec29: a load is a camp — its bounty floor is the one on the screen.
-    g.bounty_seen = g.lineage.bounty;
+    g.bounty_seen = g.offline_absence.as_ref().map_or(g.lineage.bounty, |a| a.bounty_seen);
+    if let Some(a) = &g.offline_absence { g.passage = a.passage; }
     // Cut 28 §1: a lineage from before the oaths draws its board.
-    crate::oath::refresh(&mut g.lineage);
+    if g.offline_absence.is_none() { crate::oath::refresh(&mut g.lineage); }
     // Cut 30 §2: a save from before the packages: its set becomes the `custom` stance, the pen open
     // (its rules keep working; drills come above them) — before the curriculum reads the pen.
     if g.lineage.pkg_v == 0 {
@@ -58,7 +59,7 @@ pub fn load(text: &str) -> Result<Game, String> {
     crate::legacy::ensure(&mut g.lineage);
     // Refresh generated camp rows before the editor can absorb a legacy compiled row as authored.
     // A live replay keeps its row indices until the normal run-end recompile. Literal sets are unchanged.
-    if g.run.is_none() {
+    if g.run.is_none() && g.offline_absence.is_none() {
         crate::packages::recompile(&mut g.lineage);
     }
     Ok(g)

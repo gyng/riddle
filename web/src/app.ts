@@ -108,7 +108,7 @@ export class App {
   }
   /** one tick of the open app's clock (every second; the engine is asked every 2 s while a run is live, once a rest is due) */
   async runTick(force = false): Promise<void> {
-    if (!this.booted || this.offlineRunning || this.runnerBusy || !this.engine?.advance || (!force && !this.runnerOn)) return;
+    if (!this.booted || this.offlineRunning || this.offlineIncomplete || this.runnerBusy || !this.engine?.advance || (!force && !this.runnerOn)) return;
     const now = Date.now();
     if (this.view.kind === "watch") {
       this.runnerAt=now;
@@ -149,7 +149,7 @@ export class App {
   /** RUNS_UI: back from a hidden tab — an absence's report when it was long enough to be one (the boot's rule), else the clock goes on */
   private async backFromHidden(): Promise<void> {
     const away = (Date.now() - this.hiddenAt) / 1000; this.hiddenAt = 0;
-    if (!this.runnerOn || !this.booted || this.offlineRunning || away < OFFLINE_MIN_S || this.view.kind === "watch") return;
+    if (!this.runnerOn || !this.booted || this.offlineRunning || this.offlineIncomplete || away < OFFLINE_MIN_S || this.view.kind === "watch") return;
     await this.absence(Math.floor(away));
   }
   /** An absence: the camp underneath, inert, while the batch runs; then the report (or the camp, when nothing ran before the scout). */
@@ -164,6 +164,7 @@ export class App {
     // Cut 30.5: before the scout an absence with no send in flight ran nothing — the hero waited at home; no empty report
     if (report.runs === 0 && this.lineage.tree && !this.lineage.tree.auto_send) this.go({ kind: "camp" });
     else this.go({ kind: "report", report, absence: true });
+    await this.flush();
   }
   private vocab_!: Vocabulary;
   get vocab(): Vocabulary { return this.vocab_; }
@@ -200,6 +201,7 @@ export class App {
   private shelfFull: boolean | null = null;
   private rulesSeq = 0;
   private offlineRunning = false;
+  private offlineIncomplete = false;
   /** Runs seen by this client (the wire Lineage has no run counter); persisted in the blob. */
   runsSeen = 0;
   /** The last chosen watch mode; the next watch starts in it (persisted in the blob — QA on e0f87e7: "`fast` chosen in run 3
@@ -500,16 +502,19 @@ export class App {
    *  `death(id)` for the deepest slice's worst death (deepest, ties → later: the core's own ordering, read off the
    *  graveyard entries each slice adds) becomes the merged report's `worst_death`. */
   async runOfflineChunked(elapsedS: number): Promise<ReturnReport> {
+    if (!Number.isSafeInteger(elapsedS) || elapsedS < 0) throw new RangeError("invalid offline elapsed seconds");
     this.offlineRunning = true;
+    this.offlineIncomplete = true;
     this.root.inert = true;
     const b = showBusy(/* copy:label */ "offline");
     let merged: ReturnReport | null = null;
-    let quick = true, sliced = true;
+    let quick = true, sliced = true, callsCompleted = 0;
     let worst: { id: number; depth: number } | null = null;
     let graves = this.lineage.graveyard.length;
     try {
       let slice = OFFLINE_SLICE_S;
-      for (let left = elapsedS; left > 0; left -= slice) {
+      for (let left = elapsedS, first = true; first || left > 0; left -= slice) {
+        first = false;
         let r: ReturnReport;
         if (quick) {
           // (round 3: the slices before the last skip the stall verdict — the merged report is the last slice's —
@@ -518,17 +523,21 @@ export class App {
           try {
             const n = Math.min(left, slice);
             r = sliced && this.engine.runOfflineSlice
-              ? await this.engine.runOfflineSlice(n, last).catch((e) => { if (merged) throw e; sliced = false; return this.engine.runOfflineQuick(n); })
+              ? await this.engine.runOfflineSlice(n, last).catch((e) => { if (callsCompleted || !missingOfflineMethod(e, "runOfflineSlice")) throw e; sliced = false; return this.engine.runOfflineQuick(n); })
               : await this.engine.runOfflineQuick(n);
           }
           catch (e) {
-            if (merged) throw e;
+            if (callsCompleted || !missingOfflineMethod(e, "runOfflineQuick")) throw e;
             // stale wasm build without runOfflineQuick: the full call, larger slices (each pays the verdict)
             console.warn("runOfflineQuick unavailable, using runOffline", e); quick = false;
             slice = Math.min(OFFLINE_SLICE_MAX_S, Math.max(OFFLINE_SLICE_S, Math.ceil(elapsedS / OFFLINE_SLICES)));
             r = await this.engine.runOffline(Math.min(left, slice));
           }
         } else r = await this.engine.runOffline(Math.min(left, slice));
+        callsCompleted++;
+        // Current cores settle one report at the real boundary. Older cores
+        // still return additive per-slice reports and retain their merge path.
+        if (r.slice_pending) continue;
         merged = merged ? mergeReports(merged, r) : r;
         if (r.worst_death_id !== undefined && !r.worst_death) {
           const L = await this.engine.lineage();
@@ -542,8 +551,10 @@ export class App {
         try { merged!.worst_death = await this.engine.death(worst.id); } catch (e) { console.warn("worst death", e); }
       }
     } finally { b.done(); this.root.inert = false; this.offlineRunning = false; }
-    this.runsSeen += merged!.runs;
-    return merged!;
+    if (!merged) throw new Error("offline report unfinished");
+    this.offlineIncomplete = false;
+    this.runsSeen += merged.runs;
+    return merged;
   }
   totalRuns(): number { return this.runsSeen; }
 
@@ -564,6 +575,7 @@ export class App {
   async again(): Promise<void> {
     const sets = this.sets.map(cloneSet); const active = this.active;
     this.lineage = await this.engine.newLineage(randomSeed());
+    this.offlineIncomplete = false;
     for (let i = 0; i < sets.length; i++) { await this.engine.selectSet(i); await this.engine.setRules(sets[i]).catch(() => { /* a set the fresh vocabulary rejects stays the preset */ }); }
     await this.engine.selectSet(active);
     this.lineage = await this.engine.lineage();
@@ -577,6 +589,7 @@ export class App {
 
   private async fresh(seed?: number): Promise<void> {
     this.lineage = await this.engine.newLineage(seed ?? randomSeed());
+    this.offlineIncomplete = false;
     this.loadout = [];
   }
   /** Take the editing copies from the engine's lineage (the engine is the source of truth).
@@ -900,11 +913,17 @@ export class App {
   persist(): void { clearTimeout(this.saveTimer); this.saveTimer = window.setTimeout(() => void this.flush(), SAVE_DEBOUNCE_MS); }
   async flush(): Promise<void> {
     clearTimeout(this.saveTimer);
-    try { this.lastSave = await this.engine.save(); } catch (e) { console.warn("save failed", e); return; }
+    // A transport checkpoint has no completed wall-clock timestamp. Keep the
+    // previous durable save so a reload can replay the whole remaining absence.
+    if (this.offlineRunning || this.offlineIncomplete) return;
+    let saved: string;
+    try { saved = await this.engine.save(); } catch (e) { console.warn("save failed", e); return; }
+    if (this.offlineRunning || this.offlineIncomplete) return;
+    this.lastSave = saved;
     writeBlob(this.blob());
   }
   /** pagehide/visibilitychange cannot await the worker: write the last save string fetched. */
-  private flushSync(): void { if (this.lastSave) writeBlob(this.blob()); }
+  private flushSync(): void { if (!this.offlineRunning && !this.offlineIncomplete && this.lastSave) writeBlob(this.blob()); }
   private blob(): SaveBlob { return { v: 2, engine: this.lastSave, loadout: this.loadout, last_seen: Date.now(), runs: this.runsSeen, origins: this.sets.map((s) => s.rows.map((r) => r.origin ?? "player")), watch: this.watchMode }; }
   exportSave(): string { return JSON.stringify(this.blob()); }
   async importSave(text: string): Promise<boolean> {
@@ -912,6 +931,7 @@ export class App {
       const b = JSON.parse(text) as SaveBlob;
       if (!b || typeof b.engine !== "string") return false;
       this.lineage = await this.engine.load(b.engine);
+      this.offlineIncomplete = false;
       this.loadout = b.loadout ?? []; this.runsSeen = b.runs ?? 0; this.watchMode = b.watch === "fast" || b.watch === "one" ? b.watch : "fights";
       this.savedOrigins = b.origins ?? null; this.sets = [];   // Cut 7 §2: the imported blob's origins, not the old sets'
       this.adoptSets();
@@ -997,6 +1017,11 @@ export function mergeReel(a: Highlight[], b: Highlight[]): Highlight[] {
   }
   return [...byShape.values()].sort((x, y) => y.score - x.score).slice(0, 5);
 }
+function missingOfflineMethod(error: unknown, method: string): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return [`wasm: ${method}`, `no engine method ${method}`, `unknown engine method ${method}`].includes(message);
+}
+
 export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
   const union = (x: string[], y: string[]): string[] => [...new Set([...x, ...y])];
   // `rank 1 … rank 9` and `fighter L2 … L5` collapse to the highest of each ladder

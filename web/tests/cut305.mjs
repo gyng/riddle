@@ -387,8 +387,13 @@ try {
       return mergeWorkers([{ id: "apprentice", what: "+1 step", n: 1, first: true }, { id: "porter", what: "hauled $40", n: 40, first: false }], [{ id: "apprentice", what: "+2 steps", n: 2, first: false }, { id: "clerk", what: "+$100 banked", n: 100, first: true }]);
     });
     check(JSON.stringify(merged) === JSON.stringify([{ id: "apprentice", what: "+3 steps", n: 3, first: true }, { id: "porter", what: "hauled $40", n: 40, first: false }, { id: "clerk", what: "+$100 banked", n: 100, first: true }]), `slices merge: each worker's acts summed (${merged.map((x) => `${x.id} ${x.what}`).join(" · ")})`);
-    const grew = await page.evaluate(() => { const g = document.querySelector(".report-sheet .grew"), w = document.querySelector(".report-sheet .works-acts"); return { g: !!g, order: !!g && !!w && !!(g.compareDocumentPosition(w) & Node.DOCUMENT_POSITION_FOLLOWING) }; });
-    check(!rep.grew?.length || (grew.g && grew.order), `the report keeps what grew (\`ReturnReport.grew\`, ${rep.grew?.length ?? 0} lines) above the workers' line (${JSON.stringify(grew)})`);
+    // Owner's simpler report puts first worker announcements in the lead;
+    // growth and recurring worker acts share Details, in that order.
+    const grew = await page.evaluate(() => {
+      const fold=document.querySelector(".report-sheet .report-details"),g=fold?.querySelector(".grew"),w=fold?.querySelector(".works-acts");
+      return {g:!!g,order:!!g && (!w || !!(g.compareDocumentPosition(w)&Node.DOCUMENT_POSITION_FOLLOWING))};
+    });
+    check(!rep.grew?.length || (grew.g && grew.order), `the simpler report retains what grew (\`ReturnReport.grew\`, ${rep.grew?.length ?? 0} lines) in Details above recurring workers (${JSON.stringify(grew)})`);
   }
 } catch (e) {
   check(false, `threw: ${e.message}`);

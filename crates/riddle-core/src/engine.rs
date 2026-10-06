@@ -2948,6 +2948,9 @@ pub struct Game {
     /// Inside an offline batch: renown settles once per absence (Cut 2 §2).
     #[serde(default)]
     pub offline: bool,
+    /// One resumable absence; internal transport calls do not settle reports.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offline_absence: Option<crate::offline::Absence>,
     /// Runs since the last death / new best / rule edit (the stall verdict's window).
     #[serde(default)]
     pub stall: StallTally,
@@ -2984,7 +2987,7 @@ pub struct Game {
     /// Cut 23 §3: the live run's why-not tally per row of the set (`turn::tally_rows`), off the
     /// run so the history ring's clones do not carry it; folded into
     /// `LineageState::row_stats` at the run's end.
-    #[serde(default, skip)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub row_tally: Vec<RowTally>,
     /// Cut 27 §1: the passage a send from a waystone is paid — (start, coins), set by `send` and
     /// at an absence's start (`forecast::sim_passage`), read by `start_run` when the run starts
@@ -3066,6 +3069,7 @@ impl Game {
             facts_at_run_start: 0,
             max_deaths: 40,
             offline: false,
+            offline_absence: None,
             last_exit: None,
             watched: false,
             bounty_seen: None,
@@ -3129,6 +3133,7 @@ impl Game {
             facts_at_run_start: self.lineage.facts.len(),
             max_deaths: 0,
             offline: false,
+            offline_absence: None,
             stall: StallTally::default(),
             stall_cache: None,
             forecast_cache: Default::default(),

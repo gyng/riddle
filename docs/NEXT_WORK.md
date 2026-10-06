@@ -2,8 +2,8 @@
 
 Local UI iteration-speed and compact-depth work are implemented and pushed.
 Hero presence, tactic observability and the content/checkpoint audit are implemented.
-Exact earned-save slice diagnostic and contract are now in PERF_OFFLINE_SLICE_BOUNDARIES.md.
-Next: implement catch-up slice semantics (still unfixed), then the audit’s impact-ordered gameplay/content queue. Push approved
+Catch-up slice semantics are fixed and verified within PERF_OFFLINE_SLICE_BOUNDARIES.md.
+Next: readable progress milestone/reward and direct preparation, then the audit’s impact-ordered gameplay/content queue. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.
 
