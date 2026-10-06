@@ -55,8 +55,13 @@ earned builds reach ownedTier5; five clear it within48h, seed5long still fails.
 Six Tier5 send/replay/save samples and a full positive gate replay match WASM
 exactly. All six action icons are packed; shared class skill chips display every
 Gunner rung and put the selected class first. Rules shares now consistently
-use activation counts, preserving raw totals. Tier5 balance,
-and full parity/performance acceptance remain open. Earlier bow-
+use activation counts, preserving raw totals. Optional paid melee backup with
+free home Pack/Stow now lets all six earned fixed Tier5 builds clear at the
+first8h check-in; unbought seed5long still fails48h. Full-pack gun restoration
+retains permanent kit, while ordinary found weapons still drop. Six full actual
+first-run native/WASM saves/events match exactly; compact Forge and responsive
+purchase/toggle QA pass. Initial-kit/mastery remeasurement and complete class
+choice/death/replay, catch-up/performance and current18-case acceptance remain open. Earlier bow-
 override progression claims were corrected; see CUT35/HANDOFF. No deployment.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an

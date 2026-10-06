@@ -1,3 +1,33 @@
+**CUT35 OPTIONAL PAID MELEE BACKUP / REVERSIBLE PACK / COMPACT FORGE — 2026-10-07 (PARTIAL):**
+
+Home-only Gunner `gun_sidearm` costs one locked kit unit once. Free Pack/Stow
+retains ownership; selected backup is a reserved permanent-kit sword at the
+existing weapon enchant. Learned reflection uses the ordinary melee action;
+gun restoration retains kit despite full inventory. Found swords still drop.
+Workers and baseline paid upkeep exclude optional purchases. Exact refusal,
+actual send/retention, save-load, free toggle and full-pack tests pass.
+
+Six earned fixedTier5 paid builds ALL clear at first8h check-in; no grants or
+later manual spending. Locked prices seed1/3/5=225/275/200. Baseline remains
+40/32h,24/8h,FAIL48/24h. Initial backup experiment regressed seed3long; full-pack
+restoration retention fixes it. Preserve all three result sets under
+scratchpad/gunner-fixed-{no-sidearm,sidearm,sidearm-retained}-20261007.
+New permanent gunner_fixed example loads earned sources; gunner_support only
+buys normal KIT_SLOTS. Baseline source gunner-earned-descents-captive-fix-20261007.
+
+Quick674corePASS/oneignored,14toolsPASS119s; all-target fast clippyPASS.
+Six full actual first-run Step/save native/WASM comparisons exact with positive
+gun/reload/melee events; actual Pack/Stow and away refusal parity. WASM5479893B.
+Final TS/copy1729zero/buildPASS. Focused Gunner/merge2/2; Forge requests34checks
+at400/1440PASS. Real headed Forge1440/400/320 buys exact price, freeStow/Pack,
+no overflow/errors. Finished upgrades moved into Details. Screenshots shown;
+scripts/evidence scratchpad/gunner-sidearm-qa-20261007.
+
+UI_READY=false. Next remeasure actual initial-kit/mastery campaign using current
+runtime (old seed1 mastery168/152h,other4miss was before captive correction),
+then full choice/death/replay, one/three-slot8h parity/perf and current18gate.
+No deploy. Fun95unverified. Shared5219 must stay up; temporary5375 is own QA.
+
 **CUT35 ALL ACTION ART / SKILL CHIPS / VALID RULE SHARES — 2026-10-07 (PARTIAL):**
 
 Six action bitmap masters/packed96px icons complete; existing fire equipment

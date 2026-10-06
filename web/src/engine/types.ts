@@ -591,7 +591,7 @@ export type ClassChip = { class: string; signature: string; level: number; opens
  *  `delta` = the paired forecast move of buying it at `depth` (0..1, signed; the same paired panel as edits), `pm` its ±, and
  *  `bank`/`death` the ends' moves — the chip reads `mail +1 · D9 +7 · $340`. */
 export type KitStep = { label: string; price: number; owned: boolean; kind?: string; rarity?: Rarity };   // run-clear (core): the piece the step forges and its rarity
-export type KitLadder = { slot: "weapon" | "armour" | "pack"; owned: number; steps: KitStep[];
+export type KitLadder = { slot: "weapon" | "armour" | "pack" | "gun_sidearm"; selected?: boolean; owned: number; steps: KitStep[];
                           next?: { label: string; price: number; affordable: boolean; nights?: number; per_night?: number;   // QA 912e135 (core): the night's net `nights` divides by
                                    depth?: number; delta?: number; pm?: number; bank?: number; death?: number } };
 /** Cut 23 §3 — a row's why-not over the recent sends (the rows the set still holds; a changed row starts over). `sends` the

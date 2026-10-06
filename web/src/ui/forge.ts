@@ -40,7 +40,7 @@ export function measureKit(app: App): Promise<KitLadder[]> | null {
   return p;
 }
 /* copy:label */
-const SLOT_LABEL: Record<string, string> = { weapon: "weapon", armour: "armour", pack: "pack" };
+const SLOT_LABEL: Record<string, string> = { weapon: "weapon", armour: "armour", pack: "pack", gun_sidearm: /* copy:label */ "Melee backup" };
 
 /** Cut 23 §1: steps the purse can buy now (the tile's badge; the reveal ladder's `kit` step). */
 export const kitAffordable = (L: Pick<Lineage, "kit">): number => (L.kit ?? []).filter((k) => k.next?.affordable).length;
@@ -89,6 +89,7 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
     } }, /* copy:button */ "Forecast");
     const paint = (): void => {
       const ladders = app.lineage.kit ?? [];
+      const choices = ladders.filter((lad) => lad.next || lad.slot === "gun_sidearm");
       const guns = (app.lineage.guns ?? []).map((gun) => {
         const label = gun.kind === "long_gun" ? /* copy:label */ "Long gun" : /* copy:label */ "Short gun";
         const button = h("button", { class: "chip forge-buy", disabled: gun.selected || !gun.available || !app.engine.buyKit,
@@ -106,21 +107,29 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
             /* copy:label */ `Range ${gun.range}`, " · ", gun.capacity === 1 ? /* copy:label */ "1 shot" : /* copy:label */ `${gun.capacity} shots`, " · ",
             /* copy:label */ `Reload ${gun.reload_ticks / 10}s`));
       });
-      replace(kit, ...guns, ...ladders.map((lad) => {
+      replace(kit, ...guns, ...(!guns.length && !choices.length ? [h("div", { class: "num dim" }, /* copy:label */ "Kit complete")] : []), ...choices.map((lad) => {
         const next = lad.next;
         const item = lad.steps[lad.owned] ?? lad.steps[lad.owned - 1];
         const current = lad.owned > 0 ? lad.steps[lad.owned - 1]?.label : null;
-        const button = h("button", { class: "chip forge-buy", disabled: !next?.affordable || !app.engine.buyKit, "data-slot": lad.slot, onclick: () => {
-          if (!app.engine.buyKit || !next) return;
+        const backupOwned = lad.slot === "gun_sidearm" && lad.owned > 0;
+        const button = h("button", { class: "chip forge-buy", disabled: (!backupOwned && !next?.affordable) || !app.engine.buyKit || (lad.slot === "gun_sidearm" && !!app.lineage.live), "data-slot": lad.slot, onclick: () => {
+          if (!app.engine.buyKit || (!next && !backupOwned)) return;
           button.disabled = true;
-          void app.mutate(() => app.engine.buyKit!(lad.slot), /* copy:callout */ "Forged").then((ok) => { if (ok) audio.cue("unlock"); if (kit.isConnected) paint(); });
-        } }, next ? /* copy:button */ `Forge $${next.price}` : /* copy:button */ "Complete");
+          const choice = backupOwned ? `${lad.slot}:${lad.selected ? "stow" : "pack"}` : lad.slot;
+          void app.mutate(() => app.engine.buyKit!(choice), backupOwned ? lad.selected ? /* copy:callout */ "Stowed" : /* copy:callout */ "Packed" : /* copy:callout */ "Forged").then((ok) => { if (ok) audio.cue("unlock"); if (kit.isConnected) paint(); });
+        } }, backupOwned ? lad.selected ? /* copy:button */ "Stow" : /* copy:button */ "Pack" : next ? /* copy:button */ `Forge $${next.price}` : /* copy:button */ "Complete");
         return h("section", { class: "kit-slot tablet", "data-slot": lad.slot },
-          h("div", { class: "kit-head" }, h("b", null, SLOT_LABEL[lad.slot]), h("small", { class: "dim" }, current ? itemChip({kind:lad.steps[lad.owned - 1]?.kind ?? lad.slot,label:current,rarity:lad.steps[lad.owned - 1]?.rarity}) : /* copy:label */ "Starting kit")),
-          h("div", { class: "forge-action" }, h("div", { class: "forge-item" }, ...(item?.kind ? [itemIcon({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity }, { size: "s" }), itemName({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity })] : [h("span", { class: "icon-socket" }, icon("loadout", "▤")), next?.label ?? current ?? "Complete"])), button));
+          h("div", { class: "kit-head" }, h("b", null, SLOT_LABEL[lad.slot]), h("small", { class: "dim" }, current ? itemChip({kind:lad.steps[lad.owned - 1]?.kind ?? lad.slot,label:current,rarity:lad.steps[lad.owned - 1]?.rarity}) : lad.slot === "gun_sidearm" ? /* copy:label */ "Optional" : /* copy:label */ "Starting kit")),
+          h("div", { class: "forge-action" }, h("div", { class: "forge-item" }, ...(item?.kind ? [itemIcon({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity }, { size: "s" }), itemName({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity })] : [h("span", { class: "icon-socket" }, icon("loadout", "▤")), next?.label ?? current ?? "Complete"])), button),
+          lad.slot === "gun_sidearm" ? h("small", { class: "dim" }, /* copy:label */ "Ranged reflection") : "");
       }));
       replace(advanced, h("summary", null, /* copy:button */ "Details"),
-        h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => h("p", null, `${SLOT_LABEL[lad.slot]} · `, ...(lad.steps.slice(lad.owned + 1).length ? lad.steps.slice(lad.owned + 1).flatMap((s, i) => [i ? " · " : "", itemChip({kind: s.kind ?? lad.slot, label: s.label, rarity: s.rarity}), ` $${s.price}`]) : ["Complete"])))),
+        h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => {
+          const current = lad.steps[lad.owned - 1];
+          return h("p", null, `${SLOT_LABEL[lad.slot]} · `,
+            ...(!lad.next && current ? [itemChip({kind:current.kind ?? lad.slot,label:current.label,rarity:current.rarity}), " · "] : []),
+            ...(lad.steps.slice(lad.owned + 1).length ? lad.steps.slice(lad.owned + 1).flatMap((s, i) => [i ? " · " : "", itemChip({kind: s.kind ?? lad.slot, label: s.label, rarity: s.rarity}), ` $${s.price}`]) : ["Complete"]));
+        })),
         salvage(app), (app.engine.kitEstimates ?? app.engine.kitDeltas) ? forecastButton : null, estimateLabel, forecasts);
     };
     const changed = (): void => {

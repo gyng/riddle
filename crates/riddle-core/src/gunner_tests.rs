@@ -20,6 +20,56 @@ fn foe(g:&mut Game,x:i32,y:i32) {
 fn act(g:&mut Game,verb:&str)->bool {let(r,mut cx)=g.ctx();let v=crate::turn::view(r);crate::ai::try_verb(r,&mut cx,&Verb::new(verb),&v)}
 fn cadence(g:&mut Game)->bool {let(r,mut cx)=g.ctx();let v=crate::turn::view(r);crate::ai::try_verb(r,&mut cx,&Verb::arg("tactic","cadence"),&v)}
 #[test]
+fn gun_restore_keeps_paid_backup_in_full_pack_and_retains_found_weapon_drop_rule() {
+    for id in [crate::kit::SIDEARM_ID,901] {
+        let mut g=arena("long_gun",3);crate::tests::add_monster(&mut g,"lich",6,5);
+        g.run.as_mut().unwrap().monsters[0].stun=1000;
+        g.run.as_mut().unwrap().hero.inv.push(Item::new(id,"sword"));
+        g.lineage.facts.insert("foe:lich:reflect".into());assert!(act(&mut g,"gunner_tactic"));
+        let r=g.run.as_mut().unwrap();
+        while !r.hero.inv_full() {let i=10000+r.hero.inv.len() as u32;r.hero.inv.push(Item::new(i,"heal"));}
+        r.monsters[0].hp=0;
+        let mut restored=Game::load(&g.save()).unwrap();
+        for _ in 0..10 {g.tick();restored.tick();}
+        assert_eq!(g.save(),restored.save());
+        let r=g.run.as_ref().unwrap();assert_eq!(r.hero.weapon_kind(),"long_gun");
+        assert_eq!(r.hero.inv.iter().any(|w|w.id==id),id==crate::kit::SIDEARM_ID);
+        assert_eq!(r.items.iter().any(|w|w.item.id==id),id!=crate::kit::SIDEARM_ID);
+        assert!(g.events.iter().any(|e|matches!(e,Ev::Callout{text,..} if text=="gun ready")));
+    }
+}
+#[test]
+fn paid_backup_is_optional_home_only_and_remains_kit_on_actual_sends() {
+    let mut g=home();let before=g.save();assert!(crate::kit::buy(&mut g,crate::firearm::SIDEARM_SLOT).is_err());assert_eq!(g.save(),before);
+    let mut g=unlocked();
+    let before=g.save();assert!(crate::kit::buy(&mut g,crate::firearm::SIDEARM_SLOT).is_err());assert_eq!(g.save(),before);
+    g.lineage.gold=10000;g.lineage.kit.insert("weapon".into(),3);
+    let price=crate::kit::unit_of(&g.lineage);let gold=g.lineage.gold;
+    crate::kit::buy(&mut g,crate::firearm::SIDEARM_SLOT).unwrap();assert_eq!(g.lineage.gold,gold-price as i32);
+    let before=g.save();assert!(crate::kit::buy(&mut g,crate::firearm::SIDEARM_SLOT).is_err());assert_eq!(g.save(),before);
+    let mut restored=Game::load(&before).unwrap();assert_eq!(restored.save(),before);
+    let mut stowed=g.clone();let gold=stowed.lineage.gold;
+    crate::kit::buy(&mut stowed,"gun_sidearm:stow").unwrap();assert_eq!(stowed.lineage.gold,gold);
+    assert_eq!(stowed.lineage.kit.get(crate::firearm::SIDEARM_SLOT),Some(&1));
+    let mut parked=Game::load(&stowed.save()).unwrap();parked.try_send().unwrap();
+    assert!(!parked.run.as_ref().unwrap().hero.inv.iter().any(|i|i.id==crate::kit::SIDEARM_ID));
+    let before=parked.save();assert!(crate::kit::buy(&mut parked,"gun_sidearm:pack").is_err());assert_eq!(parked.save(),before);
+    crate::kit::buy(&mut stowed,"gun_sidearm:pack").unwrap();assert_eq!(stowed.lineage.gold,gold);
+    assert!(crate::firearm::sidearm_selected(&stowed.lineage));
+    let snap=g.try_send().unwrap();assert_eq!(snap.hero.gun.as_ref().unwrap().kind,"long_gun");
+    let r=g.run.as_ref().unwrap();let sword=r.hero.inv.iter().find(|i|i.id==crate::kit::SIDEARM_ID).unwrap();assert_eq!(sword.kind,"sword");assert_eq!(sword.enchant,3);
+    assert_eq!(restored.try_send().unwrap(),snap);assert_eq!(restored.save(),g.save());
+    let before=g.save();assert!(crate::kit::buy(&mut g,crate::firearm::SIDEARM_SLOT).is_err());assert_eq!(g.save(),before);
+    assert!(crate::kit::buy(&mut g,"gun_sidearm:stow").is_err());assert_eq!(g.save(),before);
+    g.bail();assert!(g.step(20).run_over);
+    assert!(!g.pending_exit.as_ref().unwrap().items.iter().any(|i|i.id==crate::kit::SIDEARM_ID));
+    g.auto_keep();g.try_send().unwrap();
+    assert!(g.run.as_ref().unwrap().hero.inv.iter().any(|i|i.id==crate::kit::SIDEARM_ID));
+    let mut other=Game::new_resident(5);other.lineage.kit.insert(crate::firearm::SIDEARM_SLOT.into(),1);
+    assert!(crate::firearm::sidearm_ladder(&other.lineage).is_none());other.try_send().unwrap();
+    assert!(!other.run.as_ref().unwrap().hero.inv.iter().any(|i|i.id==crate::kit::SIDEARM_ID));
+}
+#[test]
 fn chained_stairs_gate_accepts_actual_gun_shots_but_neutrals_and_allies_do_not() {
     for kind in ["long_gun","short_gun"] {
         let mut g=arena(kind,3);

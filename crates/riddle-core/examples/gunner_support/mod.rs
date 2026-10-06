@@ -19,7 +19,7 @@ pub fn camp(s:&mut Session,branches:bool)->Vec<String> {
     }
     // Preserve the same three-unit supplies reserve as the daily-player harness.
     loop {
-        let next=kit::ladders(&s.active.lineage).into_iter().filter_map(|l|l.next.map(|n|(l.slot,n.price))).min_by_key(|n|n.1);
+        let next=kit::ladders(&s.active.lineage).into_iter().filter(|l|kit::KIT_SLOTS.contains(&l.slot.as_str())).filter_map(|l|l.next.map(|n|(l.slot,n.price))).min_by_key(|n|n.1);
         let Some((id,price))=next else {break};
         let reserve=3*kit::unit_of(&s.active.lineage);
         if i64::from(s.active.lineage.gold)<i64::from(price)+i64::from(reserve){break;}

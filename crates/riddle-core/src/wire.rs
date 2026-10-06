@@ -2664,6 +2664,9 @@ pub struct KitNext {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct KitLadder {
     pub slot: String,
+    /// Optional kit choices can be packed/stowed without losing ownership.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected: Option<bool>,
     pub owned: u32,
     pub steps: Vec<KitStep>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

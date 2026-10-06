@@ -80,6 +80,40 @@ pub fn starting_kind(l:&crate::engine::LineageState)->&'static str {
     if l.class==crate::hero::Class::Gunner&&l.kit.get("gun_choice")==Some(&1)&&l.kit.get("short_gun")==Some(&1) {"short_gun"}
     else {l.class.starting_weapon()}
 }
+pub const SIDEARM_SLOT:&str="gun_sidearm";
+pub fn sidearm_selected(l:&crate::engine::LineageState)->bool {
+    l.kit.get(SIDEARM_SLOT)==Some(&1)&&l.kit.get("gun_sidearm_off")!=Some(&1)
+}
+pub fn set_sidearm(game:&mut crate::Game,selected:bool)->Result<(),String> {
+    if game.lineage.class!=crate::hero::Class::Gunner||!game.lineage.unlocks.contains("gunner") {return Err("choose Gunner".into());}
+    if game.run.is_some() {return Err("hero away".into());}
+    if !game.lineage.town.home.unwrap_or(true) {return Err("build a house".into());}
+    if game.lineage.kit.get(SIDEARM_SLOT)!=Some(&1) {return Err("forge melee backup".into());}
+    if selected {game.lineage.kit.remove("gun_sidearm_off");}else{game.lineage.kit.insert("gun_sidearm_off".into(),1);}Ok(())
+}
+pub fn forge_sidearm(game:&mut crate::Game)->Result<(),String> {
+    if game.lineage.class!=crate::hero::Class::Gunner||!game.lineage.unlocks.contains("gunner") {return Err("choose Gunner".into());}
+    if game.run.is_some() {return Err("hero away".into());}
+    if !game.lineage.town.home.unwrap_or(true) {return Err("build a house".into());}
+    if game.lineage.kit.get(SIDEARM_SLOT)==Some(&1) {return Err("already forged".into());}
+    let price=i32::try_from(crate::kit::unit_of(&game.lineage)).map_err(|_|"price too high")?;
+    if crate::tree::purse(&game.lineage)<price {return Err("not enough gold".into());}
+    crate::kit::lock_unit(&mut game.lineage);
+    game.lineage.gold_move(-price,"forge melee backup");
+    game.lineage.kit.insert(SIDEARM_SLOT.into(),1);
+    crate::tree::did(&mut game.lineage,"forge");Ok(())
+}
+pub fn sidearm_ladder(l:&crate::engine::LineageState)->Option<crate::wire::KitLadder> {
+    if l.class!=crate::hero::Class::Gunner||!l.unlocks.contains("gunner") {return None;}
+    let owned=u32::from(l.kit.get(SIDEARM_SLOT)==Some(&1));let price=crate::kit::unit_of(l);
+    let mut item=crate::item::Item::new(crate::kit::SIDEARM_ID,"sword");item.enchant=crate::kit::owned(l,"weapon") as i32;
+    let label=if item.enchant>0 {format!("sword +{}",item.enchant)}else{"sword".into()};
+    let next=(owned==0).then(||crate::wire::KitNext{label:label.clone(),price,
+        affordable:l.town.home.unwrap_or(true)&&i64::from(crate::tree::purse(l))>=i64::from(price),
+        nights:crate::kit::nights(l,i64::from(price)-i64::from(crate::tree::purse(l))),..Default::default()});
+    Some(crate::wire::KitLadder{slot:SIDEARM_SLOT.into(),selected:Some(sidearm_selected(l)),owned,steps:vec![crate::wire::KitStep{
+        label,price,owned:owned==1,kind:Some("sword".into()),rarity:crate::item::rarity(&item,true)}],next})
+}
 pub fn choose(game:&mut crate::Game,kind:&str)->Result<(),String> {
     if Profile::of(kind).is_none() {return Err("unknown gun".into());}
     if game.lineage.class!=crate::hero::Class::Gunner||!game.lineage.unlocks.contains("gunner") {return Err("choose Gunner".into());}

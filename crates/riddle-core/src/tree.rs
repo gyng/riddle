@@ -530,7 +530,7 @@ fn workers_act(game: &mut Game, send: bool) {
         loop {
             let l = &game.lineage;
             let reserve = RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32;
-            let Some((slot, p)) = crate::kit::ladders(l).iter().filter_map(|x| x.next.as_ref().map(|s| (x.slot.clone(), s.price as i32))).min_by_key(|x| x.1) else { break };
+            let Some((slot, p)) = crate::kit::ladders(l).iter().filter(|x|crate::kit::KIT_SLOTS.contains(&x.slot.as_str())).filter_map(|x| x.next.as_ref().map(|s| (x.slot.clone(), s.price as i32))).min_by_key(|x| x.1) else { break };
             let off = APPRENTICE_OFF_PCT * bonus_rank(l, "apprentice");
             if purse(l) < p - p * off as i32 / 100 + reserve || crate::kit::buy_step_off(&mut game.lineage, &slot, off).is_err() {
                 break;
@@ -542,7 +542,7 @@ fn workers_act(game: &mut Game, send: bool) {
     // the clerk: the purse above the next forge step and the reserve into the bank
     if on(&game.lineage, "clerk") && crate::town::built(&game.lineage, "bank") {
         let l = &game.lineage;
-        let next = crate::kit::ladders(l).iter().filter_map(|x| x.next.as_ref().map(|s| s.price as i32)).min().unwrap_or(0);
+        let next = crate::kit::ladders(l).iter().filter(|x|crate::kit::KIT_SLOTS.contains(&x.slot.as_str())).filter_map(|x| x.next.as_ref().map(|s| s.price as i32)).min().unwrap_or(0);
         let spare = purse(l) - next - RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32;
         if spare > 0 {
             if let Ok(d) = crate::town::deposit(&mut game.lineage, spare) {

@@ -25,7 +25,7 @@ export function combatLogEvents(events: readonly Ev[], heroId: number, kinds: Re
   for (const ev of events) {
     if (ev.k === "rule" && ev.verb.v === "gunner_tactic") continue;
     if (ev.k === "callout") {
-      if (["reloading", "loaded", "aim steady", "aim lost", "smoke retreat"].includes(ev.text)) rows.push(ev);
+      if (["reloading", "loaded", "aim steady", "aim lost", "smoke retreat", "melee backup", "gun ready"].includes(ev.text)) rows.push(ev);
       continue;
     }
     if (ev.k === "attack" && ev.hit && ev.dmg > 0) {

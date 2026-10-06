@@ -1528,7 +1528,7 @@ fn gun_sidearm(run:&mut Run,cx:&mut Ctx,mi:usize)->bool {
     crate::firearm::cancel_aim(run,cx);
     let sidearm=run.hero.inv.remove(i);
     run.bow_swap=run.hero.weapon.replace(sidearm);
-    callout(run,cx,"sidearm");true
+    callout(run,cx,"melee backup");true
 }
 fn gunner_tactic(run:&mut Run,cx:&mut Ctx,v:&View)->bool {
     if run.hero.class!=Class::Gunner {return false;}

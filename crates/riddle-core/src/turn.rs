@@ -335,7 +335,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     if run.bow_swap.is_some() && !v.foes.iter().any(|&i| if parked_gun {run.monsters[i].reflects_ranged()}else{run.monsters[i].reflects_melee()}) {
         let melee = run.bow_swap.take().unwrap();
         if let Some(bow) = run.hero.weapon.replace(melee) {
-            if run.hero.inv_full() {
+            if run.hero.inv_full() && !crate::kit::is_kit_id(bow.id) {
                 let here = run.hero.pos;
                 run.note_gone(bow.id, &bow.kind, "left", 1);
                 drop_near(run, here, bow);

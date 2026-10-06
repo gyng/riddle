@@ -1,5 +1,50 @@
 # Cut 35 — Gunner, long guns and short guns
 
+## Earned melee-backup contract — 2026-10-07
+
+Optional home-only Gunner forge choice `gun_sidearm`, paid once at one locked
+kit unit. No purchase/switch while away; duplicate/poor/non-Gunner requests
+must preserve the complete save. The remembered kit flag creates one reserved
+kit sword in the pack on future Gunner sends, at the existing weapon-ladder
+enchant. Free home Pack/Stow remembers ownership and selection independently;
+stowing omits the backup on the next send and repacking charges nothing. Primary gun, chamber/reload/aim rules and explicit loadout preference
+remain unchanged. Other classes/unchosen Gunner saves are unaffected.
+The existing learned-reflection sidearm action swaps it in; ordinary melee
+damage applies, then the gun restores when reflectors leave view. Unknown
+reflection still has to be learned. Owned backup is never saleable loot.
+
+Workers and baseline upkeep exclude optional purchases; trials explicitly buy
+with real earned gold. Acceptance: transaction refusal/ownership/kit retention,
+real learned Lich melee switch + gun restore + save parity; all six earned
+fixedTier5 builds tested without further manual spending for48h, preserving
+every failure. App forge purchase/button/state at1440/400/320, exact native/WASM
+actual sends/replays and focused client/core checks. This is a build counter,
+not a free damage/reflection bypass or an automatic grant to pass the baseline.
+
+## Paid-backup acceptance checkpoint — 2026-10-07
+
+All six actual earned fixed Tier5 camps clear at the first8h check-in after one
+explicit paid backup purchase (seed1/3/5, long/short). Prices225/275/200 are the
+historical locked kit units; no grants or subsequent manual spending. Current
+unbought comparison remains40/32h,24/8h,FAIL48/24h. First backup experiment
+passed5/6 but regressed seed3long: restoring the gun with a full pack dropped
+the purchased sword. Retain permanent kit IDs on restoration; ordinary found
+weapons still drop when full. Final paid trial6/6; earlier failures preserved.
+Evidence: scratchpad/gunner-fixed-{no-sidearm,sidearm,sidearm-retained}-20261007.
+
+674core tests PASS/oneignored,14tools PASS, fast all-target clippy PASS. Six
+complete first-run native/WASM Step outputs and full saves match exactly,
+including actual gunfire, reloads and melee attacks. Home Pack/Stow persists,
+charges zero, and away/refused transactions preserve saves. RealWASM5479893bytes.
+Actual headed worker Forge purchase/Pack/Stow at1440/400/320: exact charge,
+no overflow/pageerrors. Completed upgrades fold into Details; gun choices and
+backup remain visible. Final TS/copy1729zero/build PASS; focused Gunner/merge
+2/2 and Forge requests at400/1440 (34 checks each) PASS. Evidence/scripts in
+scratchpad/gunner-sidearm-qa-20261007. No deployment or new broad perf/gate
+certification. UI_READY=false; full initial-kit/mastery, class/death/replay,
+8h one/three-bloodline parity/perf and routine18-case checks still pending.
+95fun goal remains unverified.
+
 ## Complete action art and observable skills — 2026-10-07
 
 All six distinct action masters are now packed: aim, burst, reload, fast reload,

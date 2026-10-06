@@ -43,8 +43,10 @@ pub const ROW_MULT: [(&str, u32); 6] = [("row5", 2), ("row6", 5), ("row7", 10), 
 /// The kit's item ids (never loot: an exit neither salvages nor keeps them).
 pub const WEAPON_ID: u32 = 1;
 pub const ARMOUR_ID: u32 = 2;
+/// Reserved outside historical floor/supply ids; the optional backup is never loot.
+pub const SIDEARM_ID:u32=u32::MAX-1;
 pub fn is_kit_id(id: u32) -> bool {
-    id == WEAPON_ID || id == ARMOUR_ID
+    id == WEAPON_ID || id == ARMOUR_ID || id == SIDEARM_ID
 }
 
 /// The unit a step's price is a multiple of: `100 + 25 × best depth` ($300 at D8). A night of a
@@ -167,7 +169,7 @@ pub fn nights(l: &LineageState, short: i64) -> Option<u32> {
 
 /// The ladders as the camp shows them (no sims).
 pub fn ladders(l: &LineageState) -> Vec<KitLadder> {
-    KIT_SLOTS
+    let mut out:Vec<_>=KIT_SLOTS
         .iter()
         .map(|slot| {
             let n = owned(l, slot) as usize;
@@ -178,14 +180,18 @@ pub fn ladders(l: &LineageState) -> Vec<KitLadder> {
             let short = s_short(l, steps.get(n).map(|s| s.price).unwrap_or(0));
             let purse = crate::tree::purse(l);
             let next = steps.get(n).map(|s| KitNext { label: s.label.clone(), price: s.price, affordable: purse >= s.price as i32, nights: nights(l, s.price as i64 - purse as i64), per_night: (short > 0 && per_night(l) > 0).then(|| per_night(l)), ..Default::default() });
-            KitLadder { slot: (*slot).into(), owned: n as u32, steps, next }
+            KitLadder { slot: (*slot).into(), selected:None, owned: n as u32, steps, next }
         })
-        .collect()
+        .collect();
+    out.extend(crate::firearm::sidearm_ladder(l));out
 }
 
 /// Buy the next step of `slot` by hand (the ledger reads `forge <label>`; Cut 30.5: it counts toward the
 /// apprentice).
 pub fn buy(game: &mut Game, slot: &str) -> Result<(), String> {
+    if slot=="gun_sidearm:pack" {return crate::firearm::set_sidearm(game,true);}
+    if slot=="gun_sidearm:stow" {return crate::firearm::set_sidearm(game,false);}
+    if slot==crate::firearm::SIDEARM_SLOT {return crate::firearm::forge_sidearm(game);}
     if crate::firearm::Profile::of(slot).is_some() {return crate::firearm::choose(game,slot);}
     buy_step(&mut game.lineage, slot)?;
     crate::tree::did(&mut game.lineage, "forge");
@@ -231,6 +237,10 @@ pub fn equip(l: &LineageState, hero: &mut Hero) {
     let mut w = Item::new(WEAPON_ID, crate::firearm::starting_kind(l));
     w.enchant = owned(l, "weapon") as i32;
     if hero.class==crate::hero::Class::Gunner {hero.weapon=Some(w).into();}else {hero.auto_equip(w);}
+    if hero.class==crate::hero::Class::Gunner&&crate::firearm::sidearm_selected(l) {
+        let mut sidearm=Item::new(SIDEARM_ID,"sword");sidearm.enchant=owned(l,"weapon") as i32;
+        hero.auto_equip(sidearm);
+    }
     let a = owned(l, "armour") as usize;
     if a > 0 {
         let (k, e) = ARMOUR_STEPS[a - 1];
