@@ -776,7 +776,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .banner-cloth { position: relative; width: min(100%, 290px); aspect-ratio: 3 / 4; margin: 0 auto -8px; padding: 23% 34px 0; text-align: center;
   background: linear-gradient(#1f1f32 0 5%, transparent 5%), linear-gradient(#920012, #500013);
   clip-path: polygon(0 0, 100% 0, 100% 78%, 88% 90%, 74% 80%, 60% 100%, 44% 84%, 30% 95%, 14% 82%, 0 90%); filter: drop-shadow(0 6px 10px var(--ink)); }
-.skin-banner .banner-cloth { background: url(/ui/frames/banner.png) top center / 100% 100% no-repeat; clip-path: none; }
+.skin-banner .banner-cloth { background: url(/ui/frames/banner.png) top center / 100% auto no-repeat; clip-path: none; }
 .death .death-line { margin: 0; font: 700 21px/1.2 var(--display); color: var(--bone); text-shadow: 0 2px 4px var(--ink), 0 0 12px rgba(13, 12, 20, .6); overflow-wrap: anywhere; }
 .death-line .cause { display: block; }
 .death-line .sep { display: none; }   /* QA 778fa1b (qaU: a lone `·` between the headline and the seal in a text read) */
@@ -880,8 +880,8 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .shaft-ends .gemdot { flex: none; }
 
 /* QA 23ed91f (player K) — the death's point above the console: the seal follows the line (it drew over `5 unknown u…d`), a shorter
-   banner, the patches before the trace; the patch gem says what it does (`100%` over `apply`) */
-.banner-cloth { aspect-ratio: auto; width: min(100%, 250px); padding: 50px 24px 58px; display: flex; flex-direction: column; align-items: center; }
+   banner with its native proportions, the patches before the trace; the patch gem says what it does (`100%` over `apply`) */
+.banner-cloth { aspect-ratio: 3 / 4; width: min(100%, 290px); padding: 44px 24px 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 .death .death-line { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 17px; }
 .death .death-line .verdict { position: relative; left: auto; top: auto; flex: none; margin: 0; width: 76px; height: 76px; font-size: 20px; }
 .death-well { gap: 8px; }
@@ -1754,12 +1754,11 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .ledger .unit-name { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 5px 4px 5px 0; }
 .ledger .unit-name-text { min-width: 0; overflow-wrap: anywhere; }
 .death-hero { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; }
-.death-line .cause-btn.has-unit-icon { display: flex; align-items: center; justify-content: center; gap: 10px; }
-.cause-btn > .killer { flex: 0 0 48px; width: 48px; height: 48px; object-fit: cover; border-radius: 0; }
+.death-line .cause-btn.has-unit-icon { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.cause-btn > .killer { flex: none; width: 48px; height: 48px; object-fit: cover; border-radius: 0; }
 .cause-btn.has-unit-icon > .cause { min-width: 0; }
 @media (max-width: 420px) {
   .ledger .lrow { grid-template-columns: minmax(0, 1fr) repeat(5, 32px); }
   .ledger .lrow.head { font-size: 8px; letter-spacing: -.02em; }
   .ledger .unit-name { gap: 5px; }
-  .cause-btn > .killer { flex-basis: 40px; width: 40px; height: 40px; }
 }

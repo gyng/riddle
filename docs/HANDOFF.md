@@ -1,3 +1,12 @@
+**DEATH BANNER PROPORTIONS — 2026-10-06:** Owner correction: cloth squashed,
+enemy above text centered. Restored3:4 native384×512 aspect, background100% auto
+avoids stretching; centered vertical portrait/name stack inside cause trace
+button.48px enemy atallwidths. New geometry assertsratio±.01, center±1px,
+portraitabove text320/400/1440. Uniticons/deathinput/identity/actions4/4 pass14.7s;
+build/typecheck/copy1555/diff clean. ActualheadedWASM Warlorddeath400/1440 ratio
+verified/no warnings/overflow; screenshots shown. UX_DEATH_BANNER_PROPORTIONS.md;
+scratchpad/death-banner-20261006/. No core/newart/deploy.
+
 **UNIT ICONS BESIDE NAMES — 2026-10-06:** Owner requested death screens and
 unit reference art icons. Added unitIcon shared packedportrait→atlas→primitive.
 Seen enemyguide names now carry34px art; unseen rows stay ?. Killer48px (40phone)
