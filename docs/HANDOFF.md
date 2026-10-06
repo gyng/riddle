@@ -1,3 +1,22 @@
+**EARNED TACTICS VISIBLE ON RETURN — 2026-10-06:** Freshseed3houseUI,
+3engine manual sends+porter/scout, unchangedSteady/no upgrades, four8hQuick
+absences: D7/8/8/13; Warlord firstslain in24–32hinterval. +Bold/+bossfocus/
++kitearchers hiddenunderreportdetails. Newchoices now visibleiconbuttons,
+reportbeats only/currentcataloguekind, no inferredlevels orautoequip. Click
+selectsreportedowner andopensmatchingalternatives directly; soleactive-slot
+fallbackforoldsingle reports, ambiguousoldmultiherodisplayonly, removedowner/
+supersededselectionguard. Live topologycachepreservesbuttonDOM. Finalownership
+46pass2.8s; initialcombined44+XP40+selection28+actions32pass4.5s, finalfixture
+additiononly. Build/typecheck/copy1532/diffpass,bundleadvisory. Realheaded400/
+1440rewardallthreevisible, BossFocus openswithoutchange, manuallyequipped/
+save-loadretained,noerrors/overflow; WASMhashae07e9503204d65d236072dbe0183b8fd
+8608d0376dfd70f6411fc41528047c6. Screenshotsshown. AcceleratedengineQA, nohuman
+32h/fun/balance/perfclaim. UX_REPORT_NEW_CHOICES.md; scratchpad/first-boss-rewards-
+20261006/. NoRust/WASM/deploy. Temporary5395 cleaned/shared5219preserved.
+Next: paired next-absence savedtown gameplay comparison with earnedtactic versus
+sameuntouchedsave, inspect actualdecisions/rewards; don't assumeBossFocushelps
+nextwall. Stopreportchrome polish unlessfreshplayevidence demandsit.
+
 **BOSS APPROACH FRAMING — 2026-10-06:** Recorded desktopWarlord settledsprite
 clippedy−128/645px. Boss-aware natural spritebounds choosewiderfightscale,
 lockwidestbodyframeforencounter; drop gets temporary36unitspace thenclosecut.

@@ -96,13 +96,13 @@ function measure(app: App, choices: [string, number][]): OptionsRead | null {
 const levelBar = (p: Package): HTMLElement => h("span", { class: "lvl-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(levelFill(p) * 100)}%` }));
 
 /** Opens the packages panel (a sheet anchored to `anchor`, the tile that opened it). */
-export function openPackages(app: App, anchor?: HTMLElement | null): void {
+export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?: string): void {
   let dispose = (): void => {};
   openSheet((close) => {
     const body = h("div", { class: "sheet-body pkg-panel" });
     let reading: OptionsRead | null = null;
     let compare = false, details = false, tacticSlot: number | null = null;
-    const choosing = new Set<string>();
+    const choosing = new Set<string>(initialKind ? [initialKind] : []);
     const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then((ok) => { if (ok) choosing.delete(p.kind); paint(); }); };
     const paint = (): void => {
       const L = app.lineage, P = L.packages; if (!P) { close(); return; }
@@ -222,6 +222,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null): void {
     const offChange = app.onChange?.(changed), offRules = app.onRules?.(changed);
     dispose = () => { offChange?.(); offRules?.(); };
     paint();
+    if (initialKind) requestAnimationFrame(() => body.querySelector<HTMLElement>(`.pkg-sec[data-kind="${initialKind}"]`)?.scrollIntoView({ block: "nearest" }));
     return body;
   }, { anchor, onClose: () => dispose() });
 }

@@ -35,6 +35,7 @@ import { revealed } from "./reveal";
 import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
 import { grewBlock, heroFace, reportTrainingBlock, trainingBeats } from "./tracks";
+import { reportChoices } from "./report-choices";
 import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
@@ -588,12 +589,13 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const offUpgrade = app.onChange(paintUpgrade), offLiveUpgrade = app.onLive(paintUpgrade);
   paintUpgrade();
   const firstActs = (r.workers ?? []).filter((a) => a.first && (a.n > 0 || a.what));
+  const newChoices = reportChoices(app, r);
   const firstWorkers = firstActs.length ? h("section", { class: "report-first-workers" },
     h("b", { class: "row-label" }, /* copy:label */ "Workers started"),
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, classXpBlock(r), upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
@@ -648,7 +650,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const clear = mountClear(app, r, absence, reportWell, gemEl, () => cons.setTiles(consTiles));
   if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
   if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
-  return { el, dispose: () => { offUpgrade(); offLiveUpgrade(); bar.dispose(); wide.dispose(); } };
+  return { el, dispose: () => { offUpgrade(); offLiveUpgrade(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
 }
 
 /** Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): each companion that fell, by name — `Greth · ogre L5 · fell D12
