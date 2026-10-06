@@ -240,6 +240,9 @@ pub struct Run {
     pub id: u32,
     pub heir: u32,
     pub started_turn: u64,
+    /// Numbered difficulty as played, independent of later camp selections.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub difficulty: u32,
     pub rng: Rng,
     pub depth: u32,
     /// Cut 21 §1: the floor the send started on (1, or the lit waystone it paid for).
@@ -1274,6 +1277,9 @@ pub struct LineageState {
     /// Times the lineage has ascended, and the variant it plays under ("" at level 0).
     #[serde(default)]
     pub ascension: u32,
+    /// Separate from historical challenge restart count; absent saves play tier zero.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endgame: Option<crate::endgame::Progress>,
     #[serde(default)]
     pub variant: String,
     /// Variants the lineage has finished the dungeon with.
@@ -1702,6 +1708,7 @@ impl LineageState {
             runs_returned: 0,
             runs_died: 0,
             ascension: 0,
+            endgame: None,
             variant: String::new(),
             ascended: Vec::new(),
             banked_depths: BTreeSet::new(),
@@ -3567,6 +3574,7 @@ impl Game {
         l.chronicled = 0;
         l.lost.clear();
         l.ascension += 1;
+        if let Some(p) = &mut l.endgame { p.tier = 0; }
         l.variant = variant.into();
         l.ended = false;
         l.heir = 1;
@@ -3845,6 +3853,7 @@ impl Game {
             id,
             heir: self.lineage.heir,
             started_turn: self.lineage.total_turns,
+            difficulty: self.lineage.endgame.as_ref().map_or(0, |p| p.tier),
             rng,
             depth: start,
             start,
@@ -4380,6 +4389,9 @@ impl Game {
         self.lineage.total_turns += 1;
         if self.run.as_ref().unwrap().depth >= ENDING_DEPTH {
             self.lineage.ended = true;
+            if let Some(p) = &mut self.lineage.endgame {
+                let _ = p.complete(self.run.as_ref().unwrap().difficulty);
+            }
             let v = self.lineage.variant.clone();
             if !v.is_empty() && !self.lineage.ascended.contains(&v) {
                 self.lineage.ascended.push(v);

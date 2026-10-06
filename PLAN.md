@@ -14,6 +14,11 @@ learns facts on its own; every death names its cause. The dungeon has a bottom.
 Buildings become available at milestones and require a manual build action.
 First load is an empty town: free house → hero arrives → Send. Each active slot is a persistent bloodline; its Legacy survives heir replacement and buys health, damage, and armour at home. Multiple bloodlines run independently with shared town gold (docs/UX_BLOODLINES.md). Gold collects directly into the spendable total; Savings is separate. The live watch labels carried/secured gold, with a combat log and Town menu exit (docs/UX_FIRST_HOME.md).
 The end report leads with runs, deepest floor and gold; extra detail folds away.
+Owner endgame direction2026-10-06: clears unlock numbered harder descents per
+bloodline, with affixes/elites/boss changes, then branching Legacy and class
+specializations (`docs/CUT31_ASCENSIONS.md`, `docs/ENDGAME_ASCENSIONS.md`).
+Only the core progression/reset foundation is implemented so far; higher-tier
+encounters and app selection remain pending. Old challenge restarts remain available.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an
 automation/idle game first, never as an action roguelike (`research/idle-attraction.md` §1.1).

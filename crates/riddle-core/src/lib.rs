@@ -6,6 +6,7 @@ pub mod chronicle;
 pub mod defs;
 pub mod descent;
 pub mod engine;
+pub mod endgame;
 pub mod facts;
 pub mod fold;
 pub mod divergence;

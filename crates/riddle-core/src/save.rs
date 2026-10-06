@@ -17,6 +17,7 @@ pub fn load(text: &str) -> Result<Game, String> {
     if g.version != SAVE_VERSION {
         return Err(format!("save version {} unsupported", g.version));
     }
+    if let Some(p) = &g.lineage.endgame { p.validate()?; }
     // Cut 6 §5: counter facts carry their row.
     crate::facts::upgrade_counter_facts(&mut g.lineage.facts);
     // Cut 9 §7: the graveyard's last five deaths stay answerable.

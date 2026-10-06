@@ -1,3 +1,28 @@
+**NUMBERED ENDGAME CORE FOUNDATION — 2026-10-06:**
+CUT31_ASCENSIONS.md implementation contract, A only; B/C/D open, whole goal active.
+endgame.rs Progress selected/unlocked/cleared per bloodline; no inference from
+old challenge counts. Optional save field/default omitted Run.difficulty0,
+run/history/capsule tier snapshot, positive-tier forecast key. Separate new
+begin_descent validates before mutation, retains survivor/heir/gold/class XP/
+Legacy/kit/supplies/policy/town/other slots, resets selected depth/checkpoints/
+freshness/presentation caches. Old ascend behavior unchanged, returns to tier0
+if optional numbered progress exists. New API hidden from app bridges/UI until
+modifiers; positive tiers have no encounter mechanics yet. Load validation.
+Eight new tests; full workspace578PASS/1ignored37.01s; clippy alltargets PASS.
+Earned actual King/heir33 single + legally added two live others new reset:
+full other Game unchanged, gold2850/450 respectively, class/Legacy/kit/heir
+retained; complete native reload and numbered native/WASM save bytes exact.
+First earned probe revealed stale generated D35 bank guard became D2 only on
+load; fixed immediate recompile, regression included. Six prior-WASM earned
+ending/old four variants/multi complete saves,1s advance responses and after
+saves byte-identical rebuilt WASM. No new tier victory/modifier claim.
+Fast WASM5258334B, build/typecheck/copy1630/diff clean; bundle advisory existing.
+Artifacts scratchpad/endgame-foundation-20261006/; temporary Rust diagnostic
+example removed after source copy. No deploy/full statistical gate/profile
+claim; no UI changes/screenshots this checkpoint. Next Cut31 B mechanical
+modifiers and authoritative metadata, then UI and higher-tier verification;
+Legacy tree/classes remain queued. Shared Vite5219 retained.
+
 **ENDGAME OWNER STEERING — 2026-10-06:**
 Owner asks endless ascensions after clear, affixes/elites/bosses, classes and
 Legacy skill trees. ENDGAME_ASCENSIONS.md is a proposal, not shipped mechanics:

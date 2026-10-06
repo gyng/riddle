@@ -1547,6 +1547,7 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&l.vault_pref);
     feed(&serde_json::to_string(&l.lost).unwrap_or_default());
     feed(&l.variant);
+    if let Some(p) = &l.endgame { if p.tier > 0 { feed(&format!("difficulty {}", p.tier)); } }
     feed(&serde_json::to_string(&l.hunter).unwrap_or_default());
     feed(&format!("{:?}", l.kill_counts));
     feed(&l.ended.to_string());
