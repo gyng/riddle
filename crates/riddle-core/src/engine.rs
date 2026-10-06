@@ -237,6 +237,8 @@ pub struct FloorItem {
 /// Everything about one expedition. Cloned per turn into the history ring (for verdicts).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Run {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gun_reload: Option<crate::firearm::Reload>,
     pub id: u32,
     pub heir: u32,
     pub started_turn: u64,
@@ -3865,6 +3867,7 @@ impl Game {
             }
         }
         let mut run = Run {
+            gun_reload: None,
             id,
             heir: self.lineage.heir,
             started_turn: self.lineage.total_turns,
@@ -4469,6 +4472,9 @@ impl Game {
         if let Some((t0, _)) = run.vault_choice.as_ref() {
             quiet = quiet.min((t0 + VAULT_GRACE).saturating_sub(run.turn + 1));
         }
+        if let Some(reload) = run.gun_reload {
+            quiet = quiet.min(reload.at.saturating_sub(run.turn.saturating_add(1)));
+        }
         if quiet == 0 { self.tick(); return 1; }
         let before_action = |bound: u32, energy: i32, speed: i32| -> u32 {
             if speed <= 0 || energy >= ACT_ENERGY - speed { return 0; }
@@ -4521,6 +4527,16 @@ impl Game {
         let m = &run.floor.map;
         let h = &run.hero;
         let hero = HeroSnap {
+            gun: h.weapon.as_ref().and_then(|w| {
+                let profile = crate::firearm::Profile::of(&w.kind)?;
+                let chambers = w.firearm?;
+                Some(crate::wire::GunSnap {
+                    item: w.id, kind: w.kind.clone(), loaded: chambers.loaded,
+                    capacity: profile.capacity, range: profile.range, damage: h.atk(),
+                    armour_piercing: profile.armour_piercing, reload_ticks: profile.reload_ticks,
+                    reload_left: run.gun_reload.map_or(0, |r| r.at.saturating_sub(run.turn)),
+                })
+            }),
             entity: Entity {
                 id: HERO_ID,
                 kind: format!("hero_{}", h.class.name()),

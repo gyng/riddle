@@ -474,6 +474,22 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
                 "no line"
             }
         }
+        "fire" | "close_burst" => {
+            if crate::firearm::Profile::of(run.hero.weapon_kind()).is_none() { "no gun" }
+            else if run.gun_reload.is_some() { "reloading" }
+            else if run.hero.weapon.as_ref().and_then(|w|w.firearm).is_none_or(|c|c.loaded < if verb.v=="close_burst" {2}else{1}) { "empty gun" }
+            else if let Some(mi)=pick_target_from(run,verb.a.as_deref().unwrap_or("nearest"),&v.foes) {
+                let p=crate::firearm::Profile::of(run.hero.weapon_kind()).unwrap();let m=&run.monsters[mi];
+                if m.pos.cheb(run.hero.pos)>p.range {"too far"}
+                else if !run.floor.map.is_visible(m.pos)||!run.floor.map.los(run.hero.pos,m.pos) {"no sight"}
+                else if verb.v=="close_burst"&&p.capacity!=2 {"no short gun"}else {"no use"}
+            }else {"no enemy"}
+        }
+        "reload" => {
+            if crate::firearm::Profile::of(run.hero.weapon_kind()).is_none() {"no gun"}
+            else if run.gun_reload.is_some() {"reloading"}
+            else {"gun full"}
+        }
         "shoot" | "volley" | "double_shot" => {
             if !run.hero.ranged() {
                 "no bow"
@@ -722,6 +738,9 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
             any
         }
         "attack" => verb_attack(run, cx, &a, v, false),
+        "fire" => fire_gun(run, cx, &a, v, false),
+        "reload" => crate::firearm::reload(run, cx),
+        "close_burst" => run.hero.level >= 3 && fire_gun(run, cx, &a, v, true),
         "shield_bash" => class_has_verb(run.hero.class, run.hero.level, "shield_bash") && run.hero.bash_cd == 0 && verb_attack(run, cx, "nearest", v, true),
         "riposte" => {
             if crate::specialization::has(&run.hero,crate::specialization::Style::Sentinel)&&run.hero.special_cd==0&&v.adj>0 {
@@ -960,6 +979,9 @@ fn ally_mirror(run: &mut Run, cx: &mut Ctx, mi: usize, ti: usize, verb: &str, hi
 
 /// A shot at `sel` within bow range and line of sight, else a step toward it. Needs a bow.
 fn verb_shoot(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View) -> bool {
+    if crate::firearm::Profile::of(run.hero.weapon_kind()).is_some() {
+        return fire_gun(run, cx, sel, v, false);
+    }
     if !run.hero.ranged() {
         return false;
     }
@@ -1262,6 +1284,14 @@ fn pick_target_from(run: &Run, a: &str, foes: &[usize]) -> Option<usize> {
 }
 
 fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bool {
+    if !bash && crate::firearm::Profile::of(run.hero.weapon_kind()).is_some() {
+        if fire_gun(run, cx, a, v, false) { return true; }
+        // Authored attack may approach; it never silently refills an empty gun.
+        let Some(mi) = pick_target_from(run, a, &v.foes) else { return false; };
+        let range = crate::firearm::Profile::of(run.hero.weapon_kind()).unwrap().range;
+        if run.monsters[mi].pos.cheb(run.hero.pos) > range { return approach_target(run, cx, mi); }
+        return false;
+    }
     let Some(mi) = pick_melee_target(run, a, v) else { return false };
     let hp = run.hero.pos;
     let mp = run.monsters[mi].pos;
@@ -1387,13 +1417,74 @@ pub fn hero_attack(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: boo
 }
 
 pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: bool, mult: i32) {
+    // Every old ranged attack path must reserve ammunition too. Dedicated gun
+    // actions call the shared hit resolver after their one chamber commitment.
+    if let Some(profile) = crate::firearm::Profile::of(run.hero.weapon_kind()) {
+        if !reserve_gun(run, mi, profile, false) { return; }
+        hero_attack_roll(run, cx, mi, "fire", false, mult, Some(profile));
+        return;
+    }
+    hero_attack_roll(run, cx, mi, verb, bash, mult, None);
+}
+
+fn reserve_gun(run: &mut Run, mi: usize, profile: crate::firearm::Profile, burst: bool) -> bool {
+    if run.gun_reload.is_some() { return false; }
+    let Some(m) = run.monsters.get(mi) else { return false; };
+    let target = crate::firearm::ShotTarget {
+        from: run.hero.pos, to: m.pos, hostile_alive: m.hp > 0 && m.hostile() && !m.dormant,
+        visible: run.floor.map.is_visible(m.pos), los: run.floor.map.los(run.hero.pos, m.pos),
+    };
+    let Some(mut chambers) = run.hero.weapon.as_ref().and_then(|w| w.firearm) else { return false; };
+    if chambers.fire(profile, target, burst).is_err() { return false; }
+    run.hero.weapon.as_mut().unwrap().firearm = Some(chambers);
+    true
+}
+
+/// Pure target selection and complete validation precede chamber/RNG/memory
+/// mutation. Spread has a fixed three-entry list and resolves ordinary hits.
+pub(crate) fn fire_gun(run: &mut Run, cx: &mut Ctx, sel: &str, v: &View, burst: bool) -> bool {
+    let Some(profile) = crate::firearm::Profile::of(run.hero.weapon_kind()) else { return false; };
+    let Some(mi) = pick_target_from(run, sel, &v.foes) else { return false; };
+    if !reserve_gun(run, mi, profile, burst) { return false; }
+    run.last_target = Some(run.monsters[mi].id);
+    let mut targets = [None; 3];
+    targets[0] = Some(mi);
+    if profile.capacity == 2 {
+        let primary = run.monsters[mi].pos;
+        let mut n = 1;
+        for &i in &v.foes {
+            let m = &run.monsters[i];
+            if i != mi && m.hp > 0 && m.hostile() && !m.dormant &&
+                crate::firearm::in_spread(run.hero.pos, primary, m.pos) &&
+                run.floor.map.is_visible(m.pos) && run.floor.map.los(run.hero.pos, m.pos) {
+                targets[n] = Some(i); n += 1;
+                if n == targets.len() { break; }
+            }
+        }
+    }
+    let aimed = run.aimed;
+    let verb = if burst { "close_burst" } else { "fire" };
+    for i in targets.into_iter().flatten() {
+        if run.over.is_some() { break; }
+        // A deliberate boss target cannot make incidental scatter pellets
+        // aimed too: a secondary Warlord still has his ordinary shield wall.
+        run.aimed = i == mi && sel == "tag:boss";
+        hero_attack_roll(run, cx, i, verb, false, if burst { 2 } else { 1 }, Some(profile));
+    }
+    run.aimed = aimed;
+    true
+}
+
+fn hero_attack_roll(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash: bool, mult: i32, gun: Option<crate::firearm::Profile>) {
+    let ranged = gun.is_some() || verb == "shoot";
     let atk = run.hero.atk();
     let atk = (atk.0 * mult, atk.1 * mult);
     let def = run.monsters[mi].effective_def();
+    let def = gun.map_or(def, |p| (def - p.armour_piercing).max(0));
     let (hit, dmg) = roll_hit_pct(&mut run.rng, atk, def, run.hero.hit_pct());
     let id = run.monsters[mi].id;
     run.last_hit_verb = Some(verb.into());
-    if verb == "shoot" {
+    if ranged {
         let (from, to) = (run.hero.pos, run.monsters[mi].pos);
         projectile(run, cx, HERO_ID, id, from, to);
         if run.monsters[mi].reflects_ranged() {
@@ -1423,7 +1514,7 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
         return;
     }
     cx.events.push(Ev::Attack { t: run.turn, src: HERO_ID, dst: id, dmg, hit, verb: Some(verb.into()) });
-    if verb != "shoot" {
+    if !ranged {
         run.melee_used = true;
     }
     if bash {
@@ -1440,12 +1531,12 @@ pub fn hero_attack_mult(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &str, bash
             callout(run, cx, "bash");
         }
         // Cut 3: a mace stuns one hit in ten.
-        if !bash && verb != "shoot" && run.hero.weapon_kind() == "mace" && run.rng.chance(10) {
+        if !bash && !ranged && run.hero.weapon_kind() == "mace" && run.rng.chance(10) {
             run.monsters[mi].stun = 10 + 5*i32::from(crate::legacy::has(&run.hero,crate::legacy::CONTROL));
             callout(run, cx, "stunned");
         }
         let dmg = if run.monsters[mi].marked > 0 { dmg * 3 / 2 } else { dmg };
-        damage_monster(run, cx, mi, dmg, &Src::Hero { ranged: verb == "shoot" });
+        damage_monster(run, cx, mi, dmg, &Src::Hero { ranged });
         if run.monsters[mi].hp > 0 && !run.monsters[mi].awake {
             run.monsters[mi].awake = true;
             run.monsters[mi].last_seen = Some(run.hero.pos);

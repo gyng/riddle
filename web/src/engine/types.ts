@@ -40,10 +40,12 @@ export type Entity = { modifiers?:EncounterModifiers; id: number; kind: string; 
                        cid?: number;                                    // Addendum A: companions carry their companion id
                        remembered?: boolean };                          // Cut 4 §3: pursued but unseen, at its last seen tile (drawn dimmed)
 export type FloorItem = { id: number; x: number; y: number; kind: string; known: boolean; label: string };
+export type GunSnap = { item:number; kind:string; loaded:number; capacity:number; range:number;
+  damage:[number,number]; armour_piercing:number; reload_ticks:number; reload_left:number };
 export type Snapshot = {
   difficulty?:number; modifier_catalogue?:ModifierInfo[];
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
-  overlays: Overlay[]; hero: Entity & { inv: InvItem[]; weapon?: string; armour?: string; class: string; trait: string; specialization?: "sentinel" | "hexbinder" };
+  overlays: Overlay[]; hero: Entity & { inv: InvItem[]; weapon?: string; armour?: string; class: string; trait: string; specialization?: "sentinel" | "hexbinder"; gun?: GunSnap };
   entities: Entity[]; items: FloorItem[]; alert: number; turn: number; loot: number;
   run: { id: number; heir: number; started_turn: number; start?: number;   // start: QA a946e04 (core, optional) — the floor the run started on (a toll the purse could not pay starts it on D1)
          passage?: number };                                              // Cut 27 §1 (core): the passage paid at a waystone start (`+$84 passage`, coins, into the purse at the send — ledger `passage D9`; a `passage +$84` callout opens the run); absent from D1 / when the set does not clear the floors above ≥ 95 %   // start: QA a946e04 (core, optional) — the floor the run started on (a toll the purse could not pay starts it on D1)

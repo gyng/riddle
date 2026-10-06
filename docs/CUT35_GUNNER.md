@@ -3,9 +3,9 @@
 Owner request2026-10-07: add a Gunner class, with long and short guns, distinct
 from archery. This becomes the next class priority, before proposed Rogue/
 Ranger specializations. Finish Cut34's live verification without abandoning it.
-Status: contract, two transparent equipment icons and per-weapon chamber/reload
-primitives prepared; Gunner combat integration is not implemented or selectable
-yet. No deployment.
+Status: firearm combat and reload scheduling now implemented in controlled
+fixtures, with played weapon/chamber metadata. The Gunner class/unlock/forge/
+default tactics and UI remain unfinished and not selectable. No deployment.
 
 ## Identity and progression
 
@@ -142,3 +142,52 @@ TS/copy1705/zero; final fast all-target clippy warnings denied PASS. Rebuilt
 real fastWASM5383173B. Six old tier0/challenge complete loaded/advanced events/
 saves and twelve old Tier5 style/base campaigns remain byte-exact. This does
 not certify all four class migrations, Gunner gameplay or CUT35 completion.
+
+## Combat/scheduler checkpoint — 2026-10-07 (partial B)
+
+Real `fire`/`reload`/L3 `close_burst` actions reserve actual equipped-gun chambers
+before any RNG/target-memory mutation. Shared ordinary hit resolution applies
+long-gun2armour bypass, misses, ranged reflections, King rhythm, marked damage,
+shield-wall interception, death/kill attribution and monster awakening. Short
+spread uses a fixed three-entry target list from actual visible hostiles, with
+range/LOS/forward-neighbour geometry; burst reserves both chambers and doubles
+the one resolved damage roll per target. Empty guns cannot smuggle shots through
+existing generic attack or direct ranged attack paths. Ordinary attacks keep
+original defence/RNG calculation (no new zero clamp for non-guns).
+
+One saved `Run.gun_reload` commitment identifies the real item/deadline. Quiet
+batches stop one tick before that deadline; actual tick completion occurs before
+hero actions, emits `loaded` once and preserves per-weapon state while stowed,
+dropped or stolen. No inventory/monster scan on ordinary ticks; ownership scan
+only at a positive completion deadline. `reload` starts on a partially empty
+short gun too. While any reload is active no gun fires, including a swapped gun.
+GunSnap contains actual item id, kind, chambers, range, adjusted damage, armour
+bypass, reload duration/remaining ticks. Old heroes omit it. TS matches Rust;
+no chamber UI or replay event-driven updates are certified in this checkpoint.
+
+Seventeen focused tests (seven primitives plus ten combat/scheduler/snapshot)
+pass: real range8/9 and3/4, LOS/darkness/allies and full-save/event refusals,
+forty matched-RNG damage rolls with positive misses, three-target cap, forward/
+wall exclusions, Lich reflection, generic ammo bypass, exact reload deadlines,
+swapping/reload continuation, actual quiet-batch versus single-tick equality,
+burst requirements, camp-independent played metadata and positive secondary
+Warlord shield interception. Only the primary target can be deliberately aimed;
+incidental spread cannot borrow the primary boss's aimed bypass.
+
+Permanent `examples/gun_check.rs` drives explicit literal reload/fire rows in
+controlled arenas. Both weapons have positive real shots/reload completions,
+with whole versus uneven sliced/reloaded final native saves exact. Synthetic
+weapon/arena preparation is explicit, not earned Gunner/class progression. This
+is not the48h/7day/Tier5 or native/WASM8h one/three-bloodline acceptance proof.
+Fifth class, home-only paid unlock, actual forge ownership/preferences, default
+named class row, aimed shot/smoke/fast reload/finisher, sprite/action art, UI and
+positive full perf measurement remain required next. Do not expose a partly
+implemented class or weaken the original A–E bars.
+
+Combat checkpoint final verification:653core PASS/one ignored,14tool PASS,
+TS/copy1705/zero; final all-workspace/all-target fast clippy warnings denied,
+codegen and web build PASS; real fastWASM5393860B. Both controlled61tick
+positive firing/reload cases have complete native/WASM whole and each uneven
+sliced/reloaded StepResult/save equality. Six old tier0/challenge full event/
+save fixtures and12older Tier5 campaigns exact. No fresh routine18case or full
+positive-performance gate at this partial checkpoint. Full A–E remains open.

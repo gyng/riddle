@@ -177,6 +177,7 @@ pub const VERB_KEYS: &[&str] = &[
     // Cut 2 §4 (ranger and caster ladders; `shoot` and `drain` above)
     "kite", "volley", "trap", "mark", "double_shot", "bolt", "ward", "blink", "slow", "nova",
     "riposte", "hex",
+    "fire", "reload", "close_burst",
     // hold position (always executes; not offered by the editor)
     "hold",
     // Cut 5 §4: the shrine (`pray row` / `pray trait`)
@@ -266,6 +267,7 @@ impl Verb {
             "shield_bash" => "bash".into(),
             "free_captive" => "free".into(),
             "double_shot" => "double shot".into(),
+            "close_burst" => "burst".into(),
             "tactic" => a.replace('_', " "),
             "pray" => format!("pray {a}").trim().to_string(),
             other => other.to_string(),

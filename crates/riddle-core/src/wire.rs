@@ -31,6 +31,8 @@ pub struct Entity {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HeroSnap {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gun: Option<GunSnap>,
     #[serde(flatten)]
     pub entity: Entity,
     pub inv: Vec<InvItem>,
@@ -43,6 +45,20 @@ pub struct HeroSnap {
     pub specialization:Option<crate::specialization::Style>,
     #[serde(rename = "trait")]
     pub trait_: String,
+}
+
+/// The actual weapon/chambers at this snapshot, independent of later camp gear.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GunSnap {
+    pub item: u32,
+    pub kind: String,
+    pub loaded: u8,
+    pub capacity: u8,
+    pub range: i32,
+    pub damage: (i32, i32),
+    pub armour_piercing: i32,
+    pub reload_ticks: u32,
+    pub reload_left: u32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -2823,6 +2839,7 @@ mod tests {
     #[test]
     fn hero_snapshot_flattens_entity_and_trait() {
         let h = HeroSnap {
+            gun: None,
             entity: Entity { modifiers: None, id: 1, kind: "hero_fighter".into(), name: None, x: 1, y: 2, hp: 3, max_hp: 4, tags: vec![], ally: None, telegraph: None, cid: None, remembered: false },
             inv: vec![],
             weapon: Some("dagger".into()),

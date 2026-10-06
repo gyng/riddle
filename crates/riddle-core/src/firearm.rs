@@ -1,5 +1,5 @@
-//! Firearm profiles and per-item commitment. Combat/scheduler integration is
-//! separate: these primitives never select targets, roll RNG or deal damage.
+//! Firearm profiles, per-item chambers and scheduled reload commitment.
+//! The AI reserves chambers before resolving ordinary ranged hits.
 use crate::geom::Pos;
 use serde::{Deserialize, Serialize};
 
@@ -21,6 +21,10 @@ pub struct Profile {
     pub reload_ticks: u32,
 }
 
+#[cfg(test)]
+#[path = "firearm_combat_tests.rs"]
+mod combat_tests;
+
 impl Profile {
     pub fn of(kind: &str) -> Option<Self> {
         match kind {
@@ -38,6 +42,53 @@ pub struct Chambers {
     /// scheduler integration must stop batches at this deadline.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reload_at: Option<u32>,
+}
+
+/// One reload commitment per hero; the deadline also lives on the actual item.
+/// This lets quiet batches stop at completion without scanning inventories.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Reload {
+    pub item: u32,
+    pub at: u32,
+}
+
+pub fn reload(run: &mut crate::engine::Run, cx: &mut crate::engine::Ctx) -> bool {
+    if run.gun_reload.is_some() { return false; }
+    let Some(weapon) = run.hero.weapon.as_ref() else { return false; };
+    let Some(profile) = Profile::of(&weapon.kind) else { return false; };
+    let Some(mut chambers) = weapon.firearm else { return false; };
+    let Ok(at) = chambers.reload(profile, run.turn) else { return false; };
+    let item = weapon.id;
+    run.hero.weapon.as_mut().unwrap().firearm = Some(chambers);
+    run.gun_reload = Some(Reload { item, at });
+    crate::chronicle::callout(run, cx, "reloading");
+    true
+}
+
+/// At the actual tick boundary, before hero actions. Stowing the gun preserves
+/// its commitment. Completion emits once; ordinary items incur no item scan.
+pub fn tick(run: &mut crate::engine::Run, cx: &mut crate::engine::Ctx) {
+    let Some(reload) = run.gun_reload.filter(|r| run.turn >= r.at) else { return; };
+    run.gun_reload = None;
+    let completed = if run.hero.weapon.as_ref().is_some_and(|w| w.id == reload.item) {
+        complete_item(run.hero.weapon.as_mut().unwrap(), run.turn)
+    } else if let Some(index) = run.hero.inv.iter().position(|w| w.id == reload.item) {
+        complete_item(&mut run.hero.inv[index], run.turn)
+    } else if let Some(w) = run.bow_swap.as_mut().filter(|w| w.id == reload.item) {
+        complete_item(w, run.turn)
+    } else if let Some(w) = run.items.iter_mut().find(|w| w.item.id == reload.item) {
+        complete_item(&mut w.item, run.turn)
+    } else {
+        // A thief may take a reloading gun; its physical chambers keep time.
+        run.monsters.iter_mut().filter_map(|m| m.stolen.as_mut())
+            .find(|w| w.id == reload.item).is_some_and(|w| complete_item(w, run.turn))
+    };
+    if completed { crate::chronicle::callout(run, cx, "loaded"); }
+}
+
+fn complete_item(item: &mut crate::item::Item, now: u32) -> bool {
+    let Some(profile) = Profile::of(&item.kind) else { return false; };
+    item.firearm.as_mut().is_some_and(|c| c.complete(profile, now))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

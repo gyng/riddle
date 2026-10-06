@@ -38,8 +38,11 @@ class tactics from first send, meaningful distinct range/armour/close-spread
 matchups. Prepared transparent gun icons via built-in imagegen and existing
 packer. Per-item saved chambers, absolute20/15tick reload commitment and
 long/short weapon definitions now implemented;643core/14tool quick checks
-and all-target fast clippy pass. Combat/scheduler integration, class/unlock,
-portraits/forge/watch reload UI remain pending. No playable Gunner yet.
+and all-target fast clippy pass. Actual fire/reload/close-burst and quiet-batch deadline integration now
+implemented;17focused tests/653core quick PASS. Played GunSnap, native/WASM
+whole/sliced/reloaded61tick controlled combat fixtures exact. Class/unlock,
+forge/default tactics, remaining ladder, portraits/watch/replay UI, earned
+progression and full perf/gates remain pending. No playable Gunner yet.
 Preserve old drop RNG, authored rules and saved state; do not expose inactive
 classes. Subsequent class-training audit and further boss/loot variety remain.
 

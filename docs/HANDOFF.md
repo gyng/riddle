@@ -1,3 +1,50 @@
+**CUT35 FIREARM COMBAT/SCHEDULER CHECKPOINT — 2026-10-07 (PARTIAL):**
+
+Real firearm actions now fire/reload/L3 close_burst on actual equipped items.
+Pure target selection/LOS/range/hostile validation precedes chamber/RNG/memory
+mutation. Shared hit resolver retains ranged reflection, King rhythm, shields,
+marked damage and ordinary death/kill attribution; long gun ignores2 armour.
+Aimed primary shots do not bypass a secondary Warlord's shield wall; positive
+real interception is tested separately, with incidental pellets unaimed.
+Short gun fixed3target forward-neighbour spread; burst reserves2 chambers and
+uses one doubled damage roll per target. Generic/direct attack cannot bypass
+empty guns. Existing non-gun defence/RNG calculation stays unchanged.
+
+One saved Run.gun_reload item/deadline stops quiet batches before expiry; actual
+tick completes before hero actions, emits loaded once. State survives stowing,
+dropping/stolen ownership and saves. No inventory/monster scan on ordinary
+negative ticks; ownership lookup only at a positive completion deadline. No
+other gun can fire during a commitment. Snapshot GunSnap/TS expose actual worn
+item, chambers, damage/range/pierce, duration/remaining ticks; old heroes omit.
+
+17focused tests PASS; final quick653core PASS/one ignored,14tool PASS, TS/copy
+1705/zero green110s; final all-workspace/all-target fast clippy warnings denied,
+codegen check and web build PASS (existing bundle advisory). Real fastWASM
+5393860B rebuilt. Six old tier0/challenge complete event/save fixtures and all
+12older Tier5 style/base campaigns retain exact bytes. These are specified
+fixtures, not certification of all four classes or optional exhaustive audit.
+No fresh routine18case/full-Gunner perf gate run at this partial checkpoint.
+
+Permanent examples/gun_check.rs uses controlled literal reload/fire arenas;
+both guns fire/reload positively, active commitment starts at the checkpoint.
+61actual ticks, 2shots/2completions each. Whole versus uneven sliced/reloaded
+native saves exact; native/WASM every whole/slice StepResult and full save bytes
+match, including reload timer/GunSnap. Artifact source
+scratchpad/gunner-combat-shield-final-20261007/, parity script/report
+scratchpad/gunner-combat-qa-20261007/. This is not earned class/progression,
+48h/7day/Tier5 viability or8h one/three-bloodline acceptance. Logs
+/tmp/riddle-gunner-combat-{final-quick,final2-clippy,final-wasm,
+shield-parity,shield-old-compat,shield-lower-tier,shield-web,codegen,
+shield-fixtures}.log. Earlier failed tests used an invalid
+always-condition fixture; fixed to existing unconditional hold rows, no bars
+weakened. 17final focused tests in shield-focused.log.
+
+Gunner STILL NOT SELECTABLE. Next actual fifth class/home-only paid unlock,
+forge ownership/gun preference and named first-send class tactics; then real
+L3aim/L5smoke/L7fast-reload/L9finisher, art/watch/replay/UI and full CUT35 A–E.
+No new rendered screen to screenshot; capture real app at the visible class/UI
+milestone. No deployment. Keep-going95fun goal remains active/unverified.
+
 **CUT35 GUNNER SAVED-WEAPON FOUNDATION — 2026-10-07 (PARTIAL):**
 
 Per-item optional firearm state in item.rs; firearm.rs owns long/short profiles,

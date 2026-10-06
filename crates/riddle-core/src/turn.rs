@@ -160,6 +160,7 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
     }
     run.turn += 1;
     run.floor_turn += 1;
+    crate::firearm::tick(run, cx);
     // Cut 5 §4: an opened vault waits `VAULT_GRACE` ticks for `choose` (the client's sheet),
     // then the preference picks — watched or not, so a verdict replay stays faithful.
     if run.vault_choice.as_ref().is_some_and(|(t0, _)| run.turn >= t0 + VAULT_GRACE) {
@@ -711,6 +712,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
 /// Guards and pre-emptions: `stuck`, `row guard`, `trait first`, `hazard first`, `recall
 /// sense`, `paralysed`, `confused`, `bail`.
 pub const ROW_REASONS: &[&str] = &[
+    "reloading", "empty gun", "gun full",
     "hp not <", "hp not >", "foes not ≥", "foes fleeing", "foes appeared after", "adj not ≥", "not in view", "no weak foe", "none held", "no unknown", "seen not ≥",
     "depth not ≥", "alert not ≥", "not corridor", "no path", "no ally", "loot not ≥", "turns not >", "not hurt", "no kill",
     "nothing new", "no ", "party hp ok", "locked cond", "no target", "no line", "no bow", "cooldown", "no item", "no use",
@@ -836,6 +838,11 @@ pub fn row_stat(row: &crate::rules::Row, t: &crate::engine::RowTally) -> crate::
 /// a row does not act (`ROW_REASONS`' verb blocks, guards and pre-emptions) → its reason on
 /// tap, ≤ 3 words. Keys are reason prefixes (`same as R` covers `same as R2`).
 pub const WHY_GLOSS: &[(&str, &str)] = &[
+    ("reloading", "reload in progress"),
+    ("empty gun", "needs reloading"),
+    ("gun full", "already loaded"),
+    ("no short gun", "needs short gun"),
+    ("no gun", "needs a gun"),
     ("no path", "way blocked"),
     ("no target", "no foe reachable"),
     ("no line", "shot blocked"),
@@ -1331,7 +1338,7 @@ pub fn targets_foes(verb: &Verb) -> bool {
     matches!(
         verb.v.as_str(),
         "attack" | "shield_bash" | "throw" | "tame" | "cleave" | "backstab" | "ambush" | "shadowstep" | "send" | "taunt"
-            | "shoot" | "volley" | "mark" | "double_shot" | "bolt" | "slow" | "drain"
+            | "shoot" | "volley" | "mark" | "double_shot" | "bolt" | "slow" | "drain" | "fire" | "close_burst"
             // a tactic card acts on the foes it sees; while stuck it must yield like any targeting row
             | "tactic" | "back_corridor" | "retreat"
     )
