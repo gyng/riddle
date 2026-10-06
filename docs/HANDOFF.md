@@ -1,3 +1,19 @@
+**RECOVERY/SUPPLY GAMEPLAY EXPERIMENT — 2026-10-06:** Followed earlystyle
+seed1/3/5 immutable towns. Bold heal25/35/45 crossed with original/legal-filled
+packs;18 native two-case batches/36absences plus6 WASM supplied cases. All6
+reports/rawfinalsaves exactnative/WASM; all36 artifact/sourceSHA verified;
+Steady controls exact and seed5 alreadyfull unchanged at everythreshold.
+Seeds1/3 bought2heals for$52, seed5 buys0. Steady purchases yield D13/$3399
+andD16/$4776/Mother; Bold still all-death/$0 in3/5 everycombo. Filled25 seed1
+D19/$8898/Mother+Lich but11deaths. Earlier healing does not solve attrition;
+45 can worsen depth/gold. No shipping tune from3states. Inspected intentional
+boss-on-hurt-before-heal/bankafterrecord and income-capped sustain restock;
+not called bugs or changed. Warm batch0.47–1.20s, feature-switch2.71s.
+GAMEPLAY_RECOVERY_SUPPLY_AUDIT.md; scratchpad/recovery-supply-20261006/;
+actualWASM report screenshot shown. No core/UI/balance/WASM/deploy. Next legal
+Legacyhealth/armour comparison, then broader affectedstance requirements before
+content edit. Broad goal remains active.
+
 **EARNED TRAINING ICONS — 2026-10-06:** Closed text-only Training gap from
 style audit. Report/death badges now shared unitLabel32px/8px gap; existing
 unboxed packageIcon silhouettes for levels, own canonical boss_short portrait
