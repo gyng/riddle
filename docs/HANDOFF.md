@@ -1,3 +1,18 @@
+**AWAY SUPPLY BUDGET FEEDBACK — 2026-10-06:** Auto sustain skips now set
+existing restock_capped flag like manual repeat; no spending/purchase/RNG change.
+Report says Supplies limited + reported budget, tooltip/ledger link; knownzero
+income gets main notice, positive/unknown underDetails. Fullquick562pass/1ignored
+77s, alltargetclippy, rebuiltWASM5250773 SHA85366c7b…; webbuild/copy1562 clean.
+Four targeted reportsuites pass;320/400/1440 controls/oldwire/bounds checked.
+Six earned seed1/3/5 Steady/Bold8h reports/finalsaves exactly prior afterdropping
+onlyrestock_capped; six currentnative/WASM fullpairs exact, desktopseed3repeat.
+Actualscreenshots shown; scratchpad/supply-limit-20261006/. Legacyui aborts at
+hiddencompacteditor before report; cut21 reportassertions pass then hidden
+loadoutclick/shelf fails. No broad UIgate successclaim; exploratory fixture
+changes removed. ContractUX_SUPPLY_LIMIT_REPORT.md. No balance/deploy. Broadgoal
+active. Next migrate those legacytest paths to establishedtown/currentmenus,
+then broader stance evidence before anycontenttuning. Shared5219 retained.
+
 **NATIVE LEGACY COMPARISON ITERATION — 2026-10-06:** choice-check now takes
 --upgrades health,armour,damage,all: Rust actual offers/purchases independently
 cap requested paths for selected slot, validates fullcrossproduct before sim,

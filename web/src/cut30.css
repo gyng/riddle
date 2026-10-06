@@ -139,3 +139,6 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .run-training .beat-plaque > :first-child { width: 32px; height: 32px; flex: 0 0 32px; }
 .run-training .beat-plaque .icon-socket { padding: 0; background: none; border: 0; box-shadow: none; }
 .run-training .beat-plaque .icon-socket .ico { width: 100%; height: 100%; object-fit: contain; }
+.report-supply-limit { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 100%; margin: 10px 0; }
+.report-supply-limit .ico { flex: none; width: 28px; height: 28px; }
+.report-supply-limit small { font: inherit; }

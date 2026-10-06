@@ -1,0 +1,13 @@
+import {execFileSync} from 'node:child_process';import {launchBrowser} from '../../tools/browser.mjs';import assert from 'node:assert/strict';
+const url=execFileSync('bash',['tools/dev.sh'],{cwd:new URL('../../',import.meta.url),encoding:'utf8'}).trim(),b=await launchBrowser();
+try{for(const width of [320,400,1440]){
+ const p=await b.newPage({viewport:{width,height:900}}),errors=[];p.on('pageerror',e=>errors.push(e.message));await p.goto(`${url}?engine=fake&fresh=1&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);
+ await p.evaluate(()=>{const a=window.__riddle;window.capReport={elapsed_s:28800,runs:12,sampled:false,learned:[],bests:[],found:[],deaths:[],pending:[],marks_earned:0,tamed:[],hatched:[],lost:[],reel:[],deepest:13,restock_capped:true,gold:{home:0,salvage:0,wake:0,spent:0,lost:100}};a.lineage.gold=8443;a.go({kind:'report',report:window.capReport});});
+ const notice=p.locator('.report-supply-limit');assert.equal(await notice.count(),1);assert.equal(await notice.textContent(),'Supplies limited · $0 budget');assert.ok(await notice.isVisible());assert.ok(await p.locator('.report-details').evaluate(e=>e.hidden));
+ await notice.hover();await p.waitForFunction(()=>document.querySelector('#kw-tip')?.textContent.includes('Automatic supplies use gold earned while away'));await notice.click();await p.locator('.gold-sheet').waitFor();await p.keyboard.press('Escape');
+ await p.evaluate(()=>window.__riddle.go({kind:'report',report:{...window.capReport,gold:{home:212,salvage:6,wake:0,spent:80}}}));assert.equal(await p.locator('.report-supply-limit').count(),0);await p.locator('.details-fold').click();assert.ok((await p.locator('.gold-line').textContent()).includes('Supplies limited · $218 budget'));
+ await p.evaluate(()=>window.__riddle.go({kind:'report',report:{...window.capReport,gold:undefined}}));assert.equal(await p.locator('.report-supply-limit').count(),0);await p.locator('.details-fold').click();assert.equal(await p.locator('.gold-line .supply-limit').textContent(),'Supplies limited');
+ await p.evaluate(()=>window.__riddle.go({kind:'report',report:{...window.capReport,restock_capped:false}}));assert.equal(await p.locator('.supply-limit').count(),0);
+ await p.evaluate(()=>window.__riddle.go({kind:'report',report:window.capReport}));const box=await p.locator('.report-supply-limit').boundingBox();assert.ok(box.width>=44&&box.height>=44&&box.x>=0&&box.x+box.width<=width);assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
+ console.log(width,'reported zero-budget notice/tooltip/ledger/positive/unknown/false/touch PASS');await p.close();
+}}finally{await b.close();}

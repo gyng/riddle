@@ -1,3 +1,4 @@
+import { supplyLimit, reportIncome } from "./report-supplies";
 import { goldWords } from "./gold-words";
 // Return report: learned · bests · found · deaths · pending · reel · marks. Delta, not totals.
 // Cut 10 §3: the exit tiles read `banked · returned · deaths`, `returned` first when it is the larger; each exit line leads
@@ -369,8 +370,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // are already out of the carry the exits brought home — never a term of the headline; each run's line names its own (`−$5 left axe`)
     // QA 0c6e126 (qaY: `restock ≤ income` unexplained): the cap with its number — what the absence brought in (the core's `Batch::income`:
     // the exits, the salvage, the heir purses), `restock ≤ $0 earned`
-    const income = r.gold ? r.gold.home + r.gold.salvage + r.gold.wake : undefined;
-    if (r.restock_capped) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, income !== undefined ? /* copy:callout */ `restock ≤ $${income} earned` : /* copy:callout */ "restock ≤ income"));
+    if (r.restock_capped) pieces.push(supplyLimit(app, r));
     // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay
     if (r.repeat_short) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, /* copy:callout */ "repeat short"));
     if (!pieces.length) return null;
@@ -596,7 +596,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, reportBosses(r, app.lineage), classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage), classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop

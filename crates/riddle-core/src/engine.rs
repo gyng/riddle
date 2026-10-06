@@ -6255,6 +6255,7 @@ impl Game {
             if !drill && self.offline {
                 let price = self.supply_catalogue().iter().find(|e| e.kind == *kind).map(|e| e.price).unwrap_or(0);
                 if price > self.batch.income() - self.batch.spent_total() {
+                    self.batch.restock_capped = true;
                     continue;
                 }
             }

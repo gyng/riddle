@@ -457,7 +457,7 @@ async function cut19() {
     gold: { home: 90, salvage: 0, wake: 0, spent: 80 }, restock_capped: true };
   await page.evaluate((v) => window.__riddle.go(v), { kind: "report", report: rep }); await waitFor((x) => x?.screen === "report", "the capped report"); await sleep(300);
   const gl = await page.evaluate(() => document.querySelector(".report .gold-line")?.textContent.replace(/\s+/g, " ").trim() ?? "");
-  check(/restock ≤ \$90 earned$/.test(gl), `the report says the repeat was capped (restock ≤ $90 earned) ("${gl}")`);
+  check(/Supplies limited · \$90 budget$/.test(gl), `the report names the limited supplies and $90 budget ("${gl}")`);
   // ---- §4: a `row` verdict — the seal reads ROW, the headline names the row; an insert on a full set reads `+ drop R5`
   const rows = [
     { conds: [{ k: "hp<", n: 30 }], verb: { v: "drink", a: "unknown" }, origin: "player" }, { conds: [{ k: "adj>=", n: 1 }], verb: { v: "attack", a: "nearest" }, origin: "player" },

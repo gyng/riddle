@@ -1298,3 +1298,20 @@ fn selected_package_prices_match_full_choices() {
         assert_eq!(empty.save(), saved);
     }
 }
+
+#[test]
+fn automatic_pack_reports_away_budget_limit_without_changing_purchases() {
+    let mut g=Game::new_resident(17);
+    crate::tree::grant(&mut g.lineage,&crate::tree::LEGACY);
+    g.lineage.supplies.clear();g.lineage.gold=1000;g.lineage.restock_off=true;
+    g.lineage.forge.entry("heal".into()).or_default().craftable=true;
+    if let Some(f)=crate::item::ident_fact(&g.lineage.flavours,"heal") {g.lineage.facts.insert(f); }
+    g.offline=true;g.batch=Default::default();
+    assert!(g.restock().is_empty());assert!(g.batch.restock_capped);
+    assert_eq!(g.lineage.gold,1000);assert!(g.lineage.supplies.is_empty());
+    g.batch=Default::default();g.batch.gold_earned=1000;
+    assert!(!g.restock().is_empty());assert!(!g.batch.restock_capped);
+    let price=g.batch.spent_total();assert!(price>0);assert_eq!(g.lineage.gold,1000-price);
+    g.lineage.supplies.clear();g.batch=Default::default();g.offline=false;
+    assert!(!g.restock().is_empty());assert!(!g.batch.restock_capped);
+}
