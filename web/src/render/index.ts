@@ -405,15 +405,29 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         else held = [cam.tx, cam.ty];
       } else held = null;
     }
-    if (snapNow) { cam.x = cam.tx; cam.y = cam.ty; cam.vx = cam.vy = 0; return; }
-    // critically damped spring (ζ = 1), semi-implicit Euler, then snap when settled
-    const w0 = mode === "fight" ? 9 : 6, s = Math.min(dt, 0.05);   // (gfx round 25, raters: "the pan repaints the whole frame": the map camera glides slower)
-    for (const a of ["x", "y"] as const) {
-      const v = a === "x" ? "vx" : "vy", t = a === "x" ? "tx" : "ty";
-      const acc = w0 * w0 * (cam[t] - cam[a]) - 2 * w0 * cam[v];
-      cam[v] += acc * s;
-      cam[a] += cam[v] * s;
-      if (Math.abs(cam[t] - cam[a]) < 0.02 && Math.abs(cam[v]) < 0.5) { cam[a] = cam[t]; cam[v] = 0; }
+    if (snapNow) { cam.x = cam.tx; cam.y = cam.ty; cam.vx = cam.vy = 0; }
+    else {
+      // critically damped spring (ζ = 1), semi-implicit Euler, then snap when settled
+      const w0 = mode === "fight" ? 9 : 6, s = Math.min(dt, 0.05);   // (gfx round 25, raters: "the pan repaints the whole frame": the map camera glides slower)
+      for (const a of ["x", "y"] as const) {
+        const v = a === "x" ? "vx" : "vy", t = a === "x" ? "tx" : "ty";
+        const acc = w0 * w0 * (cam[t] - cam[a]) - 2 * w0 * cam[v];
+        cam[v] += acc * s;
+        cam[a] += cam[v] * s;
+        if (Math.abs(cam[t] - cam[a]) < 0.02 && Math.abs(cam[v]) < 0.5) { cam[a] = cam[t]; cam[v] = 0; }
+      }
+    }
+    // Targets alone do not keep up with accelerated travel. Constrain the
+    // rendered camera to the full sprite, retaining the spring inside this area.
+    if (h) {
+      const [hx, hy] = feet(h), sprite = atlas.entity(h.kind);
+      const halfW = sprite.w / 4, height = sprite.h / 2;
+      const fit = (value: number, low: number, high: number): number => low > high ? (low + high) / 2 : Math.max(low, Math.min(high, value));
+      const padX = Math.max(2, iw * 0.12), padY = Math.max(2, ih * 0.14);
+      const x = fit(cam.x, hx + halfW + padX - iw / 2, hx - halfW - padX + iw / 2);
+      const y = fit(cam.y, hy + height + padY - ih / 2, hy - padY + ih / 2);
+      if (x !== cam.x) { cam.x = x; cam.vx = 0; }
+      if (y !== cam.y) { cam.y = y; cam.vy = 0; }
     }
   }
 

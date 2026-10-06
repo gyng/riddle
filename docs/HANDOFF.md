@@ -1,3 +1,18 @@
+**WATCH HERO CONTAINMENT — 2026-10-06:** Actual rendered camera constrained
+by full hero sprite bounds after spring and on snapped load/seek/fight change;
+room holds/targets/spring retained in normal range, constrained axis velocity
+reset. Real headed seed2 firstwatch40samples/width400/1440: prior9/40+17/40
+clipped→0/40+0/40; same wallclock protocol, different sampled replay ticks.
+AfterD2screens hero visible, shown. New manual GPU watch-framing-check30cases/
+174samples covers map/fight fast travel, fixed focus, load/seeks/resize/stationary;
+previous renderer fails (hero y842 in660px view). Temporary baseline removed.
+Fixture movement spacing/stationary setup corrected, no weakened containment.
+Existing watch-status/GPUdiagnostics741/live-roster38pass15.3s; build/typecheck/
+copy1524/diffpass,bundleadvisory. GFX_WATCH_FRAMING.md for evidence/limits.
+No Rust/WASM/art/sim-speed/FPS/deployment claim. Temporary5384 confirmed and
+stopped. Next: actual duplicate attack/hurt log rows and first-batch missing actor
+identity; preserve environmental damage and unknown fallback, avoid generic UI.
+
 **LIVE ROSTER AFTER SEND — 2026-10-06:** Immediate Rust slot read after send,
 before viewer load. Existing1s human watch poll reuses same guarded method;
 no extra polling timer/clock advance. In-flight same-view/selection read shared;
