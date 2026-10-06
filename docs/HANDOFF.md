@@ -1,3 +1,18 @@
+**COUNTED COMBAT DECISIONS — 2026-10-06:** Consecutive identical displayed
+policy rows share×N byfloor/row/text/verb/arg; anyotherlogged event inclhidden
+negative-row rule breaksgroup. Acrossbatches, onlyreleaseattheviewertick;first/
+latest tickattrs retained. Raw events/combat/items untouched, plain overlay.
+New combat-rules30mountedchecks400/1440pass16.3s; initialcombined28+identity48+
+meter16+watch-statuspass30.7s; finalextra paused-count testfixtureonly. Build/
+typecheck/copy1524/diffpass,bundleadvisory. RealheadedWASMseed2house/sendboth
+`attack monkey×3`ticks560→580; hit/kill retained, noerrors/overflow, events
+unchanged. ScreenshotsscrolledtohistoricalD1rows, desktopalreadyD2.
+UX_COMBAT_RULE_COUNTS.md evidence/limits; no Rust/WASM/deployment/perfclaim.
+Next screenshot issue to investigate: D2checkpoint Secured$6/Carried$0 also
+shows `−$6 swap → folded scroll?`. Verify Rust stake.swapped/carry/secured
+transitions before assuming a swap: checkpoint securing must not masquerade
+as lost money. Then return to content/gameplay/gfx after concrete clarity bugs.
+
 **TRAILING WATCH METER PAINT — 2026-10-06:** Source audit: log per-eventtick,
 meters final snapshot tick; prior paused hit/zero screenshot can legitimately
 sit between those ticks. Separate verified bug:400ms throttle dropped final

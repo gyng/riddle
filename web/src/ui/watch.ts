@@ -418,7 +418,17 @@ export function renderWatch(app: App): Mounted {
   const combatRows = h("ol", { class: "combat-lines", "aria-live": "off" });
   const combatLog = h("div", { class: "combat-log", "aria-label": /* copy:label */ "Combat log" }, combatRows);
   let logDepth = app.lineage.live?.depth ?? 1;
+  let repeatedRule: { key: string; el: HTMLElement; count: number; badge: HTMLElement } | undefined;
   function logEvent(ev: Ev, heroId: number, names: ReadonlyMap<number, string>): void {
+    const ruleKey = ev.k === "rule" && ev.row >= 0 ? JSON.stringify([logDepth, ev.row, ev.text, ev.verb?.v, ev.verb?.a]) : undefined;
+    if (ruleKey && repeatedRule?.key === ruleKey && combatRows.lastElementChild === repeatedRule.el) {
+      repeatedRule.count++;
+      repeatedRule.badge.textContent = ` ×${repeatedRule.count}`;
+      repeatedRule.el.dataset.tick = String(ev.t);
+      combatRows.scrollTop = combatRows.scrollHeight;
+      return;
+    }
+    repeatedRule = undefined;
     let text: (string | HTMLElement)[] | undefined;
     const who = (id: number): string => names.get(id) ?? (id === heroId ? /* copy:label */ "Hero" : /* copy:label */ "Foe");
     const damage = (amount: number, id: number): HTMLElement => h("span", { class: amount < 0 ? "log-heal" : id === heroId ? "log-hurt" : "log-damage" }, `${amount < 0 ? "+" : "−"}${Math.abs(amount)} hp`);
@@ -434,7 +444,12 @@ export function renderWatch(app: App): Mounted {
     else if (ev.k === "descend") { logDepth = ev.depth; text = [h("span", { class: "log-floor" }, /* copy:callout */ `Floor ${ev.depth}`)]; }
     else if (ev.k === "exit") text = [ev.line?.text ?? `${ev.tier} · $${ev.loot_kept}`];
     if (!text) return;
-    combatRows.appendChild(h("li", { "data-tick": String(ev.t) }, h("small", { class: "log-depth" }, `D${logDepth} · `), ...text));
+    const row = h("li", { "data-tick": String(ev.t), "data-first-tick": String(ev.t) }, h("small", { class: "log-depth" }, `D${logDepth} · `), ...text);
+    if (ruleKey) {
+      const badge = h("span", { class: "log-repeat log-depth num" });
+      row.appendChild(badge); repeatedRule = { key: ruleKey, el: row, count: 1, badge };
+    }
+    combatRows.appendChild(row);
     while (combatRows.childElementCount > 80) combatRows.firstElementChild?.remove();
     combatRows.scrollTop = combatRows.scrollHeight;
   }
