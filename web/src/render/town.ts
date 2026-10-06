@@ -584,6 +584,11 @@ export function createTownView(host: HTMLElement): TownView {
       F.lights.push({ x: p.x + dx!, y: p.y + dy!, r: r * (0.7 + 0.3 * (k ?? 1)) + night * 12, c: [1.0 * a, 0.64 * a, 0.3 * a] });
     }
   }
+  function completionGlint(p: Pt & { h: number }, at: number | undefined): void {
+    if (at === undefined || t - at < 1.3 || t - at >= 2.4) return;
+    const g = (t - at - 1.3) / 1.1;
+    sprite("fx_glint", 9, p.x + 18, p.y - p.h + 8 + g * 4, { z: 3, fade: Math.max(0, g * 1.2 - 0.2) });
+  }
   function frame(): void {
     const s = state!;
     F.n = 0; F.lights.length = 0;
@@ -609,7 +614,10 @@ export function createTownView(host: HTMLElement): TownView {
     if (s.home) {
       const p = PLOTS.house, at = builtAt.get("house");
       if (at !== undefined && t - at < 1.3) sprite("town_scaffold", p.h, p.x, p.y);
-      else sprite(["town_house_1", "town_storehouse_1"], p.h, p.x, p.y);
+      else {
+        sprite(["town_house_1", "town_storehouse_1"], p.h, p.x, p.y);
+        completionGlint(p, at);
+      }
     }
     if (s.home && night > 0.3) F.lights.push({ x: PLOTS.tent.x, y: PLOTS.tent.y - 6, r: 14, c: [0.9, 0.55, 0.25] });
     if (s.home) sprite("town_crate", PLOTS.crate.h, PLOTS.crate.x, PLOTS.crate.y);
@@ -621,17 +629,14 @@ export function createTownView(host: HTMLElement): TownView {
       const up = at === undefined || t - at >= 1.3;
       if (!up) { sprite("town_scaffold", 56, p.x, p.y); continue; }
       sprite([`town_${b.id}_${b.look}`, `town_${b.id}_1`], p.h, p.x, p.y);
-      if (at !== undefined && t - at < 2.4) {
-        const g = (t - at - 1.3) / 1.1;
-        sprite("fx_glint", 9, p.x + 18, p.y - p.h + 8 + g * 4, { z: 3, fade: Math.max(0, g * 1.2 - 0.2) });
-      }
+      completionGlint(p, at);
       // the painted emitters (art/town_lights.json: the forge's mouth, lit windows): the forge always, the windows at night
       emitters(`town_${b.id}_${b.look}`, p, night, b.id === "blacksmith" ? 26 : 18, b.id === "blacksmith" ? 0.35 : 0);
     }
     if (s.staked) {
       const p = PLOTS[s.staked.id];
-      // The first home's larger painted foundation is a UI overlay at this plot.
-      if (s.staked.id !== "house") sprite("town_plot", 16, p.x, p.y);
+      // Ready plots use the larger painted foundation in the UI overlay.
+      if (!s.staked.ready && s.staked.id !== "house") sprite("town_plot", 16, p.x, p.y);
     }
     // Cut 30.5: the haul chest by the mouth — full, it hops and glints; open, the lid up a moment after the tap
     if (s.chest) {
@@ -795,9 +800,10 @@ export function createTownView(host: HTMLElement): TownView {
     el,
     setState(s) {
       const prev = state; state = s;
-      if (prev?.home === false && s.home && !matchMedia("(prefers-reduced-motion: reduce)").matches) builtAt.set("house", t - 0.8);
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prev?.home === false && s.home && !reducedMotion) builtAt.set("house", t - 0.8);
       // a building the player has not seen yet goes up on this mount: scaffold → built
-      for (const b of s.buildings) if (b.fresh && !builtAt.has(b.id) && !prev?.buildings.some((x) => x.id === b.id)) builtAt.set(b.id, t + 0.4);
+      for (const b of s.buildings) if (!reducedMotion && b.fresh && !builtAt.has(b.id) && !prev?.buildings.some((x) => x.id === b.id)) builtAt.set(b.id, t + 0.4);
       // a worker hired since the last state (he stood greyed, or nowhere): out of the tent, along the paths, to his post
       if (prev) for (const w of s.workers) {
         if (w.lit || prev.workers.some((x) => x.id === w.id && !x.lit)) continue;

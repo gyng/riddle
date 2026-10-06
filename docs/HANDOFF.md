@@ -1,3 +1,16 @@
+**CONSTRUCTION FINISH / REDUCED MOTION — 2026-10-06:** House now shares
+later buildings' completion glint. All construction timers skip reduced motion,
+so later buildings no longer play scaffold/dust/glint against that preference.
+Ready plots no longer draw old tiny renderer plot under painted UI foundation.
+Manual actions/housearrival timing/core unchanged. Headed actualWASM seed3
+400/1440normal/reduced house→legal send/earned forge/manualbuild, four cases
+pass; QA-only TownAtlas sprite trace confirms scaffold/building/glint normal,
+immediatebuilding/no scaffold/glint reduced. House completion screenshot shown.
+Firstplot320/400/1440 +save39 +readyplots24 pass14.3s; build/typecheck/copy1540
+pass with existing bundle advisory. GFX_CONSTRUCTION_FINISH.md; scratchpad/
+construction-finish-20261006/. No new art/runtimeinstrumentation/core/WASM/
+balance/deploy. Keep goal active, avoid further speculative icon changes.
+
 **READY PLOT GRAPHICS CONSISTENT — 2026-10-06:** Actual seed3 first return
 D4/143 gold exposed old tiny forge plot/long trigger tablet. All ready plots now
 reuse painted foundation + carved Build/name/Free marker; forge matches menu
