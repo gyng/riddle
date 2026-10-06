@@ -5,8 +5,11 @@ Hero presence, tactic observability and the content/checkpoint audit are impleme
 Catch-up slice semantics are fixed and verified within PERF_OFFLINE_SLICE_BOUNDARIES.md.
 Readable progress milestone/reward is implemented in UX_PROGRESS_GOAL.md.
 Direct useful preparation is implemented in UX_WALL_PREPARATION.md.
-Next: remaining item icons and earned late-screen readability, then the audit’s
-impact-ordered variety and optional-reset gameplay queue. Push approved
+All43 item icons are covered in UX_ITEM_ICON_COVERAGE.md; the ending audit's
+unsafe refusal fallback is fixed in UX_ASCENSION_REFUSAL.md.
+Next: earned King/ending presentation and explanations for all four ascension
+variants, verifying actual carry/reset semantics including multiple bloodlines.
+Then the audit's impact-ordered variety and optional-reset gameplay queue. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.
 

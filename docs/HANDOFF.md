@@ -1,3 +1,32 @@
+**ITEM COVERAGE + ASCENSION REFUSAL — 2026-10-06:**
+UX_ITEM_ICON_COVERAGE.md + UX_ASCENSION_REFUSAL.md implemented. All43 Rust item
+kinds now resolve to packaged art, tests require images rather than glyphs.
+Gold reuses coin art; built-in imagegen transparentbones/trap masters saved
+art/ui/icons/it_{bones,trap}.png; promptset art/prompts/item_silhouettes_20261006.json;
+packed96px/15.5+15.8KB via tools/ui-skin.py, skin111icons. Bones concept reuses
+new art; visual review removed duplicate skull marker. ItemIcon failed-image
+handler retains primitive/name/kind/rarity; unknown/future fallback preserved,
+unidentified potion/scroll family art unchanged. Final114checks each320/400/1440
++blocked-file check PASS2jobs5.2s. Initial6related item/unit/training/death/report
+jobs7.2s; frame/ascension4jobs24.6s; later5report/QA/ascension jobs23.2s PASS.
+Finalbuild/typecheck/copy1616/diff clean, existing bundle advisory. No Rust/WASM/
+balance edits or full-suite certification. Actual earned headed WASM400/1440
+recovered packs report, coins and labelled43-item diagnostic gallery captured,
+viewed/shown;46images including3subjects load,noerrors/overflow/fullsaveunchanged.
+Gallery is reference, not fabricated inventory. Artifacts scratchpad/item-icons-
+20261006/. Masters copied into workspace, generated originals retained.
+Ending audit found app.ascend any refusal silently called again/newtown. Fixed:
+returns success, app+UI single-flight, rejected/missing bridge retain game,
+choices re-enable/Try again. Successful core transition persists/openscamp even
+if follow-up metadata fails, no repeated ascension.12checks each320/400/1440
+PASS. Actual WASM rejects prematureHunted on earnedD21/gold53038/Legacy536:
+complete engine AND durable save byte parity, stillcamp,noerrors. No earned
+King/successfulvariant gameplay claim. Next: full earned King/ending layout and
+four variant explanations, verify exact carry/reset with multiplebloodlines
+before copy; then existingcontent variety +one scoped optional-reset proposal.
+Push approved, no deployment; broad goal remains active.
+Task preview5441 group2124502 cleaned; shared5219 HTTP200.
+
 **DIRECT PREPARATION — 2026-10-06:** UX_WALL_PREPARATION.md implemented.
 Shared report/death links: actual affordable Legacy/current Bloodline, ready
 free forge construction or built-forge upgrades, owned tactics beside actual

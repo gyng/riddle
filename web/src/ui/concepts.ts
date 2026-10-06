@@ -17,7 +17,7 @@ const DEF: Record<Concept, { ico: string; glyph: string; cap: string }> = /* cop
   renown: { ico: "renown", glyph: "★", cap: "reputation" },
   cage: { ico: "vault", glyph: "▦", cap: "choose one item" },
   vault: { ico: "vault", glyph: "▣", cap: "stored gear" },
-  bones: { ico: "morgue", glyph: "☠", cap: "dead heir's gear" },
+  bones: { ico: "it_bones", glyph: "☠", cap: "dead heir's gear" },
   oaths: { ico: "renown", glyph: "✠", cap: "goal for reward" },
   bounty: { ico: "gold", glyph: "✦", cap: "floor pays double" },
   waystone: { ico: "depth", glyph: "⌂", cap: "start deeper" },

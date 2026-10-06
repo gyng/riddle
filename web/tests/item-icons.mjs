@@ -4,14 +4,16 @@ import {launchBrowser} from '../../tools/browser.mjs';import {openPanel} from '.
 const url=execFileSync('bash',['tools/dev.sh'],{cwd:new URL('../../',import.meta.url),encoding:'utf8'}).trim();
 const kinds=[...readFileSync(new URL('../../crates/riddle-core/src/defs.rs',import.meta.url),'utf8').matchAll(/ItemDef \{ kind: "([^"]+)"/g)].map(m=>m[1]);
 const browser=await launchBrowser();
-try{for(const width of [400,1440]){
+try{for(const width of [320,400,1440]){
  const p=await browser.newPage({viewport:{width,height:900}});await p.goto(`${url}?engine=fake&fresh=1&seed=3002&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);
  const checks=await p.evaluate(async kinds=>{
   const gem=document.querySelector('.gem.send').getBoundingClientRect();if(Math.abs(gem.width-gem.height)>0.5)throw Error('Send artwork stretched');
   const {itemIcon,iconId}=await import('/src/ui/items.ts');const {rowChips}=await import('/src/ui/editor.ts');
   const {openForge}=await import('/src/ui/forge.ts');const {closeAllSheets}=await import('/src/ui/sheet.ts');
   let checks=0;const check=(ok,text)=>{if(!ok)throw Error(text);checks++;};
-  for(const kind of [...kinds,'new_unpacked_kind']){const el=itemIcon({kind,label:kind});check(!!el.querySelector('img,.glyph'),`icon/fallback ${kind}`);const pic=el.querySelector('img');if(pic)check((await fetch(pic.src)).ok,`packed image ${kind}`);}
+  for(const kind of kinds){const el=itemIcon({kind,label:kind});const pic=el.querySelector('img');check(!!pic,`all current definitions have art ${kind}`);check((await fetch(pic.src)).ok,`packed image ${kind}`);}
+  check(!iconId('new_unpacked_kind')&&!!itemIcon({kind:'new_unpacked_kind',label:'future item'}).querySelector('.glyph'),'future item fallback retained');
+  for(const [kind,id] of [['gold','gold'],['bones','it_bones'],['trap','it_trap']])check(iconId(kind)===id,`missing silhouette covered ${kind}`);
   for(const [label,family] of [['blue potion?','potion'],['brittle scroll?','scroll'],['summon ally scroll','scroll']])check(iconId(label)===`it_${family}`,`visible family only ${label}`);
   check(iconId('sword +2')==='it_sword','enchanted gear keeps icon');
   for(const rarity of ['common','uncommon','rare','epic','legendary']){const el=itemIcon({kind:'sword',label:'sword',rarity});document.body.append(el);const style=getComputedStyle(el);check(style.boxShadow==='none'&&style.backgroundImage==='none'&&style.outlineStyle==='none',`${rarity} silhouette has no box`);el.remove();}
@@ -23,9 +25,10 @@ try{for(const width of [400,1440]){
   check(document.querySelectorAll('.sheet-wrap .forge-ladders .item-ico').length===1,'Forge future item icons');
   const salvage=document.querySelector('.sheet-wrap .salvage .lrow:not(.head)');check(salvage.querySelector('.k .item-ico'),'salvage item icon');check(salvage.textContent.includes('blue potion?'),'unidentified question mark retained');
   closeAllSheets();
-  a.go({kind:'report',report:{elapsed_s:0,runs:1,sampled:false,learned:['item:blue=heal'],bests:[],found:[{label:'mystery scroll?'}],deaths:[],pending:[],marks_earned:0,tamed:[],hatched:[],lost:[],reel:[],kept:['sword +1'],shelved:[{kind:'heal',n:2}],salvaged:[{kind:'axe',n:2,gold:60}],spent:[{kind:'heal',n:3,gold:75}],stolen:[{label:'leash',n:1}],exits:[]}});
+  a.go({kind:'report',report:{elapsed_s:0,runs:1,sampled:false,learned:['item:blue=heal'],bests:[],found:[{label:'mystery scroll?'}],deaths:[],pending:[],marks_earned:0,tamed:[],hatched:[],lost:[],reel:[],bones_found:['heir 1 · D7 · 4 items'],kept:['sword +1'],shelved:[{kind:'heal',n:2}],salvaged:[{kind:'axe',n:2,gold:60}],spent:[{kind:'heal',n:3,gold:75}],stolen:[{label:'leash',n:1}],exits:[]}});
   const sections=[...document.querySelectorAll('.report .rsec')];
   for(const label of ['found','kept','shelved','salvaged','spent','stolen']){const section=sections.find(s=>s.querySelector('.label')?.textContent===label);check(section?.querySelector('.item-ico'),`report ${label} item icons`);}
+  check(document.querySelector('.report .concept[data-concept="bones"] img')?.src.endsWith('/it_bones.png'),'recovered packs have bones silhouette');
   check(document.querySelector('.report .facts .chip.item .item-ico'),'learned identity item icon');
   check(document.querySelector('.report .rsec .item-chip')?.textContent!==undefined,'names remain text');
   check(document.documentElement.scrollWidth<=innerWidth,'report no horizontal overflow');return checks;

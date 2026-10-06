@@ -82,6 +82,7 @@ export class App {
    *  meaning, as autodismiss does); `?runs=0` turns it off anywhere. */
   private runnerAt = 0;
   private runnerBusy = false;
+  private ascensionBusy = false;
   private hiddenAt = 0;
   private liveListeners = new Set<() => void>();
   onLive(fn: () => void): () => void { this.liveListeners.add(fn); return () => this.liveListeners.delete(fn); }
@@ -558,17 +559,26 @@ export class App {
   }
   totalRuns(): number { return this.runsSeen; }
 
-  /** Cut 3: after the ending, ascend under a variant (`no_rest | short_list | bones_only | hunted`): the engine keeps
-   *  classes, kennel, vault, facts, forge, trophies and rules. An engine without `ascend` falls back to `again()`. */
-  async ascend(variant: string): Promise<void> {
-    try { this.lineage = await this.engine.ascend(variant); }
-    catch (e) { console.warn("ascend unavailable, starting again", e); return this.again(); }
-    this.loadout = []; this.runsSeen = 0;
-    this.adoptSets();
-    await this.engine.loadout([]);
-    this.vocab = await this.engine.vocabulary();
-    await this.flush();
-    this.go({ kind: "camp" });
+  /** After the ending, the core owns the next variant and its carry/reset rules.
+   *  Refusal preserves the current town. */
+  async ascend(variant: string): Promise<boolean> {
+    if (this.ascensionBusy) return false;
+    this.ascensionBusy = true;
+    try {
+      try { this.lineage = await this.engine.ascend(variant); }
+      catch (e) { console.warn("ascension refused", e); return false; }
+      this.loadout = []; this.runsSeen = 0;
+      this.adoptSets();
+      try {
+        await this.engine.loadout([]);
+        this.vocab = await this.engine.vocabulary();
+      } catch (e) { console.warn("ascension metadata unavailable", e); }
+      // The core already ascended: persist and show its new town even if the
+      // follow-up metadata read fails. Never retry that irreversible step.
+      await this.flush();
+      this.go({ kind: "camp" });
+      return true;
+    } finally { this.ascensionBusy = false; }
   }
   /** After the ending: a fresh lineage that keeps the player's three rule sets (facts, classes, meta reset —
    *  the core has no carry-over method). */

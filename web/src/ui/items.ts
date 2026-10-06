@@ -20,6 +20,8 @@ const FAMILY: [RegExp, string, string][] = /* copy:none */ [
   [/^(potion|heal|strength|speed|invisibility|poison|caustic|confusion|fire|regen|resist_fire|clarity)$/, "potion", "⚗"],
   [/^(scroll|teleport|blink|fear|mapping|identify|enchant|darkness|summon_ally|aggravate|recall|silence|earthquake|mirror)$/, "scroll", "§"],
   [/^gold$/, "gold", "$"],
+  [/^bones$/, "bones", "☠"],
+  [/^trap$/, "trap", "⚙"],
 ];
 const iconKind = (kind: string): string => kind.toLowerCase().replace(/\s*\(\d+\)$/, "").replace(/\s*\+\d+$/, "").replace(/\?$/, "").trim().replace(/ /g, "_");
 const familyOf = (kind: string): [string, string] => {
@@ -34,6 +36,7 @@ export function iconId(kind: string): string | null {
   const k = iconKind(kind);
   if (k === "pack" && hasIcon("loadout")) return "loadout";
   if (hasIcon(`it_${k}`)) return `it_${k}`;
+  if (k === "gold" && hasIcon("gold")) return "gold";
   const [fam] = familyOf(k);
   return (fam === "potion" || fam === "scroll") && hasIcon(`it_${fam}`) ? `it_${fam}` : null;
 }
@@ -45,8 +48,9 @@ export function itemIcon(it: ItemLike, o: { size?: "xs" | "s" | "m" | "l"; delay
   const r = it.rarity ?? "common";
   const id = iconId(it.kind);
   const [fam, glyph] = familyOf(it.kind.replace(/ /g, "_"));
-  const pic = id ? h("img", { class: "item-pic", src: `${import.meta.env.BASE_URL}ui/icons/${id}.png`, alt: "", draggable: "false", "aria-hidden": "true" })
-    : h("span", { class: `item-pic glyph fam-${fam}`, "data-glyph": glyph, "aria-hidden": "true" });
+  const fallback = (): HTMLElement => h("span", { class: `item-pic glyph fam-${fam}`, "data-glyph": glyph, "aria-hidden": "true" });
+  const pic = id ? h("img", { class: "item-pic", src: `${import.meta.env.BASE_URL}ui/icons/${id}.png`, alt: "", draggable: "false", "aria-hidden": "true",
+    onerror: (e: Event) => (e.currentTarget as HTMLElement).replaceWith(fallback()) }) : fallback();
   const el = h("span", { class: `item-ico r-${r} sz-${o.size ?? "m"}${rarityRank(r) >= 2 ? " glint" : ""}`, "data-rarity": r, "data-kind": it.kind, title: it.label }, pic);
   if (o.delay !== undefined) el.style.setProperty("--pop-delay", `${o.delay}ms`);
   return el;
