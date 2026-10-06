@@ -1795,7 +1795,7 @@ fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
                 m.ttl = Some(200);
                 let e = crate::engine::monster_entity(&m, cx.facts);
                 run.monsters.push(m);
-                cx.events.push(Ev::Spawn { t: run.turn, e });
+                cx.events.push(Ev::Spawn { t: run.turn, e:Box::new(e) });
                 cx.events.push(Ev::Ally { t: run.turn, id, state: "freed".into() });
             }
             "hound".into()
@@ -2914,7 +2914,7 @@ fn summon_near(run: &mut Run, cx: &mut Ctx, at: Pos, kind: &str, n: usize, ttl: 
         let e = crate::engine::monster_entity(&m, cx.facts);
         let seen = run.floor.map.is_visible(q);
         run.monsters.push(m);
-        cx.events.push(Ev::Spawn { t: run.turn, e });
+        cx.events.push(Ev::Spawn { t: run.turn, e:Box::new(e) });
         if seen {
             // Cut 2 §5: what the hero sees conjured is a fact it can target (`attack tag:summoned`).
             learn_tag(run, cx, kind, "summoned");
@@ -3883,7 +3883,7 @@ fn try_companion_verb(run: &mut Run, cx: &mut Ctx, mi: usize, verb: &Verb, v: &V
             child.extra_tags = run.monsters[mi].extra_tags.clone();
             let e = crate::engine::monster_entity(&child, cx.facts);
             run.monsters.push(child);
-            cx.events.push(Ev::Spawn { t: run.turn, e });
+            cx.events.push(Ev::Spawn { t: run.turn, e:Box::new(e) });
             callout(run, cx, "splits!");
             true
         }

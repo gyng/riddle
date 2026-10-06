@@ -36,6 +36,12 @@ styles are optional build choices. Equal-work overhead3.28–6.82% and routine
 18-case suite pass. Broad exhaustive balance remains uncertified. Next content
 priority: class default/training friction and higher-tier elite/boss/loot variety,
 then additional distinct class paths; no additional early reset layer.
+Cut34 adds Leeching elites at Tier6+, poison/range counter and actual replay/log
+recovery. Six fixed-build Tier6 cases clear16–24h; older Tier5 outcomes remain
+byte-exact. Hot event208→80bytes, positive recovery overhead1.12%, scoped
+parity/UI/current18case checks pass. Owner's next class is Gunner with actual
+long/short guns, chambers and reload timing (`docs/CUT35_GUNNER.md`). Contract
+and equipment art prepared; Gunner gameplay is not implemented yet.
 
 **Contract on the store page:** *you equip and tune the hero; you never steer.* Present as an
 automation/idle game first, never as an action roguelike (`research/idle-attraction.md` §1.1).

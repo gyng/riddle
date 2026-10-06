@@ -15,6 +15,7 @@ expedition/era/dynasty layers in PROGRESSION_V2.md remain deferred.
 Mirror King on D33, ending at D34; optional numbered harder descents plus four
 older repeatable challenge variants. Numbered tiers scale encounters and rotate
 up to two affixes, with deterministic elites and a tighter King attack rhythm.
+Tier6+ adds Leeching melee recovery, countered by Poison/range, under Cut34.
 Five legally earned consecutive clears verify one build; broader tuning is open.
 The old challenge counter remains distinct from numbered tier progress.
 Classes: Fighter, Rogue,

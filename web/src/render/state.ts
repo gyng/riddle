@@ -41,7 +41,7 @@ export type EntState = {
   fresh?: boolean;                 // preloaded from a snapshot before its events: the first move places it
   neutral: boolean;                // a captive: not a hostile, so the leading camera (index.ts) ignores it
   boss: boolean;
-  elite?: "shielded" | "frenzied";
+  elite?: "shielded" | "frenzied" | "leeching";
   name: string;                    // Cut 8A: the label under a hostile in the fight frame (`goblin`, `Morog`), ≤ NAME_MAX chars
 };
 
@@ -370,6 +370,11 @@ export class ReplayState {
         s.lunge = { dx: dx * 3, dy: dy * 3, t0: t };
         if (dx !== 0) s.flip = dx < 0;
         s.glyph = null;
+        break;
+      }
+      case "recover": {
+        const e=this.ents.get(ev.id);
+        if(e&&!e.dying) e.hp=ev.hp;
         break;
       }
       case "hurt": {

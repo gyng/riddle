@@ -12,7 +12,7 @@ const ATTACK_PERCENT: u64 = 4;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum Elite { Shielded, Frenzied }
+pub enum Elite { Shielded, Frenzied, Leeching }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Modifiers {
@@ -45,7 +45,8 @@ pub fn catalogue(tier: u32) -> Vec<ModifierInfo> {
         ("shielded", 0, "Shielded", "+2 armour unless stunned or paralysed", "Stun or paralyse"),
         ("frenzied", 0, "Frenzied", "+2 damage and +3 speed at half HP or lower", "Slow or burst damage"),
         ("tight_mirror", 0, "Quick mirror", "Second repeated attack reflects", "Alternate attacks"),
-    ].into_iter().map(|(id,mask,name,effect,counter)| ModifierInfo {id:id.into(),mask,name:name.into(),effect:effect.into(),counter:counter.into()}).collect()
+    ].into_iter().chain((tier>=6).then_some(("leeching",0,"Leeching","Melee hits restore up to2 HP unless poisoned","Poison or fight at range")))
+        .map(|(id,mask,name,effect,counter)| ModifierInfo {id:id.into(),mask,name:name.into(),effect:effect.into(),counter:counter.into()}).collect()
 }
 
 /// Fixed for a tier, not rerolled on a send; at most two mechanical modifiers.
@@ -74,10 +75,18 @@ pub fn spawn(run: &crate::engine::Run, id: u32, kind: &str, pos: crate::geom::Po
     if run.difficulty == 0 || !m.hostile() || m.max_hp <= 0 { return m; }
     let hash = crate::rng::splitmix(run.seed ^ (u64::from(depth) << 32) ^ u64::from(id) ^ 0x6173_6365_6e64_6564);
     let elite = if elites && !m.is_boss() && !m.summoned && hash.is_multiple_of(8) {
-        Some(if hash & 256 == 0 { Elite::Shielded } else { Elite::Frenzied })
+        Some(if run.difficulty>=6 {match (hash>>8)%3 {0=>Elite::Shielded,1=>Elite::Frenzied,_=>Elite::Leeching}}
+            else if hash & 256 == 0 { Elite::Shielded } else { Elite::Frenzied })
     } else { None };
     apply(&mut m, Modifiers { tier:run.difficulty, affixes:affixes(run.difficulty), elite, tight_mirror:kind == "mirror_king" });
     m
+}
+/// Called only after a direct strike's actual hero HP loss is known. No RNG,
+/// timer or global scan; this instance's saved metadata owns the ability.
+pub fn leech(m:&mut crate::monster::Monster,hero_pos:crate::geom::Pos,lost:i32)->i32 {
+    if !m.modifiers.is_some_and(|mods|mods.elite==Some(Elite::Leeching))
+        ||lost<=0||m.hp<=0||!m.hostile()||m.poison.1>0||m.pos.cheb(hero_pos)>1||m.has_tag("ranged") {return 0;}
+    let healed=lost.min(2).min((m.max_hp-m.hp).max(0));m.hp+=healed;healed
 }
 /// A split inherits its parent's birth modifiers; never multiply modified stats
 /// again, and never reroll an elite on its newly assigned id.
@@ -160,7 +169,7 @@ impl Game {
             tier, hp_bonus_percent: u64::from(tier) * HP_PERCENT,
             attack_bonus_percent: u64::from(tier) * ATTACK_PERCENT, stat_cap: STAT_CAP,
             affixes: catalogue.iter().filter(|m| m.mask > 0 && affixes(tier) & m.mask != 0).cloned().collect(),
-            elites: catalogue.iter().filter(|m| matches!(m.id.as_str(), "shielded" | "frenzied")).cloned().collect(),
+            elites: catalogue.iter().filter(|m| matches!(m.id.as_str(), "shielded" | "frenzied" | "leeching")).cloned().collect(),
             elite_rate_denominator: if tier > 0 { 8 } else { 0 },
             boss: catalogue.into_iter().find(|m| m.id == "tight_mirror"),
         })

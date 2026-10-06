@@ -10,6 +10,7 @@ try{for(const width of [320,400,1440]){
    {id:'regenerating',mask:4,name:'Regenerating',effect:'+1 HP each second while awake and unpoisoned',counter:'Poison or sustained damage'},
    {id:'shielded',mask:0,name:'Shielded',effect:'+2 armour unless stunned or paralysed',counter:'Stun or paralyse'},
    {id:'frenzied',mask:0,name:'Frenzied',effect:'+2 damage and +3 speed at half HP or lower',counter:'Slow or burst damage'},
+   {id:'leeching',mask:0,name:'Leeching',effect:'Melee hits restore up to2 HP unless poisoned',counter:'Poison or fight at range'},
    {id:'tight_mirror',mask:0,name:'Quick mirror',effect:'Second repeated attack reflects',counter:'Alternate attacks'}];
   const L={facts:[],ledger:[{kind:'mirror_king',seen:true}],walls:[{boss:'mirror_king',depth:33,slain:true}]};
   window.__encounter={modifiers:{tier:3,affixes:5,elite:'shielded',tight_mirror:true},modifier_catalogue:catalogue,alive:true};
@@ -22,6 +23,8 @@ try{for(const width of [320,400,1440]){
  await p.keyboard.press('Escape');assert.equal(await tip.isVisible(),false);
  await p.evaluate(()=>{window.__encounter={modifiers:{tier:1,affixes:1,elite:'frenzied'},modifier_catalogue:window.__encounter.modifier_catalogue,alive:true};});
  await host.click();assert.match(await tip.textContent(),/Ascension 1.*Frenzied.*at half HP or lower/s);assert.doesNotMatch(await tip.textContent(),/Regenerating|Shielded|Quick mirror/);
+ await p.keyboard.press('Escape');await p.evaluate(()=>{window.__encounter={modifiers:{tier:6,affixes:6,elite:'leeching'},modifier_catalogue:window.__encounter.modifier_catalogue,alive:true};});
+ await host.click();assert.match(await tip.textContent(),/Ascension 6.*Leeching.*Melee hits restore up to2 HP unless poisoned.*Poison or fight at range/s);assert.doesNotMatch(await tip.textContent(),/Shielded|Frenzied|Quick mirror/);
  await p.keyboard.press('Escape');await p.evaluate(()=>{window.__encounter={};});await host.click();assert.doesNotMatch(await tip.textContent(),/Ascension|Frenzied|Armoured/);assert.match(await tip.textContent(),/Defeated/);
  await p.keyboard.press('Escape');await p.evaluate(()=>{window.__encounter={modifiers:{tier:1,affixes:1}};});await host.click();assert.match(await tip.textContent(),/Ascension 1.*Details unavailable/s);assert.doesNotMatch(await tip.textContent(),/\+1 armour/);
  await p.keyboard.press('Escape');await p.evaluate(()=>{const b=document.createElement('button');b.id='encounter-before';b.textContent='Focus';document.querySelector('#encounter-host').before(b);});await p.locator('#encounter-before').focus();await p.keyboard.press('Tab');await tip.waitFor({state:'visible'});await p.keyboard.press('Escape');

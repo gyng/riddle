@@ -1507,6 +1507,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
             &&!run.monsters[*i].has_tag("ranged")&&run.monsters[*i].pos.cheb(run.hero.pos)<=1=>Some(*i),_=>None}
     }else {None};
     let dmg=if riposte.is_some() {run.hero.riposte_t=0;dmg/2+dmg%2}else{dmg};
+    let hp_before=run.hero.hp;
     run.hero.hp -= dmg;
     // Cut 24 §1: the hero's HP moved — the fight is going somewhere, unless a summon drew it
     // (a boss's endless reserves are no progress either way).
@@ -1538,6 +1539,11 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         run.hurt_since_boss = true;
     }
     cx.events.push(Ev::Hurt { t: run.turn, id: HERO_ID, dmg, hp: run.hero.hp.max(0), cause: cause.into() });
+    if let Src::Mon(i)=src {
+        let m=&mut run.monsters[*i];
+        let amount=crate::endgame::leech(m,run.hero.pos,dmg.min(hp_before.max(0)));
+        if amount>0 {cx.events.push(Ev::Recover{t:run.turn,id:m.id,amount,hp:m.hp,src:crate::wire::RecoverySource::Leeching});}
+    }
     // Cut 25 §3 (AN: an offline trace 14 → 0 on one `goblin −2` row): every blow since the hero's
     // last action, for the death trace's rows (`Trace.blows`).
     if run.blows.len() < BLOWS_CAP {
@@ -1660,7 +1666,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 g.extra_tags.push("summoned".into());
                 let e = crate::engine::monster_entity(&g, cx.facts);
                 run.monsters.push(g);
-                cx.events.push(Ev::Spawn { t: run.turn, e });
+                cx.events.push(Ev::Spawn { t: run.turn, e:Box::new(e) });
                 Some(run.monsters.len() - 1)
             });
             if run.floor.map.is_visible(wp) {
@@ -1797,7 +1803,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 child.last_seen = run.monsters[mi].last_seen;
                 let e = crate::engine::monster_entity(&child, cx.facts);
                 run.monsters.push(child);
-                cx.events.push(Ev::Spawn { t: run.turn, e });
+                cx.events.push(Ev::Spawn { t: run.turn, e:Box::new(e) });
                 if visible {
                     callout(run, cx, "splits!");
                     learn_tag(run, cx, &kind, if echo { "echo" } else { "splitter" });
@@ -2185,7 +2191,7 @@ pub fn rest_clock(run: &mut Run, cx: &mut Ctx) {
         m.last_seen = Some(hero);
         let e = crate::engine::monster_entity(&m, cx.facts);
         run.monsters.push(m);
-        cx.events.push(Ev::Spawn { t: run.turn, e });
+        cx.events.push(Ev::Spawn { t: run.turn, e:Box::new(e) });
     }
     callout(run, cx, "they heard you");
 }
@@ -2222,7 +2228,7 @@ fn tick_alert(run: &mut Run, cx: &mut Ctx) {
         m.last_seen = Some(hero);
         let e = crate::engine::monster_entity(&m, cx.facts);
         run.monsters.push(m);
-        cx.events.push(Ev::Spawn { t: run.turn, e });
+        cx.events.push(Ev::Spawn { t: run.turn, e:Box::new(e) });
     }
     if run.alert == 3 || run.alert == 6 {
         callout(run, cx, "alert rising");

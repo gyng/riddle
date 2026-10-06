@@ -488,6 +488,11 @@ pub struct StakeItem {
     pub insured: bool,
 }
 
+/// Bounded hostile recovery labels; avoids allocating a String per hit.
+#[derive(Clone,Copy,Debug,Serialize,Deserialize,PartialEq,Eq)]
+#[serde(rename_all="snake_case")]
+pub enum RecoverySource { Leeching }
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "k", rename_all = "snake_case")]
 pub enum Ev {
@@ -501,7 +506,7 @@ pub enum Ev {
     Use { t: u32, item: String, outcome: String },
     Fact { t: u32, fact: String },
     Overlay { t: u32, x: i32, y: i32, ov: OverlayKind, ttl: i32 },
-    Spawn { t: u32, e: Entity },
+    Spawn { t: u32, e: Box<Entity> },
     /// Cut 10 §3: `amount` is the gold the theft took off the run's loot (`$26 → $10`; the
     /// callout reads `stolen $16`) — or, on a companion's theft from a foe, the gold it
     /// brought; absent when the loot did not move.
@@ -518,7 +523,7 @@ pub enum Ev {
         line: Option<Box<ExitLine>>,
         /// Cut 9 §5: the exit's last-5 trace (bank and return; a death has `Death.trace`).
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        trace: Option<Trace>,
+        trace: Option<Box<Trace>>,
     },
     Note { t: u32, text: String },
     /// Cut 23 §3: `why` — the reason on tap, ≤ 3 words: a `✗` callout's block gloss (`read ✗
@@ -558,6 +563,8 @@ pub enum Ev {
     /// `regen` · `skill`); read off the hp around the tick for the meters (`meters.rs`) — not
     /// renderable, no input to anything.
     Heal { t: u32, id: u32, amount: i32, src: String },
+    /// Actual hostile recovery, distinct from hero/pet healing meters.
+    Recover { t:u32, id:u32, amount:i32, hp:i32, src:RecoverySource },
 }
 
 impl Ev {
@@ -591,7 +598,8 @@ impl Ev {
             | Ev::Ending { t, .. }
             | Ev::Drain { t, .. }
             | Ev::Oath { t, .. }
-            | Ev::Heal { t, .. } => *t,
+            | Ev::Heal { t, .. }
+            | Ev::Recover { t, .. } => *t,
         }
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).

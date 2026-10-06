@@ -22,11 +22,23 @@ matches, survives later camp removal. Twelve paired Tier5 cases clear8–24h;
 Sentinel seed5 slower than base, all selected cases within48h. Equal-work
 microbenchmark3.28–6.82% overhead against a39e4d7, current18case gates pass.
 631core/14tool tests, build/TS/copy/clippy/codegen green. No deployment.
-Next by impact: audit base-class default/training friction (preserve generic
-Bolt14day failure; owned counter policies earned Caster10 in40h without grants),
-expand higher-tier elite/boss/loot mechanics, then Rogue/Ranger specializations
-where distinct roles emerge. No extra early prestige layer. See Cut33 final
-checkpoint for synthetic Tier5 eligibility and broader audit limitations.
+CUT34_LEECHING_ELITES.md now implemented/verified: Tier6+ Leeching recovers
+up to2HP on actual melee damage, poison/range counter, played metadata,
+replay HP/log/preview and320/400/1440 real-worker checks. Six fixed earned-build
+Tier6 diagnostics clear16–24h, eligibility synthetic. Native/WASM8h exact
+one/three-slot whole/sliced/reloaded reports/saves, original tier0 baselines and
+all twelve older Tier5 campaign saves remain exact.636core/14tool tests,
+clippy/build/codegen/TS/copy and routine18case gates pass. Event208→80bytes,
+positive-hit microbenchmark overhead1.12% after fixing initial23% failure.
+No deployment; optional exhaustive/statistical audit remains uncertified.
+Owner requests Gunner2026-10-07: CUT35_GUNNER.md is next before proposed
+Rogue/Ranger styles. Fifth base class with actual long/short gun equipment,
+chambers and timed reload commitment, inherited XP/Legacy, named automatic
+class tactics from first send, meaningful distinct range/armour/close-spread
+matchups. Prepared transparent gun icons via built-in imagegen and existing
+packer; actual class/runtime/portraits/forge/watch reload UI not implemented yet.
+Preserve old drop RNG, authored rules and saved state; do not expose inactive
+classes. Subsequent class-training audit and further boss/loot variety remain.
 
 D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h
 whole/sliced/reloaded full-state/report parity now passes after guide-quote,

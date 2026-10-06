@@ -1,3 +1,70 @@
+**CUT34 CONTENT/PERFORMANCE CHECKPOINT; GUNNER NEXT — 2026-10-07:**
+
+
+Leeching is implemented, with Rust-owned Tier6+ preview/catalogue, saved elite
+identity, real on-hit recovery, death metadata, replay HP and green plain-text
+combat log. Tier0–5 selection/catalogue stays exact. Five new meaningful tests
+cover birth hash/exclusions, real10→2/1→1/missing-HP/overkill, poison/Hex/
+Riposte/mirror and hazard/ranged/ally exclusions, saved/split/tame identity.
+Existing absence test additionally covers Tier6. Full final quick636core PASS/
+one ignored plus14tool tests, TS/copy1705 green160s under competing work.
+All-target fast clippy warnings denied, codegen check, build and real fastWASM
+5380527B pass; existing bundle advisory. Routine18case gate source
+fccfd9ac8d76acb4 terminal0, no cached legs: wire50.2s, metrics84.7s,
+dayplayer203.5s/all selected bars PASS. Current-source recheck confirms the
+same compiled-runtime key and all three genuine completed cached legs. Test-
+only trace assertion dereference preserves the complete comparison.
+
+Six Tier6 cases use the same actual earned parent XP/owned kit/policy and162
+paid Legacy from Cut33, synthetic seed1/3/5 and tier eligibility, no campaign
+grants/edits. Sentinel clears16/24/24game-hours,72/133/146 recoveries,
+75/145/168 enemy HP restored. Hexbinder16/16/16,53/75/38 recoveries,
+61/87/42 enemy HP restored. All reachD34 within48h. This is fixed-build
+viability, not legally earned Tier6 progression or every higher-tier balance.
+Permanent examples/leech_check.rs; artifacts scratchpad/leeching-20261007/.
+A separate normal stepped D19 encounter from that diagnostic preparation
+contains a Leeching iron golem recovering1HP after an actual1HP strike; no
+arena/encounter/HP overrides. Entire native/WASM step/snapshot and before/
+after save bytes equal the original recorded checkpoint after optimization.
+
+Final real-worker tests320/400/1440 prove actual recovery, whole-step/save
+reload equality, poison counter, replay HP including seek, green log entry,
+three-elite Ascension6 preview/cancel full-save read-only and tooltip details.
+Actual headed GPU watch screenshots at all three widths load the full source
+exactly, show the normal recovery log, have no errors/overflow and preserve
+existing elite marking. History entry was explicitly scrolled into view for
+final images; earlier screenshots had it outside the visible three-line history.
+Temporary5482 and browser cleaned up, shared5219 retained. Capture pre-compaction
+JSON remains byte-exact under the final engine, so played screenshots represent
+identical event/state behaviour. Artifacts scratchpad/leeching-qa-20261007/.
+
+Final native/WASM8h whole/half-hour/uneven-reloaded entire reports/saves match
+both selected classes with one/three legally funded bloodlines; each slice
+response/save exact. Six original tier0/challenge loaded/advanced complete
+WASM baselines exact. All twelve older Tier5 style/base seed1/3/5 full campaign
+start/after saves remain exact, including8/16/24h outcomes. These verify the
+specified fixtures, not an exhaustive migration/system-removal audit.
+
+Initial positive-hit microbenchmark failed23.12%; allocation-free recovery
+source alone still failed21.62%, both results retained. Spawn Entity and exit
+Trace payloads are now boxed, preserving JSON while reducing native Ev from
+208 to80bytes. Rare spawn/exit allocations replace excess storage on every
+ordinary event; recovery source is a bounded enum, not a per-hit String.
+Final equal-work500tick/damage calls,32foes,101samples,9counterbalanced rounds
+versus e2e74c7: median ns/call tier0 none517.400→510.860 (−1.26%);
+tier5 none540.020→534.920 (−0.94%); tier6 none546.740→535.560 (−2.04%);
+positive Leeching537.080→543.120 (+1.12%). All meet10%, each500-hit positive
+sample restores exactly1000 extra enemy HP. Same9hero resets included; parsing/
+map generation excluded. No full catch-up/FPS claim. Permanent leech_perf.rs;
+source/binary hashes and full interleaved rounds retained in perf.json.
+
+Cut34 is complete within these acceptance boundaries. No deployment; optional
+exhaustive/statistical/historical audits remain separate. Owner now explicitly
+requests Gunner with distinct long/short guns: CUT35_GUNNER.md is next priority
+before Rogue/Ranger styles. Contract and transparent equipment icons prepared;
+Gunner gameplay/unlock/class/portraits/forge/reload UI are NOT implemented yet.
+Keep-going goal remains active. mine.bars and scratchpad remain unstaged.
+
 **CUT33 APP/ART/GAMEPLAY VERIFICATION CHECKPOINT — 2026-10-07:**
 
 

@@ -4302,7 +4302,7 @@ impl Game {
             if let Some(line) = self.last_exit.take() {
                 if let Some(Ev::Exit { line: l, trace, .. }) = events.iter_mut().rev().find(|e| matches!(e, Ev::Exit { .. })) {
                     // Cut 9 §5: the exit event carries the last-5 trace beside the line.
-                    *trace = line.trace.clone();
+                    *trace = line.trace.clone().map(Box::new);
                     *l = Some(Box::new(ExitLine { trace: None, ..line }));
                 }
             }

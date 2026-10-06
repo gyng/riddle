@@ -22,7 +22,7 @@ export function combatLogEvents(events: readonly Ev[], heroId: number, kinds: Re
       const k = key(ev.t, ev.id, ev.dmg, ev.cause), count = hits.get(k) ?? 0;
       if (count > 0) { hits.set(k, count - 1); continue; }
     }
-    if (["attack", "hurt", "heal", "telegraph", "die", "use", "pickup", "rule", "descend", "exit"].includes(ev.k)) rows.push(ev);
+    if (["attack", "hurt", "heal", "recover", "telegraph", "die", "use", "pickup", "rule", "descend", "exit"].includes(ev.k)) rows.push(ev);
   }
   return rows;
 }

@@ -452,7 +452,7 @@ export function renderWatch(app: App): Mounted {
     const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, itemIcon({kind:name, label:name}, {size:"xs"}), name);
     if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · `, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
     else if (ev.k === "hurt") text = [`${who(ev.id)} · ${ev.cause.replace(/_/g, " ")} `, damage(ev.dmg, ev.id)];
-    else if (ev.k === "heal") text = [`${who(ev.id)} · ${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id)];
+    else if (ev.k === "heal" || ev.k === "recover") text = [`${who(ev.id)} · ${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id)];
     else if (ev.k === "telegraph") text = [h("span", { class: "log-warning" }, `${who(ev.id)} · ${warningText ?? ev.what}`)];
     else if (ev.k === "die") text = [h("span", { class: "log-fell" }, `${who(ev.id)} · fell`)];
     else if (ev.k === "use") text = [item(ev.item), ` · ${ev.outcome}`];

@@ -5819,7 +5819,7 @@ fn every_exit_carries_a_five_turn_trace_with_row_accounting() {
     let trace = trace.expect("the exit event's trace");
     assert!(!trace.turns.is_empty() && trace.turns.len() <= crate::engine::EXIT_TRACE_LEN);
     assert_eq!(trace.turns.last().unwrap().verb.v, "return");
-    assert_eq!(trace, g.batch.exits.last().unwrap().trace.clone().unwrap());
+    assert_eq!(*trace, g.batch.exits.last().unwrap().trace.clone().unwrap());
 }
 
 /// §6: over three consecutive absences a (threat, resolution) pair shows on at most one reel;

@@ -279,7 +279,7 @@ fn saved_differences(a:&serde_json::Value,b:&serde_json::Value,path:&str,out:&mu
 }
 #[test]
 fn modified_absence_full_save_and_report_are_partition_and_reload_independent() {
-    for tier in [1,3,5] {
+    for tier in [1,3,5,6] {
         let base=absence_fixture(tier);
         assert_eq!(base.active.run.as_ref().unwrap().difficulty,tier);
         assert!(base.active.run.as_ref().unwrap().monsters.iter().any(|m|m.modifiers.is_some()));
@@ -395,4 +395,90 @@ fn paired_king_cadence_prevents_repeat_reflection_and_preserves_health() {
         println!("King seed{seed}: reflected damage {}/{}",10000-p,10000-c);
         assert!(c>p,"cadence must preserve health: {p}/{c}");
     }
+}
+
+fn leech_arena()->Game {
+    let mut g=counter_arena(1,6,"goblin",Some(Elite::Leeching));
+    let r=g.run.as_mut().unwrap();r.hero.hp=100;r.hero.max_hp=100;
+    r.monsters[0].hp=10;r.monsters[0].max_hp=20;r.monsters[0].def=0;g
+}
+fn strike(g:&mut Game,damage:i32,source:crate::turn::Src) {
+    let(r,mut cx)=g.ctx();crate::turn::damage_hero(r,&mut cx,damage,&source);
+}
+fn recovered(g:&Game)->Vec<(i32,i32)> {
+    g.events.iter().filter_map(|e|if let Ev::Recover{id:100,amount,hp,src,..}=e {
+        assert_eq!(*src,crate::wire::RecoverySource::Leeching);Some((*amount,*hp))
+    }else{None}).collect()
+}
+#[test]
+fn leeching_appears_only_in_higher_birth_pool_and_preserves_lower_hash_selection() {
+    for tier in [0,1,3,5,6,100,u32::MAX] {
+        let mut g=game(tier);let r=g.run.as_ref().unwrap();let rng=r.rng.clone();let mut leeches=0;
+        for id in 100..612 {
+            let m=spawn(r,id,"goblin",near(r),1,true);
+            let hash=crate::rng::splitmix(r.seed^(1u64<<32)^u64::from(id)^0x6173_6365_6e64_6564);
+            if tier==0 {assert_eq!(m,Monster::spawn(id,"goblin",near(r),1));}
+            else if tier<=5 {
+                let expected=hash.is_multiple_of(8).then_some(if hash&256==0 {Elite::Shielded}else{Elite::Frenzied});
+                assert_eq!(m.modifiers.unwrap().elite,expected);
+            }else if m.modifiers.unwrap().elite==Some(Elite::Leeching) {leeches+=1;}
+            assert!(spawn(r,id,"mirror_king",near(r),33,true).modifiers.is_none_or(|mods|mods.elite.is_none()));
+            assert!(spawn(r,id,"goblin",near(r),1,false).modifiers.is_none_or(|mods|mods.elite.is_none()));
+        }
+        assert_eq!(r.rng,rng);assert_eq!(catalogue(tier).iter().any(|r|r.id=="leeching"),tier>=6);
+        if tier>=6 {assert!(leeches>=8,"deterministic pool must contain the new mechanic");}
+        g.lineage.ended=true;
+        assert_eq!(g.descent_offer(tier).unwrap().elites.iter().any(|m|m.id=="leeching"),tier>=6,"pre-descent review must describe actual elite pool");
+    }
+}
+#[test]
+fn leeching_heals_only_actual_damage_and_missing_health_with_authoritative_events() {
+    let mut g=leech_arena();strike(&mut g,10,crate::turn::Src::Mon(0));
+    assert_eq!(g.run.as_ref().unwrap().hero.hp,90);assert_eq!(recovered(&g),vec![(2,12)]);
+    strike(&mut g,1,crate::turn::Src::Mon(0));assert_eq!(recovered(&g),vec![(2,12),(1,13)]);
+    g.run.as_mut().unwrap().monsters[0].hp=19;strike(&mut g,10,crate::turn::Src::Mon(0));
+    assert_eq!(recovered(&g).last(),Some(&(1,20)));strike(&mut g,10,crate::turn::Src::Mon(0));
+    assert_eq!(recovered(&g).len(),3);assert_eq!(crate::meters::stream_sums(&g.events).2,0,"enemy recovery is not player healing");
+    let mut fatal=leech_arena();fatal.run.as_mut().unwrap().hero.hp=1;
+    strike(&mut fatal,10,crate::turn::Src::Mon(0));assert_eq!(recovered(&fatal),vec![(1,11)]);
+    let r=fatal.run.as_ref().unwrap();assert_eq!(r.hero.hp,0);assert_eq!(r.death_modifiers.unwrap().elite,Some(Elite::Leeching));
+}
+#[test]
+fn poison_distance_ranged_ally_hazard_reflection_and_zero_damage_cannot_leech() {
+    for variant in 0..9 {
+        let mut g=leech_arena();let r=g.run.as_mut().unwrap();let mut source=crate::turn::Src::Mon(0);let mut dmg=10;
+        match variant {
+            0=>r.monsters[0].poison=(1,10),1=>r.monsters[0].pos=r.hero.pos.step((3,0)),
+            2=>r.monsters[0].extra_tags.push("ranged".into()),3=>r.monsters[0].ally=true,
+            4=>source=crate::turn::Src::Fire,5=>source=crate::turn::Src::Reflect(0),
+            6=>dmg=0,7=>r.monsters[0].hp=0,_=>r.hero.mirror_charge=1,
+        }
+        strike(&mut g,dmg,source);assert!(recovered(&g).is_empty(),"excluded source{variant}");
+    }
+}
+#[test]
+fn hex_and_riposte_limit_leeching_after_actual_damage_before_counter() {
+    let mut hex=leech_arena();hex.run.as_mut().unwrap().monsters[0].hex_t=40;
+    strike(&mut hex,2,crate::turn::Src::Mon(0));assert!(recovered(&hex).is_empty());
+    assert_eq!(hex.run.as_ref().unwrap().hero.hp,100);
+    strike(&mut hex,3,crate::turn::Src::Mon(0));assert_eq!(recovered(&hex),vec![(1,11)]);
+    let mut parry=leech_arena();let r=parry.run.as_mut().unwrap();
+    r.hero.specialization=Some(crate::specialization::Style::Sentinel);r.hero.riposte_t=20;
+    strike(&mut parry,2,crate::turn::Src::Mon(0));assert_eq!(recovered(&parry),vec![(1,11)]);
+    assert_eq!(parry.run.as_ref().unwrap().monsters[0].hp,3);
+    let recovery=parry.events.iter().position(|e|matches!(e,Ev::Recover{..})).unwrap();
+    let counter=parry.events.iter().position(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="riposte")).unwrap();
+    assert!(recovery<counter,"healing belongs to the landed strike, before the reactive counter");
+}
+#[test]
+fn leeching_metadata_and_recovery_survive_save_split_and_tame_without_kind_facts() {
+    let mut original=leech_arena();let mut loaded=Game::load(&original.save()).unwrap();
+    strike(&mut original,10,crate::turn::Src::Mon(0));strike(&mut loaded,10,crate::turn::Src::Mon(0));
+    assert_eq!(loaded.events,original.events);assert_eq!(loaded.save(),original.save());
+    let m=&original.run.as_ref().unwrap().monsters[0];
+    let mut child=spawn_split(200,"goblin",m.pos,1,m.modifiers);
+    assert_eq!(child.modifiers.unwrap().elite,Some(Elite::Leeching));
+    normalise_tamed(&mut child,1);assert!(child.modifiers.is_none());
+    child.ally=true;child.hp=1;assert_eq!(leech(&mut child,m.pos,10),0);
+    assert!(!original.lineage.facts.iter().any(|f|f.contains("leeching")));
 }

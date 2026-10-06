@@ -34,7 +34,7 @@ export type Tile = "floor"|"wall"|"door"|"stairs_down"|"stairs_up"|"water"|"chas
 export type Overlay = { x: number; y: number; k: "gas"|"fire"; ttl: number };
 /** Cut31 B: immutable birth modifiers; saved separately from learned kind facts. */
 export type ModifierInfo = { id:string; mask:number; name:string; effect:string; counter:string };
-export type EncounterModifiers = { tier:number; affixes:number; elite?:"shielded"|"frenzied"; tight_mirror?:boolean };
+export type EncounterModifiers = { tier:number; affixes:number; elite?:"shielded"|"frenzied"|"leeching"; tight_mirror?:boolean };
 export type Entity = { modifiers?:EncounterModifiers; id: number; kind: string; name?: string; x: number; y: number;
                        hp: number; max_hp: number; tags: string[]; ally?: boolean; telegraph?: string;
                        cid?: number;                                    // Addendum A: companions carry their companion id
@@ -193,7 +193,8 @@ export type Ev =
   | { t: number; k: "oath"; kept: boolean; row: number; cause: string }
   /** Cut 29 §3 (core): hp the hero (`id` 0) or a pet regained this tick, by source (`potion` · `rest` · `regen` · `skill` · `pet`) — the meters'
    *  read, not a beat (never renderable; the watch may ignore it). */
-  | { t: number; k: "heal"; id: number; amount: number; src: string };
+  | { t: number; k: "heal"; id: number; amount: number; src: string }
+  | { t:number; k:"recover"; id:number; amount:number; hp:number; src:"leeching" };
 
 export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
                            /** Cut 28 §3 (core): the step's calm stretches — `[from, to]` run ticks (inclusive, `Ev.t`) with no decision and no threat: no foe
