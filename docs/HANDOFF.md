@@ -1,3 +1,31 @@
+**DIRECT PREPARATION — 2026-10-06:** UX_WALL_PREPARATION.md implemented.
+Shared report/death links: actual affordable Legacy/current Bloodline, ready
+free forge construction or built-forge upgrades, owned tactics beside actual
+stall/repeated death. Death collapsed Prepare retains core primary lever;
+spend/pending forge links review construction instead of opening unbuilt Forge.
+No automatic spend/equip/build/new forecasts. Readiness/refusal/single-flight/
+engine start+completion guards; key includes kit count; subscriptions disposed.
+Shared chrome frames both screens; named obstacle shared unit icon/tooltip.
+14client jobs47.1s/all132UI PASS; final frame4jobs7.5s; final38checks each
+320/400/1440 guard PASS3.9s. Build/typecheck/copy1611/diff clean, existingbundle
+advisory. Initial harness cwd mistakes corrected, mock rule-sync isolated after
+it replaced authored fixture; no bars weakened. Actual earned headed WASM
+400/1440 report/death/default-fold/build review/manual build/health rank captured,
+viewed/shown scratchpad/wall-preparation-20261006/. Opening full-save bytes exact;
+death RPC cache settled separately after initial mixed-scope assertion failed,
+no saved-field filtering; exact raw integers preserved. Freeforge gold53038/
+Legacy536 unchanged; explicithealth3points536→533/rank1/next6/gold unchanged.
+No errors/overflow. Same late town8h Steady9runs/D19/$2225/0deaths vs owned
+Guarded7/D23/$4360/2deaths, actual goal reached; native+WASM full reports/saves
+exact. All54Legacy aloneD20/$3125/0deaths; combinedGuardedD20/$1807/1death.
+Other owned alternativesD6/18/19; no universal ranking. Early27points rejects
+all54; health18onlyD8 unchanged/income lower. Late24h allD20vs19, deaths4vs1.
+Bold unavailable correctly rejected, actual owned alternatives used. No Rust/
+WASM/balance/deployment changes or full gate claim. Push approved; goal active.
+Next remaining gold/bones/trap icons and earned ending/ascension presentation,
+then existing-content variety and one scoped optional-reset proposal.
+Task preview5439 group2107388 cleaned, shared5219 HTTP200.
+
 **PROGRESSION GOAL — 2026-10-06:** UX_PROGRESS_GOAL.md implemented.
 Separate Next encounter from selected bloodline Goal and actual Rust bounty
 reward, fallback next record; no goal before house/first record or after ending.

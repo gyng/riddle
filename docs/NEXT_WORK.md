@@ -4,7 +4,9 @@ Local UI iteration-speed and compact-depth work are implemented and pushed.
 Hero presence, tactic observability and the content/checkpoint audit are implemented.
 Catch-up slice semantics are fixed and verified within PERF_OFFLINE_SLICE_BOUNDARIES.md.
 Readable progress milestone/reward is implemented in UX_PROGRESS_GOAL.md.
-Next: direct useful preparation, then the audit’s impact-ordered gameplay/content queue. Push approved
+Direct useful preparation is implemented in UX_WALL_PREPARATION.md.
+Next: remaining item icons and earned late-screen readability, then the audit’s
+impact-ordered variety and optional-reset gameplay queue. Push approved
 changes; do not deploy until the owner requests it. Show real app screenshots at
 UI checkpoints. Keep simulation truth in Rust and manual town construction.
 

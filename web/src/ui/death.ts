@@ -32,7 +32,7 @@ import { enemyHost } from "./enemy-tips";
 import { unitLabel, unitPortrait } from "./unit-icon";
 import { itemIcon } from "./items";
 import { penOpen } from "./packages";
-import { openForge } from "./forge";
+import { openPreparationForge, preparationActions } from "./preparation";
 import { kwHost } from "./tips";
 import type { Term } from "./concepts";
 /** docs/TOOLTIPS.md: the seal's verdict as a tip (long-press / hover: the seal's tap stays its own) */
@@ -261,7 +261,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   /** The lever's act: `spend` opens the blacksmith on its step, `package` wears it (free, instant) and goes to camp, `wait` sends again. */
   const leverAct = (): void => {
     if (!lever) { app.go({ kind: "camp" }); return; }
-    if (lever.kind === "spend") { openForge(app); return; }
+    if (lever.kind === "spend") { openPreparationForge(app); return; }
     if (lever.kind === "package") {
       const p = app.lineage.packages?.all.find((x) => x.name === lever.text || x.id === lever.text.toLowerCase());
       if (p && p.owned && app.engine.equipPackage) void app.mutate(() => app.engine.equipPackage!(p.id, 0), /* copy:callout */ p.name, true).then(() => app.go({ kind: "camp" }));
@@ -321,7 +321,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Before the pen, name the historical package and action in readable words.
   const setWhy = (): void => { whyEl.textContent = prePen ? deathAction(d) : whyOf(app, d, leadPatch(), rowsRan, luck, drove, causeRow); whyEl.hidden = !whyEl.textContent; };
   const sendAgain = canSend && !prePen ? h("button", { class: "death-send chip", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send again") : null;
-  const now = h("div", { class: "death-now" }, leverBtn, prePen ? null : patches, sendAgain);
+  const preparation = preparationActions(app, { collapsed: true, obstacle: d.cause.replace(/_/g, " ") });
+  const now = h("div", { class: "death-now" }, leverBtn, prePen ? null : patches, sendAgain, preparation.el);
   // the rest view: the lit fix and one other; `send again` when the death leaned on luck or nothing helps (both when there is room)
   function rest(): void { if (prePen) return; const n = restLayout(patches, leverBtn ? 1 : 2, measuring); if (sendAgain) sendAgain.hidden = !(luck || n === 0 || !!drove && n < 2); }
   const marginEl = marginText_ ? h("div", { class: "death-margin num dim" }, marginText_, gapWord) : null;
@@ -426,7 +427,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       rest();
     }).catch((e) => { console.warn("deathDeltas", e); measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2; }); }, 0);
   }
-  return { el, dispose: () => { gone = true; bar.dispose(); wide.dispose(); } };
+  return { el, dispose: () => { gone = true; preparation.dispose(); bar.dispose(); wide.dispose(); } };
 }
 
 /** QA 0c6e126 (qaZ): a rule row named under a death's trace — the row, how often it acted in the trace's turns and why it did not

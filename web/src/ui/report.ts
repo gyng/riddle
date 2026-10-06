@@ -16,8 +16,7 @@ import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { classXpBlock } from "./class-xp";
 import { systemIcon, systemLabel } from "./systems";
-import { openForge } from "./forge";
-import { openHero } from "./town";
+import { openPreparationForge, preparationActions } from "./preparation";
 import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
 import type { Counter, ExitLine, InvItem, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
@@ -30,7 +29,7 @@ import { heirOrd, lostLabel, noteText, rowLabel, setRefRows } from "./tokens";
 import { traceChip } from "./trace";
 import { closeAllSheets } from "./sheet";
 import { openGoldSheet, runRange } from "./gold";
-import { gem, portrait, renderBar, renderConsole, tile as cmdTile, wideCols, isWide, paintFace } from "./frame";
+import { gem, portrait, renderBar, renderConsole, tile as cmdTile, wideCols, isWide } from "./frame";
 import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
@@ -506,7 +505,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // Cut 23 §1: the core's `forge sword +1 · $300` (a kit step the purse buys now) opens the forge
     const forgeLines = pendingLines.filter((p) => /^forge /.test(p));
     const ul = lines(pendingLines.filter((p) => !/^forge /.test(p)).map((text) => readableUnlock(text, unlockNames))); if (ul) pendingBody.appendChild(ul);
-    if (forgeLines.length) pendingBody.appendChild(h("div", { class: "chips forge-pending" }, ...forgeLines.map((p) => h("button", { class: "chip mini forge-line num", onclick: () => openForge(app) }, p))));
+    if (forgeLines.length) pendingBody.appendChild(h("div", { class: "chips forge-pending" }, ...forgeLines.map((p) => h("button", { class: "chip mini forge-line num", onclick: () => openPreparationForge(app) }, p))));
     // Cut 9 §2: the card opens its sheet; the buy is there, and the report repaints itself after one
     // QA 1a2a4a9: the core's short list (`UnlockInfo.short`) when sent — the camp's shelf shows the same three
     const coreShort = affordable.some((u) => u.short !== undefined);
@@ -572,24 +571,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       toLog(tile(String(r.runs), /* copy:label */ "runs")),
       tile(`D${r.deepest ?? L.best_depth}`, /* copy:label */ "deepest"),
       h("div", { class: "tile plaque", "data-k": "gold" }, icon("gold"), h("b", { class: "num" }, `$${r.gold?.home ?? (r.exits ?? []).reduce((n, x) => n + x.kept, 0)}`), h("span", { class: "label" }, /* copy:label */ "Gold home"))));
-  const upgradeHost = h("div", { class: "report-upgrade-host" });
-  let upgradeKey = "";
-  const paintUpgrade = (): void => {
-    const current = app.lineage;
-    const points = current.bloodline?.points ?? current.hero_legacy?.find((x) => x.heir === current.heir)?.points;
-    const available = points !== undefined && !!app.engine.upgradeHero && !!current.legacy_upgrades?.some((u) => u.affordable);
-    const key = JSON.stringify([available, current.selected_bloodline, current.class, current.look, points]);
-    if (key === upgradeKey) return;
-    upgradeKey = key;
-    if (!available) { replace(upgradeHost); return; }
-    const face = h("span", { class: "icon-socket", "aria-hidden": "true" });
-    paintFace(face, current.class, 44, current.look);
-    replace(upgradeHost, h("button", { class: "chip report-upgrade", onclick: (e: Event) => openHero(app, e.currentTarget as HTMLElement) }, face,
-      h("span", { class: "report-upgrade-copy" }, h("b", null, /* copy:button */ "Upgrade hero"),
-        h("small", { class: "num" }, /* copy:label */ `Bloodline ${current.selected_bloodline ?? 1} · ${points} Legacy`))));
-  };
-  const offUpgrade = app.onChange(paintUpgrade), offLiveUpgrade = app.onLive(paintUpgrade);
-  paintUpgrade();
+  const repeatedDeath = [...r.deaths].sort((a, b) => b.n - a.n).find(d => d.n >= 2);
+  const obstacle = r.stall ? recentRunText(r.stall.text) : repeatedDeath?.cause.replace(/_/g, " ");
+  const preparation = preparationActions(app, { report: true, obstacle, cause: r.stall ? undefined : repeatedDeath?.cause });
+  const upgradeHost = preparation.el;
   const firstActs = (r.workers ?? []).filter((a) => a.first && (a.n > 0 || a.what));
   const goal = progressGoal(L);
   const newChoices = reportChoices(app, r);
@@ -653,7 +638,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const clear = mountClear(app, r, absence, reportWell, gemEl, () => cons.setTiles(consTiles));
   if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
   if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
-  return { el, dispose: () => { offUpgrade(); offLiveUpgrade(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
+  return { el, dispose: () => { preparation.dispose(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
 }
 
 /** Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): each companion that fell, by name — `Greth · ogre L5 · fell D12
