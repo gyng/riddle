@@ -1,3 +1,17 @@
+**STYLE EXPRESSIONS AT GAME SIZE — 2026-10-06:** Owner follow-up: stronger
+Guarded suspicious side-eye and Hunter plotting gesture via two individual
+built-in imagegen v4 edits. Other six expressive v3 assets preserved. All eight
+52px choices/44px mobile equipped, alpha unboxed; no icon/text intersections
+or overflow320/400/1440 headed fixture, screenshots shown. Package selection28
++death actions44 pass isolated3.2s; exact expected Guarded asset updatedv4.
+Shared-server selection cleanup failure resolved by unchanged isolated test.
+Build/typecheck/copy1523/diff pass, bundle advisory. GFX_STYLE_READABILITY.md
+has source/prompt/evidence paths. No gameplay/deployment. Real seed2 first-town
+walk completed34.1s/10checkpoints/offline8h2.1s/no errors; Scout hiring portion
+scripted engine harness. Next: continue evidence-led content/gameplay/gfx;
+watch log's generic Hero actor may obscure named hero identity, inspect source
+and watched historical ownership before changing labels.
+
 **HISTORICAL CAMP QA RESTORED — 2026-10-06:** qa92 full40checks passes
 13.9s; report-only8checks3.0s, combined13.9s. Explicit rough-estimate label,
 rough/refined classes+data flags and exact uncertainty bands replace obsolete
