@@ -29,13 +29,13 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     if (!all.length && !L.eggs.length) { head.append(/* copy:label */ "companions", " ", h("span", { class: "num dim" }, `0/${slots}`)); return; }
     const canBreed = L.kennel.filter((c) => c.level >= 2).length >= 2;
     head.append(/* copy:label */ "companions", " ", h("span", { class: "num dim" }, `${L.party.length}/${slots}`),
-      canBreed ? h("button", { class: `mini${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); } }, /* copy:button */ "breed") : "");
+      canBreed ? h("button", { class: `mini game-control${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); } }, /* copy:button */ "breed") : "");
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
       eggs.appendChild(h("span", { class: "chip egg" }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
         // QA e75ec29 (R: "the $50 chip drawn dim charged $50 on one tap … stayed PARTY 0/1"): `hatch $50`, a second tap pays, and the
         // hatchling joins the party when a slot is free
-        e.from_loss ? twoTap(/* copy:button */ "hatch $50", /* copy:button */ "ok $50", () => void hatch(e.id), { class: "mini hatch", disabled: L.gold < 50 }) : h("b", { class: "num" }, ` ${e.hatch_in}`)));
+        e.from_loss ? twoTap(/* copy:button */ "hatch $50", /* copy:button */ "ok $50", () => void hatch(e.id), { class: "mini hatch game-control", disabled: L.gold < 50 }) : h("b", { class: "num" }, ` ${e.hatch_in}`)));
     }
   }
 
@@ -62,12 +62,12 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     const dismiss = (e: Event): void => { e.stopPropagation(); void app.mutate(() => app.engine.setParty(app.lineage.party.map((p) => p.id).filter((x) => x !== c.id))); };
     return h("div", { class: `card comp${inParty ? " on" : ""}${picked ? " pick" : ""}${breeding && c.level < 2 ? " off" : ""}` },
       petFace(c.kind),
-      h("button", { class: "comp-main", onclick: onTap },
+      h("button", { class: "comp-main game-control", onclick: onTap },
         h("span", { class: "name" }, nice(c.kind), " ", h("small", { class: "dim" }, c.name), " ", h("b", { class: "num" }, `L${c.level}`), h("small", { class: "dim num" }, ` g${c.gen}`)),
         h("span", { class: "tags dim" }, c.tags.map(nice).join(" · ")),
         h("span", { class: "hp num dim" }, `${c.hp}/${c.max_hp} · ${c.rules.rows.length}/${c.max_rows}`)),
-      h("button", { class: "grip", onclick: () => openRules(app, c) }, "≡"),
-      inParty && !breeding ? h("button", { class: "x drop-pet", "aria-label": "×", onclick: dismiss }, "×") : "");
+      h("button", { class: "grip game-control", "aria-label": `${c.name} rules`, onclick: () => openRules(app, c) }, "≡"),
+      inParty && !breeding ? h("button", { class: "x drop-pet game-control", "aria-label": "×", onclick: dismiss }, "×") : "");
   }
   refresh();
   return { el, refresh };

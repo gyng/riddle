@@ -194,7 +194,7 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   // folded behind `others` (a tap unfolds them; the gem stays `edit`)
   if (head) {
     const fold = h("div", { class: "patches-fold", hidden: true }, ...rows);
-    const more: HTMLButtonElement = h("button", { class: "mini more patches-more", onclick: () => { fold.hidden = false; more.remove(); } }, /* copy:button */ "others", h("small", { class: "num dim" }, ` ${rows.length}`));
+    const more: HTMLButtonElement = h("button", { class: "mini more patches-more game-control", onclick: () => { fold.hidden = false; more.remove(); } }, /* copy:button */ "others", h("small", { class: "num dim" }, ` ${rows.length}`));
     const box = h("div", { class: "patches none-beats" }, head, more, fold); renumber(fold); baseOf.set(box, campBaseAt(app)); return box;
   }
   // QA 0c6e126 (qaZ: three patches all `survives 100% · unpatched 83%` — "I could not tell which the gem ranks first or why"): when the

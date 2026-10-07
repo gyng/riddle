@@ -320,18 +320,18 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const leadPatch = (): Patch | undefined => { const b = top?.btn; return b ? patchOf.get(b) : undefined; };
   // Before the pen, name the historical package and action in readable words.
   const setWhy = (): void => { whyEl.textContent = prePen ? deathAction(d) : whyOf(app, d, leadPatch(), rowsRan, luck, drove, causeRow); whyEl.hidden = !whyEl.textContent; };
-  const sendAgain = canSend && !prePen ? h("button", { class: "death-send chip", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send again") : null;
+  const sendAgain = canSend && !prePen ? h("button", { class: "death-send chip game-control", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send again") : null;
   const preparation = preparationActions(app, { collapsed: true, obstacle: d.cause.replace(/_/g, " ") });
   const now = h("div", { class: "death-now" }, leverBtn, prePen ? null : patches, sendAgain, preparation.el);
   // the rest view: the lit fix and one other; `send again` when the death leaned on luck or nothing helps (both when there is room)
   function rest(): void { if (prePen) return; const n = restLayout(patches, leverBtn ? 1 : 2, measuring); if (sendAgain) sendAgain.hidden = !(luck || n === 0 || !!drove && n < 2); }
   const marginEl = marginText_ ? h("div", { class: "death-margin num dim" }, marginText_, gapWord) : null;
   const meters = d.fight ? h("div", { class: "parchment fight-meters" }, meterPanel(d.fight, rowsRan, { title: /* copy:label */ "last fight" })) : null;
-  const morgueBtn = d.morgue ? h("button", { class: "chip mini death-morgue", onclick: openMorgue }, /* copy:button */ "morgue") : null;
+  const morgueBtn = d.morgue ? h("button", { class: "chip mini death-morgue game-control", onclick: openMorgue }, /* copy:button */ "morgue") : null;
   const details = h("div", { class: "death-details", hidden: true }, marginEl, news, drivenHp, notes, forecastLine, ledger, eggs, bones);
   const tail = h("div", { class: "death-details death-tail", hidden: true }, tracePanel, meters, morgueBtn);
   // one `details` tap, the report's own control (Cut 28 §2): the old screen, whole — the margin, the ledger, every tablet with its numbers
-  const more: HTMLButtonElement = h("button", { class: "details-fold death-more num", "aria-expanded": "false", onclick: () => {
+  const more: HTMLButtonElement = h("button", { class: "details-fold death-more num game-control", "aria-expanded": "false", onclick: () => {
     const open = !el.classList.contains("full"); el.classList.toggle("full", open); details.hidden = !open; tail.hidden = !open;
     more.setAttribute("aria-expanded", String(open)); more.classList.toggle("on", open);
     if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });

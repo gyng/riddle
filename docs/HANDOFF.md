@@ -1,3 +1,30 @@
+**CUT53/54 CURRENT CONTROLS AND REMAINING CHUNKY UI — 2026-10-07:**
+
+User remaining UI audit: companions Breed/Hatch/select/rules/dismiss, death
+Details/Send again/Morgue, patch Others and next-worker shortcut now explicitly
+share game-control; readable pet text, portrait remains outside, disabled shared
+material. Mobile Heroes missed packed skin despite bevel fallback; explicit
+class fixes it. No Rust/progression/save changes. Seven scoped checks PASS21.3s;
+final Heroes follow-up roster/first-plot/companions3/3PASS12.2s. Build/TS/copy1740
+zero/syntax/diff PASS. Screens companion/death/town/finalHeroes shown. Diagnostic
+fake companion/death captures at320/400/1440, not independently earned pets.
+Actual built headed seed5 complete walk34.5s10dumps noerrors through manualhouse/
+three sends/scout/20m; seed7 Warlord D8 captured then retained stale Edit harness
+failure. docs/CUT54_COMPANION_CHROME.md, scratchpad/chunky-cut54, /tmp/riddle-cut54-*.
+
+Restored compound driver current Speed mode/Skip, own-menu close keeps new loot
+choice, actual-watch wait. Synthetic visible-DOM modes/disabled/dialog tests PASS.
+Default Send must target actual gem: worker shortcut can also say send. Actual
+headed final first Fast+Skip ends on keep12.898s, second remembered mode ends
+report11.986s, no rater __riddle/wire control reads. Intermediate ambiguity failure
+retained. CUT53, scratchpad/chunky-cut53-final; /tmp/riddle-cut53-*-final.json.
+Owned5423 preview/5424 driver closed; shared5219 preserved.
+No deployment; standing commit/push approval. Independent95,
+broad client/balance and rat23px visual finding remain unverified/outstanding.
+Next: fix seed7 playtest retired Edit lookup, inspect small rat, then fresh content/
+gameplay evidence and independent immutable-build eval. Pending rating route
+preference unanswered; do not infer delegation approval.
+
 **CUT52 LEGACY EARNINGS — 2026-10-07:**
 
 Fresh played QA found reports expose class XP gain but only total Legacy. Rust

@@ -53,7 +53,7 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
     const current=slots.find(s=>s.id===L.selected_bloodline);
     replace(el,h('header',{class:'hero-roster-head'},h('h2',null,/* copy:label */'Heroes'),hooks.rules&&penOpen(L)?h('button',{class:'chip',onclick:hooks.rules},/* copy:button */'Rules'):''),
       h('div',{class:'hero-desktop'},full()),
-      h('div',{class:'hero-mobile'},current?row(current):'',h('button',{class:'hero-expand',onclick:()=>openSheet(()=>h('div',{class:'sheet-body heroes-sheet'},h('div',{class:'label row-label'},/* copy:label */'Active heroes'),full()))},/* copy:button */'Heroes')));
+      h('div',{class:'hero-mobile'},current?row(current):'',h('button',{class:'hero-expand game-control',onclick:()=>openSheet(()=>h('div',{class:'sheet-body heroes-sheet'},h('div',{class:'label row-label'},/* copy:label */'Active heroes'),full()))},/* copy:button */'Heroes')));
   };
   const off=app.onChange(paint),offLive=app.onLive(paint),timer=window.setInterval(paint,1000);paint();
   return {el,paint,setPresence:(live:LiveRun,ended=false)=>{if(observed&&live.run_id===observed.live.run_id&&live.heir===observed.live.heir&&live.turn<observed.live.turn)return;observed={slot:observedSlot,live,ended};paint();},dispose:()=>{off();offLive();clearInterval(timer);}};

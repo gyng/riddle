@@ -44,8 +44,10 @@ boss/loot variety remain appropriate after fresh played evidence.
 Cut52 makes actual earned Legacy visible on watched/away reports per bloodline,
 separate from class XP, preserving old reports and no automatic spending. Fresh
 played seed5/7 evidence and actual multihero captures are in CUT52. Next specific
-QA/iteration follow-ups: compound driver uses retired Speed/Skip entrypoints;
-first headed rat measures23px vs the existing24px visual bar. Independent current
+QA/iteration follow-ups: Cut53 restores compound Speed/Skip and actual Send gem;
+Cut54 closes remaining companion/death/worker/mobile Heroes material gaps.
+Seed7 playtest still looks for retired death Edit; first headed rat measures23px
+vs the existing24px visual bar. Independent current
 immutable-build fun evaluation is still needed; scoped checks do not establish95.
 
 D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h

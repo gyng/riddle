@@ -64,7 +64,7 @@ export function worksView(W: Works): { done: WorkNode[]; focus?: WorkNode; next:
 export type Pill = { el: HTMLElement; paint(): void };
 /** The `next` pill (docs/AUTOMATION_TREE.md §3A): `kind` buy glows gold; a bar under it when the wire gives `have/need`. */
 export function nextPill(app: App, anchorOpen: (node?: string, at?: HTMLElement) => void): Pill {
-  const el: HTMLButtonElement = h("button", { class: "next-pill", hidden: true, onclick: (e: Event) => { e.stopPropagation(); anchorOpen(el.dataset.node || undefined, el); } });
+  const el: HTMLButtonElement = h("button", { class: "next-pill game-control", hidden: true, onclick: (e: Event) => { e.stopPropagation(); anchorOpen(el.dataset.node || undefined, el); } });
   let last = "";
   const paint = (): void => {
     const W = app.lineage.tree;

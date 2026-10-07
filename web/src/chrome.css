@@ -27,12 +27,12 @@ html.skin-panel .ending-body.sheet-body { border: 14px solid transparent;
 /* All ordinary game controls share a tactile bevel. Gems/studs and map hits
    already have their own packed art; the text combat log keeps basic styling. */
 :is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .death-sheet, .preparation-host) button:is(.chip, .btn, .card, .tab, .hero-details, .hero-expand, .details-fold, .pkg-rows-btn),
-.game-control, .sheet-body button.game-control, .camp .tabs button.game-control, .hero-roster-head .btn, .town-tag[role="button"] { min-height: 44px; border: 2px solid #34415b; border-radius: 2px; padding: 8px 12px;
+.game-control, .death button.game-control, .camp .next-pill.game-control, .patches .patches-more.game-control, .sheet-body button.game-control, .camp .tabs button.game-control, .hero-roster-head .btn, .town-tag[role="button"] { min-height: 44px; border: 2px solid #34415b; border-radius: 2px; padding: 8px 12px;
   background: linear-gradient(#36445e 0%, #222b40 44%, #161d2d 48%, #1e2638 100%);
   box-shadow: inset 0 2px 0 #8894aa66, inset 2px 0 0 #71819a33, inset 0 -3px 0 #070b16, 0 2px 3px #080b1380;
   color: #eadfc5; font: 600 var(--control-size)/1.25 var(--control-font); letter-spacing: .025em;
   text-shadow: 0 1px 1px #060812; white-space: normal; }
-html.skin-tablet :is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .card, .hero-details, .details-fold, .pkg-rows-btn), html.skin-tablet .game-control, html.skin-tablet .sheet-body button.game-control, html.skin-tablet .camp .tabs button.game-control, html.skin-tablet .town-tag[role="button"] {
+html.skin-tablet :is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .card, .hero-details, .details-fold, .pkg-rows-btn), html.skin-tablet .game-control, html.skin-tablet .death button.game-control, html.skin-tablet .camp .next-pill.game-control, html.skin-tablet .patches .patches-more.game-control, html.skin-tablet .sheet-body button.game-control, html.skin-tablet .camp .tabs button.game-control, html.skin-tablet .town-tag[role="button"] {
   border: 8px solid transparent; border-image: url('/ui/frames/tablet.png') 24 fill / 8px stretch; padding: 3px 8px; }
 :is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .card, .hero-details, .details-fold, .pkg-rows-btn):hover:not(:disabled), .game-control:hover:not(:disabled) { filter: brightness(1.15); }
 :is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .card, .hero-details, .details-fold, .pkg-rows-btn):active:not(:disabled), .game-control:active:not(:disabled) { transform: translateY(1px); filter: brightness(.9); }
@@ -247,6 +247,19 @@ html.skin-button .camp-run-details > summary.btn { border: solid transparent; bo
 .camp .tabs { flex-wrap: wrap; }
 .camp .tabs .game-control { min-width: 44px; max-width: 100%; }
 .camp .tabs .game-control small { color: #bdc5d5; }
+/* Companion selection is a carved command, with separate rule/dismiss studs.
+   Keep the portrait silhouette outside the tablet and text readable on it. */
+.party .card.comp { border: 2px ridge #596173; border-radius: 2px; background: #141c2b; gap: 4px; padding: 4px; }
+.party .card.comp.on { border-color: #bda36b; }
+.party .comp-main.game-control { min-width: 0; padding: 4px 6px; overflow-wrap: anywhere; }
+.party .comp-main.game-control .name { font: 600 16px/1.3 var(--control-font); }
+.party .comp-main.game-control :is(.dim, .tags, .hp) { color: #bdc5d5; }
+.party .card.comp .game-control:is(.grip, .drop-pet) { min-width: 44px; padding: 2px; color: #eadfc5; }
+.party .pet-face { margin-left: 4px; }
+.party .chip.egg { flex-wrap: wrap; gap: 4px; }
+.party .chip.egg .hatch.game-control { min-height: 44px; margin-left: 0; }
+.death .death-more.game-control { text-decoration: none; letter-spacing: .025em; text-transform: none; }
+.game-control:disabled { opacity: .62; filter: saturate(.4); }
 
 /* Anchored inventory windows share command materials and sit above map labels. */
 .camp .panel-host { z-index: 6; }

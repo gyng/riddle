@@ -40,3 +40,12 @@ When extending UI, use a shared material, inspect320/400/1440, measure settled
 animation geometry, and check real routing/save behavior. See CUT50 for the
 bounded regression evidence; this audit does not certify every hidden state or
 replace an independent fun rating.
+
+Cut54 extends the same command recipe to companion selection/Breed/Hatch/rules/
+dismissal, death Details/Send again/Morgue, patch Others and next-worker shortcut.
+Companion portraits stay outside the tablet; subordinate text uses the readable
+secondary ink on dark materials. Diagnostic companion/death320/400/1440 captures
+and interactions pass. These fixtures do not claim independently earned pets.
+Inline ledger records and forecast chart bars remain quiet; retired runlane
+capsules are inactive. Current built seed5 home/watch/return walk passes; seed7
+Warlord screenshot captured before a retained stale Edit harness failure.
