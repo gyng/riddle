@@ -347,7 +347,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // docs/UI.md §7: after 12 s the default — the gem when it sends or goes to camp, else `send again` when shown, else the camp tile (a
   // fix, `forge` and `wear` are decisions); a death opened from the report or the chronicle goes back after a panel's 20 s
   const campTile = cons.el.querySelector<HTMLElement>('[data-tile="camp"]')!, opened = kept || !!from;
-  const autoAt = opened ? cons.el.querySelector<HTMLElement>('[data-tile="report"]') ?? campTile : prePen && (!lever || lever.kind === "wait") ? gemBtn : sendAgain && !sendAgain.hidden ? sendAgain : campTile;
+  // The first sends are manual; only the hired Scout authorizes another run without a tap.
+  const manualSend = app.lineage.tree?.auto_send === false;
+  const autoAt = opened ? cons.el.querySelector<HTMLElement>('[data-tile="report"]') ?? campTile : manualSend ? campTile : prePen && (!lever || lever.kind === "wait") ? gemBtn : sendAgain && !sendAgain.hidden ? sendAgain : campTile;
   autoDismiss(autoAt, { ms: opened ? AUTO.panel : AUTO.death, yieldToSheets: true, onExpire: () => (autoAt.isConnected && autoAt.getClientRects().length ? autoAt : campTile).click() });
   // Cut 18 §4: a stall's cause is the rows' loop (`R2 retreat ↔ explore`) — it reads whole on one line: the face steps down until it fits
   if (d.verdict === "stall") { line.classList.add("loop"); fitLine(line.querySelector<HTMLElement>(".cause")); }

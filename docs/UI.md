@@ -136,7 +136,7 @@ and a one-line hook per screen.
 | the run's card (run-clear) | 7 s | the gem, `camp` (the town) — a watched run's card over its report | six things at ~1 s: the seal, the reason, the floor, the coins, the finds, one plaque |
 | an absence's last-run card | 6 s | the card itself: it lifts to the absence's report (whose 12 s then starts) | the same card, read before the night's table |
 | the report | 12 s | the gem, `camp` (the town) | the grew lines, ≤ 5 beat plaques and the tiles are ~12 things at ~1 s each; the plaques land in its first 2 s |
-| the death screen | 12 s | the gem when it sends or goes to camp (lever `wait`, none); else `send again` when shown; else the `camp` tile | the what · why · what-now read is three lines; the lever `forge` / `wear` and a fix's `apply` are decisions, so the ring goes elsewhere |
+| the death screen | 12 s | Town before the Scout; afterward the gem when it sends (lever `wait`, none), else `send again` when shown, else Town | first sends stay manual; forging, equipment and applying fixes always require a decision |
 | a death opened from the report or the chronicle | 20 s | `report` (back), else `camp` | the player opened it to read: a panel's time |
 | an open sheet or camp panel | 20 s of no input | its close stud | long enough to read a full sheet, short enough that a phone left on the table is back in the town within a minute |
 | beats and plaques | (3 s) | — | none waits for a tap outside the watch: the level-up and arrival beats are the report's plaques and share its clock |

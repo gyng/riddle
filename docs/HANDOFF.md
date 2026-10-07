@@ -1,3 +1,24 @@
+**CUT63 MANUAL DEATH CONTINUE — 2026-10-07:**
+
+Prior turn progressed QA controls6f1b3b5. Found actual manual-opening defect:
+default death timer could pressSend beforeScout. Runtime target nowTown when
+Rust tree.auto_send=false (also pausedScout); hiredScout continuation retained,
+oldwire compatibility retained. Manual Send still available, no clock/duration
+or core changes. Initial fake manual fixture was migrated withScout; explicit
+manual/hired flags now asserted. Fullautodismiss29PASS, four scopedjobsPASS100.8s:
+deathactions22×2,wallpreparation39×3,firstplot×3; build/TS/copy1736zero/diffPASS.
+RealWASM public-earned first-run preScout save +earnedScoutcamp diagnostic
+Deaths400/1440: timerTown/0sends/exactmanualsave; hiredSend/1send. Settled
+screens showkiller/depth/nooverflow/errors. Early captures intro motion; added
+textcheck initially omittedD4 suffix, corrected diagnostic. CUT63 recordsprovenance.
+Owned5428 stopped;shared5219retained. No deployment; standingpushapproval.
+
+**LIVE FULL CLIENT AUDIT:** exact exec session53404, log
+/tmp/riddle-cut63-full-client.log; TEST_JOBS=3 TEST_HEAVY_WIDTH=1. Last poll
+confirmsrunning, bufferedresults expectedonlyatend. Continuepollinghandle;
+do not restart on quiet output. Latest completedfull remains98/117, not updated
+fromscopedpasses. FullcurrentQA/independentrating95 stillunverified.
+
 **CUT62 CURRENT QA CONTROLS — 2026-10-07:**
 
 Prior goal turn made progress: pacing fix210777a pushed, full shipping verify

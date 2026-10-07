@@ -5,7 +5,7 @@
 //   input     a key restarts the clock; a pointer resting on the gem holds it
 //   hidden    a hidden tab does not advance it; the return starts it over full
 //   toggle    `auto continue` off in settings: the report waits
-//   death     the default the screen shows: `send` (lever wait) → the watch; `forge` / `wear` levers and a fix's apply never pressed
+//   death     Town until the Scout; afterward `send` (lever wait) → watch; `forge` / `wear` levers and a fix's apply never pressed
 //             (the camp tile instead: no forge sheet, nothing worn, the rules unchanged); a death opened from the report goes back to it
 //   panels    a sheet and a camp panel close after 20 s (5 s here) of no input; the watch has no clock
 //   off       no param under automation: no clock at all
@@ -117,11 +117,22 @@ try {
 
   if (part("death")) {
     await boot(4105);
-    await withState((e) => { e.lineage.heir = 2; e.lineage.graveyard = [{ heir: 1, depth: 4, cause: "goblin" }]; e.lineage.best_depth = 6; });
+    await withState((e) => { e.lineage.heir = 2; e.lineage.graveyard = [{ heir: 1, depth: 4, cause: "goblin" }]; e.lineage.best_depth = 6; e.st305.hired = e.st305.hired.filter(id => id !== "scout"); });
     const base = { run_id: 7, depth: 6, cause: "goblin_archer", margin: "3 over", verdict: "gap", baseline: 0.42, replays: 12, trace: { turns: [] },
       patches: [{ row: { conds: [{ k: "hp<", n: 40 }], verb: { v: "retreat" } }, insert_at: 0, survive: 0.9, forecast_delta: 0.2, forecast_depth: 6 }], morgue: "slain" };
     const go = (d) => page.evaluate((x) => window.__riddle.go({ kind: "death", death: x }), d);
-    // the lever `wait`: the gem reads `send` and is pressed
+    // Before the Scout, no clock is allowed to manufacture a manual send.
+    const manualBefore = await ledger();
+    await page.evaluate(() => { const e = window.__riddle.engine, send = e.send.bind(e); window.__sendCalls = 0; e.send = async (...args) => { window.__sendCalls++; return send(...args); }; });
+    check(await page.evaluate(() => window.__riddle.lineage.tree.auto_send === false), "manual-send fixture has no hired Scout");
+    await go({ ...base, lever: { kind: "wait", text: "Steady L2" }, package: "Steady · HP<20% → return" });
+    const manual = await until(() => window.__riddle.screen === "death" && window.__autodismiss.live()[0], "the manual death's clock");
+    check(/tile/.test(manual.cls) && manual.text === "town", "before the Scout, the death clock returns to Town");
+    await until(() => window.__riddle.screen === "camp", "Town after the manual death's time", DEATH + 6000);
+    check(await page.evaluate(() => window.__sendCalls === 0) && await ledger() === manualBefore, "manual death timeout sends nothing and changes no gold, choices or rules");
+    await withState((e) => { e.st305.hired.push("scout"); });
+    check(await page.evaluate(() => window.__riddle.lineage.tree.auto_send === true), "automatic-send fixture has a hired Scout");
+    // After the Scout, the lever `wait` gem reads `send` and is pressed.
     await go({ ...base, lever: { kind: "wait", text: "Steady L2" }, package: "Steady · HP<20% → return" });
     const w = await until(() => window.__riddle.screen === "death" && window.__autodismiss.live()[0], "the death's clock");
     check(/gem/.test(w.cls) && /send/.test(w.text), `before the pen, lever \`wait\`: the ring on the \`send\` gem (${w.text})`);
@@ -135,7 +146,7 @@ try {
       const before = await ledger();
       await go({ ...base, lever });
       const c = await until(() => window.__riddle.screen === "death" && window.__autodismiss.live()[0], "the death's clock");
-      check(/tile/.test(c.cls) && /camp/.test(c.text), `lever \`${lever.kind}\`: the ring on the camp tile, not the gem (${c.cls.split(" ")[0]} ${c.text})`);
+      check(/tile/.test(c.cls) && c.text === "town", `lever \`${lever.kind}\`: the ring on the Town tile, not the gem (${c.cls.split(" ")[0]} ${c.text})`);
       await until(() => window.__riddle.screen === "camp", "the camp after the death's time", DEATH + 6000);
       const forge = await page.evaluate(() => !!document.querySelector(".sheet .forge, .forge-sheet"));
       check(!forge && (await ledger()) === before, `lever \`${lever.kind}\`: to the camp, nothing opened, bought or worn`);
@@ -159,6 +170,8 @@ try {
 
   if (part("panels")) {
     await boot(4106);
+    // A fresh town hides its forecast; this panel fixture represents an earned camp.
+    await withState((e) => { e.lineage.best_depth = 6; });
     // a sheet (the purse's ledger)
     await page.locator(".topbar .stat.gold").click();
     await until(() => document.querySelector(".sheet-wrap .ad-ring"), "the sheet's ring");
@@ -166,14 +179,11 @@ try {
     await until(() => !document.querySelector(".sheet-wrap"), "the sheet closed", PANEL + 6000);
     check(Date.now() - t >= PANEL - 500, `a sheet closes after its time of no input (${Date.now() - t} ms, bar ${PANEL})`);
     // a camp panel (the forecast, from the shaft)
-    const shaft = await page.$(".camp .shaft");
-    if (shaft) {
-      await shaft.click(); await page.mouse.move(5, 5);
-      await until(() => document.querySelector(".panel-host.open .panel .close-stud .ad-ring"), "the panel's ring");
-      const t2 = Date.now();
-      await until(() => !document.querySelector(".panel-host.open"), "the panel closed", PANEL + 6000);
-      check(Date.now() - t2 >= PANEL - 500, `a camp panel closes after its time of no input (${Date.now() - t2} ms)`);
-    } else out.push("note: no shaft on this camp (panel check skipped)");
+    await page.locator(".camp .shaft:visible").click(); await page.mouse.move(5, 5);
+    await until(() => document.querySelector(".panel-host.open .panel .close-stud .ad-ring"), "the panel's ring");
+    const t2 = Date.now();
+    await until(() => !document.querySelector(".panel-host.open"), "the panel closed", PANEL + 6000);
+    check(Date.now() - t2 >= PANEL - 500, `a camp panel closes after its time of no input (${Date.now() - t2} ms)`);
   }
 
   if (part("off")) {
