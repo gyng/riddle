@@ -63,11 +63,11 @@ try {
    const detached = document.querySelector('.preparation-host'), text = detached.textContent;
    const death = { run_id: 1, depth: 8, cause: 'goblin_warlord', margin: '2 hp short', verdict: 'gap', baseline: 0, replays: 12, patches: [], morgue: '', trace: { turns: [] }, lever: { kind: 'spend', text: 'sword +1' } };
    a.go({ kind: 'death', death, kept: true });
-   check(document.querySelector('.preparation-fold') && !document.querySelector('.preparation-fold').open, 'death preparation stays collapsed');
+   check(!document.querySelector('.preparation-fold') && document.querySelector('.preparation-section h3').textContent === 'Next run', 'death next-run actions are visible and named');
    check(document.querySelector('.death-lever').dataset.kind === 'spend', 'engine primary recommendation retained');
    check(getComputedStyle(action('report-upgrade')).borderImageSource.includes('tablet.png'), 'death links use shared chunky frame');
    document.querySelector('.death-lever').click(); check(!!document.querySelector('.preparation-build') && !document.querySelector('.simple-kit'), 'death spend respects unbuilt forge'); closeAllSheets();
-   document.querySelector('.preparation-fold summary').click();
+   check(!document.querySelector('.preparation-obstacle'), 'death does not repeat the killer beside next-run options');
    check(action('report-upgrade').textContent.includes('Bloodline 3 · 8 Legacy'), 'historical death prepares current bloodline explicitly');
    a.lineage = { ...a.lineage, bloodline: { points: 99, spent: 0, upgrades: {} } }; await a.afterLineage();
    check(!detached.isConnected && detached.textContent === text, 'disposed report does not repaint');

@@ -51,12 +51,12 @@ export function openPreparationForge(app: App, anchor?: HTMLElement | null): voi
   }, { anchor, onClose: () => off() });
 }
 
-export function preparationActions(app: App, options: { collapsed?: boolean; obstacle?: string; cause?: string; report?: boolean } = {}) {
+export function preparationActions(app: App, options: { collapsed?: boolean; obstacle?: string; cause?: string; showObstacle?: boolean; report?: boolean } = {}) {
   const host = h('div', { class: options.report ? 'report-upgrade-host preparation-host' : 'preparation-host' });
   const actions = h('div', { class: 'preparation-actions' });
   const contents = options.collapsed
-    ? h('details', { class: 'preparation-fold' }, h('summary', null, /* copy:button */ 'Prepare'), actions)
-    : h('section', { class: 'preparation-section' }, h('h3', null, /* copy:label */ 'Prepare'), options.obstacle ? h('div', { class: 'preparation-obstacle num' },
+    ? h('details', { class: 'preparation-fold' }, h('summary', null, /* copy:button */ 'Next run'), actions)
+    : h('section', { class: 'preparation-section' }, h('h3', null, /* copy:label */ 'Next run'), options.obstacle && options.showObstacle !== false ? h('div', { class: 'preparation-obstacle num' },
       options.cause ? enemyHost(unitLabel(options.cause, options.obstacle, { px: 30 }), options.cause, app.lineage) : options.obstacle) : null, actions);
   host.append(contents);
   let key = '';

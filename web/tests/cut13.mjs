@@ -342,16 +342,16 @@ try {
   await sleep(100); d = await deathScreen();
   // Cut 17: the verdict screen's buttons are its console — the command card (morgue · camp, docs/CUT17.md §1) and the gem (edit,
   // with no patch to apply)
-  // death v2: the morgue is under `details`; `no rule for it` is the why line under the banner
+  // Cut59: morgue remains under details; unknown why is omitted
   const btns = await page.evaluate(() => [...document.querySelectorAll("main.death .console button")].map((b) => b.textContent.trim()));
   let why = await page.evaluate(() => document.querySelector(".death .death-why")?.textContent);
   const morgue = await page.evaluate(() => !!document.querySelector("main.death .death-details .death-morgue"));
-  check(d.line === "goblin archer · D3 · you died" && why === "no rule for it", `the headline drops the hp margin: "${d.line}" · "${why}"`);
-  check(btns.join() === "camp,edit" && morgue, `the verdict screen's buttons are camp and the edit gem only, the morgue under details: [${btns.join(", ")}] · ${morgue}`);
+  check(d.line === "goblin archer · D3 · you died" && why === "", `the headline drops the hp margin: "${d.line}" · "${why}"`);
+  check(btns.join() === "town,town" && morgue, `the verdict screen's buttons are Town and the Town gem only, the morgue under details: [${btns.join(", ")}] · ${morgue}`);
   await fakeDeath({ margin: "3 over" });
   await sleep(100); d = await deathScreen();
   why = await page.evaluate(() => document.querySelector(".death .death-why")?.textContent);
-  check(d.line === "goblin archer · D3 · you died" && why === "no rule for it", `the core's \`3 over\` is dropped too: "${d.line}" · "${why}"`);
+  check(d.line === "goblin archer · D3 · you died" && why === "", `the core's \`3 over\` is dropped too: "${d.line}" · "${why}"`);
   await fakeDeath({ cause: "stalled", margin: "archer, no path", verdict: "stall" });
   await sleep(100); d = await deathScreen();
   check(d.line === "stalled · D3 · archer, no path · stall", `a stall keeps the guard's reason: "${d.line}"`);

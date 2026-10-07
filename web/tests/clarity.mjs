@@ -149,8 +149,8 @@ try {
     await page.evaluate(() => { const r = window.__riddle; r.go({ kind: "death", death: { run_id: 1, depth: 3, cause: "goblin_pack", margin: "3 over", verdict: "gap", baseline: 0.4, trace: { turns: [] }, patches: [], morgue: "" }, lost: ["jackal · Ashar"] }); });
     await sleep(300);
     const d = await page.evaluate(() => ({ line: document.querySelector(".death-line")?.textContent.replace(/\s+/g, " ").trim(), why: document.querySelector(".death .death-why")?.textContent, egg: document.querySelector(".death .eggs-line .egg")?.textContent.replace(/\s+/g, " ").trim() }));
-    // death v2: `no rule for it` is the why line under the banner
-    check(/^goblin pack · D3 · you died$/.test(d.line ?? "") && d.why === "no rule for it", `the death line reads "${d.line}" · "${d.why}" (no hp margin)`);
+    // Cut59: no diagnosis is invented when no specific recommendation exists
+    check(/^goblin pack · D3 · you died$/.test(d.line ?? "") && d.why === "", `the death line reads "${d.line}" · "${d.why}" (no hp margin)`);
     check(d.egg === "◯ jackal Ashar fell", `the lost companion reads "${d.egg}"`);
   }
   // §3 the report: `banked · returned · deaths` always (QA 92eb880 withdrew the larger-first swap); exit lines lead with `returned $61`; lost chips `fell`;

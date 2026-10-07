@@ -1,3 +1,17 @@
+**CUT59 SIMPLER DEATH — 2026-10-07:**
+
+Owner does not understand Prepare/no rule for it. Remove generic fallback;
+unknown why hidden, keep specific causal evidence. Death actions visible under
+Next run, omit duplicate killer; only1recommended patch initially, others under
+Details. No-fix gem Town accurately reflects destination. Shared report heading
+Next run. Current earned WASM save+explicit diagnostic deaths320/400/1440 check
+unknown why/concrete heal/next-run actions/Details/hero routing/exact read-only
+save/early lever/no overflow or errors. Existing death-actions22×2 and
+wall-preparation39×3:2/2PASS6s. Build/TS/copy1736zero/diff pass. Screens shown;
+scratchpad/death-cut59; CUT59. Final Town DOM-label/three-width captures PASS (first check
+mistook uppercase innerText for DOM text). Historical clarity/cut13 copy
+expectations changed, unrelated earlier failures remain unverified. No deploy.
+
 **CUT58 LIVE WATCH CHUNKY AUDIT — 2026-10-07:**
 
 Owner explicit remaining chunky UI audit. Eleven earned management windows at

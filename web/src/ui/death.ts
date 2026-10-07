@@ -136,14 +136,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     : d.verdict === "route" && d.route_cause ? /* copy:death_line */ `D${d.route_cause.fork} ${d.route_cause.taken}` : "";
   // Cut 17 §4: the line is laid on the defeat banner — the cause and depth in the display face, the verdict in the seal under it
   // (one word, engine data: `gap` · `dice` · `stall`); the text reads as before (`goblin archer · D6 · gap`)
-  // docs/COPY.md pass 3 (`UNANSWERED` under `goblin warlord · D8` read as "boss not beaten yet" 4/4): a gap whose margin does not say
-  // what went unmet says it (`no rule for it`)
-  const gapWord = !prePen && d.verdict === "gap" && !/unanswered|unused|unmet/.test(margin) ? /* copy:death_line */ " · no rule for it" : "";
   // death screen v2 (owner, 2026-10-01: "too wordy and incomprehensible"): the headline answers what killed him — the killer, the floor and (`hero at`: blind check read a bare `at 1 hp` as the foe's)
   // the hp he had before the blow (`gas · D7 · at 3 hp`); a stall keeps its loop (its moment is the rules'); the rule, the margin and
-  // `no rule for it` move to the why line and the details
+  // causal evidence moves to the why line and the details
   const hpAt = drove?.hp ?? momentHp(d);
-  const causeText = d.verdict === "stall" ? /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}${gapWord}`
+  const causeText = d.verdict === "stall" ? /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}`
     : /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${hpAt !== undefined ? ` · hero at ${hpAt} hp` : ""}`;
   const marginText_ = d.verdict === "stall" ? "" : [causeRow, seg].filter(Boolean).join(" · ");
   // QA 1a2a4a9 (P: `STALLED · R2 RETREAT ↔ EXPLORE · D6 · KEEPS $0` ran off both edges at 400 px): a stall's headline wraps between its
@@ -159,8 +156,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const word = d.verdict;
   // docs/COPY.md §2: the stamp blames the right thing in a plain word — `dice` is luck, `row` the player's own rule
   // passes 2–3: `gap` alone read "no idea" 4/4; `unanswered` did not fit the seal and `unmet` read "a goal not met" 6/6 — the seal keeps
-  // `gap` and the headline says what it means (`no rule for it`, or the core's `telegraph unanswered`)
-  // Cut 29 (owner, 2026-09-28): the gap's seal reads YOU DIED — the headline's `no rule for it` under it keeps what it means (the report,
+  // the plain death stamp; specific causal evidence is shown separately
+  // Cut 29 (owner, 2026-09-28): the gap's seal reads YOU DIED (the report,
   // reel, trace and patches keep their own words for a gap)
   const stamp = prePen && word !== "stall" && !drove ? /* copy:verdict */ "you died" : word === "gap" ? /* copy:verdict */ "you died" : word === "dice" ? /* copy:verdict */ "luck" : word === "row" ? /* copy:verdict */ "rule" : (word as string) === "driven" ? /* copy:verdict */ "repelled" : word;
   // Cut 28 §2 (AU: `8/12 live unpatched` deaths "felt like the dungeon's decision"; AV: `10/12 live unpatched` under GAP read as blame): a
@@ -288,7 +285,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     : top
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
     ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" ? h("small", { class: "gem-w" }, top.btn.classList.contains("harms") ? /* copy:label */ "risky" : /* copy:label */ "apply") : ""), cls: `patch-gem${top.btn.classList.contains("harms") ? " harms" : ""}`, pulse: !top.btn.classList.contains("harms"), onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
-    : gem({ label: /* copy:button */ "edit", pulse: true, onclick: () => app.go({ kind: "camp" }) });
+    : gem({ label: /* copy:button */ "town", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
     top && !prePen ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
@@ -321,11 +318,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Before the pen, name the historical package and action in readable words.
   const setWhy = (): void => { whyEl.textContent = prePen ? deathAction(d) : whyOf(app, d, leadPatch(), rowsRan, luck, drove, causeRow); whyEl.hidden = !whyEl.textContent; };
   const sendAgain = canSend && !prePen ? h("button", { class: "death-send chip game-control", onclick: () => app.go({ kind: "watch" }) }, /* copy:button */ "send again") : null;
-  const preparation = preparationActions(app, { collapsed: true, obstacle: d.cause.replace(/_/g, " ") });
+  const preparation = preparationActions(app, { obstacle: d.cause.replace(/_/g, " "), showObstacle: false });
   const now = h("div", { class: "death-now" }, leverBtn, prePen ? null : patches, sendAgain, preparation.el);
-  // the rest view: the lit fix and one other; `send again` when the death leaned on luck or nothing helps (both when there is room)
-  function rest(): void { if (prePen) return; const n = restLayout(patches, leverBtn ? 1 : 2, measuring); if (sendAgain) sendAgain.hidden = !(luck || n === 0 || !!drove && n < 2); }
-  const marginEl = marginText_ ? h("div", { class: "death-margin num dim" }, marginText_, gapWord) : null;
+  // the rest view: one recommended fix; `send again` when the death leaned on luck or nothing helps (both when there is room)
+  function rest(): void { if (prePen) return; const n = restLayout(patches, 1, measuring); if (sendAgain) sendAgain.hidden = !(luck || n === 0 || !!drove && n < 2); }
+  const marginEl = marginText_ ? h("div", { class: "death-margin num dim" }, marginText_) : null;
   const meters = d.fight ? h("div", { class: "parchment fight-meters" }, meterPanel(d.fight, rowsRan, { title: /* copy:label */ "last fight" })) : null;
   const morgueBtn = d.morgue ? h("button", { class: "chip mini death-morgue game-control", onclick: openMorgue }, /* copy:button */ "morgue") : null;
   const details = h("div", { class: "death-details", hidden: true }, marginEl, news, drivenHp, notes, forecastLine, ledger, eggs, bones);
@@ -583,7 +580,7 @@ export function momentHp(d: Death): number | undefined {
 
 /** Death screen v2 — why, from the player's side, one line: what would have changed it (the lead fix, inverted: a retreat fix reads `never
  *  stepped back`, a return `returned too late`, a heal bought `no heal left`), luck as luck (`bad luck · 1 in 6`), a boss's `needs a
- *  counter`; the verdict word (gap · row · order · route · stall) becomes this wording, never a term. `no rule for it` when nothing names it. */
+ *  counter`; the verdict word (gap · row · order · route · stall) becomes this wording, never a term. Hide the line when no specific explanation is known. */
 export function whyOf(app: App, d: Death, lead: Patch | undefined, rows: Row[], luck: { oneIn: string } | null, drove?: DrivenOff, causeRow?: string): string {
   const pkg = (d as Death & { package?: string }).package;   // Cut 30 (core): the package whose row acted — `Steady · …`
   const pre = pkg ? `${pkg} · ` : "";
@@ -593,9 +590,9 @@ export function whyOf(app: App, d: Death, lead: Patch | undefined, rows: Row[], 
   if (d.verdict === "route" && d.route_cause) return /* copy:callout */ `wrong stairs · D${d.route_cause.fork}`;
   if (d.verdict === "row" && causeRow) return pre + /* copy:callout */ `${causeRow} backfired`;
   if (d.verdict === "order" && d.cause_row !== undefined) return pre + /* copy:callout */ `${refName(d.cause_row)} never fired`;
-  if (!lead) return /* copy:death_line */ "no rule for it";
+  if (!lead) return "";
   const v = lead.row.verb.v, a = lead.row.verb.a ?? "";
-  if (lead.insert_at < 0) return /* copy:death_line */ "no rule for it";
+  if (lead.insert_at < 0) return "";
   if (lead.moves_from !== undefined && lead.moves_from >= 0) return pre + /* copy:callout */ `${ruleName(rows, lead.moves_from)} never fired`;
   if (lead.remove) return pre + /* copy:callout */ `${ruleName(rows, lead.insert_at)} backfired`;
   if (v === "return" || v === "bank") return rows.some((r) => r.verb.v === "return" || r.verb.v === "bank") ? /* copy:callout */ "returned too late" : /* copy:callout */ "never turned back";
@@ -607,7 +604,7 @@ export function whyOf(app: App, d: Death, lead: Patch | undefined, rows: Row[], 
   }
   if (/boss/.test(a) || /boss/.test(JSON.stringify(lead.row.conds))) return /* copy:callout */ `${d.cause.replace(/_/g, " ")} needs a counter`;
   void app;
-  return /* copy:death_line */ "no rule for it";
+  return "";
 }
 
 /** The rest view: the lit tablet and up to `max − 1` others that help (not dim, not harming, not held, not folded); the rest wait for

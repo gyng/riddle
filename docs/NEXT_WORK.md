@@ -1,3 +1,9 @@
+Cut59 death simplification: removed unsupported no-rule fallback, concrete
+next-run actions visible, one initial patch, full Details retained, no-fix Town
+gem. Diagnostic current-WASM-save320/400/1440 and2related client gates pass;
+build/copy/diff pass. Historical clarity/cut13 copy updated; their unrelated
+full-baseline failures remain pending. No deployment.
+
 Cut58 remaining chunky audit:22 fresh earned management views pass read-only/
 overflow/error checks; fixed6live-watch commands losing materials outside.cmd.
 Centered existing frame/tablets, common14px scale, realWASM320/400/1440 mode/
