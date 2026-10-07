@@ -3328,7 +3328,7 @@
    "rat": {
     "kind": "monster",
     "master_h": 40,
-    "texel_h": 20
+    "texel_h": 24
    },
    "sentinel": {
     "kind": "monster",

@@ -23,6 +23,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "./browser.mjs";
+import { pressWatchControl } from "./watch-control.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const USAGE = "usage: node tools/playtest.mjs [--url URL] [--seed N] [--absent 8h] [--rules file.txt] [--out dir] [--wide] [--headed] [--dpr N]";
@@ -121,12 +122,7 @@ async function attempt() {
     const top = foes.reduce((a, r) => (r.h > a.h ? r : a)); const st = v.stats();
     return `foe ${top.kind} ${Math.round(top.h)} px · ${st.frame} k${st.k}`;
   });
-  const press = (label) => page.evaluate((l) => {
-    let b = [...document.querySelectorAll("button.hud-btn")].find((b) => b.textContent === l);
-    if (!b) { document.querySelector('button[data-tile="speed"]')?.click(); b = [...document.querySelectorAll("button.hud-btn")].find((b) => b.textContent === l); }
-    if (!b) return false;
-    b.click(); document.querySelector(".watch-options")?.closest(".sheet")?.querySelector("button.stud")?.click(); return true;
-  }, label);
+  const press = (label) => pressWatchControl(page, label);
   const clickBtn = async (sel, label) => { const loc = label ? page.locator(sel).filter({ hasText: new RegExp(`^${label}$`) }).first() : page.locator(sel).first(); await loc.click({ timeout: 5000 }); };
 
   try {
@@ -187,7 +183,7 @@ async function attempt() {
       await dump("death");
       // a patch card selects (Cut 19 QA); the gem applies it
       if (await page.locator("button.patch:visible").count()) { await clickBtn("button.patch:visible");   /* a `nothing beats unpatched` death folds its tablets under `others` */ if (await page.locator(".patch-gem").count()) { const g0 = Date.now(); while (Date.now() - g0 < 20000 && /…/.test(await page.locator(".patch-gem").first().textContent().catch(() => ""))) await page.waitForTimeout(250); /* the gem measures its patch first (`…measuring`) */ await page.locator(".patch-gem").first().click(); } await waitFor((x) => x?.screen === "camp", "camp after the patch"); await settle(); await dump("camp", { note: "patched" }); }
-      else { await clickBtn("main.death button", "edit"); await waitFor((x) => x?.screen === "camp", "camp after edit"); await settle(); await dump("camp", { note: "no patch offered" }); }
+      else { await clickBtn('main.death [data-tile="camp"]'); await waitFor((x) => x?.screen === "camp", "town after death"); await settle(); await dump("camp", { note: "no patch offered · town" }); }
     } else if (s.screen === "report") {
       await dump("report", { note: "returned" });
       await clickBtn("main.report .gem", "town"); await waitFor((x) => x?.screen === "camp", "camp after the report"); await settle(); await dump("camp");
