@@ -86,5 +86,5 @@
     "limitedHorizon": "Any missing duration, death, honest rule attempt or browser/input constraint is recorded; incomplete horizon cannot certify the goal"
   },
   "deployment": false,
-  "nativeFailure": "Original fullverify native SIGSEGV; same18cases pass debugger and completed-job gate recovery. Root cause unresolved; fresh repro/acceptance still required before release."
+  "nativeFailure": "Original SIGSEGV remains unexplained; exactbinary debugger and genuine fresh concurrent18case/10wire/8metric run pass. Original failure retained in acceptance.json; no claim of rootcause/fix or general robustness. Corrected wholebrowser terminalgreen still required; no raters released."
 }

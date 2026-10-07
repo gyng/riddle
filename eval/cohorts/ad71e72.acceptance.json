@@ -1,0 +1,72 @@
+{
+  "candidate": "ad71e72909bba18cd06e2f8185302ea57f2d0a4b",
+  "status": "native reaccepted; complete corrected browser run still live; no blind rater release",
+  "applicationSourceChangedSinceFreeze": false,
+  "shippingWasm": {
+    "bytes": 4280168,
+    "sha256": "5c065978c9a8014f8cde3b6d14dd1e73c7a5deb575a44019bd0c39b08f1b87fd"
+  },
+  "frozenAssets": {
+    "count": 248,
+    "manifest": "scratchpad/blind-ad71-frozen/manifest.json",
+    "sha256": "bb923bc23c32d6824a64f16c265a8911d133bd03b28594eab1b3ff919d86ae7e",
+    "servedHashes": "all248 match at127.0.0.1:5252",
+    "coldDiagnostic": "real wasm seed101 Emptytown Gold0 BuildhouseFree;not scored play"
+  },
+  "fullVerify": {
+    "log": "/tmp/riddle-cut107-full-verify.log",
+    "status": "green",
+    "seconds": 47,
+    "rust": "686pass/1ignored",
+    "helpers": "14pass plus gate recovery regression",
+    "clippy": "pass",
+    "types": "pass",
+    "copy": "1768literals/0violations",
+    "shippingBuild": "pass",
+    "gateReuse": "all three genuine completed legs cached"
+  },
+  "freshGates": {
+    "log": "/tmp/riddle-ad71-native-fresh.log",
+    "command": "GATES_THREADS=16 node tools/gates.mjs --full --fresh",
+    "status": "allPASS",
+    "metrics": {
+      "rows": 8,
+      "seconds": 83.4
+    },
+    "qa": {
+      "seeds": 10,
+      "seconds": 56.6
+    },
+    "dayplayer": {
+      "cases": 18,
+      "seconds": 203.9
+    },
+    "exhaustiveAudit": "notrun; historical272cases/system-removal/migration not certified"
+  },
+  "nativeCrash": {
+    "original": "/tmp/riddle-cut106-full-verify.log",
+    "preserved": "scratchpad/qa-cut107-native/original-full-verify.log",
+    "worker": "dayplayer",
+    "signal": "SIGSEGV11",
+    "pid": 2083680,
+    "elapsedSeconds": 37.7,
+    "coreRuntimeKey": "56cb431b61e4251a",
+    "binarySha256": "5e91033ea9eb7132f590311a2a1899d4b0db5e0434873344010a202adab3a6d4",
+    "debugger": "samebinary/params18cases allPASS, normalexit",
+    "freshConcurrentRun": "18cases fresh plusmetrics/qa allPASS; no signal",
+    "rootCause": "unproven; no claim that code/kernel/resources caused or fixed it",
+    "disposition": "Retain as an unresolved engineering observation. Current native acceptance is supported by genuine completed exact-binary work and a fresh concurrent full run; not a broad robustness guarantee. No threshold weakened or crash result treated as completed evidence. Blind browser play must still have complete shipping-WASM horizon and honest kill-criterion reports."
+  },
+  "browser": {
+    "originalLog": "/tmp/riddle-ad71-client-full.log",
+    "original": "128/129; only old thisnight title assertion failed; no app errors in that case",
+    "correction": "Cut108 approvedtitle with exact900seconds plus unchanged15m/gold20permin/fight13percent/travel67percent",
+    "scoped": "Cut29meters10checksPASS5.2s",
+    "currentLog": "/tmp/riddle-ad71-client-accepted.log",
+    "current": "LIVE; terminal verdict required",
+    "runnerPid": 2172857,
+    "session": "79585"
+  },
+  "score": "none;95unverified",
+  "deployment": false
+}

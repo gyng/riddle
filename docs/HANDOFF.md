@@ -1,3 +1,27 @@
+**CURRENT NATIVE ACCEPTANCE GREEN / CORRECTED BROWSER LIVE:**
+
+26736oldclientTERMINALFAIL128/1291178.9s, ONLYoldthisnight heading. Cut108
+scoped10checksPASS5.2s, numericgatesretained+exact900secs. Afterthat30634
+TERMINAL0:fullverify--fullgreen47s /tmp/riddle-cut107-full-verify.log,
+686Rust/1ignored+14helpers+newrecovery/clippy/types/copy1768zero/shipbuild;
+thenGENUINEfresh concurrent fullgatesPASS /tmp/riddle-ad71-native-fresh.log:
+metrics8rows83.4s,qa10seeds56.6s,dayplayer18cases203.9s, all exit0. Not
+historical272caseaudit. Original37.7sSIGSEGVunexplained; do NOTclaimfixed.
+Reasoned unresolved engineering observation in eval/cohorts/ad71e72.acceptance.json
+with exactbinaryhash/runtimekey/genuinecompletedrechecks, no gateweakened.
+
+NEW correctedwholebrowser79585 LIVE hostrunner2172857 (outer2116123),
+/tmp/riddle-ad71-client-accepted.log. Default7pool/heavy1; firstheavyfights
+runsalone166s soinitiallogempty. No app/source/WASM edits. Needterminal129/129
+beforefresh2blindraters; agentbriefsa/b prepared,notreleased. Session35869
+frozenpreview5252stilllive; all248hashesm atch, original5251preserved.
+
+604850fCut107 andc181669Cut108 LOCALcommits;4pushtries GitHubInternalServerError
+includingHTTP1. Remote still29e5866;gitconnectivityfsckPASS. Continuelocal,
+retryremote later, noforcepush/permissionneeded. Currentgoalturn concrete
+progress recoveryrepair+newmeterexpectation+freshnativeacceptance+frozenasset
+validation. Goal95active/unverified;nodeployment;privateheadedD3D12focus-safe.
+
 **CUT108 REPORT TEST EXPECTATION / ACCEPTANCE QUEUES — 2026-10-07:**
 
 Cut107 committed604850f LOCAL ONLY:3authorizedgitpushattempts GitHubInternal
