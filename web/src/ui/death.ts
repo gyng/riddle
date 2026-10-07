@@ -301,7 +301,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     top && !prePen ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
     // QA 308f045 (qaAD: a verdict opened from the return report had no way back — `edit · morgue · camp`, browser back to the camp): a
     // verdict opened from a report leads back to it
-    from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report }) }) : null,
+    from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report, absence: from.absence }) }) : null,
     tile({ id: "camp", label: /* copy:button */ "town", icon: "camp", onclick: () => app.go({ kind: "camp" }) }),
   ] });
   const enemyKind = drove?.boss ?? d.cause;

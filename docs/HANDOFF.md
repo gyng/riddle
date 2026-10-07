@@ -1,3 +1,28 @@
+**CUT101 REPORT READING POSITION VERIFIED — 2026-10-07:**
+
+Prior turnprogressCut99pushed8aec134; currentturnCut100pushed128c8a3 with
+core-owned accurate tactic locks and readable class prerequisites. Current
+Cut101 repairs QA-a reportdetails collapsing after each death: weak UI memory
+per app/report retains expanded state and .report-well scrollTop; mount RAF
+restores/cancels ondispose, differentreport startsfolded, explicitcollapse
+retained. Actual verdict origin and deathBack retain absence flag too. No
+engine persistence/progression/state change; Rust unchanged sinceCut100.
+Regression99836failed-before actualBackcollapse. After56204 terminal4/4PASS
+8.9s: newreportreading320/400/1440 twoactualverdict/backcycles,scroll±2px,
+absence/collapse/newreport/exactsave; existingreportactions/deathactions/
+reportexitdepth alsoPASS. Types64180PASS/copy1758zero/diffPASS/build65703PASS.
+No new whole-client/native18case certification; required before blindscore.
+
+RemainingQAledger396f6ed.remediation.json: Scout sends newslot before setup;
+savedsetupfighter misread; Legacy/token distinction; forge shortcut worker
+misread; damage source/target; return duration scopes; unreproduced emptygoblin
+portrait; repetitivecorridorlog. Originalreports preserved. Next address
+newbloodline first-setup surprise then other remaininglapses. BothQAagents
+finishedclosedownbrowser; no scores/cards. Frozen396f6ed:5251 unchanged.
+Userauthorizes independentfreshblindraters only after remediatedQA/acceptance.
+No deployment; goal95active andunverified. QAactive-time precisionlimitations
+explicit in reports; never promoteQAto score or blanketprotocolcertification.
+
 **CUT100 CLASS/TACTIC LOCKS VERIFIED — 2026-10-07:**
 
 Current work repairs two independent QA lapses without granting anything:

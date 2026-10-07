@@ -54,6 +54,16 @@ import { labelOf as unlockLabel } from "./unlocks";
 const readableUnlock = (text: string, names?: Map<string, string>): string => text.replace(/^unlock ([\w:-]+)(?: \(\d+\))?/, (_all, id: string) =>
   `Unlock · ${names?.get(id) ?? unlockLabel(id)}`);
 
+type ReadingPosition = { expanded: boolean; scroll: number };
+const reportReading = new WeakMap<App, WeakMap<ReturnReport, ReadingPosition>>();
+function readingPosition(app: App, report: ReturnReport): ReadingPosition {
+  let reports = reportReading.get(app);
+  if (!reports) { reports = new WeakMap(); reportReading.set(app, reports); }
+  let position = reports.get(report);
+  if (!position) { position = { expanded: false, scroll: 0 }; reports.set(report, position); }
+  return position;
+}
+
 const EXITS_SHOW = 8;
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
 const LEAD = /^(banked|returned|died|stalled|lost thread|driven)\b/;   // QA 0c6e126 (qaY): a drive-off leads `driven`, its tile's word
@@ -72,7 +82,7 @@ export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number
 /** QA 524827b (qaAB: the absence's two deaths opened only a TRACE — no verdict word, no patches): a death line whose record the core
  *  keeps (`engine.death(run_id)`, the last few deaths) carries a `verdict` chip — the death screen for that run, as the chronicle opens
  *  a kept death; a line without a record (older than the kept few) the core refuses, and the chip says nothing more. */
-function verdictChip(app: App, x: ExitLine, label: string, from?: { report: ReturnReport }): HTMLElement | "" {
+function verdictChip(app: App, x: ExitLine, label: string, from?: { report: ReturnReport; absence?: boolean }): HTMLElement | "" {
   // Cut 26 §6 (AP: `driven $0 · $297 lost` with no verdict): a drive-off's line opens its verdict too — from the line itself
   if (x.driven) return h("button", { class: "chip mini verdict-chip", onclick: () => { closeAllSheets(); app.go({ kind: "death", death: drivenDeath(x, x.run_id ?? 0), kept: true, from }); } }, /* copy:button */ "verdict");
   if (!x.run_id || !/\bdied\b/.test(label)) return "";
@@ -255,6 +265,7 @@ function withHeirs(el: HTMLElement, heirs: number[] | undefined): HTMLElement {
 
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
   setRefRows(() => app.rules.rows);
+  const reading = readingPosition(app, r);
   // Cut 25 §4: after an absence the forge's steps are measured while the report is read (the forge's own lane), so the camp's forge sheet
   // paints them at once
   const L = app.lineage;
@@ -405,7 +416,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       h("button", { class: "ledger-btn", onclick: () => openGoldSheet(app, x, shown.slice(i + 1)) }, ...newsLead(x, r.runs), ...ledgerText(x, named)),
       // QA 912e135 (qaW, qaX: a lone `·` before every `D7 · died · trace`): the chip is its own flex column (Cut 20) — no separator glyph
       traceChip(x.trace, "chip mini", { rows: app.rules.rows, runId: x.run_id }, x.text, traceLabel(app, x, shown.slice(i + 1))),
-      verdictChip(app, x, traceLabel(app, x, shown.slice(i + 1)), { report: r }))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
+      verdictChip(app, x, traceLabel(app, x, shown.slice(i + 1)), { report: r, absence }))).reverse(),   // Cut 11 §2: with the run, the chain's links get `watch`; the sheet's header is the line; Cut 14 §4: the chip names its exit
       hidden > 0 ? h("button", { class: "ledger-line ledger-more num", onclick: () => paintExits(true) }, /* copy:button */ `· ${hidden} earlier`) : "",
       unlisted > 0 ? h("div", { class: "ledger-line num dim unlisted" }, /* copy:callout */ `· ${unlisted} unlisted`) : "");
     // QA 524827b (qaAA: "`grudge: Zelul` (older) below `avenged Zelul` (newer) — I read the grudge as coming back"): the order is named
@@ -552,10 +563,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 29 §1 (E1): the wall's edit lands here when the core's search answers (after the paint; never waited on)
   const wallHost = h("div", { class: "wall-host" });
   if (penOpen(L)) void wallOffer(app).then((w) => { if (w && wallHost.isConnected) replace(wallHost, h("div", { class: "label" }, /* copy:label */ "wall fix"), wallTablet(app, w, () => app.go({ kind: "camp" }))); });
-  const details = h("div", { class: "report-details", hidden: true });
+  const details = h("div", { class: "report-details", hidden: !reading.expanded });
   if(r.bloodlines?.length)details.append(h("section",{class:"bloodline-report"},h("div",{class:"label"},/* copy:label */"Bloodlines"),...r.bloodlines.map(s=>h("div",{class:"num"},s.name,/* copy:label */` · ${s.runs} runs · D${s.deepest} · $${s.gold}`))));
-  const detailsBtn: HTMLButtonElement = h("button", { class: "details-fold num", "aria-expanded": "false", onclick: () => {
-    details.hidden = !details.hidden; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
+  const detailsBtn: HTMLButtonElement = h("button", { class: `details-fold num${reading.expanded ? " on" : ""}`, "aria-expanded": String(reading.expanded), onclick: () => {
+    reading.expanded = !reading.expanded; details.hidden = !reading.expanded; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details");
   // run-clear: a find or a kept item in its rarity rim — the rarity is the core's (the exit lines' finds, the vault), matched by label
   const rarityOf = new Map<string, InvItem>([...(r.exits ?? []).flatMap((x) => x.finds ?? []), ...L.vault].map((it) => [it.label, it]));
@@ -649,7 +660,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const clear = mountClear(app, r, absence, reportWell, gemEl, () => cons.setTiles(consTiles));
   if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
   if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
-  return { el, dispose: () => { preparation.dispose(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
+  const restore = requestAnimationFrame(() => { if (reportWell.isConnected) reportWell.scrollTop = reading.scroll; });
+  return { el, dispose: () => { cancelAnimationFrame(restore); reading.scroll = reportWell.scrollTop; preparation.dispose(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
 }
 
 /** Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): each companion that fell, by name — `Greth · ogre L5 · fell D12

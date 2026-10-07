@@ -1,7 +1,6 @@
 {
   "kind": "Coordinator remediation ledger; no scores; both QA reports filed",
   "qaBuild": "396f6edfd724988eb4641c646d792c96b7c7c68c",
-  "repairHead": "8749d4e",
   "completeQaReports": true,
   "repairs": [
     {
@@ -54,6 +53,11 @@
       "lapse": "Tactics still show slay Warlord after actual Warlord slain",
       "contract": "docs/CUT100_CLASS_TACTIC_LOCKS.md",
       "validation": "Same pure arrival plan for mutation and wire;next-send versus boss/day progression, direct-card and unchanged cadence checked;686Rust tests pass"
+    },
+    {
+      "lapse": "Every return from a death collapsed report details, requiring reopening to read the next death",
+      "contract": "docs/CUT101_REPORT_READING_POSITION.md",
+      "validation": "Failed-before actual verdict/back regression;320/400/1440 two cycles retain expansion/scroll/absence, manual collapse and new report default, exact save;existing report/death suites pass"
     }
   ],
   "infrastructure": {
@@ -65,7 +69,7 @@
     "evidenceLog": "/tmp/riddle-portrait-network-restored.log",
     "activeTime": "Infrastructure investigation excluded; original observations retained"
   },
-  "remaining": "Finish rules-lock clarification, reconcile every remaining QA item, run acceptance and freeze repaired build before fresh blind scoring. Preserve original intermittent client failures. No95 certification or deployment.",
+  "remaining": "Reconcile every remaining QA item, then complete current broad acceptance and freeze repaired build before fresh independent blind scoring. No95 certification or deployment.",
   "mechanical": {
     "broad": "120/122 in 1278.5s; fast break assertion and qa21 forecast locator failed; began before Cut97 copy test addition",
     "rechecks": "Unchanged serialized fights/qa21/enemy-tips/captive-fact-copy 4/4 in 203.4s; full fights retains48 checks. Separate qa21 17 checks passes17.3s. No proven root cause for initial intermittent failures.",
@@ -79,7 +83,6 @@
   "qaLimitations": "QA-a70+ active minutes estimated, exact stopwatch/tool counts unverified; QA-b conservative70 active minutes, early attribution less precise. Both zero written edits because editor unavailable; older traces and storage reorder incomplete. Reports are lapse evidence, not scoring cards or blanket protocol certification.",
   "remainingItems": [
     "New Scout-enabled bloodline immediately sent before class setup (QA-a)",
-    "Report details collapse when returning from its own death view (QA-a)",
     "Saved setup fighter label misread as current class (QA-b)",
     "Legacy versus upgrade-token distinction misread (QA-b)",
     "Blacksmith gear shortcut misread as worker hire (QA-b)",
