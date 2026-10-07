@@ -31,6 +31,7 @@ import http from "node:http";
 import fs from "node:fs";
 import { resolve } from "node:path";
 import { launchBrowser } from "./browser.mjs";
+import { pressWatchControl } from "./watch-control.mjs";
 
 const argv = process.argv.slice(2);
 const flag = (k) => argv.includes(k);
@@ -101,26 +102,26 @@ const lineDiff = (before, after) => { const b = new Set(before.split("\n")); ret
 async function sendAndWatch(cmd) {
   const every = cmd.every ?? 2000, max = cmd.max ?? 300000, shots = cmd.shots ?? 4, shotEvery = cmd.shotEvery ?? 15000;
   const skipLabel = cmd.skipLabel ?? "▶▶|", skipEvery = cmd.skipEvery ?? 400, name = cmd.name ?? "run";
-  const before = new Set(await pageButtons(page, true));
-  if (!(await tapLabel(page, cmd.send ?? "send"))) return { error: `no visible control labelled ${cmd.send ?? "send"}` };
-  // The watch's own controls: what is up after the tap that was not up at camp.
-  const t0 = Date.now(); let hud = [];
-  while (Date.now() - t0 < 15000) {
-    await page.waitForTimeout(200);
-    hud = (await pageButtons(page, true)).filter((b) => !before.has(b));
-    if (hud.length) break;
-  }
-  if (!hud.length) return { error: "the screen did not change after the tap", text: await bodyText(page) };
-  if (cmd.mode && !(await tapLabel(page, cmd.mode))) return { error: `no watch control labelled ${cmd.mode}`, buttons: await pageButtons(page) };
+  // The worker shortcut can also say "send"; the actual run command is the gem.
+  if (await sheetText(page) !== null) return { error: "close the current choice before sending" };
+  const send = cmd.send ? await tapLabel(page,cmd.send) : await page.evaluate(() => {
+    const button = document.querySelector('main.camp button.send');
+    if (!button || button.disabled || !button.getClientRects().length) return false;
+    button.click(); return true;
+  });
+  if (!send) return { error: `no visible control labelled ${cmd.send ?? "send"}` };
+  const t0 = Date.now();
+  while (Date.now() - t0 < 15000 && !await page.locator('main.watch:visible').count()) await page.waitForTimeout(200);
+  if (!await page.locator('main.watch:visible').count()) return { error: "the watch did not open after the tap", text: await bodyText(page) };
+  if (cmd.mode && !await pressWatchControl(page,cmd.mode)) return { error: `no enabled watch control labelled ${cmd.mode}`, buttons: await pageButtons(page) };
   const samples = [], paths = [];
   let last = await bodyText(page), lastSkip = 0, nextSample = Date.now() + every, nextShot = Date.now() + shotEvery, ended = "timeout";
   const shoot = async (tag) => { const path = `${dir}/shots/${name}-${tag}.png`; await page.screenshot({ path }); paths.push({ t: Math.round((Date.now() - t0) / 100) / 10, path }); };
   while (Date.now() - t0 < max) {
     await page.waitForTimeout(100);
     if (await sheetText(page) !== null) { ended = "sheet"; break; }
-    const up = new Set(await pageButtons(page, true));
-    if (!hud.some((b) => up.has(b))) { ended = "screen"; break; }
-    if (cmd.skip && Date.now() - lastSkip >= skipEvery) { lastSkip = Date.now(); await tapLabel(page, skipLabel); }
+    if (!await page.locator('main.watch:visible').count()) { ended = "screen"; break; }
+    if (cmd.skip && Date.now() - lastSkip >= skipEvery) { lastSkip = Date.now(); await pressWatchControl(page, skipLabel); }
     if (Date.now() >= nextSample) {
       nextSample += every;
       const text = await bodyText(page);
