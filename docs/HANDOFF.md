@@ -1,3 +1,33 @@
+**CURRENT THREE BROWSER FAILURES / UNCHANGED RECHECKS — 2026-10-07:**
+
+Corrected wholeclient79585 TERMINALFAIL126/129863.3s, log
+/tmp/riddle-ad71-client-accepted.log. Failures: clarity:hold seed7 only4card
+samples/90 vsminimum5 (no HUD mismatches); cut22 canvas rallied! persisted
+under WARLORD BREAKS; hero-appearance desktop105.5x18.4 vs44min. Original
+failures retained, no assertion weakened. UNCHANGED serialized rechecks7669
+TERMINALPASS3/3 in108.6s, log/tmp/riddle-ad71-failed-rechecks.log. Concurrency
+interference suspected, rootcause not proven. No application/test edits.
+
+NEW whole bounded client80085 LIVE:TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node
+ tests/run.mjs, log/tmp/riddle-ad71-client-settled.log. Poll SAMEhandle and
+read live log with escalation; do not restart on observationtimeout. Complete
+current whole green required before blind agents, per precommitted contract.
+App candidate ad71e72 unchanged; nativefull/fresh18case already genuinePASS,
+originalSIGSEGV retainedunresolved. Main previously285556d allpushed. New
+acceptance metadata records failure/recheck/live queue. No score/cards/95.
+
+User explicitly reaffirmed approval for independentagentraters. Freshblind
+forknone agents NOT spawned yet; old QA rater_a/b completedmustnotreuse.
+Preparedbriefs scratchpad/blind-ad71-frozen/briefs/a.txt,b.txt, seeds73/89,
+ports5354/5355; immutable realshippingpreview5252/session35869. When full
+terminalgreen:recheck servedmanifest+same-sittingreanchor+privateGPU evidence,
+update contract acceptance/release then spawn2FRESH independentagents with
+briefonly(no goal/designhistory). Actual70active min40+5+5+20, honestlocked
+pen attempts, no fabricatededits/audio/nextdayrecall. No deployment.
+WSLfocusfixconfirmed inlauncher:headless default/privateXheaded/WAYLANDblank,
+no DISPLAY0fallback; earlierD3D12NVIDIA3080probePASS. Avoid otherbrowser/native
+load during bounded suite andraters. No app/source/WASM changes midwhole.
+
 **REMOTE RECOVERED / LIVE CORRECTED ACCEPTANCE CHECKPOINT:**
 
 GitHub finallyaccepted allpending commits:38594terminal0 remote29e5866→

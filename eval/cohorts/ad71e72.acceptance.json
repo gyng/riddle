@@ -1,6 +1,6 @@
 {
   "candidate": "ad71e72909bba18cd06e2f8185302ea57f2d0a4b",
-  "status": "native reaccepted; complete corrected browser run still live; no blind rater release",
+  "status": "native reaccepted; corrected browser run failed three checks, unchanged serialized rechecks pass; bounded complete rerun live; no blind rater release",
   "applicationSourceChangedSinceFreeze": false,
   "shippingWasm": {
     "bytes": 4280168,
@@ -63,9 +63,37 @@
     "correction": "Cut108 approvedtitle with exact900seconds plus unchanged15m/gold20permin/fight13percent/travel67percent",
     "scoped": "Cut29meters10checksPASS5.2s",
     "currentLog": "/tmp/riddle-ad71-client-accepted.log",
-    "current": "LIVE; terminal verdict required",
+    "current": "TERMINAL FAIL:126/129 in863.3s",
     "runnerPid": 2172857,
-    "session": "79585"
+    "session": "79585",
+    "failures": [
+      {
+        "test": "clarity:hold",
+        "observed": "seed7 had4 card samples of90; minimum5; no card/HUD mismatches observed"
+      },
+      {
+        "test": "cut22",
+        "observed": "WARLORD BREAKS beat retained canvas rallied! text;0 doubled lines"
+      },
+      {
+        "test": "hero-appearance",
+        "observed": "desktop Appearance measured105.5by18.4 versus44 minimum"
+      }
+    ],
+    "unchangedSerializedRecheck": {
+      "command": "TEST_JOBS=1 node tests/run.mjs clarity:hold cut22 hero-appearance",
+      "log": "/tmp/riddle-ad71-failed-rechecks.log",
+      "result": "3/3 PASS108.6s",
+      "sourceChanged": false,
+      "interpretation": "Concurrency interference suspected, not proven; original failures retained and no assertion weakened."
+    },
+    "boundedWholeRecheck": {
+      "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
+      "log": "/tmp/riddle-ad71-client-settled.log",
+      "session": "80085",
+      "result": "LIVE; complete terminal verdict required before blind release",
+      "sourceChanged": false
+    }
   },
   "score": "none;95unverified",
   "deployment": false
