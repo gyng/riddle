@@ -8,6 +8,7 @@
 //     ≥ 90 % of the width at the bottom, nothing wider than the viewport, and a sheet opened from a tablet stands beside it (never over it).
 //
 //   node web/tests/layout.mjs        (part of `pnpm test` in web/)
+import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,25 +43,54 @@ const closeSheets = async (page) => { for (let i = 0; i < 3; i++) { const x = pa
 const tile = async (page, id) => { const l = page.locator(`button[data-tile="${id}"]`).first(); if (!(await l.count())) return false; await l.click({ timeout: 3000 }).catch(() => {}); await sleep(250); return true; };
 
 /** The console, the portrait and the gem on screen; nothing over the gem; no horizontal scroll. */
-async function gemClear(page, what) {
-  const r = await page.evaluate(() => {
+async function gemClear(page, what, { empty = false } = {}) {
+  const r = await page.evaluate((empty) => {
     const on = (el) => { if (!el) return false; const b = el.getBoundingClientRect(); return b.width > 4 && b.height > 4 && b.top >= -1 && b.left >= -1 && b.bottom <= innerHeight + 1 && b.right <= innerWidth + 1; };
     const con = [...document.querySelectorAll("footer.console")].find((e) => e.offsetParent !== null) ?? null;
-    const gem = con?.querySelector(".gem-slot > *") ?? null, por = con?.querySelector(".well-slot > *") ?? null;
+    const gem = empty ? document.querySelector('.town-tag[data-next="house"]') : con?.querySelector(".gem-slot > *") ?? null;
+    const portraits = [...document.querySelectorAll('main.camp .hero-thumb, footer.console .well-slot > *')];
+    const por = portraits.some(on);
+    const panels = [...document.querySelectorAll('.sheet-wrap:not([inert]) > .sheet')];
     const cover = [];
-    if (gem) { const b = gem.getBoundingClientRect(); for (const [fx, fy] of [[.5, .5], [.3, .3], [.7, .3], [.3, .7], [.7, .7]]) { const hit = document.elementFromPoint(b.left + b.width * fx, b.top + b.height * fy); if (hit && hit !== gem && !gem.contains(hit)) cover.push(`${hit.tagName.toLowerCase()}.${String(hit.className?.baseVal ?? hit.className ?? "").split(/\s+/).slice(0, 2).join(".")}`); } }
-    return { con: on(con), gem: on(gem), por: on(por), cover: [...new Set(cover)], wide: document.documentElement.scrollWidth - innerWidth };
-  });
-  check(r.con && r.gem && r.por, `${what}: console, portrait, gem on screen`);
-  check(!r.cover.length, `${what}: nothing over the gem${r.cover.length ? ` (${r.cover.join(", ")})` : ""}`);
+    if (gem) { const b = gem.getBoundingClientRect(); for (const [fx, fy] of [[.5, .5], [.3, .3], [.7, .3], [.3, .7], [.7, .7]]) { const hit = document.elementFromPoint(b.left + b.width * fx, b.top + b.height * fy); if (hit && hit !== gem && !gem.contains(hit)) if (!hit.classList.contains("sheet-wrap")) cover.push(`${hit.tagName.toLowerCase()}.${String(hit.className?.baseVal ?? hit.className ?? "").split(/\s+/).slice(0, 2).join(".")}`); } }
+    return { con: empty ? !on(con) : on(con), gem: on(gem), por: empty ? !por : por, panelsClear: panels.every(p => p.getBoundingClientRect().bottom <= con.getBoundingClientRect().top + 1), cover: [...new Set(cover)], wide: document.documentElement.scrollWidth - innerWidth };
+  }, empty);
+  check(r.con && r.gem && r.por, `${what}: ${empty ? "Build house on screen; Send/portrait absent" : "console/gem/portrait on screen"} (${JSON.stringify(r)})`);
+  check(r.panelsClear && !r.cover.length, `${what}: nothing over the gem${r.cover.length ? ` (${r.cover.join(", ")})` : ""}`);
   check(r.wide <= 1, `${what}: no horizontal scroll${r.wide > 1 ? ` (${r.wide}px)` : ""}`);
 }
+async function buildHome(page) {
+  const empty = await page.evaluate(async () => {
+    const a = window.__riddle;
+    if (a.kind !== 'wasm' || a.lineage.town.home !== false) throw Error('fresh real empty town required');
+    const before = await a.engine.save();
+    let refused = false; try { await a.engine.send(); } catch { refused = true; }
+    return refused && before === await a.engine.save();
+  });
+  check(empty, 'empty town: Send refuses without changing the complete Rust save');
+  await page.locator('.town-tag[data-next="house"]').click();
+  await page.waitForFunction(() => window.__riddle.lineage.town.home === true && !document.querySelector('.console .gem.send')?.disabled);
+}
+async function earnedHome(page) {
+  const engine = readFileSync(new URL('./fixtures/earned-gunner-home.json', import.meta.url), 'utf8');
+  await page.evaluate(async engine => {
+    const a = window.__riddle;
+    if (a.kind !== 'wasm' || !await a.importSave(JSON.stringify({ v: 2, engine, loadout: [], last_seen: Date.now(), runs: 0 }))) throw Error('earned real home import failed');
+  }, engine);
+  await settle(page);
+}
+const skip = page => page.evaluate(() => {
+  if (!document.querySelector('.sheet-wrap:not([inert]) .watch-options')) document.querySelector('.console [data-tile="speed"]')?.click();
+  const options = document.querySelector('.sheet-wrap:not([inert]) .watch-options');
+  options?.querySelector('[data-tile="skip"]')?.click();
+  options?.closest('.sheet-wrap')?.querySelector('.sheet-x')?.click();
+});
 async function toRunEnd(page) {
   const t = Date.now();
   while (Date.now() - t < 150_000) {
     const s = await state(page); if (s?.screen !== "watch" && s?.screen !== "exit") break;
     if (s?.screen === "exit") { await waitFor(page, (x) => x && x.screen !== "exit" && x.screen !== "watch", "after exit"); break; }
-    await page.evaluate(() => document.querySelector('button[data-tile="skip"]')?.click()); await sleep(150);
+    await skip(page); await sleep(150);
   }
   await settle(page);
 }
@@ -75,7 +105,9 @@ try {
   const page = await newPage(400, 800);
   await page.goto(`${url}?dev=1&fresh=1&seed=4242`);
   await waitFor(page, (s) => s?.booted && s.screen === "camp", "camp"); await settle(page);
-  await gemClear(page, "phone camp (fresh)");
+  await gemClear(page, "phone camp (empty)", { empty: true });
+  await buildHome(page);
+  await gemClear(page, "phone camp (resident)");
   // a run: the watch (and its fold line when one comes up)
   await page.locator(".gem-slot .gem").first().click();
   await waitFor(page, (s) => s?.screen === "watch", "watch"); await sleep(1500);
@@ -83,7 +115,7 @@ try {
   let fold = false;
   for (let i = 0; i < 40 && (await state(page))?.screen === "watch"; i++) {
     if (!fold && await page.locator(".watch .fold-line:not([hidden]):not(.docked)").count()) { fold = true; await gemClear(page, "phone watch, the fold line up"); }
-    await page.evaluate(() => document.querySelector('button[data-tile="skip"]')?.click()); await sleep(250);
+    await skip(page); await sleep(250);
   }
   await toRunEnd(page);
   const after = (await state(page))?.screen;
@@ -108,6 +140,8 @@ try {
   await settle(page);
   if ((await state(page))?.screen === "report") { await page.locator("main.report .gem").first().click().catch(() => {}); await waitFor(page, (s) => s?.screen === "camp", "camp"); await settle(page); }
   await gemClear(page, "phone camp");
+  await earnedHome(page);
+  await gemClear(page, "phone earned home");
   // the divergence scene over the well
   await page.evaluate((t) => window.__riddle.setRulesText(t), RICH);
   { const t = Date.now(); let seen = false; while (Date.now() - t < 30_000) { if (await page.locator(".div-scene:not([hidden])").count()) { seen = true; break; } await sleep(100); }
@@ -116,10 +150,10 @@ try {
   // each sheet and panel
   const sheets = [
     ["the why / edit sheet", async () => { await page.locator("main.camp .row.tablet:not(.oath-tab)").first().click({ timeout: 3000 }); }],
-    ["the forecast", async () => { await page.locator(".shaft").first().click({ timeout: 3000, force: true }); }],
+    ["the forecast", async () => { await page.locator(".shaft").first().click({ timeout: 3000 }); }],
     ["the loadout", () => tile(page, "loadout")],
     ["the unlocks", () => tile(page, "unlocks")],
-    ["the oath board", async () => { const o = page.locator(".oath-tab:not([hidden])").first(); if (!(await o.count())) return false; await o.click({ timeout: 3000, force: true }); }],
+    ["the oath board", async () => { const o = page.locator(".oath-tab:not([hidden])").first(); if (!(await o.count())) return false; await o.click({ timeout: 3000 }); }],
   ];
   for (const [name, open] of sheets) {
     await closeSheets(page);
@@ -135,6 +169,8 @@ try {
   const d = await newPage(1440, 900);
   await d.goto(`${url}?dev=1&fresh=1&seed=4243`);
   await waitFor(d, (s) => s?.booted && s.screen === "camp", "desktop camp"); await settle(d);
+  await gemClear(d, "desktop empty camp", { empty: true });
+  await buildHome(d);
   const cols = (sel) => d.evaluate((sel) => {
     const r = (q) => { const e = [...document.querySelectorAll(q)].find((x) => x.offsetParent !== null || getComputedStyle(x).position === "fixed"); if (!e) return null; const b = e.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, w: b.width, h: b.height }; };
     const con = r("footer.console");
@@ -148,10 +184,12 @@ try {
     check(!!c.con && c.con.w >= 0.9 * c.W && c.con.b >= c.H - 2, `${what}: the console spans the bottom (${Math.round(c.con?.w ?? 0)} of ${c.W})`);
     check(c.over === 0 && c.scroll <= 1, `${what}: nothing wider than the viewport`);
   };
-  await three("desktop camp", { left: "main.camp .tablets", well: "main.camp .town", right: "main.camp .shaft" });   // Cut 30 §3: the town stands where the vista stood
+  await earnedHome(d);
+  await three("desktop earned camp", { left: "main.camp .heroes-col", well: "main.camp .town", right: "main.camp .shaft" });   // Cut 30 §3: the town stands where the vista stood
   await gemClear(d, "desktop camp");
-  // a sheet from a tablet stands beside it
-  const tab = d.locator("main.camp .row.tablet:not(.oath-tab)").first();
+  await d.locator(".hero-roster-head button").filter({ hasText: "Rules" }).click();
+  // A row-token picker remains anchored beside its row.
+  const tab = d.locator("main.camp .editor .row .chip.verb").first();
   await tab.click({ timeout: 3000 }); await sleep(500);
   // a fresh set has no why: the tap opens the editor — its row's chip opens the sheet, anchored to that row
   if (!(await d.locator(".sheet-wrap > .sheet").count())) { await d.locator("main.camp .editor .row .chip.verb").first().click({ timeout: 3000 }).catch(() => {}); await sleep(500); }

@@ -1,5 +1,19 @@
 # Client gate audit — 2026-10-07
 
+Latest broad c8187a5: **91/112PASS811.4s**, terminal1, session75668.
+Evidence /tmp/riddle-post-cut37-all-client.log. Previous80/111 retained below.
+New hero-grounding case accounts for the extra total. Chrome184, fights48,
+clarity:card14, qaAC18 and current watch checks pass in this full run.
+Remaining21: autodismiss, clarity:core,watch (one job), cut12, cut13, cut20,
+cut22, cut26, cut27, cut29, cut30, cut305, layout, legible, locked-cond,
+patch-overflow, qa21, qa778, qa9, qaj, runsui, screens.
+
+Post-suite scoped layout57/57PASS89.3s on current manual-house/earned-roster
+coverage (CUT38). No production UI/core changes in that coverage correction.
+Forecast qa21 waits for automatic refine despite explicit-only sampling;
+next check must request More samples visibly and preserve shaft/panel equality.
+A focused pass never replaces the broad failing verdict.95unverified.
+
 Full client run before public Gunner exposure: 80/111 gates pass in581.6s.
 Raw evidence /tmp/riddle-gunner-current-all-client.log, session65678 terminal1.
 This is a failing broad suite. Focused/current native gates do not override it.

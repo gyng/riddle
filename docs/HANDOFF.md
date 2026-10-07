@@ -1,3 +1,25 @@
+**CUT38 CURRENT OPENING / EARNED LAYOUT — 2026-10-07:**
+
+Latest broad client source c8187a5 terminal1:91/112PASS811.4s, session75668,
+/tmp/riddle-post-cut37-all-client.log. Supersedes prior80/111 broad result;
+one extra hero-grounding case.21failed jobs remain; audit records next checks.
+
+Layout current owner flow57/57PASS89.3s headed, isolated /tmp/riddle-cut38,
+/tmp/riddle-cut38-layout-established.log. Fresh400/1440 noSend/resident; direct
+Rust Send refusal leaves complete save identical. Visible manual house then
+resident/send/watch. Established desktop tests defaultHeroes then explicitRules
+on a committed unmodified normally earned real Gunner home; no XP/gold grants.
+SHA2565eef774a85264b7d9d7cb39d097c3bdf6c6f65dbe54404bc592e0bd567b28115.
+First-home depth forecast intentionally hidden, so earned home exercises those
+columns. All original geometry/HUD/overflow thresholds retained; current Speed
+menu for Skip. Source UI/core unchanged. Screens in scratchpad/current-opening-
+layout-20261007. No deployment;95fun goal active/unverified.
+
+Next actual unknown: qa21 forecast waits for retired automatic refine. Current
+larger samples explicit-only: test visible More samples and synchronized panel/
+shaft result. Then report/trace/runsui and late-pen coverage before played
+idle-hybrid QA/cohort. Broad remaining failures still not certified green.
+
 **CUT37 CURRENT REFUND CONTROL / FALLBACK READBACK — 2026-10-07:**
 
 Run setup Auto restock off now uses shared twoTap: refundN? first, exactly one
