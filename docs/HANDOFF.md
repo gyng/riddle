@@ -1,3 +1,26 @@
+**QA LIVE / EARNED D19 DIAGNOSTICS RECORDED — 2026-10-07:**
+
+Both QA players continue independently on396f6ed:5251. QA-a cold started
+12:25:05UTC; reports first two runs/gold reconciliation, four config choices
+and forge purchase, fast plus fights watched, no deaths yet. No full horizon
+or score claimed. Await actual complete reports; do not leak their observations
+to one another. Existing full121/121 and boundednativePASS stand.
+
+Coordinator read-only diagnostic on original earnedD19 input:8h baseline
+7runs/D19/$4880/1death/26Legacy; Steady7/D21/$9061/1/28; kite1 6/D22/$7897/1/28;
+Light hands7/D21/$7153/1/28. Baseline no stuck returns, Steady one stuckD19;
+D18ogre death after drain removed47maxHP leaving6. Full outcome tables and
+limits docs/D19_PROGRESS_DIAGNOSTIC.md. No simulated case counts as playedgain.
+Evidence scratchpad/qa-cut92-d19-eight-hour-choices; session53124terminal0.
+Pack break unowned was refused upfront, not included; no input grants/changes.
+
+Actual shippingWASM quick8h profile terminal0 session29074, threefresh runs
+1.956/1.987/1.941s with identical report/save hashes, same55f72484WASM. Evidence
+scratchpad/qa-cut92-d19-profile. Headed uses privateX display/Wayland disabled;
+no desktop focus. QA contexts were active; no quiet paired benchmark/gain claim.
+Stripped symbols, hottestleaf function67/17.25% unnamed for exactcurrentbinary;
+do not map older symbols by number. No perf candidate landed. Goal95 unverified.
+
 **CUT92 FULL GREEN / INDEPENDENT QA RELEASED — 2026-10-07:**
 
 Full browser session40296 terminal0:121/121PASS632.6s,
