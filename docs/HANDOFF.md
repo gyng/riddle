@@ -1,3 +1,28 @@
+**REMOTE RECOVERED / LIVE CORRECTED ACCEPTANCE CHECKPOINT:**
+
+GitHub finallyaccepted allpending commits:38594terminal0 remote29e5866→
+dcc5311 (Cut107604850f/Cut108c181669/freshacceptance dcc5311). Earlier4server
+errors retained; no forcepush/approval needed. Mainapplication source remains
+ad71e72; no web/src/crates/art/public differences fromcandidate.
+
+Corrected wholeclient79585 LIVE hostrunner2172857 log
+/tmp/riddle-ad71-client-accepted.log, at289.4s fights48/cut1377/claritydeep2
+PASS, otherheavytests forthcoming. Don'trestart; no sourcechanges duringrun.
+Only remainingmechanicalcondition before2freshblindagents: terminal129/129
+currentwhole. Freshnative30634terminal0 all18cases/10wire/8metricsPASS203.9s;
+currentfullverifygreen47s. OriginalunreproducedSIGSEGV remains explicitly
+recorded engineering observation inacceptance.json, notclaimedfixed.
+
+Frozenpreview35869:5252 all248manifesthashesverified realshippingWASM.
+Firsthousediagnostic29034terminal0 realwasmseed103:publicBuildhousefree yields
+AldenAsh bloodline1FighterL1XP0/60Ready, screenshotduringHeroarriving animation
+scratchpad/blind-ad71-frozen/house-103-desktop.png showninline. Earliercold101
+Emptytown screenshotshown. Separate diagnosticseeds, notscoredplay/grants.
+No ratersspawned; briefs prepareda/b,seeds73/89ports5354/5355. Verifyfullterminal,
+refreshpre-playcalibration+manifest/contractrelease thenfreshforknoneagents.
+No deployment/focusstealing; goal95active/unverified. Next stepcurrentlivewait,
+then independentreal70activehorizon. ExistingQAagentscompletednotforreuse.
+
 **CURRENT NATIVE ACCEPTANCE GREEN / CORRECTED BROWSER LIVE:**
 
 26736oldclientTERMINALFAIL128/1291178.9s, ONLYoldthisnight heading. Cut108
