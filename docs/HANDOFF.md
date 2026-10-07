@@ -1,3 +1,16 @@
+**CUT85–88 PUSHED / FULL CLIENT LIVE — 2026-10-07:**
+
+Source3245061 committed and pushed main. Build/type/copy/diff PASS; complete
+Cut29 46checks PASS37.7s and five watch suites PASS175.7s; prior scoped
+comparison/restock suites PASS. No deployment. Full headless client suite now
+LIVE session75928, log/tmp/riddle-cut85-88-client-full.log. Poll that handle;
+observation timeout is not terminal and must not trigger a duplicate run.
+No new frozen candidate yet (current5248still87c32bc); preserve originalearned
+5244/driver5351. EarnedheroD19 Armour3/ClearLungs, Legacy4/gold1951, actual
+snapshot checkpoint-d19-clear-lungs.json. Fullgreen and independent95 unverified.
+Next: finish fullresults, freeze source3245061 for QA, then publicD19 progression
+and clear remaining content/copy lapses (Control/Debilitate ticks; core10ticks/s).
+
 **CUT85–88 COMPLETE SCOPED CHECKS — 2026-10-07:**
 
 WholeCut29 46checks PASS37.7s, log/tmp/riddle-cut85-88-cut29-confirmed.log.
