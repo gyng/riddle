@@ -1,3 +1,35 @@
+**CUT108 REPORT TEST EXPECTATION / ACCEPTANCE QUEUES — 2026-10-07:**
+
+Cut107 committed604850f LOCAL ONLY:3authorizedgitpushattempts GitHubInternal
+ServerError (latestremote29e5866). Commit safe; noapprovalrejection. Continue
+localgoal; retryremote later, don'taskpermission/forcepush. Cut107recoveryhost
+finalPASS0.49s; verifyhelperadded. No nativecrashfix claimed.
+
+Current oldwholeclient26736/PID2089539LIVE:throughportraitfallback948.9s,
+onlyknownFAILcut29 oldthisnight label afterapprovedCompletedruns. Original
+numeric15m,$20/min,fight13%,travel67%unchanged. NewownedCut108 TESTONLY expectation
+matchesCompletedruns and ADDSexactdata-seconds900. Scoped61064terminalPASS
+Cut29:meters10functionalchecks5.2s. Noapp/WASMchange, frozenad71unchanged.
+Neverclaimoldwholegreen; it failedoldtitle. Newwholecurrentqueued AFTER
+nativequeuePID2094359 exits; execsession ID nexttoolresult. Testpooldefault7,
+heavy1; output/tmp/riddle-ad71-client-accepted.log, alltimeoutsgatesunchanged.
+
+Nativeverification/freshqueue30634hostPID2094359 STILLWAITING oldclientPID
+2089539. Aftergone:tools/verify.sh--full /tmp/riddle-cut107-full-verify.log;
+ifverifygreen thennodegates--full--fresh /tmp/riddle-ad71-native-fresh.log.
+Needactualterminal andpreservedoriginalSIGSEGV before anyblindrelease.
+Thennewwholecurrentstartswhenqueue2094359goneeveniffailure; both independent
+conditionsmustgreen to release. Don'trestartqueuesonobservationtimeout.
+
+Frozenpreview35869:5252 248servedhashesPASS; shippingcold12765terminal0 real
+kindwasm seed101 Emptytown GOLD0 BuildhouseFree. Shotcold-101.png showninline,
+separate diagnosticseed notblindplay. Prepared blindbriefs a/b in
+scratchpad/blind-ad71-frozen/briefs; agentsNOTSPAWNED/NOTRELEASED. They insist
+real70active40+5+5+20, honestlockedpenattempts, nogoal/designhistory, no score
+hint, read16probes/criterionbeforeaxes, rawcardsimmutable, idle-hybrid,
+nextdayrecallEMPTY, audioUNASSESSED, privateGPU/focus. Need finalmechanical/
+manifest/reanchor beforefreshblind2raters. No deployment; goal95activeunverified.
+
 **CUT107 GATE SIGNAL RECOVERY / LIVE ACCEPTANCE — 2026-10-07:**
 
 Last turn29e5866 pushed2QAfixes anddebuggerevidence. Currentturn Cut107:

@@ -232,8 +232,9 @@ try {
     await page.evaluate((m) => { const r = window.__riddle; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 6, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, live: false, banked: 3, returned: 3, meters: { ...m, seconds: 900, time_s: { fight: 120, travel: 600, chores: 80, rest: 100 }, gold: 300, gold_per_min: 20 } } }); }, fightM);
     await until(() => window.__riddle.screen === "report", "the report");
     await page.locator(".details-fold").click();
-    const rm = await until(() => { const x = document.querySelector(".report-details .meters"); return x ? x.textContent.replace(/\s+/g, " ").trim() : null; }, "the night's meter");
-    check(/^this night · 15m/.test(rm) && /gold \$20\/min/.test(rm) && /fight 13%/.test(rm) && /travel 67%/.test(rm), `the report meters the night ("${rm.slice(0, 160)}")`);
+    const rm = await until(() => { const x = document.querySelector(".report-details .meters"); return x ? x.textContent.replace(/\s+/g, " ").trim() : null; }, "the completed runs meter");
+    const reportSeconds = await page.locator(".report-details .meters").getAttribute("data-seconds");
+    check(reportSeconds === "900" && /^Completed runs · 15m/.test(rm) && /gold \$20\/min/.test(rm) && /fight 13%/.test(rm) && /travel 67%/.test(rm), `the report meters completed runs ("${rm.slice(0, 160)}")`);
     // the camp: the last two runs side by side (the forecast panel on a phone)
     await withState((e) => { e.sys29 ??= { open: ["send", "dial", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true };
       const m = (dps, g) => ({ seconds: 60, dealt: { hero: dps * 60, pets: 0, foes: 10 }, taken: { hero: 30, pets: 0, foes: 10 }, dps_dealt: { hero: dps, pets: 0, foes: 0.2 }, dps_taken: { hero: 0.5, pets: 0, foes: 0.2 }, healed: [], hps: 0,
