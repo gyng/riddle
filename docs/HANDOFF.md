@@ -1,3 +1,29 @@
+**CUT46 REPORT PATCH DETAILS — 2026-10-07:**
+
+Baseline patch-overflow terminal1/11.9s; diagnostic full transcript proves all
+preceding death drop/cancel/card/held checks alreadypass. Actual failure is
+final report replacement, correctly folded under Details. Gate nowclicksactual
+Details before suggestion; all original25assertions unchanged andPASS. Cut20
+16each400/1440 and report-choices23eachwidth alsoPASS3/3 in11.7s terminal0,
+/tmp/riddle-cut46-client.log. No production or Rust/WASM changes.
+
+Real earned Gunner WASM400/1440 +one actually written player rule; diagnostic
+report suggestion targetingthatownrule. Details inspection fullsave byte-exact;
+exact17semanticrows (including unchanged generateddrills) persist after intended
+replacement/flush/reload, zeroerrors. Screens shown, explicit diagnostic reports
+not actual earnedrunoutcomes. scratchpad/patch-cut46-20261007/report-results.json;
+/tmp/riddle-cut46-real-player-report.log terminal0. Firstfixture wronglytargeted
+generateddrill afterclassswitch; recompile restoredmanageddrill, rawfailure kept
+in report-first.mjs and /tmp/riddle-cut46-real-report.log. No silent normalization.
+Current App.setClass usesmutate withoutadopt despiteclass-dependentcompiledrows;
+inspectactualclassswitch/editor freshness next before anyfix. Do not treatthe
+failed generated-row fixture as passed or proofthat manageddrills shoulddrop.
+
+JSsyntax/diffPASS. Owned5399 closed; shared5219 kept. Remaining mechanical
+failures: screens/qa9 retired class/lanes log entrypoints, others in broad91/112
+historical verdict. Preserve checks and currentmanual/latepen UX; then fresh
+playedQA and independent immutable-build rating.95stillunverified, no deploy.
+
 **CUT45 LEGACY EDITOR VISIBILITY — 2026-10-07:**
 
 Production2-condition fix: simplified first-load main/command hiding only for

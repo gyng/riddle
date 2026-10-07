@@ -153,6 +153,7 @@ try {
   const rep = { row: { conds: [{ k: "hp<", n: 30 }], verb: { v: "return" } }, insert_at: 1, survive: 0.6, forecast_delta: 0.03, replace: true };
   await page.evaluate((p) => { const r = window.__riddle; r.go({ kind: "report", report: { elapsed_s: 60, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, stall: { row: 1, fired: 4, text: "R2 ended 4 runs at D3", patches: [p] } } }); }, rep);
   await waitFor((s) => s?.screen === "report", "report");
+  await page.locator('.report .details-fold[aria-expanded="false"]').click({ timeout: 5000 });
   await page.locator("button.patch").first().click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "camp", "camp after the replace patch");
   await sleep(200);
