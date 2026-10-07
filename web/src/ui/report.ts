@@ -678,8 +678,8 @@ export function stallDepth(text: string): number | undefined {
 
 /** Display the core's window counts, including runs before this absence. */
 export function recentRunText(text: string): string {
-  return text.replace(/^R\d+ bank ended /, /* copy:callout */ "Collected gold · ")
-    .replace(/^R\d+ return ended /, /* copy:callout */ "Returned home · ")
+  return text.replace(/^R\d+ bank ended /, /* copy:callout */ "Recent full hauls · ")
+    .replace(/^R\d+ return ended /, /* copy:callout */ "Recent returns · ")
     .replace(/^R(\d+) /, "Rule $1: ")
     .replace(/none past D(\d+)/, "none beyond floor $1")
     .replace(/(\d+) before;/, "$1 earlier;");

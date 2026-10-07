@@ -1,3 +1,21 @@
+**CUT77 RECENT RUN SCOPE / FROZEN PREFLIGHT — 2026-10-07:**
+
+30seed native wireQA session44029 TERMINAL0 allPASS122.3s. Local release6d75824
+built with --ship; frozen248asset manifest scratchpad/qa-cut76-frozen-6d75824.
+Immutable preview live5241 via session1345; source mutable preview5240 also
+started this turn. Frozen walk14337 TERMINAL0:32.7s/10dumps/0errors, actual
+house/public earned scout/8h catch-up1.9s, fetchedWASM matchesmanifest. Screenshot
+return shown. Preflight eval/qa/6d75824.coordinator-preflight.md is short
+transcript-only, not independent QA/horizon/score.15runs/D8 vs “Returned home ·
+8runs, none beyondfloor7” lacks recent-window context: Cut77 uses Recent returns/
+Recent full hauls, all counts/depth retained.6core forms numeric equality PASS,
+existing report19+16checks2/2PASS14.7s, TS/copy1742zero/build/diffPASS. No Rust/
+wire change; shippingWASM exactbaselinehash. First reportGoldhome87 vsheader106
+likely otherledgerflows; inspect actualdetails before claiming/fixingaccounting.
+Evaluator URLs now explicit runs=1 across navigation, unchanged full horizon/
+scoring. Next new committed frozenbuild/earned8h screenshot, then actual full
+QA and independent raters. Full headless72/120 still failing, no deploy/95claim.
+
 **CUT76 END/LEGACY CHECKS VERIFIED — 2026-10-07:**
 
 Scope Legacy respec reviews to real visible sheet-wrap, excluding inert exit

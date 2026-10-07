@@ -25,7 +25,7 @@ Two passes, in this order:
    tap, type, press, eval, js, wait, buttons, log, quit; compound: `state`, `act`, `watch`,
    `send_and_watch` (a send watched to its end in one call) and `sheets` (every sheet a screen
    opens, read in a copy of the page) — the file's header). Open
-   `{URL}?dev=1&seed={SEED}&fresh=1`, then reproduce each transcript lapse once (the walk is
+   `{URL}?dev=1&runs=1&seed={SEED}&fresh=1`, then reproduce each transcript lapse once (the walk is
    deterministic on its seed: the same sends give the same runs), and play what the walk did
    not decide: **four configuration changes of your own** (styles/tactics, equipment or Legacy),
    four attempted hand edits of written rules, two purchases with their sheets read,
@@ -35,6 +35,9 @@ Two passes, in this order:
    explanation and the attempted action honestly; do not inject earned state or
    count a tactic selection as a written-row edit. ~15 minutes, not a full-hour
    QA horizon and never evidence that the independent rating horizon passed.
+
+Keep `runs=1` on every navigation, including absence/return URLs, so the
+open-app clock behaves as it does for a player. Do not rate a paused simulation.
 
 File `eval/qa/{BUILD}.{QA}.md`: one line per lapse — `screen · what you saw (quoted) · what
 you expected · repro (seed, dump or step)` — grouped under `defect` (wrong or inert), `misread`

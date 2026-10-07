@@ -21,7 +21,7 @@ or the death / report screen, with the lines that appeared and the shots) and `s
 sheet this screen opens, read in a copy of the page — the session's game is untouched) — the
 file's header lists them). Screenshots to look, `text` to read, click buttons by their
 visible label; add `--headed` only if a lapse is about the render itself. Notes and screenshots
-under `scratchpad/{QA}/`. Open `{URL}?dev=1&seed={SEED}&fresh=1` once at the start.
+under `scratchpad/{QA}/`. Open `{URL}?dev=1&runs=1&seed={SEED}&fresh=1` once at the start.
 
 Horizon: use the full current `eval/RATING.md` horizon: 40 minutes cold, then
 20m/4h/8h simulated absences and 5/5/20 minutes on their returns. Start empty;
@@ -39,6 +39,9 @@ views. Check what carries into the next actual send and whether your chosen
 configuration persists. Reproduce anything odd once before filing it. Report
 actual minutes/absences/deaths/attempted and completed edits separately; a short
 or blocked session is incomplete QA, not a passed horizon.
+
+Keep `runs=1` on every navigation, including absence/return URLs, so the
+open-app clock behaves as it does for a player. Do not rate a paused simulation.
 
 File `eval/qa/{BUILD}.{QA}.md`: one line per lapse — `screen · what you saw (quoted) · what you
 expected · repro (seed, step)` — grouped under `defect` (wrong or inert), `misread` (you got it

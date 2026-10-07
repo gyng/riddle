@@ -8,10 +8,10 @@ tentative, ≥ 0.80 decision). This file is the precommitted contract for a rati
 
 | Field | Value |
 |---|---|
-| Build | git commit hash; `tools/wasm.sh --ship` then `cd web && pnpm build`; served from `pnpm preview --port 5230` |
-| Save | fresh lineage, seed pinned per rater (`?dev=1&seed=<n>&fresh=1` (production builds honour dev params only with `dev=1`)), raters get different seeds |
+| Build | git commit hash; `tools/wasm.sh --ship` then `cd web && pnpm build`; served from a frozen asset directory at the cohort’s recorded preview URL (default port5230) |
+| Save | fresh lineage, seed pinned per rater (`?dev=1&runs=1&seed=<n>&fresh=1` (production builds honour dev params only with `dev=1`)), raters get different seeds; `runs=1` explicitly enables the real open-app clock under browser automation |
 | Tier | 1 (one hour plus one absence) unless stated |
-| Horizon | 40 min active cold, then three simulated absences (`?absent=20m` + ~5 min, `?absent=4h` + ~5 min, `?absent=8h` + 20 min on return) — from cohort 22 and the 307dbed control; at least 3 deaths read, at least 2 rule edits attempted |
+| Horizon | 40 min active cold, then three simulated absences (`?dev=1&runs=1&absent=20m` + ~5 min, `?dev=1&runs=1&absent=4h` + ~5 min, `?dev=1&runs=1&absent=8h` + 20 min on return) — from cohort 22 and the 307dbed control; at least 3 deaths read, at least 2 rule edits attempted |
 | Audio | sound ships (cues, ambience; `window.__audio` logs them) but agent raters cannot listen → audio unassessed unless a human listening note is attached (`eval/AUDIO.md`, the owner's pass); raters may cite it |
 | Input | pointer at phone size 400×800 via the browser driver (`tools/driver.mjs`): raters headed on the GPU at 3× (feel and pacing are rated), QA headless at 2× (text and numbers; SwiftShader is pixel-bound); desktop 1280×800 allowed for the editor |
 | Tools | the rater may use `node tools/playtest.mjs` for screenshots but must play the decisions itself; the CLI (`examples/cli.rs`) is allowed as a second view of the same lineage |
