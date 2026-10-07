@@ -1,3 +1,4 @@
+import { classIcon } from './class-icons';
 import { heroRoster } from "./heroes";
 // Camp: lineage strip · set tabs · rule editor · forecast · vault loadout · unlocks · send.
 // Cut 6: the strip's gold opens the `gold` sheet (the last 20 movements, newest first, §1); the disabled send reads
@@ -396,7 +397,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           const door = u ? h("small", { class: "num dim door" }, u.cost ? ` ◆${u.cost}` : "", u.needs ? `${u.cost ? " · " : " "}${u.available ? "" : "⊘ "}${u.needs.replace(/_/g, " ")}` : "") : "";   // no `◆0` (QA 23ed91f); QA 0c6e126 (qaY: `rogue L1 · bank once` — no hint it is a condition): a gate still shut carries the lock mark, `⊘ bank once`
           const take = async (): Promise<void> => { if (u && !(await app.buy(cls))) return; void app.setClass(cls); close(); };
           grid.appendChild(h("div", { class: "class-row" },
-            h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned || u?.available ? "" : " off"}`, disabled: !(owned || u?.available), onclick: () => void take() }, cls, " ", h("b", { class: "num" }, `L${level}`), door),
+            h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned || u?.available ? "" : " off"}`, disabled: !(owned || u?.available), onclick: () => void take() }, classIcon(cls), cls, " ", h("b", { class: "num" }, `L${level}`), door),
             ladder.length ? h("div", { class: "chips ladder" }, ...ladder) : ""));
         }
       };

@@ -254,6 +254,15 @@ pub struct FloorItemWire {
     pub label: String,
 }
 
+/// Player-facing kind name. Persistent IDs remain stable across naming changes.
+pub fn kind_name(kind: &str) -> String {
+    match kind {
+        "long_gun" => "rifle".into(),
+        "short_gun" => "scattergun".into(),
+        _ => kind.replace('_', " "),
+    }
+}
+
 /// (known, wire kind, label). Unknown consumables hide their kind behind the category.
 pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (bool, String, String) {
     let d = item.def();
@@ -261,7 +270,7 @@ pub fn describe(item: &Item, facts: &BTreeSet<String>, flavours: &Flavours) -> (
         Cat::Gold => (true, "gold".into(), format!("gold ${}", item.amount)),
         Cat::Misc => (true, item.kind.clone(), if item.amount > 1 { format!("{} ({})", item.kind, item.amount) } else { item.kind.clone() }),
         Cat::Weapon | Cat::Armour => {
-            let name=item.kind.replace('_'," ");
+            let name = kind_name(&item.kind);
             let label = if item.enchant > 0 { format!("{} +{}", name, item.enchant) } else { name };
             (true, item.kind.clone(), label)
         }
@@ -311,5 +320,23 @@ mod tests {
         assert_eq!(w2.kind, "heal");
         assert_eq!(w2.label, "heal potion");
         assert_eq!(w2.hint, None);
+    }
+}
+
+#[cfg(test)]
+mod gun_names_test {
+    use super::*;
+    #[test]
+    fn gun_labels_keep_stable_ids_and_enchants() {
+        let flavours = Flavours::roll(&mut crate::rng::Rng::new(43));
+        for (kind, label) in [("long_gun", "rifle"), ("short_gun", "scattergun")] {
+            let mut item = Item::new(43, kind);
+            let (known, wire_kind, text) = describe(&item, &BTreeSet::new(), &flavours);
+            assert!(known);
+            assert_eq!(wire_kind, kind);
+            assert_eq!(text, label);
+            item.enchant = 2;
+            assert_eq!(describe(&item, &BTreeSet::new(), &flavours).2, format!("{label} +2"));
+        }
     }
 }

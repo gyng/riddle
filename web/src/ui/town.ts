@@ -1,3 +1,4 @@
+import { classIcon } from './class-icons';
 // Cut 30 §3 — the town on the camp (docs/TOWN.md): the scene (render/town.ts) in the well, a DOM hit target over everything one can
 // tap (≥ 44 px, a hidden label for tests and screen readers), the markers (≤ 3: a sword over the forge when a kit step is affordable,
 // a coin over the bank when a night's interest came in, a `!` rune over a building not yet opened), the staked plot's trigger on tap,
@@ -356,14 +357,14 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
       replace(body, h("div", { class: "label row-label" }, /* copy:label */ `Bloodline ${L.selected_bloodline??1}`),
         h("div", { class: "hero-line num" }, face,
           h("div",{class:"hero-identity"},h("b",{class:"hero-name"},L.hero_slots?.find((s)=>s.id===L.selected_bloodline)?.hero_name||L.class),
-            h("div",{class:"hero-class-meta"},L.hero_slots?.find((s)=>s.id===L.selected_bloodline)?.hero_name?h("span",null,L.class):null,
+            h("div",{class:"hero-class-meta"},classIcon(L.class,L.class_styles?.selected),L.hero_slots?.find((s)=>s.id===L.selected_bloodline)?.hero_name?h("span",null,L.class):null,
               h("span",null,`L${lvl.level}`),L.class_styles?.selected?h("span",{class:"hero-class-path"},classStyleName(L.class_styles.selected)):null))),
         h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${L.bloodline?.points ?? legacy?.points ?? 0}`),
         L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
         renderClassStyles(app,()=>{if(body.isConnected)paint();}),
         renderLegacy(app,()=>{if(body.isConnected)paint();},paths),
         h("div", { class: "hero-actions" },
-          h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, /* copy:button */ "Change class"),
+          h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, classIcon(L.class), /* copy:button */ "Change class"),
           h("button", { class: "chip hero-appearance", onclick: () => openLooks(app), disabled: !app.engine.setLook }, /* copy:button */ "Appearance")),
         h("details", { class: "hero-history", open: historyOpen }, h("summary", null, /* copy:button */ "Details"),
           h("div", { class: "dim num" }, `${legacy?.runs ?? 0} runs · deepest ${legacy?.best_depth ?? 0}`),
@@ -403,7 +404,7 @@ export function openHeroClass(app: App): void {
       replace(grid,...classList(app.lineage,cat).map(({cls,owned,level})=>{
         const u=owned?undefined:cat?.find(x=>x.id===cls);
         return h("div",{class:"class-row"},h("button",{class:`chip${cls===app.lineage.class?" on":""}`,disabled:!(owned||u?.available)||!!app.lineage.live,
-          onclick:()=>void(async()=>{if(u&&!(await app.buy(cls)))return;await app.setClass(cls);close();})()},cls,` L${level}`,u?.cost?` ◆${u.cost}`:""),
+          onclick:()=>void(async()=>{if(u&&!(await app.buy(cls)))return;await app.setClass(cls);close();})()},classIcon(cls),cls,` L${level}`,u?.cost?` ◆${u.cost}`:""),
           h("div",{class:"chips ladder"},...Object.entries(CLASS_VERBS[cls]??{}).flatMap(([l,verbs])=>verbs.map(v=>classSkillChip(v,Number(l),Number(l)<=level&&owned)))));
       }));
     };

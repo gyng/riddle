@@ -1,3 +1,4 @@
+import { classIcon } from './class-icons';
 // Active bloodlines only; each row describes an actual Rust-owned hero slot.
 import type { App } from '../app';
 import type { HeroSlot, LiveRun } from '../engine/types';
@@ -39,7 +40,7 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
     const xp=s.next===0?/* copy:label */`L${s.level} · MAX`:/* copy:label */`L${s.level} · XP ${s.xp}/${s.next??'—'}`;
     const name=s.hero_name||s.name;
     const body=h('button',{class:'hero-jump','aria-label':`${name} · ${s.name} · ${heirOrd(s.heir)} · ${action}`,'data-hero':s.id,onclick:()=>void focus(s)},face,
-      h('span',{class:'hero-info'},h('b',null,name),h('span',{class:'hero-class-name'},`${s.hero_name?s.name:heirOrd(s.heir)} · ${s.specialization?classStyleName(s.specialization):s.class}`),h('small',{class:'hero-xp num'},xp),
+      h('span',{class:'hero-info'},h('b',null,name),h('span',{class:'hero-class-name'},classIcon(s.class,s.specialization),`${s.hero_name?s.name:heirOrd(s.heir)} · ${s.specialization?classStyleName(s.specialization):s.class}`),h('small',{class:'hero-xp num'},xp),
         h('span',{class:'hero-action','data-activity':presence.activity,title:presence.detail},h('i',{'aria-hidden':'true',class:`lane-beat ${s.state}`}),action),s.notice?h('small',{class:'hero-notice'},/* copy:callout */'Upgrade ready'):''));
     kwHost(body,'bloodline');
     return h('article',{class:`hero-row${s.id===app.lineage.selected_bloodline?' selected':''}`,'data-slot':s.id,'data-state':s.state},body,

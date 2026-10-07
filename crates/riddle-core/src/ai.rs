@@ -481,7 +481,7 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
         }
         "aimed_shot" => {
             if !class_has_verb(run.hero.class,run.hero.level,"aimed_shot") {"class locked"}
-            else if crate::firearm::Profile::of(run.hero.weapon_kind()).is_none_or(|p|p.capacity!=1) {"long gun only"}
+            else if crate::firearm::Profile::of(run.hero.weapon_kind()).is_none_or(|p|p.capacity!=1) {"rifle only"}
             else if run.gun_reload.is_some() {"reloading"}
             else if run.gun_skills.as_ref().and_then(|s|s.aim).is_some() {"aim held"}else {"no target"}
         }
@@ -505,7 +505,7 @@ pub fn block_reason(run: &Run, cx: &Ctx, verb: &Verb, v: &View) -> &'static str 
                 let p=crate::firearm::Profile::of(run.hero.weapon_kind()).unwrap();let m=&run.monsters[mi];
                 if m.pos.cheb(run.hero.pos)>p.range {"too far"}
                 else if !run.floor.map.is_visible(m.pos)||!run.floor.map.los(run.hero.pos,m.pos) {"no sight"}
-                else if verb.v=="close_burst"&&p.capacity!=2 {"no short gun"}else {"no use"}
+                else if verb.v=="close_burst"&&p.capacity!=2 {"no scattergun"}else {"no use"}
             }else {"no enemy"}
         }
         "reload" => {

@@ -716,7 +716,7 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
 /// sense`, `paralysed`, `confused`, `bail`.
 pub const ROW_REASONS: &[&str] = &[
     "reloading", "empty gun", "gun full",
-    "aim held", "long gun only", "class locked", "foe too healthy",
+    "aim held", "long gun only", "rifle only", "class locked", "foe too healthy",
     "hp not <", "hp not >", "foes not ≥", "foes fleeing", "foes appeared after", "adj not ≥", "not in view", "no weak foe", "none held", "no unknown", "seen not ≥",
     "depth not ≥", "alert not ≥", "not corridor", "no path", "no ally", "loot not ≥", "turns not >", "not hurt", "no kill",
     "nothing new", "no ", "party hp ok", "locked cond", "no target", "no line", "no bow", "cooldown", "no item", "no use",
@@ -845,10 +845,12 @@ pub const WHY_GLOSS: &[(&str, &str)] = &[
     ("reloading", "reload in progress"),
     ("empty gun", "needs reloading"),
     ("gun full", "already loaded"),
-    ("no short gun", "needs short gun"),
+    ("no short gun", "needs scattergun"),
+    ("no scattergun", "needs scattergun"),
     ("no gun", "needs a gun"),
     ("aim held", "aim already prepared"),
-    ("long gun only", "needs long gun"),
+    ("long gun only", "needs rifle"),
+    ("rifle only", "needs rifle"),
     ("foe too healthy", "needs wounded foe"),
     ("no path", "way blocked"),
     ("no target", "no foe reachable"),
@@ -2886,7 +2888,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
                 let raw = it.value() - run.loot_value(&dropped);
                 swap_loot(run, cx, raw, &dropped);
-                crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
+                crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", crate::item::kind_name(&it.kind)));
                 crate::provenance::found(run, cx, &it.kind, &label);
                 run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));
                 run.note_found(it.id, &it.kind, 1);
@@ -2913,7 +2915,7 @@ fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
                 let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
                 let raw = it.value() - run.loot_value(&dropped);
                 swap_loot(run, cx, raw, &dropped);
-                crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
+                crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", crate::item::kind_name(&it.kind)));
                 crate::provenance::found(run, cx, &it.kind, &label);
                 run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));
                 run.note_found(it.id, &it.kind, 1);
@@ -2974,7 +2976,7 @@ fn swap_in(run: &mut Run, cx: &mut Ctx, ii: usize, k: usize) {
     let (_, _, label) = crate::item::describe(&it, cx.facts, cx.flavours);
     let raw = it.value() - run.loot_value(&dropped);
     swap_loot(run, cx, raw, &dropped);
-    crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", it.kind.replace('_', " ")));
+    crate::provenance::spent(run, cx, &dropped.kind, format!("swapped for the {}", crate::item::kind_name(&it.kind)));
     crate::provenance::found(run, cx, &it.kind, &label);
     run.note_gone(dropped.id, &dropped.kind, "left", dropped.amount.max(1));
     run.note_found(it.id, &it.kind, 1);

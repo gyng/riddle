@@ -1,3 +1,4 @@
+import { gunName } from './gun-names';
 // Rust-owned played gun state, rendered at the picture's clock.
 import type { GunSnap } from "../engine/types";
 import { h } from "./dom";
@@ -18,7 +19,7 @@ export function gunStatus(): { el: HTMLElement; paint(g: GunSnap | null, tick: n
     el.dataset.state = reloading ? "reload" : g.aiming ? "aim" : g.loaded === 0 ? "empty" : "ready";
     track.hidden = !reloading;
     fill.style.width = `${Math.max(0, Math.min(1, 1 - left / Math.max(1, g.reload_ticks))) * 100}%`;
-    details = `${g.kind === "long_gun" ? "Long gun" : "Short gun"} · ${g.damage[0]}–${g.damage[1]} damage · range ${g.range} tiles · ${g.reload_ticks / 10}s reload${g.armour_piercing ? ` · ignores ${g.armour_piercing} armour` : ""}`;
+    details = `${gunName(g.kind)} · ${g.damage[0]}–${g.damage[1]} damage · range ${g.range} tiles · ${g.reload_ticks / 10}s reload${g.armour_piercing ? ` · ignores ${g.armour_piercing} armour` : ""}`;
     el.setAttribute("aria-label", details);
   } };
 }

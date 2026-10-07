@@ -1,3 +1,22 @@
+**CUT43 GUN NAMES AND CLASS ICONS — 2026-10-07:**
+
+Rifle / Scattergun replace player-facing long / short gun names in forge,
+played HUD, item labels and provenance. Persistent IDs, mechanics, costs and
+old reason aliases remain stable. Shared painted class symbols cover five base
+classes and Sentinel/Hexbinder paths in choices, roster, details and XP reports.
+Fighter shield / Rogue shadow corrected after screenshot readability review;
+picker 30 px, roster 18 px / mobile 14 px. Primitive fallback preserved.
+
+677 Rust PASS / 1 ignored, 48.07 s; fast all-target clippy, TS/copy (1734/zero),
+real fast WASM 5478683 bytes, web build/diff PASS. Actual earned 400/1440 QA:
+five unique assets loaded; inspecting classes leaves complete save byte-exact;
+paid Scattergun deducts exactly275, persists short_gun ownership after reload;
+actual live watch announces Scattergun. No overflow/errors. Screens shown;
+scratchpad/class-icons-cut43-20261007, /tmp/riddle-cut43-real-watch.log.
+Final scoped client 4/4 PASS15.4s: report-class-xp, live-roster, class-styles,
+gunner-observer at400/1440. Owned5395/5396 closed; shared5219 kept. Latest broad verdict
+remains91/112, no independent95 certification or new balance audit. No deploy.
+
 **CUT42 RECORDED FLOOR HEALTH RECOVERY — 2026-10-07:**
 
 Rustdescend alreadyrestores5maxHP/cappedbase; nowexistinghero_max_hp records

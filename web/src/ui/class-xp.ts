@@ -1,3 +1,4 @@
+import { classIcon } from './class-icons';
 import type { ReturnReport } from "../engine/types";
 import { h } from "./dom";
 
@@ -24,7 +25,7 @@ export function classXpBlock(r: Pick<ReturnReport, "xp" | "bloodlines">): HTMLEl
   return h("section", { class: "report-class-xp" }, h("b", { class: "row-label" }, /* copy:label */ "Class XP"),
     ...earned.map(({ xp, owner, id }) => h("div", { class: "class-xp-line num", "data-class": xp.class, ...(id === undefined ? {} : { "data-bloodline": String(id) }) },
       owner ? h("small", { class: "class-xp-owner" }, owner) : "",
-      h("span", null, xp.class.charAt(0).toUpperCase() + xp.class.slice(1).replace(/_/g, " ")),
+      classIcon(xp.class), h("span", null, xp.class.charAt(0).toUpperCase() + xp.class.slice(1).replace(/_/g, " ")),
       xp.gained > 0 ? h("b", { class: "class-xp-gain" }, `+${xp.gained} XP`) : "",
       xp.level_ups > 0 ? h("b", { class: "class-xp-level" }, xp.level_ups === 1 ? /* copy:label */ "+1 level" : /* copy:label */ `+${xp.level_ups} levels`) : "")));
 }

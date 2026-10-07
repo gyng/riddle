@@ -1,3 +1,4 @@
+import { gunName } from './gun-names';
 // The forge shows the next starting-kit upgrade per slot. Future steps, salvage,
 // and explicitly requested forecasts live under Details; purchases never wait for simulations.
 import type { App } from "../app";
@@ -91,7 +92,7 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
       const ladders = app.lineage.kit ?? [];
       const choices = ladders.filter((lad) => lad.next || lad.slot === "gun_sidearm");
       const guns = (app.lineage.guns ?? []).map((gun) => {
-        const label = gun.kind === "long_gun" ? /* copy:label */ "Long gun" : /* copy:label */ "Short gun";
+        const label = gunName(gun.kind);
         const button = h("button", { class: "chip forge-buy", disabled: gun.selected || !gun.available || !app.engine.buyKit,
           "data-gun": gun.kind, "aria-pressed": String(gun.selected), title: gun.blocked ?? label, onclick: () => {
             if (!app.engine.buyKit) return;

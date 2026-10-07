@@ -124,7 +124,7 @@ pub fn choose(game:&mut crate::Game,kind:&str)->Result<(),String> {
     if crate::tree::purse(&game.lineage)<price {return Err("not enough gold".into());}
     if price>0 {
         crate::kit::lock_unit(&mut game.lineage);
-        game.lineage.gold_move(-price,"forge short gun");
+        game.lineage.gold_move(-price,"forge scattergun");
         game.lineage.kit.insert("short_gun".into(),1);
         crate::tree::did(&mut game.lineage,"forge");
     }

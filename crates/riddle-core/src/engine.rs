@@ -3449,7 +3449,7 @@ impl Game {
         self.lineage.supplies = kept;
         for s in bought {
             if let Some(price) = refund_of(&s, &cat) {
-                let why = format!("refund {}", s.kind.replace('_', " "));
+                let why = format!("refund {}", crate::item::kind_name(&s.kind));
                 self.lineage.gold_move_n(price, &why, 1);
             }
         }
@@ -3815,7 +3815,7 @@ impl Game {
         if self.lineage.orders.insure {
             for id in loadout.clone() {
                 let gold = self.lineage.gold;
-                let kind = self.lineage.vault.iter().find(|v| v.id == id).map(|v| v.kind.replace('_', " "));
+                let kind = self.lineage.vault.iter().find(|v| v.id == id).map(|v| crate::item::kind_name(&v.kind));
                 if self.insure(id).is_ok() {
                     // Cut 13 §3: the night's ledger counts the automation's premiums.
                     let e = self.batch.spent.entry(format!("insure {}", kind.unwrap_or_default())).or_insert((0, 0));
@@ -6221,7 +6221,7 @@ impl Game {
         if self.lineage.gold < cost {
             return Err("not enough gold".into());
         }
-        let why = format!("insure {}", it.kind.replace('_', " "));
+        let why = format!("insure {}", crate::item::kind_name(&it.kind));
         self.lineage.gold_move(-cost, &why);
         self.lineage.insured.push(id);
         Ok(())
@@ -6254,7 +6254,7 @@ impl Game {
             self.salvage(std::slice::from_ref(&s), 100);
         } else if !s.free {
             if let Some(price) = refund_of(&s, &self.supply_catalogue()) {
-                let why = format!("refund {}", s.kind.replace('_', " "));
+                let why = format!("refund {}", crate::item::kind_name(&s.kind));
                 self.lineage.gold_move_n(price, &why, 1);
             }
             let slot = self.lineage.last_supplies.iter().enumerate().find(|(i, k)| **k == s.kind && self.lineage.last_supply_origins.get(*i).is_some_and(|(kind, auto)| kind == *k && *auto == s.auto_packed)).map(|(i, _)| i)
@@ -6278,7 +6278,7 @@ impl Game {
                 continue;
             }
             if let Some(price) = refund_of(&s, &cat) {
-                let why = format!("refund {}", s.kind.replace('_', " "));
+                let why = format!("refund {}", crate::item::kind_name(&s.kind));
                 self.lineage.gold_move_n(price, &why, 1);
             }
         }
