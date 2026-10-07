@@ -1243,7 +1243,17 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     debugText() { return texts.map((t) => ({ ...t })); },
     setQuiet(on) { quiet = on; },
     setTacticRows(rows, meaningful) { st.setTacticRows(rows, meaningful); },
-    setKeepOut(r) { keepOut = r; },
+    setKeepOut(r) {
+      keepOut = r;
+      // Messages can appear between renderer frames. Remove colliding DOM
+      // nameplates now; the next build places them again around the new layout.
+      const hit = (t: Tag): boolean => r.some(b => t.x + t.w / 2 > b.x && t.x - t.w / 2 < b.x + b.w && t.y > b.y && t.y - TAG_H < b.y + b.h);
+      const removed = new Set(tags.filter(hit).map(t => t.id));
+      if (!removed.size) return;
+      for (let i = tags.length - 1; i >= 0; i--) if (removed.has(tags[i]!.id)) tags.splice(i, 1);
+      for (let i = labels.length - 1; i >= 0; i--) if (removed.has(labels[i]!.id!)) labels.splice(i, 1);
+      tagLayer.sync(cutFrames > 0 ? [] : tags);
+    },
     debugPos() { return [...st.ents.values()].filter((e) => !e.dying).map((e) => ({ kind: e.kind, hero: !!e.hero, ally: !!e.ally, x: e.x, y: e.y, px: +e.px.toFixed(2), py: +e.py.toFixed(2), flip: !!e.flip })); },
     stats() { return { ...stats }; },
     /** dev: every entity the state holds and whether the draw loop would show it */

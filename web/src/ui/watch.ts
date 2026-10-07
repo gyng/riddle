@@ -958,7 +958,11 @@ export function renderWatch(app: App): Mounted {
     const keep: typeof timed = [];
     // Cut 18 §1: under a held beat nothing past its stop is released (the stairs' HUD change waits for the hold)
     for (const x of timed) { if (x.t <= upTo && !(beatHeld() && heldBeat && !heldBeat.exit && x.t > beatStop())) x.f(); else keep.push(x); }
+    const released = timed.length - keep.length;
     timed.length = 0; timed.push(...keep);
+    // Combat history and wrapped causes can move the whole message stack.
+    // Measure after the released batch has completed all of its DOM changes.
+    if (released) paintKeepOut(true);
   }
   const victims = new Map<number, string>();   // id → label, remembered across batches so a kill inside a batch still has a name
   const logActors = new Map<number, string>(); // includes companions; captured per batch for delayed display

@@ -1,3 +1,24 @@
+**CUT92 MESSAGE COLLISION REPAIR VERIFIED / FULL CLIENT LIVE — 2026-10-07:**
+
+Previous goal turn progress:06ab785 pushed, helper Cut13/clarity/screens/RunsUI
+4/4PASS. Repeated Cut28w diagnostic terminalFAIL session9568 shows plate y489,
+message “alert1/8” y490.8125/h25.1875, actual top HUD y0/h67.1875. This is the
+lower ticker in the growing message stack, not the HUD. Added focused actual
+DOM keep-out regression: failed before (before2/after2/reserved label true),
+passes after immediate colliding DOM tag removal; debug labels follow actual
+hidden tags. Release batch now refreshes geometry after all its DOM mutations.
+No engine/rate changes, additional renderer frame or per-frame layout reads.
+
+Scoped6/6PASS72.6s: new watch-keepout, zero-overlap Cut28w, watch-log/status/
+console, tactic observer; /tmp/riddle-cut92-checks.log, session8489terminal0.
+TS/copy1750zero/build PASS. Full headless client LIVE now; obtain handle from
+current turn (/tmp/riddle-cut92-client-full.log). Need terminal review before
+QA release. Source Cut92 pendingcommit, then freeze new5251 candidate from
+clean build with manifest. Preserve immutable5250 until replacement verified.
+QA-a also read transcript-first brief and will review supplied same-build walk
+dumps before its full70min play; QA-b full70min interactive. Both ON HOLD.
+No deployment, no independent score; goal95 remains active.
+
 **CUT91 VERIFIED / OVERLAP INVESTIGATION STILL OPEN — 2026-10-07:**
 
 Single-operation visible watch helper passes unchanged Cut13 77 checks,
