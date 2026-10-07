@@ -1,3 +1,32 @@
+**CUT92 FULL GREEN / INDEPENDENT QA RELEASED — 2026-10-07:**
+
+Full browser session40296 terminal0:121/121PASS632.6s,
+/tmp/riddle-cut92-client-full.log. All strict overlap/spacing/watch/refusal and
+screen checks passed. Native bounded full remainsPASS, same Rust/shippingWASM;
+exhaustive historical/system-removal audit not certified. Main2d8392e pushed
+calibration and precommitted QA contract (game candidate unchanged396f6ed).
+Loop Hero reanchor eval/calibration/loop-hero.396f6ed.reanchor.json explicitly
+knowledge/official-description only, not new directplay. Same idle-hybrid prior
+and reassessment74.0, drift0; archived card unchanged. Not a Riddle score.
+
+Both QA agents explicitly RELEASED via followup_task after terminalfullgreen.
+Frozen396f6ed http://127.0.0.1:5251/, preview41197; immutable manifest248assets
+unchanged. QA-a transcript11screens reviewed, LIVE cold started12:25:05UTC,
+seed41/runs1/driver5352, scratchpad/fun-396f6ed-qa-a; first-home shot01 shown.
+QA-b confirms fresh headless400x800/2x on5251, seed57/runs1/driver5353,
+scratchpad/fun-396f6ed-qa-b, free house built/hero arriving; first-home.png
+captured. Both actually started; active horizon still unverified. Report paths
+eval/qa/396f6ed.qa-a.md and .qa-b.md. Full70actual-active-minute horizons;
+absences20m/4h/8h, no manufactured unlocks/idle-wait padding, no scores/cards.
+Do not leak one agent's lapses/evidence to the other or send source explanations.
+
+Next: let independent QA complete, inspect each lapse and reconcile actual
+horizons; repair or reasoned deviation, then reship freeze only if changes
+needed. Fresh blind scoring agents after QA list addressed; these QA sessions
+never certify95. No deployment. Goal95 remains active/unverified. Previous
+turn progress: full regression terminal green, precommitted calibration/QA
+contract pushed, independent QA released with first actual-start evidence.
+
 **CUT92 PUSHED / FROZEN396f6ed ON5251 / FULL CLIENT LIVE — 2026-10-07:**
 
 Main396f6edfd724988eb4641c646d792c96b7c7c68c pushed. Tracked source clean;
