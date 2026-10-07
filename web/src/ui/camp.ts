@@ -955,6 +955,6 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // next edit's first pass ~1 s in wasm — clarity:paint)
   const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
   const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
-  const offLive = app.onLive(() => { if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
+  const offLive = app.onLive(() => { paintRest(); if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
   return { el, dispose: () => { window.removeEventListener("riddle:focus-hero",focusHome); offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

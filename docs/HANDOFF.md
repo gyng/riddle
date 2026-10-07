@@ -1,3 +1,23 @@
+**FOCUS ISOLATION RECHECK / CUT82 — 2026-10-07:**
+
+User requested status on browser focus stealing. Shared launcher remains intact:
+all headed launches allocate private X11 display, disable desktop Wayland and
+fail without desktop fallback. Fresh CDP probe confirmed headed display :100,
+X11 and D3D12/NVIDIA RTX3080; headless confirmed headless platform/SwiftShader.
+Only tools/browser.mjs launches Chromium in tools/web/tests. Nothing deployed.
+
+Original earned QA seed27 now completed4habsence:5runs, D13, Goblin Warlord
+slain; Gold2868earned=2358collected+393returned+117sales, header3651; Legacy24.
+Screenshot4h-return shown. Second death read WarlordD8/Lark Ash4HP; Forge sheet
+open, sword+1 upgrade200 not yet purchased. Driver5351/private headed session75328
+and baseline5244 remain; current frozen candidate5247 remains. No8hreturn/full
+horizon/independent score yet. Full headless suite remains72/120, not green.
+
+Cut82 fixes stale accessible rest status on existing onLive callback. Regression
+failed before (20m status unchanged after60s), passes after; hero row agrees,
+engine save unchanged, original scout/rest-send checks retained. Scoped rests
+suitePASS12.4s, TypeScript/copy/diffPASS. No Rust/wire/save changes. Goalactive.
+
 **CUT80/81 FROZEN CANDIDATE — 2026-10-07:**
 
 956f892 pushed; cleanbuildPASS, frozen248assets at

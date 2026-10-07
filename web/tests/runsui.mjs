@@ -243,6 +243,16 @@ try {
     await shot("rests");
     check(s.rows[0]?.state === "rests" && /Resting \d+[sm]/.test(s.rows[0].text) && s.rows[0].auto === "1", `home after a run: \`rests Nm\` with \`↻ auto\` lit (${s.rows[0]?.text})`);
     check(/send/i.test(s.gem) && !/watch/i.test(s.gem), `resting: the gem sends (${s.gem})`);
+
+    const synced=await page.evaluate(async()=>{
+      const a=window.__riddle,{spanOf}=await import('/src/ui/dom.ts');
+      const before=document.querySelector('.rest-line .rest')?.textContent;
+      await a.engine.advance(60000);a.lineage=await a.engine.lineage();
+      const save=await a.engine.save();a.emitLive();
+      return {before,after:document.querySelector('.rest-line .rest')?.textContent,expected:`heir rests ${spanOf(a.lineage.rest_left_s??0)}`,hero:document.querySelector('.hero-mobile .hero-action')?.textContent,sameSave:save===await a.engine.save()};
+    });
+    check(synced.after===synced.expected&&synced.after!==synced.before,`accessible rest refreshes on live event: ${synced.before} → ${synced.after}`);
+    check(synced.hero===synced.expected.replace('heir rests','Resting')&&synced.sameSave,'visible and accessible rest agree without a save mutation');
     // due: the rest left to a second, the open app's clock sends him down by itself
     await page.evaluate(async () => { const r = window.__riddle; const a = await r.engine.advance(Math.max(0, (r.lineage.rest_left_s ?? 0) - 2) * 1000); void a; r.lineage = await r.engine.lineage(); r.go({ kind: "camp" }); });
     await camp();
