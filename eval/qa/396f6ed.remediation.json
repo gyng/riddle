@@ -38,6 +38,22 @@
       "commit": "38004cc",
       "contract": "docs/CUT97_CAPTIVE_FACT_COPY.md",
       "validation": "Failed-before actual report wording; report/tooltip/exact-save regression passes; raw tags and targeting unchanged"
+    },
+    {
+      "lapse": "Four attempted written-rule entries without a lock explanation, both QA reports",
+      "commit": "8aec134",
+      "contract": "docs/CUT99_RULES_LOCK_CLARITY.md",
+      "validation": "Rust-owned requirements and responsive centered window, exact save/no visible editor;685Rust tests pass"
+    },
+    {
+      "lapse": "Ready class choices disabled without their core prerequisite; enough tokens mistaken for eligibility",
+      "contract": "docs/CUT100_CLASS_TACTIC_LOCKS.md",
+      "validation": "Shared class requirement outside disabled button;320/400/1440 milestone/token shortage/available/owned/exact-save passes;existing class switching passes"
+    },
+    {
+      "lapse": "Tactics still show slay Warlord after actual Warlord slain",
+      "contract": "docs/CUT100_CLASS_TACTIC_LOCKS.md",
+      "validation": "Same pure arrival plan for mutation and wire;next-send versus boss/day progression, direct-card and unchanged cadence checked;686Rust tests pass"
     }
   ],
   "infrastructure": {
@@ -62,8 +78,6 @@
   ],
   "qaLimitations": "QA-a70+ active minutes estimated, exact stopwatch/tool counts unverified; QA-b conservative70 active minutes, early attribution less precise. Both zero written edits because editor unavailable; older traces and storage reorder incomplete. Reports are lapse evidence, not scoring cards or blanket protocol certification.",
   "remainingItems": [
-    "Class lock prerequisites missing or token balance insufficiently explanatory (QA-a)",
-    "Tactic unlock says slay Warlord after Warlord slain (both)",
     "New Scout-enabled bloodline immediately sent before class setup (QA-a)",
     "Report details collapse when returning from its own death view (QA-a)",
     "Saved setup fighter label misread as current class (QA-b)",

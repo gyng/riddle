@@ -251,3 +251,9 @@ export function classList(L: Lineage, catalogue: UnlockInfo[] = []): { cls: stri
   return [...ids].map((cls) => ({ cls, owned: isFreeClass(cls) || L.unlocks.includes(cls), level: L.classes?.[cls]?.level ?? 1 }))
     .sort((a, b) => Number(b.cls === L.class) - Number(a.cls === L.class));
 }
+
+/** A disabled class keeps its actual core requirement readable outside the dimmed button. */
+export function classUnlockReason(u: UnlockInfo | undefined): HTMLElement | "" {
+  return u && !u.owned && !u.available && u.needs
+    ? h("small", { class: "class-needs num" }, `⊘ ${u.needs.replace(/_/g, " ")}`) : "";
+}

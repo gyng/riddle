@@ -1417,3 +1417,27 @@ fn custom_rule_lock_explanation_matches_core_gate() {
     g.lineage.pkg.literal = true;
     assert!(needs(&g).is_empty());
 }
+
+#[test]
+fn tactic_lock_names_the_remaining_progression() {
+    let mut g = Game::new_resident(7);
+    let trigger = |g: &Game, id: &str| g.lineage().packages.all.into_iter().find(|p| p.id == id).unwrap().trigger;
+    assert_eq!(trigger(&g, "thief_guard"), "slay Warlord");
+    assert_eq!(trigger(&g, "cadence"), "Clear dungeon");
+    g.lineage.kills.insert("goblin_warlord".into());
+    assert_eq!(trigger(&g, "boss_focus"), "next send");
+    assert_eq!(trigger(&g, "thief_guard"), "bosses or days");
+    assert_eq!(packages::arrive(&mut g.lineage).iter().filter(|id| packages::def(id).unwrap().kind == packages::Kind::Tactic).collect::<Vec<_>>(), [&"boss_focus".to_string()]);
+    assert_eq!(trigger(&g, "corridor_fighting"), "bosses or days");
+    g.lineage.day += 1;
+    assert_eq!(trigger(&g, "corridor_fighting"), "next send");
+    assert_eq!(trigger(&g, "thief_guard"), "bosses or days");
+    g.lineage.unlocks.insert("thief_guard".into());
+    assert_eq!(trigger(&g, "thief_guard"), "next send");
+    let saved = g.save();
+    let _ = g.lineage();
+    assert_eq!(g.save(), saved, "Reading arrival requirements never grants anything");
+    let arrived = packages::arrive(&mut g.lineage);
+    assert!(arrived.contains(&"corridor_fighting".into()) && arrived.contains(&"thief_guard".into()));
+    assert_eq!(trigger(&g, "thief_guard"), "");
+}

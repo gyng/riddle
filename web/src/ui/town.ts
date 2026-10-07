@@ -21,7 +21,7 @@ import { nextPill, openWorks } from "./works";   // Cut 30.5: the `next` pill, t
 import { openChronicle } from "./chronicle";
 import { openRuns } from "./runs";
 import { openLooks } from "./look";
-import { classList } from "./unlocks";
+import { classList, classUnlockReason } from "./unlocks";
 import { CLASS_VERBS } from "../engine/classes";
 import { classSkillChip } from "./class-skills";
 import {renderClassStyles,classStyleName} from "./class-styles";
@@ -424,7 +424,7 @@ export function openHeroClass(app: App): void {
       replace(grid,...classList(app.lineage,cat).map(({cls,owned,level})=>{
         const u=owned?undefined:cat?.find(x=>x.id===cls);
         return h("div",{class:"class-row"},h("button",{class:`chip${cls===app.lineage.class?" on":""}`,disabled:!(owned||u?.available)||!!app.lineage.live,
-          onclick:()=>void(async()=>{if(u&&!(await app.buy(cls)))return;await app.setClass(cls);close();})()},classIcon(cls),cls,` L${level}`,u?.cost?` ◆${u.cost}`:""),
+          onclick:()=>void(async()=>{if(u&&!(await app.buy(cls)))return;await app.setClass(cls);close();})()},classIcon(cls),cls,` L${level}`,u?.cost?` ◆${u.cost}`:""), classUnlockReason(u),
           h("div",{class:"chips ladder"},...Object.entries(CLASS_VERBS[cls]??{}).flatMap(([l,verbs])=>verbs.map(v=>classSkillChip(v,Number(l),Number(l)<=level&&owned)))));
       }));
     };

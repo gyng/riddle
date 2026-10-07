@@ -33,7 +33,7 @@ import { gem, metersSlot, portrait, renderBar, renderConsole, stud, tile } from 
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
 import { kitAffordable, openForge } from "./forge";
-import { afterOf, labelOf, stallLabel, classList, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
+import { afterOf, labelOf, stallLabel, classList, classUnlockReason, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
@@ -395,10 +395,10 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         for (const { cls, owned, level } of classList(L, cat)) {
           const ladder = Object.entries(CLASS_VERBS[cls] ?? {}).flatMap(([l, vs]) => vs.map((v) => classSkillChip(v, Number(l), Number(l) <= level && owned)));
           const u = owned ? undefined : cat?.find((x) => x.id === cls);
-          const door = u ? h("small", { class: "num dim door" }, u.cost ? ` ◆${u.cost}` : "", u.needs ? `${u.cost ? " · " : " "}${u.available ? "" : "⊘ "}${u.needs.replace(/_/g, " ")}` : "") : "";   // no `◆0` (QA 23ed91f); QA 0c6e126 (qaY: `rogue L1 · bank once` — no hint it is a condition): a gate still shut carries the lock mark, `⊘ bank once`
+          const door = u ? h("small", { class: "num dim door" }, u.cost ? ` ◆${u.cost}` : "") : "";   // no `◆0` (QA 23ed91f); QA 0c6e126 (qaY: `rogue L1 · bank once` — no hint it is a condition): a gate still shut carries the lock mark, `⊘ bank once`
           const take = async (): Promise<void> => { if (u && !(await app.buy(cls))) return; void app.setClass(cls); close(); };
           grid.appendChild(h("div", { class: "class-row" },
-            h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned || u?.available ? "" : " off"}`, disabled: !(owned || u?.available), onclick: () => void take() }, classIcon(cls), cls, " ", h("b", { class: "num" }, `L${level}`), door),
+            h("button", { class: `chip verb${cls === L.class ? " on" : ""}${owned || u?.available ? "" : " off"}`, disabled: !(owned || u?.available), onclick: () => void take() }, classIcon(cls), cls, " ", h("b", { class: "num" }, `L${level}`), door), classUnlockReason(u),
             ladder.length ? h("div", { class: "chips ladder" }, ...ladder) : ""));
         }
       };

@@ -665,7 +665,7 @@ pub fn make_literal(l: &mut LineageState) {
 
 /// Packages whose stage has come (stances by bosses met or slain, tactics with the Warlord slain,
 /// temperaments offered from heir 3); the ids that arrived now.
-pub fn arrive(l: &mut LineageState) -> Vec<String> {
+fn pending_arrivals(l: &LineageState) -> Vec<String> {
     // Cut 30 (PROGRESSION_V2 §4): a drip, not a dump — `Guarded` with the Warlord met, `Bold` a day
     // after, `Hunter` a day after that; the tactics one per band boss slain or per day since the Warlord
     // fell (a card the lineage already owned arrives with the first). A day is the lineage's clock.
@@ -706,12 +706,17 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
             new.push(d.id.to_string());
         }
     }
-    if tactics_new > 0 && tactic_day.is_none() {
-        l.pkg.arrived.insert("tactics".into(), day);
+    new
+}
+
+pub fn arrive(l: &mut LineageState) -> Vec<String> {
+    let new = pending_arrivals(l);
+    if !l.pkg.arrived.contains_key("tactics") && new.iter().any(|id| id != "cadence" && def(id).is_some_and(|d| d.kind == Kind::Tactic)) {
+        l.pkg.arrived.insert("tactics".into(), l.day);
     }
     for id in &new {
         l.pkg.owned.insert(id.clone());
-        l.pkg.arrived.insert(id.clone(), day);
+        l.pkg.arrived.insert(id.clone(), l.day);
     }
     new
 }
@@ -719,7 +724,10 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
 /// A package's trigger as it stands (owner check, 2026-10-02: `⊘ a day on` read as nothing): a stance of
 /// the drip arrives the day after the one before it — `tomorrow`, `next send` once that day has come,
 /// `after <name>` while the one before is still to come.
-fn trigger_now(l: &LineageState, d: &PackageDef) -> String {
+fn trigger_now(l: &LineageState, d: &PackageDef, pending: &[String]) -> String {
+    if d.kind == Kind::Tactic && d.id != "cadence" && l.kills.contains("goblin_warlord") {
+        return if pending.iter().any(|id| id == d.id) { "next send" } else { "bosses or days" }.into();
+    }
     let before = match d.id {
         "bold" => "guarded",
         "hunter" => "bold",
@@ -1131,6 +1139,7 @@ pub fn row_label(row: &Row) -> Option<String> {
 /// The lineage's packages on the wire (`Lineage.packages`).
 pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
     let p = &l.pkg;
+    let pending = pending_arrivals(l);
     let slot_of = |id: &str| -> Option<u32> {
         if p.stance == id || p.temperament.as_deref() == Some(id) {
             Some(0)
@@ -1153,7 +1162,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
                 next_at: next_at(runs),
                 slot: slot_of(d.id),
                 owned: available(l, d.id),
-                trigger: if available(l, d.id) { String::new() } else { trigger_now(l, d) },
+                trigger: if available(l, d.id) { String::new() } else { trigger_now(l, d, &pending) },
                 level_price: p.owned.contains(d.id).then(|| level_price(l, d.id)).flatten(),
             }
         })

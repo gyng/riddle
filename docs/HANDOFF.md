@@ -1,3 +1,32 @@
+**CUT100 CLASS/TACTIC LOCKS VERIFIED — 2026-10-07:**
+
+Current work repairs two independent QA lapses without granting anything:
+shared classUnlockReason shows actual catalogue needs outside disabled class
+buttons in town and older camp picker; dark existing ink-text fixes parchment
+contrast observed in initial screenshot. Tactic wire uses same pure
+pending_arrivals extracted from original arrive calculation: before Warlord
+still slayWarlord, afterward nextsend if eligible or bossesordays when waiting;
+cadence unchanged. Mutation order/prices/progression unchanged.
+
+Targeted corePASS, all686RusttestsPASS/oneignored. Complete verify--quick79175
+terminalPASS69s /tmp/riddle-cut100-quick.log, JS14helpersPASS. Clippy34537PASS,
+types17988PASS/copy1758zero/diffPASS/build69037PASS. FastrealWASM27838PASS
+5521523bytes. Scoped39735 terminal3/3PASS27.4s: newclasslocks320/400/1440,
+existingclassswitch and18packagechecks. Readable-color recheck2958PASS7.2s;
+screenshots scratchpad/qa-cut100-class-locks/class-locks-{320,400,1440}.png,
+phone showninline. Broad current18case/client acceptance required before
+new scoring candidate; historical exhaustiveaudit unverified.
+
+Prior Cut99 pushed8aec134. Both frozen QA reports tracked and original
+lapses retained in396f6ed.remediation.json. Remaining: Scout sends newslot
+before setup; reportdetails collapse after own death view; savedsetupfighter
+misread; Legacy/tokens distinction; forge shortcut worker misread; damage
+source/target; return duration scopes; unreproduced emptygoblin portrait;
+repetitivecorridorlog. Next report fold retention, then remaininglapses before
+freshblind2raters. Frozen396f6ed:5251 preserved; bothQAagentsclosedownbrowser.
+No scores, no deployment, goal95active/unverified. Active-time precision
+limitations remain explicitly in reports; do not callQA blanketcertification.
+
 **CUT99 RULES LOCK VERIFIED / BOTH QA REPORTS FILED — 2026-10-07:**
 
 Prior turn made concrete progress: Cut98 targeted watch check8749d4e and
