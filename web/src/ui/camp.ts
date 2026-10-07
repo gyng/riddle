@@ -281,7 +281,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   /** Cut 30 §2: the pen gates the editor (and the forecast's detail: one headline before it). */
   function paintPen(): void {
     const pen = penOpen(app.lineage);
-    const fresh = app.lineage.best_depth === 0 && !(app.lineage.runs?.length);
+    // Legacy/literal wires already expose the pen; keep their editor reachable.
+    const fresh = onPackages(app.lineage) && app.lineage.best_depth === 0 && !(app.lineage.runs?.length);
     el.dataset.first = fresh ? "1" : "0";
     const main = well.querySelector<HTMLElement>(".camp-main"); if (main) main.hidden = fresh;
     editor.el.hidden = !pen;
@@ -919,7 +920,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     el.classList.toggle("awaiting-home", homeless);
     cons.el.hidden = homeless;
     restLine.hidden = homeless;
-    const campMain = well.querySelector<HTMLElement>(".camp-main"); if (campMain) campMain.hidden = homeless || (app.lineage.best_depth === 0 && !(app.lineage.runs?.length));
+    const campMain = well.querySelector<HTMLElement>(".camp-main"); if (campMain) campMain.hidden = homeless || (onPackages(app.lineage) && app.lineage.best_depth === 0 && !(app.lineage.runs?.length));
     send.disabled = homeless || arriving || app.overBudget || empty;
     send.classList.toggle("pulse", !app.overBudget && !empty);
     send.classList.toggle("small", app.overBudget || empty);

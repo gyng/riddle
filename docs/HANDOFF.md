@@ -1,3 +1,27 @@
+**CUT45 LEGACY EDITOR VISIBILITY — 2026-10-07:**
+
+Production2-condition fix: simplified first-load main/command hiding only for
+onPackages lineage; legacy/literal wires whose penOpen alreadytrue keep editor
+reachable. Homeless gating independent and unchanged. Current new idle town
+still empty → manual free house → resident/Send, editor/pen remains locked.
+No saves, rules, currency or simulation edits; no Rust/WASM inputs changed.
+
+Original locked-cond19PASS unchanged. Four legacy diagnostics terminal1/1of4:
+patch-overflow now aborts at hidden patch; screens old lanes log/class controls;
+qa9 retired lanes log. /tmp/riddle-cut45-editor.log13.9s. Preserve these failures;
+next inspect actual visible current Chronicle/class/patch controls and maintain
+all original arithmetic, overflow/no silent drop, text/inert/title assertions.
+Current first-plot/town-save39/persistent-camp15each/layout54 all4PASS88.5s;
+/tmp/riddle-cut45-current-home.log terminal0. TS/build/copy1734zero/diffPASS.
+Actual WASM400/1440 opening retains locked editor; explicit legacy fake400/1440
+click Edit displaysrows, completeengineSave unchanged; zeroerrors. Settled
+screens shown, scratchpad/editor-cut45-20261007/results.json and
+/tmp/riddle-cut45-real-settled.log terminal0. Owned5398 closed, shared5219 kept.
+
+Broad91/112 remains latest historical full-client verdict; narrower greens do
+not certify full suite/balance/independent95. Continue current mechanical QA,
+then played immutable-build QA and independent rating. Goal active, no deploy.
+
 **CUT44 CURRENT LEGIBILITY CHECK — 2026-10-07:**
 
 Retired gate aborted at hidden Send before house, baseline terminal1/32.2s.
