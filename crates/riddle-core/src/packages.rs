@@ -1176,6 +1176,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
         drills: p.drills.iter().map(|d| crate::wire::DrillWire { boss: d.boss.clone(), rows: effective_drill_rows(d, heal_pct(&p.stance, p.level(&p.stance))), revoked: d.revoked, scar: p.scar(&d.boss, &l.kills) }).collect(),
         scars: p.meets.iter().filter(|(k, _)| crate::descent::boss_depth(k).is_some()).map(|(k, _)| (k.clone(), p.scar(k, &l.kills))).filter(|(_, s)| *s > 0).collect(),
         pen_open: p.pen_open,
+        pen_needs: crate::systems::pen_needs(l),
         rows,
         literal: p.literal,
     }

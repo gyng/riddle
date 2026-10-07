@@ -1394,3 +1394,26 @@ fn mirror_rhythm_earned_save_keeps_whole_sliced_and_reloaded_catchup_exact() {
         assert_eq!(report,expected);assert!(sliced.save()==whole.save(),"complete saved state/reload{reload}");
     }
 }
+
+/// The explanation follows the same trigger, elapsed age and reveal queue as the unlock.
+#[test]
+fn custom_rule_lock_explanation_matches_core_gate() {
+    let mut g = Game::new_resident(7);
+    let needs = |g: &Game| g.lineage().packages.pen_needs;
+    assert_eq!(needs(&g), ["Meet Bloat Mother", "72h elapsed", "or 120h elapsed"]);
+    g.lineage.pkg.meets.insert("bloat_mother".into(), 1);
+    g.lineage.clock_s = 24 * 3600;
+    assert_eq!(needs(&g), ["72h elapsed", "or 120h elapsed"]);
+    g.lineage.clock_s = 72 * 3600;
+    assert_eq!(needs(&g), ["Upcoming reports"]);
+    g.lineage.pkg.meets.clear();
+    g.lineage.clock_s = 80 * 3600;
+    assert_eq!(needs(&g), ["Meet Bloat Mother", "or 120h elapsed"]);
+    g.lineage.clock_s = 120 * 3600;
+    assert_eq!(needs(&g), ["Upcoming reports"]);
+    g.lineage.pkg.pen_open = true;
+    assert!(needs(&g).is_empty());
+    g.lineage.pkg.pen_open = false;
+    g.lineage.pkg.literal = true;
+    assert!(needs(&g).is_empty());
+}

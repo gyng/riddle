@@ -235,7 +235,13 @@ function rowsFold(app: App, P: Packages): HTMLElement {
   const src = P.rows ?? [];
   const stance = P.all.find((p) => p.id === P.stance)?.name ?? P.stance;
   const label = (i: number): string => src[i]?.label || (P.pen_open ? /* copy:label */ "custom rules" : stance);   // (before the pen no row is the pen's)
-  const list = h("div", { class: "pkg-rows", hidden: true }, ...rows.map((r, i) => {
+  const lock = P.pen_open ? "" : h("div", { class: "pkg-rule-lock" },
+    h("small", { class: "dim" }, /* copy:label */ "Read only"),
+    h("button", { class: "chip mini pkg-pen-lock", onclick: () => openSheet(() => h("div", { class: "pkg-pen-needs" },
+      h("h2", {}, /* copy:label */ "Custom rules"),
+      ...((P.pen_needs?.length ? P.pen_needs : ["Locked"]).map((text) => h("p", {}, text))))) },
+      icon("edit", "✎"), /* copy:button */ "Custom rules", h("small", { class: "dim" }, /* copy:label */ " · locked")));
+  const list = h("div", { class: "pkg-rows", hidden: true }, lock, ...rows.map((r, i) => {
     const s = src[i]?.shadowed_by;
     return h("div", { class: `pkg-row${s !== undefined && s !== null ? " shadowed" : ""}`, "data-i": i },
       h("span", { class: "pkg-row-text num" }, rowLabel(r)), h("small", { class: "pkg-row-src dim" }, s !== undefined && s !== null ? /* copy:callout */ `${label(s)} wins` : label(i)));

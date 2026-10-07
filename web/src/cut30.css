@@ -142,3 +142,6 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .report-supply-limit { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: 100%; margin: 10px 0; }
 .report-supply-limit .ico { flex: none; width: 28px; height: 28px; }
 .report-supply-limit small { font: inherit; }
+
+.pkg-rule-lock { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 6px 2px; }
+.pkg-pen-needs p { margin: 10px 0; }

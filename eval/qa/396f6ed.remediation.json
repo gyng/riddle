@@ -1,8 +1,8 @@
 {
-  "kind": "Coordinator remediation ledger; no scores; QA still in progress",
+  "kind": "Coordinator remediation ledger; no scores; both QA reports filed",
   "qaBuild": "396f6edfd724988eb4641c646d792c96b7c7c68c",
   "repairHead": "8749d4e",
-  "completeQaReports": false,
+  "completeQaReports": true,
   "repairs": [
     {
       "lapse": "Next plot appears inert",
@@ -49,11 +49,29 @@
     "evidenceLog": "/tmp/riddle-portrait-network-restored.log",
     "activeTime": "Infrastructure investigation excluded; original observations retained"
   },
-  "remaining": "Complete both70-minute QA reports and reconcile every lapse, including attempted written-rule editing with no visible lock explanation; preserve initial intermittent client failures. No95 certification or deployment.",
+  "remaining": "Finish rules-lock clarification, reconcile every remaining QA item, run acceptance and freeze repaired build before fresh blind scoring. Preserve original intermittent client failures. No95 certification or deployment.",
   "mechanical": {
     "broad": "120/122 in 1278.5s; fast break assertion and qa21 forecast locator failed; began before Cut97 copy test addition",
     "rechecks": "Unchanged serialized fights/qa21/enemy-tips/captive-fact-copy 4/4 in 203.4s; full fights retains48 checks. Separate qa21 17 checks passes17.3s. No proven root cause for initial intermittent failures.",
     "log": "/tmp/riddle-cut98-full-watch-recheck.log",
     "diagnostic": "8749d4e adds fights:break; same six assertions pass9.5s, no numeric or timeout relaxation"
-  }
+  },
+  "qaReports": [
+    "eval/qa/396f6ed.qa-a.md",
+    "eval/qa/396f6ed.qa-b.md"
+  ],
+  "qaLimitations": "QA-a70+ active minutes estimated, exact stopwatch/tool counts unverified; QA-b conservative70 active minutes, early attribution less precise. Both zero written edits because editor unavailable; older traces and storage reorder incomplete. Reports are lapse evidence, not scoring cards or blanket protocol certification.",
+  "remainingItems": [
+    "Class lock prerequisites missing or token balance insufficiently explanatory (QA-a)",
+    "Tactic unlock says slay Warlord after Warlord slain (both)",
+    "New Scout-enabled bloodline immediately sent before class setup (QA-a)",
+    "Report details collapse when returning from its own death view (QA-a)",
+    "Saved setup fighter label misread as current class (QA-b)",
+    "Legacy versus upgrade-token distinction misread (QA-b)",
+    "Blacksmith gear shortcut misread as worker hire (QA-b)",
+    "Combat damage source/recipient wording ambiguous (QA-b)",
+    "Return meter duration scope unexplained (QA-b)",
+    "Goblin death portrait empty, needs reproduction (QA-b)",
+    "Repeated corridor tactic log crowds meaningful combat events (QA-b)"
+  ]
 }

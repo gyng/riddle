@@ -1,3 +1,41 @@
+**CUT99 RULES LOCK VERIFIED / BOTH QA REPORTS FILED — 2026-10-07:**
+
+Prior turn made concrete progress: Cut98 targeted watch check8749d4e and
+terminal-check ledgerae69232 pushed. Current Cut99 shows Read only and a
+Custom rules lock control only within expanded package rows. Existing centered
+chunky window displays Rust-authored pen_needs; actual trigger/age/readiness
+shared, no TS unlock calculation, no early pen/progression/save change.
+New optional defaulted PackagesWire field, older wire fallback Locked.
+Core685testsPASS/oneignored incl unmet/age/fallback/queued/open/literal paths;
+clippy19115PASS; typesPASS/copy1758zero/diffPASS. Existing package18/pen5 checks
+PASS. Actual lock UI320/400/1440 PASS center/Escape/exactsave/no-visible-editor/
+openpen-nolock. Settled screenshot run60778 PASS7.8s (screen capture overhead);
+scratchpad/qa-cut99-rules-lock/rules-lock-{320,400,1440}.png, phone showninline.
+Fast real WASM21695PASS5519218bytes, webbuild3669PASS. Quick27237 terminalFAIL
+only sandbox native-host helper, allRust testsPASS50.85s; unchanged escalated
+native-host retryPASS2tests. Initial new UI test setup issues recorded inCut99;
+no gate weakened. Current broad acceptance still required before scoring.
+
+Both agents finished and closed ONLY their own drivers5352/5353. Reports:
+eval/qa/396f6ed.qa-a.md (3defect/1misread/4unexplained/1friction),
+eval/qa/396f6ed.qa-b.md (3defect/3misread/6unexplained/1friction).
+QA-a conservatively estimates70+active, exact seconds/toolcounts uninstrumented;
+QA-b credits70conservativeactive with less precise early attribution. Both
+4honestpenattempts/0writtenedits; older traces/storage reorder incomplete.
+Reports are lapse evidence, NOT scores/blanket protocolcertification. Original
+blank portrait observation independently resolved after exactserver restoration.
+Frozen396f6ed:5251 preserved, no scoring cohorts spawned, no deployment.
+
+Remaining QA remediation is tracked in396f6ed.remediation.json: class needs;
+tactic locked after kill with stale slayWarlord trigger; Scout sends newslot
+before setup; reportfold resets after death; savedsetup fighter misread;
+Legacy/token distinction; forge shortcut worker misread; damage source/target;
+return duration scopes; unreproduced emptygoblin portrait; repetitivecorridorlog.
+Next inspect core trigger_now/class availability and repair explanatory copy
+without granting locked content. Then finish other QA lapses, currentmechanical
+acceptance/shipping-WASM frozenlocalbuild, and fresh blind2raters. Goal95active
+and unverified. Do not reuse QA agents as blind scorers.
+
 **CUT98 TARGETED WATCH CHECK VERIFIED — 2026-10-07:**
 
 Cut97 pushed38004cc. Current owned Cut98 extracts the identical boss-break

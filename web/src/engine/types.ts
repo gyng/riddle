@@ -386,7 +386,7 @@ export type RowSource = { label: string; shadowed_by?: number };
  *  the scars (boss → %), the pen (open at the Mother met or a 3-day stall; the editor's rows sit above the packages), and per compiled
  *  row its source. `literal` a harness's lineage (no packages). */
 export type Packages = { all: Package[]; stance: string; tactics?: string[]; tactic_slots?: number; temperament?: string; temperament_open?: boolean;
-  offer?: string[]; drills?: Drill[]; scars?: [string, number][]; pen_open: boolean; rows?: RowSource[]; literal?: boolean };
+  offer?: string[]; drills?: Drill[]; scars?: [string, number][]; pen_open: boolean; pen_needs?: string[]; rows?: RowSource[]; literal?: boolean };
 /** Cut 30 §2 (core) — a package move priced on the paired panel (`packageOptions(sims)`, best first): `action` equip · level, the shares
  *  of the sends that pass the record / reach it / bank / die, and each move against the set as it stands (`Guarded · death −8`). */
 export type PkgOption = { id: string; action: string; slot?: number; price?: number; past: number; bank: number; death: number; reach?: number;

@@ -137,6 +137,26 @@ fn ready(l: &LineageState, s: &SystemDef, plateau: bool, gate: bool) -> bool {
     (triggered(l, s.id, plateau) && age >= s.min_age_h) || (s.fallback_h > 0 && age >= s.fallback_h)
 }
 
+/// Read-only explanation for the pen; shares the actual trigger and readiness checks.
+pub fn pen_needs(l: &LineageState) -> Vec<String> {
+    if l.pkg.pen_open || l.pkg.literal {
+        return Vec::new();
+    }
+    let s = SYSTEMS.iter().find(|s| s.id == "pen").expect("pen system");
+    if ready(l, s, false, true) {
+        return vec!["Upcoming reports".into()];
+    }
+    let mut needs = Vec::new();
+    if !triggered(l, s.id, false) {
+        needs.push("Meet Bloat Mother".into());
+    }
+    if l.age_h() < s.min_age_h {
+        needs.push(format!("{}h elapsed", s.min_age_h));
+    }
+    needs.push(format!("or {}h elapsed", s.fallback_h));
+    needs
+}
+
 /// `update`, the age gates and the reveal budget on (`gate`) or off (an old save's upgrade, a harness).
 /// Cut 30 (PROGRESSION_V2 §4): at most `LineageState::reveal_left` new systems a report — a unit is the
 /// run of systems that share a trigger (the blacksmith's three, the pen's group) — the rest wait in

@@ -1704,6 +1704,9 @@ pub struct PackagesWire {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scars: Vec<(String, u32)>,
     pub pen_open: bool,
+    /// Unmet custom-rule requirements, authored by the core; empty when open.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pen_needs: Vec<String>,
     /// Per row of the compiled set: its package label (`Steady`, `drill · Warlord`, empty for a pen
     /// row) and the row that always pre-empts it when one does (`Guarded wins`), by index.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
