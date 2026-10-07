@@ -1,3 +1,13 @@
+**CUT78 IMMUTABLE BUILD — 2026-10-07:**
+
+Source2270503 pushed. Clean production build PASS, frozen248assets at
+scratchpad/qa-cut78-frozen-2270503/dist with full sha256 manifest; shipping WASM
+exactly matches prior release. Current immutable local preview5244/session19177
+live, HTTP200. Obsolete5242 and mutable5243 previews stopped after verifying
+command line/port/repo cwd; keep current only. Independent agents permission
+still pending; no agents spawned, no deployment or score. Full headless72/120
+remains failing; continue longer QA on current frozen assets. Goal active.
+
 **CUT78 REPORT GOLD CLARITY VERIFIED — 2026-10-07:**
 
 Actual frozen40a19a8 first report ledger87collected+19salvage=106; stored sword
