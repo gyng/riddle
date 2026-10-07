@@ -30,12 +30,12 @@ export function openChronicle(app: App): void {
     const L = app.lineage;
     const others=(L.hero_slots??[]).filter(s=>s.id!==L.selected_bloodline&&(s.chronicle?.length??0)>0);
     const lines = [...(L.chronicle ?? [])].reverse();
-    return h("div", { class: "sheet-body" }, h("div", { class: "label" }, /* copy:label */ "chronicle"), h("div", { class: "chronicle" }, ...others.map(s=>h("section",null,h("b",null,s.name),...(s.chronicle??[]).slice().reverse().map(line=>h("button",{class:"cline",onclick:()=>void app.selectBloodline(s.id).then(ok=>{if(ok)openChronicle(app);})},heroLabel(line))))), ...lines.map((line) => {
+    return h("div", { class: "sheet-body" }, h("div", { class: "label" }, /* copy:label */ "chronicle"), h("div", { class: "chronicle" }, ...others.map(s=>h("section",null,h("b",null,s.name),...(s.chronicle??[]).slice().reverse().map(line=>h("button",{class:"cline game-inset",onclick:()=>void app.selectBloodline(s.id).then(ok=>{if(ok)openChronicle(app);})},heroLabel(line))))), ...lines.map((line) => {
       const heir = Number(/^♟(\d+)/.exec(line)?.[1]);
       const text = heroLabel(line, L.hero_legacy?.find((h) => h.heir === heir));
       const id = keptDeath(L, line);
       if (id === undefined) return h("div", { class: "cline" }, text);
-      return h("button", { class: "cline kept", onclick: () => {
+      return h("button", { class: "cline kept game-inset", onclick: () => {
         void app.busy(/* copy:label */ "verdict", () => app.engine.death(id)).then((death) => { closeAllSheets(); app.go({ kind: "death", death, kept: true }); })
           .catch((e) => console.warn("kept death", e));
       } }, text, h("small", { class: "dim" }, " ▸"));

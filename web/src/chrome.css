@@ -26,20 +26,20 @@ html.skin-panel .ending-body.sheet-body { border: 14px solid transparent;
 .game-window:has(.sheet-back) .sheet-body > .label:first-child { margin-left: 40px; }
 /* All ordinary game controls share a tactile bevel. Gems/studs and map hits
    already have their own packed art; the text combat log keeps basic styling. */
-:is(.sheet-body, .hero-roster, .report-sheet, .death-sheet, .preparation-host) button:is(.chip, .btn, .tab, .hero-details, .hero-expand, .details-fold, .pkg-rows-btn),
-.hero-roster-head .btn, .town-tag[role="button"] { min-height: 44px; border: 2px solid #34415b; border-radius: 2px; padding: 8px 12px;
+:is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .death-sheet, .preparation-host) button:is(.chip, .btn, .card, .tab, .hero-details, .hero-expand, .details-fold, .pkg-rows-btn),
+.game-control, .sheet-body button.game-control, .camp .tabs button.game-control, .hero-roster-head .btn, .town-tag[role="button"] { min-height: 44px; border: 2px solid #34415b; border-radius: 2px; padding: 8px 12px;
   background: linear-gradient(#36445e 0%, #222b40 44%, #161d2d 48%, #1e2638 100%);
   box-shadow: inset 0 2px 0 #8894aa66, inset 2px 0 0 #71819a33, inset 0 -3px 0 #070b16, 0 2px 3px #080b1380;
   color: #eadfc5; font: 600 var(--control-size)/1.25 var(--control-font); letter-spacing: .025em;
   text-shadow: 0 1px 1px #060812; white-space: normal; }
-html.skin-tablet :is(.sheet-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .hero-details, .details-fold, .pkg-rows-btn), html.skin-tablet .town-tag[role="button"] {
+html.skin-tablet :is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .card, .hero-details, .details-fold, .pkg-rows-btn), html.skin-tablet .game-control, html.skin-tablet .sheet-body button.game-control, html.skin-tablet .camp .tabs button.game-control, html.skin-tablet .town-tag[role="button"] {
   border: 8px solid transparent; border-image: url('/ui/frames/tablet.png') 24 fill / 8px stretch; padding: 3px 8px; }
-:is(.sheet-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .hero-details, .details-fold, .pkg-rows-btn):hover:not(:disabled) { filter: brightness(1.15); }
-:is(.sheet-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .hero-details, .details-fold, .pkg-rows-btn):active:not(:disabled) { transform: translateY(1px); filter: brightness(.9); }
-:is(.sheet-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .hero-details, .details-fold, .pkg-rows-btn):focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
-:is(.sheet-body, .hero-roster) button:is(.chip, .btn):disabled { opacity: .62; filter: saturate(.4); }
-:is(.sheet-body, .hero-roster) button:is(.chip, .btn).on { outline: 2px solid var(--gilt); outline-offset: -2px; }
-:is(.sheet-body, .hero-roster) button:is(.danger, .armed) { color: #ffd5cc; box-shadow: inset 0 0 0 2px #a54842, 0 2px 3px #080b1380; }
+:is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .card, .hero-details, .details-fold, .pkg-rows-btn):hover:not(:disabled), .game-control:hover:not(:disabled) { filter: brightness(1.15); }
+:is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .card, .hero-details, .details-fold, .pkg-rows-btn):active:not(:disabled), .game-control:active:not(:disabled) { transform: translateY(1px); filter: brightness(.9); }
+:is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .preparation-host) button:is(.chip, .btn, .card, .hero-details, .details-fold, .pkg-rows-btn):focus-visible, .game-control:focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+:is(.sheet-body, .panel-body, .hero-roster) button:is(.chip, .btn):disabled { opacity: .62; filter: saturate(.4); }
+:is(.sheet-body, .panel-body, .hero-roster) button:is(.chip, .btn).on, .game-control.on { outline: 2px solid var(--gilt); outline-offset: -2px; }
+:is(.sheet-body, .panel-body, .hero-roster) button:is(.danger, .armed) { color: #ffd5cc; box-shadow: inset 0 0 0 2px #a54842, 0 2px 3px #080b1380; }
 /* A common menu scale, regardless of screen or width. */
 html .cmd .tile .tl { font: 600 var(--control-size)/1.15 var(--control-font); letter-spacing: .015em; text-transform: none; white-space: normal; text-align: center; }
 html .cmd .tile { min-width: 0; }
@@ -75,7 +75,7 @@ html.skin-tablet .pkg-panel button.chip.pkg { border: 8px solid transparent; bor
 .pkg-panel .lvl-bar, .hero-sheet .xp-bar { height: 7px; background: #070d19; border: 1px solid #4d5f78; border-radius: 2px; box-shadow: inset 0 1px 2px #000; }
 .pkg-panel .lvl-bar .fill { background: linear-gradient(#f1d794, #b68e3c 55%, #7a5826); box-shadow: inset 0 1px 0 #fff0c8; }
 /* Shared recessed rows: hero gilt, forge bronze, workers blue. */
-.game-window :is(.legacy-upgrade, .kit-slot) { padding: 12px; border: 2px solid #a29375; border-radius: 2px;
+.game-window :is(.legacy-upgrade, .kit-slot, .game-inset) { padding: 12px; border: 2px solid #a29375; border-radius: 2px;
   background: linear-gradient(110deg, #f2e8d0aa, #a7946b33); box-shadow: inset 0 1px 2px #79644955, 0 1px 0 #fff3da88; }
 .game-window .forge .kit-slot { border-color: #94754d; }
 .game-window :is(.legacy-upgrade, .kit-head) b { font: 600 17px/1.25 var(--control-font); }
@@ -88,7 +88,7 @@ html.skin-tablet .pkg-panel button.chip.pkg { border: 8px solid transparent; bor
 .game-window .forge-item .it-ico { min-width: 36px; min-height: 36px; }
 .game-window .settings .srow { padding: 8px 0; border-bottom: 1px solid #99876755; gap: 10px; }
 .game-window .settings .srow .label { font: 600 14px/1.25 var(--control-font); letter-spacing: .04em; margin: 0; }
-.game-window .ta { font: 400 13px/1.4 var(--body-font); border: 3px solid #6d6d66; border-radius: 2px; background: #161e2d;
+.sheet-body :is(.ta, .name-input) { font: 400 13px/1.4 var(--body-font); border: 3px solid #6d6d66; border-radius: 2px; background: #161e2d;
   box-shadow: inset 0 3px 8px #030711; color: var(--bone); }
 .game-window details > summary { cursor: pointer; min-height: 44px; padding: 12px 0; font: 600 14px/1.3 var(--control-font); color: #33425d; }
 .hero-roster .hero-row { border: 3px ridge #596173; border-radius: 2px; box-shadow: inset 0 1px 0 #8892a466, inset 0 -3px 0 #080910, 0 3px 6px #0006; }
@@ -227,3 +227,33 @@ html.skin-button .camp-run-details > summary.btn { border: solid transparent; bo
 .game-window .hero-menu-presence[data-activity="combat"] { color: #8b3e2b; }
 .game-window .hero-menu-presence[data-activity="returning"] { color: #72521e; }
 .hero-sheet .hero-actions { margin-bottom: 16px; }
+
+/* Audited omissions use the same control/row materials as other management UI. */
+.game-window .runs-sheet .log-tab.game-control { color: #eadfc5; font-variant-caps: normal; text-transform: none; letter-spacing: .025em; }
+.game-window .runs-sheet .log-tab.game-control.on { color: #f2d6a0; }
+.game-window .runs-sheet .runs-fold.game-control { display: flex; width: 100%; text-align: left; }
+.game-window .runs-sheet .game-control .dim, .game-window .runs-sheet .game-control .rf-car { color: #bdc5d5; }
+.game-window .runs-sheet .runs-fold.game-control .gold { color: #e6c581; }
+.game-window .chronicle .game-inset { margin: 6px 0; padding: 10px; min-height: 44px; }
+.game-window .chronicle button.game-inset:hover { background: #f4e8cd; }
+.game-window .chronicle button.game-inset:focus-visible { outline: 2px solid #76591e; outline-offset: 2px; }
+.game-window .runs-sheet .re-play.game-control { min-width: 44px; min-height: 44px; width: auto; height: auto; }
+.look-sheet .looks { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; }
+.look-sheet .look.game-control { min-width: 0; color: #eadfc5; }
+.look-sheet .look.game-control .look-well { width: min(72px,100%); height: auto; aspect-ratio: 1; flex: none; }
+.look-sheet .look.game-control .look-name { color: #eadfc5; font: 600 14px/1.25 var(--control-font); opacity: 1; }
+.look-sheet .look.game-control.on .look-name { color: #f2d6a0; }
+.sheet-body .name-input { font-size: 16px; }
+.camp .tabs { flex-wrap: wrap; }
+.camp .tabs .game-control { min-width: 44px; max-width: 100%; }
+.camp .tabs .game-control small { color: #bdc5d5; }
+
+/* Anchored inventory windows share command materials and sit above map labels. */
+.camp .panel-host { z-index: 6; }
+.panel .panel-body > section > .label:first-child { display: flex; align-items: center; gap: 6px; min-height: 44px; margin: 0 0 12px; padding: 2px 8px;
+  border: 8px solid transparent; border-image: url('/ui/frames/tablet.png') 24 fill / 8px stretch;
+  color: #eadfc5; font: 600 20px/1.2 var(--display); text-shadow: 0 1px 2px #070a12; letter-spacing: .025em; }
+.panel .panel-body > section > .label:first-child .dim { color: #bdc5d5; }
+.panel-body button.chip .item-name, .panel-body .packed .item-name { color: var(--r-lit); }
+.panel-body button:is(.chip, .card) .dim, .panel-body .packed .dim, .panel-body .packed .x { color: #bdc5d5; }
+.panel-body button:is(.chip, .card) .gold { color: #e6c581; }

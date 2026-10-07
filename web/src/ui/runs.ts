@@ -56,8 +56,8 @@ export function openRuns(app: App, opts: { focus?: number; tab?: "runs" | "heirs
     if (opts.focus !== undefined) { const g = groups.find((x) => x.recs.some((r) => r.id === opts.focus)); if (g) open.add(g.key); }
     const list = h("div", { class: "runs-list" });
     const count = h("span", { class: "num dim runs-count" });
-    const tabRuns = h("button", { class: "log-tab", "data-tab": "runs", onclick: () => { tab = "runs"; paint(); } }, /* copy:button */ "runs", count);
-    const tabHeirs = h("button", { class: "log-tab", "data-tab": "heirs", onclick: () => { tab = "heirs"; paint(); } }, /* copy:button */ "heirs");
+    const tabRuns = h("button", { class: "log-tab game-control", "data-tab": "runs", onclick: () => { tab = "runs"; paint(); } }, /* copy:button */ "runs", count);
+    const tabHeirs = h("button", { class: "log-tab game-control", "data-tab": "heirs", onclick: () => { tab = "heirs"; paint(); } }, /* copy:button */ "heirs");
     const paint = (): void => {
       tabRuns.classList.toggle("on", tab === "runs"); tabHeirs.classList.toggle("on", tab === "heirs");
       tabRuns.setAttribute("aria-pressed", String(tab === "runs")); tabHeirs.setAttribute("aria-pressed", String(tab === "heirs"));
@@ -71,7 +71,7 @@ export function openRuns(app: App, opts: { focus?: number; tab?: "runs" | "heirs
         const best = Math.max(0, ...g.recs.map((r) => r.depth)), gold = g.recs.reduce((a, r) => a + r.gold, 0);
         const newBest = g.recs.some((r) => r.best);
         const end = g.recs[0];
-        const head = h("button", { class: `runs-fold${on ? " on" : ""}`, "data-fold": g.key, "data-via": g.via, "data-n": n, "aria-expanded": on ? "true" : "false", onclick: () => { if (on) open.delete(g.key); else open.add(g.key); paint(); } },
+        const head = h("button", { class: `runs-fold game-control${on ? " on" : ""}`, "data-fold": g.key, "data-via": g.via, "data-n": n, "aria-expanded": on ? "true" : "false", onclick: () => { if (on) open.delete(g.key); else open.add(g.key); paint(); } },
           h("span", { class: "rf-car", "aria-hidden": "true" }, on ? "▾" : "▸"),
           kwHost(h("b", { class: "rf-w" }, g.via === "away" ? /* copy:label */ "away" : /* copy:label */ "here"), g.via === "away" ? "away" : "live"),
           h("span", { class: "num rf-n" }, /* copy:label */ ` · ${n} runs`),
@@ -97,7 +97,7 @@ function heirLines(app: App, close: () => void): HTMLElement[] {
   return [h("div", { class: "chronicle" }, ...lines.map((line) => {
     const id = keptDeath(L, line);
     if (id === undefined) return h("div", { class: "cline" }, line);
-    return h("button", { class: "cline kept", onclick: () => {
+    return h("button", { class: "cline kept game-inset", onclick: () => {
       void app.busy(/* copy:label */ "verdict", () => app.engine.death(id)).then((death) => { close(); closeAllSheets(); app.go({ kind: "death", death, kept: true }); })
         .catch((e) => console.warn("kept death", e));
     } }, line, h("small", { class: "dim" }, " ▸"));
@@ -124,7 +124,7 @@ function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () =
         void app.busy(/* copy:label */ "verdict", () => app.engine.death(r.death_id!)).then((death) => { close(); closeAllSheets(); app.go({ kind: "death", death, kept: true }); }).catch((e) => console.warn("run verdict", e));
       } }, top, sub)
     : h("button", { class: "re-body", "data-card": r.id, onclick: () => openRunCard(app, r) }, top, sub);   // run-clear: the run's card
-  const play = replay ? kwHost(h("button", { class: "re-play", "data-run": r.id, "aria-label": /* copy:label */ "replay", onclick: () => void openRunReplay(app, r) }, "▶"), "replay") : "";
+  const play = replay ? kwHost(h("button", { class: "re-play game-control", "data-run": r.id, "aria-label": /* copy:label */ "replay", onclick: () => void openRunReplay(app, r) }, "▶"), "replay") : "";
   return h("div", { class: `run-entry${fresh ? " fresh" : ""}`, "data-run": r.id, "data-tier": r.tier, "data-via": r.via }, body, play);
 }
 

@@ -1,3 +1,31 @@
+**CUT50 CHUNKY UI AUDIT — 2026-10-07:**
+
+User audit implemented across actual earned11 management windows×400/1440 plus
+Supplies/Stored Gear anchored panels×400/1440:26views nooverflow/errors, full
+save unchanged by inspection. Shared .game-control/.game-inset recipes extend
+existing tablet/parchment material; no new art. Runs tabs/folds/replay controls,
+Chronicle actionable rows, centered Appearance choices/rename, recessed inputs,
+framed inventory buttons/titleplates/lit rarity labels. panel-host z6 nowabove
+maptagsz3/edgeoverlayz5; previouslylabels paintedover inventory. All handlers/
+labels/save semantics retained. Unbuilt Companions source-reviewed; attempted
+command timeout retained, not claimed earned. Keep silhouettes unboxed, plain
+combat log, gems/studs/map hits/chart/token exceptions.
+
+Actual320/400/1440 tabs/fold close/reopen,44px framedcontrols, Appearance/current
+parent return/read-only save, Enter rename→actualRustname/unchangedrows→reload
+PASS. Final5/5 chunky-controls/chrome184/appearance/class-switch/item-icons114
+PASS31.2s; final tiny card material mapping checked bybuild/screens. Current
+screens shown, scratchpad/chunky-cut50/reviewed{,-panels}; reviewed log terminal0
+andpanels errors[]/save true bothwidths. TS/build/copy1739zero/diffPASS, noRust/
+WASM changes/deploy. EarlierCSSspecificityfailure fixed, unsettledappearance
+rectangle fixedbywaitinganimation (unchanged44pxthreshold), chromeHUDresize
+failure raw retained/finalpass, HMRintermediateauditfailed/freshfinalpass.
+
+See CUT50_CHUNKY_AUDIT.md and UI_MATERIALS.md for shared recipes/coverage boundaries.
+Owned5409–5415 servers closed; shared5219 kept. Remaining hidden-state/broad QA
+and independent95 are notcertified. Next focus fresh played gameplay/content,
+remaining retired screens/qa9 entrypoints; standingpush approval, NOdeploy.
+
 **CUT49 HERO MENU SUMMARY — 2026-10-07:**
 
 Continued home polish: Hero level/XP prominent and distinct from class training

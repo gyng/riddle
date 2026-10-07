@@ -5,7 +5,7 @@ import type { App } from "../app";
 import { LOOKS, setHeroLook } from "../render/look";
 import { h } from "./dom";
 import { paintFace } from "./frame";
-import { openSheet } from "./sheet";
+import { openWindow as openSheet } from "./sheet";
 
 /** The renderer's hero follows the lineage's look (called before a viewer loads, and on every portrait paint). */
 export function syncLook(app: App): void { setHeroLook(app.lineage.look); }
@@ -25,7 +25,7 @@ export function openLooks(app: App): void {
       const face = h("span", { class: "face" });
       paintFace(face, cls, 72, look);
       const on = look === app.lineage.look;
-      return h("button", { class: `look${on ? " on" : ""}`, "data-look": look, "aria-pressed": on ? "true" : "false",
+      return h("button", { class: `look game-control${on ? " on" : ""}`, "data-look": look, "aria-pressed": on ? "true" : "false",
         onclick: async () => { if (!on && await app.setLook(look)) syncLook(app); close(); } },
         h("span", { class: "look-well" }, face), h("span", { class: "look-name" }, look));
     }));

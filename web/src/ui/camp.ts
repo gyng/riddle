@@ -39,7 +39,7 @@ import { salvageValue } from "./salvage";
 import { CLASS_VERBS } from "../engine/classes";
 import { classSkillChip } from "./class-skills";
 import { isFreeSupply, ownRowCount, setRefRows } from "./tokens";
-import { closeAllSheets, openSheet, setPanelEscape } from "./sheet";
+import { closeAllSheets, openSheet, openWindow, setPanelEscape } from "./sheet";
 import { AUTO, autoDismiss } from "./autodismiss";
 import { setBusyHost } from "./progress";
 import { icon } from "./skin";
@@ -417,17 +417,17 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     const setsShown = revealed(app).has("heirs") || app.active !== 0;
     tabs.hidden = !canReturn && !setsShown;
     if (tabs.hidden) return;
-    if (canReturn) tabs.appendChild(h("button", { class: "chip hero-return", onclick: () => { app.editing = false; editor.refresh(); paintTiles(); } }, /* copy:button */ "Heroes"));
+    if (canReturn) tabs.appendChild(h("button", { class: "chip hero-return game-control", onclick: () => { app.editing = false; editor.refresh(); paintTiles(); } }, /* copy:button */ "Heroes"));
     if (!setsShown) return;
     app.sets.forEach((s, i) => {
       const named = !!(s.name ?? "").trim();
-      tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },
+      tabs.appendChild(h("button", { class: `tab num game-control${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },
         named ? setName(s, i) : /* copy:label */ `set ${i + 1}`, h("small", { class: "dim" }, ownRowCount(s.rows) ? /* copy:callout */ ` · ${ownRowCount(s.rows)} rules` : "")));   // `fighter · 3` like `set 2 · 0` (QA on 56f2a1d: `fighter 3` read as a hero number); own rows, the editor's `6/6` (QA on 3d71c33: `fighter · 8` beside `6/6 · 3 cards`)
-      if (i === app.active) tabs.appendChild(h("button", { class: "tab edit", "aria-label": "rename", onclick: () => renameSet(i) }, /* copy:button */ "rename"));
+      if (i === app.active) tabs.appendChild(h("button", { class: "tab edit game-control", "aria-label": "rename", onclick: () => renameSet(i) }, /* copy:button */ "rename"));
     });
   }
   function renameSet(i: number): void {
-    openSheet((close) => {
+    openWindow((close) => {
       const input = h("input", { class: "name-input", type: "text", maxlength: SET_NAME_MAX, autocomplete: "off", spellcheck: "false", value: app.sets[i].name ?? "", placeholder: `${i + 1}` });
       const commit = (): void => { app.renameSet(i, input.value); close(); };
       input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); commit(); } });
