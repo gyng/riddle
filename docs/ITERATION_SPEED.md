@@ -1,3 +1,17 @@
+**HEADLESS RESOURCE FAILURE DIAGNOSIS — 2026-10-07:**
+
+Chromium ERR_INSUFFICIENT_RESOURCES/Target crashed was reproducible in Cut13
+alone as well as alongside screen lint. Memory and descriptors were modest;
+request probe peak61, so browser-pool width alone did not solve it. Check
+`df -h /tmp` before repeating failed long browser suites: WSL filesystem had
+593MB available/100%. Freed only disposable Riddle Rust caches after checking
+no compiler was active: old target/debug/incremental, /tmp/riddle-root-target,
+and target subdirectories in drill-priority and master-sustain experiments.
+Preserved source, saves, QA artifacts and active fast cache. Available space
+rose to9.8GB; same headless screens/Cut13/hero-presence then passed together
+58.2s (58/77/48 checks respectively). Full-suite rerun111/120 in635.1s; prior resource failures gone but9
+remaining assertion/locator failures require targeted work. Not a green suite. No blanket /tmp cleanup.
+
 **TARGETED CLASS PACING CHECK — 2026-10-07:** class_campaign reuses public
 earned camps for Fighter/Rogue/Ranger/Caster, with legal prerequisite waiting,
 paid eight-hour preparation, played depth/mastery/clear observations and saved

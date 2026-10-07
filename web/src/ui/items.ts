@@ -23,7 +23,7 @@ const FAMILY: [RegExp, string, string][] = /* copy:none */ [
   [/^bones$/, "bones", "☠"],
   [/^trap$/, "trap", "⚙"],
 ];
-const iconKind = (kind: string): string => kind.toLowerCase().replace(/\s*\(\d+\)$/, "").replace(/\s*\+\d+$/, "").replace(/\?$/, "").trim().replace(/ /g, "_");
+const iconKind = (kind: string): string => kind.toLowerCase().replace(/\s*\(\d+\)$/, "").replace(/\s*\+\d+$/, "").replace(/\?$/, "").trim().replace(/ /g, "_").replace(/^pack_\d+$/, "pack");
 const familyOf = (kind: string): [string, string] => {
   const k = iconKind(kind);
   if (/(?:^|_)potion$/.test(k)) return ["potion", "⚗"];

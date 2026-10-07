@@ -13,13 +13,13 @@ check(/Record.*floor 20/.test(document.querySelector('.plateau-title').textConte
 check(/Recent best.*floor 13/.test(document.querySelector('.plateau-summary').textContent),'recent window distinct from record');
 check(!/no deeper runs|Returned home/.test(document.querySelector('.plateau-summary').textContent),'no whole-absence claim despite earlier record/death');
 check(document.querySelector('.stall > .label').textContent==='Recent runs','recent scope explicit');
-check(document.querySelector('.stall-line').textContent.includes('Collected gold · 4 runs, none beyond floor 13'),'exact bank count/floor');
+check(document.querySelector('.stall-line').textContent.includes('Recent full hauls · 4 runs, none beyond floor 13'),'exact bank count/floor and recent scope');
 check(document.querySelector('.patch-action').textContent==='Target the boss'&&document.querySelector('.patch-condition').textContent==='Boss in sight','boss action and condition plain');
 check(document.querySelector('.stall .patch .surv').textContent==='reach D14 50% · was 35%','paired forecast target and numbers retained');
 check(document.documentElement.scrollWidth<=innerWidth,'distinct-floor view fits');
 show('R2 return ended 3 runs, 2 before; none past D6',[],{lead:[{k:'plateau',text:'plateau: none past D6'}]});
 check(/Record.*floor 6/.test(document.querySelector('.plateau-title').textContent)&&/Recent best.*floor 6/.test(document.querySelector('.plateau-summary').textContent),'equal floors retain separate scopes');
-check(document.querySelector('.stall-line').textContent.includes('Returned home · 3 runs, 2 earlier; none beyond floor 6'),'mixed current/earlier counts intact');
+check(document.querySelector('.stall-line').textContent.includes('Recent returns · 3 runs, 2 earlier; none beyond floor 6'),'mixed current/earlier counts and recent scope intact');
 show('R2 return ended 5 earlier runs, none past D6',[]);check(document.querySelector('.stall-line').textContent.includes('5 earlier runs'),'earlier-only count intact');
 show('R3 wait ended 4 runs, none past D6',[]);check(document.querySelector('.stall-line').textContent.includes('Rule 3: wait ended 4 runs'),'unknown verb fallback intact');
 show('old plateau note',[]);check(!document.querySelector('.plateau-summary')&&document.querySelector('.stall-line').textContent.includes('old plateau note'),'legacy unknown depth never fabricated');

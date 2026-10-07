@@ -1,6 +1,6 @@
 import {execFileSync} from 'node:child_process';import {launchBrowser} from '../../tools/browser.mjs';
 const url=execFileSync('bash',['tools/dev.sh'],{cwd:new URL('../../',import.meta.url),encoding:'utf8'}).trim(),b=await launchBrowser();
-try{for(const width of [400,1440]){const p=await b.newPage({viewport:{width,height:900}});await p.goto(`${url}?engine=fake&fresh=1&seed=3002&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);const n=await p.evaluate(async()=>{
+try{for(const width of [320,400,1440]){const p=await b.newPage({viewport:{width,height:900}});await p.goto(`${url}?engine=fake&fresh=1&seed=3002&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);const n=await p.evaluate(async()=>{
  const {deathAction}=await import('/src/ui/death.ts'),{rowChips}=await import('/src/ui/editor.ts'),{closeAllSheets}=await import('/src/ui/sheet.ts');let checks=0;const check=(ok,name)=>{if(!ok)throw Error(name);checks++;};
  const rows=[{conds:[{k:'foes>=',n:1}],verb:{v:'attack',a:'nearest'},origin:'stance:steady'},{conds:[{k:'hp<',n:30}],verb:{v:'drink',a:'heal'},origin:'stance:steady'}];
  const turn=(row,verb=rows[0].verb)=>({t:10,row,verb,hp:2,foes:1,telegraphs:[]});
@@ -15,6 +15,8 @@ try{for(const width of [400,1440]){const p=await b.newPage({viewport:{width,heig
  check(deathAction({...base,package:undefined})==='','no unsolicited package attribution');
  const a=window.__riddle;a.lineage.packages.pen_open=false;a.sets[a.active]={rows:[{conds:[],verb:{v:'return'}}]};check(a.rules.rows[0].verb.v==='return','camp rules really edited');a.go({kind:'death',death:base,kept:true});
  check(document.querySelector('.death-why').textContent==='Steady · attack nearest','historical death rules win over edited camp rules');
+ check(!document.querySelector('.death .console .tile.empty'),'death commands have no empty slots');
+ for(const button of document.querySelectorAll('.death .console .cmd button')){const label=button.querySelector('.tl'),box=button.getBoundingClientRect();check(label.scrollWidth<=label.clientWidth,'death navigation label fits');check(box.width>=44&&box.height>=44,'death navigation tap target');}
  const image=document.querySelector('.death-lever .item-pic');await image.decode();check(image.src.endsWith('/it_sword.png'),'recommendation uses sword silhouette');const icon=image.parentElement;check(getComputedStyle(icon).boxShadow==='none'&&getComputedStyle(icon).backgroundImage==='none','recommendation silhouette unframed');
  document.querySelector('.death-lever').click();check(!!document.querySelector('.sheet .forge'),'spend still opens Forge');closeAllSheets();
  const go=a.go.bind(a),mutate=a.mutate.bind(a),equip=a.engine.equipPackage,calls=[],dest=[];a.go=s=>dest.push(s.kind);a.mutate=async fn=>fn();a.engine.equipPackage=async(id,slot)=>{calls.push([id,slot]);return a.lineage;};

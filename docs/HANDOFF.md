@@ -1,3 +1,43 @@
+**CUT83/84 / FULL HEADLESS RESOURCE RECOVERY — 2026-10-07:**
+
+Previous goal turn made verified progress: Cut82 committed/pushed d1a3321.
+This turn completed actual20m/4h/8h absence series and3death reads on unchanged
+2270503 baseline, but active cold/return minutes and independent score remain
+unverified. Current original driver5351/session75328 on baseline5244; Tactics
+window open after buying fire26/heal26. Gold4474, Legacy4, marks54, bestD13.
+Latest earned snapshot checkpoint-after-8h-recovery-tree.json before supplies.
+Actual current HeroNiallL4 XP849/1600; Health3/Damage3/Armour2/Restoration1,
+kite archers1/Guarded2. Apprentice600 hired, Storehouse manually builtfree.
+One upgraded actual run returnedD13 (413gold/+138XP/+1Legacy), Bloat Mother
+still blocking. Fire supply says no row under current tactics; further public
+choice/unused-item wording audit remains. No grants/edited earned save.
+
+Cut83 numbered pack labels use existing loadout artwork. Existing catalogue
+suite117checks per320/400/1440 +missing-art fallback PASS12.9s. Cut84 death
+uses existing compact console: no4empty cells/report ellipsis. Death actions
+25checks per320/400/1440 PASS3.5s. Actual earned ogre death render-only clones
+all3sizes: same engine save, no empty slots, report/town fit, >=44px targets,
+no horizontal overflow; screenshot400shown. Export wrapper string comparison
+was false because last_seen Date.now changes; corrected engine.save comparison
+is true. Current5219 dev build label is staleOct5, so freeze a fresh build for
+future cohort. Old original played2270503 remains deliberately unchanged.
+
+Headless resource failures reproduced even alone. Requestpeak61/total~832,
+modest memory/fds; WSL/tmp filesystem was100%/593MBfree. Removed only generated
+Rust caches after confirming no compiler active: debug/incremental, temporary
+riddle-root-target, drill-priority/target and master-sustain/target. Preserved
+sources/saves/screenshots/activefastcache;9.8GBfree after. Same headless screens,
+Cut13,hero-presence3/3PASS58.2s. Full headless rerun111/120 in635.1s, zero prior
+resource crash pattern; not green. Log/tmp/riddle-cut84-client-full.log.
+Remaining failures: clarity core/watch, chrome, cut22, cut30, cut29, cut28w,
+legacy-tree,recent-progress,runsui. Quiet chrome184PASS26.8s; recent-progress
+old wording assertion aligned with precommitted Cut77 exact Recent full hauls/
+returns (all numeric tests retained),20checks per3sizesPASS3.1s. Cut30packages
+stillFAIL13.3s waiting for prices: likely comparison selection/hidden pending
+state; investigate actual DOM rather than relaxing. Quiet log
+/tmp/riddle-cut84-quiet-rechecks.log. Other failures still require targeted work.
+Type/copy/build/diff checks and commit/push next. No deployment/95score/agents.
+
 **FOCUS ISOLATION RECHECK / CUT82 — 2026-10-07:**
 
 User requested status on browser focus stealing. Shared launcher remains intact:

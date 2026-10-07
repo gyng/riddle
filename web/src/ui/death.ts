@@ -287,7 +287,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" ? h("small", { class: "gem-w" }, top.btn.classList.contains("harms") ? /* copy:label */ "risky" : /* copy:label */ "apply") : ""), cls: `patch-gem${top.btn.classList.contains("harms") ? " harms" : ""}`, pulse: !top.btn.classList.contains("harms"), onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
     : gem({ label: /* copy:button */ "town", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   let gemBtn = makeGem();
-  const cons = renderConsole({ portrait: face.el, gem: gemBtn, tiles: [
+  const cons = renderConsole({ portrait: face.el, gem: gemBtn, compact: true, tiles: [
     top && !prePen ? tile({ id: "edit", label: /* copy:button */ "edit", icon: "edit", onclick: () => { app.editing = true; app.go({ kind: "camp" }); } }) : null,
     // QA 308f045 (qaAD: a verdict opened from the return report had no way back — `edit · morgue · camp`, browser back to the camp): a
     // verdict opened from a report leads back to it

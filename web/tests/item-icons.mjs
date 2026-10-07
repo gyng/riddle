@@ -16,6 +16,7 @@ try{for(const width of [320,400,1440]){
   for(const [kind,id] of [['gold','gold'],['bones','it_bones'],['trap','it_trap']])check(iconId(kind)===id,`missing silhouette covered ${kind}`);
   for(const [label,family] of [['blue potion?','potion'],['brittle scroll?','scroll'],['summon ally scroll','scroll']])check(iconId(label)===`it_${family}`,`visible family only ${label}`);
   check(iconId('sword +2')==='it_sword','enchanted gear keeps icon');
+  for(const label of ['pack','pack 4','pack 12'])check(iconId(label)==='loadout',`pack capacity keeps silhouette ${label}`);
   for(const rarity of ['common','uncommon','rare','epic','legendary']){const el=itemIcon({kind:'sword',label:'sword',rarity});document.body.append(el);const style=getComputedStyle(el);check(style.boxShadow==='none'&&style.backgroundImage==='none'&&style.outlineStyle==='none',`${rarity} silhouette has no box`);el.remove();}
 
   const read=rowChips({conds:[{k:'item',t:'teleport'}],verb:{v:'read',a:'teleport'}});check(read.querySelectorAll('.item-ico').length===2,'rule item condition/action icons');
