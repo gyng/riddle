@@ -168,7 +168,7 @@ try {
       exits: [...document.querySelectorAll(".report .exit-lines .ledger-line")].map((l) => l.textContent.replace(/\s+/g, " ").trim()),
       lost: document.querySelector(".report .chip.egg")?.textContent.replace(/\s+/g, " ").trim(),
     }));
-    check(rep.labels.join(" ") === "runs deepest Gold home" && rep.values.join(' ') === '14 D8 $145', `simple report keeps its order and earned values: ${rep.labels.join(" · ")} (${rep.values.join(' · ')})`);
+    check(rep.labels.join(" ") === "runs deepest Gold earned" && rep.values.join(' ') === '14 D8 $145', `simple report keeps its order and earned values: ${rep.labels.join(" · ")} (${rep.values.join(' · ')})`);
     check(rep.details.join(' ') === 'runs deepest upgrade tokens full haul runs returned deaths', `detail tiles retain their stable order: ${rep.details.join(' · ')}`);
     // QA 23ed91f: the run rows read newest first (the gold sheet's order), so the later bank leads
     check(rep.exits[1]?.startsWith("returned $61 · $102 carried") && rep.exits[0]?.startsWith("full haul $84 · $84 carried"), `exit lines lead with the tier and the sum, newest first: "${rep.exits[0]}" · "${rep.exits[1]}"`);
@@ -177,11 +177,11 @@ try {
     await page.evaluate((b) => { const r = window.__riddle; b.live = r.lineage.live ?? null; r.go({ kind: "report", report: { ...b, banked: 3, returned: 1 } }); }, base);
     await sleep(200);
     const rep2 = await page.evaluate(() => ({ labels: [...document.querySelectorAll(".report .report-basics .tile .label")].map((l) => l.textContent.trim()), fade: document.querySelector(".report .report-basics")?.classList.contains("fade-in") }));
-    check(rep2.labels.join(" ") === "runs deepest Gold home" && rep2.fade === false, `the same order when full hauls lead; a watched run's tiles do not fade (${rep2.labels.join(" · ")})`);
+    check(rep2.labels.join(" ") === "runs deepest Gold earned" && rep2.fade === false, `the same order when full hauls lead; a watched run's tiles do not fade (${rep2.labels.join(" · ")})`);
     await page.emulateMedia({reducedMotion:'reduce'});
     await page.evaluate(b=>{window.__riddle.go({kind:'report',report:{...b,deepest:undefined},absence:true});document.documentElement.dataset.juice='off';},base);
     const legacy = await page.evaluate(()=>({labels:[...document.querySelectorAll('.report-basics .label')].map(l=>l.textContent.trim()),animation:getComputedStyle(document.querySelector('.report-basics')).animationName}));
-    check(legacy.labels.join(' ')==='runs record Gold home'&&legacy.animation==='none','old reports label historical depth Record; reduced motion disables entry animation');
+    check(legacy.labels.join(' ')==='runs record Gold earned'&&legacy.animation==='none','old reports label historical depth Record; reduced motion disables entry animation');
     await page.emulateMedia({reducedMotion:'no-preference'});
   }
   // Cut 14 §4: a repeated chore callout coalesces on its line — `pick up ×8` — instead of eight `pick up` reads (the fake emits

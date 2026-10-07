@@ -1,3 +1,21 @@
+**CUT78 REPORT GOLD CLARITY VERIFIED — 2026-10-07:**
+
+Actual frozen40a19a8 first report ledger87collected+19salvage=106; stored sword
+and sold sword separate, no accounting defect. Cut78 summary Gold earned now
+includes coins+sales before spending, excludes heir grants/current balance;
+native button opens existing ledger, rich tooltip names components. No core/
+wire/save mutation. Test320/400/1440 supply+gold exact/old-wire/zero/pointer/
+keyboard/save PASS16.2s; clarity core26PASS16.4s; hero19/action16PASS; QA92report
+8PASS6.4s after Cut77 Recent full hauls expectation migration (same13/floor6).
+Initial fixture invalid exits lacked text; corrected complete records pass.
+TS/copy1746zero/build/diffPASS. Actual earned opening/scout/8h walk35.3s PASS;
+settled capture37.0s PASS/0errors, header and tile106 screenshot shown. All
+headed browsers private WSL GPU display; no focus stealing or deployment.
+Artifacts scratchpad/qa-cut78-gold/settled; /tmp/riddle-cut78-*logs. Independent
+agent QA/rater permission requested asynchronously, no answer/agents yet. Full
+headless72/120 still failing; no independent95score; goal active. Next clean
+frozen Cut78 assets and longer QA, preserve explicit runs=1 on every navigation.
+
 **CUT77 FROZEN CANDIDATE VERIFIED — 2026-10-07:**
 
 Source40a19a8 pushed; immutable248asset candidate at

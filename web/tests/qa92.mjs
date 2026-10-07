@@ -254,7 +254,7 @@ try {
     await go({ kind: "report", report: { ...base, banked: b, returned: rt } }); await waitFor((s) => s?.screen === "report", "report"); await sleep(250);
     tileOrder.push((await text(".report .tiles .tile .label")).join(" "));
   }
-  check(tileOrder.every((t) => t === "runs deepest Gold home runs deepest upgrade tokens full haul runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
+  check(tileOrder.every((t) => t === "runs deepest Gold earned runs deepest upgrade tokens full haul runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
   const rep = await page.evaluate(() => {
     const sec = (l) => [...document.querySelectorAll(".report .rsec")].find((x) => new RegExp(l, "i").test(x.querySelector(".label")?.textContent ?? ""));
     return { pending: [...(sec("pending")?.querySelectorAll("li") ?? [])].map((l) => l.textContent), items: [...(sec("learned")?.querySelectorAll(".chips.items .chip") ?? [])].map((c) => c.textContent),
@@ -271,7 +271,7 @@ try {
       separate: news.every((n, i) => !i || n.getBoundingClientRect().top >= news[i - 1].getBoundingClientRect().bottom) };
   });
   check(/Record.*floor 6/.test(plateau.title ?? "") && /Recent best.*floor 6/.test(plateau.summary ?? ""), "historical record and recent ceiling have separate labels");
-  check(/Collected gold · 13 runs, none beyond floor 6/.test(plateau.explanation ?? "") && plateau.separate, "the recent outcome is readable and unrelated news stays on separate rows");
+  check(/Recent full hauls · 13 runs, none beyond floor 6/.test(plateau.explanation ?? "") && plateau.separate, "the recent outcome is readable and unrelated news stays on separate rows");
   check((await text(".counter-learned")).join() === "Warlord weakness learned" && (await text(".counter-action")).join() === "Target the boss · bypass shields", "the learned Warlord weakness explains the action and what it beats without counter jargon");
   await shot("qa92-report");
 

@@ -42,7 +42,7 @@ import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one co
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 import { progressGoal, progressGoalRow } from "./progress-goal";
-import { kwHost, kwText } from "./tips";
+import { kwHost, kwText, detailHost } from "./tips";
 import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
 import { mountClear } from "./runclear";   // run-clear: the run's card before the town
 import { itemIcon, itemName, itemChip } from "./items";
@@ -566,12 +566,20 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   };
   const learnedFacts = r.learned.filter((f) => !/^bones:\d+$/.test(f));
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
+  const runGold = r.gold?.home ?? (r.exits ?? []).reduce((n, x) => n + x.kept, 0);
+  const lootGold = r.gold?.salvage ?? (r.salvaged ?? []).reduce((n, x) => n + x.gold, 0);
+  const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", onclick: () => openGoldSheet(app) },
+    icon("gold"), h("b", { class: "num" }, `$${runGold + lootGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned")), () => [
+      h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
+      h("div", { class: "num" }, /* copy:label */ "Run gold", ` · $${runGold}`),
+      h("div", { class: "num" }, /* copy:label */ "Loot sold", ` · $${lootGold}`),
+      h("div", { class: "kw-tip-gloss" }, /* copy:tooltip */ "Before spending; excludes heir grants")]);
   const summary = h("div", { class: "report-summary" },
     h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended"),
     h("div", { class: `tiles report-basics${absence ? " fade-in" : ""}` },
       toLog(tile(String(r.runs), /* copy:label */ "runs")),
       tile(`D${r.deepest ?? L.best_depth}`, r.deepest !== undefined ? /* copy:label */ "deepest" : /* copy:label */ "record"),
-      h("div", { class: "tile plaque", "data-k": "gold" }, icon("gold"), h("b", { class: "num" }, `$${r.gold?.home ?? (r.exits ?? []).reduce((n, x) => n + x.kept, 0)}`), h("span", { class: "label" }, /* copy:label */ "Gold home"))));
+      earnedGold));
   const repeatedDeath = [...r.deaths].sort((a, b) => b.n - a.n).find(d => d.n >= 2);
   const obstacle = r.stall ? recentRunText(r.stall.text) : repeatedDeath?.cause.replace(/_/g, " ");
   const preparation = preparationActions(app, { report: true, obstacle, cause: r.stall ? undefined : repeatedDeath?.cause });
