@@ -1,3 +1,24 @@
+**CUT64 BROADER CLASS PACING REVIEW — 2026-10-07:**
+
+Owner asks current progression/pacing review. Added example-only class_campaign
+with legal unlock waiting, paid preparation, per-class saved evidence and
+seed/class/owned-tactic filters. Three earned camps ×4classes complete; fresh
+Rogue/Ranger/Caster mastery88–104h afterswitch, all playedD13within8h. Fighter
+startsL4–5 and masters72–96h. Casterseed3 unlockwait16h separately. Threebase
+clears128–160h; nine no clearwithin168h, not a gate failure for this policy.
+TwoBossFocus comparisons: Fightermastery88→112h/noclear; Rogue104→112h,
+best28→33/noclear. No blanket XP/pricing/cap/gameplay changes justified.
+FinalLegacy377–981points after162spent; fulltree216max. Deeperpostclearchoices
+remain highestprogressioncontentpriority, under separate balancecontract.
+First harnessstopsaftersevenclasses atlockedCaster, rawfailure retained;
+final14campaignsPASS, fastbuild/scopedClippy/diffpass. CurrentbuiltWASMseed11
+opening/Scout/20mreturnwalk37s noerrors; earnedmatureRoguehero sheet400/1440
+exactreadonly/nooverflow/errors, desktopshown. Owned5429previewstoppedafterQA;
+5219retained. CUT64details/provenance. No deployment.
+Fullclientaudit53404 remainsrunning in separateimmutablebuild; logfile
+/tmp/riddle-cut63-full-client.log, lastunrestrictedprocesscheckshowedactive
+layout/legible/qa21children. Continueexacthandle; nofullsuitepassclaim.
+
 **CUT63 MANUAL DEATH CONTINUE — 2026-10-07:**
 
 Prior turn progressed QA controls6f1b3b5. Found actual manual-opening defect:

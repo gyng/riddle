@@ -1,3 +1,15 @@
+**TARGETED CLASS PACING CHECK — 2026-10-07:** class_campaign reuses public
+earned camps for Fighter/Rogue/Ranger/Caster, with legal prerequisite waiting,
+paid eight-hour preparation, played depth/mastery/clear observations and saved
+evidence per class. Filter --seed/--class/--tactic to avoid repeating unrelated
+campaigns. Example only; never a gate or a human score. CUT64 records12base and
+2owned-tactic comparisons, including the retained initial locked-Caster failure.
+
+```sh
+cargo build -q --profile fast -p riddle-core --example class_campaign
+target/fast/examples/class_campaign EARNED_CAMPS NEW_OUT_DIR --seed 3 --class rogue --tactic boss_focus
+```
+
 **FAST FIREARM CONTENT CHECK — 2026-10-07:** gunner_matchups runs384
 controlled cases (32 paired seeds ×3 arenas ×4 explicit gun/bow policies) per
 level, with clear counts, conditional time/harm medians, paired wins and full
