@@ -95,3 +95,24 @@ Retain the readback/cage/grounding improvements, leave the timing requirement
 open and profile residual driver/shader stalls. No cap change, no full suite
 certification, no95score claim. Final hero-grounding2widths PASS8.8s; paired old
 renderer fails84.375%. Real UI screenshots and TS/copy/build pass above.
+
+## Follow-up fallback readback profile
+
+Procedural drawEntity canvas now requests read-friendly storage before its
+first context too. Matched cold headed GPU400×800 DPR2 fake seed7,10s Send:
+remaining getImageData samples150.843/187.636ms→17.044/16.057ms (medians169.2395
+→16.5505ms,90.22% lower). Full environment/sprite/normal pixels remain identical.
+Evidence fallback-comparison.json and fallback-*-pixels-pixels.json under the
+same timeline directory. Candidate2 overlapped the pixel browser; retained but
+excluded from the matched comparison, replaced by isolated candidate3.
+
+Context costs394–452ms and shader-log costs473–527ms remain. No claim of faster
+simulation, overall startup or frame rate. Current combined repeat: qaAC16/16
+PASS11.6s; clarity card13/14, seed5161208ms exceeds unchanged1200ms. Improvement
+in reads does not certify card timing; original timers and numeric bars retained.
+
+Isolated final-source repeat /tmp/riddle-fallback-card-quiet-final.log terminal0:
+clarity card14/14PASS66.4s with1200ms unchanged. No competing browser/compiler.
+The earlier1208ms failure overlapped real QA; retain it as contention evidence,
+not as a repeatable quiet-source failure. This scoped pass does not certify a
+full-client run or arbitrary CPU/GPU contention. Both outcomes remain recorded.

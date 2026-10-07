@@ -22,7 +22,7 @@ import { meterCompare, meterPanel, secs } from "./meters";
 import { anyNew, hasCurriculum, sysOpen } from "./systems";
 import { lookStud } from "./look";
 import type { App, Mounted } from "../app";
-import type { CageOption, ForkOption, Lineage, StandingOrders, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
+import type { CageOption, ForkOption, InvItem, Lineage, StandingOrders, StartOption, SupplyEntry, UnlockInfo } from "../engine/types";
 import { h, clear, flash, replace, spanOf, twoTap } from "./dom";
 import { heroBinding, renderEditor } from "./editor";
 import { renderParty } from "./party";
@@ -618,16 +618,23 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function openOrders(): void {
     openSheet((close) => {
-      const body = h("div", { class: "sheet-body orders-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "standing orders"));
+      const body = h("div", { class: "sheet-body orders-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "Run setup"));
       const paint = (): void => {
         const row = (label: string, ...chips: HTMLElement[]): HTMLElement => h("div", { class: "order-row" }, h("span", { class: "olab" }, label), " ", h("span", { class: "chips" }, ...chips.flatMap((c, i) => [i ? " " : "", c])));
         const pick = <T,>(cur: T, v: T, text: string, set: () => void): HTMLElement => h("button", { class: `chip order${cur === v ? " on" : ""}`, "aria-pressed": cur === v ? "true" : "false", onclick: () => { if (cur !== v) set(); } }, text);
         const act = (p: Partial<StandingOrders>, move: string) => (): void => { void setOrder(p, move).then(() => { if (body.isConnected) { replace(rows, ...build()); paintOrders(); } }); };
-        const build = (): HTMLElement[] => { const o = app.lineage.orders!, R = revealed(app); return [
+        const build = (): HTMLElement[] => {
+          const o = app.lineage.orders!, R = revealed(app), packed = refundableSupplies();
+          const repeatOff = o.repeat && packed.length
+            ? twoTap(/* copy:button */ "off", /* copy:callout */ `refund ${packed.length}?`, act({ repeat: false }, /* copy:callout */ "repeat"),
+                { class: "chip order", key: `repeat-refund:${packed.map(x => x.id).join(",")}` })
+            : pick(o.repeat, false, /* copy:button */ "off", act({ repeat: false }, /* copy:callout */ "repeat"));
+          repeatOff.setAttribute("aria-pressed", String(!o.repeat));
+          return [
           row(/* copy:callout */ "keep for heirs", ...KEEP_ORDERS.map((k) => pick(o.keep, k, KEEP_WORD[k], act({ keep: k }, /* copy:callout */ "keep")))),
           R.has("cage") ? row(/* copy:label */ "loot preference", h("button", { class: "chip order on", onclick: () => { close(); openCagePicker(ordersTab); } }, o.cage, h("small", { class: "dim" }, " ▸"))) : null,
           R.has("start") ? row(/* copy:label */ "start", h("button", { class: "chip order on", onclick: () => { close(); openStartPicker(); } }, `D${o.start}`, h("small", { class: "dim" }, " ▸"))) : null,
-          row(/* copy:label */ "repeat pack", pick(o.repeat, true, /* copy:button */ "on", act({ repeat: true }, /* copy:callout */ "repeat")), pick(o.repeat, false, /* copy:button */ "off", act({ repeat: false }, /* copy:callout */ "repeat"))),
+          row(/* copy:label */ "Auto restock", pick(o.repeat, true, /* copy:button */ "on", act({ repeat: true }, /* copy:callout */ "repeat")), repeatOff),
           row(/* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
         ].filter((x): x is HTMLElement => !!x); };
         const rows = h("div", { class: "order-rows" }, ...build());
@@ -635,7 +642,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       };
       paint();
       return body;
-    }, { anchor: ordersTab });
+    }, { anchor: ordersTab, center: true });
   }
   /** Cut 26 §2: the lane a start sits in for this set — the core's lit pair on this set's route (`onRoute`), the option's own biome, else
    *  the base order's table while the set takes every near stair */
@@ -705,6 +712,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     if (route.length) set.route = route; else delete set.route;
     app.rulesChanged(); paintRoute();
   }
+  function refundableSupplies(): InvItem[] {
+    return (app.lineage.supplies ?? []).filter(x => !isFreeSupply(app.lineage, x) && !x.found);
+  }
   /** Cut 19 §3: the loadout repeats by default — the tile carries `repeat · $120` (the kinds the next send re-packs, at the shelf's
    *  price); a tap on it clears the repeat (`setRestock(false)`, the shelf refunded), `repeat off` a tap turns it back on. */
   function repeatBadge(): HTMLElement | null {
@@ -721,7 +731,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
 
     // QA 308f045 (qaAD: one tap on `repeat on · held ≤$24` → `repeat off`, and four packed supplies refunded, `loadout 5/5` → `1/5`): turning
     // the repeat off with bought supplies on the shelf unpacks them — the first tap says so (`refund 4`), only the second does it
-    const packed = on ? (L.supplies ?? []).filter((x) => !isFreeSupply(L, x) && !x.found).length : 0;
+    const packed = on ? refundableSupplies().length : 0;
     let armed = false;
     const badge: HTMLElement = h("span", { class: `repeat-badge num${on ? " on" : ""}${short ? " short" : ""}${due.length ? " due" : ""}`, role: "switch", "aria-checked": on ? "true" : "false", "data-repeat": on ? "1" : "0",
       onclick: (e: Event) => {

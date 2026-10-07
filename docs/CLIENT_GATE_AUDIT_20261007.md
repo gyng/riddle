@@ -184,3 +184,19 @@ Final Cut36 watch run terminal1: fights48checks PASS200.1s; clarity card12/14,
 spans1218/1237ms exceed unchanged1200ms. Cage passes, original card timing still
 unresolved despite an earlier14check pass. Preserve raw repeat and investigate
 remaining GPU stalls/scheduling; do not label the module green or95fun achieved.
+
+## Current supply control and quiet fallback follow-up
+
+qaAC hidden-tile fixture replaced with visible Run setup Auto restock control;
+actual refund safeguard restored with shared twoTap. First paid-shelf tap refuses,
+second mutates once; free/found excluded, already-off no-op and empty direct.
+Final18/18PASS12.1s. Real earned WASM400/1440 two paid26 refunds exactly52, free
+leash retained; flush/reload exact. Separate earned D20 camp foundheal/freeleash
+retained with exact52refund, no grants. Centered window fixes actual desktop HUD
+overlap and simplifies old standing orders/repeat pack wording. CUT37 evidence.
+
+Fallback canvas reads matched median169.24→16.55ms,90.22% lower, identical
+atlas/normal pixels. Quiet current clarity card14/14PASS66.4s (bar1200 unchanged).
+Earlier1208ms repeat overlapped real QA and stays contention evidence. Current
+scope does not certify arbitrary load or a new all-client result; refresh broad
+suite next. No95fun claim or deployment.

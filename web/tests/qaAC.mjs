@@ -62,6 +62,10 @@ const gemText = () => page.evaluate(() => document.querySelector(".patch-gem, .g
 try {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=26`, { waitUntil: "domcontentloaded" });
   await waitFor((s) => s?.booted && s.screen === "camp", "camp"); await sleep(250);
+  if (await page.evaluate(() => window.__riddle.town?.home === false)) {
+    await page.locator('.town-tag[data-next="house"]').click();
+    await page.waitForFunction(() => window.__riddle.town?.home === true);
+  }
 
   // ---- the gem waits for the whole-run measure; the landing is matched patch by patch; an exit reads its price
   {
@@ -115,19 +119,31 @@ try {
     await camp();
     await page.evaluate(() => {
       const r = window.__riddle; r.__restock = [];
-      r.engine.setRestock = async (on) => { r.__restock.push(on); return { ...r.lineage, repeat: on, supplies: [] }; };
-      r.lineage = { ...r.lineage, gold: 300, repeat: true, repeat_kinds: ["heal"], repeat_gold: 48,
-        supplies: [{ id: 901, kind: "heal", label: "heal potion", known: true, free: false }, { id: 902, kind: "blink", label: "blink scroll", known: true, free: false }] };
+      r.engine.setOrders = async (orders) => { r.__restock.push(orders.repeat); return { ...r.lineage, orders, repeat: orders.repeat, supplies: [] }; };
+      r.lineage = { ...r.lineage, best_depth: 8, gold: 300, repeat: true, repeat_kinds: ["heal"], repeat_gold: 48,
+        systems: [{ id: "loadout", open: true, new: false }],
+        orders: { keep: "weapon", cage: "weapon", start: 1, repeat: true, insure: true },
+        supplies: [{ id: 901, kind: "heal", label: "heal potion", known: true, free: false }, { id: 902, kind: "blink", label: "blink scroll", known: true, free: false },
+          { id: 903, kind: "heal", label: "heal potion", known: true, free: true }, { id: 904, kind: "blink", label: "blink scroll", known: true, free: false, found: true }] };
       r.go({ kind: "camp" });
     });
     await sleep(300);
-    const sel = ".cmd .tile[data-tile=loadout] .repeat-badge";
-    const b0 = await page.locator(sel).textContent().catch(() => null);
-    await page.locator(sel).click({ timeout: 5000 }).catch(() => {}); await sleep(200);
-    const b1 = await page.locator(sel).textContent().catch(() => null), c1 = await page.evaluate(() => window.__riddle.__restock.join());
-    await page.locator(sel).click({ timeout: 5000 }).catch(() => {}); await sleep(300);
+    await page.locator('.orders-tab').click();
+    const row = page.locator('.orders-sheet .order-row').filter({ hasText: 'Auto restock' });
+    const off = row.locator('button').last();
+    const b0 = await row.locator('button').first().getAttribute('aria-pressed');
+    await off.click(); await sleep(200);
+    const b1 = await off.textContent(), c1 = await page.evaluate(() => window.__riddle.__restock.join());
+    await off.click(); await sleep(300);
     const c2 = await page.evaluate(() => window.__riddle.__restock.join());
-    check(/^repeat on/.test(b0 ?? "") && b1 === "refund 2?" && c1 === "" && c2 === "false", `a packed shelf: the first tap asks (\`${b0}\` → \`${b1}\`, setRestock ${c1 || "—"}), the second turns it off (${c2})`);
+    check(b0 === "true" && b1 === "refund 2?" && c1 === "" && c2 === "false", `a packed shelf: the first tap asks (on ${b0} → \`${b1}\`, setOrders ${c1 || "—"}), the second turns it off (${c2}); free/found excluded`);
+    await off.click();
+    check(await page.evaluate(() => window.__riddle.__restock.join() === 'false'), 'already off: another tap sends no order');
+    await row.locator('button').first().click();
+    await page.waitForFunction(() => window.__riddle.lineage.orders.repeat === true);
+    await off.click();
+    await page.waitForFunction(() => window.__riddle.lineage.orders.repeat === false);
+    check(await page.evaluate(() => window.__riddle.__restock.join() === 'false,true,false'), 'empty shelf: off needs one tap, no refund confirmation');
   }
 
   // ---- an empty set is no send

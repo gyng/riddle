@@ -1,3 +1,46 @@
+**CUT37 CURRENT REFUND CONTROL / FALLBACK READBACK — 2026-10-07:**
+
+Run setup Auto restock off now uses shared twoTap: refundN? first, exactly one
+order second. Paid nonfound supplies count; free/found excluded. Already off
+is a no-op; empty shelf needs one tap. Old badge shares count; no hidden tile
+restored/force-clicked. Fixture builds opening house and models the earlierD8
+completed run, then uses visible Run setup. Final qaAC18/18PASS12.1s, preserving
+other15checks and adding repeated/empty shelf checks. Old failure/probe retained.
+
+Real QA exposed anchored desktop bodybottom780.4 crossing console764. Run setup
+uses existing centered game-window; final400bottom626.5/console762,1440bottom
+585.33/764, no overflow/errors. Labels standing orders→Run setup, repeat pack→
+Auto restock. Final actualWASM screenshots shown, source/scratchpad/supply-confirm-
+real-20261007; /tmp/riddle-supply-confirm-copy-real-final.log. Actual earned two
+paid heals26each +freeleash: first tap engine.save byte-exact; confirmed gold
+48536→48588, freeleash100631 retained; flush/reload exact both400/1440. Additional
+earned seed5shortD20camp has paidheal/fire and foundheal/freeleash:3561→3613,
+found5013+free100136 survive flush/reload. No grants; source
+scratchpad/gunner-close-finish-paid48-20261007/seed5-short_gun-after.json;
+/tmp/riddle-supply-found-real-final.log. UI count additionally excludes found in
+four-supply mock. Native refund semantics unchanged.
+
+Procedural fallback canvas uses read-friendly storage before first context.
+Matched coldGPU reads150.843/187.636→17.044/16.057ms; median169.2395→16.5505,
+90.22% reduction in remaining sampled getImageData work. Complete atlas/normal
+pixels byte-identical. Context394–452ms/shader473–527ms still dominate. No sim,
+FPS/overall startup claim. Candidate2 overlapped pixel QA, excluded; isolated3
+substituted. Evidence scratchpad/watch-timeline-20261007/fallback-comparison.json.
+
+Current scoped verification: trio3/3PASS45.4s (qaAC18, hero-grounding400/1440,
+watch-console5widths) before final labels; final label qaAC18PASS12.1s and real
+WASM above. Quiet final clarity:card14/14PASS66.4s,1200ms unchanged, no other
+browser/compiler; earlier real-QA-overlapped seed5161208ms failure retained as
+contention evidence. Do not infer arbitrary-load/full-suite acceptance from
+quiet pass. TS/copy1733zero/webbuild/diffPASS,5482237byteWASM, no Rust changes.
+
+Next: fresh broad client suite after this commit; old baseline80/111 remains
+latest broad verdict until that run completes. Then resolve actual unknown
+first-load/report/trace/replay/forecast failures and resume played idle-hybrid
+fun evaluation.95active/unverified. No deployment. Owned5386/7/8/9 closed;
+shared5219 preserved. Record the next runner's live session/results before
+restart; no silent full-suite certification from scoped checks.
+
 **CUT36 PROFILED WATCH / CAGE / CORNER VISIBILITY — 2026-10-07 (PARTIAL):**
 
 Atlas read-friendly storage reduces matched headed cold getImageData samples

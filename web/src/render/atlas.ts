@@ -236,7 +236,7 @@ export class Atlas {
     if (ks === 1) { const slot = this.sprite.alloc(id, w, h); drawEntity(this.sprite.ctx, slot, kind); return slot; }
     // gfx round 7: drawn at its authored size, then cut down by area like a loaded sprite
     const c = document.createElement("canvas"); c.width = w; c.height = h;
-    drawEntity(c.getContext("2d")!, { x: 0, y: 0, w, h, u0: 0, v0: 0, u1: 1, v1: 1 }, kind);
+    drawEntity(c.getContext("2d", { willReadFrequently: true })!, { x: 0, y: 0, w, h, u0: 0, v0: 0, u1: 1, v1: 1 }, kind);
     return putDown(this.sprite, id, c, { x: 0, y: 0, w, h }, Math.max(1, Math.round(w * ks)), Math.max(1, Math.round(h * ks)));
   }
 
