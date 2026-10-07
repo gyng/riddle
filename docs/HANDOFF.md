@@ -1,3 +1,15 @@
+**CUT83/84 FROZEN LOCAL PREVIEW — 2026-10-07:**
+
+87c32bc committed/pushed. Fresh clean build PASS, 248 assets copied to
+scratchpad/qa-cut83-84-frozen-87c32bc/dist; full SHA256 manifest, unchanged
+shipping WASM6c36dcd8... Current immutable preview5248/session77413 live,
+served index verified against manifest. Superseded5247 stopped by verified
+Vite PID. Original earned2270503 preview5244/driver5351 preserved. No deploy.
+Full suite111/120, quiet chrome/recent checks passed, Cut30packages still fails.
+Next: inspect the actual comparison selection and hidden pending states; then
+remaining full-suite failures, earned progression and independent evaluation.
+No verified95/horizon/agent approval yet. Goalactive.
+
 **CUT83/84 / FULL HEADLESS RESOURCE RECOVERY — 2026-10-07:**
 
 Previous goal turn made verified progress: Cut82 committed/pushed d1a3321.
