@@ -1,3 +1,18 @@
+**CUT76 END/LEGACY CHECKS VERIFIED — 2026-10-07:**
+
+Scope Legacy respec reviews to real visible sheet-wrap, excluding inert exit
+clones; full12node purchase/fork/tooltips/cancel/refusal/exact refund/one-call/
+stale/away/mobile-fold test PASS31.1s at320/400/1440. End reason test uses visible
+Skip helper and normal Next/Keep; first fix still races vanished Next53.3s.
+Dispatch once to visible connected Next (no successor retry); full legible
+PASS50.0s,3actualRust reason equality + original manual-building milestones.
+No gameplay changes. Looks isolated PASS16checks from previous run. All headed
+runs now private WSL displays. Logs/tmp/riddle-cut76-legible-legacy-final.log,
+/tmp/riddle-cut76-legible-current.log.30seed Rust QA live session44029, log
+/tmp/riddle-cut76-wire-qa.log; poll same handle. Next immutable local shipping
+build/walk and full-horizon QA prep. Full headless72/120 remains failing; no
+deployment or independent95 score. Goal active.
+
 **NO DESKTOP FOCUS STEALING / WSL GPU — 2026-10-07:**
 
 Owner explicitly requires no focus stealing for any browser purpose; headed

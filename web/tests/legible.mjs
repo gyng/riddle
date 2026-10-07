@@ -13,6 +13,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { pressWatchControl } from "../../tools/watch-control.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -66,18 +67,18 @@ try {
       const t0 = Date.now();
       for (;;) {
         const s = await screen();
-        if (s === "exit") { await page.locator(".sheet-wrap .vault-choice .chip").first().click().catch(() => {}); await page.locator(".sheet-wrap .btn.primary").first().click().catch(() => {}); await sleep(200); continue; }
+        if (s === "exit") { const choice=page.locator(".sheet-wrap:not([hidden]) .vault-choice .chip:visible").first(); if(await choice.count()) await choice.click(); await page.locator(".sheet-wrap:not([hidden]) .btn.primary:visible").first().click(); await sleep(200); continue; }
         if (s !== "watch") break;
         whyShown ??= await page.evaluate(() => document.querySelector(".watch .beat-why.show")?.textContent ?? null);
-        if (!whyShown) {
-          await page.locator('.console [data-tile="speed"]').click();
-          const skip=page.locator('.sheet-wrap .sheet [data-tile="skip"]');
-          if(await skip.isVisible() && await skip.isEnabled()) await skip.click({timeout:5000}).catch(async e=>{
-            if(await screen()==='watch' && await skip.isVisible() && await skip.isEnabled()) throw e;
-          });
-          if(await page.locator('.sheet-wrap').count()) await page.keyboard.press('Escape');
-        }
-        else if (k === 1 && !endShot) { await shot("end-beat"); endShot=true; }
+        if (whyShown && k === 1 && !endShot) { await shot("end-beat"); endShot=true; }
+        // The ending may navigate between discovery and a locator click.
+        // Dispatch once to the currently visible control, never retry its successor.
+        const nextPressed=await page.evaluate(()=>{
+          const b=document.querySelector('.watch .next-gem');
+          if(!b||b.disabled||!b.getClientRects().length||getComputedStyle(b).visibility==='hidden')return false;
+          b.click();return true;
+        });
+        if(!nextPressed&&!whyShown) await pressWatchControl(page,'▶▶|');
         if (Date.now() - t0 > 180_000) throw new Error(`run ${k} still going`);
         await sleep(60);
       }

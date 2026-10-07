@@ -163,3 +163,27 @@ fixture (failed1 inert dungeon assertion in102.6s); it is not evidence for the
 corrected file. Runner syntax/diff and failure-output unit checks3/3 pass.
 Full headless72/120 remains the authoritative full-suite failure; isolated
 Screens success does not certify it or the independent rating horizon.
+
+
+## End reasons and Legacy transactions — 2026-10-07
+
+Isolated headed controls first reproduce legible's disabled ended Speed timeout,
+while looks passes16 checks. Legacy reaches respec but finds2confirm elements:
+the previous review's inert exit clone. Scope review/cancel/confirm selectors
+and their lifecycle waits to real visible sheet-wrap parents. Full Legacy test
+PASS31.1s at320/400/1440:12nodes/icons, mobile fold retention, purchases/forks,
+tooltips, exact refund, cancel/refusal, one-call guard, stale review and away
+restrictions. No Legacy UI or core transaction change.
+
+Legible uses the existing visible-control helper for Skip, respects disabled
+ended controls, and takes the actual Next/Keep flow. The first correction still
+hits a vanished Next locator (53.3s). Dispatch once to the visible connected
+Next button; never retry after automatic end navigation removes it. Full
+legible PASS50.0s: three actual Rust exits and corresponding displayed reasons,
+plus unchanged manual-building diagnostic milestones. Exact reason equality
+and callout budgets remain; this is a fixture lifecycle correction. Browser
+errors remain failures. All browser runs use private WSL displays (no focus).
+
+Logs/tmp/riddle-cut76-legible-legacy-final.log and /tmp/riddle-cut76-legible-
+current.log. Syntax/diff checks pass.30seed Rust QA underway for next immutable
+local playtest preparation; no new independent fun score or deployment.
