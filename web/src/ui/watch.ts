@@ -1907,10 +1907,11 @@ export function renderWatch(app: App): Mounted {
     const ms = Math.round(performance.now() - f.t0), floors = f.to - f.from + 1;
     if ("__riddle" in window) ((window as unknown as { __foldLog?: unknown[] }).__foldLog ??= []).push({ from: f.from, to: f.to, floors, ms, perFloor: Math.round(ms / floors), src: f.core ? "core" : "client", kinds: f.core ? [...new Set(f.core.beats.map((b) => b.kind))] : [...f.tally.kinds()], chips: f.core ? f.core.chips : f.tally.list().map((c) => c.text), shown: [...foldChips.children].map((c) => c.textContent), head: foldHead.textContent });   // dev
     foldLine.classList.add("docked");
-    paintKeepOut(true);
     dockTimer = window.setTimeout(() => foldLine.classList.add("faded"), FOLD_DOCK_MS);
     if (hudSnap) { hudFrom(hudSnap); }
     if (held) toEnding(); else { applyFrame(); applySpeed(); }
+    // The restored HUD can move the docked chips; reserve their final geometry.
+    paintKeepOut(true);
   }
   /** A tap on the fold line plays the folded floors (the run log's, at the travel rate); the watch's picture freezes meanwhile. */
   function foldTap(): void {

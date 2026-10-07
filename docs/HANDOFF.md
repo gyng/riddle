@@ -1,3 +1,37 @@
+**CUT55/56 RAT, DEATH WALK AND CURRENT FULL CLIENT BASELINE — 2026-10-07:**
+
+Cut55 rat authored runtime20→24texels, same master/camera/hero; pack495frames,
+artQC zero, atlas.png unchanged, only rat atlas metadata changes. Actual headed
+400px seed5 map24px/fight28px, hero48/56; screenshots/raw geometry shown,
+scratchpad/gameplay-cut55/rat-*. Existing hero-grounding400/1440PASS. Build/TS/
+copy1740zero/diff/syntax PASS. Playtest current Speed helper and death Town tile
+when no patch (retired Edit removed): real built seed7 wholewalk28.6s9dumps,
+first Warlord death→town→scout→20mreport noerrors. Seed5 concurrent full-suite
+walk47s10dumps completes but94 WebGL warnings retained; no clean universalgfx
+or timing claim. Owned5425 preview1071967 closed. Cut55 committed64624aa.
+
+Cut56 full current client terminal1:98/117PASS553.5s. Authoritative current broad
+baseline /tmp/riddle-current-client-full.log, replaces historical91/112 only as
+current coverage evidence (different suite count). Nineteen failures initially;
+resourcecrash in fights/cut13, oldreport/control fixtures, geometry and watch
+issues. Single-job initial chrome/cut28w/screens/qa9 all fail174s; source shows
+endFold reserves overlays before restoringHUD. Reorder forced keep-out paint
+after HUD/frame update. Screens/qa9 Escape afterSkip couldclose newlootchoice;
+use tested sharedhelper, retain5disabledcontrols, all original52/57 assertions.
+Chrome diagnostic assertion adds geometry, threshold2px unchanged; intermittent
+100ms restore failure retained, nextsolo184PASS, final quartet4/4PASS184.6s:
+cut28w6/screens57+9lints+30clicks/qa952/chrome184. Raw logs /tmp/riddle-cut56-*.
+No retroactive all-green broadclaim. Remaining15jobs in CUT56 require triage;
+next priority fights/cut13 single-browser resource replays, then literal old
+fixtures/report labels/routes without weakening numerical/gameplay assertions.
+
+QA briefs now describe tactics-first/manual town/latepen, explicit attempted vs
+completed handwritten edits, and interactive three-absence RATING horizon.
+Scoring/RATING/framework/template/presets unchanged. This is readiness work,
+not permission to spawn agents or independent95 proof. No deployment; standing
+push approval. Shared5219 kept. Full/isolated jobs terminal; no QA servers left.
+Independent current rating route preference remains unanswered; goal active.
+
 **CUT53/54 CURRENT CONTROLS AND REMAINING CHUNKY UI — 2026-10-07:**
 
 User remaining UI audit: companions Breed/Hatch/select/rules/dismiss, death

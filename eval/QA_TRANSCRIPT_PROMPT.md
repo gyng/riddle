@@ -1,8 +1,9 @@
 # QA brief, transcript-first (paste to a fresh agent; no scores, lapses only)
 
 You are a QA player for a browser game called Riddle, an auto-played roguelike whose hero runs
-on rules the player writes (≤ 8 rows `conds → verb`), with offline runs and a death screen that
-names the rule. You award nothing. Your job is to file **every lapse**: anything you misread,
+on chosen combat styles/tactics and later optional written rules, with manual town
+construction, hired automation, offline runs and deaths that name their causes. You award nothing. Your job is to file **every lapse**: anything you
+misread,
 anything inert, any number that does not reconcile with another number on screen, any copy you
 could not explain from what the game showed, anything that contradicts what it said earlier.
 Read `eval/RATING.md` (the protocol) and `docs/FUN_EVAL_IDLE.md` §"human probes" so you know
@@ -26,9 +27,14 @@ Two passes, in this order:
    opens, read in a copy of the page) — the file's header). Open
    `{URL}?dev=1&seed={SEED}&fresh=1`, then reproduce each transcript lapse once (the walk is
    deterministic on its seed: the same sends give the same runs), and play what the walk did
-   not decide: **four hand edits of your own**, a patch tapped, two purchases with their
-   sheets read, a supply dropped, the vault preference set, `?absent=8h` once, the return
-   report read line by line against the gold sheet. ~15 minutes, not 60.
+   not decide: **four configuration changes of your own** (styles/tactics, equipment or Legacy),
+   four attempted hand edits of written rules, two purchases with their sheets read,
+   a patch when offered, a supply dropped and the gear preference when available,
+   `?absent=8h` once, and the return report read line by line against its gold and
+   per-bloodline gains. If the pen or a system is locked, record its visible entry/
+   explanation and the attempted action honestly; do not inject earned state or
+   count a tactic selection as a written-row edit. ~15 minutes, not a full-hour
+   QA horizon and never evidence that the independent rating horizon passed.
 
 File `eval/qa/{BUILD}.{QA}.md`: one line per lapse — `screen · what you saw (quoted) · what
 you expected · repro (seed, dump or step)` — grouped under `defect` (wrong or inert), `misread`

@@ -27,6 +27,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { pressWatchControl } from "../../tools/watch-control.mjs";
 import { editRows, openPanel, deathDetails } from "./lib/frame.mjs";
 import { measured } from "./lib/load.mjs";
 
@@ -285,19 +286,17 @@ try {
   // (QA on 50bb162: "fights · fast · ▶▶| · bail still live on a dead hero"), so the choice cannot come from the exit sheet
   let picked = false;
   const openSpeed = async () => {
-    if (!await page.locator('.sheet-wrap .watch-options').count()) await page.locator('.console [data-tile="speed"]').click({timeout:5000});
+    if (await page.locator('.sheet-wrap .watch-options').count()) return true;
+    return page.evaluate(()=>{const b=document.querySelector('main.watch .console [data-tile="speed"]');if(!b||b.disabled||!b.getClientRects().length||document.querySelector('.sheet-wrap:not(.under)'))return false;b.click();return true;});
   };
   const pickFast = async () => {
-    await openSpeed();
+    if (!await openSpeed()) return;
     await page.locator('.sheet-wrap .watch-options [data-tile]').evaluateAll(bs=>{window.__qaRunControls=bs.filter(b=>['one','fights','fast','skip','bail'].includes(b.dataset.tile));});
     const fast=page.locator('.sheet-wrap [data-tile="fast"]');
     if(await fast.isEnabled())await fast.click({timeout:5000});
   };
   const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && (cardSamples.filter((c) => c.card).length >= 2 || (cardSamples.some((c) => c.card) && cardSamples.length >= 4))) { picked = true; await pickFast(); } if ((!sample || picked) && (await state())?.screen==='watch') {
-    await openSpeed();
-    const skip=page.locator('.sheet-wrap [data-tile="skip"]');
-    if(await skip.isVisible() && await skip.isEnabled())await skip.click({timeout:1000});
-    if(await page.locator('.sheet-wrap .watch-options').count())await page.keyboard.press('Escape');
+    await pressWatchControl(page,'▶▶|');
   } await sleep(300); } return state(); };
   // (the run is sampled from here as it plays — ▶▶| every 300 ms, the card read between: on a loaded machine the run can end
   // before two cards were read and `fast` picked; `measured` plays it once more then — tests/lib/load.mjs)

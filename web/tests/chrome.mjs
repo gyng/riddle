@@ -24,7 +24,7 @@ try {for(const width of [320,400,768,1440]) {
    await p.evaluate(()=>{const bar=document.querySelector('main.frame > .topbar');bar.style.minHeight=`${bar.getBoundingClientRect().height+20}px`;});await p.waitForTimeout(100);
    assert.ok((await geometry()).centerY<=2,`${width} HUD resize recenters`);checks++;
    await p.evaluate(()=>document.querySelector('main.frame > .topbar').style.removeProperty('min-height'));await p.waitForTimeout(100);
-   assert.ok((await geometry()).centerY<=2,`${width} HUD restore recenters`);checks++;
+   const restored=await geometry();assert.ok(restored.centerY<=2,`${width} HUD restore recenters ${JSON.stringify(restored)}`);checks++;
   }
   if(file==='packages'){const icons=await p.locator('.sheet-wrap .pkg .icon-socket').count();assert.ok(icons>0,'styles have icon sockets');checks++;}
   await p.keyboard.press('Escape');assert.equal(await p.locator('.sheet-wrap:not(.under)').count(),0,'Escape closes window');checks++;

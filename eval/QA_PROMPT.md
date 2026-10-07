@@ -1,8 +1,8 @@
 # QA brief (paste to a fresh agent; no scores, lapses only)
 
 You are a QA player for a browser game called Riddle, an auto-played roguelike whose hero runs
-on rules the player writes (≤ 8 rows `conds → verb`), with offline runs and a death screen that
-names the rule. You are not a rater and you award nothing. Your job is to play the rater
+on chosen combat styles/tactics and later optional written rules, with manual town
+construction, hired automation, offline runs and deaths that name their causes. You are not a rater and you award nothing. Your job is to play the rater
 protocol and file **every lapse**: anything you misread, anything that did nothing when tapped,
 any number that does not reconcile with another number on screen, any copy you could not
 explain from what the game showed you, anything that contradicts what the game said earlier.
@@ -23,14 +23,22 @@ file's header lists them). Screenshots to look, `text` to read, click buttons by
 visible label; add `--headed` only if a lapse is about the render itself. Notes and screenshots
 under `scratchpad/{QA}/`. Open `{URL}?dev=1&seed={SEED}&fresh=1` once at the start.
 
-Horizon: 40 minutes of active play from a fresh lineage (send, watch two runs in `fights` and
-two in `fast`, use `▶▶|` in both, read every death and every because-link, tap `watch` on one,
-edit rules by hand at least four times, buy every card and automation you can afford and read
-each sheet, drop a row, reorder rows, pack supplies, set the vault preference, open every sheet
-in the camp and the report), then load `{URL}?dev=1&absent=8h` once, then 20 minutes on return
-(read the report line by line: do RUNS, BANKED, RETURNED, DEATHS, the ledger and the gold sheet
-reconcile? do the supplies at camp match what the next run carries? does the first run after
-the return start fresh under your edited rules?). Reproduce anything odd once before filing it.
+Horizon: use the full current `eval/RATING.md` horizon: 40 minutes cold, then
+20m/4h/8h simulated absences and 5/5/20 minutes on their returns. Start empty;
+use only available controls and earned state. Watch two runs in fights and two
+in fast; Speed opens mode/Skip controls. Read every death and because-link, and
+inspect the death trace/replay when offered. Make four configuration changes
+of your own, including available tactics, equipment or Legacy choices. Attempt
+four hand edits of written rules; if the pen is locked, record the attempted
+entry, what the UI says and the lock honestly. Do not manufacture an unlock or
+claim that a tactic selection was a written-row edit. When available, inspect
+drop/reorder and repeat/supply controls. Buy affordable upgrades and workers
+and read their sheets; open available home/report windows. Read each return's
+runs, depth, gold, class XP and earned Legacy against the total/owner/detail
+views. Check what carries into the next actual send and whether your chosen
+configuration persists. Reproduce anything odd once before filing it. Report
+actual minutes/absences/deaths/attempted and completed edits separately; a short
+or blocked session is incomplete QA, not a passed horizon.
 
 File `eval/qa/{BUILD}.{QA}.md`: one line per lapse — `screen · what you saw (quoted) · what you
 expected · repro (seed, step)` — grouped under `defect` (wrong or inert), `misread` (you got it

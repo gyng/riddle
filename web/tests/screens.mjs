@@ -18,6 +18,7 @@ import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { pressWatchControl } from "../../tools/watch-control.mjs";
 import { editRows, openPanel } from "./lib/frame.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -193,11 +194,7 @@ try {
   await sleep(1500); await lintScreen("watch");
   let s = await state(); const tw = Date.now(); let presses = 0;
   while (s?.screen === "watch" && Date.now() - tw < 90_000) {
-    await page.locator('.console [data-tile="speed"]').click({timeout:5000});
-    const skip=page.locator('.sheet-wrap .watch-options [data-tile="skip"]');
-    if(await skip.isVisible())await skip.evaluate(b=>{if(!b.disabled)b.click();});
-    if(await page.locator('.sheet-wrap .watch-options').count())await page.keyboard.press('Escape');
-    presses++;
+    if(await pressWatchControl(page,'▶▶|'))presses++;
     await sleep(250); s = await waitFor((x) => x, "state");
     if (presses === 8) await lintScreen("watch (later)");
   }

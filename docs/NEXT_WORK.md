@@ -46,9 +46,12 @@ separate from class XP, preserving old reports and no automatic spending. Fresh
 played seed5/7 evidence and actual multihero captures are in CUT52. Next specific
 QA/iteration follow-ups: Cut53 restores compound Speed/Skip and actual Send gem;
 Cut54 closes remaining companion/death/worker/mobile Heroes material gaps.
-Seed7 playtest still looks for retired death Edit; first headed rat measures23px
-vs the existing24px visual bar. Independent current
-immutable-build fun evaluation is still needed; scoped checks do not establish95.
+Cut55 repairs the seed7 death walkthrough and actual rat400px map24/fight28.
+Cut56 current broad client98/117 terminalFAIL; four previously failed jobs now
+pass scoped after overlay order/Skip choice handling fixes. Remaining15 jobs
+need triage, starting resource-heavy fights/cut13 solo, then stale literal
+fixtures/report routes. Full raw failures retained; no all-green broad claim.
+Independent current immutable-build evaluation and score95 remain unverified.
 
 D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h
 whole/sliced/reloaded full-state/report parity now passes after guide-quote,
