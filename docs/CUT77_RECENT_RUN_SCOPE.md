@@ -24,6 +24,8 @@ Verification: existing report hero/action suites PASS2/2 in14.7s (19+16checks).
 All6 bank/return current/earlier/mixed forms preserve exact numeric tokens via
 the actual client module; copy1742zero, TypeScript/build/syntax/diff pass.
 Candidate shipping WASM hash exactly matches frozen6d75824 baseline; no Rust
-or wire change. Fresh frozen earned8h capture remains next after commit/build.
+or wire change. Frozen40a19a8 earned8h capture PASS33.4s/10dumps/0browser errors; catch-up1.9s.
+Screenshot10-report confirms Recent returns beside15runs/D8. All six fetched
+shipping-WASM hashes match the immutable candidate assets.
 Evaluator URLs explicitly enable runs=1 throughout active/absence navigation;
 40min cold and all returns remain required, with unchanged scoring criteria.

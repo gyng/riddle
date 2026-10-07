@@ -1,3 +1,17 @@
+**CUT77 FROZEN CANDIDATE VERIFIED — 2026-10-07:**
+
+Source40a19a8 pushed; immutable248asset candidate at
+scratchpad/qa-cut77-frozen-40a19a8/dist; local preview5242/session28461 live.
+Older mutable5240 and baseline5241 previews intentionally stopped. Final walk
+session64662 TERMINAL0 PASS33.4s/10dumps/0browser errors; manual free house,
+public earned scout after2extra sends, actual8hcatch-up1.9s. Recent returns
+prefix confirmed in10-report screenshot and shown to owner. All6fetched WASM
+hashes match frozen candidate and baseline shipping WASM. No Rust/wire changes.
+Every headed browser uses private X11 display under WSL; D3D12/NVIDIA retained,
+no desktop fallback or focus stealing. Full headless72/120 still failing;
+short preflight is not full-horizon/independent QA or95score. Gold87vs106
+provenance remains to inspect via actual ledger. No deployment. Goal active.
+
 **CUT77 RECENT RUN SCOPE / FROZEN PREFLIGHT — 2026-10-07:**
 
 30seed native wireQA session44029 TERMINAL0 allPASS122.3s. Local release6d75824
