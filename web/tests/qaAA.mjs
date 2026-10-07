@@ -129,6 +129,25 @@ try {
       return a.lmove;
     });
     check(lm === null, "an unnamed lineage change clears the last move's line");
+    const frontier = await page.evaluate(async () => {
+      const {lmoveLine}=await import('/src/ui/forecast.ts');const a=window.__riddle;
+      const oldBest=a.lineage.best_depth,oldMove=a.lmove;a.lineage.best_depth=4;
+      const f={...a.lastForecast,start:1,depths:[{depth:1,reach:1},{depth:4,reach:1},{depth:5,reach:0.5}]};
+      const set=depths=>{a.lmove={label:'Forged',rules:JSON.stringify(a.rules.rows),depths};};
+      try {
+        set([{depth:1,delta:0,pm:0}]);const stale=lmoveLine(a,f);
+        set([{depth:5,delta:0.1,pm:0.02}]);const measured=lmoveLine(a,f)?.textContent;
+        set([{depth:4,delta:-0.12,pm:0.02}]);const wall=lmoveLine(a,{...f,depths:f.depths.map(d=>d.depth===5?{...d,reach:0.02}:d)})?.textContent;
+        set([{depth:5,delta:0,pm:0.02}]);const flat=lmoveLine(a,f)?.textContent;
+        a.lmove.rules='other rules';const mismatch=lmoveLine(a,f);const missing=lmoveLine(a,null);
+        return {stale:stale===null,measured,wall,flat,mismatch:mismatch===null,missing:missing===null};
+      } finally {a.lineage.best_depth=oldBest;a.lmove=oldMove;}
+    });
+    check(frontier.stale,'D1-only overlap cannot describe a D5 purchase');
+    check(/Forged.*D5.*\+10/.test(frontier.measured),'measured frontier purchase keeps +10 points');
+    check(/Forged.*D4.*−12/.test(frontier.wall),'actual adjacent wall keeps its -12 points');
+    check(/Forged.*D5.*same/.test(frontier.flat),'measured flat frontier remains visible');
+    check(frontier.mismatch&&frontier.missing,'changed rules and absent forecast never show purchase comparisons');
   }
 
 } catch (e) {

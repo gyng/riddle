@@ -215,7 +215,8 @@ export function lmoveLine(app: App, f: Forecast | null): HTMLElement | null {
   // the frontier while the sims still reach it (over 5 %, the core's `WALL_REACH`), else the floor above it
   const front = Math.max(forecastStart(app, f), app.lineage.best_depth + 1);
   const open = (f.depths.find((x) => x.depth === front)?.reach ?? 0) > 0.05 ? front : Math.max(forecastStart(app, f), front - 1);
-  const d = lm.depths.find((x) => x.depth === open) ?? lm.depths.find((x) => x.depth === front) ?? lm.depths[lm.depths.length - 1]; if (!d) return null;
+  // A previous camp may overlap only on an already-cleared floor; that is not a frontier comparison.
+  const d = lm.depths.find((x) => x.depth === open) ?? lm.depths.find((x) => x.depth === front); if (!d) return null;
   const m = moveOf({ delta: d.delta, pm: d.pm }); if (!m) return null;
   return h("div", { class: `shaft-lm num dlt-line`, "data-k": lm.label }, h("span", { class: "vs-label" }, lm.label), h("span", { class: "vs-term" }, h("i", { class: "sep" }, " · "), `D${d.depth} `, h("b", { class: `dlt ${m.dir}` }, m.text)));
 }

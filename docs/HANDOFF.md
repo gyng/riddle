@@ -1,3 +1,20 @@
+**CUT79 PURCHASE FRONTIER / INTERACTIVE CHECKPOINT — 2026-10-07:**
+
+Original frozen2270503 interactive seed27 driver5351/session75328 remainslive;
+private WSL GPU, no focus stealing. Earnedhouse→firstD4/259gold→freeforge→armour
+200→Health3Legacy→secondD5→equipGuarded→thirdliveD8/Fast. No grants/absencesyet,
+3deliberate configuration changes,0death/pen reads; active minutes not tracked.
+Coordinator exploratory evidence eval/qa/2270503.coordinator-interactive.md is
+incomplete, not full/independent horizon. Found actual Forged D1same below D5
+forecast: lmove oldcomparison onlyD1, UI fallback chose it. Cut79 restricts to
+actual frontier/wall; raw data/uncertainty/sims unchanged. QA AA17/17 PASS8.1s;
+TS/copy1746zero/build/diffPASS. Same earned fresh public repro baselineFAIL30.9s,
+patchedPASS31.1s/9dumps/0errors; corrected screenshot shown. Temporary fixed
+client preview5245/session11265 live; baseline5244 preserved for runningQA.
+Next commit/push corrected source, freeze freshassets for futureQA, stop only
+mutable5245. Independent-agent permission still pending, no agents spawned.
+Full headless72/120 still failing; no deployment/95score. Goal active.
+
 **CUT78 IMMUTABLE BUILD — 2026-10-07:**
 
 Source2270503 pushed. Clean production build PASS, frozen248assets at
