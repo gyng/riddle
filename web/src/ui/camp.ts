@@ -419,6 +419,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     if (tabs.hidden) return;
     if (canReturn) tabs.appendChild(h("button", { class: "chip hero-return game-control", onclick: () => { app.editing = false; editor.refresh(); paintTiles(); } }, /* copy:button */ "Heroes"));
     if (!setsShown) return;
+    tabs.appendChild(h("span", { class: "saved-set-label label" }, /* copy:label */ "Saved setups"));
     app.sets.forEach((s, i) => {
       const named = !!(s.name ?? "").trim();
       tabs.appendChild(h("button", { class: `tab num game-control${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },

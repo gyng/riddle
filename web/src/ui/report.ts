@@ -272,7 +272,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const named = renamer(L);
   const deathsN = r.deaths.reduce((n, d) => n + d.n, 0);
   // Cut 17 §4: the tiles are engraved score plaques on the parchment (an icon per count)
-  const PLAQUE: Record<string, string> = { runs: "fast", deaths: "morgue", deepest: "depth", best: "depth", marks: "mark", banked: "gold", returned: "bail", stalled: "pause", driven: "bail" };
+  const PLAQUE: Record<string, string> = { runs: "fast", deaths: "morgue", deepest: "depth", best: "depth", marks: "mark", "upgrade tokens": "mark", "full haul": "gold", banked: "gold", returned: "bail", stalled: "pause", driven: "bail" };
   // Cut 29 (owner: labels may be 2 words; docs/COPY.md §4 blocker 2 — `0/16 BANKED` still read as "some exit type"): an exit tile says
   // what it counts, `runs banked` (the key stays the one word, `data-k`)
   const SAYS: Record<string, string> = /* copy:label */ { banked: "full hauls", returned: "runs returned", stalled: "runs stalled" };
@@ -321,6 +321,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     t.onkeydown = (e: KeyboardEvent) => { if (e.key === "Enter") t.click(); };
     return kwHost(t, "log");
   };
+  const tokenPlaque = tile(`◆${r.marks_earned > 0 ? "+" : ""}${r.marks_earned}`, /* copy:label */ "upgrade tokens");
+  tokenPlaque.append(h("small", { class: "resource-purpose" }, /* copy:label */ "Classes · styles"));
   const tiles = h("div", { class: `tiles${exits ? " six" : ""}${absence ? " fade-in" : ""}` },
     // QA 912e135 (qaW: `♟18` over a report of ♟2–♟17, read as the heir who ran): the runs tile names whose runs they were
     toLog(withHeirs(tile(`${r.sampled ? "~" : ""}${r.runs}`, /* copy:label */ "runs"), r.heirs)),
@@ -328,7 +330,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // the send's deepest floor, a delta like the tiles beside it (the lineage best is in the header; both QA players read
     // `1 RUNS · D4 BEST` as this send's); an old wire without it shows the lineage best
     r.deepest !== undefined ? tile(`D${r.deepest}`, /* copy:label */ "deepest") : tile(`D${L.best_depth}`, /* copy:label */ "best"),
-    tile(`◆${r.marks_earned > 0 ? "+" : ""}${r.marks_earned}`, /* copy:label */ "upgrade tokens"),
+    tokenPlaque,
     ...(exits ? exitTiles() : []),
     exits ? tile(ofRuns(deathsN), /* copy:label */ "deaths") : null,
   );

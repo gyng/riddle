@@ -348,3 +348,7 @@ button.re-body { cursor: pointer; }
 
 /* Report earnings: one compact line per persistent bloodline. */
 .report-legacy-earned .class-xp-owner { flex-basis: auto; margin-right: auto; }
+
+.saved-set-label { align-self: center; font-size: 12px; }
+.report .resource-purpose { grid-column: 1 / -1; font-size: 12px; color: #c4baa1; }
+.legacy-earned-purpose { display: block; }

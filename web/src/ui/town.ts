@@ -41,7 +41,7 @@ export type TownHooks = {
   quest(anchor: HTMLElement): void;
 };
 /* copy:label */
-const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "supplies", blacksmith: "blacksmith", storehouse: "stored gear", kennel: "companions", bank: "savings", staked: "next plot", board: "quest board", chest: "chest", worker: "next worker" };
+const LABEL: Record<string, string> = { mouth: "dungeon", tent: "hero", crate: "supplies", blacksmith: "forge", storehouse: "stored gear", kennel: "companions", bank: "savings", staked: "next plot", board: "quest board", chest: "chest", worker: "next worker" };
 /* copy:label */
 const BUILD_NAME: Record<string, string> = { house: "house", blacksmith: "forge", storehouse: "storehouse", kennel: "kennel", bank: "bank" };
 /** a building's tile on the bar: its id (the old console ids, kept: tests and badges key on them), icon and word */

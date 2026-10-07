@@ -63,6 +63,21 @@
       "lapse": "Scout-enabled new bloodline sent before expected class setup",
       "contract": "docs/CUT102_NEW_BLOODLINE_SCOUT.md",
       "validation": "Actual wire Scout-on confirmation warns before purchase; existing Scout settings route, cancel exact save, Scout-off Ready, actual price/cap and existing roster checks pass320/400/1440 on real WASM"
+    },
+    {
+      "lapse": "Saved fighter setup mistaken for selected Rogue/Ranger class",
+      "contract": "docs/CUT103_SETUP_RESOURCE_LABELS.md",
+      "validation": "Saved setups group caption preserves all set names; actual Gunner earned fixture retains fighter name and visible mobile caption without overflow"
+    },
+    {
+      "lapse": "Blacksmith gear shortcut mistaken for worker hire",
+      "contract": "docs/CUT103_SETUP_RESOURCE_LABELS.md",
+      "validation": "Building label Forge matches existing gear menu; real earned town accessible label forge and construction persistence39checks pass"
+    },
+    {
+      "lapse": "Legacy versus upgrade-token rewards initially mistaken for conflicting gains",
+      "contract": "docs/CUT103_SETUP_RESOURCE_LABELS.md",
+      "validation": "Hero upgrades versus Classes/styles purpose fragments and correct token/coin icons; actual20m report1Legacy/28tokens preserved, earned-resource/XP existing suites pass"
     }
   ],
   "infrastructure": {
@@ -87,9 +102,6 @@
   ],
   "qaLimitations": "QA-a70+ active minutes estimated, exact stopwatch/tool counts unverified; QA-b conservative70 active minutes, early attribution less precise. Both zero written edits because editor unavailable; older traces and storage reorder incomplete. Reports are lapse evidence, not scoring cards or blanket protocol certification.",
   "remainingItems": [
-    "Saved setup fighter label misread as current class (QA-b)",
-    "Legacy versus upgrade-token distinction misread (QA-b)",
-    "Blacksmith gear shortcut misread as worker hire (QA-b)",
     "Combat damage source/recipient wording ambiguous (QA-b)",
     "Return meter duration scope unexplained (QA-b)",
     "Goblin death portrait empty, needs reproduction (QA-b)",

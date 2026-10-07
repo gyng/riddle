@@ -10,6 +10,7 @@ export function legacyEarnedBlock(r: Pick<ReturnReport, 'legacy_earned' | 'blood
   if (!positive.length) return null;
   return h('section', { class:'report-legacy-earned report-class-xp' },
     h('b', { class:'row-label' }, /* copy:label */ 'Legacy earned'),
+    h('small', { class:'legacy-earned-purpose dim' }, /* copy:label */ 'Hero upgrades'),
     ...positive.map(s => h('div', { class:'class-xp-line num', ...(s.id===undefined ? {} : {'data-bloodline':s.id}) },
       s.owner ? h('small', { class:'class-xp-owner' },s.owner) : '',
       h('b', { class:'legacy-earned-gain' }, `+${s.earned} Legacy`))));

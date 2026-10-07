@@ -1,3 +1,31 @@
+**CUT103 SETUP/RESOURCE/FORGE LABELS VERIFIED — 2026-10-07:**
+
+CurrentturnCut102 pushedfebb4c0 with realScout-on pre-purchase warning and
+existingScoutsettings route. Currentcopyrepair names savedtabsgroup Savedsetups
+(no persisted rename), blacksmith gear shortcut Forge (samebuildingid/action),
+Legacy Hero upgrades and token Classes/styles fragments. Own screenshot found
+reporttoken/fullhaul had genericstairs fallback: added existingmark/gold asset
+aliases. No Rust/progression/amounts change, no extra controls/tutorialparagraph.
+
+5453 terminalexisting4/4PASS26.8s: legacyearned/reportclassXP/townsave/UIframe;
+types91246PASS/copy1765zero/diffPASS/build19075 andfinal69048PASS. Actualearned
+realWASM diagnostics42303/61711/1974terminalPASS:400/1440 savedsetnames remain
+[fighter,null,null], actualclassGunner; forgeariaLabel; real20m returns each
+1run/28tokens/1Legacy. Lastmobile screenshot actualwellscroll showsSavedsetups
+visible, document400pxwide; desktopstillclosedpen labelnotvisible, preserve
+lock and do NOT claim a visible desktopeditor. Artifacts
+scratchpad/qa-cut103-copy/{camp,report}-{400,1440}.png, finalphoneimagesinline;
+/tmp/riddle-cut103-inspect.log. These are diagnostics, not scoredplays.
+
+RemainingQAledgeritems: combatdamage source/recipient ambiguity; returnmeter
+duration scope; unreproducedemptygoblin portrait; repetitivecorridortacticlog.
+OriginalQAobservations retained; bothreportsfiled, no scores/cards. Next combat
+log clarity/filter with meaningful event preservation, then scope/portrait,
+currentbroadacceptance and freshshippingWASM frozenbuild before independent
+blind2raters. RustunchangedCut100/pkg5521523bytes. Frozen396f6ed:5251 preserved.
+No deployment; goal95active/unverified. QAactive-time precisionlimitations
+remain explicit; do not promote reports to blanketprotocolcertification.
+
 **CUT102 NEW-BLOODLINE SCOUT WARNING VERIFIED — 2026-10-07:**
 
 Previous turnprogressCut100128c8a3 andCut10199ac3b5pushed. Current UI change
