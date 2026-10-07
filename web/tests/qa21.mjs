@@ -141,12 +141,17 @@ try {
     const both = Object.keys(shaft).filter((k) => panel[k] !== undefined && shaft[k] !== "?");
     return { fcP: fc.dataset.fc, fcS: sh.dataset.fc, refined: fc.dataset.refined, diff: both.filter((k) => panel[k] !== shaft[k]).map((k) => `${k} ${panel[k]}/${shaft[k]}`), n: both.length };
   });
-  await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "0", null, { timeout: 15000 }).catch(() => {});
+  // Detailed sampling is owner-requested, not an automatic background pass.
+  await openPanel(page, "forecast");
+  await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "0", null, { timeout: 15000 });
   const p1 = await samePaint();
-  await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "1", null, { timeout: 15000 }).catch(() => {});
+  await page.locator('.forecast .fc-refine:visible').click({ timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "1", null, { timeout: 15000 });
   const p2 = await samePaint();
   check(p1.refined === "0" && p1.fcP === p1.fcS && p1.n > 0 && !p1.diff.length, `the first pass: shaft and panel one forecast (#${p1.fcS}/#${p1.fcP}, ${p1.n} floors${p1.diff.length ? `; off ${p1.diff.join(", ")}` : ""})`);
-  check(p2.refined === "1" && p2.fcP === p2.fcS && p2.n > 0 && !p2.diff.length, `the refine: shaft and panel one forecast (#${p2.fcS}/#${p2.fcP}, ${p2.n} floors${p2.diff.length ? `; off ${p2.diff.join(", ")}` : ""})`);
+  check(Number(p2.fcP) > Number(p1.fcP) && p2.refined === "1" && p2.fcP === p2.fcS && p2.n > 0 && !p2.diff.length, `the refine: shaft and panel one forecast (#${p2.fcS}/#${p2.fcP}, ${p2.n} floors${p2.diff.length ? `; off ${p2.diff.join(", ")}` : ""})`);
+
+  await page.keyboard.press("Escape"); await sleep(150);
 
   // ---- 3: the `+1 row` sheet names the next step's price
   await patchLineage({ marks: 9, gold: 1000, heir: 6, best_depth: 6, facts: ["item:leash", "foe:goblin_archer", "foe:goblin_archer:ranged"] });

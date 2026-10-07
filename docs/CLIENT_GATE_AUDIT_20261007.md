@@ -10,8 +10,10 @@ patch-overflow, qa21, qa778, qa9, qaj, runsui, screens.
 
 Post-suite scoped layout57/57PASS89.3s on current manual-house/earned-roster
 coverage (CUT38). No production UI/core changes in that coverage correction.
-Forecast qa21 waits for automatic refine despite explicit-only sampling;
-next check must request More samples visibly and preserve shaft/panel equality.
+Post-suite qa2117/17PASS12.2s via visible Full forecast→More samples; exact
+shaft/panel generation and percentages retained for both passes, detailed
+generation newer. Forecast-requests400/1440 each16checksPASS5.6s. No production
+change or automatic refinement restored (CUT39).
 A focused pass never replaces the broad failing verdict.95unverified.
 
 Full client run before public Gunner exposure: 80/111 gates pass in581.6s.

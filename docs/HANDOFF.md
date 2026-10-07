@@ -1,3 +1,14 @@
+**CUT39 EXPLICIT FORECAST COVERAGE — 2026-10-07:**
+
+qa21 all17PASS12.2s, terminal0 /tmp/riddle-cut39-qa21.log. Current visible
+Full forecast→More samples replaces retired automatic-refine wait. Same first/
+detailed shaft-panel generation and percentage checks, nonempty floors, original
+15s bound; new detail generation strictly newer. No production changes.
+Forecast-request lifecycle400/1440 each16checksPASS5.6s; explicit only, stale
+reply rejection, retry and same-state detail retention remain intact.
+/tmp/riddle-cut39-requests.log terminal0. Latest broad91/112 remains failing;
+layout and qa21 scoped passes don't substitute.95unverified, no deploy.
+
 **CUT38 CURRENT OPENING / EARNED LAYOUT — 2026-10-07:**
 
 Latest broad client source c8187a5 terminal1:91/112PASS811.4s, session75668,
