@@ -1,4 +1,6 @@
 import {execFileSync} from 'node:child_process';import {launchBrowser} from '../../tools/browser.mjs';
+import {mkdirSync} from 'node:fs';import {resolve} from 'node:path';
+const shots=process.env.RIDDLE_DEATH_SHOTS;if(shots)mkdirSync(shots,{recursive:true});
 const url=execFileSync('bash',['tools/dev.sh'],{cwd:new URL('../../',import.meta.url),encoding:'utf8'}).trim(),b=await launchBrowser();
 try{for(const width of [320,400,1440]){const p=await b.newPage({viewport:{width,height:900}});await p.goto(`${url}?engine=fake&fresh=1&seed=3002&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);const n=await p.evaluate(async()=>{
  const {deathAction}=await import('/src/ui/death.ts'),{rowChips}=await import('/src/ui/editor.ts'),{closeAllSheets}=await import('/src/ui/sheet.ts');let checks=0;const check=(ok,name)=>{if(!ok)throw Error(name);checks++;};
@@ -19,6 +21,10 @@ try{for(const width of [320,400,1440]){const p=await b.newPage({viewport:{width,
  for(const button of document.querySelectorAll('.death .console .cmd button')){const label=button.querySelector('.tl'),box=button.getBoundingClientRect();check(label.scrollWidth<=label.clientWidth,'death navigation label fits');check(box.width>=44&&box.height>=44,'death navigation tap target');}
  const image=document.querySelector('.death-lever .item-pic');await image.decode();check(image.src.endsWith('/it_sword.png'),'recommendation uses sword silhouette');const icon=image.parentElement;check(getComputedStyle(icon).boxShadow==='none'&&getComputedStyle(icon).backgroundImage==='none','recommendation silhouette unframed');
  document.querySelector('.death-lever').click();check(!!document.querySelector('.sheet .forge'),'spend still opens Forge');closeAllSheets();
+ const driven={...base,cause:'Warlord',verdict:'driven',trace:{turns:[]},line:{carried:90,keep_pct:60,kept:54,spent:0,spent_on:[],text:'returned $54',driven:{boss:'goblin_warlord',title:'Warlord',depth:8,verdict:'no counter',defence:'shield wall',counter:'attack boss',row:rows[0],hp:31,max_hp:36}}};
+ a.go({kind:'death',death:driven,kept:true});
+ for(const selector of ['.cause-btn','.verdict']){const saved=await a.engine.save();document.querySelector(selector).click();const dialog=document.querySelector('.sheet .outcome-explanation');check(!!dialog&&dialog.textContent.includes('shield wall')&&dialog.textContent.includes('a boss drove him out')&&dialog.textContent.includes('31 hp'),'early driven '+selector+' opens actual cause/explanation');check(!dialog.querySelector('button.patch,.patch-gem,input,textarea'),'early explanation exposes no editor/patch controls');check(await a.engine.save()===saved,'early explanation leaves exact engine save unchanged');closeAllSheets();}
+ a.go({kind:'death',death:base,kept:true});document.querySelector('.cause-btn').click();check(!!document.querySelector('.sheet .outcome-explanation'),'ordinary early death has fallback explanation');closeAllSheets();
  const go=a.go.bind(a),mutate=a.mutate.bind(a),equip=a.engine.equipPackage,calls=[],dest=[];a.go=s=>dest.push(s.kind);a.mutate=async fn=>fn();a.engine.equipPackage=async(id,slot)=>{calls.push([id,slot]);return a.lineage;};
  const guard=a.lineage.packages.all.find(p=>p.id==='guarded');guard.owned=true;
  go({kind:'death',death:{...base,lever:{kind:'package',text:'Guarded'}},kept:true});check(document.querySelector('.death-lever img').src.endsWith('/pkg_guarded_v7.png'),'package recommendation uses moonlit style');document.querySelector('.death-lever').click();await new Promise(r=>setTimeout(r,20));check(JSON.stringify(calls)==='[["guarded",0]]'&&dest.at(-1)==='camp','owned recommendation equips exact package/slot');
@@ -27,5 +33,5 @@ try{for(const width of [320,400,1440]){const p=await b.newPage({viewport:{width,
  go({kind:'death',death:{...base,lever:{kind:'wait',text:'Steady L2'}},kept:false});document.querySelector('.death-lever').click();check(dest.at(-1)==='watch','current wait can send');
  a.go=go;a.mutate=mutate;a.engine.equipPackage=equip;
  for(const [verb,kind] of [[{v:'throw',a:'fire,tag:boss'},'fire'],[{v:'drink',a:'unknown'},'potion'],[{v:'read',a:'unknown'},'scroll']]){const el=rowChips({conds:[],verb});check(el.querySelector('.item-ico').dataset.kind===kind,'targeted/unknown item family');}
- check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow');return checks;
-});console.log(width,n,'death action/illustration checks PASS');await p.close();}}finally{await b.close();}
+ check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow');return {checks,driven};
+});console.log(width,n.checks,'death action/illustration checks PASS');if(shots){await p.evaluate(d=>window.__riddle.go({kind:'death',death:d,kept:true}),n.driven);await p.locator('.cause-btn').click();await p.waitForTimeout(400);await p.screenshot({path:resolve(shots,`repelled-explanation-${width}.png`)});await p.keyboard.press('Escape');if(await p.locator('.outcome-explanation').count())throw Error('Escape did not close outcome explanation');}await p.close();}}finally{await b.close();}

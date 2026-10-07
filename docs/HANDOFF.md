@@ -1,3 +1,29 @@
+**CUT94 EARLY DEFEAT TAPS VERIFIED — 2026-10-07:**
+
+QA-a's actual early Warlord drive-off enabled cause/seal taps targeted unmounted
+advanced controls. Cut94 keeps advanced/replay paths but early fallbacks open a
+centered game window with recorded cause/HP, existing verdict gloss, recorded
+boss defence, historical action and actual next-run lever. No new editor/trace/
+patch controls. Regression reproduced the original inert cause before repair.
+Initial save assertion incorrectly compared async promises; corrected to await
+both actual saves, without weakening exact equality. Terminal scoped3/3PASS
+22.3s session20353 /tmp/riddle-cut94-checks-final.log:96death-action checks across
+320/400/1440, Cut30death5 and Cut26advanced24. TS PASS51864/copy1753zero/diffPASS.
+Visual/Escape run96892 terminalPASS; final settled-animation capture20662PASS,
+scratchpad/qa-cut94-defeat/repelled-explanation-{320,400,1440}.png;400/1440 shown.
+Screens are fake-engine UI fixtures. Web build PASS session50222 terminal0,
+/tmp/riddle-cut94-build.log (existing chunk-size advisory).
+No Rust change; full121/121 is still prior396f6ed, not a new whole-suite claim.
+
+Independent QA-a active ~26min cold, earned Scout/Porter, Warlord tactic training
+revocable On row, second bloodline paid250. Four-plus config choices and2honest
+pen attempts, no deaths yet. QA-b still live; no completed70min horizons/cards.
+Preserve immutable5251 and drivers5352/5353. No hinting/source leakage to raters.
+Goal95 unverified. No deployment; focus-isolated shared launcher preserved.
+Next inspect QA lists, early Repelled missing boss portrait (explicit drove
+exclusion in death.ts) and second-slot autosend before class choice; do not
+assume either is a gameplay defect without checking intended semantics.
+
 **CUT93 LOCKED PLOT FEEDBACK VERIFIED — 2026-10-07:**
 
 Independent QA-a and QA-b on frozen396f6ed both reproduced inert next-plot taps.

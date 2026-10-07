@@ -22,7 +22,7 @@ import { clearStrip } from "./runclear";   // run-clear: the death's header stri
 import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
 import { applyOf, fillReach, leadFirst, openDropSheet, patchOf, patchRows, sinkHarms } from "./patches";
-import { closeX, openSheet } from "./sheet";
+import { closeX, openSheet, openWindow } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
 import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel } from "./tokens";
 import { traceTable } from "./trace";
@@ -34,7 +34,7 @@ import { itemIcon } from "./items";
 import { penOpen } from "./packages";
 import { openPreparationForge, preparationActions } from "./preparation";
 import { kwHost } from "./tips";
-import type { Term } from "./concepts";
+import { TIP, type Term } from "./concepts";
 /** docs/TOOLTIPS.md: the seal's verdict as a tip (long-press / hover: the seal's tap stays its own) */
 const VERDICT_TERM: Record<string, Term> = /* copy:none */ { gap: "v_gap", dice: "v_luck", row: "v_rule", order: "v_order", stall: "v_stall", route: "v_route", driven: "v_repelled" };
 
@@ -165,11 +165,21 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // the stamp, which steps back (the patches still answer it)
   const luck = !prePen && !drove && d.verdict !== "stall" && d.verdict !== "route" && (lean || word === "dice") ? luckOf(d) : null;
   const luckLead = luck ? h("div", { class: "luck-lead num" }, h("span", { class: "luck-event" }, luck.event), h("span", { class: "luck-odds" }, /* copy:callout */ ` · 1 in ${luck.oneIn}`)) : null;
-  const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } , "data-size": stamp.includes(" ") ? "w2" : stamp.length > 6 ? "l" : stamp.length > 3 ? "m" : undefined }, stamp);
+  const explainOutcome = (): void => {
+    const term = VERDICT_TERM[word];
+    const action = deathAction(d);
+    openWindow(() => h("div", { class: "sheet-body outcome-explanation" },
+      h("h3", null, causeText),
+      term && stamp !== "you died" ? h("p", null, TIP[term]) : null,
+      drove?.defence ? h("p", { class: "num" }, drove.defence) : null,
+      action ? h("p", { class: "num" }, action) : null,
+      d.lever ? h("div", null, h("h4", null, /* copy:label */ "Next run"), h("p", { class: "num" }, d.lever.text)) : null));
+  };
+  const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { if (prePen) { explainOutcome(); return; } patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } , "data-size": stamp.includes(" ") ? "w2" : stamp.length > 6 ? "l" : stamp.length > 3 ? "m" : undefined }, stamp);
   // QA 524827b (qaAB: tapped `gas · D6` expecting the clip; it only scrolled to the trace): the cause opens the moment — the killing
   // blow's replay when this session still holds the run — else brings up the trace
   const moment = d.trace.blow ? { text: d.cause.replace(/_/g, " "), t: d.trace.blow.t, depth: d.depth } : null;
-  const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else if (!prePen) { if (!el.classList.contains("full")) more.click(); tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); } };
+  const onCause = (): void => { const log = lastRun(); if (moment && log && replayable(d.run_id, moment)) openReplay(log, moment); else if (prePen) explainOutcome(); else { if (!el.classList.contains("full")) more.click(); tracePanel.scrollIntoView({ block: "center", behavior: "smooth" }); } };
   if (!(prePen && stamp === "you died") && VERDICT_TERM[word]) kwHost(seal, VERDICT_TERM[word]!);
   const line = h("h1", { class: "death-line" }, h("button", { class: "cause-btn", onclick: onCause }, causeEl), h("span", { class: "sep" }, " · "), seal,
     // QA 308f045 (qaAD: `GAP` over `dice-leaning` — "two verdicts on one death"): beside the stamp the lean is the count it rests on, a fact
