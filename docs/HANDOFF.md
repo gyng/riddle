@@ -1,3 +1,26 @@
+**CUT96 SECOND-HERO REPORT DEPTH VERIFIED — 2026-10-07:**
+
+QA-a earned QuillD6 report's log captionD3 rootcause: report.exitDepth selected
+first shared-ledger depth, including otherbloodline exits. Now prefer actual
+positive wire reached; old-wire fallback filters ownedbloodline and selects last
+exit, duplicate skips scoped samebloodline. Failed interleaved regression before;
+8checksPASS after incl actualDOM captionD6, oldwire/noledger/zero fallback and
+exactengine save unchanged. Newtest first suite invocation used wrongcwd for
+dev.sh; corrected testroot, not assertion. Terminal scoped4/4PASS12.8s31485,
+/tmp/riddle-cut96-checks-final.log; reportactions32/gold135/checkpoint27checks
+alongside new8. Type86594PASS/copy1753zero/diffPASS. Webbuild6382terminalPASS,
+/tmp/riddle-cut96-build.log.
+No Rust change. No broad currentwhole-suite claim;121/121was396f6ed.
+
+QA players remain independently on frozen396f6ed:5251. Both >26–28actualactive
+cold minutes but incomplete70min horizons, no scores. QA-a second-slot blank
+portraits observed in quill-first-normal-01.png (header+footer), notfixedyet.
+Actual frozen hero_fighter_male.webp exists/valid; requested read-only displayed
+class/computedfaceURL/data-art/networkfail evidence without source hints or
+changing gameplay. Do not guess art-filename/identity bug without that evidence.
+No deployment. Goal95 stillunverified. Prior turnprogress: b10b651portraitfix
+pushed plus failed-before/passed-after second-hero report regression completed.
+
 **CUT95 REPELLED BOSS IDENTITY VERIFIED — 2026-10-07:**
 
 Restored recorded drive-off boss identity, excluded by death.ts before: art and

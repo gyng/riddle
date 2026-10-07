@@ -60,10 +60,11 @@ const LEAD = /^(banked|returned|died|stalled|lost thread|driven)\b/;   // QA 0c6
 /** Cut 14 §4: the floor an exit ended on — the ledger's exit line it claims (`returned D5`, the gold sheet's own match), else
  *  the line's own `bones: 7 items on D5`; undefined when neither knows. `newer` = the exits after it in the same report. */
 export function exitDepth(app: App, x: ExitLine, newer: ExitLine[] = []): number | undefined {
+  if (x.reached !== undefined && x.reached > 0) return x.reached;
   const ledger = app.lineage.gold_ledger ?? [];
-  const same = (a: ExitLine, b: ExitLine): boolean => a.kept === b.kept && LEAD.exec(a.text)?.[1] === LEAD.exec(b.text)?.[1];
+  const same = (a: ExitLine, b: ExitLine): boolean => (a.bloodline_id || 1) === (b.bloodline_id || 1) && a.kept === b.kept && LEAD.exec(a.text)?.[1] === LEAD.exec(b.text)?.[1];
   const range = runRange(ledger, x, newer.filter((y) => same(y, x)).length);
-  const why = range ? ledger.slice(range[0], range[1] + 1).map((g) => g.why).find((w) => /^(returned|banked|died|lost|stalled|driven)\b.*\bD\d+/.test(w)) : undefined;
+  const why = range ? ledger.slice(range[0], range[1] + 1).filter((g) => (g.bloodline_id || 1) === (x.bloodline_id || 1) && /^(returned|banked|died|lost|stalled|driven)\b.*\bD\d+/.test(g.why)).at(-1)?.why : undefined;
   const m = /\bD(\d+)\b/.exec(why ?? "") ?? /\bon D(\d+)\b/.exec(x.text);
   return m ? Number(m[1]) : undefined;
 }
