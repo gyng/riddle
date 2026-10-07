@@ -304,10 +304,11 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     from ? tile({ id: "report", label: /* copy:button */ "report", icon: "trace", onclick: () => app.go({ kind: "report", report: from.report }) }) : null,
     tile({ id: "camp", label: /* copy:button */ "town", icon: "camp", onclick: () => app.go({ kind: "camp" }) }),
   ] });
-  const killerSrc = drove || d.verdict === "stall" ? null : foeSrc(d.cause);
+  const enemyKind = drove?.boss ?? d.cause;
+  const killerSrc = d.verdict === "stall" ? null : foeSrc(enemyKind);
   const enemyKnowledge = (kept && !d.hero) || (d.hero?.bloodline_id !== undefined && d.hero.bloodline_id !== (app.lineage.selected_bloodline ?? 1)) ? undefined : app.lineage;
-  const knownKiller = killerSrc || (!drove && d.verdict !== "stall" && app.lineage.ledger?.some(r => r.kind === d.cause));
-  const killerPortrait = knownKiller ? enemyHost(unitPortrait(d.cause, 112), d.cause, enemyKnowledge, false, () => d) : null;
+  const knownKiller = drove || killerSrc || (d.verdict !== "stall" && app.lineage.ledger?.some(r => r.kind === enemyKind));
+  const killerPortrait = knownKiller ? enemyHost(unitPortrait(enemyKind, 112), enemyKind, enemyKnowledge, false, () => d) : null;
   if (killerPortrait) {
     killerPortrait.classList.add("killer");
     killerPortrait.removeAttribute("aria-hidden");
@@ -316,7 +317,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     const causeBtn = line.querySelector<HTMLElement>(".cause-btn")!;
     causeBtn.prepend(killerPortrait);
     causeBtn.classList.add("has-unit-icon");
-    enemyHost(causeBtn, d.cause, enemyKnowledge, false, () => d);
+    enemyHost(causeBtn, enemyKind, enemyKnowledge, false, () => d);
   }
   const tracePanel = h("div", { class: "parchment trace-panel", hidden: !!drove && !d.trace.turns.length }, ...trace);   // a drive-off's line may carry no trace
   // death screen v2 — the three questions, in order: what killed him (the banner), why (one line, the player's words), what now (the

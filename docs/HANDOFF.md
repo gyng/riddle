@@ -1,3 +1,25 @@
+**CUT95 REPELLED BOSS IDENTITY VERIFIED — 2026-10-07:**
+
+Restored recorded drive-off boss identity, excluded by death.ts before: art and
+rich enemy tooltip now use line.driven.boss, not display title. Shared112px framed
+portrait stays above centered text; known ordinary deaths and stalls preserved,
+unknown drive-off ids use primitive fallback. Regression failed before exactboss
+check. Terminal4/4PASS22s session21947 (/tmp/riddle-cut95-checks.log):108death-action
+checks,27historical-identity checks, Cut30death5/Cut26advanced24. Updated visual
+suite11215 terminalPASS, adds actual hover at3sizes: canonical GoblinWarlord,
+historical knowledge Unavailable, never Defeated. TS21135PASS, copy1753zero,
+webbuild63691PASS, diffPASS. Settled320/400/1440screens in scratchpad/qa-cut95-
+portrait;400/1440repelled-portrait shown. UI fixtures, not earned play/scores.
+
+QA-a further independently found earned Quill second-slot D6 report with a D3
+log caption (actual447gold log correct), screenshot shots/quill-report-depth-
+mismatch.png in scratchpad/fun-396f6ed-qa-a. Also second-slot portraits blank.
+Need investigate report exitDepth ledger matching and hero look art fallback.
+QA-b reports ~28actualactive cold minutes,2deaths read/replayed,2fights/2fast,
+>4config changes and scout/porter hired; no absences/cards. Both still live on
+immutable396f6ed:5251, preserve contexts and no hints. Goal95 still unverified.
+No deployment; all browser work uses focus-isolated shared launcher.
+
 **CUT94 EARLY DEFEAT TAPS VERIFIED — 2026-10-07:**
 
 QA-a's actual early Warlord drive-off enabled cause/seal taps targeted unmounted
