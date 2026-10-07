@@ -1,3 +1,52 @@
+**CURRENT ACCEPTANCE / NATIVE SEGFAULT INVESTIGATION — 2026-10-07:**
+
+Previous turnprogress Cut104 pushedc61b4cc. This turn Cut1055f50217 andCut106
+ad71e72909bba18cd06e2f8185302ea57f2d0a4b pushed. QAledgerremainingempty with
+original uncertainty preserved. Report duration scoped; failed same-unit hero
+portrait fallback verified. No scored card, no95certificate/deployment.
+
+Fullverify74170 now TERMINALFAIL: /tmp/riddle-cut106-full-verify.log.686Rust
+PASS/1ignored,14JShelpers/types/copyPASS,clippy passed,shippingWASM buildPASS
+4280168bytes,webbuildPASS. Currentmetrics8rowsPASS60.2s andQA10seedsPASS46.4s.
+Native dayplayer exitednull37.7s: dmesgCONFIRMS SIGSEGV11 atlibc memcpy4bytes,
+pid2083680. Memory42Gi available afterward; notprovenOOM/rootcause. Fullgate
+notgreen. Gatecache target/gates/dayplayer-794e9d58acfa00ac.txt contains
+statusnull/stdoutempty; preservefailureevidence, don't callcached resultPASS.
+No unsafe in core/examples; dependencies serde/serde_json. Need genuine root
+investigation, no gateweakening. Original fullbrowser dependent queue5695
+TERMINALFAIL becausefullverifyfailed, browserdidNOTstart there.
+
+Task-localgdb15.1 extracted /tmp/riddle-native-debugger/root, missinglibs also
+extracted there, no systeminstall. LIVE debugger execsession52707, hostgdbPID
+2084701/dayplayer2084711. Exactcompiledsamebinary/key56cb431b61e4251a andargs
+--gate --routine --no-share --seeds2 --resume --loo-seeds2 --tuned-seeds2
+--threads16, command sets RIDDLE_SRC_KEY andLD_LIBRARY_PATH tolocalgdb libs.
+Log /tmp/riddle-ad71-dayplayer-gdb.log. At75s no reproducedcrash; HANDS/IDLE/
+RANDOM/AWAY jobsfinish, others stillplaying. Poll SAMEhandle; don't restart
+on observationtimeout. GDB batchrun thenthreadapplyallbt16 onSIGSEGV, symbols
+nativefastdebug0 butfunctions present. Need capturetrace/terminal first.
+
+Independent wholeclient acceptance queued NEWsession described in nexttool
+result (waits hostgdbPID2084701 gone then TEST_JOBS3 TEST_HEAVY_WIDTH1 full
+node tests/run.mjs); output/tmp/riddle-ad71-client-full.log. This browser
+acceptance is independent evidence; raters NOTreleased untilnativegreen too.
+Do not edit app source whilefullsuite runs orcallmixedstatewholegreen.
+
+Isolated headed GPUprobe16712terminalPASS: D3D12NVIDIA3080,scale1.5, log
+/tmp/riddle-ad71-gpu-probe.log. Closed ORPHANrootCut78driver5351 viaquit;
+verifiedPIDs1579331/1579365/1579407gone. Frozenoriginal396f6ed5251 preserved.
+OnlyQAagentscompleted; nofreshblindagents spawned. New pre-playdraft
+ eval/cohorts/ad71e72.contract.json statuspreparing/no release,manifestnull;
+seeds73/89 drivers5354/5355,70ACTUALactive40+5+5+20, honestlockedpenattempts,
+first10no notes, rawcardsimmutable, idle-hybrid, alpha.8for decision,
+nextdayrecallEMPTY, audioUNASSESSED. It is NOT acceptance/scorecertification.
+New calibration loop-hero.ad71e72.reanchor.json same74/drift0, reassessed all
+anchors knowledge+officialfeaturedescription; no freshdirectplay. Official
+Steamreopened; onlyfeatureclaims supported, neverRiddleawards. Reassess again
+if newcandidate aftercrashfix changescontext. No deployment/focusstealing.
+Goal95active/unverified; currentturnprogress includes2pushedQAfixes + new
+crash evidence/debugger and acceptance pipeline, notblocked.
+
 **CUT106 FAILED PORTRAIT FALLBACK VERIFIED — 2026-10-07:**
 
 Cut1055f50217 pushed report whole-run/assigned-rest scope. Current Cut106
