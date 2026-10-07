@@ -2291,6 +2291,7 @@ export function renderWatch(app: App): Mounted {
       deaths: tier === "death" ? [{ cause: heroCause ?? exitLine?.text ?? /* copy:label */ "death", n: 1 }] : [],   // Cut 10 §3: the death it came from
       stolen: exitLine?.stolen?.length ? [...exitLine.stolen.reduce((m, l) => m.set(l, (m.get(l) ?? 0) + 1), new Map<string, number>())].map(([label, n]) => ({ label, n })) : undefined,   // QA e75ec29 (R)
       reel: notes.slice(-5), marks_earned: L.marks - before.marks, live: snap!, tamed, hatched: [], lost,
+      legacy_earned: exitLine?.legacy_earned,
       xp: { class: cls, ...xpOfRun() },
       salvaged: reconcileSalvage(mergeSalvage(exitLine?.salvaged ?? [], salvagedRows), L.gold_ledger ?? []), kept: keptLabels.length ? keptLabels : undefined, deepest, renown: { gained: (L.renown ?? 0) - before.renown, rank: L.rank ?? 0, ranks_up: (L.rank ?? 0) - before.rank },
       spent: [...(exitLine?.toll !== undefined ? (exitLine.toll > 0 ? [{ kind: /* copy:none */ `waystone D${exitLine.start ?? L.start ?? 1}`, n: 1, gold: exitLine.toll }] : []) : tollOf(L.gold_ledger ?? [])), ...spentRows(L.gold_ledger ?? [])],   // Cut 13 §3: what the automations bought at this exit (`heal ×1 · −$40`); QA a946e04: the send's toll first

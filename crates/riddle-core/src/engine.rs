@@ -2712,6 +2712,8 @@ fn default_pct() -> i32 {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Batch {
     pub runs: u32,
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub legacy_earned: u32,
     /// Cut 30 §2: the packages' lines this batch (`STEADY L3`, `DRILLED · Warlord`, `+Guarded`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pkg_lines: Vec<String>,
@@ -4756,7 +4758,7 @@ impl Game {
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
         let tier = run.over.unwrap_or(ExitTier::Return);
-        if !self.sim {
+        let legacy_earned = if !self.sim {
             crate::legacy::ensure(&mut self.lineage);
             let legacy = self.lineage.hero_legacy.last_mut().expect("hero legacy");
             let earned = 1 + run.max_depth.saturating_sub(legacy.best_depth);
@@ -4765,7 +4767,9 @@ impl Game {
             legacy.best_depth = legacy.best_depth.max(run.max_depth);
             legacy.runs += 1;
             legacy.class = run.hero.class.name().into();
-        }
+            self.batch.legacy_earned += earned;
+            earned
+        } else { 0 };
         // Cut 30.5: a send by hand is spent — the hero is home and waits (before the scout); the guide's record of
         // the stone it started from
         if !self.sim {
@@ -5655,6 +5659,7 @@ impl Game {
         line.trace = Some(exit_trace(&run, &self.prov));
         line.salvaged = cut_rows;
         line.run_id = run.id;
+        line.legacy_earned = legacy_earned;
         line.xp = xp;
         line.level_ups = level_ups;
         // Cut 29 §3: the run metered — on its line, the absence's sum, the night's, the last two runs'.
@@ -6663,7 +6668,7 @@ pub fn exit_line_of(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on
     if unused > 0 && tier != ExitTier::Death {
         text.push_str(&format!(" · {unused} {} back", if unused == 1 { "supply" } else { "supplies" }));
     }
-    ExitLine { packages:Vec::new(),bloodline_id:1,secured: 0, carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None, end: String::new(), reached: 0, new_best: false, finds: Vec::new() }
+    ExitLine { packages:Vec::new(),bloodline_id:1,secured: 0, carried, keep_pct, kept, spent, spent_on, text, trace: None, salvaged: Vec::new(), run_id: 0, legacy_earned: 0, xp: 0, level_ups: 0, stolen: Vec::new(), purse_full: false, shelved: Vec::new(), toll: 0, start: 1, start_short: None, stolen_gold: 0, swapped: 0, cause: None, reason: None, swap_left: Vec::new(), wake: 0, found: Vec::new(), found_n: 0, bones: Vec::new(), driven: None, news: Vec::new(), meters: None, end: String::new(), reached: 0, new_best: false, finds: Vec::new() }
 }
 
 /// Cut 30.5: an exit line's head re-worded with the secured gold — `banked $120 · $80 secured + 100% of $40`, `died

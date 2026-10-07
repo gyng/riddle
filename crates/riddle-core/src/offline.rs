@@ -411,7 +411,7 @@ pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::c
     }
     let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price,
         broken: b.oath_breaks.values().sum(), cause: b.oath_breaks.iter().max_by_key(|(c, n)| (**n, std::cmp::Reverse(c.len()))).map(|(c, _)| c.clone()) });
-    let mut r = ReturnReport { slice_pending:false,bloodlines:vec![],lead: Vec::new(), oath, grew: Vec::new(), workers: Vec::new(), chest: 0, packages: crate::packages::beats(&b.pkg_lines),
+    let mut r = ReturnReport { legacy_earned:b.legacy_earned,slice_pending:false,bloodlines:vec![],lead: Vec::new(), oath, grew: Vec::new(), workers: Vec::new(), chest: 0, packages: crate::packages::beats(&b.pkg_lines),
         elapsed_s,
         runs: b.runs,
         sampled,
@@ -843,6 +843,8 @@ mod slice_tests {
         for seed in [1,3,5] {
             let mut base=camp(seed);run_offline_counts(&mut base,3600);
             let mut whole=base.clone();let expected=run_offline_quick(&mut whole,8*3600);
+            assert_eq!(expected.legacy_earned,crate::legacy::current(&whole.lineage).unwrap().points-crate::legacy::current(&base.lineage).unwrap().points);
+            assert!(expected.legacy_earned>0);
             for (widths,reload) in [(&[1800][..],false),(&[1,1799,3601,719][..],false),(&[1800][..],true)] {
                 let (actual,report)=partition(&base,8*3600,widths,reload);
                 equal(&whole,&actual,&format!("seed{seed}, {widths:?}, reload{reload}"));

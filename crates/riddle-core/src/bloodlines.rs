@@ -187,13 +187,13 @@ impl Session {
             r
         };
         let mut r=finish(&mut self.active,full,with_stall);
-        let summary=|id:u32,r:&ReturnReport,g:&Game|crate::wire::BloodlineReturn{id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),boss_knowledge:Self::victory_knowledge(g,&r.bests),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
+        let summary=|id:u32,r:&ReturnReport,g:&Game|crate::wire::BloodlineReturn{legacy_earned:r.legacy_earned,id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),boss_knowledge:Self::victory_knowledge(g,&r.bests),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
         if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r,&self.active));}
         for (id,g) in &mut self.others {
             town_from(&self.active.lineage,&mut g.lineage);
             let other=finish(g,false,false);
             r.bloodlines.push(summary(*id,&other,g));
-            r.runs+=other.runs; r.banked+=other.banked; r.returned+=other.returned;r.deepest=r.deepest.max(other.deepest);
+            r.legacy_earned+=other.legacy_earned; r.runs+=other.runs; r.banked+=other.banked; r.returned+=other.returned;r.deepest=r.deepest.max(other.deepest);
             for death in other.deaths {if let Some(d)=r.deaths.iter_mut().find(|d|d.cause==death.cause){d.n+=death.n;}else{r.deaths.push(death);}}
             if let Some(b)=other.gold {let a=r.gold.get_or_insert_with(Default::default);a.home+=b.home;a.salvage+=b.salvage;a.spent+=b.spent;a.wake+=b.wake;a.wake_n+=b.wake_n;a.wake_cap=a.wake_cap.max(b.wake_cap);a.lost+=b.lost;a.unkept+=b.unkept;}
             for (target,rows) in [(&mut r.salvaged,other.salvaged),(&mut r.spent,other.spent)] {
@@ -288,6 +288,13 @@ mod tests {
             for id in 1..=3 {base.select_bloodline(id).unwrap();base.active.lineage.clock_s=crate::engine::DAY_S-60;base.send();}
             base.select_bloodline(1).unwrap();
             let mut whole=base.clone();let expected=whole.run_offline_mode(7200,false,true);
+            assert_eq!(expected.legacy_earned,expected.bloodlines.iter().map(|s|s.legacy_earned).sum::<u32>());
+            for row in &expected.bloodlines {
+                let prior=if row.id==base.selected {&base.active}else{&base.others[&row.id]};
+                let now=if row.id==whole.selected {&whole.active}else{&whole.others[&row.id]};
+                assert_eq!(row.legacy_earned,crate::legacy::current(&now.lineage).unwrap().points-crate::legacy::current(&prior.lineage).unwrap().points);
+                assert!(row.legacy_earned>0);
+            }
             for reload in [false,true] {
                 let mut sliced=base.clone();let widths=[1,719,1280];let mut left=7200;let mut i=0;
                 let report=loop {

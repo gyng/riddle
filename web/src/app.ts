@@ -1079,7 +1079,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
       const bests = rows.some(s=>s.bests!==undefined) ? [...new Set(rows.flatMap(s=>s.bests??[]))] : undefined;
       const boss_knowledge = rows.some(s=>s.boss_knowledge!==undefined)
         ? [...new Map(rows.flatMap(s=>s.boss_knowledge??[]).map(k=>[k.boss,k])).values()] : undefined;
-      return {...last,...progression,xp,bests,boss_knowledge,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
+      return {...last,...progression,xp,bests,boss_knowledge,legacy_earned:rows.some(s=>s.legacy_earned!==undefined)?rows.reduce((n,s)=>n+(s.legacy_earned??0),0):undefined,runs:rows.reduce((n,s)=>n+s.runs,0),gold:rows.reduce((n,s)=>n+s.gold,0),deepest:Math.max(...rows.map(s=>s.deepest))};
     }),
     rested_s: sum(a.rested_s, b.rested_s), banked: sum(a.banked, b.banked), returned: sum(a.returned, b.returned), stalled: sum(a.stalled, b.stalled), driven: sum(a.driven, b.driven),
     bones_found: cat(a.bones_found, b.bones_found),
@@ -1110,6 +1110,7 @@ export function mergeReports(a: ReturnReport, b: ReturnReport): ReturnReport {
     reel: mergeReel(a.reel, b.reel),                      // Cut 25 §5: one line per shape, its count in `n`
     marks_earned: a.marks_earned + b.marks_earned, worst_death: worst, live: b.live,
     tamed: [...a.tamed, ...b.tamed], hatched: [...a.hatched, ...b.hatched], lost: [...a.lost, ...b.lost],
+    legacy_earned: sum(a.legacy_earned,b.legacy_earned),
     xp: { class: b.xp.class, gained: a.xp.gained + b.xp.gained, level_ups: a.xp.level_ups + b.xp.level_ups },
     salvaged: [...salv].map(([kind, v]) => ({ kind, ...v })),
     spent: spent ? [...spent].map(([kind, v]) => ({ kind, ...v })) : undefined,

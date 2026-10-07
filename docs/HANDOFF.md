@@ -1,3 +1,43 @@
+**CUT52 LEGACY EARNINGS — 2026-10-07:**
+
+Fresh played QA found reports expose class XP gain but only total Legacy. Rust
+now records existing earned points on each real exit and Batch, reports sum
+them globally and by bloodline. Watched reports copy the exit; client merge
+preserves historical owners and unknown old fields. Compact Legacy earned rows
+before preparation, separate from Class XP. No award/pricing/RNG/rules changes.
+
+Final core678 PASS/one existing ignored,39.74s; all-target fast Clippy clean.
+Original c70ffd182d4080f1 gameplay digest retained by stripping only new numeric
+observation. First projection missed the first object field; placed beside XP,
+original hash passes. New six bank/return/death×sim cases reconcile awarded
+points/exit/batch and duplicate finish; existing single8h and multi2h full-state/
+report partition tests strengthen real balance checks. Raw failures retained.
+
+Five report/choices/bosses/classXP/preparation jobs PASS30.7s; final compact
+layout/current WASM Legacy/classXP2/2 PASS43.4s during compilation.320/400/1440
+actual earned fixture, actual paid additional slots on400: +38/+36/+27 Legacy,
+101 total, actual points reconcile, full save unchanged by inspection, no
+horizontal overflow/page errors; owner/merge/unknown-wire11 assertions each.
+Final packaged8h solo and paidthree-slot five-path whole/30min/uneven/reload/
+complete-api exact complete-save/report parity terminal0, 4/34 runs,38/101Legacy.
+TS/build/copy1740 zero/JS/diff pass. No deployment.
+
+Final built headed freshseed5 first watched D4 report +5 Legacy; manual three
+sends/scout then20m returns +1,total9.36.1s10 dumps, noerrors. First rat capture
+23px vs24px existing visual bar: next renderer inspection, not universal pass.
+Played seed7: first WarlorddeathD8; manual forge/Damage/sword/Guarded choice,
+next hero returnsD8 withgold. Bounded QA, not independent40m/three-absence rating
+or a paired statistical claim. Old driver send_and_watch Skip timedout52s;
+actual visible Speed choice worked. Restore compound current Speed navigation
+next for faster interactive QA; do not treat that timeout as gameplay lag.
+
+Artifacts scratchpad/gameplay-cut52/{walk,interactive,walk-ready,
+earned-reports-ready,solo-parity-ready,multi-parity-ready}; logs in CUT52.
+Owned5420/5421/5422 closed after checks; shared5219 retained. Standingpush
+approval, NOdeploy. Independent95 and broad balance/client suite remain unverified.
+NEXT: fix stale compound driver and investigate measured small rat rendering,
+then continue fresh gameplay/content observations and immutable independent eval.
+
 **CUT51 CURRENT SCREEN QA — 2026-10-07:**
 
 Restored the retired screens/qa9 entrypoints after the chunky UI audit. Actual

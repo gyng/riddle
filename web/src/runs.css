@@ -344,3 +344,6 @@ button.re-body { cursor: pointer; }
   content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
   box-shadow: inset 0 0 0 2px #11141b, inset 0 0 0 3px #7b839044, inset 0 -18px 24px -18px #05060c;
 }
+
+/* Report earnings: one compact line per persistent bloodline. */
+.report-legacy-earned .class-xp-owner { flex-basis: auto; margin-right: auto; }

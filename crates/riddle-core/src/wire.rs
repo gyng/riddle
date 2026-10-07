@@ -278,6 +278,8 @@ pub struct ExitLine {
     #[serde(default, skip_serializing_if = "is_zero")]
     pub xp: u32,
     #[serde(default, skip_serializing_if = "is_zero")]
+    pub legacy_earned: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub level_ups: u32,
     /// QA on e75ec29 (qaR: a packed heal stolen on D1, nothing on the exit): the labels of what
     /// thieves took this run and it never got back (`· stolen heal`; flavour-named while
@@ -1320,6 +1322,8 @@ pub struct BossKnowledge {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct BloodlineReturn {
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub legacy_earned: u32,
     pub id:u32, pub name:String, pub runs:u32, pub deepest:u32, pub gold:i32,
     /// This slot's class gains; arrays allow clients to merge class changes
     /// across report slices without assigning everything to the latest class.
@@ -1337,6 +1341,9 @@ pub struct BloodlineReturn {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct ReturnReport {
+    /// Actual inherited points earned by completed runs in this report.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub legacy_earned: u32,
     /// Transport acknowledgement only. The final call returns the whole absence once.
     #[serde(default, skip_serializing_if = "is_false")]
     pub slice_pending: bool,

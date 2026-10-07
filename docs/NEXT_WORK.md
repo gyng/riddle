@@ -31,20 +31,22 @@ all twelve older Tier5 campaign saves remain exact.636core/14tool tests,
 clippy/build/codegen/TS/copy and routine18case gates pass. Event208→80bytes,
 positive-hit microbenchmark overhead1.12% after fixing initial23% failure.
 No deployment; optional exhaustive/statistical audit remains uncertified.
-Owner requests Gunner2026-10-07: CUT35_GUNNER.md is next before proposed
-Rogue/Ranger styles. Fifth base class with actual long/short gun equipment,
-chambers and timed reload commitment, inherited XP/Legacy, named automatic
-class tactics from first send, meaningful distinct range/armour/close-spread
-matchups. Prepared transparent gun icons via built-in imagegen and existing
-packer. Per-item saved chambers, absolute20/15tick reload commitment and
-long/short weapon definitions now implemented;643core/14tool quick checks
-and all-target fast clippy pass. Actual fire/reload/close-burst and quiet-batch deadline integration now
-implemented;17focused tests/653core quick PASS. Played GunSnap, native/WASM
-whole/sliced/reloaded61tick controlled combat fixtures exact. Class/unlock,
-forge/default tactics, remaining ladder, portraits/watch/replay UI, earned
-progression and full perf/gates remain pending. No playable Gunner yet.
-Preserve old drop RNG, authored rules and saved state; do not expose inactive
-classes. Subsequent class-training audit and further boss/loot variety remain.
+Owner Gunner request is delivered within CUT35_GUNNER.md and subsequent
+acceptance notes in PLAN/HANDOFF. Fifth public paid class, real Rifle/Scattergun
+chambers/reload/aim/burst/smoke, class XP ladder, optional paid melee backup,
+portraits, action/shared class icons and played replay are implemented. Current
+paid-upkeep/owned backup progression, parity, performance and18-case checks have
+scoped evidence; broader balance/client and independent95 remain uncertified.
+Do not repeat the former "no playable Gunner" implementation queue. Preserve
+old drop RNG, authored rules and saved state; further class-training audit and
+boss/loot variety remain appropriate after fresh played evidence.
+
+Cut52 makes actual earned Legacy visible on watched/away reports per bloodline,
+separate from class XP, preserving old reports and no automatic spending. Fresh
+played seed5/7 evidence and actual multihero captures are in CUT52. Next specific
+QA/iteration follow-ups: compound driver uses retired Speed/Skip entrypoints;
+first headed rat measures23px vs the existing24px visual bar. Independent current
+immutable-build fun evaluation is still needed; scoped checks do not establish95.
 
 D checkpoint2026-10-06: exact earned solo Tier1/3/5 and three-bloodline8h
 whole/sliced/reloaded full-state/report parity now passes after guide-quote,

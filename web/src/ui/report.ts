@@ -14,6 +14,7 @@ import { goldWords } from "./gold-words";
 import { conceptTag } from "./concepts";
 import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
+import { legacyEarnedBlock } from "./legacy-earned";
 import { classXpBlock } from "./class-xp";
 import { systemIcon, systemLabel } from "./systems";
 import { openPreparationForge, preparationActions } from "./preparation";
@@ -583,7 +584,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage), classXpBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage), classXpBlock(r), legacyEarnedBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop

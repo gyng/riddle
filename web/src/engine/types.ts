@@ -110,7 +110,7 @@ export type Stake = { loot: number; brought: { label: string; insured: boolean }
                                                                                      // Cut 20 §4: what a death now would keep (the death tier's share) — `carry $78 · bank keeps $78 · death $0`
 /** Cut 6 §1 — the ledger line of an exit: one arithmetic line the player can check, `text` is shown verbatim
  *  (`$84 carried · return keeps 60% → $50 · supplies −$12 → $68`). Fractions: `keep_pct` 0..100. */
-export type ExitLine = { packages?:string[]; bloodline_id?:number; carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
+export type ExitLine = { legacy_earned?:number; packages?:string[]; bloodline_id?:number; carried: number; keep_pct: number; kept: number; spent: number; spent_on: string[]; text: string;
                          secured?: number;                                                                  // Cut 30.5 (core; the owner: a new record is a checkpoint, never an exit): of `carried`, the gold the run's checkpoints secured — kept whole at any exit (a death keeps it alone); `keep_pct` is the share of the rest (`banked $120 · $80 secured + 100% of $40`)
                          trace?: Trace;                                                                     // Cut 9 §5: the exit's last-5 trace (every tier)
                          salvaged?: { kind: string; n: number; gold: number }[];                           // what the exit salvaged before the keep sheet (a return's 40 % cut), per kind in coins; `kind` is a display name — an unidentified kind reads as its flavour (`brittle scroll?`, QA 1a2a4a9)
@@ -463,8 +463,9 @@ export type HeroSlot = { specialization?:ClassStyleId; look?:string; hero_name?:
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
+  legacy_earned?: number;
   slice_pending?: boolean; // acknowledgement only; final slice reports the whole absence once
-  bloodlines?: {id:number;name:string;runs:number;deepest:number;gold:number;packages?:string[];bests?:string[];boss_knowledge?:BossKnowledge[];xp?:ReturnReport["xp"][]}[];
+  bloodlines?: {legacy_earned?:number;id:number;name:string;runs:number;deepest:number;gold:number;packages?:string[];bests?:string[];boss_knowledge?:BossKnowledge[];xp?:ReturnReport["xp"][]}[];
   workers?: WorkerAct[];                                                       // Cut 30.5 (core): the workers' acts this absence (porter's hauls, apprentice's steps, clerk's deposits, …)
   chest?: number;                                                              // Cut 30.5 (core): the haul gold this absence left in the chest (before the porter; the chest's badge)
   grew?: GrewLine[];                                                          // Cut 30 §4 (core): what grew on each track over the absence — the report leads with it

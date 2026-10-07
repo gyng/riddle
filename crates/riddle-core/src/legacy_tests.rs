@@ -230,3 +230,23 @@ fn sent_perks_survive_save_and_history_without_reading_later_camp_allocations() 
     assert_eq!(g.run.as_ref().unwrap().hero.hp,6);same_save(&loaded,&g.save());
     g.step(11);assert!(g.history.iter().all(|(r,_)|r.hero.legacy_effects==mask));
 }
+
+#[test]
+fn earned_legacy_exit_and_batch_match_points_for_each_exit_and_skip_simulations() {
+    use crate::engine::ExitTier;
+    for tier in [ExitTier::Bank, ExitTier::Return, ExitTier::Death] {
+        for sim in [false,true] {
+            let mut g=Game::new_resident(7);
+            let before=current(&g.lineage).unwrap().points;
+            g.send();g.sim=sim;
+            let run=g.run.as_mut().unwrap();run.max_depth=8;run.over=Some(tier);
+            g.finish_run().unwrap();
+            let gain=current(&g.lineage).unwrap().points-before;
+            assert_eq!(gain,if sim {0}else{9});
+            assert_eq!(g.last_exit.as_ref().unwrap().legacy_earned,gain);
+            assert_eq!(g.batch.legacy_earned,gain);
+            assert!(g.finish_run().is_none());
+            assert_eq!(current(&g.lineage).unwrap().points,before+gain);
+        }
+    }
+}
