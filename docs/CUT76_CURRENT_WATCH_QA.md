@@ -130,3 +130,36 @@ Build, TypeScript, copy1742zero, syntax, diff and watch-control checks PASS.
 Responsive GPU screenshots shown from scratchpad/qa-cut76-heroes. Full client
 audit is running separately; these checks do not certify the historical full
 suite or an independent fun score. No deployment;95 remains unverified.
+
+
+## Full audit and resource reproduction — 2026-10-07
+
+Full headless audit on1fc8c82 terminates FAIL72/120 in523.8s. This supersedes the
+older99/117 as current full-suite evidence; it is not a game regression count.
+Many failures contain ERR_INSUFFICIENT_RESOURCES, Target crashed, shader or
+WebGL context errors. Low-concurrency2 control screens/cut13/hero-presence is
+FAIL1/3 in53.4s: presence passes, screens loses its page at navigation, Cut13
+still reports48 resource errors. Reducing pool width alone does not solve it;
+no browser errors are filtered and no test is certified from that control.
+
+Screens alone headed/GPU completes48.2s with1 assertion and0 browser errors:
+“dungeon” appears inert under the280ms hash sample. Town.send deliberately
+awaits a650ms entrance walk. Require actual watch navigation within5s after
+that particular click before sampling. This preserves the inert-control gate
+and checks the real navigation instead of exempting the control. The corrected
+walk must pass before being claimed verified. Investigate other isolated
+specific failures separately; full headless suite remains failing.
+
+The client runner now prints completed jobs/diagnostics immediately, retaining
+all checks, scheduling, counts and exit codes. Temporary controlled child jobs
+prove early failing-job output before a1.2s job, one result per job, diagnostic
+preservation and2/3 exit1. This improves feedback latency, not suite runtime.
+
+
+Final corrected Screens GPU walk PASS57checks,9 screens,30 button clicks,
+0 errors in50.0s (48.7s walk). Dungeon must actually enter watch within5s;
+its650ms walk remains unchanged. The earlier repeat still loaded the old
+fixture (failed1 inert dungeon assertion in102.6s); it is not evidence for the
+corrected file. Runner syntax/diff and failure-output unit checks3/3 pass.
+Full headless72/120 remains the authoritative full-suite failure; isolated
+Screens success does not certify it or the independent rating horizon.

@@ -46,6 +46,12 @@ const run1 = (n) => new Promise((resolve) => {
   p.stdout.on("data", (d) => (out += d)); p.stderr.on("data", (d) => (out += d));
   p.on("close", (code) => resolve({ n, code, out, ms: Date.now() - t0, own: Date.now() - start }));
 });
+const printResult = (r) => {
+  const last = r.out.trim().split("\n").at(-1) ?? "";
+  // (the time it ended at, and its own time from its start)
+  console.log(`${r.code === 0 ? "ok  " : "FAIL"} ${r.n.padEnd(15)} ${(r.ms / 1000).toFixed(1)}s (${(r.own / 1000).toFixed(1)}s)  ${last}`);
+  if (r.code !== 0) { console.log(failureOutput(r.out).map((l) => "     " + l).join("\n")); }
+};
 // The wall-clock gates get headroom: while one runs, at most HEAVY_WIDTH (3) browsers run in all (7 CPU-rendered
 // browsers beside them flaked them; the old runner kept clarity's whole walk and fights alone — 2 browsers — for
 // 4 minutes). Their readings retry once when they fail on a loaded machine (tests/lib/load.mjs).
@@ -68,18 +74,14 @@ await Promise.all(Array.from({ length: Math.min(width, queue.length) }, async ()
     if (!n) { await new Promise((r) => setTimeout(r, 200)); continue; }
     const kind = SOLO.includes(n) ? "solo" : HEAVY.includes(n) ? "heavy" : "other";
     if (kind === "solo") soloLive++; else if (kind === "heavy") heavyLive++; else othersLive++;
-    done.push(await run1(n));
+    const result = await run1(n);
+    done.push(result);
+    printResult(result);
     if (kind === "solo") soloLive--; else if (kind === "heavy") heavyLive--; else othersLive--;
   }
 }));
 const results = names.map((n) => done.find((r) => r.n === n));
-let failed = 0;
-for (const r of results) {
-  const last = r.out.trim().split("\n").at(-1) ?? "";
-  // (the time it ended at, and its own time from its start)
-  console.log(`${r.code === 0 ? "ok  " : "FAIL"} ${r.n.padEnd(15)} ${(r.ms / 1000).toFixed(1)}s (${(r.own / 1000).toFixed(1)}s)  ${last}`);
-  if (r.code !== 0) { failed++; console.log(failureOutput(r.out).map((l) => "     " + l).join("\n")); }
-}
+const failed = results.filter(r => r.code !== 0).length;
 console.log(`${failed ? "FAIL" : "ok"}: ${results.length - failed}/${results.length} client gates in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 vite?.kill();
 process.exit(failed ? 1 : 0);

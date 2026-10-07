@@ -1847,3 +1847,18 @@ completion within minutes remains unmet. Details and rejected architecture
 probes in `docs/PERF_SIM_WORK.md`. Next queue: refresh package-picking phase
 CPU/allocation evidence, then test immutable map/policy preparation and clone
 cost reduction against the same exact-output requirements.
+
+
+### 2026-10-07: show each completed client gate immediately
+
+The runner buffered all completed test results until the slowest job ended,
+contrary to its header's promised per-completion reporting. Move the existing
+result/diagnostic printer into the worker's completion path. Preserve the
+bounded scheduling pool, timing isolation, checks, per-job diagnostic output,
+final counts and exit code. This saves time to the first actionable result,
+not simulation or total suite runtime. Existing old full-suite failure at54.8s
+was hidden until553.5s; future runs expose a completed failure at its own finish.
+An isolated temporary three-job check verifies a failing job reports before a
+1.2s slow job, exactly one result per job, retained failure text,2/3 summary and
+exit1. Syntax/diff checks pass. The currently running audit loaded the previous
+runner and will still report at the end; do not restart it to get streaming.

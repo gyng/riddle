@@ -1,3 +1,30 @@
+**CUT76 SCREEN LINT / FEEDBACK VERIFIED — 2026-10-07:**
+
+Corrected Screens GPU walk PASS57checks/9screens/30clicks/0errors in50.0s.
+Dungeon click now requires actual watch navigation within5s before text hash,
+respecting existing650ms entrance walk; no skip or animation/game change.
+Log/tmp/riddle-cut76-screens-final.log. Earlier repeat loaded old file and
+failed inert dungeon in102.6s; not evidence for corrected file. Runner emits
+completed tests immediately; temp streaming probe PASS, failure-output3/3,
+syntax/diff PASS. Full headless audit TERMINAL72/120 in523.8s remains failing;
+2-browser probe FAIL1/3 with resource errors, so concurrency alone not fixed.
+No deployment or independent95score. Next: isolate legible/looks/Legacy-tree
+and other concrete failures on GPU, then immutable full-horizon QA/rating.
+
+**CUT76 FULL AUDIT TERMINAL / EARLY FEEDBACK — 2026-10-07:**
+
+Full session12370 TERMINAL1:72/120 in523.8s on1fc8c82. Current full-suite result
+supersedes old99/117; do not restart the finished audit or claim suite green.
+Log/tmp/riddle-cut76-client-audit.log. Widespread resource/Target crashed/WebGL
+errors;2-browser control FAIL1/3 in53.4s, presence passes, Cut13 still48 resource
+errors, screens loses page at goto. Pool width alone is not a fix. Screens
+alone/GPU completes48.2s,1 assertion/0errors: dungeon sampled280ms before its
+650ms entrance animation completes. Require actual watch navigation within5s
+on dungeon click before sampling; corrected final walk still pending. Runner
+now prints job results immediately; temp fixture verifies early failure before
+slow1.2s, exactly one per-job result/diagnostics,2/3 exit1. No gate filtering,
+no changed scheduling, no game truth change. Goal95 active/unverified.
+
 **CUT76 ACTIVE HEROES / FULL RUNUI — 2026-10-07:**
 
 Fix actual open Heroes window: retain Active heroes heading after paid founding
