@@ -29,6 +29,12 @@ balance remains uncertified. Old challenge restarts remain available.
 Victory now offers Town for home upgrades before the next descent. The cleared
 town's Next descent gem reopens the existing confirmation; it never sends or
 resets the hero (`docs/CUT71_POST_CLEAR_TOWN.md`).
+Cut73 adds optional post-clear Mirror rhythm in Tactics: alternate attacks
+against mirrors using the existing counter, yielding to healing. Explicit equip;
+no default/stat/drill timing change. Two paid earned Fighter seed5 builds clear
+the next descent at the first8h sample; exact catch-up/real-WASM live activation
+and routine18-case regressions pass. Broader all-seed post-clear balance remains
+unverified (`docs/CUT73_MIRROR_RHYTHM.md`).
 Twelve-node bloodline Legacy tree and free home respec are implemented under
 `docs/CUT32_LEGACY_TREE.md`: Recovery, Control and Warding, historical D8/D18
 access, exclusive leaves and live-send effect snapshots. Nine controlled paid

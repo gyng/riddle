@@ -1,3 +1,34 @@
+**CUT72/CUT73 MIRROR WALL CHOICE — 2026-10-07:**
+
+Seven paid owned Boss Focus/Fighter seed5 stance/temperament cases fail48h;
+Unbowed reachesD33, cautious variantsD28. Real cautious trace is one run due
+to pending exit, returning60%carry at23%HP. Aggressive actual King trace fires
+old generic Warlord attacks during mirrors. Retain original deep drill timing.
+Add optional post-clear Mirror rhythm to normal Tactics: existing cadence
+verb, mirror-only guarded row ahead of generic drills, yields to heal threshold,
+no autoequip/pen/stat/XP grants. Old cleared availability is read-only; explicit
+choose persists ownership; original six tactic drip unchanged. Paid inherited162
+and Fireward216/Bold/Unbowed cases clear first8h sample/13runs/playedD34.
+Inherited exact Boss Focus baseline fails48h; Fireward baseline has different
+policy, not a paired causal claim. One seed diagnostic, not all-Fighter balance.
+
+Four scoped core tests PASS; workspace682PASS/1ignored, quick44s, fast all-target
+Clippy, real-WASM build/TS/copy1740zero PASS. Routine18-case full gate terminal0
+source e0b465287f4053a0, metrics/10wire/selected dayplayer pass; broad exhaustive
+balance/migration/system-removal omitted. Final five browser jobs5/5PASS17.1s:
+Mirror availability/equip/icon/cancel/reload320/400/1440, post-clear-town,
+package-requests82, tactic-observer, numbered-descents. Earlier missing module/
+icon/optionalwire and sandbox native-host failures retained with corrected runs.
+Real earned live checkpoint obtained solely by advance(1000), living awake
+King after6184seconds; built GPU actual named activation320/400/1440, icon,
+details/nooverflow/errors. Replace raw tactic cadence with alternate attacks
+and singular activation count. Artifacts scratchpad/qa-cut73 and mirror-rhythm-
+cut73-*; raw logs /tmp/riddle-cut73-*. No deployment or independent95 claim.
+Full historical client audit remains99/117FAIL, not superseded by scoped passes.
+Next: current immutable cohort/horizon preparation and remaining mechanical
+run-log/manual-opening QA, then broader earned late-game choices if evidence
+supports them. Goal95 remains active and unverified.
+
 **CUT70/CUT71 EARNED CHOICES AND POST-CLEAR TOWN — 2026-10-07:**
 
 Cut70 finishes27 legally earned Ascension1 comparisons: three inherited162-point

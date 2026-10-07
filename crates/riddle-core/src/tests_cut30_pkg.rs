@@ -1315,3 +1315,82 @@ fn automatic_pack_reports_away_budget_limit_without_changing_purchases() {
     g.lineage.supplies.clear();g.batch=Default::default();g.offline=false;
     assert!(!g.restock().is_empty());assert!(!g.batch.restock_capped);
 }
+
+#[test]
+fn mirror_rhythm_availability_is_earned_read_only_and_equipping_is_explicit() {
+    let mut g=Game::new_resident(5);
+    let before=g.save();
+    let card=|g:&Game|g.lineage().packages.all.into_iter().find(|p|p.id=="cadence").unwrap();
+    assert!(!card(&g).owned);assert_eq!(card(&g).trigger,"Clear dungeon");
+    assert!(!packages::candidates(&g.lineage).iter().any(|c|c.0=="cadence"));
+    assert!(g.equip_package("cadence",0).is_err());assert_eq!(g.save(),before);
+    g.lineage.ended=true;g.lineage.kills.insert("goblin_warlord".into());
+    let before=g.save();assert!(card(&g).owned);assert_eq!(card(&g).name,"Mirror rhythm");
+    assert!(packages::candidates(&g.lineage).iter().any(|c|c.0=="cadence"));assert_eq!(g.save(),before);
+    assert!(g.equip_package("cadence",99).is_err());assert_eq!(g.save(),before);
+    g.equip_package("cadence",0).unwrap();assert!(g.lineage.pkg.owned.contains("cadence"));
+    assert!(g.lineage.unlocks.contains("cadence"));assert_eq!(g.lineage.pkg.tactics,vec!["cadence"]);
+    let before=g.save();g.equip_package("cadence",0).unwrap();assert_eq!(g.save(),before);
+    let mut loaded=Game::load(&g.save()).unwrap();assert_eq!(loaded.lineage.pkg.tactics,vec!["cadence"]);
+    loaded.unequip_package("cadence").unwrap();assert!(loaded.lineage.pkg.owned.contains("cadence"));
+    assert!(!loaded.lineage.rules().rows.iter().any(|r|r.origin.as_deref()==Some("tactic:cadence")));
+}
+
+#[test]
+fn mirror_rhythm_arrival_does_not_displace_the_original_tactic_drip() {
+    let mut base=Game::new_resident(5).lineage;
+    base.kills.insert("goblin_warlord".into());let mut cleared=base.clone();cleared.ended=true;
+    for day in 0..8 {
+        base.day=day;cleared.day=day;
+        let a=packages::arrive(&mut base);let b=packages::arrive(&mut cleared);
+        assert_eq!(a,b.iter().filter(|id|id.as_str()!="cadence").cloned().collect::<Vec<_>>());
+        assert_eq!(base.pkg.owned,cleared.pkg.owned.iter().filter(|id|id.as_str()!="cadence").cloned().collect());
+        assert_eq!(b.iter().filter(|id|id.as_str()=="cadence").count(),usize::from(day==0));
+    }
+}
+
+#[test]
+fn mirror_rhythm_executes_above_old_boss_drills_but_yields_to_healing() {
+    for (kind,hurt) in [("mirror_king",false),("mirror_king",true),("goblin_warlord",false)] {
+        let mut g=crate::tests::arena();g.lineage.pkg.literal=false;
+        g.lineage.pkg.owned.insert("cadence".into());g.lineage.pkg.tactics=vec!["cadence".into()];
+        g.lineage.unlocks.insert("cadence".into());
+        let row=crate::facts::counter_row("goblin_warlord");
+        g.lineage.pkg.drills.push(packages::Drill{boss:"goblin_warlord".into(),rows:vec![Row::new([row.conds,vec![Cond::n("hp>",35)]].concat(),row.verb)],revoked:false,announced:false});
+        let stored=g.lineage.pkg.drills.clone();packages::recompile(&mut g.lineage);assert_eq!(stored,g.lineage.pkg.drills);
+        for tag in ["boss","mirror","telegraph"] {g.lineage.facts.insert(format!("foe:{kind}:{tag}"));}
+        g.lineage.facts.insert(format!("foe:{kind}"));
+        crate::tests::add_monster(&mut g,kind,5,5);crate::tests::give(&mut g,"heal");
+        if let Some(fact)=crate::item::ident_fact(&g.lineage.flavours,"heal") {g.lineage.facts.insert(fact);}
+        let heal=packages::heal_pct("steady",g.lineage.pkg.level("steady"));
+        let r=g.run.as_mut().unwrap();r.hero.level=10;r.hero.max_hp=100;r.hero.max_hp_base=100;r.hero.hp=if hurt{heal-1}else{100};r.hero.energy=100;
+        r.verb_ring=vec!["attack".into()];r.monsters[0].hp=1000;r.monsters[0].max_hp=1000;
+        if kind=="mirror_king" {r.monsters[0].modifiers=Some(crate::endgame::Modifiers{tier:1,affixes:1,elite:None,tight_mirror:true});}
+        let events=crate::tests::ticks(&mut g,1);
+        let fired=events.iter().find_map(|e|if let crate::wire::Ev::Rule{row,..}=e{Some(*row)}else{None}).expect("an actual rule fires");
+        let picked=&g.lineage.rules().rows[fired as usize];
+        if hurt {assert_eq!(picked.verb,Verb::arg("drink","heal"));}
+        else if kind=="mirror_king" {assert_eq!(picked.origin.as_deref(),Some("tactic:cadence"));assert!(!events.iter().any(|e|matches!(e,crate::wire::Ev::Attack{verb:Some(v),..}if v=="mirror")));}
+        else {assert_eq!(picked.origin.as_deref(),Some("drill:goblin_warlord"));}
+    }
+}
+
+#[test]
+fn mirror_rhythm_earned_save_keeps_whole_sliced_and_reloaded_catchup_exact() {
+    let raw=std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"),"/../../web/tests/fixtures/earned-first-ascension-clear.json")).unwrap();
+    let mut base=crate::bloodlines::Session::load(&raw).unwrap();
+    base.equip_package("cadence",0).unwrap();base.begin_descent(2).unwrap();
+    let before=base.save();base=crate::bloodlines::Session::load(&before).unwrap();
+    let mut whole=base.clone();let expected=whole.run_offline_mode(28800,false,true);
+    for reload in [false,true] {
+        let mut sliced=base.clone();let mut left=28800;let mut i=0;
+        let report=loop {
+            let seconds=left.min([1,719,1280][i%3]);let last=seconds==left;
+            let r=sliced.run_offline_slice(seconds,last);
+            if last {break r;}
+            assert!(r.slice_pending);left-=seconds;i+=1;
+            if reload {sliced=crate::bloodlines::Session::load(&sliced.save()).unwrap();}
+        };
+        assert_eq!(report,expected);assert!(sliced.save()==whole.save(),"complete saved state/reload{reload}");
+    }
+}

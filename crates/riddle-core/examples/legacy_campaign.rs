@@ -1,5 +1,5 @@
 //! Earned post-clear Legacy comparisons; diagnostic, not a progression gate.
-//! legacy_campaign EARNED_CLEAR_SAVE NEW_OUT_DIR [--build inherited|LEAF-LEAF-LEAF] [--tactic OWNED_ID]
+//! legacy_campaign EARNED_CLEAR_SAVE NEW_OUT_DIR [--build inherited|LEAF-LEAF-LEAF] [--tactic OWNED_ID] [--stance OWNED_ID] [--temper OWNED_ID]
 use riddle_core::{bloodlines::Session,legacy};
 #[path="gunner_support/mod.rs"] mod support;
 use std::{path::Path,time::Instant};
@@ -10,8 +10,11 @@ fn main(){
     let source=args.get(1).expect("earned clear save");
     let out=Path::new(args.get(2).expect("new output directory"));
     let filter=|name:&str|args.iter().position(|a|a==name).map(|i|args.get(i+1).expect("filter value").as_str());
-    let build=filter("--build");let tactic=filter("--tactic");
+    let build=filter("--build");let tactic=filter("--tactic");let stance=filter("--stance");let temper=filter("--temper");
     assert!(tactic.is_none_or(|id|riddle_core::packages::def(id).is_some_and(|p|p.kind==riddle_core::packages::Kind::Tactic)),"unknown tactic");
+    for (id,kind) in [(stance,riddle_core::packages::Kind::Stance),(temper,riddle_core::packages::Kind::Temperament)] {
+        assert!(id.is_none_or(|id|riddle_core::packages::def(id).is_some_and(|p|p.kind==kind)),"wrong package kind");
+    }
     let input=Session::load(&std::fs::read_to_string(source).expect("earned source")).expect("valid source");
     let cases=[(format!("{}{}",input.active.lineage.class.name(),input.active.lineage.seed),source.as_str())];
     let mut builds=vec![("inherited".to_owned(),None)];
@@ -26,7 +29,7 @@ fn main(){
         assert!(prepared.others.is_empty()&&prepared.active.run.is_none()&&prepared.active.lineage.ended);
         let tier=prepared.active.descent_progress().unlocked;assert_eq!(tier,1,"these sources prove the first clear");
         let mut common_actions=support::camp(&mut prepared,false);
-        if let Some(id)=tactic {prepared.equip_package(id,0).expect("choose actually owned tactic");common_actions.push(format!("equip {id}"));}
+        for id in [stance,temper,tactic].into_iter().flatten() {prepared.equip_package(id,0).expect("choose actually owned package");common_actions.push(format!("equip {id}"));}
         std::fs::write(out.join(format!("{case}-source.json")),&raw).unwrap();
         std::fs::write(out.join(format!("{case}-prepared.json")),prepared.save()).unwrap();
         for (name,leaves) in builds.iter().filter(|(name,_)|build.is_none_or(|id|name==id)) {
@@ -53,7 +56,7 @@ fn main(){
                 if s.active.lineage.ended {clear=Some(8*n);break;}
             }
             std::fs::write(out.join(format!("{prefix}-after.json")),s.save()).unwrap();
-            let result=serde_json::json!({"case":case,"build":name,"source":source_path,"explicit_tactic":tactic,"tier":tier,"actions":actions,"points_before":points_before,"first_clear_hours":clear,"runs":total_runs,"seconds":timer.elapsed().as_secs_f64(),"checks":checks});
+            let result=serde_json::json!({"case":case,"build":name,"source":source_path,"explicit_tactic":tactic,"explicit_stance":stance,"explicit_temper":temper,"tier":tier,"actions":actions,"points_before":points_before,"first_clear_hours":clear,"runs":total_runs,"seconds":timer.elapsed().as_secs_f64(),"checks":checks});
             std::fs::write(out.join(format!("{prefix}-result.json")),serde_json::to_string_pretty(&result).unwrap()).unwrap();results.push(result);
         }
         assert_eq!(std::fs::read_to_string(source_path).unwrap(),raw,"source must stay unchanged");

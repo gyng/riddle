@@ -77,6 +77,7 @@ export function condLabel(c: Cond): string {
   return name;
 }
 export function verbLabel(v: Verb): string {
+  if (v.v === "tactic" && v.a === "cadence") return /* copy:rule_token */ "alternate attacks";
   const name = VERB[v.v] ?? nice(v.v);
   if (!v.a) return name;
   // `tag:thief` → `thief`; `fire,tag:thief` → `fire thief`; a trailing `,nearest` is the default target and stays silent

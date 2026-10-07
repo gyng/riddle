@@ -85,6 +85,7 @@ pub const PACKAGES: &[PackageDef] = &[
     tactic("thief_guard", "thief guard"),
     tactic("gas_step", "gas step"),
     tactic("pack_break", "pack break"),
+    PackageDef { id: "cadence", kind: Kind::Tactic, name: "Mirror rhythm", card: Some("cadence"), trigger: "Clear dungeon", temperament: None },
     temper("skittish", "skittish", crate::hero::Trait::Cowardly),
     temper("unbowed", "unbowed", crate::hero::Trait::Brave),
     temper("light_hands", "light hands", crate::hero::Trait::Greedy),
@@ -116,6 +117,7 @@ pub fn description(id: &str) -> &'static str {
         "thief_guard" => "Prioritise thieves · protect supplies",
         "gas_step" => "Keep gas enemies at range",
         "pack_break" => "Split groups · finish weak foes",
+        "cadence" => "Alternate attacks against mirrors",
         "skittish" => "Retreat when hurt and surrounded",
         "unbowed" => "Face bosses while healthy",
         "light_hands" => "Collect loot after kills",
@@ -403,6 +405,7 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
 /// A tactic's rows at a level: its card (the card's rows play at the row), and from L3 a row the
 /// card's situation wants.
 pub fn tactic_rows(id: &str, level: u32) -> Vec<Row> {
+    if id == "cadence" { return vec![r(vec![tag("mirror")], Verb::arg("tactic", id))]; }
     let mut v = vec![r(vec![], Verb::arg("tactic", id))];
     if level >= 3 {
         let extra = match id {
@@ -530,6 +533,11 @@ pub fn compile(l: &LineageState) -> RuleSet {
     }
     let level = p.level(&p.stance);
     let heal = heal_pct(&p.stance, level);
+    // An explicitly chosen mirror counter must precede generic learned boss attacks,
+    // while yielding to the same heal threshold as learned counter drills.
+    if p.tactics.iter().any(|id| id == "cadence") {
+        rows.extend(tagged(vec![r(vec![tag("mirror"), n("hp>", heal)], Verb::arg("tactic", "cadence"))], "tactic:cadence"));
+    }
     // Later counter drills precede older generic boss attacks. Player rows remain above them.
     for d in p.drills.iter().rev().filter(|d| !d.revoked) {
         let origin = format!("drill:{}", d.boss);
@@ -540,6 +548,7 @@ pub fn compile(l: &LineageState) -> RuleSet {
     rows.extend(tagged(guard, &origin));
     if let Some(row)=crate::specialization::row(l) {rows.push(row);}
     for t in &p.tactics {
+        if t == "cadence" { continue; }
         rows.extend(tagged(tactic_rows(t, p.level(t)), &format!("tactic:{t}")));
     }
     if let Some(t) = &p.temperament {
@@ -664,7 +673,7 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
     let day = l.day;
     let since = |id: &str| l.pkg.arrived.get(id).map(|d| day > *d).unwrap_or(false);
     let slain = crate::descent::BOSS_DEPTHS.iter().filter(|(k, _)| l.kills.contains(*k)).count() as u32;
-    let tactics_owned = l.pkg.owned.iter().filter(|id| def(id).is_some_and(|d| d.kind == Kind::Tactic)).count() as u32;
+    let tactics_owned = l.pkg.owned.iter().filter(|id| id.as_str() != "cadence" && def(id).is_some_and(|d| d.kind == Kind::Tactic)).count() as u32;
     let tactic_day = l.pkg.arrived.get("tactics").copied();
     let tactics_due = match tactic_day {
         Some(d0) => slain.max(1) + day.saturating_sub(d0),
@@ -678,6 +687,7 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
             continue;
         }
         let ok = match (d.kind, d.id) {
+            (Kind::Tactic, "cadence") => rhythm_available(l),
             (Kind::Stance, "steady") => true,
             (Kind::Stance, "guarded") => met("goblin_captain") || met("goblin_warlord"),
             (Kind::Stance, "bold") => since("guarded"),
@@ -690,7 +700,7 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
             _ => false,
         };
         if ok {
-            if d.kind == Kind::Tactic {
+            if d.kind == Kind::Tactic && d.id != "cadence" {
                 tactics_new += 1;
             }
             new.push(d.id.to_string());
@@ -741,12 +751,18 @@ pub fn temperament_open(l: &LineageState) -> bool {
 
 /// Equip a package in its slot (a tactic in `slot` 0/1). Free and instant; refused when it has not
 /// arrived or its slot is closed.
+fn rhythm_available(l: &LineageState) -> bool {
+    l.ended || l.endgame.as_ref().is_some_and(|p| p.cleared.is_some())
+}
+fn available(l: &LineageState, id: &str) -> bool {
+    l.pkg.owned.contains(id) || id == "cadence" && rhythm_available(l)
+}
 pub fn equip(l: &mut LineageState, id: &str, slot: usize) -> Result<(), String> {
     if l.pkg.literal {
         return Err("no packages".into());
     }
     let d = def(id).ok_or("unknown package")?;
-    if !l.pkg.owned.contains(id) {
+    if !available(l, id) {
         return Err("not yet".into());
     }
     match d.kind {
@@ -756,6 +772,7 @@ pub fn equip(l: &mut LineageState, id: &str, slot: usize) -> Result<(), String> 
             if slot >= slots.max(1) || slots == 0 {
                 return Err("slot closed".into());
             }
+            if id == "cadence" { l.pkg.owned.insert(id.into()); }
             l.pkg.tactics.retain(|t| t != id);
             if slot < l.pkg.tactics.len() {
                 l.pkg.tactics[slot] = id.into();
@@ -1135,8 +1152,8 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
                 runs,
                 next_at: next_at(runs),
                 slot: slot_of(d.id),
-                owned: p.owned.contains(d.id),
-                trigger: if p.owned.contains(d.id) { String::new() } else { trigger_now(l, d) },
+                owned: available(l, d.id),
+                trigger: if available(l, d.id) { String::new() } else { trigger_now(l, d) },
                 level_price: p.owned.contains(d.id).then(|| level_price(l, d.id)).flatten(),
             }
         })
@@ -1210,7 +1227,7 @@ pub fn candidates(l: &LineageState) -> Vec<(String, String, usize)> {
     }
     let mut out = Vec::new();
     for d in PACKAGES {
-        if !p.owned.contains(d.id) {
+        if !available(l, d.id) {
             continue;
         }
         match d.kind {

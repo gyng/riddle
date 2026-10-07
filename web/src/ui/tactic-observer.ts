@@ -20,14 +20,14 @@ export function tacticObserver(rows: Row[], packages?: Packages) {
   const routineAttack = (row: Row): boolean => row.verb.v === 'attack' && (
     !row.conds.length || !!row.origin?.startsWith('stance:') && row.conds.every(c => c.k === 'foes>=' && (c.n ?? Infinity) <= 1));
   const describe = (entry: { name: string; count: number; row: number }): string =>
-    /* copy:label */ `${entry.name} · ${entry.count} activations${entry.row >= 0 ? ` · ${rowLabel(frozen[entry.row])}` : ''}`;
+    /* copy:label */ `${entry.name} · ${entry.count} ${entry.count === 1 ? 'activation' : 'activations'}${entry.row >= 0 ? ` · ${rowLabel(frozen[entry.row])}` : ''}`;
   ownership.forEach(owner => {
     if (!owner || entries.has(owner.key)) return;
     const button = h('button', { class: 'tactic-cue', 'data-origin': owner.key }, owner.key.startsWith('style:')?icon(owner.id):packageIcon(owner.id));
     const entry = { button, count: 0, row: -1, timer: 0, last: -Infinity, name: owner.name };
     button.title = describe(entry); button.setAttribute('aria-label', button.title);
     button.onclick = () => openSheet(() => h('div', { class: 'sheet-body tactic-detail' },
-      h('h3', null, entry.name), h('p', { class: 'num' }, /* copy:label */ `${entry.count} activations`),
+      h('h3', null, entry.name), h('p', { class: 'num' }, /* copy:label */ `${entry.count} ${entry.count === 1 ? 'activation' : 'activations'}`),
       ...frozen.flatMap((r, i) => ownership[i]?.key === owner.key ? [h('p', null, rowLabel(r))] : [])), { anchor: button, stay: true });
     entries.set(owner.key, entry); el.append(button);
   });
