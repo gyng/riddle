@@ -23,15 +23,16 @@ export function openReplay(log: RunLog, b: Because): void {
     const canvas = h("canvas", { class: "replay-view" });
     const gun = gunStatus();
     const named = new RegExp(/* copy:none */ `\\bD${b.depth}\\b`).test(b.text);   // `found sword on D4` names its floor (QA on 56f2a1d: `on D4 D4 · t3930`)
-    const at = h("span", { class: "num dim" }, /* copy:none */ `${named ? "" : `D${b.depth} · `}t${b.t}`);
+    const at = h("span", { class: "num dim" }, named ? "" : `D${b.depth}`);
+    const replay = h("button", { type: "button", class: "chip replay-again", disabled: true, onclick: () => { if (!playing) play(); } }, /* copy:button */ "Loading");
     const body = h("div", { class: "sheet-body replay", "data-t": b.t, "data-depth": floor.snap.depth, "data-from": from, "data-to": to },
       h("div", { class: "label row-label" }, h("span", { class: "because" }, "← ", b.text), " ", at, gun.el),
-      canvas);
+      canvas, h("div", { class: "replay-controls" }, replay));
     let viewer: SeekViewer | null = null, timer = 0, playing = false;
     const play = (): void => {
       if (!viewer) return;
-      if (viewer.seek) { viewer.seek(from); viewer.setSpeed(1); playing = true; }
-      else viewer.setSpeed(0);                                   // placeholder: no clock; the floor stands at the window's end
+      if (viewer.seek) { viewer.seek(from); viewer.setSpeed(1); playing = true; replay.disabled = true; replay.textContent = /* copy:button */ "Playing"; }
+      else { viewer.setSpeed(0); replay.disabled = true; replay.textContent = /* copy:button */ "Still frame"; }                                   // placeholder: no clock; the floor stands at the window's end
       gun.paint(viewer.gun?.() ?? null, viewer.tick?.() ?? from);
     };
     const stop = (): void => { clearInterval(timer); viewer?.dispose(); viewer = null; if ("__replay" in window) delete (window as { __replay?: unknown }).__replay; };
@@ -51,7 +52,7 @@ export function openReplay(log: RunLog, b: Because): void {
         timer = window.setInterval(() => {
           if (!document.contains(canvas)) { stop(); return; }          // closed by backdrop / Escape: the sheet has no close hook
           gun.paint(viewer?.gun?.() ?? null, viewer?.tick?.() ?? from);
-          if (playing && viewer?.tick && viewer.tick() >= to) { viewer.setSpeed(0); playing = false; }
+          if (playing && viewer?.tick && viewer.tick() >= to) { viewer.setSpeed(0); playing = false; replay.disabled = false; replay.textContent = /* copy:button */ "Replay"; }
         }, POLL_MS);
       });
     });

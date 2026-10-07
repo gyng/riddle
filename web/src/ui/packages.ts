@@ -207,7 +207,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
             h("span", { class: "counter-face", "aria-hidden": "true" }, face ? h("img", { src: face, alt: "", draggable: "false" }) : icon("v_attack", "⚔")),
             h("div", { class: "counter-copy" }, h("b", { class: "counter-name" }, boss(b)),
               actions.length ? h("div", { class: "counter-actions" }, ...actions) : null,
-              sc > 0 ? h("small", { class: "scar num" }, /* copy:label */ `Max HP −${sc}%`) : null), toggle);
+              sc > 0 ? h("small", { class: "scar num" }, /* copy:label */ `Boss HP −${sc}%`) : null), toggle);
         });
         extra.push(h("section", { class: "pkg-sec drills" }, h("div", { class: "label pkg-head" }, kw("drill", /* copy:label */ "boss counters")), ...lines));
       }

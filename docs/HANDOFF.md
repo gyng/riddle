@@ -1,3 +1,26 @@
+**CUT80/81 REPLAY / BOSS SUBJECT VERIFIED — 2026-10-07:**
+
+Exploratory frozen2270503 session5351/session75328 continues unchanged. Public
+Porterfree/Scout100 hired (745→645); actual20mabsence1run/D7/138earned=114coins
++24sales/header783; ClassXP+54/Legacy+8→16. Damage3Legacy purchase16→13 is fourth
+configuration change. Tactics Details compiledGuarded6rows inspected; no pen
+entry/edit available,1inspectionattempt/0completed edits. Actual earned save
+checkpoint-after-20m.json captured220254bytes. Horizon/active minutes incomplete.
+
+Cut80 deathclip now visible Replay/Playing/Loading, static Still frame fallback;
+internaltick removed from chrome, exact data/window untouched. QAJclips13PASS
+24.0s after restoring caption fixture's intentional setSpeed0 (same10s cap).
+Actual342302byte earnedrun3 render-only at320/400/1440 exact40tick/pause/keyboard/
+44px/bounds/disposal/unchangedlineage PASS; screenshot shown, fresh-townbackground
+explicit. Cut81 MaxHP−5%→BossHP−5% names enemy reduction, actualcoretruthverified.
+Boss counters23checks/sizesPASS9.6s; initial unsupportedbridge check included
+inert closingclones, reads now active-window scoped, allassertions retained.
+TS/copy1749zero/build/diffPASS; no core/wire. Next commit/cleanfrozenbuild, then
+4h/8h earnedreturn QA and fullclient resource diagnosis. Resource inventory:
+48GBWSL/43GBavailable;11Vites total but only5Riddle, so no memory/cause claim.
+Native5594/main5219 and originalQA5244 preserved; fixed5246 soon superseded.
+No independentagents (permissionpending), deployment or95score. Goalactive.
+
 **CUT79 FROZEN / FIRST DEATH CHECKPOINT — 2026-10-07:**
 
 038e6d0 pushed; cleanbuildPASS, frozen248assets manifest at

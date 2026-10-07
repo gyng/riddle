@@ -147,6 +147,18 @@ try {
         return { before, at: v.stats().caption };
       });
       check(cap.before === null && cap.at === "yyy at", `a seek drops a caption from before its tick (${cap.before ?? "none"}) and keeps one at it (${cap.at})`);
+      // The caption probe deliberately stopped the viewer; restore its normal clip clock.
+      await page.evaluate(()=>window.__replay.setSpeed(1));
+      await page.waitForFunction(()=>document.querySelector('.replay-again')?.disabled===false,null,{timeout:10000});
+      const controls=await page.evaluate(()=>({label:document.querySelector('.replay-again')?.textContent,head:document.querySelector('.replay .row-label')?.textContent,end:window.__replay?.tick?.(),to:Number(document.querySelector('.replay')?.dataset.to)}));
+      check(controls.label==='Replay'&&!/\bt\d+/.test(controls.head??''),'paused clip offers Replay without internal tick chrome');
+      check(controls.end>=controls.to&&controls.end<=controls.to+6,'visible Replay appears only after original window ends');
+      await page.locator('.replay-again').click();
+      const restarted=await page.evaluate(()=>({disabled:document.querySelector('.replay-again')?.disabled,label:document.querySelector('.replay-again')?.textContent,tick:window.__replay?.tick?.(),from:Number(document.querySelector('.replay')?.dataset.from)}));
+      check(restarted.disabled&&restarted.label==='Playing'&&restarted.tick>=restarted.from&&restarted.tick<restarted.from+10,'pointer Replay restarts exact window and refuses duplicate clicks');
+      await page.waitForFunction(()=>document.querySelector('.replay-again')?.disabled===false,null,{timeout:10000});
+      await page.locator('.replay-again').focus();await page.keyboard.press('Enter');
+      check(await page.locator('.replay-again').isDisabled(),'keyboard Replay starts same clip');
       await page.keyboard.press("Escape"); await sleep(200);
     }
     check(pick.early === 2 && pick.other === null && pick.late === 2, `a link before its floor's snapshot finds its floor, never another depth's (t520 D2 → D${pick.early}, t520 D3 → ${pick.other === null ? "none" : `D${pick.other}`}, t650 D2 → D${pick.late})`);
