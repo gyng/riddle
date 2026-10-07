@@ -127,6 +127,7 @@ export function renderEnding(app: App): Mounted {
       h("div", { class: "ending-heir num" }, heirOrd(L.heir), " ", h("span", { class: "dim" }, `D${L.best_depth}`)),
       h("div", { class: "tiles" }, tile(`${app.totalRuns()}`, /* copy:label */ "runs"), tile(`${L.graveyard.length}`, /* copy:label */ "deaths"),
         tile(`${L.facts.length}`, /* copy:label */ "facts"), tile(`${L.renown}`, /* copy:label */ "reputation")),
+      h("button", { class: "chip ending-town game-control", disabled: busy, onclick: () => { if (!busy) app.go({ kind: "camp", afterClear: true }); } }, /* copy:button */ "Town"),
       h("h2", null, /* copy:label */ "Next descent"), numbered?next:null, challenges, status));
   return { el };
 }

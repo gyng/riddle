@@ -23,7 +23,7 @@ import { mergeMeters } from "./ui/meters";
 import { basesOf, linSum, readSnap, rulesKey, sharesOf, stateLabel, stateTerms, writeSnap, type StateMove, type StateSnap } from "./ui/attrib";
 
 export type Screen =
-  | { kind: "camp"; highlight?: number }
+  | { kind: "camp"; highlight?: number; afterClear?: boolean }
   | { kind: "watch" }
   | { kind: "death"; death: Death; lost?: string[]; kept?: boolean; from?: { report: ReturnReport; absence?: boolean } }   // from: QA 308f045 (qaAD) — a verdict opened from a report leads back to it   // kept: an old death opened from the chronicle (Cut 9 §7); Escape leads back to the camp
   | { kind: "report"; report: ReturnReport; absence?: boolean }   // absence: Cut 10 §3, the tiles fade in (the merged report is complete)
@@ -973,7 +973,7 @@ export class App {
     debugNote("screen", screen.kind);
     closeAllSheets();
     this.mounted?.dispose?.();
-    if (screen.kind === "camp" && this.lineage.ended) screen = { kind: "ending" };
+    if (this.lineage.ended && (screen.kind === "watch" || screen.kind === "camp" && !screen.afterClear)) screen = { kind: "ending" };
     this.view = screen;
     if (screen.kind === "report" && screen.absence && this.lastAbsence?.report !== screen.report) this.lastAbsence = { report: screen.report, played: false };
     if (screen.kind === "watch") {

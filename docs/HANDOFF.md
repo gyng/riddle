@@ -1,3 +1,40 @@
+**CUT70/CUT71 EARNED CHOICES AND POST-CLEAR TOWN — 2026-10-07:**
+
+Cut70 finishes27 legally earned Ascension1 comparisons: three inherited162-point
+builds plus eight paid216-point branches each. Ranger5 Mending+Brace clears8h
+vs inherited32h; Ranger3 Brace16h vs Fireward24–40h; Fighter5 no clear48h,
+Fireward playsD33 vs BraceD28. Venom/Debilitate pairs have the same observed
+outcomes, not proof of zero activation. Two explicit Boss Focus Fighter cases
+also do not clear48h. No blanket stat/XP change justified. Reusable example
+legacy_campaign SAVE NEW_OUT [--build ID] [--tactic OWNED_ID] records meters,
+paid actions/full saves/source preservation. Filtered Ranger rerun is byte-exact
+with original case; fast build/scoped Clippy pass. CUT70 records sources/hashes.
+
+Built app QA exposes victory trap: all camp requests redirect to victory and
+no Town button. Cut71 adds explicit Town return for cleared home review;
+Next descent gem/mouth/watch guards reopen victory without sending. Normal
+ending redirect preserved; Begin descent still needs existing confirmation.
+Final five-job suite5/5PASS15.4s: post-clear-town, numbered-descents,
+ascension-refusal, legacy-tree, first-plot. Real earned320/400/1440 navigation
+exact saves/call guards;400 actual refund216/purchaseHealth3/core runnull/
+endedtrue/durable reload PASS. Multihero follow-up1/1PASS12.3s: purchase/send
+second slot with owned gold, select cleared first, actual Town/Legacy exact
+entire two-slot save preserved, second remains live; no extra send/begin calls.
+New test initial optional-live null expectation
+fails then corrected to absent wire+full core run check. Logs retained.
+Built GPU400/1440 Town/Legacy actual clicks read-only/nooverflow/errors PASS;
+corrected phone victory screenshot shown. Initial native-import wrapper omits
+UI runs counter (shows0), corrected to actual359 completed totals; core unchanged.
+Untrimmed earned fixture273805bytes/hash recorded in CUT71. Web build/TS,
+copy1739zero/syntax/diff pass; existing chunk warning; wrong root build invocation
+recorded before correct web build. Owned5433 stopped; shared5219 retained.
+Artifacts scratchpad/legacy-campaign-cut70*, scratchpad/qa-cut70; logs
+/tmp/riddle-cut70-* and /tmp/riddle-cut71-*. No deployment/Rust library change/
+independent95 claim. Full99/117 audit remains original evidence. Next substantive
+work: meter/trace the earned late Fighter wall and Control choice usage before
+new powers; remaining run-log/manual-opening QA and immutable cohort preparation.
+Goal95 remains active and unverified.
+
 **CUT69 FIRST-SESSION READABILITY AND QA — 2026-10-07:**
 
 Fresh built GPU phone seed7 walk finds actual split header ordinal: `1st`/`heir`

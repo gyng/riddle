@@ -26,6 +26,9 @@ implemented; fixed-build comparisons, exact catch-up parity/profiles and the
 routine18-case suite are verified with an explicit unchanged-build deviation.
 Five consecutive actual clears verify one earned build. Broader exhaustive
 balance remains uncertified. Old challenge restarts remain available.
+Victory now offers Town for home upgrades before the next descent. The cleared
+town's Next descent gem reopens the existing confirmation; it never sends or
+resets the hero (`docs/CUT71_POST_CLEAR_TOWN.md`).
 Twelve-node bloodline Legacy tree and free home respec are implemented under
 `docs/CUT32_LEGACY_TREE.md`: Recovery, Control and Warding, historical D8/D18
 access, exclusive leaves and live-send effect snapshots. Nine controlled paid

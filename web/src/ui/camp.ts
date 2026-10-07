@@ -193,7 +193,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const armedAt = performance.now() + (highlight !== undefined ? SEND_ARM_MS : 0);
   // Cut 30 §3: the send — the gem or the dungeon's mouth; the hero walks from where he is into the mouth, then the watch opens
   // RUNS_UI: with a run under way the gem watches it (he is already down there: no walk to the mouth)
-  const doSend = (): void => { if (app.lineage.town?.home === false || performance.now() < Math.max(armedAt, residentUntil)) return; if (isLive()) { app.go({ kind: "watch" }); return; } if (!app.overBudget && app.rules.rows.length > 0) town.send(() => { if (el.isConnected) app.go({ kind: "watch" }); }); };
+  const doSend = (): void => { if (app.lineage.ended) { app.go({ kind: "ending" }); return; } if (app.lineage.town?.home === false || performance.now() < Math.max(armedAt, residentUntil)) return; if (isLive()) { app.go({ kind: "watch" }); return; } if (!app.overBudget && app.rules.rows.length > 0) town.send(() => { if (el.isConnected) app.go({ kind: "watch" }); }); };
   const isLive = (): boolean => !!app.lineage.live && app.lineage.live.turn > 0;
   const send = gem({ label: /* copy:button */ "send", cls: "send", pulse: true, onclick: () => doSend() });
   // Cut 10 §3: the rest chip says what it means all the time (`rest 20m · send skips`), no tap needed
@@ -925,12 +925,13 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     cons.el.hidden = homeless;
     restLine.hidden = homeless;
     const campMain = well.querySelector<HTMLElement>(".camp-main"); if (campMain) campMain.hidden = homeless || (onPackages(app.lineage) && app.lineage.best_depth === 0 && !(app.lineage.runs?.length));
-    send.disabled = homeless || arriving || app.overBudget || empty;
-    send.classList.toggle("pulse", !app.overBudget && !empty);
-    send.classList.toggle("small", app.overBudget || empty);
+    const cleared = app.lineage.ended;
+    send.disabled = !cleared && (homeless || arriving || app.overBudget || empty);
+    send.classList.toggle("pulse", !cleared && !app.overBudget && !empty);
+    send.classList.toggle("small", !cleared && (app.overBudget || empty));
     // Speed is chosen once, in the watch. The send gem only sends.
     send.dataset.mode = app.watchMode;
-    replace(send, arriving ? /* copy:callout */ "Hero arriving" : empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
+    replace(send, cleared ? h("span", { class: "send-l" }, /* copy:button */ "Next descent") : arriving ? /* copy:callout */ "Hero arriving" : empty ? /* copy:callout */ "no rules" : app.overBudget ? /* copy:callout */ `${app.ownRows()}/${app.vocab.max_rows} · drop one`
       : h("span", { class: "send-l" }, isLive() ? /* copy:button */ "watch" : /* copy:button */ "send", sendMark(app.lineage)));   // Cut 12 §1: own rows; RUNS_UI: a run under way is watched
     send.dataset.live = isLive() ? "1" : "0";
     paintTabs();
