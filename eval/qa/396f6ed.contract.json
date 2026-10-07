@@ -1,0 +1,67 @@
+{
+  "kind": "QA cohort; no scores",
+  "build": "396f6edfd724988eb4641c646d792c96b7c7c68c",
+  "url": "http://127.0.0.1:5251/",
+  "manifest": "scratchpad/qa-cut92-frozen-396f6ed/manifest.json",
+  "manifestSha256": "ab6e003497901b9603c7261d2fd80094bce10cb274ce598e9c0bc5f79a548ab6",
+  "horizon": {
+    "activeMinutes": 70,
+    "coldMinutes": 40,
+    "returns": [
+      {
+        "absence": "20m",
+        "activeMinutes": 5
+      },
+      {
+        "absence": "4h",
+        "activeMinutes": 5
+      },
+      {
+        "absence": "8h",
+        "activeMinutes": 20
+      }
+    ],
+    "deathsReadMinimum": 3,
+    "configurationChangesMinimum": 4,
+    "writtenRuleAttemptsMinimum": 4,
+    "watchesMinimum": {
+      "fights": 2,
+      "fast": 2
+    },
+    "earnedStateOnly": true,
+    "runsParam": 1
+  },
+  "input": {
+    "browser": "headless via shared WSL launcher",
+    "viewport": [
+      400,
+      800
+    ],
+    "dpr": 2,
+    "callBudget": 200,
+    "imageReadBudget": 120
+  },
+  "players": [
+    {
+      "agent": "rater_a",
+      "seed": 41,
+      "driverPort": 5352,
+      "report": "eval/qa/396f6ed.qa-a.md",
+      "transcriptFirst": "scratchpad/qa-cut92-frozen-396f6ed/walk-41"
+    },
+    {
+      "agent": "rater_b",
+      "seed": 57,
+      "driverPort": 5353,
+      "report": "eval/qa/396f6ed.qa-b.md",
+      "transcriptFirst": null
+    }
+  ],
+  "beforePlay": [
+    "Review terminal full browser suite /tmp/riddle-cut92-client-full.log",
+    "Bounded native full /tmp/riddle-cut89-90-full-gates.log (Rust unchanged)",
+    "Explicit coordinator release"
+  ],
+  "afterQA": "Every lapse fixed or recorded as a reasoned deviation, then fresh independent blind scoring agents; QA reports do not certify95",
+  "deployment": false
+}
