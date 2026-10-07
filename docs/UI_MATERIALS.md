@@ -49,3 +49,12 @@ and interactions pass. These fixtures do not claim independently earned pets.
 Inline ledger records and forecast chart bars remain quiet; retired runlane
 capsules are inactive. Current built seed5 home/watch/return walk passes; seed7
 Warlord screenshot captured before a retained stale Edit harness failure.
+
+Cut58 reinspects those eleven earned windows at400/1440 (22 fresh views,
+read-only save equality, zero page errors/overflow). Live-watch commands were
+an omission: their tiles were moved outside `.cmd`, losing the packed material
+and common type scale. All six now explicitly use `.game-control`, in a centered
+`openWindow`, with three-column groups and24px icons. Settled real-WASM runs at
+320/400/1440 show80px-high framed controls with14px labels; mode changes close
+the window and Town returns to a still-live run. Inline history records,
+disclosure arrows, chart marks and map overlays remain intentionally quieter.

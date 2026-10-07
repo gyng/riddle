@@ -1,3 +1,10 @@
+Cut58 remaining chunky audit:22 fresh earned management views pass read-only/
+overflow/error checks; fixed6live-watch commands losing materials outside.cmd.
+Centered existing frame/tablets, common14px scale, realWASM320/400/1440 mode/
+Town-live routing pass; chunky-controls1/1PASS12.5s. Broader qa9/screens attempt
+stopped at file-descriptor exhaustion, no result. Retain investigation of machine
+resource issue and remaining15Cut56 fixture failures. No deployment or95claim.
+
 # Owner queue — 2026-10-06
 
 Latest owner priority: escalating endgame after dungeon clear, deeper bloodline

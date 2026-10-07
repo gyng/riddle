@@ -270,3 +270,13 @@ html.skin-button .camp-run-details > summary.btn { border: solid transparent; bo
 .panel-body button.chip .item-name, .panel-body .packed .item-name { color: var(--r-lit); }
 .panel-body button:is(.chip, .card) .dim, .panel-body .packed .dim, .panel-body .packed .x { color: #bdc5d5; }
 .panel-body button:is(.chip, .card) .gold { color: #e6c581; }
+
+/* Watch commands use the same carved material as management commands.
+   These tiles live outside the console's .cmd, so retain explicit materials. */
+.game-window .watch-options .chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.game-window .watch-options button.game-control { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 0; min-height: 80px; margin: 0; gap: 4px; backdrop-filter: none; }
+.game-window .watch-options .game-control .ico { width: 24px; height: 24px; flex: 0 0 24px; }
+.game-window .watch-options .game-control .tl { font: inherit; text-align: center; overflow-wrap: anywhere; }
+.game-window .watch-options .game-control.on { color: #f2d6a0; }
+.game-window .watch-options .game-control.bail { color: #ffd5cc; }

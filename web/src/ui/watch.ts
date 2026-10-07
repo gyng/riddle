@@ -129,7 +129,7 @@ import { icon } from "./skin";
 import { syncLook } from "./look";
 import { makeViewer, type Viewer } from "./viewer";
 import { verbsAt } from "../engine/classes";
-import { openSheet } from "./sheet";
+import { openSheet, openWindow } from "./sheet";
 import { salvageValue } from "./salvage";
 import { mergeFinds } from "./report";
 import { itemIcon, itemName } from "./items";   // run-clear
@@ -384,12 +384,12 @@ export function renderWatch(app: App): Mounted {
   // the last chosen mode is the next run's (app.watchMode, persisted — QA on e0f87e7: "`fast` chosen in run 3 was not remembered")
   const mode0: Mode = app.watchMode === "fast" || app.watchMode === "one" ? app.watchMode : "fights";
   const modeBtn: Record<Mode, HTMLButtonElement> = {
-    fights: tile({ id: "fights", cls: "hud-btn", on: mode0 === "fights", icon: "fights", label: /* copy:button */ "fights only", onclick: () => setMode("fights") }),   // docs/COPY.md pass 3: `fights` read as a combat log 6/6
-    fast: tile({ id: "fast", cls: "hud-btn", on: mode0 === "fast", icon: "fast", label: /* copy:button */ "fast", onclick: () => setMode("fast") }),
-    one: tile({ id: "one", cls: "hud-btn", on: mode0 === "one", icon: "one", glyph: "1×", label: /* copy:button */ "normal", onclick: () => setMode("one") }),   // docs/COPY.md pass 5: `1` over `1×` read "no idea"
+    fights: tile({ id: "fights", cls: "hud-btn game-control", on: mode0 === "fights", icon: "fights", label: /* copy:button */ "fights only", onclick: () => setMode("fights") }),   // docs/COPY.md pass 3: `fights` read as a combat log 6/6
+    fast: tile({ id: "fast", cls: "hud-btn game-control", on: mode0 === "fast", icon: "fast", label: /* copy:button */ "fast", onclick: () => setMode("fast") }),
+    one: tile({ id: "one", cls: "hud-btn game-control", on: mode0 === "one", icon: "one", glyph: "1×", label: /* copy:button */ "normal", onclick: () => setMode("one") }),   // docs/COPY.md pass 5: `1` over `1×` read "no idea"
   };
-  const skip = tile({ id: "skip", cls: "hud-btn", icon: "skip", label: "▶▶|", onclick: () => skipToEvent() });
-  const bail = tile({ id: "bail", cls: "hud-btn bail", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
+  const skip = tile({ id: "skip", cls: "hud-btn game-control", icon: "skip", label: "▶▶|", onclick: () => skipToEvent() });
+  const bail = tile({ id: "bail", cls: "hud-btn bail game-control", icon: "bail", label: /* copy:button */ "bail", onclick: () => doBail() });
   // RUNS_UI (docs/RUNS_UI.md): back to the town while he goes on — leaving the watch never stops the run (the town's lane shows it live;
   // the open app's clock plays it on, unwatched). The ↻ on the tile is the mark; its tip says the rest
   const toTown = tile({ id: "town", cls: "hud-btn town-btn", icon: "camp", glyph: "⌂", label: /* copy:button */ "Town menu", onclick: () => { if (!done) app.leaveWatch(); } });
@@ -413,11 +413,11 @@ export function renderWatch(app: App): Mounted {
   // remembered per viewer; the desktop's right column carries the run's whole breakdown
   let metersOn = readMetersOn(), lastMeters: SnapMeters | undefined, meterPaintAt = 0, meterTimer = 0;
   const meterBox = h("div", { class: "meter-box", hidden: !metersOn });
-  const meterTile = tile({ id: "meters", cls: "meter-btn", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
+  const meterTile = tile({ id: "meters", cls: "meter-btn game-control", on: metersOn, icon: "meters", glyph: "▤", label: /* copy:button */ "meters", onclick: () => {
     metersOn = !metersOn; writeMetersOn(metersOn); meterTile.classList.toggle("on", metersOn); meterBox.hidden = !metersOn; paintMeters(true);
   } });
   const speedBtn = tile({ id: "speed", cls: "hud-btn", icon: "fast", label: /* copy:button */ "Speed", onclick: () => {
-    openSheet((close) => {
+    openWindow((close) => {
       for (const m of Object.keys(modeBtn) as Mode[]) modeBtn[m].onclick = close;
       return h("div", { class: "sheet-body watch-options" },
         h("div", { class: "label" }, /* copy:label */ "Watch speed"),

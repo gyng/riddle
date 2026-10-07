@@ -1,3 +1,23 @@
+**CUT58 LIVE WATCH CHUNKY AUDIT — 2026-10-07:**
+
+Owner explicit remaining chunky UI audit. Eleven earned management windows at
+400/1440 recaptured:22 views, save equality, no overflow/page errors. Watch
+Speed popup tiles outside `.cmd` lose packed material:6px radius, no frame,
+17/18px labels. Explicit shared game-control for6commands; openWindow centered,
+3-column groups,24px icons,14px labels. Real-WASM320/400/1440 initialized-watch
+captures:6framed80px controls, min78.65px width; Fast closes own window and saves
+mode, Town returns to live run after asynchronous refresh; no page errors.
+Screens shown, scratchpad/chunky-cut58/watch-real-settled. Earlier diagnostic
+immediate-live assertions failed before send/lineage initialized; retained logs.
+Build/TS/copy1740zero/diff pass. qa9/screens/chunky-controls attempt stopped
+at machine file-descriptor exhaustion, no completed result; exact owned runner
+1118639/server1118646 stopped, shared5219 retained. Short chunky-controls follow-up1/1PASS12.5s (320/400/1440 actual
+run tabs/folds/appearance/rename reload/read-only behavior).
+No deployment. CUT58/UI_MATERIALS. Cut57 baseline fights/cut13 failed(crash/old
+stake); DEBUG isolated fights48PASS173.9s, original crash unexplained. Forecast
+fixtures await current routing fixes. Standing push approval; independent95
+remains unverified.
+
 **CUT55/56 RAT, DEATH WALK AND CURRENT FULL CLIENT BASELINE — 2026-10-07:**
 
 Cut55 rat authored runtime20→24texels, same master/camera/hero; pack495frames,
