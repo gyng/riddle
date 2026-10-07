@@ -1,3 +1,12 @@
+**TARGETED BOSS-BREAK WATCH CHECK — 2026-10-07:**
+
+Run `(cd web && node tests/run.mjs fights:break)` when diagnosing the held
+Warlord-break beat. It reuses the same fights/fast fixture and six assertions,
+including the 25s observation and 2s hold. Measured 9.5s versus 175.4s for
+full fights; default fights retains all 48 checks. This speeds diagnostic
+iteration only. The earlier broad missing-beat failure is retained; targeted
+and full retries passed without an app change. See CUT98_TARGETED_BREAK_CHECK.
+
 **HEADLESS RESOURCE FAILURE DIAGNOSIS — 2026-10-07:**
 
 Chromium ERR_INSUFFICIENT_RESOURCES/Target crashed was reproducible in Cut13

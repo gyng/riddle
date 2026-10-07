@@ -1,3 +1,25 @@
+**CUT98 TARGETED WATCH CHECK VERIFIED — 2026-10-07:**
+
+Cut97 pushed38004cc. Current owned Cut98 extracts the identical boss-break
+fixture into shared checkBossBreak and supports fights:break. Targeted six
+assertions PASS9.5s; full default fights all48 PASS175.4s. Serialized current
+fights/qa21/enemy-tips/captive-fact-copy terminal4/4PASS203.4s,
+/tmp/riddle-cut98-full-watch-recheck.log (session98792 now closed). No app, Rust,
+timeout or numeric assertion changes. Types/build remain prior Cut97 results;
+node syntax/diff pass for this harness-only extraction.
+
+Earlier broad client55143 terminal120/122 in1278.5s: fast break missing
+assertion and qa21 forecast visible locator timeout. QA21 separately17checks
+PASS17.3s; both pass unchanged in serialized recheck. Preserve initial failures;
+root cause not proven and current whole-suite green is not certified.
+
+Two independent QA agents remain in final8h/20actual-active-minute phases on
+unchanged396f6ed:5251. No finished70min reports/cards yet. Pen discoverability
+may need remediation: both made honest row-entry attempts but no visible pen
+or lock explanation. Core unlock remains Mother+72h or120h; do not grant
+early editing to satisfy evaluation. Await complete reports before fresh blind
+scoring cohort. Frozen preview28032 preserved; no deployment, goal95 unverified.
+
 **CUT97 CAPTIVE FACT CLARITY VERIFIED / FULL CLIENT STILL LIVE — 2026-10-07:**
 
 QA-a's captive·ally then attack/fell observation is explained by existing core:
