@@ -322,7 +322,7 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
         // Guarded earlier still and rests between fights, Hunter late (30 %) with the boss and the summoned first,
         // Bold never turns back before the record and goes on hurt.
         // heal 30 %, home hurt under 25 % or out of heals under 40 %, attack nearest. L2 heals at 35 % and rests
-        // when well hurt (under 40 %), L3 rests under 50 %, L4 goes on without heals to 35 %, L5 steps off a
+        // when well hurt (under 40 %), L3 rests under 50 % (60 % after D18), L4 goes on without heals to 35 %, L5 steps off a
         // telegraph when hurt. The long rest is `Guarded`'s.
         "steady" => {
             let mut g = vec![drink];
@@ -332,7 +332,10 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
             }
             let mut f = vec![attack];
             if level >= 2 {
-                f.push(r(vec![n("hp<", crate::balance::get().steady_rest[usize::from(level >= 3)])], Verb::new("rest")));
+                // Preserve the first-session run/training cadence; deeper floors need more recovery.
+                let rest = crate::balance::get().steady_rest[usize::from(level >= 3)];
+                let rest = if best < 18 { rest.min(STEADY_REST_L3) } else { rest };
+                f.push(r(vec![n("hp<", rest)], Verb::new("rest")));
             }
             (g, f)
         }

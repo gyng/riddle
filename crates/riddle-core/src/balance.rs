@@ -24,7 +24,7 @@ pub const DEFAULT: Balance = Balance {
     level_runs: [10, 40, 120, 220], scar_pct: 5, scar_cap: 30,
     drill_meeting: 2, drill_days: 3, deep_drill_days: 6,
     steady_heal: [30,35], hunter_heal: [30,35], guarded_heal: [40,45], bold_heal: 25,
-    steady_home: 25, steady_dry: [40,35], steady_rest: [40,50],
+    steady_home: 25, steady_dry: [40,35], steady_rest: [40,60],
     guarded_home: [30,25], guarded_dry: [45,44],
 };
 pub fn parse(text: &str) -> Result<Balance, String> {

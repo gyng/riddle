@@ -1,3 +1,20 @@
+**CUT61 PROGRESSION/PACING — 2026-10-07:**
+
+Reviewed earned opening, first-week walls, class training, Legacy and harder
+descents. Fixed baseline seed8 five-day D20 stall: Steady L3+ safe recovery60%
+after historicalD18; earlier50%, L2 40%, guards/training/XP/Legacy unchanged.
+Seed8 D28 day8→day5, preD23 stall5→2. Global55/60 trials rejected for early
+D8/training regressions. Late trial13 targeted rows/16seed configurationsPASS
+202s; full shipping verify green435s (678Rust,14tooling,18routinecases).
+Sandbox native-host failure passes outside sandbox; final full rerun green.
+Exact27 native/WASM replies across3earned camps incl8h/rawsave; fresh5426
+mobile/desktop read-only UI thresholds/nooverflow/errorsPASS, screenshots shown.
+Owned preview stopped;5219 retained. Six fresh earned Gunner continuations:
+D13≤8h afterswitch, clears16–56h, mastery96–136h; no broad-class claim.
+Legacy surplus/deeper choices and high-tier variety queued. CUT61 records
+trial provenance and fixture corrections. Broad272 audit/independent95 remain
+unverified. No deployment; standing push approval.
+
 **CUT60 HOME BUILDING SHADOW — 2026-10-07:**
 
 Inspected current earned home400/1440; normal hit-target shadows none. Found

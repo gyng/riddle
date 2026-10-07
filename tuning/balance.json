@@ -11,7 +11,7 @@
   "bold_heal": 25,
   "steady_home": 25,
   "steady_dry": [40, 35],
-  "steady_rest": [40, 50],
+  "steady_rest": [40, 60],
   "guarded_home": [30, 25],
   "guarded_dry": [45, 44]
 }
