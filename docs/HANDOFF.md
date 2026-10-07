@@ -1,3 +1,31 @@
+**CUT44 CURRENT LEGIBILITY CHECK — 2026-10-07:**
+
+Retired gate aborted at hidden Send before house, baseline terminal1/32.2s.
+Current check builds free home, verifies resident, uses visible Speed / Skip,
+observes exact Rust exit events including fold.step without changing responses,
+and reads report Details. Three actual watched sends: hurt / collected,
+hurt / went home, no heals / collected; report and Rust reasons match with
+only intentional banked → collected copy mapping. All reasons actually seen.
+Later construction checks use explicit diagnostic milestone saves, not earned
+progression: four offers remain unbuilt until actual ready-marker click, each
+arrival names exact trigger and glows; later locked tags and completed hidden
+next tag verified. Initial locked forge stays hidden per minimal opening;
+retired day-zero tag deviation documented in Cut44, not auto-build restored.
+
+Headless legible PASS63.7s, /tmp/riddle-cut44-legible-current.log. Final headed
+33 assertions PASS, /tmp/riddle-cut44-shots-clean.log; screenshot capture waits for sheet ghosts.
+No production edits; syntax/diff checks pass. Screens shown; artifacts
+scratchpad/legibility-cut44-20261007. Older failure logs retained, including
+consumed last_exit, folded exit scope, hidden initial plot and too-short headed
+click stability timeout. Final Skip uses5s stability allowance, same actions.
+
+Next: remaining old early-Edit helpers / screens coverage under the current
+late-pen and manual-house design. Preserve lint, inert-control, exact-wire and
+numeric checks; use current controls and explicitly earned or diagnostic
+fixtures. Then current played QA and independent immutable-build rating.
+Broad91/112 remains latest historical verdict; no new full balance suite or
+independent95 rating. Owned screenshot5397 closed; shared5219 kept. Goal active/unverified; no deploy.
+
 **CUT43 GUN NAMES AND CLASS ICONS — 2026-10-07:**
 
 Rifle / Scattergun replace player-facing long / short gun names in forge,
