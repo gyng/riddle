@@ -1,3 +1,15 @@
+**CUT80/81 FROZEN CANDIDATE — 2026-10-07:**
+
+956f892 pushed; cleanbuildPASS, frozen248assets at
+scratchpad/qa-cut80-81-frozen-956f892/dist with fullhashmanifest. Current immutable
+preview5247/session69448 live; servedindexSHA matchesmanifest, releaseWASMexact
+priorhash. Superseded5246 intentionallystopped. Original2270503 preview5244 and
+private WSLGPU driver5351/session75328 preserved for consistent exploratoryQA;
+currentlytown after20mreturn/Damageupgrade/Tactics6rows inspection, rest≈15m.
+Actualsavedcheckpoint-after-20m.json supportsresumption. No independent-agent
+permissionanswer, no agentsspawned/score/deployment; fullheadless72/120 remains
+failing. Longer4h/8h returns and fullsuitefailure diagnosis remain. Goalactive.
+
 **CUT80/81 REPLAY / BOSS SUBJECT VERIFIED — 2026-10-07:**
 
 Exploratory frozen2270503 session5351/session75328 continues unchanged. Public
