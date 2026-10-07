@@ -1,4 +1,14 @@
 /** Use visible game controls only; current modes/Skip live inside Speed. */
+export async function pressWatchNext(page) {
+  const handles = await page.locator('main.watch .next-gem:visible').elementHandles();
+  try {
+    return handles.length ? await handles[0].evaluate(button => {
+      if (!button.isConnected || button.disabled || !button.getClientRects().length || getComputedStyle(button).visibility === 'hidden') return false;
+      button.click(); return true;
+    }) : false;
+  } finally { await Promise.all(handles.map(handle => handle.dispose())); }
+}
+
 export async function pressWatchControl(page, label) {
   const ids = { 'fights':'fights', 'fights only':'fights', fast:'fast', one:'one', normal:'one', '▶▶|':'skip' };
   const id = ids[label.toLowerCase()];

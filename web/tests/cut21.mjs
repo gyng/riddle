@@ -137,7 +137,7 @@ try {
   await sleep(300);
   await page.locator(".cmd .tile[data-tile=loadout]").click({ timeout: 5000 }); await sleep(250);
   const sup = await page.evaluate(() => [...document.querySelectorAll(".panel .supplies .chip.item")].map((c) => c.textContent.replace(/\s+/g, " ").replace(/\s*×$/, "").trim()));
-  check(sup.join(" | ") === "heal | strength · no row | heal · found", `the shelf: \`· no row\` on a kind the repeat skips, \`· found\` on a shelved one (${sup.join(" | ")})`);
+  check(sup.join(" | ") === "heal | strength · No restock | heal · found", `the shelf: No restock on a kind restocking skips, found on a shelved one (${sup.join(" | ")})`);
   await shot("cut21-loadout");
   await closeSheets();
 

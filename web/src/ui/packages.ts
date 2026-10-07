@@ -129,8 +129,9 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       const alt = (p: Package, slot: number): HTMLElement => {
         const o = optOf.get(`${p.id}:${slot}`) ?? (opts ?? []).find((x) => x.id === p.id && x.action === "equip");
         const pr = o ? priceOf(o) : null;
+        const pending = !!reading && !opts && selected.some(([id, at]) => id === p.id && at === slot);
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : " pending"}` }, pr && pr.good !== null ? pr.text : ""), "price")));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
+          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : pending ? " pending" : " flat"}` }, pr && pr.good !== null ? pr.text : ""), "price")));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {

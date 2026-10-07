@@ -445,7 +445,7 @@ async function cut19() {
   const b1 = await badge(), panel = await page.locator(".panel[data-panel=loadout]").count();
   await page.locator(".cmd .tile[data-tile=loadout] .repeat-badge").click({ timeout: 5000 }).catch(() => {}); await sleep(300);
   const b2 = await badge(), calls = await page.evaluate(() => window.__riddle.__restock);
-  check(b0 === "repeat on · held ≤$120" && b1 === "repeat off" && b2 === "repeat on · held ≤$120" && calls.join() === "false,true" && panel === 0, `the loadout tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
+  check(b0 === "Restock on · held ≤$120" && b1 === "Restock off" && b2 === "Restock on · held ≤$120" && calls.join() === "false,true" && panel === 0, `the supplies tile: \`${b0}\` → \`${b1}\` → \`${b2}\` (setRestock ${calls.join()}; shelf ${panel ? "opened" : "shut"})`);
   // ---- §3: the short list always carries the pinned `+1 row`, ranked last or not
   await page.evaluate(() => {
     const r = window.__riddle;

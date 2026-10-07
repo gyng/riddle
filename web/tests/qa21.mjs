@@ -192,7 +192,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.lineage = { ...r.lineage, repeat: true, repeat_kinds: ["heal"], repeat_gold: 40, supplies: [{ id: 9001, kind: "heal", known: true, label: "heal" }] }; r.go({ kind: "camp" }); });
   await sleep(300);
   const badge = await txt(".cmd .tile .repeat-badge");
-  check(badge === "repeat on · held ≤$40", `the repeat badge reads as a switch ("${badge}")`);
+  check(badge === "Restock on · held ≤$40", `the restock badge reads as a switch ("${badge}")`);
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

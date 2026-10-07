@@ -27,7 +27,9 @@ try{
    check(priceOf({...answer()[0],d_past:.83}).text==='deeper ≈+85','estimates round to five points');
    const price=()=>document.querySelector('.sheet-wrap .pkg-panel .pkg.alt .pkg-price')?.textContent??'';
    closeAllSheets();openPackages(app);await tick();check(pending.length===0,'opening tactics starts no simulation');check(document.querySelector('.pkg-choices').hidden,'choices fold initially');
+   check(!document.querySelector('.pkg-price.pending'),'unrequested choices are not pending');
    await open();await open();await open();check(pending.length===1,'same snapshot must start one search');
+   check(!!document.querySelector('.pkg.alt[data-pkg="guarded"] .pkg-price.pending'),'requested delayed choice is pending');
    app.lineage={...app.lineage,class:'ranger',selected_bloodline:2};await open();check(pending.length===2,'another hero/class must remeasure');
    pending[1].resolve(answer('guarded',true));await tick();check(price()==='deaths ≈−80','new hero prices paint');check(document.querySelector('.pkg-estimate')?.textContent==='rough estimate','estimate labeled');
    pending[0].resolve(answer());await tick();check(price()==='deaths ≈−80','late old reply cannot paint');
@@ -38,6 +40,7 @@ try{
    const other={...app};await open(other);check(pending.length===6,'separate app must not reuse prices');pending[5].resolve(answer('guarded',true));await tick();
    await open(app);check(pending.length===6&&price()==='deeper ≈+80','separate app reply cannot overwrite this app');
    app.lineage={...app.lineage};await open();check(pending.length===7,'refreshed lineage must remeasure');pending[6].reject(new Error('controlled failure'));await tick();await tick();check(pending.length===7,'failure must not create a repaint retry loop');
+   check(!document.querySelector('.pkg-price.pending'),'failed comparison is no longer pending');
    await open();check(pending.length===8,'reopening after failure retries');pending[7].resolve(answer());await tick();check(price()==='deeper ≈+80','retry result paints');
    app.engine={...app.engine};await open();check(pending.length===9,'another engine must not reuse prices');pending[8].resolve(answer());await tick();
    document.querySelector('.sheet-wrap .pkg.alt[data-pkg="guarded"]').click();await tick();check(app.lineage.packages.stance==='guarded','package mutation adopts new snapshot');check(pending.length===10,'mutation while open remeasures');check(price()==='','old prices clear on mutation');

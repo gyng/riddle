@@ -270,18 +270,18 @@ try {
     });
     await camp();
     const tabs = await page.evaluate(() => ({ orders: document.querySelector(".orders-tab:not([hidden])")?.textContent.replace(/\s+/g, " ").trim() ?? null, cage: !!document.querySelector(".cage-tab:not([hidden])"), start: !!document.querySelector(".start-tab:not([hidden])") }));
-    check(tabs.orders && /orders keep weapon · cages → weapon/.test(tabs.orders) && !tabs.cage && !tabs.start, `one orders tablet stands for the keep, the cage and the start ("${tabs.orders}"; cage tablet ${tabs.cage}, start tablet ${tabs.start})`);
+    check(tabs.orders && /run setup keep weapon · loot → weapon/.test(tabs.orders) && !tabs.cage && !tabs.start, `one run setup tablet stands for the keep, loot and start ("${tabs.orders}"; cage tablet ${tabs.cage}, start tablet ${tabs.start})`);
     await page.locator(".orders-tab").click();
     const rows = await until(() => { const r = [...document.querySelectorAll(".sheet-wrap .order-row")].map((x) => x.textContent.replace(/\s+/g, " ").trim()); return r.length ? r : null; }, "the orders sheet");
-    check(rows.length === 5 && /^keep for heirs/.test(rows[0]) && rows.some((r) => /^from cages/.test(r)) && rows.some((r) => /^start D1/.test(r)) && rows.some((r) => /^repeat pack on off/.test(r)) && rows.some((r) => /^insure kit on off/.test(r)),
+    check(rows.length === 5 && /^keep for heirs/.test(rows[0]) && rows.some((r) => /^loot preference/.test(r)) && rows.some((r) => /^start D1/.test(r)) && rows.some((r) => /^Auto restock on off/.test(r)) && rows.some((r) => /^insure kit on off/.test(r)),
       `the sheet holds the five orders (${rows.join(" | ")})`);
     await shot("cut29-orders");
     await page.locator(".sheet-wrap .order-row").first().locator(".chip", { hasText: "armour" }).click();
     await until(() => window.__riddle.lineage.orders?.keep === "best_armour", "the keep order set");
-    await page.locator(".sheet-wrap .order-row", { hasText: "repeat" }).locator(".chip", { hasText: "off" }).click();
+    await page.locator(".sheet-wrap .order-row", { hasText: "Auto restock" }).locator(".chip", { hasText: "off" }).click();
     await until(() => window.__riddle.lineage.orders?.repeat === false, "the repeat order set");
     const after = await page.evaluate(() => ({ on: [...document.querySelectorAll(".sheet-wrap .chip.order.on")].map((c) => c.textContent.trim()), tab: document.querySelector(".orders-tab")?.textContent.replace(/\s+/g, " ").trim() }));
-    check(after.on.includes("armour") && after.on.includes("off") && /keep armour/.test(after.tab) && /no repeat/.test(after.tab), `a tap sets an order through setOrders; the sheet and the tablet follow (${after.on.join(" · ")}; "${after.tab}")`);
+    check(after.on.includes("armour") && after.on.includes("off") && /keep armour/.test(after.tab) && /restock off/.test(after.tab), `a tap sets an order through setOrders; the sheet and the tablet follow (${after.on.join(" · ")}; "${after.tab}")`);
   }
   // ---- §1/§5: the oath board's slots, the draw, the works
   if (part("oaths")) {
@@ -298,7 +298,7 @@ try {
     await until(() => (window.__riddle.lineage.sworn ?? []).length === 1, "one oath sworn");
     const b1 = await page.evaluate(() => ({ slots: document.querySelector(".sheet-wrap .oath-slots")?.textContent.replace(/\s+/g, " ").trim(), open: [...document.querySelectorAll(".sheet-wrap .oath.tablet:not(.sworn) .chip.swear")].filter((b) => !b.disabled).length,
       draw: document.querySelector(".sheet-wrap .chip.draw")?.textContent.trim(), works: document.querySelector(".sheet-wrap .chip.commission")?.textContent.trim() }));
-    check(b1.slots === "sworn 1/2" && b1.open === 2, `with a second slot one sworn oath leaves the others swearable (${b1.slots}; ${b1.open} open)`);
+    check(b1.slots === "active 1/2" && b1.open === 2, `with a second slot one sworn oath leaves the others swearable (${b1.slots}; ${b1.open} open)`);
     await shot("cut29-oaths");
     const m0 = await page.evaluate(() => window.__riddle.lineage.marks);
     await page.locator(".sheet-wrap .chip.draw").click(); await sleep(120); await page.locator(".sheet-wrap .chip.draw").click();
@@ -315,7 +315,7 @@ try {
     await boot(2907);
     await withState((e) => {
       e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "exits", "loadout"], fresh: [], plateau: false, works: [], meters: [], insure: true };
-      Object.assign(e.lineage, { heir: 2, gold: 500, gold_ledger: [{ t: 1, delta: 500, why: "bank D3" }], supplies: [], facts: [...e.lineage.facts, "item:ruby=fire"] });
+      Object.assign(e.lineage, { heir: 2, best_depth: 3, gold: 500, gold_ledger: [{ t: 1, delta: 500, why: "bank D3" }], supplies: [], facts: [...e.lineage.facts, "item:ruby=fire"] });
       e.rules.rows.push({ conds: [{ k: "foes>=", n: 2 }], verb: { v: "throw", a: "fire" }, origin: "player" });
     });
     await camp();
@@ -329,12 +329,12 @@ try {
   }
   // ---- §6: the passage apart from a run's gold; the fallen by name
   if (part("lines")) {
-    await boot(2908);
+    await boot(2908, "&systems=all");
     await withState((e) => { e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "exits", "loadout", "walls"], fresh: [], plateau: false, works: [], meters: [], insure: true }; Object.assign(e.lineage, { best_depth: 9, heir: 3 }); });
     await camp();
     await until(() => window.__riddle.lastForecast?.ends, "the forecast's ends");
     await page.evaluate(() => { const r = window.__riddle;
-      for (const m of ["forecast", "forecastRefine"]) { const o = r.engine[m]?.bind(r.engine); if (o) r.engine[m] = async (...a) => { const f = await o(...a); return f?.ends ? { ...f, ends: { ...f.ends, gold: 260, passage: 135 } } : f; }; }
+      for (const m of ["forecast", "forecastEstimate", "forecastRefine"]) { const o = r.engine[m]?.bind(r.engine); if (o) r.engine[m] = async (...a) => { const f = await o(...a); return f?.ends ? { ...f, ends: { ...f.ends, gold: 260, passage: 135 } } : f; }; }
       r.rulesChanged(); r.go({ kind: "camp" }); });
     await camp();
     const g = await until(() => { const x = document.querySelector(".shaft .end.gold"); return x && /passage$/.test(x.textContent.trim()) ? x.textContent.replace(/\s+/g, " ").trim() : null; }, "the passage on the shaft", 8000).catch(() => null);
@@ -371,7 +371,7 @@ try {
     await boot(2910, "&systems=all");   // Cut 30: the order comes with the pen
     await withState((e) => {
       e.sys29 = { open: ["send", "dial", "headline", "edit", "death", "reorder", "vs"], fresh: [], plateau: true, works: [], meters: [], insure: true };
-      Object.assign(e.lineage, { heir: 2, graveyard: [{ heir: 1, depth: 2, cause: "rat", deeds: [] }], unlocks: [...e.lineage.unlocks, "row5"] });
+      Object.assign(e.lineage, { heir: 2, best_depth: 2, graveyard: [{ heir: 1, depth: 2, cause: "rat", deeds: [] }], unlocks: [...e.lineage.unlocks, "row5"] });
       e.rules.rows.push({ conds: [{ k: "foes>=", n: 3 }], verb: { v: "retreat" }, origin: "player" }, { conds: [{ k: "hp<", n: 50 }], verb: { v: "rest" }, origin: "player" });
     });
     await camp();
@@ -393,12 +393,12 @@ try {
     await boot(2911, "&systems=all");   // Cut 30: the marks show with the pen (or the packages panel)
     await page.evaluate(() => localStorage.removeItem("riddle.concepts"));
     await page.reload({ waitUntil: "domcontentloaded" }); await camp();   // (the module keeps what it read at its first caption)
-    await withState((e) => { Object.assign(e.lineage, { marks: 3, heir: 2 }); });
+    await withState((e) => { Object.assign(e.lineage, { marks: 3, heir: 2, best_depth: 2 }); });
     await camp();
     const c1 = await page.evaluate(() => document.querySelector(".topbar .stat.marks .concept-cap")?.dataset.cap ?? null);
-    check(c1 === "buys unlocks", `the marks' first appearance carries its caption ("${c1}")`);
+    check(c1 === "upgrade tokens", `the marks' first appearance carries its caption ("${c1}")`);
     await shot("cut29-concept");
-    await sleep(2600);
+    await until(() => JSON.parse(localStorage.getItem("riddle.concepts") ?? "[]").includes("marks"), "visible marks caption remembered", 8000);
     await page.evaluate(() => window.__riddle.go({ kind: "camp" })); await camp();
     const c2 = await page.evaluate(() => ({ cap: !!document.querySelector(".topbar .stat.marks .concept-cap"), ico: !!document.querySelector(".topbar .stat.marks .ico") }));
     check(!c2.cap && c2.ico, `once seen, the icon stands alone (caption ${c2.cap}, icon ${c2.ico})`);

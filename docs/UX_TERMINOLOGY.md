@@ -32,6 +32,8 @@ changes presentation, not rule verbs, wire identifiers, saved keys or game rules
 | reach Dn | floor n | Tactics forecast headline |
 | works | workers / town upgrades | automation sheet / permanent town improvements |
 | orders | run setup | supplies, loot and start preferences |
+| repeat | auto restock / restock | supplies switch and run setup |
+| no row | No restock | supply excluded from automatic purchases |
 | ledger | enemy guide | creature knowledge, counters and taming |
 
 Tooltips explain percentage-point changes, token spending, stored gear surviving

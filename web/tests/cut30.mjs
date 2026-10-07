@@ -84,7 +84,7 @@ try {
     await until(() => !!document.querySelector(".pkg-panel .pkg-slot"), "the packages panel");
     check(await page.locator('.pkg-choices').first().isHidden(), 'choices folded on opening');
     await page.click('.pkg-compare');
-    await page.click('[data-change-kind="stance"]');
+    if (await page.locator('[data-change-kind="stance"]').getAttribute('aria-expanded') === 'false') await page.click('[data-change-kind="stance"]');
     await page.click('[data-edit-slot="0"]');
     await until(() => !document.querySelector(".pkg-panel .pkg-price.pending"), "the prices", 10_000);
     const P = await page.evaluate(() => {
@@ -113,7 +113,8 @@ try {
     check(P.tactic === 1 && P.tAlts >= 1, `one tactic slot at the Warlord slain, the tactics to wear (${P.tactic} slot, ${P.tAlts} tactics)`);
     check(!P.temper, `no temperament before heir 3 (${P.temper})`);
     check(P.shadow.length >= 1 && P.shadow.every((s) => /^\S.* wins$/.test(s)), `a shadowed row greyed with its winner (${P.shadow.join(", ")})`);
-    check(P.drills.some((d) => /counter · warlord/.test(d)), `the Warlord's drill shown (${P.drills.join(", ")})`);
+    const warlord = page.locator('.pkg-drill[data-boss="goblin_warlord"]');
+    check(await warlord.locator('.counter-name').textContent() === 'Warlord' && await warlord.locator('.counter-action').textContent() === 'attack boss' && await warlord.locator('button').getAttribute('aria-pressed') === 'true', `the Warlord's enabled counter and actual action shown (${P.drills.join(", ")})`);
     await page.click('.pkg-advanced > summary');
     await page.click('.pkg-rows-btn');
     await shot("packages");

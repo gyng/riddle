@@ -1429,7 +1429,7 @@ export function renderWatch(app: App): Mounted {
     if (!viewer?.setKeepOut || (!force && now - keepAt < KEEP_MS)) return;
     keepAt = now;
     const c = canvas.getBoundingClientRect();
-    const els: Element[] = [...el.querySelectorAll(".hud.top > *"), combatLog, tactics.el];
+    const els: Element[] = [...el.querySelectorAll(".hud.top"), combatLog, tactics.el];
     if (!foldLine.hidden && foldLine.classList.contains("docked")) els.push(foldLine);
     for (const x of [banner, ticker, whyLine, whyTip]) if (x.classList.contains("show")) els.push(x);
     const rects: { x: number; y: number; w: number; h: number }[] = [];

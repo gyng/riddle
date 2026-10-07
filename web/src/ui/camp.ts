@@ -617,8 +617,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       /* copy:callout */ `keep ${KEEP_WORD[o.keep] ?? o.keep}`,
       R.has("cage") ? /* copy:callout */ `loot → ${o.cage}` : "",
       R.has("start") && o.start > 1 ? /* copy:callout */ `start D${o.start}` : "",
-      o.repeat ? "" : /* copy:callout */ "no repeat",
-      o.insure ? "" : /* copy:callout */ "no insure",
+      o.repeat ? "" : /* copy:callout */ "restock off",
+      o.insure ? "" : /* copy:callout */ "insurance off",
     ].filter(Boolean);
     replace(ordersTab, h("span", { class: "rn num" }, icon("ledger", "☰")), h("span", { class: "rtext" }, h("b", { class: "orders-head" }, /* copy:label */ "run setup"), " ", h("span", { class: "orders-sum dim num" }, bits.join(" · "))));
   }
@@ -743,12 +743,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       onclick: (e: Event) => {
         e.stopPropagation();
         if (packed > 0 && !armed) { armed = true; badge.classList.add("armed"); replace(badge, /* copy:callout */ `refund ${packed}?`); return; }
-        void app.mutate(() => app.engine.setRestock!(!on), /* copy:callout */ "repeat");
+        void app.mutate(() => app.engine.setRestock!(!on), /* copy:callout */ "restock");
       } },
       // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay reads so on the tile
       // QA a946e04 (T: "`repeat · $40` reads like a price to pay"; its tap refunded $40): the badge is a switch and reads as one —
       // `repeat on · $40` (the tap turns it off and refunds the re-packed shelf) / `repeat off`
-      on ? (short ? /* copy:callout */ "repeat short" : due.length ? /* copy:callout */ `${dueText} at send` : /* copy:callout */ `repeat on · held ≤$${L.repeat_gold ?? 0}`) : /* copy:callout */ "repeat off");
+      on ? (short ? /* copy:callout */ "Restock needs gold" : due.length ? /* copy:callout */ `${dueText} at send` : /* copy:callout */ `Restock on · held ≤$${L.repeat_gold ?? 0}`) : /* copy:callout */ "Restock off");
     return badge;   // QA 524827b (qaAB: `≤$24` beside the shop's `heal potion $26` — the repeat pays the quote it showed, held)   // QA 778fa1b (qaV: `repeat on · $104` read as a per-send cost; nothing was charged when the supplies came back): the most it re-buys
   }
   function paintSupplies(): void {
@@ -771,11 +771,11 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       const x: HTMLButtonElement = free
         ? twoTap("×", /* copy:button */ "drop", () => void app.dropSupply(p.id), { class: "x", key: `drop:${p.id}` })
         : h("button", { class: "x", "aria-label": /* copy:button */ "drop", onclick: () => void app.dropSupply(p.id) }, "×");
-      // Cut 21 §2: a line an exit shelved reads `· found` (packed free); with the repeat on, a kind no row names reads `· no row` — the
-      // next send will not re-buy it (the core's narrowed `repeat_kinds`)
+      // Cut 21 / Cut86: found supplies were packed free. An excluded repeat kind will not be
+      // automatically bought again; this does not prove it cannot be used in the current run.
       const noRow = !free && !p.found && L.repeat !== false && L.repeat_kinds !== undefined && !L.repeat_kinds.includes(p.kind);
       chips.appendChild(h("span", { class: `chip item on${noRow ? " no-row" : ""}` }, h("span", { class: "item-l", title: SUPPLY_USE[p.kind] ? `${p.label} · ${SUPPLY_USE[p.kind]}` : p.label }, itemIcon(p, { size: "s" }), itemName(p, shelfLabel(p.label)), free ? h("small", { class: "dim found" }, /* copy:callout */ " · free") : p.found ? h("small", { class: "dim found shelf" }, /* copy:callout */ " · found") : "",
-        noRow ? h("small", { class: "dim no-row" }, /* copy:callout */ " · no row") : ""), x));
+        noRow ? h("small", { class: "dim no-row", title: /* copy:tooltip */ "Not included in automatic restocking" }, /* copy:callout */ " · No restock") : ""), x));
     }
     for (let i = picks.length; i < cap; i++) chips.appendChild(h("span", { class: "chip slot empty", "aria-hidden": "true" }, ""));
     supplies.appendChild(chips);

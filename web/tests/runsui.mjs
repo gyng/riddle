@@ -21,7 +21,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, readFileSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
-import { pressWatchControl } from "../../tools/watch-control.mjs";
+import { pressWatchControl, pressWatchNext } from "../../tools/watch-control.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -184,8 +184,7 @@ try {
       const sc = await page.evaluate(() => window.__riddle.screen);
       if (sc === "camp") break;
       if(sc==='watch'){
-        const next=page.locator('.watch .next-gem:visible');
-        if(await next.count())await next.click();else await pressWatchControl(page,'▶▶|');
+        if(!await pressWatchNext(page))await pressWatchControl(page,'▶▶|');
       }else if(sc==='exit'){
         await page.locator('.sheet-wrap button.btn.primary.wide').first().click();
       }else if(sc==='death')await page.locator('.console [data-tile="camp"]').click();

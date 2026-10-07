@@ -83,7 +83,7 @@ try {
     return txt(".camp .cmd .repeat-badge");
   };
   const b1 = await badge({ repeat_unpaid: ["heal"] }), b2 = await badge({ repeat_due: ["heal"] }), b3 = await badge({});
-  check(b1 === "repeat short" && b2 === "+heal at send" && b3 === "repeat on · held ≤$26", `the repeat badge: unpaid \`${b1}\`, due \`${b2}\`, else \`${b3}\``);
+  check(b1 === "Restock needs gold" && b2 === "+heal at send" && b3 === "Restock on · held ≤$26", `the restock badge: unpaid \`${b1}\`, due \`${b2}\`, else \`${b3}\``);
 
   // ---- exit lines on the report
   const L = await page.evaluate(() => window.__riddle.lineage);

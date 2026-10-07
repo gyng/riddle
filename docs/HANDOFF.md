@@ -1,3 +1,49 @@
+**CUT85–88 COMPLETE SCOPED CHECKS — 2026-10-07:**
+
+WholeCut29 46checks PASS37.7s, log/tmp/riddle-cut85-88-cut29-confirmed.log.
+All comparison/restock/watch scoped suites passed; caption app unchanged after
+geometry disproved speculative timer fix. Current owned source ready to commit;
+final rebuildsession68276/log/tmp/riddle-cut85-88-final-build.log. Next full
+client rerun justified by actual pending/header fixes and corrected stale
+fixtures. No fullgreen/95score/deployment claim. EarnedD19 snapshot preserved;
+next progression/content task should follow actualD19 wall and Legacy tick copy.
+
+**CUT85–88 / WHOLE TOWN REGRESSION — 2026-10-07:**
+
+Previous status turn yielded fresh headed/headless verification; progress.
+Cut87/88 five watch suites terminalPASS175.7s. EarnedD19 Armour3/ClearLungs
+bought9+18 Legacy31→4; actual541845-byte snapshot and screenshot shown.
+WholeCut29 revealed stale fixtures (challenge active copy, completed depth
+for repeat/reorder/concept visibility, forecastEstimate missing260/135 override).
+Corrected without reducing numeric/interaction gates. Caption probe proves
+empty-town marks had zero-size geometry; proposed timer fix disproved and
+removed. Caption implementation unchanged. Complete Cut29 session28702 LIVE,
+log/tmp/riddle-cut85-88-cut29-confirmed.log; need terminal verdict. Latest build
+PASS, copy1750literals zero. Need commit/push owned files and fullclientrerun.
+Nothing deployed; goal95unverified. Next actual gameplay copy lapse: core Legacy
+Control/Debilitate effects say ticks; derive seconds from10ticks/s for nextcut.
+
+**CUT85–88 VERIFIED CHECKPOINT — 2026-10-07:**
+
+Current owned changes: honest selected-choice comparison pending state;
+No restock / Restock on-off terminology; reserve whole top watch HUD against
+creature nameplates; snapshot public Next click in replay QA to avoid stale
+locator retry. Package/selection/requests, Cut29 orders and Cut21 5/5 PASS25.5s;
+restock qa21/qa778/ui:qa 3/3 PASS38.5s; exact ui:cut19 transaction PASS15.7s.
+Watch cut28w/runsui/status/console/combat-identity 5/5 PASS175.7s, preserving
+zero overlap and exact replay hashes. TypeScript/build/copy/diff passed.
+Complete Cut29 currently running session76714, log/tmp/riddle-cut85-88-cut29.log.
+Full previous suite111/120 remains historical, not current full certification.
+
+Earned original2270503 private browser5351: Boss focus replacing kite archers,
+Apprentice upgrades and additional2h absence cleared Mother/Lich toD19.
+Gold7555 earned/header1951 reconciles exact8278 spending; Legacy31.
+Actual saves and milestone screenshot under scratchpad/qa-cut78-interactive;
+QA report appended. No grants/edited save, independent score or full active
+horizon claim. Source currently uncommitted; no deployment. Focus re-probed:
+headed private X11 retains D3D12/NVIDIA; windowless headless SwiftShader.
+Goal95 remains unverified and active.
+
 **CUT83/84 FROZEN LOCAL PREVIEW — 2026-10-07:**
 
 87c32bc committed/pushed. Fresh clean build PASS, 248 assets copied to
