@@ -14,6 +14,9 @@ learns facts on its own; every death names its cause. The dungeon has a bottom.
 Buildings become available at milestones and require a manual build action.
 First load is an empty town: free house → hero arrives → Send. Each active slot is a persistent bloodline; its Legacy survives heir replacement and buys health, damage, and armour at home. Multiple bloodlines run independently with shared town gold (docs/UX_BLOODLINES.md). Gold collects directly into the spendable total; Savings is separate. The live watch labels carried/secured gold, with a combat log and Town menu exit (docs/UX_FIRST_HOME.md).
 The end report leads with runs, deepest floor and gold; extra detail folds away.
+Past runs and replays are available from a hero's Details → Run log after the
+first completed run. New-town end/history cards name the direct Gold total;
+older manual-chest saves retain their actual destination (`docs/CUT74_RUN_GOLD_CLARITY.md`).
 Cut61 pacing review improves Steady safe recovery to60% after historicalD18,
 retaining50% earlier and40% atL2. Targeted16seed progression and current18case
 regression pass; deeper Legacy choices and higher-tier variety remain queued

@@ -19,6 +19,7 @@ import { audio } from "../audio";
 import { questShown } from "./quest";
 import { nextPill, openWorks } from "./works";   // Cut 30.5: the `next` pill, the works sheet
 import { openChronicle } from "./chronicle";
+import { openRuns } from "./runs";
 import { openLooks } from "./look";
 import { classList } from "./unlocks";
 import { CLASS_VERBS } from "../engine/classes";
@@ -344,7 +345,7 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
       return JSON.stringify([L.selected_bloodline, L.heir, L.class, L.look,
         slot?.hero_name, slot?.level, slot?.xp, slot?.next, slot ? heroPresence(slot) : null,
         L.bloodline, L.class_styles, L.legacy_upgrades, L.legacy_respec, !!L.live, L.classes?.[L.class],
-        L.hero_legacy?.find((h) => h.heir === L.heir)]);
+        L.hero_legacy?.find((h) => h.heir === L.heir), L.runs?.length, L.runs?.at(-1)?.id]);
     };
     let painted = "";
     const paint = (): void => {
@@ -369,7 +370,8 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
         !slot && L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
         h("div", { class: "hero-actions" },
           h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, classIcon(L.class), /* copy:button */ "Change class"),
-          h("button", { class: "chip hero-appearance", onclick: () => openLooks(app), disabled: !app.engine.setLook }, /* copy:button */ "Appearance")),
+          h("button", { class: "chip hero-appearance", onclick: () => openLooks(app), disabled: !app.engine.setLook }, /* copy:button */ "Appearance"),
+          (L.runs ?? []).some((r) => r.id > 0) ? h("button", { class: "chip hero-runs", onclick: () => openRuns(app) }, /* copy:button */ "Run log") : null),
         renderClassStyles(app,()=>{if(body.isConnected)paint();}),
         renderLegacy(app,()=>{if(body.isConnected)paint();},paths),
         h("details", { class: "hero-history", open: historyOpen }, h("summary", null, /* copy:button */ "Details"),

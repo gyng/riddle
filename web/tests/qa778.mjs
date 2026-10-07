@@ -54,12 +54,14 @@ try {
   await page.evaluate(() => {
     const r = window.__riddle, e = r.engine; delete e.forecastVsRefined;
     const fc = e.forecast; e.forecast = async () => { const f = await fc(); return r.rules.rows.length === 4 ? { ...f, shadowed_by: [null, null, 1, null] } : f; };
+    e.forecastEstimate = e.forecast;
     e.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: -0.1, pm: 0.02 })), bank: { delta: -0.1, pm: 0.02 }, death: { delta: 0.1, pm: 0.02 } });
+    e.forecastVsEstimate = e.forecastVs;
     r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "attack", a: "lowest" } }, 2);
   });
   const dead = await until(async () => { const t = await txt(".camp .shaft-vs-host .shaft-vs"); return t && t !== "vs last run…" ? t : null; }, "the dead edit's line");
   const marks = await page.evaluate(() => document.querySelectorAll(".camp .shaft .vsm").length);
-  check(/^vs last run · D\d+ same · bank same$/.test(dead) && marks === 0, `a row that never fires moves nothing: "${dead}", ${marks} marks`);
+  check(/^vs last run · D\d+ same · full haul same$/.test(dead) && marks === 0, `a row that never fires moves nothing: "${dead}", ${marks} marks`);
   // the strip is its own row: under the well, over nothing
   const lay = await page.evaluate(() => {
     const well = document.querySelector(".camp .camp-well").getBoundingClientRect(), strip = document.querySelector(".camp .shaft-vs-host").getBoundingClientRect();
@@ -69,7 +71,7 @@ try {
   check(lay.top >= lay.wellBottom - 1 && lay.bottom <= lay.cons + 1, `the vs strip sits between the well and the console (well ≤ ${lay.wellBottom}, strip ${lay.top}–${lay.bottom}, console ${lay.cons})`);
   await shot("qa778-dead-edit");
   // a live edit's move on the death gem: a fall reads good (`▼`, the up colour)
-  await page.evaluate(() => { const r = window.__riddle; r.engine.forecastVs = async () => ({ depths: [{ depth: 6, delta: 0.2, pm: 0.02 }], bank: { delta: 0.2, pm: 0.02 }, death: { delta: -0.3, pm: 0.02 } }); const row = r.rules.rows.find((x) => x.conds[0]?.n !== undefined); if (row) row.conds[0].n += 5; else r.rules.rows.pop(); r.rulesChanged(); });
+  await page.evaluate(() => { const r = window.__riddle; r.engine.forecastVs = async () => ({ depths: [{ depth: 6, delta: 0.2, pm: 0.02 }], bank: { delta: 0.2, pm: 0.02 }, death: { delta: -0.3, pm: 0.02 } }); r.engine.forecastVsEstimate = r.engine.forecastVs; const row = r.rules.rows.find((x) => x.conds[0]?.n !== undefined); if (row) row.conds[0].n += 5; else r.rules.rows.pop(); r.rulesChanged(); });
   await until(async () => { const t = await txt(".camp .shaft-vs-host .shaft-vs"); return t && /death/.test(t) ? t : null; }, "the live move");
   const tone = await page.evaluate(() => ({ line: document.querySelector('.camp .shaft-vs .vs-term[data-k="death"] b')?.className, gem: document.querySelector(".camp .shaft-ends .death .vsm")?.className ?? null }));
   check(/\bup\b/.test(tone.line ?? "") && (tone.gem === null || /\bup\b/.test(tone.gem)), `a fall in death is drawn as good (${JSON.stringify(tone)})`);
@@ -102,7 +104,7 @@ try {
   check(/next heir \+\$40/.test(all) && !/≥\$40|purse full|no top-up/.test(all + rep.gold), `the purse reads \`next heir +$40\` where it was paid, never \`≥$40\` or \`purse full\` (${all})`);
   // QA 0c6e126 (qaZ: `−$7 swapped` summed into the headline, off the balance by 7): the swaps are the lines', not a term of the gold line
   check(!/swapped/.test(rep.gold ?? "") && /\+\$40 next heir/.test(rep.gold ?? "") && !/≥/.test(rep.gold ?? ""), `the gold line holds only the ledger's terms — the top-up it paid, no swaps ("${rep.gold}")`);
-  check(rep.chips.some((c) => /^D6 · died · trace$/.test(c)), `a death's trace chip names its floor (${rep.chips.join(" | ")})`);
+  check(rep.chips.some((c) => /^D6 · died · log$/.test(c)), `a death's log chip names its floor (${rep.chips.join(" | ")})`);
   check(/HP; return too late; died to jackal/.test(rep.reel), "a return that did not get him home reads `too late`");
   await shot("qa778-report");
 
@@ -129,6 +131,8 @@ try {
   if (hasVault) {
     await page.locator(".camp .strip button.gold, .camp .bar button.gold").first().click({ timeout: 5000 }).catch(() => {}); await sleep(200);
     const sheet0 = await page.locator(".sheet-wrap").count();
+    // Chunky windows are modal: close the visible window before changing panels.
+    await page.keyboard.press("Escape");
     await page.locator(".cmd .tile[data-tile=vault]").click({ timeout: 5000 }); await sleep(200);
     const after = await page.evaluate(() => ({ sheets: document.querySelectorAll(".sheet-wrap").length, panel: document.querySelector(".panel")?.dataset.panel ?? null }));
     check(sheet0 === 1 && after.sheets === 0 && after.panel === "vault", `a tile under an open sheet takes the tap and closes it (sheets ${sheet0} → ${after.sheets}, panel ${after.panel})`);

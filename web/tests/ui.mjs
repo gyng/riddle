@@ -626,9 +626,8 @@ try {
     check(f.stats.length === 1 && /\bgold\b/.test(f.stats[0]), `the bar shows $ only (${f.stats.join(", ")})`);
     check(f.tablets === 2 && f.notches.join(",") === "D1" && !f.ends, `two compact tablets, the shaft at D1 alone, no gems (${f.tablets} tablets, notches ${f.notches.join(",")}, ends ${f.ends})`);
     check(/^send(▸ fights only)?$/i.test(f.gem ?? "") && f.tiles === 0 && !f.tabs && !f.cls, `the gem SEND and nothing else: no tile, no set tab, no class picker (gem "${f.gem}", ${f.tiles} tiles)`);
-    // FIRST_LOAD/HERO_SLOTS: the town and heroes lead; advanced rule controls
-    // stay hidden until progress. The old tablet-first interaction is retired.
-    check(!(await page.locator(".editor .row.tablet.compact").first().isVisible()), "a fresh camp keeps advanced rule tablets hidden");
+    // This is a literal legacy harness without packages, not the current opening.
+    check(await page.locator(".editor .row.tablet.compact").first().isVisible(), "the literal legacy fixture retains its authoring controls");
   }
 
   // ---- the ladder: each tile on its trigger, not before; the first appearance glints

@@ -1,3 +1,28 @@
+**CUT74 RUN HISTORY/GOLD CLARITY — 2026-10-07:**
+
+Actual new-town run cards still label chest from porter state despite direct
+Gold collection. Use authoritative town.auto_collect for Gold destination;
+manual chest/porter old-save wording remains; amount/secured gold untouched.
+Built QA reveals Town's run-log entry disappeared with lane retirement. Add
+Run log inside selected hero Details only after a completed run. Read-only
+existing history/replay screen, no new empty-town control. Earned real-WASM
+Details→Run log→card exact save/amount/nooverflow/errors320/400/1440 PASS.
+Three-job suite3/3PASS11.5s (gold45cases/width, hero-summary, first-plot).
+Literal ui:frame63 and actual current first-plot hidden advanced tablets before/
+after build PASS2/2 24.6s. qa77812checks PASS5.4s: current estimate/detailed mocks,
+full-haul/log words, Escape modal before underlying panel; original comparison/
+layout/accounting assertions retained. Runclear absence/rarity sections PASS;
+web build/TS/copy1742zero/diff pass, existing chunk warning. Built GPU card
+captures scratchpad/qa-cut74; logs /tmp/riddle-cut74-*. Initial five-job triage
+failsall due to retired lanes/fixtures and cut13 resource/qaj target crash;
+only scoped repaired cases green, full historical99/117 remains authoritative.
+First built capture source-module import fails, corrected visible navigation.
+Owned5435 stopped, shared5219 retained. No Rust/deployment/95claim.
+Next meaningful visible issue: parchment windows show distracting underlying
+scenery through their text; shared opaque content-surface fix. Remaining runsui
+migration/cut13/qaj isolated checks then immutable full-horizon QA preparation.
+Goal95 remains active/unverified.
+
 **CUT72/CUT73 MIRROR WALL CHOICE — 2026-10-07:**
 
 Seven paid owned Boss Focus/Fighter seed5 stance/temperament cases fail48h;

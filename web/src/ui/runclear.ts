@@ -48,8 +48,9 @@ const STAMP: Record<EndKind, string> = { banked: "banked", returned: "returned",
 /** The floor the run reached: the core's, else the line's own `D5`. */
 export const exitDepth = (x: ExitLine): number | undefined => x.reached ?? (Number(/\bD(\d+)\b/.exec(x.text)?.[1]) || undefined);
 
-/** Where an exit's gold went: the chest until the porter is hired, then the purse. */
-const goldTo = (L: Lineage): "chest" | "purse" => {
+/** New towns collect directly; older manual-chest saves retain their actual destination. */
+const goldTo = (L: Lineage): "gold" | "chest" | "purse" => {
+  if (L.town?.auto_collect) return "gold";
   const W = L.tree; if (!W) return "purse";
   const p = W.nodes.find((n) => n.id === "porter");
   return p && p.state !== "done" ? "chest" : "purse";
@@ -89,7 +90,7 @@ export function clearCard(app: App, x: ExitLine, o: { onTap?: () => void } = {})
   // Cut 30.5 (c305-core): the checkpoints' gold, kept whole at any exit — `$80 secured` beside the coins (a death keeps it alone)
   const secured = (x.secured ?? 0) > 0 ? h("small", { class: "rc-secured num", "data-secured": String(x.secured) }, /* copy:label */ `$${x.secured} secured`) : null;
   const gold = kind === "died" ? (secured ? h("div", { class: "rc-gold died" }, secured) : null) : h("div", { class: `rc-gold to-${to}`, "data-to": to }, icon("gold", "$"), coins,
-    h("span", { class: "rc-arrow", "aria-hidden": "true" }, "→"), h("span", { class: "rc-to" }, to === "chest" ? /* copy:label */ "chest" : /* copy:label */ "purse"), secured);
+    h("span", { class: "rc-arrow", "aria-hidden": "true" }, "→"), h("span", { class: "rc-to" }, to === "gold" ? /* copy:label */ "Gold" : to === "chest" ? /* copy:label */ "chest" : /* copy:label */ "purse"), secured);
   // finds: icons in their rims, the rarest named (one name: the eye goes to the best)
   const row = itemRow(finds, { size: "l", pop: true, max: 6 });
   const findsEl = row ? h("div", { class: "rc-finds", "data-best-rarity": bestRarity(finds) }, row, best && rarityRank(best.rarity) >= 1 ? h("div", { class: "rc-find-name" }, itemName(best)) : null) : null;
