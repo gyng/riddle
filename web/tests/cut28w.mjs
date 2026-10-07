@@ -103,7 +103,7 @@ try {
               for (const d of dom) if (inter(t, d)) acc.hits.push(`${t.kind} "${t.text}" on "${d.what}"`);
               for (const p of plates) if (inter(t, p)) acc.hits.push(`${t.kind} "${t.text}" on plate "${p.what}"`);
             }
-            for (const p of plates) for (const d of dom) if (inter(p, d)) acc.hits.push(`plate "${p.what}" on "${d.what}"`);
+            for (const p of plates) for (const d of dom) if (inter(p, d)) acc.hits.push(`plate "${p.what}" on "${d.what}" (${JSON.stringify({plate:p,dom:d,hud:(() => {const r=w.querySelector(".hud.top").getBoundingClientRect();return {x:r.left-c.left,y:r.top-c.top,w:r.width,h:r.height};})()})})`);
           }
         }
         if (performance.now() - t0 > 30_000 || (window.__riddle?.screen !== "watch" && performance.now() - t0 > 2000)) { res(acc); return; }

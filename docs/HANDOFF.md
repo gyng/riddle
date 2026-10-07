@@ -1,3 +1,67 @@
+**CUT91 VERIFIED / OVERLAP INVESTIGATION STILL OPEN — 2026-10-07:**
+
+Single-operation visible watch helper passes unchanged Cut13 77 checks,
+clarity:core,watch43 checks, screens58 checks and RunsUI:4/4PASS195.5s
+(session47667 terminal0, /tmp/riddle-cut91-control-checks.log). Original helper
+failed isolated clarity's late Skip dispatch while actual ending flow passed.
+No app engine/control change, ended-run refusal retained.
+
+Cut28w coordinate diagnostic passed6checks65.0s (session65764terminal0);
+intermittent full-suite goblin/alert overlap remains unresolved. Repeat LIVE
+session9568, /tmp/riddle-cut90-overlap-diagnostic-repeat.log. Diagnostic now
+includes actual plate, DOM and parent HUD rectangles; gate remains zero.
+QA agents still ON HOLD, candidate5250 unchanged ef8de67. Full browser result
+118/120 remains the latest full result; no score or deployment claim.
+
+**CUT91 IN PROGRESS / CLIENT TERMINAL118/120 — 2026-10-07:**
+
+Full browser session16452 terminalFAIL118/120 in636.2s; remaining clarity:
+core,watch and Cut28w one goblin/alert overlap. Original quiet clarity session
+28066 and direct25971 reproduce Skip dispatch failure: resumed replay377/420
+then helper's many round trips allow endingFrom400 to disable Skip. Actual
+ending still lands and death flow passes; keep ended-run refusal intact.
+Cut91 tools/watch-control.mjs now opens Speed/presses visible enabled option/
+closes own menu in one page operation, no engine shortcut. Contract
+CUT91_WATCH_CONTROL_DISPATCH.md added. Scoped checks LIVE session47667,
+/tmp/riddle-cut91-control-checks.log; Cut13 unchanged77PASS64.2s so far; poll
+samehandle for clarity/RunsUI/screens. Uncommitted helper/contract/handoff.
+
+Cut28w diagnostic only adds coordinates to existing overlap failure output;
+zero-overlap assertion unchanged. LIVE session65764,
+/tmp/riddle-cut90-overlap-diagnostic.log. Need establish stale-render vs HUD
+bounds before changing app again. Frozen5250 still ef8de67, QA agents ON HOLD.
+No independent score or full-green claim; no deployment.
+
+**CUT89/90 PUSHED / FROZEN QA CANDIDATE / CLIENT LIVE — 2026-10-07:**
+
+Source ef8de67d91d3554275a271bc7c4ccb4b9c96b6d4 pushed main; tracked
+worktree clean before this handoff update. Cut89 corridor progress repair and
+Cut90 HUD change refresh committed25adb8f; accidental CUT90 source dump removed
+in ef8de67. Fast verify684core/14tools/TS/copy PASS, Clippy PASS; rebuilt shipping
+WASM and clean web build PASS. Bounded native full gates terminal PASS (session
+38489, /tmp/riddle-cut89-90-full-gates.log); omitted system-removal/historical
+migration audit is NOT certified.
+
+Full browser suite LIVE session16452, /tmp/riddle-cut89-90-client-full.log.
+Early clarity:core,watch has two failures (frontier tick320 but speed0/card0;
+visible Skip dispatch refused later). Await terminal and quiet reproduction;
+do not restart the running suite or claim full green. Other affected Chrome,
+Cut30 and watch suites passed earlier scoped checks; current Chrome184PASS.
+
+Immutable local candidate URL http://127.0.0.1:5250/ (preview session95545).
+Directory scratchpad/qa-cut89-90-frozen-ef8de67/dist;248 hashed assets. Shipping
+WASM55f724843bc57e68dc8970e5af72f0e3889d12fa13d16efe3e8c694f04a2d20e;
+served index96367b7129ed50dfc51dbb46ef64704cf506f7a9d400b38de596fbd5cc622071.
+First-home screenshot shown inline. Superseded5249 stopped by verified PID;
+original earned5244/driver5351 preserved. No deployment.
+
+User confirmed independent agent raters. Current rater_a/rater_b assignments
+are full QA first, ON HOLD/unplayed while browser preflight finishes. Seeds41/57,
+own drivers5352/5353, reports eval/qa/ef8de67.qa-a.md and .qa-b.md. Explicit
+release still required; frozen candidate may be replaced if real defect found.
+After QA lapses fixed use fresh blind scoring agents, not these QA sessions.
+Goal95 remains unverified.
+
 **CUT89/90 CORE + WATCH VERIFIED / GATES LIVE — 2026-10-07:**
 
 Previous goal turn progress:3245061 pushed. User explicitly approved two
