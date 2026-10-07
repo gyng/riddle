@@ -127,7 +127,22 @@ try {
       if (n === 1) await shot("town-blacksmith");
       if (n === 2) {
         // the staked plot's trigger, on tap
+        const lockedBefore = await page.evaluate(() => window.__riddle.engine.save());
         await page.locator('.town-hit[data-building="staked"]').click();
+        const plotDialog = await page.evaluate(() => document.querySelector('.sheet-wrap .plot-preview')?.textContent ?? "");
+        check(plotDialog.includes("companions") && plotDialog.includes("first tame"), `stage 2: locked plot opens its building and unlock condition ("${plotDialog}")`);
+        const lockedAfter = await page.evaluate(() => window.__riddle.engine.save());
+        check(lockedBefore === lockedAfter, "stage 2: inspecting the locked plot leaves exact game state unchanged");
+        await shot("town-locked-plot-mobile");
+        if (shots) {
+          await page.setViewportSize({ width: 1280, height: 800 });
+          await sleep(400);
+          await shot("town-locked-plot-desktop");
+          await page.setViewportSize({ width: 400, height: 800 });
+          await sleep(400);
+        }
+        await page.keyboard.press("Escape");
+        check(!await page.locator('.sheet-wrap .plot-preview').count(), "stage 2: Escape closes plot details");
         const tag = await until(() => { const e = document.querySelector(".town-tag:not([hidden])"); return e ? e.textContent : null; }, "the staked plot's tag", 3000).catch(() => null);
         check(!!tag && tag.includes("companions") && tag.split(/\s+/).length <= 6, `stage 2: the staked plot names the next building and its trigger on tap ("${tag}")`);
         // a building's panel stands over it (or under it when the room above is short)

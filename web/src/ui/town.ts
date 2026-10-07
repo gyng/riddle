@@ -71,7 +71,16 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     building = true; tag.setAttribute("aria-busy", "true");
     void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build", false, { saveBeforePaint: true }).finally(() => { building = false; tag.setAttribute("aria-busy", "false"); });
   };
-  const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite", onclick: buildPlot, onkeydown: (e: Event) => { const k = e as KeyboardEvent; if (state?.staked?.ready && (k.key === "Enter" || k.key === " ")) { k.preventDefault(); buildPlot(); } } });
+  const inspectPlot = (): void => {
+    const plot = state?.staked;
+    if (!plot) return;
+    if (plot.ready && app.engine.buildTown) { buildPlot(); return; }
+    openSheet(() => h("div", { class: "sheet-body plot-preview" },
+      h("h3", null, LABEL[plot.id] ?? BUILD_NAME[plot.id] ?? plot.id),
+      h("div", { class: "label" }, /* copy:label */ "Locked"),
+      h("p", { class: "num" }, plot.trigger || /* copy:label */ "Not yet")));
+  };
+  const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite", onclick: inspectPlot, onkeydown: (e: Event) => { const k = e as KeyboardEvent; if (state?.staked?.ready && (k.key === "Enter" || k.key === " ")) { k.preventDefault(); buildPlot(); } } });
   const plotDetails = (): Node[] => {
     const plot = state?.staked;
     if (!plot) return [];
@@ -239,6 +248,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       // the next building and what raises it (`kennel · first tame`): always shown (c30-legible); a tap flashes it
       replace(tag, h("b", null, LABEL[s.id] ?? s.id), s.trigger ? h("span", { class: "dim" }, ` · ${s.trigger}`) : "");
       tag.hidden = false; placeTag(); tag.classList.add("flash"); clearTimeout(tagTimer); tagTimer = window.setTimeout(() => { tag.classList.remove("flash"); }, 1200);
+      inspectPlot();
       return;
     }
     const marker = (e.target as HTMLElement | null)?.closest?.(".town-marker") as HTMLElement | null;

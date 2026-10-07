@@ -1,3 +1,24 @@
+**CUT93 LOCKED PLOT FEEDBACK VERIFIED — 2026-10-07:**
+
+Independent QA-a and QA-b on frozen396f6ed both reproduced inert next-plot taps.
+Locked map target/label now open the existing centered chunky window with the
+actual building/unlock condition. Ready plots retain manual construction.
+Cut30town regression failed before the repair and passes after, including exact
+engine-save equality and Escape close. Scoped town/first-plot/town-save3/3PASS
+27.9s (/tmp/riddle-cut93-checks.log); TS PASS session14938; copy1752zero.
+Screenshot build-stage checks terminalPASS session84083; mobile and desktop
+images scratchpad/qa-cut93-plot/town-locked-plot-{mobile,desktop}.png shown inline.
+These are fake-engine UI fixtures, not earned-player gameplay. No Rust change.
+Full121/121 applies to prior396f6ed; no full rerun for this small patch yet.
+
+QA agents continue on unchanged immutable5251/396f6ed, actual70active-minute
+horizons incomplete, no scores. Preserve their browsers and frozen assets.
+QA-a also found enabled early Repelled cause/seal buttons do nothing; source
+confirms cause fallback gated by prePen and seal targets unmounted patches.
+Not repaired yet. Need concrete explanation action or honest noninteractive
+state without exposing the late editor. No deployment. Goal95 unverified.
+Shared launcher still headless or private headedX/Wayland disabled, no focus.
+
 **QA LIVE / EARNED D19 DIAGNOSTICS RECORDED — 2026-10-07:**
 
 Both QA players continue independently on396f6ed:5251. QA-a cold started
