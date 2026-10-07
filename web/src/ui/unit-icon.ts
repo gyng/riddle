@@ -7,10 +7,17 @@ export function unitIcon(kind: string, px = 34, hero = false): HTMLElement {
   const id = hero ? `hero_${kind}` : kind;
   const src = hero ? portraitSrc(id) : foeSrc(kind) ?? portraitSrc(`boss_${kind}`);
   const attrs = { class: "unit-icon", "aria-hidden": "true", "data-unit": id, style: `--unit-size:${px}px` };
-  if (src) return h("img", { ...attrs, src, alt: "", draggable: "false" });
-  const face = h("span", { ...attrs, "data-glyph": "?" });
-  paintSprite(face, id, px);
-  return face;
+  const fallback = (): HTMLElement => {
+    const face = h("span", { ...attrs, "data-glyph": "?" });
+    paintSprite(face, id, px);
+    return face;
+  };
+  if (src) {
+    const image = h("img", { ...attrs, src, alt: "", draggable: "false" });
+    image.onerror = () => image.replaceWith(fallback());
+    return image;
+  }
+  return fallback();
 }
 
 /** A fixed icon beside a wrapping label; callers keep ownership of its text. */

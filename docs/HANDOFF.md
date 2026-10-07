@@ -1,3 +1,22 @@
+**CUT106 FAILED PORTRAIT FALLBACK VERIFIED — 2026-10-07:**
+
+Cut1055f50217 pushed report whole-run/assigned-rest scope. Current Cut106
+shared unitIcon replaces failed listed image with SAME-unit atlas/primitive;
+healthy image unchanged. Original QA-b root cause unproven; original goblin
+killer visible, blank Corin hero frame. Failed request reproduces lack of
+fallback before repair95867FAIL0/1. After72728 terminal4/4PASS10.1s log
+/tmp/riddle-cut106-client.log:portrait-fallback/unit-icons/death-hero/actions;
+320/400/1440healthy rogue decode, abort→hero_rogue atlas, unknownprimitive,
+frame64/historytext/exactsave. Build35682/typesPASS/copy1768zero/diffPASS.
+Screens scratchpad/qa-cut106-portrait/fallback-{320,400,1440}.png phoneinline.
+
+QAledger remainingItems nowempty; repairs preserve all original observations
+and original uncertainty. Neither QA is a score or blanket protocolcertificate.
+NEXT current fullverify (Rust/wire/bounded18cases/shippingWASM) then fullclient
+on stable source, fresh immutable local preview+manifest and fresh blind two
+raters. Avoid nativeheavy sims alongside client timing checks. Frozen396f6ed
+5251 preserved. No deployment, goal95active/unverified; focus-safe isolation.
+
 **CUT105 REPORT TIME SCOPE VERIFIED — 2026-10-07:**
 
 Previous turn Cut104c61b4cc pushed. Current Cut105 report meters Completed runs

@@ -88,6 +88,11 @@
       "lapse": "Return meter duration scope unexplained",
       "contract": "docs/CUT105_REPORT_TIME_SCOPE.md",
       "validation": "Whole completed runs (including before away) and separate assigned rest/pending fragments;20m/1h/30m fixture320/400/1440, aggregate and exit fallback, exact save;five report/death suites pass9.2s, types/copy/build pass"
+    },
+    {
+      "lapse": "Empty historical hero portrait frame in goblin death screenshot",
+      "contract": "docs/CUT106_UNIT_PORTRAIT_FALLBACK.md",
+      "validation": "Original root cause remains unproven; screenshot has visible killer art. Actual failed hero_rogue request reproduces blank frame before repair. Healthy decode and same-unit atlas fallback/primitive/frame/history/save pass320/400/1440;4/4 scoped suites10.1s;types/copy/build pass"
     }
   ],
   "infrastructure": {
@@ -99,7 +104,7 @@
     "evidenceLog": "/tmp/riddle-portrait-network-restored.log",
     "activeTime": "Infrastructure investigation excluded; original observations retained"
   },
-  "remaining": "Reconcile every remaining QA item, then complete current broad acceptance and freeze repaired build before fresh independent blind scoring. No95 certification or deployment.",
+  "remaining": "All reported QA items have repairs with original evidence preserved; current broad acceptance, shipping-WASM freeze and fresh independent blind scoring remain. No95 certification or deployment.",
   "mechanical": {
     "broad": "120/122 in 1278.5s; fast break assertion and qa21 forecast locator failed; began before Cut97 copy test addition",
     "rechecks": "Unchanged serialized fights/qa21/enemy-tips/captive-fact-copy 4/4 in 203.4s; full fights retains48 checks. Separate qa21 17 checks passes17.3s. No proven root cause for initial intermittent failures.",
@@ -111,7 +116,5 @@
     "eval/qa/396f6ed.qa-b.md"
   ],
   "qaLimitations": "QA-a70+ active minutes estimated, exact stopwatch/tool counts unverified; QA-b conservative70 active minutes, early attribution less precise. Both zero written edits because editor unavailable; older traces and storage reorder incomplete. Reports are lapse evidence, not scoring cards or blanket protocol certification.",
-  "remainingItems": [
-    "Goblin death portrait empty, needs reproduction (QA-b)"
-  ]
+  "remainingItems": []
 }
