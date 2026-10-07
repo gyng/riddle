@@ -1,3 +1,29 @@
+**CUT92 PUSHED / FROZEN396f6ed ON5251 / FULL CLIENT LIVE — 2026-10-07:**
+
+Main396f6edfd724988eb4641c646d792c96b7c7c68c pushed. Tracked source clean;
+only mine.bars/scratchpad untracked. Full client LIVE session40296,
+/tmp/riddle-cut92-client-full.log. Poll samehandle: early Cut13/clarity core,
+watch/card/deep PASS; need terminal121-suite review before QA release. Native
+bounded full previously passed; Rust/shippingWASM unchanged by Cut91/92.
+
+Immutable candidate http://127.0.0.1:5251/ preview LIVE session41197;
+scratchpad/qa-cut92-frozen-396f6ed/dist,248hashed assets, servedindex verified
+25d94294b9bb73ed045655e6fd7ea0efff71a2be934637cb1a5162f4404f3b5d.
+ShippingWASM55f724843bc57e68dc8970e5af72f0e3889d12fa13d16efe3e8c694f04a2d20e.
+Superseded5250 verified VitePID1782037 stopped; original5244/driver5351 untouched.
+Clean headless real-WASM walk41 terminal34.1s/11dumps/noerrors, source manifest
+and dumps scratchpad/qa-cut92-frozen-396f6ed/walk-41.04-watch.png shown inline.
+No performance claim from that walk; no deployment.
+
+QA-a/rater_a seed41/driver5352 now report eval/qa/396f6ed.qa-a.md; transcript
+review of walk41 first then full70active-minute horizon. QA-b/rater_b seed57/
+driver5353 report eval/qa/396f6ed.qa-b.md, full70min. Both given replacementURL
+but ON HOLD awaiting explicit release after terminal fullclientreview. They
+have no gameplay/cards/active minutes. Do not leak defects/source/otherreports.
+Fresh independent blind scoring agents only after QA lapse list fixed. Goal95
+unverified. Previous turn progress: deterministic message/nameplate regression
+failed before and passed after;6scoped suites/type/copy/build pass, repairpushed.
+
 **CUT92 MESSAGE COLLISION REPAIR VERIFIED / FULL CLIENT LIVE — 2026-10-07:**
 
 Previous goal turn progress:06ab785 pushed, helper Cut13/clarity/screens/RunsUI
