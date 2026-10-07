@@ -1,3 +1,12 @@
+**ACCEPTANCE CHECKPOINT UPDATE:** Debugger52707 nowTERMINAL0. Log confirms
+same compiled18case dayplayer allPASS and inferior exitednormally. Original
+SIGSEGV remains unexplained, notfixed/waived. Wholebrowser queue session26736
+waits GDBPID2084701 (nowgone); log /tmp/riddle-ad71-client-full.log. Revalidate
+live actualrunner before reportingstarted; initial logempty. Do not restart
+queue on timeout. Preserve original failedlegcache until copying evidence;
+failedstatusnull isn't acceptance. Metadata-only5c77a9d pushed, app candidate
+stillad71e72. Next diagnose transient native failure and complete broad client.
+
 **CURRENT ACCEPTANCE / NATIVE SEGFAULT INVESTIGATION — 2026-10-07:**
 
 Previous turnprogress Cut104 pushedc61b4cc. This turn Cut1055f50217 andCut106
