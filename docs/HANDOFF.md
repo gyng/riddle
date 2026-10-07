@@ -1,3 +1,18 @@
+**CUT79 FROZEN / FIRST DEATH CHECKPOINT — 2026-10-07:**
+
+038e6d0 pushed; cleanbuildPASS, frozen248assets manifest at
+scratchpad/qa-cut79-frozen-038e6d0/dist; current fixed immutable5246/session79118
+liveHTTP200, identical releaseWASM hash. Mutable5245 stopped. Keep baseline
+5244/session19177 deliberately: driver5351/session75328 remains on original
+2270503 for consistent ongoing exploratoryQA. Third earned run died at D8
+warlord, header745gold/8Legacy/15marks; death names foe/floor/hero2hp and Forge
+sword+1 recommendation. Screenshotfirst-death shown, cause opened by actualmouse
+click (continuous banner motion makes locator stability wait; not inertUI).
+Cause view goblinwarlord/D8/t13375, inspection remainsnext. Three completedruns,
+3configurationchanges/1deathread/0penattempts/0absences, active minutes not
+tracked; incomplete coordinatorQA only. No independentagents/95score/deploy.
+Fullclient72/120 still failing. Independent-agent permissionpending. Goalactive.
+
 **CUT79 PURCHASE FRONTIER / INTERACTIVE CHECKPOINT — 2026-10-07:**
 
 Original frozen2270503 interactive seed27 driver5351/session75328 remainslive;
