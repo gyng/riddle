@@ -24,6 +24,10 @@ html.skin-panel .ending-body.sheet-body { border: 14px solid transparent;
 .game-window .close-stud { top: 1px; right: 1px; }
 .game-window .sheet-back { top: 1px; left: 1px; }
 .game-window:has(.sheet-back) .sheet-body > .label:first-child { margin-left: 40px; }
+/* Legacy unfold predates the juice preference gate; keep text steady too. */
+@media (prefers-reduced-motion: reduce) {
+  html .sheet-wrap > .sheet, html .panel-host > .panel { animation: none; }
+}
 /* All ordinary game controls share a tactile bevel. Gems/studs and map hits
    already have their own packed art; the text combat log keeps basic styling. */
 :is(.sheet-body, .panel-body, .hero-roster, .report-sheet, .death-sheet, .preparation-host) button:is(.chip, .btn, .card, .tab, .hero-details, .hero-expand, .details-fold, .pkg-rows-btn),

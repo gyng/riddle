@@ -1,3 +1,26 @@
+**CUT75 REDUCED WINDOW MOTION / DIAGNOSIS CORRECTION — 2026-10-07:**
+
+Cut74 capture suggests opaque surface bug; computed inspection proves centered
+window is already opaque #e1d6bd at rest. Legacy unfold runs under reduce and
+capture catches opacity0.219512. Settled before-change opacity1; panel/scroll
+PNG center alpha253/255, no persistent material defect established. Fix shared
+CSS reduce media rule for sheets/camp panels, preserving normal settle/frame/
+centering/nestednavigation. Built GPU42actual cases(7types×3widths×2prefs)PASS:
+reduce immediate none/opacity1/identity; normal j-settle/j-sheet2≤.5s andsettle1;
+six entire earned saves exact/nooverflow/errors. Normal first inspector falsely
+expects animation before existing two-frame arrived gate; corrected wait, bounds
+unchanged. Initial inspector hiddenparent strictviolation retained/corrected.
+Corrected opaque card screenshot shown, scratchpad/qa-cut75. Dedicated built window fallback320/400/1440 PASS: remove panel/scroll skin
+classes, opaque rgb207/197/171, immediate opacity1/identity/noanimation, exact
+save/nooverflow/errors; phone visually inspected. Not all primitive assets. Three client jobsPASS
+15.5s chunky-controls/run-card-gold/post-clear-town; build/TS/copy1742zero/diff
+PASS existingchunkwarning. qaj isolated terminalFAIL87.6s at retired +1vault
+selector (now +1storage slot), no assertionfailures beforeabort; furtherchecks
+unverified. Full historical99/117 remains authoritative. Logs/tmp/riddle-cut75-*.
+Owned5436 stopped;shared5219 retained. No material/core/deployment/95claim.
+Next: finish current run-log/watch QA migration (qaj/cut13/runsui), then immutable
+full-horizon QA preparation. Goal95 active/unverified.
+
 **CUT74 RUN HISTORY/GOLD CLARITY — 2026-10-07:**
 
 Actual new-town run cards still label chest from porter state despite direct
