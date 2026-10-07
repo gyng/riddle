@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Browser harness: headless Chromium for DOM/text checks, headed GPU Chromium under WSLg for
+// Browser harness: headless Chromium for DOM/text checks, isolated headed GPU Chromium in WSL for
 // anything that renders or is timed.
 //
 //   import { launchBrowser, launchGpu } from "./tools/browser.mjs";
 //   const b = await launchBrowser();              headless (SwiftShader WebGL): tests, walks, raters — fast, parallel-safe, no windows
 //   const b = await launchBrowser({ gpu: true }); headed on the real GPU: frame times, render QA, feel
-//   const b = await launchGpu();                  the same as { gpu: true }
+//   const b = await launchGpu();                  the same as { gpu: true }, on a private X display (no desktop focus)
 //   RIDDLE_BROWSER=headed|headless                 overrides the default for callers that pass nothing
 //   node tools/browser.mjs --probe [--headless]   prints the WebGL renderer (D3D12 (NVIDIA …) headed; SwiftShader headless)
 //   node tools/browser.mjs <url> [out.png] [w] [h] [dpr] [--headed]   screenshot after 3 s
@@ -23,7 +23,7 @@
 // Headed Chromium also draws 15 px classic scrollbars inside the viewport (full-page shots came out
 // 385 CSS px wide); --hide-scrollbars restores the overlay-scrollbar phone geometry.
 import { chromium } from "playwright";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 
 function windowsScale() {
   if (process.env.WSL_SCALE) return +process.env.WSL_SCALE;
@@ -56,11 +56,52 @@ export const HEADLESS_ARGS = ["--hide-scrollbars", "--mute-audio"];
 const NO_PULSE = { PULSE_SERVER: "unix:/nonexistent" };
 
 /// Headed on the GPU when `gpu` is set or RIDDLE_BROWSER=headed; headless otherwise.
-export function launchBrowser({ gpu = false, headed, ...extra } = {}) {
+// A private X server keeps every headed automation window off the WSLg desktop.
+// Mesa D3D12 still reaches the Windows GPU (probe it); never fall back to DISPLAY=:0.
+async function privateDisplay() {
+  // xvfb-run handles WSL's shared /tmp/.X11-unix and Xauthority, allocating a
+  // free display from :99. Its child stays alive only until our stdin closes.
+  const keeper = "process.stdout.write(JSON.stringify({name:process.env.DISPLAY,authority:process.env.XAUTHORITY})+'\\n');process.stdin.resume();";
+  const server = spawn("xvfb-run", ["-a", "-s", "-screen 0 1920x1080x24 -nolisten tcp", process.execPath, "-e", keeper],
+    { stdio: ["pipe", "pipe", "pipe"] });
+  let diagnostics = "", output = "";
+  server.stderr.on("data", chunk => { diagnostics = (diagnostics + chunk).slice(-2000); });
+  let stopped = false;
+  const stop = () => { if (!stopped) { stopped = true; server.stdin.end(); } };
+  try {
+    const display = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`Private browser display timed out: ${diagnostics}`)), 5000);
+      const fail = error => { clearTimeout(timer); reject(error); };
+      server.once("error", fail);
+      server.once("exit", code => fail(new Error(`Private browser display exited (${code}): ${diagnostics}`)));
+      server.stdout.on("data", chunk => {
+        output += chunk;
+        if (output.includes("\n")) {
+          clearTimeout(timer);
+          try { resolve(JSON.parse(output.trim())); } catch (error) { reject(error); }
+        }
+      });
+    });
+    return { ...display, stop };
+  } catch (error) { stop(); throw error; }
+}
+
+export async function launchBrowser({ gpu = false, headed, ...extra } = {}) {
   const env = process.env.RIDDLE_BROWSER;
-  const useHeaded = headed ?? (env === "headed" ? true : env === "headless" ? false : gpu);
-  if (useHeaded) return chromium.launch({ headless: false, args: GPU_ARGS, env: { ...process.env, ...GPU_ENV, ...NO_PULSE }, ...extra });
-  return chromium.launch({ headless: true, args: HEADLESS_ARGS, env: { ...process.env, ...NO_PULSE }, ...extra });
+  const useHeaded = extra.headless === false || (headed ?? (env === "headed" ? true : env === "headless" ? false : gpu));
+  if (useHeaded) {
+    const display = await privateDisplay();
+    const cleanup = () => { display.stop(); process.removeListener("exit", cleanup); };
+    process.once("exit", cleanup);
+    try {
+      const browser = await chromium.launch({ ...extra, headless: false,
+        args: [...(extra.args ?? GPU_ARGS), "--ozone-platform=x11", `--display=${display.name}`],
+        env: { ...process.env, ...GPU_ENV, ...NO_PULSE, ...extra.env, DISPLAY: display.name, XAUTHORITY: display.authority, WAYLAND_DISPLAY: "" } });
+      browser.once("disconnected", cleanup);
+      return browser;
+    } catch (error) { cleanup(); throw error; }
+  }
+  return chromium.launch({ ...extra, headless: true, args: extra.args ?? HEADLESS_ARGS, env: { ...process.env, ...NO_PULSE, ...extra.env } });
 }
 
 /// The GPU path: headed Chromium on D3D12. For frame times, render QA and anything a person would feel.

@@ -1862,3 +1862,19 @@ An isolated temporary three-job check verifies a failing job reports before a
 1.2s slow job, exactly one result per job, retained failure text,2/3 summary and
 exit1. Syntax/diff checks pass. The currently running audit loaded the previous
 runner and will still report at the end; do not restart it to get streaming.
+
+
+### 2026-10-07: no browser focus stealing in WSL
+
+All headed launches in the shared browser harness now use a private Xvfb
+server via xvfb-run, which handles WSL's shared X socket directory and
+Xauthority. Chromium is explicitly pinned to X11 and its private display;
+even headless:false or desktop DISPLAY/Wayland overrides follow isolation.
+No fallback to the user's desktop when startup fails. The private server exits
+when its browser closes or launch is refused. Headless remains the default.
+
+Actual WSL probe retains D3D12/NVIDIA RTX3080 and native scale1.5. Two concurrent
+headed browsers report private displays:99/:100 via CDP, block attempted desktop
+overrides and render real new-town pages. Closing both and refusing a missing
+browser executable leaves no owned Xvfb servers. Thus GPU QA can continue
+without moving focus on the active desktop; this is not a simulation speedup.

@@ -133,10 +133,18 @@ New towns and unbuilt legacy plots require manual construction.
 
 ## Browser harness (hybrid: headless for text, headed GPU for render)
 
+Owner amendment2026-10-07: **automation must never steal desktop focus**, for any
+purpose. Every headed browser uses `tools/browser.mjs`'s private Xvfb display,
+not the active WSLg display. The launcher pins X11/DISPLAY and owns Xauthority
+and server cleanup; caller overrides cannot route it back to the desktop.
+WSL GPU probe still reports D3D12/NVIDIA. If isolation cannot start, fail rather
+than opening a foreground window. Keep headless for ordinary DOM/text checks.
+
+
 `tools/browser.mjs` has two paths. `launchBrowser()` is headless Chromium (SwiftShader WebGL):
 the client gates (`pnpm test`, seven at once), QA sessions and anything that reads text and
 clicks — fast to start, parallel-safe, no desktop window, audio muted. `launchGpu()` /
-`launchBrowser({ gpu: true })` is headed Chromium under WSLg with Mesa's D3D12 driver forced via
+`launchBrowser({ gpu: true })` is headed Chromium on a private X display in WSL with Mesa's D3D12 driver forced via
 `/usr/lib/wsl/lib`, which reaches the real GPU (`--probe` prints `D3D12 (NVIDIA …)` and `native
 scale 1.5`): frame times, render QA, blind raters (feel is rated) and the playtest walk, whose
 watch pump is per-frame — headless is pixel-bound (14 fps at 3×, 32 at 2×; the walk takes 65 s

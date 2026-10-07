@@ -1,3 +1,20 @@
+**NO DESKTOP FOCUS STEALING / WSL GPU — 2026-10-07:**
+
+Owner explicitly requires no focus stealing for any browser purpose; headed
+is allowed. tools/browser.mjs now starts private xvfb-run displays for ALL
+headed launches, pins X11/DISPLAY/Xauthority after caller overrides, covers
+explicit headless:false, and cleans server on close/launch failure. Never
+fallback to active WSLg desktop. WSL probe PASS D3D12/NVIDIA RTX3080, scale1.5.
+Concurrent real-town render + CDP private:99/:100 + desktop override refusal
+PASS; failed executable cleanup PASS; no owned Xvfb remaining. Syntax/diff PASS.
+
+Previous isolated headed legible/looks/legacy-tree job83791 TERMINAL1:1/3 in
+92.7s; looks PASS16checks. Legible tries disabled ended Speed (48.7s); Legacy
+fixture gets2 legacy-respec-confirm matches (inert exit ghost likely;18.6s).
+Log/tmp/riddle-cut76-specific-gpu.log. Next reproduce/fix those fixtures via
+isolated launcher, retain exact gates, then full-horizon QA. Full headless
+72/120 remains failing; no deployment/independent95 claim. Goal active.
+
 **CUT76 SCREEN LINT / FEEDBACK VERIFIED — 2026-10-07:**
 
 Corrected Screens GPU walk PASS57checks/9screens/30clicks/0errors in50.0s.
