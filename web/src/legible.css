@@ -9,9 +9,8 @@
   opacity: 0; transition: opacity .35s; z-index: 3; }
 .town-arrival.show { opacity: 1; }
 .town-arrival .arrow { color: var(--gilt); }
-.town-hit.arrived { box-shadow: 0 0 0 2px rgba(219, 186, 124, .85), 0 0 18px 4px rgba(219, 186, 124, .45); border-radius: 8px; animation: town-arrived 1.1s ease-in-out 3; }
-@keyframes town-arrived { 50% { box-shadow: 0 0 0 2px rgba(219, 186, 124, .35), 0 0 6px 1px rgba(219, 186, 124, .2); } }
-@media (prefers-reduced-motion: reduce) { .town-hit.arrived { animation: none; } }
+/* Arrival is marked by the scene's construction glint and label. The invisible
+   building hit rectangle must not cast a UI box glow across the terrain. */
 .report .tile .tile-why { grid-column: 1 / -1; justify-self: end; margin-top: 3px; font: 600 14px/1.1 var(--sans); color: var(--mist); letter-spacing: .02em; }
 .town-tag:not(.flash) { background: rgba(13, 12, 20, .66); box-shadow: 0 0 0 1px rgba(138, 106, 42, .7); }
 .town-tag.flash { box-shadow: 0 0 0 2px var(--gilt); }

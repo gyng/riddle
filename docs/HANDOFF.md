@@ -1,3 +1,11 @@
+**CUT60 HOME BUILDING SHADOW — 2026-10-07:**
+
+Inspected current earned home400/1440; normal hit-target shadows none. Found
+4.6s arrived-state rectangular gold box glow on invisible click target; removed
+CSS only. Construction renderer glint and arrival label remain, keyboard outline
+retained. Explicit arrived-state400/1440 styling/screenshot check and build
+PASS; scratchpad/home-shadow, CUT60. No sprite/gameplay changes or deploy.
+
 **CUT59 SIMPLER DEATH — 2026-10-07:**
 
 Owner does not understand Prepare/no rule for it. Remove generic fallback;
