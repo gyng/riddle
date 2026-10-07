@@ -459,7 +459,9 @@ button.bar.try:active { background: var(--panel2); }
 .chip.buy .why { font-size: 10px; letter-spacing: .04em; }
 /* Cut 10 §3: exit lines lead with `returned $61`; after an absence the tiles fade in only once the merged report is complete */
 .exit-lines .lead { color: var(--fg); font-weight: 400; }
-html:not([data-juice="on"]) .tiles.fade-in { animation: fadein .6s ease-out; }   /* gfx round 7: with juice the plaques stamp (juice.css) */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-juice="on"]) .tiles.fade-in { animation: fadein .6s ease-out; }   /* gfx round 7: with juice the plaques stamp (juice.css) */
+}
 @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 /* Cut 10 §4: the mute toggle */
 .btn.mute.on { border-color: var(--acc); color: var(--acc); }

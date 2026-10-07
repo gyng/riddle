@@ -4,7 +4,8 @@
 //   §1  the editor chip counts own rows (`2/4 · 2 cards`); a bought card's row goes before the engagement row (`insert_at`);
 //       card rows never count against `max_rows` (four own rows + two cards send; the fifth own row is `5/4 · drop one`, the
 //       drop mark on an own row); picking a card verb clears the row's conds; a card another row holds is not offered
-//   §3  the forecast panel's ends line: `bank 40% · return 35% · death 25% · ~$54` (Cut 13 §5: `death 25% ±4…` with its ± and the first paint's `…`)
+//   §3  run outcomes: full haul / turn back / death with sample bounds;
+//       More samples is explicit, and a return row must have a positive measured return share.
 //   §6  `+1 row ⊘ fill rows` (a requirement, never `rows full`) lifts once a rule edit fills the rows (no run needed); a free supply reads `leash · free` (QA 92eb880); a
 //       supply line's `×` removes that line only; the combo is named (`gambler`), not counted
 //
@@ -74,7 +75,7 @@ try {
   await page.keyboard.press("Escape"); await sleep(100);   // the panel closes over the tablets
   check(c.count === "2/4" && c.rows.length === 2, `the preset reads ${c.count}, ${c.rows.length} rows`);
   check(/^written: 0 of 2 rules · gambler$/.test(c.yours), `the yours line names the combo: "${c.yours}"`);
-  check(/^ends bank <?\d+% · return <?\d+%( · stall <?\d+%)? · death <?\d+%( ±\d+…?)? · avg \$\d+\/run$/.test(c.ends), `the forecast's ends line: "${c.ends}"`);
+  check(/^run outcomes full haul [<>]?\d+% · turn back [<>]?\d+%( · stall \d+%)? · death [<>]?\d+%( ±\d+)? · avg \$\d+\/run$/.test(c.ends), `the forecast's bounded run outcomes: "${c.ends}"`);
   check(/⊘ fill rules/.test(c.rowCard) && !/rows full/.test(c.rowCard), `+1 row waits on the rows at 2/4, as a requirement: "${c.rowCard}"`);
   check(c.supplies.length === 1 && /^leash · free ×$/.test(c.supplies[0]), `the kennel's leash reads free (QA 92eb880: kennel was unexplained): "${c.supplies[0]}"`);
 
@@ -99,8 +100,13 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.insertRow({ conds: [{ k: "hp>", n: 90 }], verb: { v: "rest" } }, r.rules.rows.length); r.insertRow({ conds: [{ k: "depth>=", n: 3 }], verb: { v: "return" } }, r.rules.rows.length); r.go({ kind: "camp" }); });
   await page.waitForFunction(() => window.__riddle.unlockCat.length > 0, null, { timeout: 10_000 });
   await sleep(1200);
+  await openPanel(page,'forecast');
+  await page.locator('.panel .fc-refine:visible').click({timeout:5000});
+  await page.waitForFunction(()=>window.__riddle.lastForecast?.refined===true,null,{timeout:10000});
+  await page.keyboard.press('Escape');
   c = await camp();
-  check(/^ends bank <?\d+% · return [1-9]\d*%( · stall <?\d+%)? · death <?\d+%( ±\d+…?)? · avg \$\d+\/run$/.test(c.ends), `with a return row the ends line shows a return share: "${c.ends}"`);
+  const returnShare=await page.evaluate(()=>window.__riddle.lastForecast?.ends?.return??0);
+  check(returnShare>0&&/^run outcomes full haul [<>]?\d+% · turn back [<>]?\d+%( · stall \d+%)? · death [<>]?\d+%( ±\d+)? · avg \$\d+\/run$/.test(c.ends), `with a return row explicit sampling measures a positive turn-back share (${returnShare}): "${c.ends}"`);
   check(c.count === "4/4 rules + 2 tactics" && !c.countRed && c.sendDisabled === false && !c.plus, `4 own + 2 cards: "${c.count}", send enabled, no +`);
   check(!/fill rules|rows full/.test(c.rowCard) && /\+1 rule/.test(c.rowCard), `+1 row lifted at 4/4 without a run: "${c.rowCard}"`);
   const engineRows = await page.evaluate(async () => (await window.__riddle.engine.lineage()).sets[window.__riddle.active].rows.length);

@@ -568,9 +568,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const summary = h("div", { class: "report-summary" },
     h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended"),
-    h("div", { class: "tiles report-basics" },
+    h("div", { class: `tiles report-basics${absence ? " fade-in" : ""}` },
       toLog(tile(String(r.runs), /* copy:label */ "runs")),
-      tile(`D${r.deepest ?? L.best_depth}`, /* copy:label */ "deepest"),
+      tile(`D${r.deepest ?? L.best_depth}`, r.deepest !== undefined ? /* copy:label */ "deepest" : /* copy:label */ "record"),
       h("div", { class: "tile plaque", "data-k": "gold" }, icon("gold"), h("b", { class: "num" }, `$${r.gold?.home ?? (r.exits ?? []).reduce((n, x) => n + x.kept, 0)}`), h("span", { class: "label" }, /* copy:label */ "Gold home"))));
   const repeatedDeath = [...r.deaths].sort((a, b) => b.n - a.n).find(d => d.n >= 2);
   const obstacle = r.stall ? recentRunText(r.stall.text) : repeatedDeath?.cause.replace(/_/g, " ");

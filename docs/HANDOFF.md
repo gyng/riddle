@@ -1,3 +1,21 @@
+**CUT66 REPORT/FORECAST CLARITY — 2026-10-07:**
+
+Fixed two actual report gaps: visible summary getsabsenceentry class; missing
+deepest oldwire usesRecord instead of claimingplayeddepth. Nonjuicefade honours
+reducedmotion; juicyplaque style retained. Primarythree/currentdetail order,
+actualvalues, latestexit arithmetic andoldwiremotion checked. Cut12 usescurrent
+boundedfullhaul/turnback copy andvisible explicitMore samples, asserts actual
+positivefake-engine ends.return ratherthanautorefinement. Alloriginalchecks
+retained,no simulator/timeouts/scoring changes. SixjobsPASS22.9s: claritycore26,
+cut12 26+fourreportjobs; build/TS/copy1737zero/diffpass, existingchunkwarning.
+FreshbuiltWASM5430 publicearnedcamp actual20m report400/1440:1runD13$698,
+separatehistoricalD19, exactrawsavereadonly/nooverflow/pageerrors. Oldwire
+diagnosticRecord/reducedmotionnone; actualnonjuiceabsencefadein/watchednone
+computedstyle PASS. Phonescreenshotshown; CUT66artifacts/rawlogs.
+Owned5430stopped;shared5219retained. No deployment/currentindependent95claim.
+Fullauditauthoritative99/117 remains; nextsample/Details/order/manualopening
+routes andresourcefailurestriage, then currentimmutablecohort/content work.
+
 **CUT65 CURRENT DEATH QA — 2026-10-07:**
 
 Full audit53404 terminalFAIL99/117 in1069.8s; /tmp/riddle-cut63-full-client.log.
