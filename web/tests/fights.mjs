@@ -303,6 +303,7 @@ try {
         if (res.run_over || res.events.some((e) => e.k === "exit" || e.k === "descend")) return res;
         if (from < 0 && t > 20) {
           from = t; const hh = s.hero;
+          window.__breakFixture = { turn: t, depth: s.depth, mode: document.querySelector('.watch')?.dataset.mode };
           res.events.push({ t: t - 6, k: "spawn", e: { id: 95002, kind: "goblin_warlord", x: hh.x + 1, y: hh.y, hp: 30, max_hp: 30, tags: ["boss"] } },
             { t: t - 4, k: "hurt", id: 95002, dmg: 16, hp: 14, cause: "hero" }, { t: t - 4, k: "callout", text: "warlord breaks" }, { t: t - 4, k: "note", text: "The Warlord breaks." });
           res.events.sort((a, b) => a.t - b.t);
@@ -325,6 +326,7 @@ try {
       await sleep(40);
     }
     check(!!bar && bar.name === "warlord" && /^(47|100)%$/.test(bar.width), `${mode}: the boss bar under the hero's while he is in view (${bar ? `"${bar.name}" ${bar.width} · ${bar.data}` : "never seen"})`);
+    if (!brk) console.log('break diagnostic', mode, await page.evaluate(() => ({ fixture: window.__breakFixture, held: window.__beatLog?.slice(-12), screen: window.__riddle?.screen, ticker: document.querySelector('.ticker')?.textContent, watch: { ...document.querySelector('.watch')?.dataset } })));
     check(!!brk && brk.frame === "fight", `${mode}: the break is a beat — the fight frame with "WARLORD BREAKS" (${brk ? `${brk.frame} frame` : "never seen"})`);
     if (brk) {
       await sleep(Math.max(0, 2000 - (Date.now() - brk.at)));

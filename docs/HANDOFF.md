@@ -1,3 +1,32 @@
+**CUT97 CAPTIVE FACT CLARITY VERIFIED / FULL CLIENT STILL LIVE — 2026-10-07:**
+
+QA-a's captive·ally then attack/fell observation is explained by existing core:
+neutral chained captive carries learnable ally tag; free_captive actually sets
+ally=true, while adjacent blocker can be attacked. No evidence an actual freed
+ally was attacked. Report facts/enemy traits now display potentialally through
+one helper; all rawfacts/tags/targeting/rules remain unchanged. Original QA
+observation retained. Regression failed before; actualreport/tooltip/exactsave
+PASS after. Scoped captive/reportactions/reportbossesPASS session90627, existing
+enemytips failed immediate click-visibility in parallel (not a tag/knowledge
+assertion). Single-suite recheck70618 terminalPASS320/400/1440 unchangedchecks,
+/tmp/riddle-cut97-enemy-recheck.log; not fully quiet as broader suite stilllive.
+Types42037PASS/copy1754zero/build80811PASS/diffPASS. No Rust change.
+
+Full client LIVE55143 /tmp/riddle-cut93-96-client-full.log; firstfights missing
+fastWARLORDBREAKS, others through Cut30passed sofar. Added diagnostics to existing
+fights fixture (injectionturn/depth, last12actualheldbeats, actualDOMstate); same
+25s/2s assertions, no app/gate relaxation. Await terminal, then isolatedrepro.
+Suite began before Cut97; new copy test not in its ALL snapshot. Do not claim
+current whole-suitegreen even if all remaining checks pass.
+
+QA-a completed40actualcold minutes with exclusions,20mreturn accounting3runs/
+1659gold exactly2625→4284, Legacy+6 andXP+300; upgradedhealth/damage/kitearchers,
+third honestpenattempt noeditor. QA-b completed40cold+20m5min+4h5min, started8h
+final20minute return:8runs/D23/7886gold,4full/2returns/2deaths, Rogue2268XP/+1level,
+Legacy+49(56→105).8hsettled screenshot shown (reportscroll positionedmidpage).
+No completed70min/cards yet. Same frozen5251 and restoredserver28032, no hints.
+Goal95 unverified; no deployment. Owned pending Cut97+diagnostic/handoff commit.
+
 **FROZEN QA SERVER RESTORED / FULL CURRENT CLIENT LIVE — 2026-10-07:**
 
 Second-slot blank portrait investigation found actual preview stopped: original
@@ -22,7 +51,12 @@ on immutable396f6ed; no game/source hints, only same-server recovery notice.
 Remediation ledger eval/qa/396f6ed.remediation.json records4repairs/provenance,
 no score or complete-QA claim. Full current source client regression LIVE
 session55143 /tmp/riddle-cut93-96-client-full.log, TEST_JOBS3/HEAVY1 to reduce
-QA contention. Poll samehandle, no duplicate suite. Rust unchanged/currentbounded
+QA contention. First fights terminalFAIL179.5s: fast Warlordbreak neverseen (oneassertion,
+zeroerrors), other suites stilllive; must await terminal then quietrepro, do not
+weaken gate or assume contention. Hostlog read via escalatedexec shows failure;
+defaultsandbox tail appeared empty. Hostps confirms parent1862614/Vite1862621
+live and cut13child1865090active. Poll samehandle, no duplicate suite.
+Rust unchanged/currentbounded
 nativePASS stands; historical exhaustive audit uncertified. Goal95 unverified.
 No deployment; shared browser focus isolation unchanged.
 

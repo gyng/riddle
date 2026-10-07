@@ -46,6 +46,7 @@ import { kwHost, kwText, detailHost } from "./tips";
 import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
 import { mountClear } from "./runclear";   // run-clear: the run's card before the town
 import { itemIcon, itemName, itemChip } from "./items";
+import { enemyTraitName } from "./enemy-tips";
 import { labelOf as unlockLabel } from "./unlocks";
 
 
@@ -753,7 +754,7 @@ function factChips(facts: string[], counters: Counter[] = [], alertLock?: string
     if (tags) tags.push(/* copy:none */ `counter${text ? `: ${text}` : ""}`);
     else rest.push(h("span", { class: "chip fact" }, nice(boss), h("small", null, /* copy:label */ " counter", text ? `: ${text}` : "")));
   }
-  const out = [...foes].map(([k, tags]) => h("span", { class: "chip fact" }, nice(k), tags.length ? h("small", null, ` · ${tags.map(nice).join(" · ")}`) : ""));
+  const out = [...foes].map(([k, tags]) => h("span", { class: "chip fact" }, nice(k), tags.length ? h("small", null, ` · ${tags.map(t => enemyTraitName(k, t)).join(" · ")}`) : ""));
   if (!out.length && !rest.length && !itemChips.length) return null;
   return h("div", { class: "facts" }, out.length + rest.length ? h("div", { class: "chips" }, ...out, ...rest) : "", itemChips.length ? h("div", { class: "chips items" }, ...itemChips) : "");
 }
