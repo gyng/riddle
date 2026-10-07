@@ -1,3 +1,26 @@
+**FROZEN QA SERVER RESTORED / FULL CURRENT CLIENT LIVE — 2026-10-07:**
+
+Second-slot blank portrait investigation found actual preview stopped: original
+session41197 terminal143, PID1814406 absent. Termination reason unknown. Restored
+SAME unchanged frozen396f6ed directory at SAME127.0.0.1:5251 via Vite preview,
+LIVE session28032. Verified all248manifest hashes unchanged, servedindex matches
+25d94294 exactly. No QA browser reload/save mutation or build replacement.
+Separate headless image probe /tmp/riddle-portrait-network-restored.log: female/
+male/cat fighter images HTTP200/256x256/decodePASS, no failed requests. QA-a
+independently confirms femaledecode; visible existing-session portrait check still
+pending. Treat original blank observations as infrastructure lapse, not proven
+app failure; retain evidence and exclude recovery time from active horizon.
+
+QA-b ~38actualactive cold minutes,3deathsread,2fights/2fast,scout/porter/4+choices;
+no absences/cards yet. QA-a continuing cold after exclusions. Both remain active
+on immutable396f6ed; no game/source hints, only same-server recovery notice.
+Remediation ledger eval/qa/396f6ed.remediation.json records4repairs/provenance,
+no score or complete-QA claim. Full current source client regression LIVE
+session55143 /tmp/riddle-cut93-96-client-full.log, TEST_JOBS3/HEAVY1 to reduce
+QA contention. Poll samehandle, no duplicate suite. Rust unchanged/currentbounded
+nativePASS stands; historical exhaustive audit uncertified. Goal95 unverified.
+No deployment; shared browser focus isolation unchanged.
+
 **CUT96 SECOND-HERO REPORT DEPTH VERIFIED — 2026-10-07:**
 
 QA-a earned QuillD6 report's log captionD3 rootcause: report.exitDepth selected

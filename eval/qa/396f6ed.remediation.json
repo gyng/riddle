@@ -1,0 +1,46 @@
+{
+  "kind": "Coordinator remediation ledger; no scores; QA still in progress",
+  "qaBuild": "396f6edfd724988eb4641c646d792c96b7c7c68c",
+  "repairHead": "ed57927",
+  "completeQaReports": false,
+  "repairs": [
+    {
+      "lapse": "Next plot appears inert",
+      "evidence": "scratchpad/fun-396f6ed-qa-a/shots/next-plot-repro.png",
+      "commit": "0b39fd3",
+      "contract": "docs/CUT93_LOCKED_PLOT_DETAILS.md",
+      "validation": "Failed-before dialog regression, exact save unchanged, three scoped construction suites pass; centered phone/desktop screenshots"
+    },
+    {
+      "lapse": "Enabled early repelled cause and seal do nothing",
+      "evidence": "scratchpad/fun-396f6ed-qa-a/shots/repelled-cause-repro.png",
+      "commit": "6e999ff",
+      "contract": "docs/CUT94_EARLY_DEFEAT_TAPS.md",
+      "validation": "Failed-before cause regression,96 responsive checks plus existing advanced controls pass; exact save unchanged"
+    },
+    {
+      "lapse": "Repelled boss identity missing from defeat banner",
+      "evidence": "scratchpad/fun-396f6ed-qa-a/shots/repelled-cause-repro.png",
+      "commit": "b10b651",
+      "contract": "docs/CUT95_REPELLED_BOSS_PORTRAIT.md",
+      "validation": "108 responsive checks, canonical boss tooltip, frame size and centering; no false defeat attribution"
+    },
+    {
+      "lapse": "Quill D6 run log caption saysD3",
+      "evidence": "scratchpad/fun-396f6ed-qa-a/shots/quill-report-depth-mismatch.png",
+      "commit": "ed57927",
+      "contract": "docs/CUT96_REPORT_EXIT_DEPTH.md",
+      "validation": "Failed-before interleaved ledger regression; wire/legacy/actual DOM D6 caption, exact save unchanged; scoped report/gold suites pass"
+    }
+  ],
+  "infrastructure": {
+    "observation": "Blank second-hero portraits and image requests timing out",
+    "recordedAtUtc": "2026-10-07T13:07:55Z",
+    "causeEvidence": "Original preview session41197 terminal143; original PID1814406 absent. Reason for process termination unknown.",
+    "recovery": "Same frozen directory and same127.0.0.1:5251 restored; session28032. All248 manifest assets hash identically; served index25d94294b9bb73ed045655e6fd7ea0efff71a2be934637cb1a5162f4404f3b5d.",
+    "validation": "Separate headless browser: female/male/cat fighter portraits each200,256x256, successful decode/no failed requests. QA-a independently confirms female decode restored; visible current-session recheck still pending.",
+    "evidenceLog": "/tmp/riddle-portrait-network-restored.log",
+    "activeTime": "Infrastructure investigation excluded; original observations retained"
+  },
+  "remaining": "Complete both70-minute QA reports, reconcile every lapse; inspect terminal full client suite, repair remaining items before new blind cohort. No95 certification or deployment."
+}
