@@ -919,7 +919,7 @@ export class App {
     const rest = picks.filter((p) => p.id !== id && !isFreeSupply(this.lineage, p)).map((p) => p.kind);
     return this.mutate(async () => { let L = await this.engine.clearSupplies(); for (const k of rest) L = await this.engine.buySupply(k); return L; });
   }
-  setClass(cls: string): Promise<boolean> { return this.mutate(() => this.engine.setClass(cls)); }
+  setClass(cls: string): Promise<boolean> { return this.mutate(() => this.engine.setClass(cls), undefined, true); }
   /** Hero looks: the heirs' cosmetic look; false on an engine without it. */
   setLook(look: string): Promise<boolean> { const e = this.engine; return e.setLook ? this.mutate(() => e.setLook!(look)) : Promise.resolve(false); }
   setLoadout(ids: number[]): void { this.loadout = ids; void this.engine.loadout(ids); this.persist(); this.emitChange(); }

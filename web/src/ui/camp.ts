@@ -245,7 +245,6 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
   const lanes = heroRoster(app, { focus:()=>{town.el.scrollIntoView({block:"nearest"});town.view.focusHero();}, rules:()=>{app.editing=true;editor.refresh();paintTiles();} });
-  tabs.prepend(h("button",{class:"chip hero-return",onclick:()=>{app.editing=false;paintTiles();}},/* copy:button */"Heroes"));
   const restLine = h("div", { class: "rest-line lanes-line heroes-col" }, lanes.el, rest);
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
@@ -294,6 +293,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
    *  building open the same panel, the badge shared), then the tiles with no building (the pen's edit, the pack, unlocks, the heirs'). */
   function paintTiles(): void {
     el.classList.toggle("hero-editing",app.editing);
+    paintTabs();
     const R = revealed(app);
     const t = (id: string, label: string, ico: string, onclick: () => void, on = false): HTMLElement => tile({ id, label, icon: ico, onclick: () => { closeAllSheets(); onclick(); }, on, fresh: R.fresh(STEP_OF[id]) || (id === "forge" && R.fresh("forge")) });
     const built = townBuilt(app.lineage);
@@ -413,8 +413,12 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   function paintTabs(): void {
     clear(tabs);
     // Cut 17 §3: the set tabs are carved with the 5th heir (a fresh lineage writes one set)
-    tabs.hidden = !revealed(app).has("heirs") && app.active === 0;
+    const canReturn = app.editing && !!app.lineage.hero_slots?.length;
+    const setsShown = revealed(app).has("heirs") || app.active !== 0;
+    tabs.hidden = !canReturn && !setsShown;
     if (tabs.hidden) return;
+    if (canReturn) tabs.appendChild(h("button", { class: "chip hero-return", onclick: () => { app.editing = false; editor.refresh(); paintTiles(); } }, /* copy:button */ "Heroes"));
+    if (!setsShown) return;
     app.sets.forEach((s, i) => {
       const named = !!(s.name ?? "").trim();
       tabs.appendChild(h("button", { class: `tab num${i === app.active ? " on" : ""}`, onclick: () => app.selectSet(i) },

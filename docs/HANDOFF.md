@@ -1,3 +1,21 @@
+**CUT47 CLASS RULE FRESHNESS — 2026-10-07:**
+
+Adopt actual Rust class replies before refresh writes rules back. Baseline earned
+Gunner→Fighter had no gun rule in reply, then stale client rows restored it as
+player. Rebuild Heroes return during tab paints, including before extra tabs
+unlock; class origins no longer consume player rule budget (matches Rust).
+Actual earned400/1440 round trip verifies first paint, rendered row, exact rules,
+player/drills, one call, refusal, save/reload and read-only Edit/return. Early-tab
+case explicitly controlled presentation. Final5/5 class/patch/locked/package/
+roster PASS27.9s; return/first-plot2/2PASS24.1s; earlier7/7PASS92.9s. TS/build,
+copy1734/zero, diff, headed shots PASS. See CUT47 and artifacts/raw failures.
+No Rust/WASM changes, no deploy, independent95 remains unverified.
+
+NEXT USER PRIORITY: polish home base desktop/mobile; inspect actual home, improve
+chunky roster/portrait/action hierarchy and town presentation, show screenshots.
+Then continue current-screen QA and independent fun rating; historical broad
+91/112 is not superseded by these scoped passes. Preserve shared5219.
+
 **CUT46 REPORT PATCH DETAILS — 2026-10-07:**
 
 Baseline patch-overflow terminal1/11.9s; diagnostic full transcript proves all
