@@ -1,4 +1,5 @@
 import { classIcon } from './class-icons';
+import { heroPresence } from './hero-presence';
 // Cut 30 §3 — the town on the camp (docs/TOWN.md): the scene (render/town.ts) in the well, a DOM hit target over everything one can
 // tap (≥ 44 px, a hidden label for tests and screen readers), the markers (≤ 3: a sword over the forge when a kit step is affordable,
 // a coin over the bank when a night's interest came in, a `!` rune over a building not yet opened), the staked plot's trigger on tap,
@@ -335,12 +336,13 @@ export function openBank(app: App, anchor?: HTMLElement | null): void {
 /** The tent: the hero — the class, its level and xp (the class picker once classes can be had: the camp's). */
 export function openHero(app: App, anchor?: HTMLElement | null): void {
   let off = (): void => {};
+  let offLive = (): void => {};
   openSheet(() => {
     const body = h("div", { class: "sheet-body hero-sheet" });
     const identity = (): string => {
-      const L = app.lineage;
+      const L = app.lineage, slot = L.hero_slots?.find((s) => s.id === L.selected_bloodline);
       return JSON.stringify([L.selected_bloodline, L.heir, L.class, L.look,
-        L.hero_slots?.find((s) => s.id === L.selected_bloodline)?.hero_name,
+        slot?.hero_name, slot?.level, slot?.xp, slot?.next, slot ? heroPresence(slot) : null,
         L.bloodline, L.class_styles, L.legacy_upgrades, L.legacy_respec, !!L.live, L.classes?.[L.class],
         L.hero_legacy?.find((h) => h.heir === L.heir)]);
     };
@@ -350,32 +352,38 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
       const historyOpen = body.querySelector<HTMLDetailsElement>(".hero-history")?.open ?? false;
       const paths=body.querySelector('.legacy-tree')?new Set([...body.querySelectorAll<HTMLDetailsElement>('.legacy-path[open]')].map(el=>el.dataset.branch!)):undefined;
       const L = app.lineage, lvl = L.classes?.[L.class] ?? { level: 1, xp: 0, next: undefined as number | undefined };
-      const p = Math.min(1, lvl.next ? lvl.xp / lvl.next : 0);
+      const slot = L.hero_slots?.find((s) => s.id === L.selected_bloodline);
+      const presence = slot ? heroPresence(slot) : null;
+      const p = lvl.next===0 ? 1 : Math.max(0, Math.min(1, lvl.next ? lvl.xp / lvl.next : 0));
       const legacy = L.hero_legacy?.find((x) => x.heir === L.heir);
       const face = h("span", { class: "hero-window-face" });
-      paintFace(face, L.class, 56, L.look ?? "");
+      paintFace(face, L.class, 72, L.look ?? "");
       replace(body, h("div", { class: "label row-label" }, /* copy:label */ `Bloodline ${L.selected_bloodline??1}`),
         h("div", { class: "hero-line num" }, face,
           h("div",{class:"hero-identity"},h("b",{class:"hero-name"},L.hero_slots?.find((s)=>s.id===L.selected_bloodline)?.hero_name||L.class),
             h("div",{class:"hero-class-meta"},classIcon(L.class,L.class_styles?.selected),L.hero_slots?.find((s)=>s.id===L.selected_bloodline)?.hero_name?h("span",null,L.class):null,
-              h("span",null,`L${lvl.level}`),L.class_styles?.selected?h("span",{class:"hero-class-path"},classStyleName(L.class_styles.selected)):null))),
+              slot ? null : h("span",null,/* copy:label */`Class L${lvl.level}`),L.class_styles?.selected?h("span",{class:"hero-class-path"},classStyleName(L.class_styles.selected)):null))),
+        slot ? h("div",{class:"hero-progress num"},/* copy:label */`Hero L${slot.level}`,h("span",{class:"dim"},slot.next===0?/* copy:label */"MAX":/* copy:label */`XP ${slot.xp}/${slot.next??"—"}`)) : null,
+        presence ? h("div",{class:"hero-action hero-menu-presence",'data-activity':presence.activity,title:presence.detail},presence.text) : null,
         h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${L.bloodline?.points ?? legacy?.points ?? 0}`),
-        L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
-        renderClassStyles(app,()=>{if(body.isConnected)paint();}),
-        renderLegacy(app,()=>{if(body.isConnected)paint();},paths),
+        !slot && L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
         h("div", { class: "hero-actions" },
           h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, classIcon(L.class), /* copy:button */ "Change class"),
           h("button", { class: "chip hero-appearance", onclick: () => openLooks(app), disabled: !app.engine.setLook }, /* copy:button */ "Appearance")),
+        renderClassStyles(app,()=>{if(body.isConnected)paint();}),
+        renderLegacy(app,()=>{if(body.isConnected)paint();},paths),
         h("details", { class: "hero-history", open: historyOpen }, h("summary", null, /* copy:button */ "Details"),
           h("div", { class: "dim num" }, `${legacy?.runs ?? 0} runs · deepest ${legacy?.best_depth ?? 0}`),
-          h("div", { class: "dim num" }, /* copy:label */ "Class XP", ` ${lvl.xp}${lvl.next ? ` / ${lvl.next}` : ""}`),
+          h("div", { class: "dim num" }, /* copy:label */ `Class L${lvl.level}`, " · ", /* copy:label */ "Class XP", ` ${lvl.xp}${lvl.next ? ` / ${lvl.next}` : lvl.next===0 ? " · MAX" : ""}`),
           h("div", { class: "bank-bar xp-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(p * 100)}%` })),
           h("button", { class: "chip hero-chronicle", onclick: () => openChronicle(app) }, /* copy:button */ "Chronicle")));
     };
     paint();
-    off = app.onChange(() => { if (body.isConnected && identity() !== painted) paint(); });
+    const refresh = (): void => { if (body.isConnected && identity() !== painted) paint(); };
+    off = app.onChange(refresh);
+    offLive = app.onLive(refresh);
     return body;
-  }, { anchor, onClose: () => off() });
+  }, { anchor, onClose: () => { off(); offLive(); } });
 }
 
 /** A camp panel opened from a building stands over it (its foot on the building's top), or under it when the room above is short. */

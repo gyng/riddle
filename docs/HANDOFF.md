@@ -1,3 +1,23 @@
+**CUT49 HERO MENU SUMMARY — 2026-10-07:**
+
+Continued home polish: Hero level/XP prominent and distinct from class training
+in folded Details;72×84 framed portrait, shared exact presence helper, readable
+parchment status. Class/Appearance moved above Legacy tree. Menu observes existing
+onChange/onLive, preserves expanded Details and removes listeners on close.
+Final6/6 summary/presence/names/appearance/class-switch/stylesPASS26.3s. Prior
+appearance touch failure retained; isolated/final concurrent unchanged44px checks
+pass; diagnostic error now includes exact geometry. New summary diagnostic had
+wrong creation path then unscoped Chronicle selector; fixed harness, raw logs kept.
+Actual earned400/1440 screenshots/full-save read-only equality; unequal hero/class
+XP and combat/rest transitions explicitly controlled presentation only.9eachwidth.
+Build/TS/copy1739zero/diffPASS, no Rust/WASM changes/deploy. First-session real
+headed walk31.5s9shots noerrors throughhouse/manualsends/scout/8h; see CUT49.
+Owned5406/5407/5408 closed after QA, shared5219 retained.
+
+NEXT: remaining retired screen/qa9 entrypoints and fresh content/gameplay QA,
+independent immutable-build rating.95unverified; broad historical91/112 remains
+uncertified by scoped passes. Standing commit/push approval; do not deploy.
+
 **CUT48 HOME BASE POLISH — 2026-10-07:**
 
 User home base request implemented: shared chunky chrome ridge roster/portrait

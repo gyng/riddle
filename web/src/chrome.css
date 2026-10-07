@@ -133,7 +133,7 @@ html.skin-tablet .game-window .pkg-panel .chip.pkg:not(.locked) { border: 8px so
   .game-window .pkg-top .pkg-headline { font-size: 13px; }
 }
 .game-window .hero-line { display: flex; align-items: center; gap: 12px; }
-.hero-window-face { display: inline-block; flex: 0 0 56px; width: 56px; height: 64px; background-repeat: no-repeat;
+.hero-window-face { display: inline-block; flex: 0 0 72px; width: 72px; height: 84px; background-repeat: no-repeat;
   border: 3px solid #53617a; border-radius: 2px; box-shadow: inset 0 0 6px #050813, 0 0 0 1px #0b111e; }
 .hero-window-face.painted { background-size: cover; }
 .legacy-upgrade .upgrade-copy { flex: 1; min-width: 0; }
@@ -219,3 +219,11 @@ html.skin-button .town-tag.build-marker[role="button"] { border: solid transpare
 html.skin-button .camp-run-details > summary.btn { border: solid transparent; border-width: 11px 22px; border-radius: 0;
   border-image: url('/ui/frames/button.png') 22 78 22 78 fill / 11px 22px stretch; padding: 2px 3px; background: none; min-height: 58px; }
 .camp-run-details > summary.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.hero-progress { display: flex; flex-wrap: wrap; gap: 5px 14px; font-size: 16px; margin: 8px 0 4px; }
+.hero-menu-presence { margin-bottom: 12px; }
+
+.game-window .hero-menu-presence { color: #48584d; font-weight: 600; }
+.game-window .hero-menu-presence[data-activity="combat"] { color: #8b3e2b; }
+.game-window .hero-menu-presence[data-activity="returning"] { color: #72521e; }
+.hero-sheet .hero-actions { margin-bottom: 16px; }

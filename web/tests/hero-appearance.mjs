@@ -20,6 +20,6 @@ try{for(const width of [320,400,1440]){
   const old=hero.innerHTML;closeAllSheets();a.lineage.look='female';await a.afterLineage();check(hero.innerHTML===old&&!hero.isConnected,'closed parent no longer subscribes');
   a.engine.setLook=undefined;openHero(a);check(document.querySelector('.sheet-wrap .hero-appearance').disabled,'missing bridge disables appearance');closeAllSheets();
   a.engine.setLook=async()=>a.lineage;a.lineage.live={depth:5,turn:1};openHero(a);check(!document.querySelector('.sheet-wrap .hero-appearance').disabled&&document.querySelector('.sheet-wrap .hero-class').disabled,'cosmetic choice allowed while away');
-  await document.fonts.ready;await new Promise(r=>setTimeout(r,300));const b=document.querySelector('.sheet-wrap .hero-appearance').getBoundingClientRect();check(b.width>=44&&b.height>=44,'touch target');check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow');closeAllSheets();return n;
+  await document.fonts.ready;await new Promise(r=>setTimeout(r,300));const b=document.querySelector('.sheet-wrap .hero-appearance').getBoundingClientRect();check(b.width>=44&&b.height>=44,`touch target: ${JSON.stringify(b.toJSON())}`);check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow');closeAllSheets();return n;
  });console.log(width,n,'hero appearance route/lifecycle checks PASS');await p.close();
 }}finally{await b.close();}
