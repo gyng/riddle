@@ -5,6 +5,7 @@ try {for(const width of [320,400,1440]) {
  const p=await b.newPage({viewport:{width,height:900}}),errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.goto(`${url}?engine=fake&fresh=1&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);
  const checks=await p.evaluate(async()=>{
+  const {combatLogEvents}=await import('/src/ui/combat-log.ts');
   const {tacticObserver}=await import('/src/ui/tactic-observer.ts'),{ReplayState}=await import('/src/render/state.ts'),{verbIcon}=await import('/src/ui/skin.ts');
   let n=0;const check=(ok,msg)=>{if(!ok)throw Error(msg);n++;};
   const rows=[{origin:'stance:steady',conds:[],verb:{v:'attack',a:'nearest'}},{origin:'tactic:boss_focus',conds:[{k:'foe_tag',t:'boss'}],verb:{v:'attack',a:'tag:boss'}},{origin:'stance:steady',conds:[{k:'hp<',n:25}],verb:{v:'return'}},{conds:[],verb:{v:'rest'}}];
@@ -24,7 +25,9 @@ try {for(const width of [320,400,1440]) {
   await new Promise(resolve=>setTimeout(resolve,950));check(!boss.classList.contains('acting'),'merged glow expires');
   o.end();check(!boss.classList.contains('acting'),'end clears glow');o.fire(fire(1),9000);check(boss.dataset.count==='3','late end event ignored');
   const fallback=tacticObserver([{origin:'stance:steady',conds:[{k:'foes>=',n:1}],verb:{v:'attack',a:'nearest'}}],catalog);fallback.fire({...fire(0),row:0},1000);check(!fallback.el.firstElementChild.classList.contains('acting')&&fallback.meaningfulRows.length===0,'actual core fallback quiet');fallback.dispose();
-  o.disable();check(o.el.hidden&&!o.owns(1),'legacy changed indices disable');o.dispose();host.remove();
+  const recorded=[fire(1),fire(3),{k:'hurt',t:1,id:1,cause:'fire',dmg:2}];
+  check(combatLogEvents(recorded,1,new Map(),o.owns).length===2,'owned rule quiet, custom and damage retained');
+  o.disable();check(combatLogEvents(recorded,1,new Map(),o.owns).length===3,'disabled observer restores recorded rules');check(o.el.hidden&&!o.owns(1),'legacy changed indices disable');o.dispose();host.remove();
   for(const [id,verb,name] of [['sentinel','riposte','Sentinel'],['hexbinder','hex','Hexbinder']]) {
    const row={origin:`style:${id}`,conds:[{k:'foes>=',n:1}],verb:{v:verb}};
    const style=tacticObserver([row],catalog),cue=style.el.firstElementChild,styleHost=document.createElement('div');styleHost.className='watch';styleHost.append(style.el);document.body.append(styleHost);await new Promise(requestAnimationFrame);

@@ -18,12 +18,12 @@ export function gunShotText(verb: string | undefined): string | undefined {
 
 /** The overlay describes an unchanged hit once. Rust's hurt amount may differ
  * after counters/shields, so matching the attack alone is insufficient. */
-export function combatLogEvents(events: readonly Ev[], heroId: number, kinds: ReadonlyMap<number, string>): Ev[] {
+export function combatLogEvents(events: readonly Ev[], heroId: number, kinds: ReadonlyMap<number, string>, quietRule: (row: number) => boolean = () => false): Ev[] {
   const hits = new Map<string, number>();
   const rows: Ev[] = [];
   const key = (tick: number, victim: number, damage: number, cause: string): string => `${tick}:${victim}:${damage}:${cause}`;
   for (const ev of events) {
-    if (ev.k === "rule" && ev.verb.v === "gunner_tactic") continue;
+    if (ev.k === "rule" && (ev.verb.v === "gunner_tactic" || quietRule(ev.row))) continue;
     if (ev.k === "callout") {
       if (["reloading", "loaded", "aim steady", "aim lost", "smoke retreat", "melee backup", "gun ready"].includes(ev.text)) rows.push(ev);
       continue;

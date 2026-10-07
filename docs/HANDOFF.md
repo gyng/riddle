@@ -1,3 +1,35 @@
+**CUT104 COMBAT LOG SIGNAL VERIFIED — 2026-10-07:**
+
+User reaffirmed approval for two independent raters. Use fresh blind agents
+only after remaining QA repairs and current broad acceptance/shipping freeze.
+Previous independent QA agents must not be reused for scoring.
+
+Cut104 hurt source → recipient matches attack; captures hero identity even in
+hurt-only batches. Owned style/tactic/drill rule text quiet because existing
+released observer icons/counts/details carry decisions. Raw events unchanged,
+all actual outcomes and unowned custom text retained; disabled observer stops
+suppressing rules. Rust/saves/progression unchanged since Cut100.
+
+Final96661 terminal5/5PASS40.1s /tmp/riddle-cut104-client.log: combat identity,
+combat rules, watch log, gunner observer, tactic observer. Includes hurt-only
+paused frozen name, exact duplicate counts, owned release count/nonowned text/
+disabled restoration and original outcomes/ring/scroll/plain layout. Types
+93460PASS/copy1765zero/build56996PASS/diffPASS. Initial expected-wording and
+getter-only fixture assignment errors corrected; numeric gates not reduced.
+Synthetic screenshots scratchpad/qa-cut104-combat/combat-{400,1440}.png,
+phone shown inline explicitly as test fixture, not scored play.
+
+Remaining ledger: return meter duration scope; unreproduced empty death hero
+portrait. Viewed original death-two-verdict.png: goblin killer art IS visible,
+empty frame is historical hero identity next to Corin. Do not misdiagnose foe.
+unitPortrait(d.hero.class,64,true) uses existing hero_rogue.webp; investigate
+actual loading/fallback. Core meter adds WHOLE completed run meters at exit
+(engine.rs5669), not just absence portion; offline rested_s is assigned rest
+of those runs (offline.rs138), possibly pending. Clarify scope without changing
+elapsed/core math. Then broad current client + bounded18cases, shipping-WASM,
+fresh immutable build and fresh blind2raters. Frozen396f6ed:5251 preserved.
+No cards/scores/deployment; goal95active/unverified. Focus isolation preserved.
+
 **CUT103 SETUP/RESOURCE/FORGE LABELS VERIFIED — 2026-10-07:**
 
 CurrentturnCut102 pushedfebb4c0 with realScout-on pre-purchase warning and

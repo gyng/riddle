@@ -37,13 +37,14 @@ try{for(const width of [400,1440]){
      {k:'telegraph',t,id:904,what:'winds up'},
      {k:'pickup',t:t+2,id:s.hero.id,item:'dedup checkpoint'}
     ];
-    if(phase===4)events=Array.from({length:85},(_,i)=>({k:'pickup',t:t+i/100,id:s.hero.id,item:'gold $1'}));
+    if(phase===5)events=[{k:'hurt',t,id:801,cause:'hero',dmg:13}];
+    if(phase===6)events=Array.from({length:85},(_,i)=>({k:'pickup',t:t+i/100,id:s.hero.id,item:'gold $1'}));
    }
    const snap={...s,turn,hero:{...s.hero},entities:phase>=2?[]:s.entities};
-   if(phase>=2)delete snap.hero.name;
+   if(phase>=2&&phase!==5)delete snap.hero.name;
    // Once the paused batch is queued, mutate subsequent snapshot names. Its
    // delayed rows must still use the names that came with their own batch.
-   if(phase===1&&window.__emitted===1&&window.__renameActors){snap.hero.name='Later heir';snap.entities=[];}
+   if((phase===1||phase===5)&&window.__renameActors){snap.hero.name='Later heir';snap.entities=[];}
    return{events,snapshot:snap,run_over:false};
   };a.go({kind:'watch'});
  });
@@ -64,25 +65,28 @@ try{for(const width of [400,1440]){
  checks+=await p.evaluate(()=>{let n=0;const check=(ok,label)=>{if(!ok)throw Error(label);n++;};
   const rows=[...document.querySelector('.combat-lines').children].slice(6).map(l=>l.textContent);
   const has=s=>rows.some(r=>r.includes(s)),count=s=>rows.filter(r=>r.includes(s)).length;
-  check(count('Scarface · hero −3 hp')===0,'unchanged hero hit appears once');
-  check(count('Hero · goblin −8 hp')===1,'one-to-one matching preserves extra hurt');
-  check(has('Hero · fire −8 hp'),'same-tick same-amount environmental damage retained');
-  check(has('Scarface → Hero · −6 hp')&&has('Hero · goblin −9 hp'),'modified damage retained');
-  check(has('Foe → Hero · −5 hp')&&has('Hero · goblin −5 hp'),'unknown source cannot hide damage');
-  check(has('Nib → Hero · miss')&&has('Hero · rat −4 hp'),'miss cannot hide damage');
-  check(has('Scarface · hero −0 hp'),'zero attack cannot hide hurt');
-  check(has('Scarface · hero −2 hp'),'different tick damage retained');
-  check(has('Foe · hero −3 hp'),'different destination damage retained');
-  check(has('Scarface · poison −3 hp'),'different cause damage retained');
-  check(has('Scarface · hero −10 hp'),'earlier hurt cannot pair with later attack');
-  check(count('Hero → Scarface · −11 hp')===2&&!has('Scarface · hero −11 hp'),'two identical hits consume two matching hurts');
+  check(count('Hero → Scarface · −3 hp')===1,'unchanged hero hit appears once');
+  check(count('goblin → Hero · −8 hp')===1,'one-to-one matching preserves extra hurt');
+  check(has('fire → Hero · −8 hp'),'same-tick same-amount environmental damage retained');
+  check(has('Scarface → Hero · −6 hp')&&has('goblin → Hero · −9 hp'),'modified damage retained');
+  check(has('Foe → Hero · −5 hp')&&has('goblin → Hero · −5 hp'),'unknown source cannot hide damage');
+  check(has('Nib → Hero · miss')&&has('rat → Hero · −4 hp'),'miss cannot hide damage');
+  check(has('Hero → Scarface · −0 hp'),'zero attack cannot hide hurt');
+  check(has('Hero → Scarface · −2 hp'),'different tick damage retained');
+  check(has('Hero → Foe · −3 hp'),'different destination damage retained');
+  check(has('poison → Scarface · −3 hp'),'different cause damage retained');
+  check(has('Hero → Scarface · −10 hp'),'earlier hurt cannot pair with later attack');
+  check(count('Hero → Scarface · −11 hp')===2,'two identical hits consume two matching hurts');
   check(has('Bram → Scarface · −7 hp')&&has('Bram · fell'),'spawned-and-slain actor named');
-  check(!has('Scarface · rat −7 hp'),'spawn source kind matches duplicate hurt');
+  check(!has('rat → Scarface · −7 hp'),'spawn source kind matches duplicate hurt');
   check(has('Warlord · calls goblins')&&has('Captain · calls goblins'),'known goblin warnings name summons');
   check(has('Foe · rallies')&&has('Warlord · winds up'),'unknown actors and other mechanics retain raw words');
   return n;
  });
- await p.evaluate(()=>window.__logPhase=4);await p.waitForFunction(()=>document.querySelector('.combat-lines')?.children.length===80);
+ await p.locator('.console .gem').click();await p.evaluate(()=>{window.__renameActors=false;window.__logPhase=5;});await p.waitForFunction(()=>window.__emitted===5);
+ await p.evaluate(()=>window.__renameActors=true);await p.waitForTimeout(200);
+ await p.locator('.console .gem').click();await p.waitForFunction(()=>document.querySelector('.combat-lines')?.textContent.includes('Wren Ash → Scarface · −13 hp'));checks++;
+ await p.evaluate(()=>window.__logPhase=6);await p.waitForFunction(()=>document.querySelector('.combat-lines')?.children.length===80);
  if(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('overflow');checks+=2;
  if(errors.length)throw Error(errors.join('\n'));console.log(width,checks,'combat identity/delayed actors/fallback/colours/bounds PASS');await p.close();
 }}finally{await b.close();}

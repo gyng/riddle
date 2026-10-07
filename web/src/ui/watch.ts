@@ -458,7 +458,7 @@ export function renderWatch(app: App): Mounted {
     const damage = (amount: number, id: number): HTMLElement => h("span", { class: amount < 0 ? "log-heal" : id === heroId ? "log-hurt" : "log-damage" }, `${amount < 0 ? "+" : "−"}${Math.abs(amount)} hp`);
     const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, itemIcon({kind:name, label:name}, {size:"xs"}), name);
     if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · ${ev.src === heroId && gunShotText(ev.verb) ? `${gunShotText(ev.verb)} ` : ""}`, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
-    else if (ev.k === "hurt") text = [`${who(ev.id)} · ${ev.cause.replace(/_/g, " ")} `, damage(ev.dmg, ev.id)];
+    else if (ev.k === "hurt") text = [`${ev.cause === "hero" ? who(heroId) : ev.cause.replace(/_/g, " ")} → ${who(ev.id)} · `, damage(ev.dmg, ev.id)];
     else if (ev.k === "heal" || ev.k === "recover") text = [`${who(ev.id)} · ${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id)];
     else if (ev.k === "telegraph") text = [h("span", { class: "log-warning" }, `${who(ev.id)} · ${warningText ?? ev.what}`)];
     else if (ev.k === "die") text = [h("span", { class: "log-fell" }, `${who(ev.id)} · fell`)];
@@ -979,11 +979,12 @@ export function renderWatch(app: App): Mounted {
     }
     logActors.set(heroId, s.hero.name || /* copy:label */ "Hero");
     for (const e of s.entities) logActors.set(e.id, (e.name || e.kind).replace(/_/g, " "));
-    const logged = combatLogEvents(evs, heroId, kinds);
+    const logged = combatLogEvents(evs, heroId, kinds, tactics.owns);
     if (logged.length) {
       // Capture only actors in these rows; movement-only batches copy no names.
       const actorNames = new Map<number, string>();
       const capture = (id: number): void => { const name = logActors.get(id); if (name) actorNames.set(id, name); };
+      capture(heroId); // A hurt-only batch still names its actual hero source.
       for (const ev of logged) {
         if (ev.k === "attack") { capture(ev.src); capture(ev.dst); }
         else if ("id" in ev) capture(ev.id);
