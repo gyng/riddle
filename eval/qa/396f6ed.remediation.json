@@ -1,7 +1,7 @@
 {
   "kind": "Coordinator remediation ledger; no scores; QA still in progress",
   "qaBuild": "396f6edfd724988eb4641c646d792c96b7c7c68c",
-  "repairHead": "ed57927",
+  "repairHead": "8749d4e",
   "completeQaReports": false,
   "repairs": [
     {
@@ -31,6 +31,13 @@
       "commit": "ed57927",
       "contract": "docs/CUT96_REPORT_EXIT_DEPTH.md",
       "validation": "Failed-before interleaved ledger regression; wire/legacy/actual DOM D6 caption, exact save unchanged; scoped report/gold suites pass"
+    },
+    {
+      "lapse": "Learned captive ally label followed by attack on captive appeared contradictory",
+      "evidence": "Original QA-a report observation retained; core free_captive distinguishes neutral potential ally from actual freed ally",
+      "commit": "38004cc",
+      "contract": "docs/CUT97_CAPTIVE_FACT_COPY.md",
+      "validation": "Failed-before actual report wording; report/tooltip/exact-save regression passes; raw tags and targeting unchanged"
     }
   ],
   "infrastructure": {
@@ -38,9 +45,15 @@
     "recordedAtUtc": "2026-10-07T13:07:55Z",
     "causeEvidence": "Original preview session41197 terminal143; original PID1814406 absent. Reason for process termination unknown.",
     "recovery": "Same frozen directory and same127.0.0.1:5251 restored; session28032. All248 manifest assets hash identically; served index25d94294b9bb73ed045655e6fd7ea0efff71a2be934637cb1a5162f4404f3b5d.",
-    "validation": "Separate headless browser: female/male/cat fighter portraits each200,256x256, successful decode/no failed requests. QA-a independently confirms female decode restored; visible current-session recheck still pending.",
+    "validation": "Separate headless browser: female/male/cat fighter portraits each200,256x256, successful decode/no failed requests. QA-a confirms decode and visible Quill portrait restored; screenshot scratchpad/fun-396f6ed-qa-a/shots/quill-portrait-after-recovery.png.",
     "evidenceLog": "/tmp/riddle-portrait-network-restored.log",
     "activeTime": "Infrastructure investigation excluded; original observations retained"
   },
-  "remaining": "Complete both70-minute QA reports, reconcile every lapse; inspect terminal full client suite, repair remaining items before new blind cohort. No95 certification or deployment."
+  "remaining": "Complete both70-minute QA reports and reconcile every lapse, including attempted written-rule editing with no visible lock explanation; preserve initial intermittent client failures. No95 certification or deployment.",
+  "mechanical": {
+    "broad": "120/122 in 1278.5s; fast break assertion and qa21 forecast locator failed; began before Cut97 copy test addition",
+    "rechecks": "Unchanged serialized fights/qa21/enemy-tips/captive-fact-copy 4/4 in 203.4s; full fights retains48 checks. Separate qa21 17 checks passes17.3s. No proven root cause for initial intermittent failures.",
+    "log": "/tmp/riddle-cut98-full-watch-recheck.log",
+    "diagnostic": "8749d4e adds fights:break; same six assertions pass9.5s, no numeric or timeout relaxation"
+  }
 }
