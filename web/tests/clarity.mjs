@@ -29,6 +29,7 @@ import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { editRows, openPanel } from "./lib/frame.mjs";
 import { measured } from "./lib/load.mjs";
+import { pressWatchControl } from "../../tools/watch-control.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -248,7 +249,15 @@ try {
   // hidden tab for 5 s advances the world ≥ 40 ticks; a run that ends while paused still shows its exit after the replay
   {
     const watch = () => page.evaluate(() => { const w = document.querySelector(".watch"), h = document.querySelector(".scrub .head"); return { screen: window.__riddle.screen, frame: w?.dataset.frame, speed: Number(w?.dataset.speed), tick: Number(w?.dataset.tick), frontier: Number(w?.dataset.frontier), pulses: Number(w?.dataset.pulses), ending: w?.dataset.ending === "1", card: w?.dataset.card, head: h ? parseFloat(h.style.left) : NaN, strip: !!document.querySelector(".scrub:not([hidden])") }; });
-    const press = (l) => page.evaluate((l) => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === l) { b.click(); return true; } return false; }, l);
+    const press = async (l) => {
+      const dispatched = l === "▶▶|" ? await pressWatchControl(page, l) : await page.evaluate((label) => {
+        for (const b of document.querySelectorAll("button.hud-btn")) {
+          if (b.textContent === label && !b.disabled && b.getClientRects().length && getComputedStyle(b).visibility !== "hidden") { b.click(); return true; }
+        }
+        return false;
+      }, l);
+      check(dispatched, `visible watch control dispatches ${l}`);
+    };
     // paused in a shown fight (`fights`): the picture holds, the world goes on
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");

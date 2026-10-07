@@ -1,3 +1,20 @@
+**CUT62 CURRENT QA CONTROLS — 2026-10-07:**
+
+Prior goal turn made progress: pacing fix210777a pushed, full shipping verify
+and targeted16seed evidence. This continuation repairs two reproduced stale
+QA paths. Clarity watch looked for removed Skip glyph without dispatch proof;
+uses visible Speed helper and asserts six dispatches, original frontier/ending
+limits retained. Cut22 uses current estimate/comparison methods, explicit More
+samples, correct full-haul and simple Send wording; original31 arithmetic/
+uncertainty/call assertions retained, inline zero-call check covers both methods.
+Final quartet4/4PASS73.9s: claritywatch17,cut22 31,forecastrequests16×2,
+watchconsole; syntax/diff pass. Real earned WASM400/1440 8→33sample explicit
+forecasts preserve exact save/nooverflow/errors; screenshots shown. Immediate
+unfilled bars were entry animation; settled capture normal, no CSS fix.
+Owned5427 stopped;5219 retained. CUT62 contains failed fixture iterations.
+No runtime/scoring/protocol changes or deployment. Broad98/117 baseline still
+latest, claritycore/other legacy routes/resource failures open;95unverified.
+
 **CUT61 PROGRESSION/PACING — 2026-10-07:**
 
 Reviewed earned opening, first-week walls, class training, Legacy and harder

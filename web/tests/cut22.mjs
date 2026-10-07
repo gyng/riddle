@@ -72,12 +72,12 @@ try {
   // the order the worker sees: the forecast (painted) before the paired call, which carries the set before the edit
   await page.evaluate(() => {
     const r = window.__riddle, e = r.engine; r.__log = [];
-    const fc = e.forecast.bind(e), vs = e.forecastVs.bind(e);
-    e.forecast = async () => { const f = await fc(); r.__log.push("forecast"); return f; };
-    e.forecastVs = async (prev) => { r.__log.push(`vs:${document.querySelector(".camp .shaft")?.dataset.fc}:${prev.rows.length}`); return vs(prev); };
+    const fc = e.forecastEstimate.bind(e), vs = e.forecastVsEstimate.bind(e);
+    e.forecastEstimate = async () => { const f = await fc(); r.__log.push("estimate"); return f; };
+    e.forecastVsEstimate = async (prev) => { r.__log.push(`vs:${document.querySelector(".camp .shaft")?.dataset.fc}:${prev.rows.length}`); return vs(prev); };
   });
   const fc0 = await page.evaluate(() => Number(document.querySelector(".camp .shaft").dataset.fc));
-  // Cut 24 §4: the refine starts 0.1 s after the first paint (its own lane) — every line the shaft shows is logged as it lands
+  // Observe both the usable estimate and the explicitly requested larger result.
   await page.evaluate(() => {
     const r = window.__riddle; r.__vsSeen = [];
     const host = document.querySelector(".camp .shaft-vs-host");
@@ -88,14 +88,17 @@ try {
   const during = await vsText();
   check(during === null || during === PENDING, `an edit shows no move while its forecast runs ("${during}")`);
   const line0 = await until(vsLanded, "the move under the shaft");
-  // QA 778fa1b: the first pass's move is marked (`vs sent…`, dim) and asked again once the refine lands — the refined move replaces it
+  // Approximate results stand until the player explicitly requests more samples.
+  await openPanel(page, "forecast");
+  await page.locator(".forecast .fc-refine").click({ timeout: 5000 });
+  // The requested refined move replaces the first pass without changing its comparison baseline.
   const line = await until(async () => (await page.evaluate(() => document.querySelector(".camp .shaft-vs-host .shaft-vs")?.dataset.refined)) === "1" ? vsLanded() : null, "the refined move", 15_000);
   const vsSeen = await page.evaluate(() => window.__riddle.__vsSeen.filter((x) => x.t !== "vs last run…"));
   const rough = vsSeen.find((x) => x.refined === "0"), fine = vsSeen.findLast((x) => x.refined === "1");
-  check(!!rough && /^vs last run…/.test(rough.t) && !!fine && vsSeen.indexOf(rough) < vsSeen.indexOf(fine) && !/…/.test(line), `the first-pass move reads \`vs last run…\`, the refine's replaces it ("${rough?.t ?? line0}" → "${line}")`);
+  check(!!rough && /^vs last run ·/.test(rough.t) && !!fine && vsSeen.indexOf(rough) < vsSeen.indexOf(fine) && !/…/.test(line), `the usable first-pass move is replaced by requested refinement ("${rough?.t ?? line0}" → "${line}")`);
   const log = await page.evaluate(() => window.__riddle.__log);
-  check(log[0] === "forecast" && log[1] === `vs:${fc0 + 1}:3`, `the paired call waits for the paint and measures against the set before the edit (${log.join(" → ")})`);
-  check(/^vs last run · D\d+ ([+−]\d+|same) · bank ([+−]\d+|same)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
+  check(log[0] === "estimate" && log[1] === `vs:${fc0 + 1}:3`, `the paired call waits for the paint and measures against the set before the edit (${log.join(" → ")})`);
+  check(/^vs last run · D\d+ ([+−]\d+|same) · full haul ([+−]\d+|same)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
   const ns = await notches(), f = await page.evaluate(() => window.__riddle.lastForecast);
   const marked = ns.filter((n) => n.mark !== null);
   check(marked.every((n) => /^[+−]\d+$/.test(n.mark)) && ns.every((n) => n.mark === null || !/≈|same/.test(n.mark)), `a notch carries its move when it clears its ± (nothing inside it) (${ns.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
@@ -116,22 +119,22 @@ try {
   // a move inside its paired ± reads `≈`; a move outside it keeps its sign — the engine's numbers, as sent
   await page.evaluate(() => {
     const e = window.__riddle.engine; delete e.forecastVsRefined;
-    e.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: depth === 6 ? -0.07 : 0.03, pm: depth === 6 ? 0.02 : 0.05 })), bank: { delta: 0.04, pm: 0.02 }, death: { delta: 0.01, pm: 0.03 } });
+    e.forecastVsEstimate = e.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: depth === 6 ? -0.07 : 0.03, pm: depth === 6 ? 0.02 : 0.05 })), bank: { delta: 0.04, pm: 0.02 }, death: { delta: 0.01, pm: 0.03 } });
   });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 40; r.rulesChanged(); });
   const cleared = await vsText();
   check(cleared === null || cleared === PENDING, `the next edit clears the line at once ("${cleared}")`);
   const line2 = await until(vsLanded, "the second move");
-  check(line2 === "vs last run · D6 −7 · bank +4", `the largest move outside its ± heads the line, a death inside its ± is left out ("${line2}")`);
+  check(line2 === "vs last run · D6 −7 · full haul +4", `the largest move outside its ± heads the line, a death inside its ± is left out ("${line2}")`);
   const gems2 = await page.evaluate(() => [...document.querySelectorAll(".camp .shaft-ends .end .vsm")].map((m) => m.closest(".end").className.replace("end ", "") + " " + m.textContent));
   check(gems2.join() === "bank ▲", `the bank gem carries its arrow, a death inside its ± none (${gems2.join(" · ") || "none"})`);
   const ns2 = await notches();
   check(ns2.filter((n) => n.d < 6).every((n) => n.mark === null) && ns2.find((n) => n.d === 6)?.mark === "−7", `a notch inside its paired ± is unmarked, one outside it \`−7\` (${ns2.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
   // nothing clears: the frontier's `≈`
-  await page.evaluate(() => { window.__riddle.engine.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: 0.02, pm: 0.04 })), bank: { delta: 0.004, pm: 0.03 } }); });
+  await page.evaluate(() => { const e = window.__riddle.engine; e.forecastVsEstimate = e.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: 0.02, pm: 0.04 })), bank: { delta: 0.004, pm: 0.03 } }); });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 45; r.rulesChanged(); });
   const line3 = await until(vsLanded, "the flat move");
-  check(line3 === "vs last run · D6 same · bank same", `an edit that moves nothing reads same on the frontier (Cut 24 §4) ("${line3}")`);
+  check(line3 === "vs last run · D6 same · full haul same", `an edit that moves nothing reads same on the frontier (Cut 24 §4) ("${line3}")`);
   await shot("cut22-vs-flat");
   // a set switch is not an edit
   await page.evaluate(() => window.__riddle.selectSet(1));
@@ -142,13 +145,13 @@ try {
   // a core that sends `vs` on the forecast itself: read, no call
   await page.evaluate(() => {
     const r = window.__riddle, e = r.engine; r.__vsCalls = 0;
-    e.forecastVs = async () => { r.__vsCalls++; return { depths: [] }; };
-    const fc = e.forecast; e.forecast = async () => ({ ...(await fc()), vs: { depths: [{ depth: 6, delta: 0.12, pm: 0.03 }], bank: 0.09 } });
+    e.forecastVsEstimate = e.forecastVs = async () => { r.__vsCalls++; return { depths: [] }; };
+    const fc = e.forecastEstimate; e.forecastEstimate = async () => ({ ...(await fc()), vs: { depths: [{ depth: 6, delta: 0.12, pm: 0.03 }], bank: 0.09 } });
   });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 25; r.rulesChanged(); });
   const line4 = await until(vsLanded, "the inline move");
   const calls = await page.evaluate(() => window.__riddle.__vsCalls);
-  check(line4 === "vs last run · D6 +12 · bank +9" && calls === 0, `a forecast's own \`vs\` is read without a call ("${line4}", ${calls} calls)`);
+  check(line4 === "vs last run · D6 +12 · full haul +9" && calls === 0, `a forecast's own \`vs\` is read without a call ("${line4}", ${calls} calls)`);
 
   // ---- §4: the start picker's death share; signed deltas
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=12 → bank");
@@ -191,14 +194,14 @@ try {
   await shot("cut22-unlock-deltas");
   await closeSheets();
 
-  // ---- AG/AH: the send gem names a remembered `fast`
+  // The simple Send gem retains the remembered mode; its controls live in Watch Speed.
   await page.evaluate(() => { const r = window.__riddle; r.watchMode = "fast"; r.go({ kind: "camp" }); }); await sleep(250);
   const sendFast = await page.evaluate(() => { const b = document.querySelector(".gem.send"); return { t: b?.textContent.replace(/\s+/g, " ").trim(), mode: b?.dataset.mode }; });
-  check(sendFast.t === "send▸ fast" && sendFast.mode === "fast", `a remembered \`fast\` is on the send gem (${JSON.stringify(sendFast)})`);
+  check(sendFast.t === "send" && sendFast.mode === "fast", `the simple Send gem retains remembered \`fast\` (${JSON.stringify(sendFast)})`);
   await shot("cut22-send-fast");
   await page.evaluate(() => { const r = window.__riddle; r.watchMode = "fights"; r.go({ kind: "camp" }); }); await sleep(250);
-  const sendFights = await page.evaluate(() => document.querySelector(".gem.send")?.textContent.trim());
-  check(sendFights === "send▸ fights only", `\`fights\` is named on the send too (Cut 28 §3: "${sendFights}")`);
+  const sendFights = await page.evaluate(() => { const b = document.querySelector(".gem.send"); return { text: b?.textContent.trim(), mode: b?.dataset.mode }; });
+  check(sendFights.text === "send" && sendFights.mode === "fights", `the simple Send gem retains remembered fights mode (${JSON.stringify(sendFights)})`);
 
   // ---- AH: the boss moment — one line wins
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=223`, { waitUntil: "domcontentloaded" });
