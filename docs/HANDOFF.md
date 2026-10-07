@@ -1,3 +1,21 @@
+**CUT48 HOME BASE POLISH — 2026-10-07:**
+
+User home base request implemented: shared chunky chrome ridge roster/portrait
+frames; larger64×76 desktop and40×48 mobile portraits; quiet actual slot XP rail,
+clearer name/class/status hierarchy, presence colours and pointer-transparent town
+edge finish. No gameplay state edits or new controls. Existing first-plot,
+persistent-camp, layout54/live-roster gates4/4PASS91.4s isolated server. Final
+fresh/built/earned actualWASM400/1440 six screenshots nooverflow/errors, exact
+read-only save equality, Details44px/Heroes≥44px. Manual house clicked for built
+case. Screens shown, artifacts home-cut48-final and /tmp/riddle-home-final.log.
+TS/build, copy1734/zero, diffPASS. No Rust/WASM changes, no deploy.
+Initial after-shots had stale transforms; use fresh current/final evidence only.
+Owned5403/5404/5405 closed after QA; shared5219 preserved.
+
+NEXT: keep polishing interaction/content from fresh played QA, audit remaining
+retired screen entrypoints, and seek independent immutable-build fun rating.
+95 unverified; historical broad91/112 not superseded by scoped passes.
+
 **CUT47 CLASS RULE FRESHNESS — 2026-10-07:**
 
 Adopt actual Rust class replies before refresh writes rules back. Baseline earned

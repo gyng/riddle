@@ -297,3 +297,50 @@ button.re-body { cursor: pointer; }
   border-color: #8c683d;
   box-shadow: inset 0 2px 5px #16120e, 0 0 0 1px #c29a60;
 }
+
+/* Home roster: portrait wells and quiet XP rails inside the shared chunky chrome. */
+.hero-row {
+  position: relative; padding: 14px; gap: 10px; border-radius: 2px;
+  background: linear-gradient(135deg, #292735, #14131e 65%);
+  border-color: #596173;
+  box-shadow: inset 0 1px 0 #8892a466, inset 0 -3px 0 #080910, 0 3px 6px #0006;
+}
+.hero-row.selected { border-color: #bda36b; box-shadow: inset 0 1px 0 #efd6a077, inset 3px 0 #bda36b, inset 0 -3px 0 #080910, 0 3px 8px #0008; }
+.hero-thumb {
+  width: 64px; height: 76px; border: 3px ridge #8991a2; border-radius: 2px;
+  box-shadow: inset 0 0 12px #000, 0 2px 4px #0009; background-color: #0a0c13;
+}
+.hero-info { flex: 1; gap: 5px; }
+.hero-info b { line-height: 1.15; text-shadow: 0 2px 0 #000; overflow-wrap: anywhere; }
+.hero-class-name { font-size: 13px; line-height: 1.35; color: #bdc5d5; }
+.hero-xp { font-size: 12px; color: #b1bdcf; }
+.hero-xp-track { display: block; width: min(100%, 150px); height: 5px; background: #080b12; border: 1px solid #475166; box-shadow: 0 1px 0 #ffffff10; }
+.hero-xp-track > i { display: block; height: 100%; background: linear-gradient(90deg,#708aa3,#bdcbdc); }
+.hero-action { margin-top: 3px; color: #e4d7b5; font-size: 14px; line-height: 1.3; }
+.hero-action[data-activity="combat"] { color: #ffba9d; }
+.hero-action[data-activity="exploring"] { color: #b9d8cc; }
+.hero-action[data-activity="returning"] { color: #e6c581; }
+.hero-action .lane-beat { flex: none; box-shadow: 0 0 5px currentColor; }
+.hero-notice { font-size: 12px; color: #f0cf86; }
+.hero-jump:focus-visible { outline: 2px solid #e6c581; outline-offset: 4px; }
+.hero-row:hover { background: linear-gradient(135deg,#343141,#191823 65%); }
+.hero-mobile .hero-row { padding: 9px 7px; }
+.hero-mobile .hero-thumb { width: 40px; height: 48px; border-width: 2px; }
+.hero-mobile .hero-info { gap: 2px; }
+.hero-mobile .hero-class-name { font-size: 11px; }
+.hero-mobile .hero-xp-track { height: 4px; max-width: 110px; }
+.hero-mobile .hero-action { margin-top: 2px; font-size: 12px; }
+@media (min-width: 1024px) {
+  main.camp .well-wrap > .heroes-col {
+    background: radial-gradient(ellipse at top left,#25233488,transparent 65%),#11111b;
+    border-right: 3px ridge #525b6b;
+  }
+  .hero-roster-head { padding-bottom: 12px; border-bottom: 1px solid #5a5364; }
+  .hero-roster-head h2 { color: #ebd4a6; text-shadow: 0 2px 0 #000; }
+  .hero-row { align-items: flex-start; }
+  .hero-details { align-self: end; }
+}
+.camp .town::after {
+  content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none;
+  box-shadow: inset 0 0 0 2px #11141b, inset 0 0 0 3px #7b839044, inset 0 -18px 24px -18px #05060c;
+}

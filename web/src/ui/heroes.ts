@@ -35,12 +35,13 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   };
   const details=async(s:HeroSlot,anchor:HTMLElement):Promise<void>=>{if(await app.selectBloodline(s.id)){closeAllSheets();openHero(app,anchor.isConnected?anchor:null);}};
   const row=(s:HeroSlot):HTMLElement=>{
-    const face=h('span',{class:'hero-thumb','aria-hidden':'true'});paintFace(face,s.class,44,s.look);
+    const face=h('span',{class:'hero-thumb','aria-hidden':'true'});paintFace(face,s.class,64,s.look);
     const presence=heroPresence(s,observed),action=presence.text;
     const xp=s.next===0?/* copy:label */`L${s.level} · MAX`:/* copy:label */`L${s.level} · XP ${s.xp}/${s.next??'—'}`;
     const name=s.hero_name||s.name;
+    const progress=s.next===0?1:s.next&&s.next>0?Math.max(0,Math.min(1,s.xp/s.next)):0;
     const body=h('button',{class:'hero-jump','aria-label':`${name} · ${s.name} · ${heirOrd(s.heir)} · ${action}`,'data-hero':s.id,onclick:()=>void focus(s)},face,
-      h('span',{class:'hero-info'},h('b',null,name),h('span',{class:'hero-class-name'},classIcon(s.class,s.specialization),`${s.hero_name?s.name:heirOrd(s.heir)} · ${s.specialization?classStyleName(s.specialization):s.class}`),h('small',{class:'hero-xp num'},xp),
+      h('span',{class:'hero-info'},h('b',null,name),h('span',{class:'hero-class-name'},classIcon(s.class,s.specialization),`${s.hero_name?s.name:heirOrd(s.heir)} · ${s.specialization?classStyleName(s.specialization):s.class}`),h('small',{class:'hero-xp num'},xp),h('span',{class:'hero-xp-track','aria-hidden':'true'},h('i',{style:`width:${progress*100}%`})),
         h('span',{class:'hero-action','data-activity':presence.activity,title:presence.detail},h('i',{'aria-hidden':'true',class:`lane-beat ${s.state}`}),action),s.notice?h('small',{class:'hero-notice'},/* copy:callout */'Upgrade ready'):''));
     kwHost(body,'bloodline');
     return h('article',{class:`hero-row${s.id===app.lineage.selected_bloodline?' selected':''}`,'data-slot':s.id,'data-state':s.state},body,
