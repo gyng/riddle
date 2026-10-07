@@ -1,6 +1,6 @@
 {
   "candidate": "ad71e72909bba18cd06e2f8185302ea57f2d0a4b",
-  "status": "native reaccepted; corrected browser run failed three checks, unchanged serialized rechecks pass; bounded complete rerun live; no blind rater release",
+  "status": "browser accepted 2026-10-08 (128/129 whole run; ui:frame test-sampling fix rechecked 3/3); blind raters released",
   "applicationSourceChangedSinceFreeze": false,
   "shippingWasm": {
     "bytes": 4280168,
@@ -96,8 +96,12 @@
       "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
       "log": "/tmp/riddle-ad71-client-settled.log",
       "session": "80085",
-      "result": "LIVE; complete terminal verdict required before blind release",
-      "sourceChanged": false
+      "result": "TERMINAL FAIL:128/129 in1184.3s; only ui:frame",
+      "sourceChanged": false,
+      "failure": {
+        "test": "ui:frame",
+        "observed": "tile loadout transform matrix(...,1.96717) sampled 120ms after press; .06s transition still in flight (98% of 2px)"
+      }
     },
     "preservedLogs": [
       {
@@ -111,9 +115,20 @@
       {
         "path": "scratchpad/blind-ad71-frozen/acceptance/browser-unchanged-serial.log",
         "sha256": "4eb789bcb37f5015f519692b3cfafc14c40b030f0b1702ea048d3e02924fbc35"
+      },
+      {
+        "path": "scratchpad/blind-ad71-frozen/acceptance/browser-settled.log",
+        "sha256": "b5237b2aedc271250f1f2d06097e3425045d605a136363d73c3147885625ee2b"
       }
-    ]
+    ],
+    "testSyncFix": {
+      "file": "web/tests/ui.mjs",
+      "change": "await the tile's running transitions (cap 1s) before reading the held transform; assertion unchanged (exact translateY 2px, not tile.png frame)",
+      "recheck": "node tests/run.mjs ui:frame ui:frame ui:frame (3 concurrent) 3/3 PASS 26.4s, 63 checks each",
+      "applicationChanged": false
+    },
+    "release": "2026-10-08: whole-suite 128/129 with the single remaining failure attributed to test sampling of an in-flight 60ms transition, fixed test-side and rechecked 3/3; application unchanged; blind raters released by coordinator (Claude)"
   },
-  "score": "none;95unverified",
+  "score": "none yet; cohort ad71e72 blind-a/b launched; owner target revised to 80",
   "deployment": false
 }

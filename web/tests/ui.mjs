@@ -730,6 +730,8 @@ try {
     const box = await loc.boundingBox(); if (!box) { pressed.push(`${id}: no box`); continue; }
     const rest = await loc.evaluate((b) => getComputedStyle(b).transform), on = await loc.evaluate((b) => b.classList.contains("on"));   // an `on` tile rests pressed
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down(); await sleep(120);
+    // the .06s press transition can still be in flight on a loaded machine: read once it has settled
+    await loc.evaluate((b) => Promise.race([Promise.all(b.getAnimations().map((a) => a.finished)), new Promise((r) => setTimeout(r, 1000))]));
     const down = await loc.evaluate((b) => ({ t: getComputedStyle(b).transform, img: getComputedStyle(b).borderImageSource }));
     await page.mouse.move(200, 400); await page.mouse.up(); await sleep(60);
     if (!/matrix\(1, 0, 0, 1, 0, 2\)/.test(down.t) || (!on && down.t === rest)) pressed.push(`${id}: ${rest} → ${down.t}`);
