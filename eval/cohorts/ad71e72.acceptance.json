@@ -11,7 +11,12 @@
     "manifest": "scratchpad/blind-ad71-frozen/manifest.json",
     "sha256": "bb923bc23c32d6824a64f16c265a8911d133bd03b28594eab1b3ff919d86ae7e",
     "servedHashes": "all248 match at127.0.0.1:5252",
-    "coldDiagnostic": "real wasm seed101 Emptytown Gold0 BuildhouseFree;not scored play"
+    "coldDiagnostic": "real wasm seed101 Emptytown Gold0 BuildhouseFree;not scored play",
+    "latestRecheck": {
+      "at": "2026-10-07T15:49:14.382756+00:00",
+      "result": "all248 local and served hashes match;application source still matches frozen candidate",
+      "manifestSha256": "bb923bc23c32d6824a64f16c265a8911d133bd03b28594eab1b3ff919d86ae7e"
+    }
   },
   "fullVerify": {
     "log": "/tmp/riddle-cut107-full-verify.log",
@@ -93,7 +98,21 @@
       "session": "80085",
       "result": "LIVE; complete terminal verdict required before blind release",
       "sourceChanged": false
-    }
+    },
+    "preservedLogs": [
+      {
+        "path": "scratchpad/blind-ad71-frozen/acceptance/browser-original.log",
+        "sha256": "0635bd5cdc196efb5b5c60fc3fc15638f106c03c8c5090bc17465b24edb2ab2d"
+      },
+      {
+        "path": "scratchpad/blind-ad71-frozen/acceptance/browser-parallel-failures.log",
+        "sha256": "5094fdae02f5c9a4d2fccfd29b937c4642c90f4129c7ab10ec9087181a54a765"
+      },
+      {
+        "path": "scratchpad/blind-ad71-frozen/acceptance/browser-unchanged-serial.log",
+        "sha256": "4eb789bcb37f5015f519692b3cfafc14c40b030f0b1702ea048d3e02924fbc35"
+      }
+    ]
   },
   "score": "none;95unverified",
   "deployment": false
