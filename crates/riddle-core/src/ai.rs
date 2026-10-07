@@ -2356,18 +2356,6 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
     let in_corr = run.floor.map.is_corridor(run.hero.pos);
     match card {
         "gunslinger" => run.hero.class==Class::Gunner&&run.hero.level>=10&&gunner_tactic(run,cx,v),
-        "corridor_fighting" => {
-            if foes >= 2 && !in_corr && verb_back_corridor(run, cx, v) {
-                return true;
-            }
-            if in_corr && v.adj >= 1 {
-                return verb_attack(run, cx, "nearest", v, false);
-            }
-            if in_corr && foes >= 1 {
-                return true; // hold the corridor
-            }
-            foes >= 1 && verb_attack(run, cx, "nearest", v, false)
-        }
         "kite_archers" => {
             let drawing = v.foes.iter().copied().find(|&i| run.monsters[i].telegraph.as_deref() == Some("draws") && !run.monsters[i].pos.adjacent(run.hero.pos));
             if let Some(i) = drawing {
@@ -2456,7 +2444,7 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
         }
         // pack_break: split a fast pack — fall back to a corridor, then kill the weakest
         // one adjacent so the pack loses its nerve, never chase the ones hanging back.
-        "pack_break" => {
+        "pack_break" | "corridor_fighting" => {
             // The pack is the foes the guard has not given up on (`threats()`): a pack it paced in
             // front of and gave up on for the floor held the card in its corridor, and the guard
             // fired again on the same jackals (QA on 23ed91f, qaL run 5).
@@ -2485,7 +2473,8 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
             // to shoot or conjure, and then it never comes (QA on 23ed91f, qaL: a conjurer and
             // an archer held at range on D6; the guard called 6.5 % of that set's sends stalls).
             let shoots = pack.iter().any(|&i| ["ranged", "caster", "summoner"].iter().any(|t| run.monsters[i].has_tag(t)));
-            if foes >= 2 && !shoots && !going {
+            let hold = if card == "corridor_fighting" { in_corr && foes >= 1 } else { foes >= 2 };
+            if hold && !shoots && !going {
                 // The hold lasts while the pack closes: its nearest member three actions at the
                 // same distance is a pack that will not come — held forever it was the guard's
                 // pacing (qaL run 5: a jackal and a goblin at 4–7 tiles). The corridor hold's own

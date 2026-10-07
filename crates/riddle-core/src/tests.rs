@@ -3949,7 +3949,8 @@ fn a_cards_best_place_does_not_stall() {
     let stall = u.stall.expect("the card carries its stall move");
     // Before: R6, the old place before the engagement row (the camp panel read stall 22 % there).
     assert!(stall <= 0.15, "the least-stalling place: {u:?}");
-    assert_eq!(u.insert_at, Some(7), "every place stalls; the bottom stalls least: {u:?}");
+    assert_eq!(stall, 0.0, "bounded corridor holds remove this fixture's stalls: {u:?}");
+    assert_eq!(u.insert_at, Some(5), "the earliest equally safe place wins: {u:?}");
     // The cached read (no sims) names the same place.
     let again = crate::meta::catalogue_with_deltas(&g, false);
     let v = again.iter().find(|x| x.id == "corridor_fighting").unwrap();

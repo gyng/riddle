@@ -2442,3 +2442,11 @@ export function renderWatch(app: App): Mounted {
     if (prepended && !done) void app.engine.setRules(app.rules);
   } };
 }
+
+Full client116/120 in616.9s: quiet Chrome184PASS and hero appearancePASS;
+Cut30 old source-only assertion corrected and41PASS. Cut28w repeated overlap
+requires the event refresh above (four affected suites PASS117.0s). Chrome
+HUD resize test synchronizes on actual ResizeObserver centering within2s
+instead of a100ms sleep; preserve all184 checks,2px/bounds/overflow/keyboard
+assertions. It must fail if geometry does not settle, rather than reading the
+old panel position during callback scheduling.

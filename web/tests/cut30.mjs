@@ -235,7 +235,7 @@ try {
       text: document.querySelector(".death .well").textContent, gem: document.querySelector(".gem")?.textContent, why: document.querySelector(".death-why")?.textContent }));
     check(D.levers === 1 && D.patches === 0, `before the pen the death shows exactly one lever (${D.levers} lever: \`${D.lever}\`, ${D.patches} fixes)`);
     check(!D.trace && !D.more && D.seal === "you died" && !/replays|1 in \d|luck|no rule for it/.test(D.text), `no trace, no details, no gap/dice, no replays (trace ${D.trace}, details ${D.more}, seal ${D.seal})`);
-    check(/goblin archer · D6/.test(D.text) && D.why === "Steady · HP<20% → return" && D.gem === "send", `the cause, the package row that acted, the gem the lever's act (${D.why}; gem ${D.gem})`);
+    check(/goblin archer · D6/.test(D.text) && D.why === "Steady" && D.gem === "send", `the cause, the package row that acted, the gem the lever's act (${D.why}; gem ${D.gem})`);
     await shot("death-prepen");
     // spend · package: each one tablet, its act
     await page.evaluate((d) => window.__riddle.go({ kind: "death", death: { ...d, lever: { kind: "spend", text: "sword +2" } } }), base);

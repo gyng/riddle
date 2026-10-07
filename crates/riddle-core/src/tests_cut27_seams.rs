@@ -171,3 +171,44 @@ fn a_stray_line_says_how_it_was_lost() {
     let evs = ticks(&mut g, 10);
     assert!(evs.iter().any(|e| matches!(e, Ev::Note { text, .. } if text == "Uleth, gone wild: fell D7 to ogre.")), "{evs:?}");
 }
+
+
+#[test]
+fn corridor_fighting_approaches_a_ranged_foe_instead_of_holding_forever() {
+    use crate::geom::Pos;
+    use crate::tiles::Tile;
+    let mut g = arena();
+    g.lineage.unlocks.insert("corridor_fighting".into());
+    {
+        let run = g.run.as_mut().unwrap();
+        for y in 1..11 { for x in 1..15 {
+            run.floor.map.set(Pos::new(x,y), if x==4 {Tile::Floor}else{Tile::Wall});
+        }}
+        run.floor.map.compute_corridors(&[]);
+        run.floor.map.reveal_all();
+        run.floor.map.update_vision(run.hero.pos, crate::tiles::VISION);
+        assert!(run.floor.map.is_corridor(run.hero.pos));
+    }
+    let id = add_monster(&mut g, "goblin_archer", 4, 9);
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m|m.id==id).unwrap().stun=500;
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("tactic", "corridor_fighting"))]);
+    let before = g.run.as_ref().unwrap().hero.pos;
+    ticks(&mut g,120);
+    let run = g.run.as_ref().unwrap();
+    assert!(run.hero.pos.cheb(Pos::new(4,9)) < before.cheb(Pos::new(4,9)),
+        "corridor fighter held against a stationary archer: {:?}",run.hero.pos);
+}
+
+
+#[test]
+fn corridor_fighting_does_not_retreat_from_a_far_pack() {
+    let mut g=arena();
+    g.lineage.unlocks.insert("corridor_fighting".into());
+    for (x,y) in [(14,2),(14,3)] {
+        let id=add_monster(&mut g,"jackal",x,y);
+        g.run.as_mut().unwrap().monsters.iter_mut().find(|m|m.id==id).unwrap().awake=false;
+    }
+    rules(&mut g,vec![Row::new(vec![],Verb::arg("tactic","corridor_fighting"))]);
+    ticks(&mut g,12);
+    assert!(g.run.as_ref().unwrap().card_fell.is_none(),"far pack caused corridor retreat");
+}

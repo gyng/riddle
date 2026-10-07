@@ -1,3 +1,44 @@
+**CUT89/90 CORE + WATCH VERIFIED / GATES LIVE — 2026-10-07:**
+
+Previous goal turn progress:3245061 pushed. User explicitly approved two
+independent agent raters. rater_a/rater_b exist, blind/unplayed and ON HOLD.
+Project requires QA first: changed their first assignment to QA-a/QA-b (no
+scores/cards), headless400x800/2x full70active-minute protocol. They read only
+rating/rubric/QA briefs; both disclosed accidentally reading framework4–7
+(general rubric only, no game implementation). After full QA lapses repaired,
+spawn fresh blind scoring agents. Neither first QA session certifies95.
+A's only private5352 headed driver closed via own quit; B not launched yet.
+Do not release on old74ae19b candidate; replacement build/URL needed.
+
+Full client on3245061 terminal116/120 in616.9s (session75928), failures Chrome,
+Cut30death, heroappearance, Cut28w. Quiet Chrome184PASS and heroappearancePASS;
+Cut30 old source-only assertion aligned with deathAction; HUD content changes
+force keep-out refresh. Four affected watch/tactics suites4/4PASS117s; Chrome
+184PASS27.9s after actual ResizeObserver synchronization (same2px/numeric gates).
+Original whole-header change alone did not remove every transition overlap.
+
+Earned original driver5351 remains baseline2270503 at4h report:9runs/D6,
+8stuckreturns after corridor slot1 equip + Guarded3/Bossfocus2. Gold2410/Legacy13.
+Correct ORIGINAL ORIGIN is127.0.0.1:5244, notlocalhost; wrong-origin empty town
+was separate and original save remained intact. Actual trained snapshot and
+readonly native input in scratchpad/qa-cut78-interactive. Diagnostic before
+9runs/D6/$360/8stuck vs onlykite1 3runs/D22/$5655. Cut89 shares existing pack
+progress safeguards with corridor, retains corridor-only hold; failed archer
+regression then9seamPASS. After same4h input:3runs/D19/$2002/0stuck/1death.
+No played-new-source or performance benchmark claim. Mock/cached placement gate
+retained and strengthened to stall0/earliest5 (old7 assumption no longer true).
+
+Fast verify684corePASS/oneignored,14tools,TS/copy green101s; fast all-target
+ClippyPASS. SHIPPINGWASM completed session75238; current pkg contains fix.
+Bounded full native gates LIVE session38489, log/tmp/riddle-cut89-90-full-gates.log,
+GATES_THREADS8. Need poll samehandle, terminal results and new fullclient run.
+Current changes uncommitted (ownedCut89/90 files); needcommit/push/cleanwebbuild,
+freeze fresh candidate on5250 for QA. Current immutable5249/session17809 is
+74ae19b (248assets/manifest/index verified, OLDCORE); do not rate it. Superseded
+5248 verified VitePID1634235 stopped; original5244 preserved. No deployment.
+Goal95 still unverified. Continue gameplay/content based on earned stall, rather
+than treating mechanical scoped checks as a rating.
+
 **CUT85–88 PUSHED / FULL CLIENT LIVE — 2026-10-07:**
 
 Source3245061 committed and pushed main. Build/type/copy/diff PASS; complete
