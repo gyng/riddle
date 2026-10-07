@@ -1,3 +1,24 @@
+**CUT41 REPORT LOG TAPS — 2026-10-07:**
+
+Actual failed test clickedy861 on800px screen; no hit/no sheet, raw baseline
+/tmp/riddle-cut41-report-baseline.log. Current Details then scroll actuallog;
+center/top-edge checks preserve separation and assert exact decision-log title,
+exitheader, turns10/20/30/nearest rather than oldTraceword. Carried/Secured
+replaces owner-retiredbank/deathchrome. All16cut20 +checkpointgold9checksper
+400/1440PASS18.5s,2/2 /tmp/riddle-cut41-client.log terminal0. No production
+changes. Real earned8hWASM report4runs:10turnIDs and exitheader exact, fullsave
+unchanged opening/closing, zerooverflow/errors. Screens shown, evidence
+scratchpad/report-cut41-20261007, /tmp/riddle-cut41-real.log terminal0.
+
+Found actual attribution defect: maxHPsummary58→31/drain−27 but last10turns
+52/52. Rust turn::descend restores5maxHP per floor without hero_max_hp event/
+trace step; folded losses alone invent startingHP58 and omit recovery. Next
+Cut42 record exact floor recovery through existinghero_max_hp onlywhenchanged,
+meaningful coretest +earnedWASMpairedreports/save gameplay equality excluding
+intentionalrecovery audit fields. Do not infer coregameplaychange or95score.
+Broad91/112 remains latest failing verdict; scopedlayout/qa21/cut20 nowgreen.
+No deployment.
+
 **CUT40 NEXT PLOT TOOLTIP — 2026-10-07:**
 
 Screenshot found actual retired track tooltip on unbuilt town plot (“40 stages”).

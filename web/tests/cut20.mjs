@@ -38,7 +38,7 @@ async function waitFor(pred, label, timeout = 20_000) {
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} booted=${s?.booted})`);
 }
 const go = (screen) => page.evaluate((x) => window.__riddle.go(x), screen);
-const sheetLabel = () => page.evaluate(() => document.querySelector(".sheet-wrap .label")?.textContent?.trim() ?? "");
+const sheetLabel = () => page.evaluate(() => document.querySelector(".sheet-wrap:not([inert]) .label")?.textContent?.trim() ?? "");
 const closeSheets = async () => { await page.keyboard.press("Escape"); await sleep(120); };
 
 try {
@@ -52,9 +52,9 @@ try {
       if (performance.now() - t0 > 4000 || window.__riddle.screen !== "watch") { res([...seen]); return; } requestAnimationFrame(poll); };
     poll();
   }));
-  const full = stakes.filter((x) => /^carrying \$\d+( −\$\d+(?: \w+)?)? · bank keeps \$\d+ · death \$0( · [^·]+)* · bank at D9$/.test(x));
-  check(stakes.length > 0 && full.length > 0, `the stake reads \`carrying $N · bank keeps $N · death $0 · bank at D9\` (${stakes.slice(0, 2).join(" | ") || "never shown"})`);
-  check(stakes.every((x) => !/\bkeeps\b/.test(x) || /· death \$\d+/.test(x)), `\`keeps\` never shows without the death's share (${stakes.filter((x) => !/death \$/.test(x)).slice(0, 2).join(" | ") || "none alone"})`);
+  const full = stakes.filter((x) => /^Carried \$\d+(?: −\$\d+[^·]*)? · Secured \$\d+(?: · (?:Heading home|Path blocked))*$/.test(x));
+  check(stakes.length > 0 && full.length === stakes.length, `the stake names carried and permanently secured gold together (${stakes.slice(0, 2).join(" | ") || "never shown"})`);
+  check(stakes.every((x) => !/bank keeps|death \$|bank at/.test(x)), `the current stake separates checkpoint gold from new carry (${stakes.slice(0, 2).join(" | ")})`);
   await shot("cut20-stake");
 
   // ---- the camp: the bounty notch on the shaft (the fake's bounty floor is best + 2)
@@ -141,19 +141,27 @@ try {
   check(b1 === "bounty D12 · taken $412", `the report names the bounty taken: "${b1}"`);
   await shot("cut20-report");
   await page.evaluate(() => document.querySelector('.report .details-fold[aria-expanded="false"]')?.click());   // Cut 28 §2: the ledger folds under `details`
+  const deathLog = page.locator('.exit-lines .ledger-line').filter({ has: page.locator('.ledger-btn', { hasText: /^died/ }) }).locator('button.chip').first();
+  await deathLog.scrollIntoViewIfNeeded();
+  const logMatches = () => page.evaluate(() => {
+    const s = document.querySelector('.sheet-wrap:not([inert]) .trace-sheet');
+    return s?.querySelector('.trace-head')?.textContent === 'died $0 · $80 carried · keeps 0% · bones: 8 items on D8 · ◆+1'
+      && [...s.querySelectorAll('tbody tr')].map(t => t.cells[0].textContent).join(',') === '10,20,30'
+      && [...s.querySelectorAll('tbody tr')].every(t => /nearest/.test(t.cells[1].textContent));
+  });
   const chip = await page.evaluate(() => {
     const line = [...document.querySelectorAll(".exit-lines .ledger-line")].find((l) => /^died/.test(l.querySelector(".ledger-btn")?.textContent ?? ""));
     const c = line.querySelector(".chip").getBoundingClientRect(), b = line.querySelector(".ledger-btn").getBoundingClientRect();
-    return { label: line.querySelector(".chip").textContent, cx: c.x + c.width / 2, cy: c.y + c.height / 2, top: c.y, left: c.x, btnRight: b.right, apart: c.left >= b.right - 0.5 || c.top >= b.bottom + 6 };
+    return { label: line.querySelector(".chip").textContent, cx: c.x + c.width / 2, cy: c.y + c.height / 2, top: c.y, left: c.x, btnRight: b.right, apart: c.left >= b.right - 0.5 || c.top >= b.bottom + 6, hit: line.querySelector(".chip").contains(document.elementFromPoint(c.x + c.width / 2, c.y + c.height / 2)) };
   });
-  check(chip.apart, `the \`${chip.label}\` chip stands apart from its line's button (chip left ${Math.round(chip.left)} ≥ line right ${Math.round(chip.btnRight)})`);
+  check(chip.apart && chip.hit, `the \`${chip.label}\` chip stands apart from its line's button (chip left ${Math.round(chip.left)} ≥ line right ${Math.round(chip.btnRight)})`);
   await page.mouse.click(chip.cx, chip.cy); await sleep(250);
   const lbl1 = await sheetLabel();
-  check(/^trace/.test(lbl1), `a tap on \`${chip.label}\` opens the trace, not the gold sheet (sheet "${lbl1}")`);
+  check(lbl1 === "decision log" && await logMatches(), `a tap on \`${chip.label}\` opens the trace, not the gold sheet (sheet "${lbl1}")`);
   await closeSheets();
   await page.mouse.click(chip.cx, chip.top + 2); await sleep(250);   // a tap on the chip's top edge (AD's finger) is still the chip's
   const lbl2 = await sheetLabel();
-  check(/^trace/.test(lbl2), `a tap on the chip's top edge opens the trace too (sheet "${lbl2}")`);
+  check(lbl2 === "decision log" && await logMatches(), `a tap on the chip's top edge opens the trace too (sheet "${lbl2}")`);
   await closeSheets();
   await go({ kind: "report", report: report({ depth: 12, taken: false, gold: 0 }) }); await sleep(300);
   const b2 = await page.evaluate(() => document.querySelector(".report .bounty-line")?.textContent ?? "");
