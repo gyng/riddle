@@ -22,6 +22,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
+import { pressWatchControl } from "../../tools/watch-control.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -51,14 +52,22 @@ async function until(pred, label, timeout = 20_000, arg) {
   while (Date.now() - t < timeout) { v = await page.evaluate(pred, arg).catch(() => null); if (v) return v; await sleep(100); }
   throw new Error(`timeout waiting for ${label}`);
 }
-const camp = async () => { await until(() => window.__riddle?.booted && window.__riddle.screen === "camp" && !!document.querySelector(".lanes"), "camp", 30_000); await sleep(300); };
-/** the lane block as the player sees it */
+const camp = async () => { await until(() => window.__riddle?.booted && window.__riddle.screen === "camp" && !!document.querySelector(".town"), "camp", 30_000); await sleep(300); };
+/** Current visible active-hero roster; wire state is rendered by the Hero row. */
 const lanes = () => page.evaluate(() => {
-  const q = (s) => [...document.querySelectorAll(s)];
-  return { n: Number(document.querySelector(".lanes")?.dataset.n ?? 0), rows: q(".lanes .lane:not(.lane-more)").map((l) => ({ state: l.dataset.state, tag: l.tagName, text: l.textContent.replace(/\s+/g, " ").trim(), auto: l.querySelector(".lane-auto")?.dataset.auto, gauge: l.querySelector(".lane-gauge")?.dataset.pct })),
-    more: document.querySelector(".lanes .lane-more")?.dataset.more ?? null, log: (() => { const b = document.querySelector(".lanes .lanes-log"); return b && !b.hidden ? b.textContent.trim() : null; })(),
-    gem: document.querySelector(".console .gem")?.textContent.replace(/\s+/g, " ").trim() ?? "", pulse: !!document.querySelector(".console .gem.pulse") };
+  const root=document.querySelector(innerWidth>=900?'.hero-desktop':'.hero-mobile');
+  const rows=[...root?.querySelectorAll('.hero-row')??[]];
+  return {n:window.__riddle.lineage.hero_slots.length, rows:rows.map(row=>{const title=row.querySelector('.hero-action')?.title??'',hp=/^(\d+)\/(\d+) hp/.exec(title);return {state:row.dataset.state,tag:row.tagName,text:row.textContent.replace(/\s+/g,' ').trim(),auto:window.__riddle.lineage.tree?.auto_send?'1':'0',gauge:hp?100*Number(hp[1])/Number(hp[2]):null};}),more:null,
+    log:document.querySelector('.hero-runs')?.textContent??null,
+    gem:document.querySelector('.console .gem')?.textContent.replace(/\s+/g,' ').trim()??'',pulse:!!document.querySelector('.console .gem.pulse')};
 });
+async function openRunLog(){
+  if(!await page.locator('.runs-sheet:visible').count()){
+    if(!await page.locator('.hero-sheet:visible').count())await page.locator('.hero-details:visible').first().click();
+    await page.locator('.hero-runs:visible').click();
+  }
+  await until(()=>!!document.querySelector('.runs-sheet'),'Run log',5000);
+}
 const L = () => page.evaluate(() => { const l = window.__riddle.lineage; return { live: l.live ?? null, runs: l.runs ?? [], replays: l.replays ?? [], waits: !!l.tree?.waits, auto: !!l.tree?.auto_send, rest: l.rest_left_s ?? 0, heir: l.heir }; });
 /** the interactive elements above the fold, one per function (cut305's reading) */
 const SAME = { forge: "blacksmith", vault: "storehouse", party: "kennel", bank: "bank", loadout: "crate" };
@@ -71,14 +80,15 @@ const fold = (scope = "") => page.evaluate(([SAME, scope]) => {
   const els = [...document.querySelectorAll(`${scope} :is(button, input, select, textarea, a[href], [role=button])`)].filter((b) => !b.closest("[inert]") && b.getClientRects().length && getComputedStyle(b).visibility !== "hidden" && !b.hidden && shown(b));
   // (a run under way: the gem, the mouth and the main hero's live lane all watch it — one function)
   const live = document.querySelector(".console .gem[data-live='1']");
-  const key = (b) => live && (b === live || b.dataset.building === "mouth" || (b.matches(".lane[data-state=live]") && b === document.querySelector(".lanes .lane"))) ? "watch"
+  const send = document.querySelector("main.camp .console .gem");
+  const key = (b) => send && (b === send || b.dataset.building === "mouth") ? (live ? "watch" : "send") : live && (b === live || b.dataset.building === "mouth" || (b.matches(".lane[data-state=live]") && b === document.querySelector(".lanes .lane"))) ? "watch"
     : b.classList.contains("lanes-log") || (b.dataset.building === "tent" && (window.__riddle.lineage.runs ?? []).some((r) => r.id > 0)) ? "log"   // (the tent keeps the hero's log: one function)
     : b.classList.contains("next-pill") || b.dataset.building === "worker" ? "works" : b.dataset.building ?? (b.dataset.tile ? SAME[b.dataset.tile] ?? `tile:${b.dataset.tile}` : (b.getAttribute("aria-label") || b.textContent || b.className).replace(/\s+/g, " ").trim().slice(0, 24));
   return [...new Set(els.map(key))];
 }, [SAME, scope]);
 /** send by the gem; resolves on the watch with the run's id (the engine's `send` answer, tapped) */
 async function sendWatch() {
-  await page.evaluate(() => { const r = window.__riddle; if (r.__sendTap) return; const o = r.engine.send.bind(r.engine); r.engine.send = async () => { const s = await o(); window.__sentRun = s.run.id; return s; }; r.__sendTap = true; });
+  await page.evaluate(() => { const r = window.__riddle; if (r.__sendTap) return; const o = r.engine.send.bind(r.engine); r.engine.send = async (...args) => { const s = await o(...args); window.__sentRun = s.run.id; return s; }; r.__sendTap = true; });
   await page.evaluate(() => { window.__sentRun = undefined; });
   await page.locator(".console .gem").click();
   await until(() => window.__riddle.screen === "watch" && window.__sentRun !== undefined, "the watch", 30_000);
@@ -90,16 +100,23 @@ const HASH = `(evs) => { let h = 0xcbf29ce484222325n; const P = 0x100000001b3n, 
   return h.toString(16).padStart(16, "0"); }`;
 
 try {
-  // ---- the manual phase: day 0, the lane waits
+  // ---- current manual phase: an empty town, then a house and a waiting resident.
   if (part("manual") || part("live") || part("replay")) {
     await open(`seed=${Number(process.env.RUNSUI_SEED ?? 4101)}&fresh=1`);
     await camp();
-    const s = await lanes(), l = await L();
+    const empty=await page.evaluate(()=>({home:window.__riddle.lineage.town.home,heroes:window.__riddle.lineage.hero_slots.length,send:document.querySelector('.console .gem')?.disabled,build:!!document.querySelector('.town-tag.build-marker[role="button"]:not([hidden])')}));
+    check(empty.home===false&&empty.heroes===0&&empty.send===true&&empty.build, `day 0 starts empty, requires construction, and cannot send: ${JSON.stringify(empty)}`);
+    const emptySurfaces=await fold(":is(.well-wrap, .console)"),emptyAll=await fold();
+    check(emptySurfaces.length<=5&&emptyAll.length<=12, `empty town retains ≤5 main surfaces and ≤12 above-fold controls (${emptySurfaces.length}/${emptyAll.length})`);
+    await page.locator('.town-tag[data-next="house"]').click();
+    await until(()=>window.__riddle.lineage.town.home===true&&window.__riddle.lineage.hero_slots.length===1&&!document.querySelector('.console .gem')?.disabled,"the first resident",15000);
+    const s=await page.evaluate(()=>{const root=document.querySelector('.hero-mobile'),row=root.querySelector('.hero-row');return {state:row?.dataset.state,action:row?.querySelector('.hero-action')?.textContent,xp:row?.querySelector('.hero-xp')?.textContent,details:!!row?.querySelector('.hero-details'),tip:row?.querySelector('[data-kwh]')?.dataset.kwh,gem:document.querySelector('.console .gem')?.textContent,pulse:!!document.querySelector('.console .gem.pulse'),log:!!document.querySelector('.hero-runs')};});
+    const l=await L();
     await shot("manual-day0");
-    check(s.n === 1 && s.rows[0]?.state === "waits" && /waits/.test(s.rows[0].text) && /send/.test(s.rows[0].text), `day 0: one lane, \`waits ▸ send\` (${s.rows[0]?.text})`);
-    check(s.rows[0]?.auto === "0" && /auto\s*0\/3/.test(s.rows[0].text), `day 0: \`auto\` greyed with the scout's count (${s.rows[0]?.text})`);
-    check(s.pulse && /send/i.test(s.gem) && /0\/3/.test(s.gem), `day 0: the gem lit, \`SEND 0/3\` (${s.gem})`);
-    check(s.rows[0]?.tag === "DIV" && s.log === null && l.runs.length === 0, `day 0: the lane is no surface, the log hidden (${s.rows[0]?.tag}, log ${s.log})`);
+    check(s.state==='waits'&&s.action==='Ready'&&s.details&&/XP/.test(s.xp), `the first resident is Ready with XP and Details (${JSON.stringify(s)})`);
+    check(!l.auto&&l.waits, `before the scout sending remains manual (auto ${l.auto}, waits ${l.waits})`);
+    check(s.pulse&&/send/i.test(s.gem), `the first Send is lit (${s.gem})`);
+    check(!s.log&&l.runs.length===0, "an unplayed hero has no Run log");
     const surf = await fold(":is(.well-wrap, .console)"), all = await fold();
     check(surf.length <= 5, `day 0: ≤ 5 surfaces in the well and console (${surf.length}: ${surf.join(" | ")})`);
     check(all.length <= 12, `day 0: ≤ 12 elements above the fold (${all.length}: ${all.join(" | ")})`);
@@ -113,19 +130,19 @@ try {
     await sleep(1500);
     await shot("live-watch");
     const townTile = await page.evaluate(() => document.querySelector(".console .tile[data-tile=town]")?.textContent.trim());
-    check(townTile === "town", `the watch carries \`town\` (${townTile})`);
+    check(townTile === "Town menu", `the watch carries \`town\` (${townTile})`);
     await page.locator(".console .tile[data-tile=town]").click();
     await camp();
     const a = await until(() => { const l = window.__riddle.lineage.live; return l && l.turn > 0 ? l : null; }, "the run live in the town", 15_000);
     const s = await lanes();
     await shot("live-town");
-    check(a.run_id === run && s.rows[0]?.state === "live" && /live D\d+/.test(s.rows[0].text) && Number(s.rows[0].gauge) > 0, `left mid-run: the lane reads live with his floor and hp (${s.rows[0]?.text}; run ${a.run_id} = ${run})`);
+    check(a.run_id === run && s.rows[0]?.state === "live" && /D\d+ · (Exploring|In combat|Heading home|Delving)/.test(s.rows[0].text) && Number(s.rows[0].gauge) > 0, `left mid-run: the lane reads live with his floor and hp (${s.rows[0]?.text}; run ${a.run_id} = ${run})`);
     check(/watch/i.test(s.gem), `a run under way: the gem reads \`watch\` (${s.gem})`);
     const b = await until((t0) => { const l = window.__riddle.lineage.live; return l && l.turn > t0 + 10 ? l : (window.__riddle.lineage.runs ?? []).some((r) => r.id === window.__riddle.lineage.live?.run_id) ? l : null; }, "the run's tick moving in the town", 20_000, a.turn);
     check(b.turn > a.turn, `leaving the watch keeps the run going: tick ${a.turn} → ${b.turn} in the town`);
     // back into the same run from the lane
     await page.evaluate(() => { window.__sentRun = undefined; });
-    await page.locator(".lanes .lane[data-state=live]").click();
+    await page.locator(".hero-row[data-state=live]:visible .hero-jump").first().click();
     await until(() => window.__riddle.screen === "watch" && window.__sentRun !== undefined, "the watch from the lane", 20_000);
     const again = await page.evaluate(() => window.__sentRun);
     check(again === run, `the lane opens the watch on the run in flight (run ${again} = ${run})`);
@@ -138,11 +155,15 @@ try {
     await page.evaluate(async (id) => { const r = window.__riddle; for (let k = 0; k < 900; k++) { const a = await r.engine.advance(20_000); if (a.ended.includes(id) || !a.live) break; } await r.refresh(); }, run);
     const rec = await until((id) => (window.__riddle.lineage.runs ?? []).find((r) => r.id === id) ?? null, "the run's end in the log", 60_000, run);
     await sleep(1200);
+    await page.locator(".hero-details:visible").first().click();
     const s2 = await lanes(), l2 = await L();
     await shot("live-ended");
     check(rec.via === "town", `the run left mid-watch ended in the town: the log holds it as \`town\` (${rec.via}, D${rec.depth}, ${rec.tier})`);
     check(s2.rows[0]?.state === "waits" && !l2.auto, `before the scout one send is one run: the lane waits again (${s2.rows[0]?.text})`);
-    check(s2.log !== null && /log/.test(s2.log) && l2.runs.filter((r) => r.id > 0).length === 1, `the log from run 1: one entry, the stud shown (${s2.log})`);
+    check(s2.log !== null && /log/i.test(s2.log) && l2.runs.filter((r) => r.id > 0).length === 1, `the log from run 1: one entry, the stud shown (${s2.log})`);
+    await openRunLog();
+    check(await page.locator(`.runs-sheet .run-entry[data-run="${run}"]`).count()===1,"the completed town run is reachable through Hero Details → Run log");
+    await page.keyboard.press("Escape");await page.keyboard.press("Escape");
     watchedRun = run;
   }
 
@@ -158,16 +179,22 @@ try {
       }
     });
     const run = await sendWatch();
-    await page.evaluate(() => { for (const b of document.querySelectorAll(".console .tile[data-tile=fast]")) b.click(); });
+    check(await pressWatchControl(page,"fast"),"Fast is selected through the visible Speed menu");
     // the run to its end (▶▶| as a player would), the exit sheet kept, the report, the camp
     for (let i = 0; i < 600; i++) {
       const sc = await page.evaluate(() => window.__riddle.screen);
       if (sc === "camp") break;
-      await page.evaluate(() => { const b = [...document.querySelectorAll("button")].filter((x) => x.offsetWidth && !x.disabled); const t = (s) => b.find((x) => x.textContent.trim() === s); (t("keep") ?? t("▶▶|") ?? t("REPORT") ?? t("report") ?? t("CAMP") ?? t("camp") ?? t("VERDICT") ?? t("verdict") ?? document.querySelector(".console .gem:not([disabled])"))?.click(); });
+      if(sc==='watch'){
+        const next=page.locator('.watch .next-gem:visible');
+        if(await next.count())await next.click();else await pressWatchControl(page,'▶▶|');
+      }else if(sc==='exit'){
+        await page.locator('.sheet-wrap button.btn.primary.wide').first().click();
+      }else if(sc==='death')await page.locator('.console [data-tile="camp"]').click();
+      else if(sc==='report')await page.locator('.console .camp-gem').click();
       await sleep(400);
     }
     await page.evaluate(() => { window.__tapOn = false; });
-    if ((await page.evaluate(() => window.__riddle.screen)) !== "camp") await page.evaluate(() => window.__riddle.go({ kind: "camp" }));
+    check(await page.evaluate(()=>window.__riddle.screen==="camp"&&!window.__riddle.lineage.live),"the watched run finishes through the normal exit flow before replay inspection");
     await camp();
     const live = await page.evaluate(new Function(`return (${HASH})(window.__evs)`));
     const rep = await page.evaluate(async (id) => { const x = await window.__riddle.engine.replay(id); return x && { hash: x.hash, floors: x.floors.length, n: x.floors.reduce((a, f) => a + f.events.length, 0), evs: x.floors.flatMap((f) => f.events) }; }, run);
@@ -175,7 +202,7 @@ try {
     const nLive = await page.evaluate(() => { const i = window.__evs.findIndex((e) => e.k === "exit"); return i < 0 ? window.__evs.length : i + 1; });
     check(!!rep && replayHash === live, `the watched run (${nLive} events) replays identically: ${live} = ${replayHash} (core's ${rep?.hash}, ${rep?.floors} floors)`);
     // the log's ▶ on it
-    await page.locator(".lanes .lanes-log").click();
+    await openRunLog();
     await until(() => !!document.querySelector(".runs-sheet"), "the log", 5000);
     await shot("log-manual");
     const btn = page.locator(`.runs-sheet .re-play[data-run="${run}"]`);
@@ -232,7 +259,7 @@ try {
       await page.evaluate(() => window.__riddle.go({ kind: "camp" }));
       await camp();
       const ll = await L();
-      await page.locator(".lanes .lanes-log").click();
+      await openRunLog();
       await until(() => !!document.querySelector(".runs-sheet"), "the log", 5000);
       await sleep(300);
       await shot("log");

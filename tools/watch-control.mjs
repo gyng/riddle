@@ -14,8 +14,8 @@ export async function pressWatchControl(page, label) {
       }) : false;
     } finally { await Promise.all(handles.map(handle => handle.dispose())); }
   };
-  // A caller's existing dialog is a meaningful stop; never click through it.
-  if (await page.locator('.sheet-wrap:visible').count()) return false;
+  // A caller's modal is a meaningful stop. Modeless loot keeps the HUD usable.
+  if (await page.locator('.sheet-wrap:not(.modeless):visible').count()) return false;
   const inline = page.locator(`main.watch [data-tile="${id}"]:visible`);
   if (await inline.count()) return press(inline.first());
   const speed = page.locator('main.watch .console [data-tile="speed"]:visible');

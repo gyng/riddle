@@ -15,6 +15,8 @@ for(const [label,id] of [['normal','one'],['fights only','fights'],['fast','fast
 await p.setContent('<main class="watch"><footer class="console"><button data-tile="speed" disabled>Speed</button></footer></main>');assert.equal(await pressWatchControl(p,'fast'),false);
 await p.setContent('<main class="watch"><button data-tile="fast" disabled>fast</button></main>');assert.equal(await pressWatchControl(p,'fast'),false);
 await p.setContent('<main class="watch"><button data-tile="fast">fast</button></main>');assert.equal(await pressWatchControl(p,'fast'),true);
+await p.setContent('<main class="watch"><button data-tile="fast" onclick="document.body.dataset.clicked=1">fast</button></main><div class="sheet-wrap modeless">Loot choice</div>');
+assert.equal(await pressWatchControl(p,'fast'),true);assert.equal(await p.locator('body').getAttribute('data-clicked'),'1');assert.equal(await p.locator('.sheet-wrap.modeless').innerText(),'Loot choice');
 await p.setContent('<main class="watch"><footer class="console"><button data-tile="speed">Speed</button></footer></main><div class="sheet-wrap">Caller choice</div>');assert.equal(await pressWatchControl(p,'fast'),false);assert.equal(await p.locator('.sheet-wrap').innerText(),'Caller choice');
 await p.setContent('<main class="camp"></main>');assert.equal(await pressWatchControl(p,'fast'),false);assert.equal(await pressWatchControl(p,'unknown'),false);
 // Reproduce screen disposal precisely between discovering a control and pressing

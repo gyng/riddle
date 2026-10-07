@@ -2175,7 +2175,7 @@ export function renderWatch(app: App): Mounted {
     // QA 92eb880 (N: "VERDICT appears while the hero is still up (8/36), three more hits follow"): during the walk-out the gem slot holds
     // the stilled pause; the verdict / report gem comes once the last frame has played (`nextGem`)
     pause.disabled = true;
-    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, toTown]) b.disabled = true;
+    for (const b of [modeBtn.fights, modeBtn.fast, modeBtn.one, skip, bail, speedBtn, toTown]) b.disabled = true;
     paintWatchStatus();   // Keep the ended state visible while its last picture plays.
   }
   function nextGem(): void {

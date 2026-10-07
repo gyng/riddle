@@ -1,3 +1,33 @@
+**CUT76 WATCH/OPENING QA CHECKPOINT — 2026-10-07:**
+
+Restore original disabled purchase opacity .4 through chunky CSS. Harness allows
+modeless loot HUD actions and protects caller modals. Actual ended Speed entry
+stayed enabled: disable with run controls; refused Fast/Skip verified. Migrate
+Cut13 to Path blocked and explicit More samples (larger sample count, numeric
+bands, rough quality/progress inside heading), Forge Details, scoped report
+accounting tiles. GPU rectangle rounding326.000007629vs326 needs only1e-4px
+comparison tolerance; actual layout fine. Cut13 PASS77checks77.4s.
+
+Qaj repeated full fast-cage fixture failures retained; partial old invocation
+started before split saved and actually ran whole suite. Add eight selectable
+sections, default all checks, failure diagnostics and actual menu Skip for
+clip setup. Synthetic cage capped to real nearby8-tick sampling (source-based
+fixture diagnosis, not proven game bug); timing/8s cap unchanged. Final full
+PASS34checks89.2s, real manual opening PASS6.0s, sequential2/2 in95.5s. Manual
+requires actual first house/no grants, empty start/Ready resident/XP/Details/
+manual Send/no early log; <=5mainfunctions/<=12controls. Count mouth/Send as
+same function, as existing budget specifies. Real-WASM live PASS18.4s: same
+run ID, town clock advances, Hero jump resumes, manual one-run limit and Details
+→Run log record. Replay PASS19.1s: actual menu/exit flow, completed run required
+(no forced camp fallback), exact watched/replay hash and full playback.
+
+Build/TS/syntax/copy1742zero/diff PASS, existing chunk warning. Controlled GPU
+ended-watch400/1440 nooverflow/errors and sampling400 screenshots shown;
+scratchpad/qa-cut76 and /tmp/riddle-cut76-* logs. No Rust/WASM/deployment/95claim.
+RunUI rests/log/density/heroes still need migration; full historic99/117 remains
+authoritative. Next: finish those real automation/history/Hero paths, then
+immutable full-horizon QA/independent rating preparation. Goal95 active.
+
 **BUILD MARKER SHADOW — 2026-10-07:**
 
 Owner asks shadow to follow painted border. Move packed button frame to isolated

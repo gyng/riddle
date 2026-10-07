@@ -22,10 +22,15 @@ import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { editRows, openPanel, deathDetails } from "./lib/frame.mjs";
 import { measured } from "./lib/load.mjs";
+import { pressWatchControl } from "../../tools/watch-control.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const requestedPart=process.argv.find(a=>a.startsWith('--part='))?.slice(7).split(',');
+const partNames=['exit','clips','cards','rows','purchases','loot','rate','drop'];
+if(requestedPart?.some(p=>!partNames.includes(p)))throw Error(`Unknown qaj part: ${requestedPart.join(',')}`);
+const part=name=>!requestedPart||requestedPart.includes(name);
 const errors = [], out = [];
 let failed = 0;
 const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
@@ -54,6 +59,7 @@ const recordExit = () => page.evaluate(() => {
 });
 
 try {
+  if (part("exit")) {
   // ---- 1: `COLLECTED $N` at the exit, not over an earlier fight replayed behind the frontier (seed 7 fights on D1, banks on D2)
   // (a wall-clock reading — the exit's grace lets the beat go when the picture lags on a loaded machine: `measured` retries it once
   // then, the bar unchanged; tests/lib/load.mjs)
@@ -79,6 +85,9 @@ try {
   });
   check(banked.ok, banked.line);
 
+  }
+
+  if (part("clips")) {
   // ---- 2: a chain link's clip — its floor, its tick inside the window, no caption from before the window
   {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=fast&fake_depth=3`, { waitUntil: "domcontentloaded" });
@@ -87,7 +96,7 @@ try {
     const t0 = Date.now();
     while (Date.now() - t0 < 60_000) {
       const s = await state(); if (!inRun(s)) break;
-      await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {});
+      await pressWatchControl(page,"▶▶|");
       await sleep(400);
     }
     let s = await waitFor((x) => x && !inRun(x), "the run's end", 30_000);
@@ -168,6 +177,9 @@ try {
     }
   }
 
+  }
+
+  if (part("cards")) {
   // ---- 3: one card per floor entry, never over a fight (two `fights` runs, 25 s each). "Over a fight": a hero blow / a hit on the
   // hero / a telegraph in the 10 ticks before the playhead, or a visible hostile adjacent in an engine snapshot of those ticks
   // (read off the frames as they come — a card's tick is the frame's: `measured` takes the run once more on a loaded machine)
@@ -209,6 +221,9 @@ try {
     check(cards.clear.ok, cards.clear.line + retried);
   }
 
+  }
+
+  if (part("rows")) {
   // ---- 4: the tab counts own rows; the counter the cards beside. Three cards bought on a full set (the fake's own buy; cards sit
   // outside the cap, Cut 12 §1): no drop is asked, the set stays full, the tab and the counter follow what is listed
   {
@@ -234,12 +249,15 @@ try {
     check(c.own === c.max && c.tab === `fighter · ${c.own} rules` && c.count.startsWith(`${c.own}/${c.max} rules + 3 tactics`) && c.rows === c.own + 3 && (await state()).sheets === 0, `the tab counts own rows: "${c.tab}" beside "${c.count}" (${c.rows} rows listed, no sheet)`);
   }
 
+  }
+
+  if (part("purchases")) {
   // ---- 5: the unlock sheet's disabled buys look disabled; a short `$ buy` says `$N short` (a fresh lineage: ◆0, $120)
   {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "camp", "the camp for the unlock sheet");
     await openPanel(page, "unlocks", { all: true });   // Cut 17: the unlock shelf is a panel (its whole catalogue behind `more`)
-    await page.locator(".unlocks .card", { hasText: "+1 vault" }).first().click({ timeout: 5000 }); await sleep(200);
+    await page.locator(".unlocks button.card", { hasText: "+1 storage slot" }).first().click({ timeout: 5000 }); await sleep(200);
     const b = await page.evaluate(() => {
       const look = (el) => { if (!el) return null; const cs = getComputedStyle(el); return { disabled: el.disabled, bg: cs.backgroundColor, color: cs.color, opacity: Number(cs.opacity) }; };
       return { marks: look(document.querySelector(".sheet-wrap button.buy.marks")), goldBtn: look(document.querySelector(".sheet-wrap button.buy.gold")), short: document.querySelector(".sheet-wrap .gold-short")?.textContent.trim() ?? "", price: Number(/\$(\d+)/.exec(document.querySelector(".sheet-wrap .gold-price")?.textContent ?? "")?.[1] ?? NaN), gold: window.__riddle.lineage.gold,
@@ -252,6 +270,9 @@ try {
     await page.keyboard.press("Escape"); await sleep(150);
   }
 
+  }
+
+  if (part("loot")) {
   // ---- 6: the cage sheet — its title, ⏸ and ▶▶| live under it, `vault full` when the pick will be salvaged. Cut 19 §1: the sheet is the
   //      override — opened by a tap on the cage beat (`took sword`) within its hold
   for (const mode of ["fast", "fights"]) {
@@ -260,10 +281,13 @@ try {
     const full = mode === "fights";
     await page.evaluate((full) => {
       const r = window.__riddle, orig = r.engine.step.bind(r.engine), origChoose = r.engine.choose.bind(r.engine); let done = false;
-      r.__chosen = null;
+      r.__chosen = null; window.__cageFixture=[];
       if (full) r.lineage.vault = [{ id: 7001, kind: "axe", known: true, label: "axe" }];   // 1 slot, taken
+      // Real nearby cages use 8-tick batches (watch CAGE_BATCH). A synthetic
+      // choice at the end of an arbitrarily large probe can be beyond the 8s
+      // presentation cap; keep this fixture faithful to actual cage sampling.
       // QA 23ed91f: after the cage, the pack holds the sword (the pref's pick), so a pick the player did not make can be named
-      r.engine.step = async (n) => { const res = await orig(n); if (done && !res.snapshot.vault_choice) res.snapshot.hero.inv = [...res.snapshot.hero.inv, { id: 9901, kind: "sword", known: true, label: "sword" }]; if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "mail" }], left: 50, pick: 9901 }; } return res; };
+      r.engine.step = async (n) => { const res = await orig(done ? n : Math.min(n, 8)); if (done && !res.snapshot.vault_choice) res.snapshot.hero.inv = [...res.snapshot.hero.inv, { id: 9901, kind: "sword", known: true, label: "sword" }]; if (!done && res.snapshot.turn > 20 && !res.run_over && !res.events.some((e) => e.k === "exit")) { done = true; res.snapshot.vault_choice = { items: [{ id: 9901, kind: "sword", known: true, label: "sword" }, { id: 9902, kind: "mail", known: true, label: "mail" }], left: 50, pick: 9901 }; } window.__cageFixture.push({n,turn:res.snapshot.turn,choice:!!res.snapshot.vault_choice,over:res.run_over,cage:document.querySelector(".watch")?.dataset.cage,tick:document.querySelector(".watch")?.dataset.tick});window.__cageFixture=window.__cageFixture.slice(-8); return res; };
       window.__took = []; new MutationObserver(() => { const t = document.querySelector(".ticker")?.textContent ?? ""; if (/^took /.test(t) && !window.__took.includes(t)) window.__took.push(t); }).observe(document.body, { subtree: true, childList: true, characterData: true });
       r.engine.choose = async (id) => { r.__chosen = id; return origChoose(id); };
     }, full);
@@ -274,16 +298,16 @@ try {
       if (await page.locator(".watch .ticker.cage.show").count()) await page.locator(".watch .ticker.cage.show").click({ timeout: 1000 }).catch(() => {});
       await sleep(50);
     }
-    if (!v) { check(false, `${mode}: the cage sheet opened on a tap on the beat`); continue; }
+    if (!v) { const diagnostic=await page.evaluate(()=>({screen:window.__riddle.screen,watch:{...document.querySelector('.watch')?.dataset},ticker:document.querySelector('.ticker')?.outerHTML,fixture:window.__cageFixture})); check(false, `${mode}: the cage sheet opened on a tap on the beat; ${JSON.stringify(diagnostic)}`); continue; }
     const on = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .vault-choice .chip.item.on")].map((c) => c.textContent.trim()));
     check(on.length === 1 && /sword/.test(on[0]), `${mode}: the override marks the preference's pick (${on.join(",")})`);
-    check(/^cage\b/.test(v.title) && (full ? v.full === "vault full → sold" : v.full === ""), `${mode}: the sheet reads "${v.title}"${full ? `, "${v.full}"` : ""}`);
+    check(v.title === "loot choice" && (full ? v.full === "storage full → sold" : v.full === ""), `${mode}: the sheet reads "${v.title}"${full ? `, "${v.full}"` : ""}`);
     const pause = await page.locator(".gem.hud-btn").first().click({ timeout: 2000 }).then(() => true, () => false);
     await sleep(300);
     const p = await page.evaluate(() => ({ paused: document.querySelector(".gem.hud-btn")?.textContent, sheet: !!document.querySelector(".sheet-wrap .vault-choice") }));
     check(pause && p.paused === "▶" && p.sheet, `${mode}: ⏸ takes the tap under the cage and keeps the sheet (${pause ? p.paused : "click intercepted"}, sheet ${p.sheet})`);
     await page.locator(".gem.hud-btn").first().click({ timeout: 2000 }).catch(() => {});
-    const skip = await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 2000 }).then(() => true, () => false);
+    const skip = await pressWatchControl(page, "▶▶|");
     await sleep(400);
     const k = await page.evaluate(() => ({ sheet: !!document.querySelector(".sheet-wrap .vault-choice"), chosen: window.__riddle.__chosen }));
     check(skip && !k.sheet && k.chosen === null, `${mode}: ▶▶| takes the tap, closes the sheet and picks nothing (${skip ? `sheet ${k.sheet}, chose ${k.chosen}` : "click intercepted"})`);
@@ -293,15 +317,22 @@ try {
     check(took.includes("took sword"), `${mode}: a pick the player did not make is named on the ticker (${took.join(" · ") || "nothing"})`);
   }
 
+  }
+
+  if (part("rate")) {
   // ---- 7: the lit chip's rate reads `16×`
   {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && inRun(s), "the watch for the chip");
+    await page.locator('.watch .console [data-tile="speed"]').click();
     let c = null; const t0 = Date.now();
-    while (Date.now() - t0 < 10_000) { c = await page.evaluate(() => { const on = document.querySelector(".cmd .hud-btn.on"); return on?.dataset.rate ? { rate: on.dataset.rate, after: getComputedStyle(on, "::after").content } : null; }); if (c) break; await sleep(50); }
+    while (Date.now() - t0 < 10_000) { c = await page.evaluate(() => { const on = document.querySelector(".watch-options .hud-btn.on"); return on?.dataset.rate ? { rate: on.dataset.rate, after: getComputedStyle(on, "::after").content } : null; }); if (c) break; await sleep(50); }
     check(!!c && c.after === `"${c.rate}×"`, `the lit chip reads its rate with ×: ${c ? c.after : "no rate"}`);
   }
 
+  }
+
+  if (part("drop")) {
   // ---- 8: the drop sheet — a × close; tied least-fired rows mark none, a unique minimum marks one
   {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=21`, { waitUntil: "domcontentloaded" });
@@ -326,6 +357,7 @@ try {
     const one = await page.evaluate(() => [...document.querySelectorAll(".sheet-wrap .drop-sheet .drop-row.least")].map((b) => Number(b.dataset.row)));
     check(one.length === 1 && one[0] === 1, `a unique minimum is marked (${one.join(",")})`);
     await page.keyboard.press("Escape"); await sleep(150);
+  }
   }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);

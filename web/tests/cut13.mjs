@@ -2,7 +2,9 @@
 // Cut 13 gates, client side (docs/CUT13.md §1–§5), on the fake engine (`?engine=fake&systems=none&dev=1`) through the browser harness
 // (tools/browser.mjs; `--shots` runs headed on the GPU and writes scratchpad/cut13/*.png at 400×800×3) against the dev
 // server (tools/dev.sh, :5219):
-//   §1  the stake reads `stalling` (QA 92eb880: no `keeps $0` before the run ends) while the guard has fired (`Stake.stalling`, the fake's `?fake_stall=N` chore loop);
+// Current presentation: Path blocked, explicit More samples, Forge Details, and Speed menu.
+// Literal fake fixtures below preserve retired authoring paths; they are not earned-player QA.
+//   §1  the stake reads `Path blocked` (QA 92eb880: no `keeps $0` before the run ends) while the guard has fired (`Stake.stalling`, the fake's `?fake_stall=N` chore loop);
 //       a run that comes home stalled gets the verdict screen: the `stall` pill, the headline, the notes, the trace, the patches;
 //       an engine without the record falls back to the report (the exit line reads `returned $0 · … · stalled`); the report's
 //       `open` shows a stall verdict too
@@ -31,6 +33,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser, launchGpu } from "../../tools/browser.mjs";
 import { editRows, openPanel, deathDetails } from "./lib/frame.mjs";
+import { pressWatchControl } from "../../tools/watch-control.mjs";
 import { measured } from "./lib/load.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -82,9 +85,9 @@ try {
   const stallRules = encodeURIComponent("depth>=9 → return\nfoes>=1 → attack nearest");
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=21&fake_stall=20&rules=${stallRules}&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   let s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "the stalling run");
-  s = await waitFor((x) => x?.screen !== "watch" || /stalling/.test(x.stake), "the stalling stake", 30_000);
+  s = await waitFor((x) => x?.screen !== "watch" || /Path blocked/.test(x.stake), "the stalling stake", 30_000);
   // QA 92eb880 (N: `keeps $0 · stalling` for 10 s on a run that returned keeping 60 %): `stalling` alone while the run may still come home
-  check(s.screen === "watch" && /(^|· )stalling\b/.test(s.stake) && !/keeps \$/.test(s.stake), `the stake reads \`stalling\` alone while the guard has fired: "${s.stake}"`);
+  check(s.screen === "watch" && /(^|· )Path blocked\b/.test(s.stake) && !/keeps \$/.test(s.stake), `the stake names Path blocked without an exit payout while the guard has fired: "${s.stake}"`);
   await shot("01-stall-hud");
   s = await waitFor((x) => x && x.screen !== "watch", "the stalled run's end", 60_000);
   if (s.screen === "exit") {   // the keep sheet still runs (a stall is a return with items in hand)
@@ -287,21 +290,25 @@ try {
   check(d.notes.join(" | ") === "The green one: fire | Gambled: fire potion" && d.said === null, `the death screen shows the run's last two notes (their stops dropped) (a gap death says no forecast): ${JSON.stringify(d.notes)}`);
   await shot("08-death-notes");
 
-  // ---- §5: the forecast's noise shown as noise
+  // ---- §5: bounded uncertainty, rough quality, and explicit larger sampling
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7`, { waitUntil: "domcontentloaded" });
   await waitFor((x) => x?.booted && x.screen === "camp", "camp");
   // QA e75ec29 (Q: `D1 100% ±1`): a share that reads 0 % or 100 % carries no ± — the ± is asked of the rows strictly between
   const fc = () => page.evaluate(() => { const L = window.__riddle.lastForecast; const inside = (x) => { const r = Math.round(x * 100); return r > 0 && r < 100; };
-    return { refined: document.querySelector(".forecast")?.dataset.refined, pms: [...document.querySelectorAll(".fc-bars .pm")].map((e) => e.textContent), want: (L?.depths ?? []).filter((d) => d.pm !== undefined && inside(d.reach)).length, deathInside: !!L?.ends && inside(L.ends.death), ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "", stale: document.querySelector(".forecast")?.classList.contains("stale") }; });
-  const endsOk = (f, tail) => f.deathInside ? new RegExp(` · death \\d+% ±\\d+${tail} · avg \\$\\d+\\/run$`).test(f.ends) : / · death (0|100|[<>]\d+)% · avg \$\d+\/run$/.test(f.ends);
+    return { refined: document.querySelector(".forecast")?.dataset.refined, roughVisible: !!document.querySelector(".fc-quality:not([hidden])"), samples: L?.sims, pms: [...document.querySelectorAll(".fc-bars .pm")].map((e) => e.textContent), want: (L?.depths ?? []).filter((d) => d.pm !== undefined && inside(d.reach)).length, deathInside: !!L?.ends && inside(L.ends.death), ends: document.querySelector(".fc-ends:not([hidden])")?.textContent ?? "", stale: document.querySelector(".forecast")?.classList.contains("stale") }; });
+  const endsOk = f => /^run outcomes full haul [<>]?\d+% · turn back [<>]?\d+%( · stall \d+%)? · death [<>]?\d+%( ±\d+)? · avg \$\d+\/run$/.test(f.ends);
+  await openPanel(page, "forecast");
   await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "0", null, { timeout: 15_000 });
   let f = await fc();
-  check(f.refined === "0" && f.pms.length === f.want && f.pms.every((p) => /^ ±\d+…$/.test(p)), `the first paint's ± trail …, one per share strictly inside 0–100 %: ${f.pms.join(",")} (${f.want} wanted)`);
-  check(endsOk(f, "…"), `the ends line carries its own ± (first paint; none at 0 / 100 %): "${f.ends}"`);
+  const roughSamples = f.samples;
+  check(f.refined === "0" && f.roughVisible && f.pms.length === f.want && f.pms.every(p => /^ ±\d+$/.test(p)), `the first paint labels its rough quality, with numeric uncertainty on interior shares: ${f.pms.join(",")} (${f.want} wanted)`);
+  check(endsOk(f), `the first paint's bounded run outcomes: "${f.ends}"`);
+  await page.locator('.panel .fc-refine:visible').click({timeout:5000});
   await page.waitForFunction(() => document.querySelector(".forecast")?.dataset.refined === "1", null, { timeout: 15_000 });
   f = await fc();
-  check(f.refined === "1" && f.pms.length === f.want && f.pms.every((p) => /^ ±\d+$/.test(p)), `after the refine the … is gone: ${f.pms.join(",")} (${f.want} wanted)`);
-  check(endsOk(f, ""), `the ends line after the refine: "${f.ends}"`);
+  check(f.refined === "1" && !f.roughVisible && f.samples > roughSamples && f.pms.length === f.want && f.pms.every(p => /^ ±\d+$/.test(p)), `explicit More samples increases ${roughSamples} to ${f.samples}, clears rough quality, and preserves uncertainty: ${f.pms.join(",")} (${f.want} wanted)`);
+  check(endsOk(f), `the measured run outcomes: "${f.ends}"`);
+  await page.keyboard.press('Escape');
   // the unlock deltas: within their ± → `reach ~0`; otherwise with the ±
   // Cut 17: the unlock shelf is a panel, carved with the lineage's first mark (docs/UI.md §5): the lineage takes one, the panel opens
   // on its whole catalogue (`more`)
@@ -405,8 +412,9 @@ try {
   check(await page.evaluate(async () => { const r = window.__riddle; const b = JSON.parse(r.exportSave()); const e = JSON.parse(b.engine); e.lineage.forge = {}; b.engine = JSON.stringify(e); return r.importSave(JSON.stringify(b)); }), "the lineage took an empty forge");
   await waitFor((x) => x?.booted && x.screen === "camp", "camp with an empty forge"); await sleep(300);
   await page.locator(".cmd .tile[data-tile=forge]").first().click({ timeout: 5000 }); await sleep(200);
+  await page.locator(".forge-details > summary").click();
   const forgeT = await page.evaluate(() => { const w = document.querySelector(".sheet-wrap"); return w ? { text: w.innerText.replace(/\s+/g, " ").trim(), heads: w.querySelectorAll(".lrow.head").length, empty: w.querySelector(".forge .empty-line")?.textContent ?? null } : null; });
-  check(forgeT?.empty === "nothing salvaged" && forgeT.heads === 0 && /^forge( .*)? nothing salvaged$/i.test(forgeT.text), `an empty forge says so under its label (Cut 23: under the kit ladders): "${forgeT?.text}"`);
+  check(forgeT?.empty === "nothing salvaged" && forgeT.heads === 0 && /nothing salvaged/.test(forgeT.text), `an empty forge says so under its label (Cut 23: under the kit ladders): "${forgeT?.text}"`);
   await shot("13-forge-empty");
   await page.keyboard.press("Escape"); await sleep(100);
   // the death frame: at the run's end the floor stays lit, the run controls are dead, ⏸ is gone while `verdict` runs
@@ -430,14 +438,15 @@ try {
     const w = document.querySelector(".watch"); const v = window.__viewer;
     const btn = (t) => [...document.querySelectorAll("main.watch .hud-btn")].find((b) => b.textContent === t);
     return { screen: window.__riddle.screen, busy: window.__riddle.engineBusy, over: w?.dataset.over ?? "0", fade: v?.stats?.().fade ?? null,
-      dead: ["fights only", "fast", "▶▶|", "bail"].map((t) => btn(t)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "",
+      dead: ["speed", "town"].map(id => document.querySelector(`main.watch [data-tile="${id}"]`)?.disabled ?? null), pause: btn("⏸")?.hidden ?? btn("▶")?.hidden ?? "gone", label: document.querySelector(".busy-label")?.textContent ?? "",
       gem: document.querySelector("main.watch .gem-slot > .gem")?.textContent ?? "", heir: document.querySelector("main.watch .topbar .heir")?.textContent ?? "" };
   });
   s = await waitFor((x) => x?.screen !== "watch" || x.busy, "the verdict's busy window", 40_000);
   await sleep(600);   // the walk-out drained: the fade has settled at its target
   const fs = await frameState();
   check(fs.screen === "watch" && fs.busy && fs.label === "verdict", `the verdict runs over the final frame (screen ${fs.screen}, busy ${fs.busy}, "${fs.label}")`);
-  check(fs.over === "1" && fs.dead.every((d) => d === true), `fights · fast · ▶▶| · bail are dead on a dead hero: [${fs.dead.join(", ")}]`);
+  check(fs.over === "1" && fs.dead.every((d) => d === true), `Speed and Town menu are disabled on a dead hero: [${fs.dead.join(", ")}]`);
+  check(!await pressWatchControl(page,"fast") && !await pressWatchControl(page,"▶▶|"), "an ended run refuses mode changes and Skip through the visible controls");
   // QA 23ed91f (K): the gem slot keeps a gem at the end — `verdict`, what comes next — where ⏸ was (the corner label no longer shows)
   check(fs.pause === "gone" && fs.gem === "verdict", `⏸ gives the gem slot to \`verdict\` at the end (pause ${fs.pause}, gem "${fs.gem}")`);
   check(fs.fade !== null && fs.fade <= 0.3 + 1e-6, `the floor stays lit at the end (fade ${fs.fade})`);
@@ -477,14 +486,16 @@ try {
   });
   check(tryRow.sameLine && tryRow.hintInTrack && tryRow.h <= tryRow.plainH + 6 && tryRow.hintRight <= 400, `the try hint sits on the depth's own line, on the track (row ${tryRow.h} px vs ${tryRow.plainH}, track ${Math.round(tryRow.trackW)} px): "${tryRow.text}"`);
   await shot("qaF-forecast-try");
-  // the engine's busy label in its own strip: under the header, above the tabs, never over `D4 ★0` or a bar
-  await page.evaluate(() => { const r = window.__riddle; const orig = r.engine.forecast.bind(r.engine); window.__origForecast = orig; r.engine.forecast = () => new Promise((res) => setTimeout(() => orig().then(res), 2500)); r.insertRow({ conds: [{ k: "hp<", n: 30 }], verb: { v: "retreat" } }, 0); r.go({ kind: "camp" }); });
+  // Explicit sampling keeps its progress inside the forecast heading, away from HUD and bars.
+  await page.evaluate(() => { const r=window.__riddle,orig=r.engine.forecastRefine.bind(r.engine); window.__origForecast=orig; r.engine.forecastRefine=()=>new Promise(res=>setTimeout(()=>orig().then(res),2500)); });
+  await page.locator('.panel .fc-refine:visible').click();
   await sleep(600);
-  const busyStrip = await page.evaluate(() => { const st = document.querySelector(".busy-strip"), hd = document.querySelector("header.strip"), tabs = document.querySelector(".tabs"), lb = document.querySelector(".busy-label"); return { text: st?.textContent ?? null, top: st?.getBoundingClientRect().top, bottom: st?.getBoundingClientRect().bottom, header: hd?.getBoundingClientRect().bottom, tabs: tabs?.getBoundingClientRect().top, labelHidden: lb ? lb.hidden : null, bar: !!document.querySelector(".busy") }; });
-  check(busyStrip.bar && busyStrip.text === "forecast" && busyStrip.top >= busyStrip.header && busyStrip.bottom <= busyStrip.tabs && busyStrip.labelHidden === true, `the busy label has its own strip between the header and the tabs ("${busyStrip.text}", ${busyStrip.header} ≤ ${busyStrip.top}..${busyStrip.bottom} ≤ ${busyStrip.tabs}, corner label hidden ${busyStrip.labelHidden})`);
+  const busyStrip = await page.evaluate(() => { const b=document.querySelector('.panel .fc-refine'),h=document.querySelector('.panel .fc-heading'),bar=document.querySelector('.panel .fc-bars'),r=b.getBoundingClientRect(),hr=h.getBoundingClientRect();return{text:b.textContent,disabled:b.disabled,refining:window.__riddle.forecastRefining,inside:r.left>=hr.left-1e-4&&r.right<=hr.right+1e-4&&r.top>=hr.top-1e-4&&r.bottom<=hr.bottom+1e-4,beforeBars:r.bottom<=bar.getBoundingClientRect().top,refined:window.__riddle.lastForecast?.refined}; });
+  check(busyStrip.text==='Measuring…'&&busyStrip.disabled&&busyStrip.refining&&busyStrip.inside&&busyStrip.beforeBars&&busyStrip.refined===false, `sampling progress stays in its heading without claiming a completed forecast: ${JSON.stringify(busyStrip)}`);
   await shot("qaF-busy-strip");
-  await page.waitForFunction(() => !window.__riddle.engineBusy, null, { timeout: 10_000 });
-  await page.evaluate(() => { window.__riddle.engine.forecast = window.__origForecast; });
+  await page.waitForFunction(() => !window.__riddle.forecastRefining && window.__riddle.lastForecast?.refined===true, null, { timeout: 10_000 });
+  await page.evaluate(() => { window.__riddle.engine.forecastRefine = window.__origForecast; });
+  await page.keyboard.press('Escape');
   // the ◆ readout repaints from the returned lineage at once, not after the vocabulary round-trip (1.5 s behind a forecast)
   const marksRead = await page.evaluate(async () => {
     const r = window.__riddle; const orig = r.engine.vocabulary.bind(r.engine);
@@ -540,14 +551,15 @@ try {
   const skipScene = await measured(async () => {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && x.screen === "watch" && x.mode === "fast", "a fast run for ▶▶|");
+  await page.waitForFunction(()=>Number.isFinite(Number(document.querySelector(".watch")?.dataset.tick)),null,{timeout:5000});
   await sleep(300);   // Cut 20's fast can reach the fake run's last tick inside 1.5 s: press early
   const t0 = Date.now();
   const endState = () => page.evaluate(() => ({ screen: window.__riddle.screen, ending: document.querySelector(".watch")?.dataset.ending === "1", tick: Number(document.querySelector(".watch")?.dataset.tick) }));
   let es = await endState(); const tick0 = es.tick, wasEnding = es.ending;
-  await page.evaluate(() => { for (const b of document.querySelectorAll("main.watch button.hud-btn")) if (b.textContent === "▶▶|") b.click(); });
+  const pressed=await pressWatchControl(page,"▶▶|");
   while (Date.now() - t0 < 20_000 && es.screen === "watch" && !es.ending) { await sleep(60); es = await endState(); }
   // reaching the end is the point; a press that lands on the run's last tick advances no tick
-  const reached = { ok: !wasEnding && (es.ending || es.screen !== "watch") && es.tick >= tick0, line: `one ▶▶| in fast reaches the run's end (${es.screen}${es.ending ? ", ending" : ""}, tick ${tick0} → ${es.tick}, after ${Date.now() - t0} ms)` };
+  const reached = { ok: pressed && !wasEnding && (es.ending || es.screen !== "watch") && es.tick >= tick0, line: `one ▶▶| in fast reaches the run's end (${es.screen}${es.ending ? ", ending" : ""}, tick ${tick0} → ${es.tick}, after ${Date.now() - t0} ms)` };
   const quick = { ok: Date.now() - t0 < 15_000, line: `the end comes within seconds (${Date.now() - t0} ms)` };
   return { ok: reached.ok && quick.ok, line: `${reached.line} · ${quick.line}`, reached, quick };
   });
@@ -581,7 +593,7 @@ try {
   }
 
   // ---- QA on 50bb162 (qaF): the report's stall count, the death screen's bones line
-  const tilesOf = () => page.evaluate(() => [...document.querySelectorAll(".report .tiles .tile")].map((t) => `${t.querySelector(".label")?.textContent} ${t.querySelector("b")?.textContent}`));
+  const tilesOf = () => page.evaluate(() => [...document.querySelectorAll(".report-details .tiles .tile")].map((t) => `${t.querySelector(".label")?.textContent} ${t.querySelector("b")?.textContent}`));
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 4, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3, stalled: 1 } }); });
   await sleep(150);
   let tiles = await tilesOf();
@@ -590,11 +602,11 @@ try {
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 6, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "jackal", n: 1 }], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 2, returned: 3, stalled: 1 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "runs returned 2/6 · full hauls 2/6 · runs stalled 1/6 · deaths 1/6" || tiles.slice(3).join(" · ") === "full hauls 2/6 · runs returned 2/6 · runs stalled 1/6 · deaths 1/6", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "runs returned 2/6 · full haul 2/6 · runs stalled 1/6 · deaths 1/6" || tiles.slice(3).join(" · ") === "full haul 2/6 · runs returned 2/6 · runs stalled 1/6 · deaths 1/6", `with banks nothing is dropped (${tiles.slice(3).join(" · ")})`);
   await page.evaluate(() => { const r = window.__riddle; const L = r.lineage; r.go({ kind: "report", report: { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [], xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, banked: 0, returned: 3 } }); });
   await sleep(150);
   tiles = await tilesOf();
-  check(tiles.slice(3).join(" · ") === "full hauls 0/3 · runs returned 3/3 · deaths 0/3", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
+  check(tiles.slice(3).join(" · ") === "full haul 0/3 · runs returned 3/3 · deaths 0/3", `no stalls: the row as before (${tiles.slice(3).join(" · ")})`);
   const fakeStalled = await page.evaluate(async () => { const rep = await window.__riddle.engine.runOfflineQuick(600); return typeof rep.stalled; });
   check(fakeStalled === "number", `the fake's report carries stalled (${fakeStalled})`);
   // the pile once: the exit line's `bones: 8 items on D4` stands alone; the client's `bones left` line only without it
