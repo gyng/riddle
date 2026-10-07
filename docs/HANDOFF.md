@@ -1,3 +1,34 @@
+**CUT42 RECORDED FLOOR HEALTH RECOVERY — 2026-10-07:**
+
+Rustdescend alreadyrestores5maxHP/cappedbase; nowexistinghero_max_hp records
+actualpositive gain only, cause recovery. Actual earnedlogprevious58→31/drain−27
+contradictedlast10turn52/52 because recoverywasmissing fromfoldedmaxsteps.
+Current52→52/last52; existingUIhidesnet-zeroarc, noTSsuppression. Gameplay
+arithmetic/timing unchanged. Coretestactualdescent31→36/38→40/40→40 verifies
+exactevent/snapshot/run+exittrace andnoeventatcap.
+
+676RustPASS/1ignored36.71s. Initialquickterminal1: native-host requireslocal
+socket access;6otherfiles+TS/copy passed. Hostrerun2PASS; finalall7toolfiles
+withlocalaccess14/14PASS3.08s terminal0 /tmp/riddle-cut42-tools-final.log. Fast alltargetclippy0,
+copy1734zero, realfastWASM5482294bytes, webbuild/diffPASS. Originalcut28d17,
+cut2016, checkpointgold9each400/1440:3/3PASS23.2s terminal0. No numeric bars
+relaxed; no broadbalance/fullclient certification inferred.
+
+Pairedactualearned8hGunner4runsreport/fullsave equal EXCEPT max_stepsaudit and
+exactnamed renderablecounters24batch/11deatharchive/7floorstart. Firstfailed
+comparison retained; engineeventcount references inspected, accountingonly.
+Explicitallowlist assertsdeltas; no arbitrarycounter/gameplayexclusion. Allgold,
+XP, Legacy, kit, outcomes, RNG andtiming retained. Candidatephone/desktopraw
+report/savefullyequal. Evidence scratchpad/health-recovery-cut42-20261007;
+comparison.json/compare.py, /tmp/riddle-cut42-candidate-wasm.log terminal0.
+10displayedturnIDs/headerexact; inspect/close savebyte-exact; nooverflow/errors.
+Screensshown. Olderclient91/112 remainslatest failingbroadverdict; routine18
+balancepredatescoretraceedit.95goalactive/unverified, no deployment.
+
+Next: currentmanual-house/Speed/latepen/report coverage forlegible/screens and
+remainingbroadfailures, thenfreshplayedidle-hybridQA/cohort. Noindependent95
+scoreverified. Rawcardsneverrewritten. Owned5393/5394cleaned; shared5219kept.
+
 **CUT41 REPORT LOG TAPS — 2026-10-07:**
 
 Actual failed test clickedy861 on800px screen; no hit/no sheet, raw baseline

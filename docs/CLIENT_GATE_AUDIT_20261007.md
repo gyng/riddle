@@ -14,6 +14,13 @@ Post-suite qa2117/17PASS12.2s via visible Full forecast→More samples; exact
 shaft/panel generation and percentages retained for both passes, detailed
 generation newer. Forecast-requests400/1440 each16checksPASS5.6s. No production
 change or automatic refinement restored (CUT39).
+Post-suite cut2016PASS and checkpoint-gold9checksper400/1440PASS18.5s:
+old report mouse coordinates were below viewport; visible scroll preserves
+center/top-edge hit and exact decision-log contents (CUT41). Real earned8h
+report uncovered missing floor maxHP recovery audit; fixed Rust event/trace in
+CUT42. Original cut28d17, cut2016, checkpoint-gold3/3PASS23.2s on rebuilt WASM.
+All676RusttestsPASS/oneignored; pairedearned report/savegameplayequal except
+intentional audit steps/counters. No new fullclient/balance certification.
 A focused pass never replaces the broad failing verdict.95unverified.
 
 Full client run before public Gunner exposure: 80/111 gates pass in581.6s.

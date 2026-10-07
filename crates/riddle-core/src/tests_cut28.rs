@@ -543,3 +543,37 @@ fn a_sworn_oath_panel_names_its_steps() {
     run.burned.push("bloat_mother".into());
     assert_eq!(crate::oath::steps(&o, run), crate::oath::STEP_FLOOR | crate::oath::STEP_MET | crate::oath::STEP_BURNED);
 }
+
+/// Floor recovery already changes gameplay; its exact gain must also survive in
+/// the event and trace, so a later log never totals drain losses without gains.
+#[test]
+fn descent_recovery_is_recorded_and_capped() {
+    for (before, expected) in [(31, 36), (38, 40), (40, 40)] {
+        let mut g = Game::new_literal(4202);
+        g.set_rules_raw(RuleSet { rows: vec![Row::new(Vec::new(), Verb::new("descend"))], ..Default::default() }).unwrap();
+        g.send();
+        let r = g.run.as_mut().unwrap();
+        r.monsters.clear();
+        r.hero.max_hp_base = 40;
+        r.hero.max_hp = before;
+        r.hero.hp = before;
+        r.hero.pos = r.floor.stairs_down;
+        r.hero.energy = 100;
+        let step = g.step(1);
+        let r = g.run.as_ref().unwrap();
+        assert_eq!(r.depth, 2, "the test must actually descend");
+        assert_eq!(r.hero.max_hp, expected);
+        assert_eq!(step.snapshot.hero.entity.max_hp, expected);
+        let evs: Vec<_> = step.events.iter().filter_map(|e| match e {
+            crate::wire::Ev::MaxHp { t, id, max, delta, cause } if *id == HERO_ID && cause == "recovery" => Some((*t, *max, *delta)),
+            _ => None,
+        }).collect();
+        let recorded: Vec<_> = r.max_steps.iter().filter(|s| s.cause == "recovery").map(|s| (s.t, s.max, s.delta)).collect();
+        let trace = crate::engine::exit_trace(r, &[]);
+        let traced: Vec<_> = trace.max_steps.iter().filter(|s| s.cause == "recovery").map(|s| (s.t, s.max, s.delta)).collect();
+        assert_eq!(evs, recorded);
+        assert_eq!(traced, recorded);
+        if expected > before { assert_eq!(evs, vec![(r.turn, expected, expected - before)]); }
+        else { assert!(evs.is_empty(), "no health event at the cap"); }
+    }
+}

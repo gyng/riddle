@@ -2399,7 +2399,10 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.hero.second_wind_used = false;
     // Cut 3: drained max HP (wraiths, the Lich) comes back a floor at a time — a floor's debt,
     // not the run's (a 30-floor descent would otherwise arrive in the Foundry at 19 HP).
+    let max_before = run.hero.max_hp;
     run.hero.max_hp = (run.hero.max_hp + 5).min(run.hero.max_hp_base);
+    let recovered = run.hero.max_hp - max_before;
+    if recovered > 0 { hero_max_hp(run, cx, recovered, "recovery"); }
     run.noise = None;
     run.verb_ring.clear();
     run.blind_seen.clear();
