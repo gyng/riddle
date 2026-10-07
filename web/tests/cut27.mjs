@@ -18,6 +18,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mkdirSync, readFileSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
+import {openPanel} from './lib/frame.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -40,6 +41,13 @@ async function waitFor(pred, label, timeout = 20_000) {
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} fold=${s?.fold} folded=${s?.folded})`);
 }
 const camp = async () => { await waitFor((s) => s?.booted && s.screen === "camp", "camp"); await sleep(250); };
+const requestSamples = async () => {
+  await openPanel(page,'forecast');
+  const seq=await page.evaluate(()=>window.__riddle.forecastSeq);
+  await page.locator('.panel .fc-refine:visible').click({timeout:5000});
+  await page.waitForFunction(seq=>window.__riddle.forecastSeq>seq&&window.__riddle.lastForecast?.refined===true,seq,{timeout:15000});
+  await page.keyboard.press('Escape');
+};
 
 // the fold's forecast: D1–2 clear 100 %, D3 99 % → D4 50 % (D3 is below the bar) — the camp's own forecast stands in for the core's
 const FOLD_FC = { depths: [{ depth: 1, reach: 1, clear: 1 }, { depth: 2, reach: 1, clear: 1 }, { depth: 3, reach: 0.99, clear: 0.5 }, { depth: 4, reach: 0.5 }], causes: [], known_to: 4, start: 1, refined: true, fold_to: 2 };
@@ -150,9 +158,10 @@ try {
   {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=27`, { waitUntil: "domcontentloaded" });
     await camp();
-    await page.waitForFunction(() => window.__riddle.lastForecast?.refined === true, null, { timeout: 15_000 }).catch(() => {});
+    await requestSamples();
     await stubDivergence({});
     await edit(5);
+    await requestSamples();
     await page.waitForFunction(() => document.querySelector(".camp .div-scene")?.dataset.state === "playing", null, { timeout: 15_000 }).catch(() => {});
     const seen = { sent: null, new: null, ends: [] };
     const t0 = Date.now();
@@ -184,12 +193,14 @@ try {
     // an `≈` edit with a divergence says what changed
     await stubDivergence({ moved: 0.02, inside: true, fires: [{ sent_row: 2, new_row: 2, text: "R3 drink heal", sent: 0.5, new: 2.1 }] });
     await edit(5);
+    await requestSamples();
     await page.waitForFunction(() => { const l = document.querySelector(".camp .div-line"); return l && !l.hidden && /^same/.test(l.textContent.trim()); }, null, { timeout: 15_000 }).catch(() => {});
     const flat = await scene();
     check(/^same · drink heal fires 4× more · a rule now → lives · D9 · was dies · D7$/.test(flat.line) && flat.shown, `an \`≈\` edit plays too and says what changed ("${flat.line}")`);
     // a move under the bar outside its ± is the number's alone (no scene)
     await stubDivergence({ moved: 0.03, inside: false });
     await edit(5);
+    await requestSamples();
     await page.waitForFunction(() => window.__divAsks > 0, null, { timeout: 15_000 }).catch(() => {});
     await sleep(300);
     const small = await scene();
@@ -198,6 +209,7 @@ try {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await stubDivergence({});
     await edit(5);
+    await requestSamples();
     await page.waitForFunction(() => document.querySelector(".camp .div-scene")?.dataset.state === "still", null, { timeout: 15_000 }).catch(() => {});
     await sleep(400);
     const still = await scene();
@@ -234,7 +246,7 @@ try {
     check(post.lit === 0 && post.flag === "1" && /retreat/.test(post.first ?? ""), `after the measure the gem's tablet is the first shown (${post.lit}: "${post.first}")`);
     check(!post.harmsLit && !post.gemHarms, `the stall gem never lights a harming patch ("${post.gem}")`);
     await shot("cut27-stall-gem");
-    // the core names the gem (`Patch.gem`, always its first): the tablets keep its order, the gem lights it; none flagged → `edit`
+    // the core names the gem (`Patch.gem`, always its first): the tablets keep its order, the gem lights it; none flagged → Town
     for (const none of [false, true]) {
       await page.evaluate((none) => {
         const r = window.__riddle;
@@ -246,7 +258,7 @@ try {
       }, none);
       await sleep(1000);
       const g = await page.evaluate(() => { const tabs = [...document.querySelectorAll(".death .patches button.patch")]; return { first: tabs[0]?.textContent.replace(/\s+/g, " ").trim(), lit: tabs.findIndex((b) => b.classList.contains("top")), gem: document.querySelector(".console .gem")?.textContent }; });
-      check(none ? g.lit < 0 && /edit/.test(g.gem ?? "") : g.lit === 0 && /retreat/.test(g.first ?? ""), none ? `no patch flagged: no gem (\`${g.gem}\`)` : `the core's gem is lit and first ("${g.first}")`);
+      check(none ? g.lit < 0 && /^town$/i.test(g.gem?.trim() ?? "") : g.lit === 0 && /retreat/.test(g.first ?? ""), none ? `no patch flagged: Town (\`${g.gem}\`)` : `the core's gem is lit and first ("${g.first}")`);
     }
   }
   // ---- §5: a drive-off whose counter the set holds reads `order` (`R3 under R1`), the gem moves it

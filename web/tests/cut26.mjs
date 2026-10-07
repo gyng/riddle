@@ -198,10 +198,12 @@ try {
     await page.evaluate((line) => window.__riddle.go({ kind: "report", report: { elapsed_s: 0, runs: 1, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], marks_earned: 0, tamed: [], hatched: [], lost: [],
       xp: { class: "fighter", gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 }, returned: 1, driven: 1, exits: [line], reel: [] } }), line);
     await waitFor((x) => x?.screen === "report", "the report"); await sleep(300);
+    const details=page.locator('.report .details-fold[aria-expanded="false"]');
+    if(await details.count())await details.click({timeout:5000});
     const chip = page.locator(".report .verdict-chip");
     const has = await chip.count();
-    if (has) { await chip.first().click({ timeout: 5000 }); await waitFor((x) => x?.screen === "death", "the drive-off's verdict"); await sleep(300); }
-    else await page.evaluate(async (line) => { const { drivenDeath } = await import("/src/ui/death.ts"); window.__riddle.go({ kind: "death", death: drivenDeath(line, 7) }); }, line);
+    await chip.first().click({ timeout: 5000 });
+    await waitFor((x) => x?.screen === "death", "the drive-off's verdict"); await sleep(300);
     await sleep(300);
     const d = await page.evaluate(() => ({ cause: document.querySelector(".death-line .cause")?.textContent, seal: document.querySelector(".death-line .verdict")?.textContent,
       tab: document.querySelector("button.patch.driven-line")?.textContent.replace(/\s+/g, " ").trim(), gem: document.querySelector(".gem.patch-gem .gem-n")?.textContent, ledger: document.querySelector(".death .ledger-line")?.textContent, margin: document.querySelector(".death .death-margin")?.textContent, why: document.querySelector(".death .death-why")?.textContent }));

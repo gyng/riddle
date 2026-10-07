@@ -998,6 +998,10 @@ body:not(.framed) .sheet { max-height: 72dvh; }
    bottom clear of the tiles' tops, its hit area grown up and sideways only */
 .cmd .tile .repeat-badge { top: auto; bottom: calc(100% + 3px); }
 .cmd .tile .repeat-badge::before { inset: -8px -4px 0; }
+@media (max-width: 1023px) {
+  /* Keep a first-row status plate and its hit area inside the console, clear of Heroes. */
+  .cmd:has(> .tile.badged:nth-child(-n+4) .repeat-badge) { padding-top: 32px; }
+}
 /* Cut 19 §1: the in-run cage beat (`took mail`) is a tap target while it holds — the override sheet */
 .watch .ticker.cage.show { pointer-events: auto; cursor: pointer; }
 .watch .ticker.cage.show .cage-line { display: inline-block; padding: 4px 12px; border: 1px solid rgba(219, 186, 124, .6); border-radius: 14px; background: rgba(13, 12, 20, .55); }

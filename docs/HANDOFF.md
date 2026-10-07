@@ -1,3 +1,19 @@
+**CUT67/CUT68 VISIBLE PATHS AND BUILD SHADOW — 2026-10-07:**
+
+Cut67 restores report Details and explicit More samples QA, preserving original
+scene/verdict assertions. Actual mobile legacy badge overlap fixed by reserving
+32px within the command grid below1024px. Five scoped jobs PASS36.8s;
+controlled legacy-wire geometry320/400/1000/1440 passes, Heroes reachable,
+exact save unchanged. Early real-town fixture lacked legacy plate and timed out;
+logs retained. This is compatibility coverage, not earned progression.
+Cut68 owner-requested Build shadow follows border-image alpha via drop-shadow;
+painted skin has no rectangular box shadow. Hover/press/busy brightness composes
+with shadow. Fresh real-WASM400/1440 checks: focus/target/save/errors PASS;
+desktop screenshot shown. Build/TS/copy1737zero/diff pass, existing chunk warning.
+Raw logs /tmp/riddle-cut67-* and /tmp/riddle-build-shadow-*; scratchpad captures.
+No deployment or independent95 claim. Full audit remains authoritative99/117.
+Owned preview5431 stopped after QA; shared5219 retained.
+
 **CUT66 REPORT/FORECAST CLARITY — 2026-10-07:**
 
 Fixed two actual report gaps: visible summary getsabsenceentry class; missing
