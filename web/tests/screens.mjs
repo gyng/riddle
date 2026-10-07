@@ -93,7 +93,7 @@ async function lintSheet(where) {
 /** A hash of what the screen shows: its text, which chips/tabs are on, hidden marks, open sheets. */
 const screenHash = () => page.evaluate(() => {
   const marks = [...document.querySelectorAll(".on, [aria-pressed], [hidden], .stale, .drop, .over")].map((e) => `${e.tagName}.${e.className}:${(e.textContent ?? "").slice(0, 20)}`).join("|");
-  const s = `${document.body.innerText}\n${marks}\n${document.querySelectorAll(".sheet-wrap").length}`;
+  const s = `${document.body.innerText}\n${marks}\n${document.querySelectorAll(".sheet-wrap").length}\nfocus:${document.querySelectorAll(".town-hero-focus").length}`;
   let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0;
 });
 /** The screen's candidate buttons, as descriptors the click step can find again after a repaint. */
@@ -104,7 +104,7 @@ const buttonsOf = (inertSel) => page.evaluate((inertSel) => {
   return all.map((b) => { const k = key(b); const n = counts.get(k) ?? 0; counts.set(k, n + 1); return { key: k, nth: n, text: (b.textContent ?? "").replace(/\s+/g, " ").trim(), cls: b.className }; });
 }, inertSel);
 const clickButton = (d) => page.evaluate(({ key, nth }) => {
-  const all = [...document.querySelectorAll("main button")].filter((b) => !b.closest(".sheet-wrap"));
+  const all = [...document.querySelectorAll("main button")].filter((b) => !b.disabled && !b.closest(".sheet-wrap") && b.getClientRects().length && getComputedStyle(b).visibility !== "hidden");
   const k = (b) => `${b.className}::${(b.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 40)}`;
   const hits = all.filter((b) => k(b) === key);
   const b = hits[nth]; if (!b || b.disabled) return false;
@@ -115,6 +115,7 @@ const clickButton = (d) => page.evaluate(({ key, nth }) => {
 async function lintButtons(where, expectScreen) {
   const list = await buttonsOf(INERT_SEL);
   const inert = [];
+  await page.evaluate(()=>{window.__screenLintReturn=structuredClone(window.__riddle.view);});
   let tried = 0;
   for (const d of list) {
     if (NAV.has(d.text) || TOGGLES.has(d.text)) continue;
@@ -129,7 +130,7 @@ async function lintButtons(where, expectScreen) {
     await closeSheets();
     if ((await state())?.screen !== expectScreen) {
       note(`${where}: "${d.text}" led to ${(await state())?.screen}; back`);
-      await page.evaluate((k) => window.__riddle.go({ kind: k }), expectScreen);
+      await page.evaluate((k) => (window.__screenLintReturn?.kind===k ? window.__riddle.go(window.__screenLintReturn) : (()=>{throw Error("Missing screen return context");})()), expectScreen);
       await waitFor((x) => x?.screen === expectScreen, `${expectScreen} again`); await settle();
     }
   }
@@ -152,6 +153,8 @@ try {
   await editRows(page);   // Cut 17: the tablets carry their chips, ▲▼ and × (the `edit` tile, remembered)
   const seeded = await page.evaluate(async () => {
     const r = window.__riddle; const b = JSON.parse(r.exportSave()); const e = JSON.parse(b.engine);
+    e.lineage.selected_bloodline = 1;
+    e.lineage.hero_slots = [{id:1,name:'Bloodline 1',hero_name:'Wren Ash',heir:e.lineage.heir,class:e.lineage.class,level:1,xp:0,next:60,state:'waits',rest_s:0,legacy:{points:0,spent:0,upgrades:{}},notice:false}];
     e.lineage.marks = 12; e.lineage.gold = 300; e.lineage.facts.push("item:red=heal");
     b.engine = JSON.stringify(e);
     return r.importSave(JSON.stringify(b));
@@ -162,10 +165,16 @@ try {
   await settle();
   await lintScreen("camp");
   // 2. the camp's sheets
-  for (const [sel, label, has] of [[".lanes .lanes-log", "log"], [".cmd .tile[data-tile=ledger]", "ledger"], [".cmd .tile[data-tile=forge]", "forge"], ["button.gear", "settings"], ["button.cls", "class"], [".strip button.gold", "gold"], [".editor .row .chip.cond", "cond picker"], [".editor .row .chip.verb", "verb picker"], [".unlocks .card", "unlock card"], [".tabs .tab.edit", "rename"]]) {
+  for (const [sel, label, has] of [[".heroes-sheet .hero-history", "chronicle"], [".cmd .tile[data-tile=ledger]", "ledger"], [".cmd .tile[data-tile=forge]", "forge"], ["button.gear", "settings"], [".hero-sheet .hero-class", "class"], [".strip button.gold", "gold"], [".editor .row .chip.cond", "cond picker"], [".editor .row .chip.verb", "verb picker"], [".unlocks .card", "unlock card"], [".tabs .tab.edit", "rename"]]) {
+    if (label === 'chronicle') await page.locator('.hero-expand:visible').click({timeout:5000});
+    if (label === 'class') {
+      if (await page.locator('.hero-return:visible').count()) await page.locator('.hero-return:visible').click({timeout:5000});
+      await page.locator('.hero-details:visible').first().click({timeout:5000});
+    }
+    if (['cond picker','verb picker','rename'].includes(label)) await editRows(page);
     if (label === "gold") {
       await openAndLint(sel, label, has);
-      const g = await page.evaluate(() => ({ header: document.querySelector(".strip button.gold")?.textContent, sheet: document.querySelector(".sheet-wrap .label .gold")?.textContent, lineage: `$${window.__riddle.lineage.gold}` }));
+      const g = await page.evaluate(() => ({ header: document.querySelector(".strip button.gold")?.textContent.match(/\$[\d,]+/)?.[0], sheet: document.querySelector(".sheet-wrap .label .gold")?.textContent, lineage: `$${window.__riddle.lineage.gold}` }));
       check(g.header === g.sheet && g.sheet === g.lineage, `the header's ${g.header} equals the gold sheet's ${g.sheet}`);
     } else {
       if (label === "unlock card") await openPanel(page, "unlocks");   // Cut 17: the unlock shelf is a panel over the well
@@ -174,6 +183,8 @@ try {
     await closeSheets();
     if (label === "unlock card") { await page.keyboard.press("Escape"); await sleep(120); }   // the panel closes over the tablets
   }
+  // A migrated literal fixture has no worker tree: no blank, inert Workers shortcut.
+  check(await page.evaluate(()=>!!window.__riddle.lineage.tree || !!document.querySelector('.next-pill')?.hidden), "the worker shortcut stays hidden when no worker tree exists");
   // 3. every button on the camp
   await lintButtons("camp", "camp");
   // 4. send → fights → ▶▶| to the exit (the run's text linted twice on the way)
@@ -182,7 +193,11 @@ try {
   await sleep(1500); await lintScreen("watch");
   let s = await state(); const tw = Date.now(); let presses = 0;
   while (s?.screen === "watch" && Date.now() - tw < 90_000) {
-    await page.evaluate(() => { for (const b of document.querySelectorAll("button.hud-btn")) if (b.textContent === "▶▶|") b.click(); }); presses++;
+    await page.locator('.console [data-tile="speed"]').click({timeout:5000});
+    const skip=page.locator('.sheet-wrap .watch-options [data-tile="skip"]');
+    if(await skip.isVisible())await skip.evaluate(b=>{if(!b.disabled)b.click();});
+    if(await page.locator('.sheet-wrap .watch-options').count())await page.keyboard.press('Escape');
+    presses++;
     await sleep(250); s = await waitFor((x) => x, "state");
     if (presses === 8) await lintScreen("watch (later)");
   }
@@ -244,7 +259,7 @@ try {
   {
     await page.evaluate(async () => { const r = window.__riddle; const save = JSON.parse(await r.engine.save()); save.lineage.gold = 5000; r.lineage = await r.engine.load(JSON.stringify(save)); r.go({ kind: "camp" }); });
     await settle();
-    const head = () => page.evaluate(() => ({ gold: document.querySelector(".strip .gold")?.textContent.trim(), marks: document.querySelector(".strip .marks")?.textContent.trim(), L: { gold: window.__riddle.lineage.gold, marks: window.__riddle.lineage.marks } }));
+    const head = () => page.evaluate(() => ({ gold: document.querySelector(".strip .gold")?.textContent.match(/\$[\d,]+/)?.[0], marks: document.querySelector(".strip .marks")?.textContent.trim(), L: { gold: window.__riddle.lineage.gold, marks: window.__riddle.lineage.marks } }));
     const h0 = await head();
     await openPanel(page, "unlocks", { all: true });
     const gcard = page.locator(".unlocks .card").filter({ hasNot: page.locator(".needs") }).first();
@@ -284,8 +299,8 @@ try {
     const pairs = await page.evaluate(() => [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => ({ chip: c.textContent.replace(/\s+/g, " ").trim(), line: c.closest(".ledger-line")?.querySelector(".ledger-btn")?.textContent ?? "" })));
     const chips = pairs.map((p) => p.chip);
     const traced = await page.evaluate(() => (window.__riddle.view.report?.exits ?? []).some((x) => x.trace?.turns.length));
-    const labelled = pairs.filter((p) => /^D\d+ · (collected|returned|died) · trace$/.test(p.chip) || /\bD\d+\b/.test(p.line)).length;
-    if (traced || chips.length) check(chips.length > 0 && chips.every((c) => /^(D\d+ · )?(collected|returned|died) · trace$/.test(c)) && labelled * 2 >= chips.length, `the ${chips.length} trace chips carry their exit (${chips.slice(0, 3).join(" · ")}${labelled < chips.length ? ` · ${chips.length - labelled} without a depth` : ""})`);
+    const labelled = pairs.filter((p) => /^D\d+ · (collected|returned|died) · log$/.test(p.chip) || /\bD\d+\b/.test(p.line)).length;
+    if (traced || chips.length) check(chips.length > 0 && chips.every((c) => /^(D\d+ · )?(collected|returned|died) · log$/.test(c)) && labelled * 2 >= chips.length, `the ${chips.length} trace chips carry their exit (${chips.slice(0, 3).join(" · ")}${labelled < chips.length ? ` · ${chips.length - labelled} without a depth` : ""})`);
     else note("report (8 h): no traced exit to label (the walk's set returns at once)");
     await lintButtons("report (8 h)", "report");
     if (await page.locator("main.report button", { hasText: /^open$/ }).count()) {
@@ -306,7 +321,7 @@ try {
     const t = await page.evaluate(() => { const tile = [...document.querySelectorAll(".report .tile")].find((x) => x.dataset.k === "stalled"); return { tile: tile && [...tile.children].map((c) => c.textContent.trim()).filter(Boolean).join(" "), chips: [...document.querySelectorAll(".report .exit-lines .chip.mini")].map((c) => c.textContent.trim()) }; });
     check(t.tile === "2/3 runs stalled $201 lost", `the stalled tile carries its cost: "${t.tile}"`);
     // (a fabricated line can still claim a real ledger line of the same tier and sum, and then carries its depth)
-    check(t.chips.length === 3 && t.chips.every((c) => /^(D\d+ · )?returned · trace$/.test(c)), `the lines' chips read their exit: ${t.chips.join(" · ")}`);
+    check(t.chips.length === 3 && t.chips.every((c) => /^(D\d+ · )?returned · log$/.test(c)), `the lines' chips read their exit: ${t.chips.join(" · ")}`);
     await lintScreen("report (stalls)");
   }
 } catch (e) {

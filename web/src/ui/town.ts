@@ -124,7 +124,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     if (fresh.length) save(L, { ...s0, seen: [...new Set([...s0.seen, ...built])] });
     targets();
     pill.paint();
-    pill.el.hidden = !state.home;
+    pill.el.hidden = !state.home || !L.tree;
     if (fresh.length) arrive(fresh);
   }
   /** c30-legible: the arrival's beat — `first gold home → blacksmith` (≤ 4 words + the arrow) — and the eye drawn to the building */

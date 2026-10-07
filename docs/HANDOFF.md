@@ -1,3 +1,30 @@
+**CUT51 CURRENT SCREEN QA — 2026-10-07:**
+
+Restored the retired screens/qa9 entrypoints after the chunky UI audit. Actual
+Heroes→Chronicle, Hero→Class and Speed menu routes; explicit legacy fake hero
+slot; visible duplicate lookup, full death return context, current Gold/log
+labels, parent navigation excluded from content counts, forecastEstimate slow
+fixture, map highlight included in observable changes. Keep original arithmetic,
+refusal, trace and salvage reconciliation checks and drive limits. Capture five
+actual run controls to verify disabled state after exit; sample before skipping.
+
+A genuine production defect surfaced: town paint revealed the Workers shortcut
+when no worker tree existed, producing a blank inert button. Visibility now
+requires both the house and worker tree. Explicit no-tree assertion plus the
+original all-button lint catch it. No game progression or save behavior changes.
+
+Final 4/4 screens/qa9/first-plot/chunky-controls PASS in 52.9s, terminal0:
+/tmp/riddle-cut51-final.log. Screens57 checks/9 lints/30 clicks; qa9 all52 checks.
+TS/build/copy1739 zero/JS syntax/diff PASS. Raw failures retained in Cut51 docs,
+including disabled-button races corrected by actual menu timing/dispatch checks.
+No Rust/WASM change or deployment. Runner-owned isolated server closed; shared
+5219 retained. Cut50's actual26-view visual audit remains current; its desktop
+Runs/mobile Forge screenshots shown again at this checkpoint.
+
+NEXT: fresh played content/gameplay evaluation and remaining broad regression
+coverage. Independent95 remains unverified; scoped success does not supersede
+historical broad91/112. Standing push approval; NO deployment until instructed.
+
 **CUT50 CHUNKY UI AUDIT — 2026-10-07:**
 
 User audit implemented across actual earned11 management windows×400/1440 plus

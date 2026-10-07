@@ -53,7 +53,7 @@ const sheets = () => page.evaluate(() => document.querySelectorAll(".sheet-wrap"
 /** The top sheet as text: its title label, its buttons, its body text. */
 const sheet = () => page.evaluate(() => {
   const w = [...document.querySelectorAll(".sheet-wrap")].pop(); if (!w) return null;
-  return { label: w.querySelector(".label")?.textContent.trim() ?? "", buttons: [...w.querySelectorAll("button:not(.close-stud)")].map((b) => b.textContent.trim()), text: w.innerText.replace(/\s+/g, " ").trim(), first: w.querySelector(".sheet-body")?.firstElementChild?.outerHTML.slice(0, 60) ?? "" };
+  return { label: w.querySelector(".label")?.textContent.trim() ?? "", buttons: [...w.querySelectorAll("button:not(.close-stud):not(.sheet-back)")].map((b) => b.textContent.trim()), text: w.innerText.replace(/\s+/g, " ").trim(), first: w.querySelector(".sheet-body")?.firstElementChild?.outerHTML.slice(0, 60) ?? "" };
 });
 const rows = () => page.evaluate(() => [...document.querySelectorAll(".editor .row")].map((r) => ({ text: r.querySelector(".chips").innerText.replace(/\s+/g, " ").trim(), card: r.classList.contains("locked"), conds: r.querySelector(".chips").querySelectorAll(":scope > .chip.cond:not(.add)").length })));
 const count = () => page.evaluate(() => document.querySelector(".rows-foot .num")?.textContent ?? "");
@@ -67,14 +67,11 @@ const setLineage = (chronicle, grave) => page.evaluate(async ({ chronicle, grave
   b.engine = JSON.stringify(e);
   return r.importSave(JSON.stringify(b));
 }, { chronicle, grave });
-/** RUNS_UI: the chronicle is the runs log's `heirs` — the lane's log stud, then the tab (a camp repainting under the first tap closes
- *  the sheet it opened: the tap again) */
+/** Current active roster keeps past heroes in Chronicle. */
 const openLogHeirs = async () => {
-  for (let i = 0; i < 3; i++) {
-    await page.locator(".lanes .lanes-log").first().click({ timeout: 5000 });
-    if (await page.waitForSelector(".runs-sheet", { timeout: 1500 }).then(() => true, () => false)) break;
-  }
-  await page.locator(".runs-sheet .log-tab[data-tab=heirs]").click({ timeout: 5000 }); await sleep(150);
+  await page.locator('.hero-expand:visible').click({timeout:5000});
+  await page.locator('.heroes-sheet .hero-history').click({timeout:5000});
+  await page.waitForSelector('.sheet-wrap .chronicle',{timeout:1500,state:'attached'});
 };
 const fakeDeath = (kept) => page.evaluate((kept) => {
   const r = window.__riddle;
@@ -96,15 +93,15 @@ try {
   // RUNS_UI: the chronicle is the runs log's `heirs` (the lane's log stud; its console tile folded in)
   await openLogHeirs();
   let s = await sheet();
-  check(/heirs/.test(s?.label ?? "") && !/·/.test(s.text.replace(/runs|heirs/g, "")) && s.buttons.filter((b) => !/^(runs|heirs)$/.test(b)).length === 0, `an empty chronicle (the log's heirs) shows its label and nothing else: "${s?.text}"`);
+  check(/chronicle/i.test(s?.label ?? "") && !/·/.test(s.text.replace(/chronicle/ig, "")) && s.buttons.length === 0, `an empty chronicle (the log's heirs) shows its label and nothing else: "${s?.text}"`);
   await page.keyboard.press("Escape"); await sleep(150);
   await page.locator(".cmd .tile[data-tile=ledger]").first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(s?.label === "ledger" && /seen/i.test(s.text), `the ledger sheet is titled: "${s?.label}"`);
+  check(/^enemy guide$/i.test(s?.label ?? "") && /seen/i.test(s.text), `the ledger sheet is titled: "${s?.label}"`);
   await page.keyboard.press("Escape"); await sleep(150);
   await page.locator(".cmd .tile[data-tile=forge]").first().click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
-  check(s?.label === "forge" && /craft/i.test(s.text), `the forge sheet is titled: "${s?.label}"`);
+  check(/^forge$/i.test(s?.label ?? "") && /Details/.test(s.text), `the forge sheet is titled: "${s?.label}"`);
   await page.keyboard.press("Escape"); await sleep(150);
   await page.locator("button.gear").click({ timeout: 5000 }); await sleep(200);
   s = await sheet();
@@ -184,7 +181,7 @@ try {
   await openLogHeirs();
   s = await sheet();
   const lines = s?.buttons.filter((b) => !/^(runs|heirs)$/.test(b)) ?? [];
-  check(/heirs/.test(s?.label ?? "") && lines.length === 1 && /▸/.test(lines[0]), `the chronicle line (the log's heirs) is a button: [${lines.join(", ")}]`);
+  check(/chronicle/i.test(s?.label ?? "") && lines.length === 1 && /▸/.test(lines[0]), `the chronicle line (the log's heirs) is a button: [${lines.join(", ")}]`);
   await page.locator(".sheet-wrap button.cline.kept").first().click({ timeout: 5000 });
   await waitFor((s) => s?.screen === "death", "the kept death");
   await sleep(200);
@@ -225,7 +222,7 @@ try {
   await page.evaluate(() => {
     const r = window.__riddle; const e = r.engine; let q = Promise.resolve();
     const ser = (m, ms) => { const f = e[m].bind(e); e[m] = (...a) => { const p = q.then(() => new Promise((res) => setTimeout(res, ms))).then(() => f(...a)); q = p.catch(() => {}); return p; }; };
-    ser("forecast", 2500); ser("unlocks", 0); ser("supplyCatalogue", 0);
+    ser("forecast", 2500); ser("forecastEstimate",2500); r.lastForecast=null; ser("unlocks", 0); ser("supplyCatalogue", 0);
     r.unlockCat = []; r.supplyCat = [];
     r.go({ kind: "camp" });
   });
@@ -287,8 +284,21 @@ try {
   // four samples do too): the run's end kills the mode buttons
   // (QA on 50bb162: "fights · fast · ▶▶| · bail still live on a dead hero"), so the choice cannot come from the exit sheet
   let picked = false;
-  const pickFast = () => page.evaluate(() => { for (const b of document.querySelectorAll("main.watch .cmd .hud-btn")) if (b.textContent === "fast" && !b.disabled) b.click(); });
-  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && (cardSamples.filter((c) => c.card).length >= 2 || (cardSamples.some((c) => c.card) && cardSamples.length >= 4))) { picked = true; await pickFast(); } await page.locator(".cmd .hud-btn", { hasText: "▶▶|" }).click({ timeout: 1000 }).catch(() => {}); await sleep(300); } return state(); };
+  const openSpeed = async () => {
+    if (!await page.locator('.sheet-wrap .watch-options').count()) await page.locator('.console [data-tile="speed"]').click({timeout:5000});
+  };
+  const pickFast = async () => {
+    await openSpeed();
+    await page.locator('.sheet-wrap .watch-options [data-tile]').evaluateAll(bs=>{window.__qaRunControls=bs.filter(b=>['one','fights','fast','skip','bail'].includes(b.dataset.tile));});
+    const fast=page.locator('.sheet-wrap [data-tile="fast"]');
+    if(await fast.isEnabled())await fast.click({timeout:5000});
+  };
+  const drive = async (sample = false) => { const t0 = Date.now(); while (Date.now() - t0 < 120_000) { const s = await state(); if (!s || s.screen !== "watch") return s; if (sample) cardSamples.push(await cardSample()); if (sample && !picked && (cardSamples.filter((c) => c.card).length >= 2 || (cardSamples.some((c) => c.card) && cardSamples.length >= 4))) { picked = true; await pickFast(); } if ((!sample || picked) && (await state())?.screen==='watch') {
+    await openSpeed();
+    const skip=page.locator('.sheet-wrap [data-tile="skip"]');
+    if(await skip.isVisible() && await skip.isEnabled())await skip.click({timeout:1000});
+    if(await page.locator('.sheet-wrap .watch-options').count())await page.keyboard.press('Escape');
+  } await sleep(300); } return state(); };
   // (the run is sampled from here as it plays — ▶▶| every 300 ms, the card read between: on a loaded machine the run can end
   // before two cards were read and `fast` picked; `measured` plays it once more then — tests/lib/load.mjs)
   const firstRun = await measured(async () => {
@@ -301,7 +311,7 @@ try {
   const named = { ok: shownCards.length > 0 && mism.length === 0, line: `the card named the HUD's floor in every sample it showed (${shownCards.length} samples${mism.length ? `; off: ${mism.map((m) => `${m.card} | ${m.hud}`).join(", ")}` : ""})` };
   // 12: the `fast` chosen mid-run is the next run's mode; at the exit the mode buttons are dead
   if (!picked) await pickFast();   // the run ended before three cards showed: the click then lands on a dead button (the check says so)
-  const saved = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, blob: JSON.parse(window.__riddle.exportSave()).watch, dead: [...document.querySelectorAll("main.watch .cmd .hud-btn")].every((b) => b.disabled) }));
+  const saved = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, blob: JSON.parse(window.__riddle.exportSave()).watch, dead: (window.__qaRunControls?.length===5 && window.__qaRunControls.every(b=>b.disabled)) }));
   const fast = { ok: saved.mode === "fast" && saved.blob === "fast", line: `fast chosen mid-run: the watch is in it and the save blob carries it (${saved.mode}, ${saved.blob}, picked ${picked})` };
   return { ok: ended.ok && named.ok && fast.ok && saved.dead, line: `${ended.line} · ${named.line} · ${fast.line}`, s2, ended, named, fast, dead: saved.dead };
   });
@@ -338,8 +348,10 @@ try {
   // 12: the next watch starts in `fast`; 14: with the vault full the sheet is skipped and SALVAGED is still built
   await page.evaluate(() => window.__riddle.go({ kind: "watch" }));
   await waitFor((s) => s?.screen === "watch", "the second watch");
-  const mode2 = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, on: [...document.querySelectorAll(".cmd .hud-btn.on")].map((b) => b.textContent) }));
+  await openSpeed();
+  const mode2 = await page.evaluate(() => ({ mode: document.querySelector("main.watch")?.dataset.mode, on: [...document.querySelectorAll(".sheet-wrap .watch-options .hud-btn.on")].map((b) => b.textContent) }));
   check(mode2.mode === "fast" && mode2.on.join() === "fast", `the next watch starts in the remembered mode (${mode2.mode}, on: ${mode2.on.join()})`);
+  await page.keyboard.press("Escape");
   // the fake's worths equal the client's table, so the ledger is skewed through the lineage the client refreshes at the exit:
   // one more `+$9 salvage` line at the exit's tick — the rows must move to it (the largest row takes the difference)
   await page.evaluate(() => { const e = window.__riddle.engine; const real = e.lineage.bind(e); e.lineage = async () => { const L = await real(); const g = L.gold_ledger ?? []; const last = g[g.length - 1]; if (last && /^salvage/.test(last.why) && !g.some((x) => x.why === "salvage")) g.push({ t: last.t, delta: 9, why: "salvage" }); return L; }; });
