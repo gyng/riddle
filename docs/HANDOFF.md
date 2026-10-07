@@ -1,3 +1,28 @@
+**CUT40 NEXT PLOT TOOLTIP — 2026-10-07:**
+
+Screenshot found actual retired track tooltip on unbuilt town plot (“40 stages”).
+Existing shared rich tooltip now reads actual next building/trigger; readyhouse
+“Ready to build · Free”, earnedkennel“first tame”. Host and visible plot marker
+share dynamic current state. Click construction unchanged/manual; no added
+simulation/automatic work. RealWASM400/1440 hover/fullsaveexact; trusted phone
+long-press pinnedtip/fullsaveexact, zerooverflow/errors. ActualRusttown.next/
+next_trigger matched. Screens shown, scratchpad/plot-tooltip-20261007;
+/tmp/riddle-cut40-real-touch.log terminal0. Diagnosticmouseholdtimeout retained,
+not a game defect: sharedtooltip ignores mouse long-press by design.
+
+Sharedtips70/70 and enemy-tips2widthsPASS,2/2gates137.3s terminal0;
+/tmp/riddle-cut40-tips.log. TS/copy1734zero/webbuild/diffPASS. NoRustchanges/
+WASM inputs; realpkg unchanged. Broad91/112 failing verdict remains latest;
+post-suite layout57 and qa2117 now scopedgreen.95fun active/unverified.
+
+Next report investigation: cut20 uses page.mouse coordinates below the viewport
+on expanded report; inspect/scroll actual chip before center/top-edge tests.
+Current traceSheet label is decision log; preserve table/exit-header/navigation
+checks, don't substitute a gold-sheet pass. Current watchedgold contract is
+Carried/Secured per owner; replace old banks/death-newcarry wording with exact
+snapshot gold assertions. Latepen/currentFullforecast report and screens coverage
+still incomplete before new idle-hybrid played QA/cohort. No deployment.
+
 **CUT39 EXPLICIT FORECAST COVERAGE — 2026-10-07:**
 
 qa21 all17PASS12.2s, terminal0 /tmp/riddle-cut39-qa21.log. Current visible

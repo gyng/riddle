@@ -23,10 +23,10 @@ import { CLASS_VERBS } from "../engine/classes";
 import { classSkillChip } from "./class-skills";
 import {renderClassStyles,classStyleName} from "./class-styles";
 import { renderLegacy } from "./legacy";
-import { kwHost } from "./tips";
+import { kwHost, detailHost } from "./tips";
 import type { Term } from "./concepts";
 /** docs/TOOLTIPS.md: a building's tip (long-press / hover; its tap stays its panel) */
-const HIT_TERM: Record<string, Term> = /* copy:none */ { crate: "pack", blacksmith: "forge", storehouse: "vault", kennel: "kennel", bank: "bank", board: "quest", staked: "track", chest: "chest", worker: "worker" };
+const HIT_TERM: Record<string, Term> = /* copy:none */ { crate: "pack", blacksmith: "forge", storehouse: "vault", kennel: "kennel", bank: "bank", board: "quest", chest: "chest", worker: "worker" };
 
 /** what a target opens (the camp wires each to its panel or sheet) */
 export type TownHooks = {
@@ -69,6 +69,13 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     void app.mutate(() => app.engine.buildTown!(plot.id), /* copy:callout */ "build", false, { saveBeforePaint: true }).finally(() => { building = false; tag.setAttribute("aria-busy", "false"); });
   };
   const tag = h("div", { class: "town-tag num", hidden: true, "aria-live": "polite", onclick: buildPlot, onkeydown: (e: Event) => { const k = e as KeyboardEvent; if (state?.staked?.ready && (k.key === "Enter" || k.key === " ")) { k.preventDefault(); buildPlot(); } } });
+  const plotDetails = (): Node[] => {
+    const plot = state?.staked;
+    if (!plot) return [];
+    return [h("div", { class: "kw-tip-head" }, h("b", null, BUILD_NAME[plot.id] ?? LABEL[plot.id] ?? plot.id)),
+      h("div", { class: "kw-tip-gloss" }, plot.ready ? /* copy:tooltip */ "Ready to build · Free" : plot.trigger ?? /* copy:tooltip */ "Not yet available")];
+  };
+  detailHost(tag, plotDetails);
   const foundation = h("div", { class: "town-foundation", hidden: true, "aria-hidden": "true" });
   // Presentation-only vector: an empty foundation and four stakes, no house silhouette.
   foundation.innerHTML = /* copy:none */ '<svg viewBox="0 0 104 64" xmlns="http://www.w3.org/2000/svg"><path class="chalk" d="M12 32 52 12 92 32 52 52Z"/><path class="stake" d="M12 32V22 M52 12V2 M92 32V22 M52 52V42"/><path class="stake-cap" d="M8 20h8v4H8z M48 0h8v4h-8z M88 20h8v4h-8z M48 40h8v4h-8z"/></svg>';
@@ -147,7 +154,8 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       const label = w.id === "staked" && s.staked?.ready ? /* copy:button */ `Build ${BUILD_NAME[s.staked.id] ?? s.staked.id}` : LABEL[w.id] ?? w.id;
       if (!b) {
         b = h("button", { class: `town-hit hit-${w.id}`, "data-building": w.id, "aria-label": label, onclick: (e: Event) => tap(w.id, e) }, h("span", { class: "vh" }, label));
-        if (HIT_TERM[w.id]) kwHost(b, HIT_TERM[w.id]!);
+        if (w.id === "staked") detailHost(b, plotDetails);
+        else if (HIT_TERM[w.id]) kwHost(b, HIT_TERM[w.id]!);
         btns.set(w.id, b); hits.appendChild(b);
       }
       b.setAttribute("aria-label", label);
