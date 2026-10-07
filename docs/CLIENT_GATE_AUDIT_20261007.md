@@ -152,3 +152,35 @@ focused passes do not change its baseline80/111 verdict.
 Final retained-source focused GPU run2/2PASS102.1s:cut28w6checks75.5s,
 watch-console5widths26.2s. /tmp/riddle-watch-safe-checkpoint.log terminal0.
 TS/copy1730zero PASS. No new full-client verdict; no95score claim.
+
+## Profiled watch readbacks and corner visibility
+
+Cut36 changes atlas context storage to suit CPU reads: matched headed cold
+profiles reduce sampled getImageData1109.63→150.93ms median (86.40%), complete
+atlas/normal RGBA hashes unchanged. Separate from sim/build performance.
+Immediate cage frame avoids a skipped40tickbeat across a614ms first-frame stall;
+original card cap/skip pacing retained. Candidate clarity:card14checks, cut28w6
+and watch-console5widths pass. Corrected hero-box grounding aligns overlap
+avoidance with the drawn reflected stack fan. Identical corner boss coverage
+84.375%→0%, new hero-grounding passes400/1440 and fails preserved baseline84%.
+
+Subsequent fights original hero coverage passes; clock164→164 failure was an
+inspection race: engine ending flag precedes asynchronous picture seek. Trace
+skip.json compares actual picture and DOMclock; wait for both ending and clock
+advance within the same20s, retaining original two assertions. Final watch
+acceptance result must come from /tmp/riddle-watch-cut36-final.log.
+
+## Next actual current-control issue
+
+qaAC repeat-confirmation failure reproduced21.8s. Diagnostic old loadout badge
+rect0×0, no overlay, click rejected as invisible. Do not force it or restore the
+retired tile. Actual Run setup → repeat pack off calls setOrders → Rust
+set_restock(false), refunding nonfree/nonfound supplies, with no confirmation
+in its current UI. docs/CUT37_SUPPLY_CONFIRM.md specifies restoring the first-tap
+refund safeguard on this visible path and updating coverage. Implementation and
+real-save acceptance pending. All other15qaAC checks pass on this repeat.
+
+Final Cut36 watch run terminal1: fights48checks PASS200.1s; clarity card12/14,
+spans1218/1237ms exceed unchanged1200ms. Cage passes, original card timing still
+unresolved despite an earlier14check pass. Preserve raw repeat and investigate
+remaining GPU stalls/scheduling; do not label the module green or95fun achieved.

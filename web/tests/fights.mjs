@@ -147,7 +147,9 @@ try {
   if (inRun(s)) {
     const before = s.tick, t = Date.now();
     await press("▶▶|");
-    s = await waitFor((x) => !inRun(x) || x.ending, "the ending after ▶▶| in fast", 20_000).catch(() => s);
+    // The engine can finish before the skip has sought the picture to the ending.
+    // Observe both completion and the clock landing, within the original budget.
+    s = await waitFor((x) => !inRun(x) || (x.ending && x.tick > before), "the ending after ▶▶| in fast", 20_000).catch(() => s);
     check(!inRun(s) || s.ending, `one ▶▶| in fast reaches the run's end (tick ${before} → ${s.tick}, ${s.ending ? "ending" : s.screen}, ${Date.now() - t} ms)`);
     check(!inRun(s) || s.tick > before, `the clock jumped to the ending (${before} → ${s.tick})`);
     s = await waitFor((x) => x && x.screen !== "watch", "the end of the fast run", 60_000);

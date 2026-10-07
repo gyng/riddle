@@ -360,6 +360,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const [lx, ly] = st.lungeOffset(e);
     return [Math.round(e.px * TILE) + TILE / 2 + lx, -Math.round(e.py * TILE) - TILE + 1 - ly];
   }
+  function groundedX(x: number, original: number, y: number): number {
+    if (x === original || openFeet(x, y)) return x;
+    const reflected = 2 * original - x;
+    return openFeet(reflected, y) ? reflected : original;
+  }
 
   /** Full hero and visible hostile boss bodies; optionally reserve entrance lift. */
   function bossBounds(entrance = false): [number, number, number, number] | null {
@@ -846,8 +851,11 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     let heroBox: [number, number, number, number] | null = null;
     if (heroEnt && !heroEnt.dying) {
       let [hx, hy] = feet(heroEnt);
+      const hx0 = hx;
       const g = stacks.get(heroEnt.y * st.w + heroEnt.x), n = g?.length ?? 1, i = g ? g.indexOf(heroEnt.id) : 0;
       if (n > 1 && i >= 0) hx += Math.round((i / (n - 1) - 0.5) * STACK_SPREAD);
+      // A corner can reflect the fan; avoid the position the hero actually draws at.
+      hx = groundedX(hx, hx0, hy);
       const hs = atlas.entity(heroEnt.kind), hw = hs.w / 2, hh = hs.h / 2;
       heroBox = [hx - hw / 2, hx + hw / 2, hy, hy + hh];
     }
@@ -883,7 +891,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       }
       // QA 1a2a4a9 (P: a monkey drawn half outside the floor over black void): a sideways nudge (the stack's fan, the step-aside) never
       // stands a sprite on a tile the map does not draw as open ground — the other side, else its own tile
-      if (fx !== fx0 && !openFeet(fx, fy)) fx = openFeet(2 * fx0 - fx, fy) ? 2 * fx0 - fx : fx0;
+      fx = groundedX(fx, fx0, fy);
       const s = atlas.entity(e.kind);
       const w = s.w / 2, h = s.h / 2; // world units (env texels)
       // Cut 18 §2: the hero is never covered (rater Y: "the warlord sprite hid my hero completely"; Z: "sprites overlap") — he draws

@@ -49,7 +49,9 @@ class Sheet {
     this.canvas = document.createElement("canvas");
     this.canvas.width = w;
     this.canvas.height = h;
-    this.ctx = this.canvas.getContext("2d", { willReadFrequently: false })!;
+    // Atlas pixels are read for aliases, wall variants, sprite scaling and normals.
+    // Choose storage for those reads before the first context is created.
+    this.ctx = this.canvas.getContext("2d", { willReadFrequently: true })!;
     this.ctx.imageSmoothingEnabled = false;
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.minFilter = THREE.NearestFilter;

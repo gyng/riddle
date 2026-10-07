@@ -1,3 +1,45 @@
+**CUT36 PROFILED WATCH / CAGE / CORNER VISIBILITY — 2026-10-07 (PARTIAL):**
+
+Atlas read-friendly storage reduces matched headed cold getImageData samples
+1109.63→150.93ms median (86.40%); full env/sprite/normal RGBA hashes identical.
+This is sampled graphics readback, not sim/build/FPS or overall latency speedup.
+Remaining driver/context/shader/fallback costs documented in CUT36. Temporary
+watch state probe removed; raw immutable trace and CPU profiles retained under
+scratchpad/watch-timeline-20261007.
+
+Cage vaultFrom now applies its frame before restoring speed: trace previously
+advanced30→70→110 across614ms before the cage had ever shown. Original timers,
+card pacing, skip behavior and numeric bars retained. Hero overlap calculation
+now shares grounded stack position with drawing. Identical diagonal corner
+boss coverage84.375%→0%, sprite sizes unchanged. New hero-grounding400/1440PASS
+8.8s, confirmed baselineFAIL84.375%, bounded5s frame readiness.
+
+FINAL /tmp/riddle-watch-cut36-final.log terminal1: fights48checksPASS200.1s;
+clarity:card stillFAIL2/14 at1218/1237ms (bar1200 unchanged), cage/other checks
+pass. Earlier atlas/cage candidate card14PASS65.3s is NOT repeatable acceptance.
+Do not claim card timing settled. Cut28w6checksPASS73.8s on corrected renderer;
+watch-console5widthsPASS on same controls before geometry change. Next inspect
+residual cold GPU/context/shader stalls and actual card scheduling, without
+reintroducing rejected goLive/card timeout experiments blindly.
+
+Fights clock wait now observes engine ending AND clock advance within original
+20s: ending flag can precede async picture seek. Trace actual viewer.tick shows
+Skip works; original end/jump assertions retained. Final48checks includes
+coverage and ending. No production skip behavior changed.
+
+Real earned Gunner WASM400/1440 Fast→Town→reloadPASS, no overflow/pageerrors/HUD
+overlap. Final screenshots shown from scratchpad/watch-grounded-real-20261007.
+TS/copy1730zero/webbuild/diff/test syntaxPASS; realWASM5482237bytes unchanged.
+No core changes; no new balance audit or full-client verdict. Baseline80/111
+still the latest broad result; scoped resolutions only.95fun active/unverified.
+
+Next supply audit: qaAC15/16, hidden legacy badge0×0. Actual Run setup repeat-off
+calls setOrders→set_restock(false), refunds paid supplies without confirmation.
+CUT37_SUPPLY_CONFIRM specifies current-path guard/real-save proof; implementation
+pending. Raw /tmp/riddle-restock-probe.log and current-repeat log retained.
+Owned5383/5384/5385 closed; final runner terminal and owns/closes its server.
+Shared5219 preserved. No deployment.
+
 **COMPACT WATCH / READABLE SPEED / TEXT COLLISIONS — 2026-10-07 (PARTIAL):**
 
 Retained production fixes: selected Speed mode has dark inset contrast on

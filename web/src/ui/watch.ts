@@ -2099,7 +2099,7 @@ export function renderWatch(app: App): Mounted {
     const t0 = Math.max(startTick, s.turn - Math.max(0, VAULT_GRACE - (vc.left ?? VAULT_GRACE)));
     beatAt(t0, tookText(pick.label), false, false, true);
     el.dataset.cage = "beat";
-    paintCard(frame); applySpeed();
+    paintCard(frame); applyFrame(); applySpeed();
   }
   /** Cut 19 §1: a tap on the cage beat's line within its hold opens the override. */
   function cageTap(): void {
