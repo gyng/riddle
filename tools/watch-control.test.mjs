@@ -17,5 +17,31 @@ await p.setContent('<main class="watch"><button data-tile="fast" disabled>fast</
 await p.setContent('<main class="watch"><button data-tile="fast">fast</button></main>');assert.equal(await pressWatchControl(p,'fast'),true);
 await p.setContent('<main class="watch"><footer class="console"><button data-tile="speed">Speed</button></footer></main><div class="sheet-wrap">Caller choice</div>');assert.equal(await pressWatchControl(p,'fast'),false);assert.equal(await p.locator('.sheet-wrap').innerText(),'Caller choice');
 await p.setContent('<main class="camp"></main>');assert.equal(await pressWatchControl(p,'fast'),false);assert.equal(await pressWatchControl(p,'unknown'),false);
-console.log('watch controls: 4 modes, own-menu closure, new keep preservation, disabled/inline/caller/no-watch/unknown PASS');
+// Reproduce screen disposal precisely between discovering a control and pressing
+// it. The real locator used to retry this vanished node for 30 seconds.
+const vanishingPage = {locator(selector) {
+ const wrap = (locator,path=selector) => new Proxy(locator,{get(target,key) {
+  if(key==='first')return ()=>wrap(target.first(),path);
+  if(key==='locator')return child=>wrap(target.locator(child),child);
+  if(key==='count')return async()=>{
+   const n=await target.count();
+   if(n&&path.includes('data-tile="fast"'))await target.evaluateAll(nodes=>nodes.forEach(node=>node.remove()));
+   return n;
+  };
+  const value=target[key];return typeof value==='function'?value.bind(target):value;
+ }});
+ return wrap(p.locator(selector));
+}};
+await p.setContent('<main class="watch"><button data-tile="fast" onclick="document.body.dataset.clicked=1">fast</button></main>');
+assert.equal(await pressWatchControl(vanishingPage,'fast'),false);
+assert.equal(await p.locator('body').getAttribute('data-clicked'),null);
+await p.setContent('<main class="watch"><footer class="console"><button data-tile="speed">Speed</button></footer></main>');
+await p.evaluate(()=>{document.querySelector('[data-tile=speed]').onclick=()=>{
+ const wrap=document.createElement('div');wrap.className='sheet-wrap';wrap.innerHTML='<button class="close-stud">Close</button><div class="watch-options"><button data-tile="fast" onclick="document.body.dataset.clicked=1">fast</button></div>';
+ document.body.append(wrap);wrap.querySelector('.close-stud').onclick=()=>wrap.remove();
+};});
+assert.equal(await pressWatchControl(vanishingPage,'fast'),false);
+assert.equal(await p.locator('.watch-options').count(),0);
+assert.equal(await p.locator('body').getAttribute('data-clicked'),null);
+console.log('watch controls: 4 modes, own-menu closure, new keep preservation, disabled/inline/caller/no-watch/unknown/disposed control PASS');
 }finally{await b.close();}

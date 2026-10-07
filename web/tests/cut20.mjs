@@ -119,16 +119,20 @@ try {
   await go({ kind: "death", death: death() }); await sleep(300);
   check(!(await page.locator(".death .repeat-line").count()), "no re-pack, no `repeat` line");
 
-  // ---- AD: `nothing beats base` folds the candidates (dim, behind `others`); the gem is `edit`
+  // ---- AD: `nothing beats base` folds the candidates (dim, behind `others`); the gem is `Town`
   await go({ kind: "death", death: death({ verdict: "dice", baseline: 1, nothing_beats_base: true, patches: [P({ conds: [{ k: "hp<", n: 30 }], verb: { v: "rest" } }, 1, { below_bar: true }), P({ conds: [], verb: { v: "return" } }, 1), P({ conds: [{ k: "foes>=", n: 2 }], verb: { v: "retreat" } }, 1)] }) });
   await sleep(300);
   const nb = await page.evaluate(() => { const b = document.querySelector(".death .patches"); const vis = [...b.querySelectorAll("button.patch")].filter((x) => x.getClientRects().length);
     return { head: b.querySelector(".patches-head")?.textContent, visible: vis.length, all: b.querySelectorAll("button.patch").length, dim: [...b.querySelectorAll("button.patch")].every((x) => x.classList.contains("below")), more: b.querySelector(".patches-more")?.textContent?.replace(/\s+/g, " ").trim(), gem: document.querySelector(".death .gem")?.textContent?.trim() }; });
-  check(nb.head === "none beats 100% as is" && nb.visible === 0 && nb.all === 3 && nb.dim && /^others 3$/.test(nb.more ?? "") && /edit/i.test(nb.gem ?? ""), `under \`nothing beats base\` no patch shows as one: folded behind \`${nb.more}\`, dim, the gem \`${nb.gem}\` (${nb.visible}/${nb.all} visible)`);
+  check(nb.head === "none beats 100% as is" && nb.visible === 0 && nb.all === 3 && nb.dim && /^others 3$/.test(nb.more ?? "") && /^town$/i.test(nb.gem ?? ""), `under \`nothing beats base\` no patch shows as one: folded behind \`${nb.more}\`, dim, the gem \`${nb.gem}\` (${nb.visible}/${nb.all} visible)`);
   await shot("cut20-nothing-beats");
   await page.locator(".death .patches-more").click({ timeout: 3000 }); await sleep(200);
   const nb2 = await page.evaluate(() => [...document.querySelectorAll(".death .patches button.patch")].filter((x) => x.getClientRects().length).length);
   check(nb2 === 3, `\`others\` unfolds them (${nb2} shown)`);
+  const unchanged = await page.evaluate(() => window.__riddle.engine.save());
+  await page.locator('.death .gem').click();
+  await waitFor((s) => s?.screen === 'camp', 'Town from no-gain death');
+  check(await page.evaluate(() => window.__riddle.engine.save()) === unchanged, 'Town from no-gain death preserves rules and earned state');
 
   // ---- §5 + AD: the report — the bounty line; the `died · trace` chip opens the trace
   const trace = { turns };

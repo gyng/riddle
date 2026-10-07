@@ -80,7 +80,7 @@ try {
     check(/^death −8 ±5$/.test(lead.whole), `a tablet reads its death move beside the count ("${lead.whole}")`);
   }
 
-  // ---- every patch harms: the gem reads `edit`
+  // ---- every patch harms: the gem reads `Town` and returns without applying a patch
   {
     const ps = [{ row: unknown, insert_at: 1, survive: 1, forecast_delta: 0.4, camp_pending: true }, { row: rest, insert_at: 1, survive: 10 / 12, forecast_delta: 0.2, camp_pending: true }];
     const filled = ps.map((p) => ({ ...p, camp_pending: false, forecast_depth: 6, forecast_pm: 0.1, whole: w(0.2, true) }));
@@ -89,7 +89,11 @@ try {
     check(!/tie/.test(await head()) && !(await tied()), `12/12 over 10/12 is no tie ("${await head()}", tied ${await tied()})`);
     await sleep(700);
     const t = await tablets();
-    check(!t.some((x) => x.top) && /edit/i.test(await gemText()), `every tablet harms: none lit, the gem reads edit ("${await gemText()}")`);
+    check(!t.some((x) => x.top) && /^town$/i.test((await gemText()).trim()), `every tablet harms: none lit, the gem reads Town ("${await gemText()}")`);
+    const saved = await page.evaluate(() => window.__riddle.engine.save());
+    await page.locator('.death .gem').click();
+    await waitFor((s) => s?.screen === 'camp', 'Town from harmful patches');
+    check(await page.evaluate(() => window.__riddle.engine.save()) === saved, 'Town leaves the hero setup and earned state unchanged');
   }
 
   // ---- the top two tie, the third does not: `tied`

@@ -111,7 +111,7 @@ async function qaK() {
   check(d.causeBottom <= d.sealTop + 0.5, `the verdict line ends above the seal: nothing under it (line to ${Math.round(d.causeBottom)}, seal from ${Math.round(d.sealTop)})`);
   check(!!d.topPatch && d.topPatch[1] <= d.consoleTop && d.scroll === 0, `the top patch is whole above the console at 400 × 800, unscrolled (${d.topPatch?.map(Math.round).join("–")} ≤ ${Math.round(d.consoleTop)})`);
   check(d.gemN === "100%" && d.gemW === "apply", `the gem reads its number over the word \`apply\` ("${d.gemN}" / "${d.gemW}")`);
-  // death v2 (owner: "too wordy and incomprehensible"): at rest the well answers what · why · what now — the headline, one why line, the lit
+  // Current death: retain known evidence, omit unsupported generic why copy, keep the lit
   // fix and at most one other (short name + effect), the `details` fold shut over the trace; ≤ 25 words in the well
   const rest = await page.evaluate(() => {
     const vis = (e) => !!e && e.getClientRects().length > 0, wc = (t) => t.split(/\s+/).filter((w) => /[a-z0-9]/i.test(w)).length;
@@ -120,8 +120,8 @@ async function qaK() {
     return { why: document.querySelector(".death .death-why")?.textContent, tabs: tabs.length, short: tabs.map((b) => b.dataset.short), trace: vis(document.querySelector(".death .trace-panel")),
       fold: document.querySelector(".death .death-more")?.getAttribute("aria-expanded"), words: wc(document.querySelector(".death-well").innerText) + wc(pseudo) };
   });
-  check(!!rest.why && rest.tabs >= 1 && rest.tabs <= 2 && rest.short.every(Boolean) && !rest.trace && rest.fold === "false" && rest.words <= 25,
-    `the death at rest: why "${rest.why}", ${rest.tabs} fixes (${rest.short.join(" | ")}), trace ${rest.trace ? "shown" : "folded"}, ${rest.words} words`);
+  check(rest.why === '' && rest.tabs >= 1 && rest.tabs <= 2 && rest.short.every(Boolean) && !rest.trace && rest.fold === "false" && rest.words <= 25,
+    `the death at rest omits unsupported why copy: "${rest.why}", ${rest.tabs} fixes (${rest.short.join(" | ")}), trace ${rest.trace ? "shown" : "folded"}, ${rest.words} words`);
   check(d.heads.join(",") === "t,rule,hp,foes", `no empty \`tele\` column (${d.heads.join(",")})`);
   // QA 0c6e126 (qaZ: `died $0` read as "died carrying $0"): the kept and the carried named apart — `died · kept $0 · $111 carried`
   check(/^died · kept \$0 · \$111 carried · bones/.test(d.ledger ?? ""), `a death's line says \`kept $0\` once, no \`keeps 0%\` after it ("${d.ledger}")`);

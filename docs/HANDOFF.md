@@ -1,3 +1,20 @@
+**CUT65 CURRENT DEATH QA — 2026-10-07:**
+
+Full audit53404 terminalFAIL99/117 in1069.8s; /tmp/riddle-cut63-full-client.log.
+No longer live; preserve failures/resource errors, no full-green claim. Repaired
+currentTown vsobsoleteedit expectations inqa9/qa92/qaAA/cut20, unsupportedwhy
+fixture inui:qa; ranking/folds/wordlimits/evidence checks retained. Added visible
+historicalTown click/exactsave/reopen/Escape, no-gain/harmfulTown exactsave.
+First scoped4/5fails broadTownbuttoncount; specificnav fixes. Soloqa9 passes
+assertions but races vanishedSkip locator (30s implicitretry). Sharedwatchcontrol
+snapshotsconnectedvisibleenablednodes; deterministicinline/menu disposal and
+originalownership casesPASS. Final5/5PASS52.6s, syntax/diffpass. CUT65rawlogs.
+Followup screens57/claritywatch17/deathactions22×2 allPASS3/3 in37.5s;
+log /tmp/riddle-cut65-helper-client.log. No live ownedserver/job remains.
+No shippingruntime/core/assetschange,
+deployment orindependent95 claim. Next triage currentreport/explicitsampling/
+manualopening routes andresource failures; lateLegacy content contractqueued.
+
 **CUT64 BROADER CLASS PACING REVIEW — 2026-10-07:**
 
 Owner asks current progression/pacing review. Added example-only class_campaign
@@ -15,9 +32,8 @@ final14campaignsPASS, fastbuild/scopedClippy/diffpass. CurrentbuiltWASMseed11
 opening/Scout/20mreturnwalk37s noerrors; earnedmatureRoguehero sheet400/1440
 exactreadonly/nooverflow/errors, desktopshown. Owned5429previewstoppedafterQA;
 5219retained. CUT64details/provenance. No deployment.
-Fullclientaudit53404 remainsrunning in separateimmutablebuild; logfile
-/tmp/riddle-cut63-full-client.log, lastunrestrictedprocesscheckshowedactive
-layout/legible/qa21children. Continueexacthandle; nofullsuitepassclaim.
+At Cut64 handoff fullclientaudit53404 wasrunning; it is now terminalFAIL99/117.
+Log /tmp/riddle-cut63-full-client.log; Cut65above hascurrenttriage/results.
 
 **CUT63 MANUAL DEATH CONTINUE — 2026-10-07:**
 
@@ -34,11 +50,10 @@ screens showkiller/depth/nooverflow/errors. Early captures intro motion; added
 textcheck initially omittedD4 suffix, corrected diagnostic. CUT63 recordsprovenance.
 Owned5428 stopped;shared5219retained. No deployment; standingpushapproval.
 
-**LIVE FULL CLIENT AUDIT:** exact exec session53404, log
-/tmp/riddle-cut63-full-client.log; TEST_JOBS=3 TEST_HEAVY_WIDTH=1. Last poll
-confirmsrunning, bufferedresults expectedonlyatend. Continuepollinghandle;
-do not restart on quiet output. Latest completedfull remains98/117, not updated
-fromscopedpasses. FullcurrentQA/independentrating95 stillunverified.
+**FULL CLIENT AUDIT COMPLETED (Cut65 followup):** exact exec session53404,
+log /tmp/riddle-cut63-full-client.log; TEST_JOBS=3 TEST_HEAVY_WIDTH=1.
+TerminalFAIL99/117 in1069.8s; preserve rawfailures, do not updatefromscopedpasses.
+FullcurrentQA/independentrating95 stillunverified.
 
 **CUT62 CURRENT QA CONTROLS — 2026-10-07:**
 

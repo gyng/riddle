@@ -187,7 +187,15 @@ try {
   await waitFor((s) => s?.screen === "death", "the kept death");
   await sleep(200);
   check((await sheets()) === 0, "the chronicle sheet closed under the death screen");
-  check((await page.locator("main.death button", { hasText: /^edit$/ }).count()) === 1, "the kept death offers edit (the camp)");
+  const town = page.locator('main.death .console [data-tile="camp"]');
+  check(await town.isVisible() && await town.isEnabled() && /^town$/i.test((await town.innerText()).trim()), "the kept death offers visible Town navigation");
+  const savedDeath = await page.evaluate(() => window.__riddle.engine.save());
+  await town.click();
+  await waitFor((s) => s?.screen === 'camp', 'Town from the kept death', 5000);
+  check(await page.evaluate(() => window.__riddle.engine.save()) === savedDeath, 'Town from a kept death preserves the saved hero setup');
+  await openLogHeirs();
+  await page.locator('.sheet-wrap button.cline.kept').first().click({ timeout: 5000 });
+  await waitFor((s) => s?.screen === 'death', 'reopened kept death');
   await page.keyboard.press("Escape");
   await waitFor((s) => s?.screen === "camp", "camp after Escape on the kept death", 5000);
   check(true, "Escape on the kept death leads back to the camp");
