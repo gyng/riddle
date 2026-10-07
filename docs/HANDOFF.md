@@ -1,3 +1,15 @@
+**BUILD MARKER SHADOW — 2026-10-07:**
+
+Owner asks shadow to follow painted border. Move packed button frame to isolated
+::after background, with alpha drop-shadow on that layer only; parent brightness
+retains hover/press feedback. Transparent layout border preserves hit area;
+connector/text no longer cast frame shadow. Real-WASM GPU first-plot checks PASS
+320/400/1440: visibility, bounds, manual construction and busy dedup. TypeScript
+and diff checks PASS. Screenshots scratchpad/qa-build-shadow shown. No deployment.
+Current watch QA migration remains unfinished/uncommitted; latest isolated qaj
+98s fails purchase opacity only (1 assertion, 0 errors); its CSS correction was
+not present in that built test. Goal95 remains unverified.
+
 **CUT75 REDUCED WINDOW MOTION / DIAGNOSIS CORRECTION — 2026-10-07:**
 
 Cut74 capture suggests opaque surface bug; computed inspection proves centered

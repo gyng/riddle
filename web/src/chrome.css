@@ -201,10 +201,15 @@ html.skin-tablet .pkg-panel .pkg-drill { border: 8px solid transparent; border-i
 html .town-tag.build-marker[role="button"] { min-height: 64px; min-width: 168px; gap: 8px; padding: 4px 10px;
   border: 3px solid #60718b; border-radius: 2px; background: #182034; color: var(--bone);
   box-shadow: inset 0 2px 0 #a4bcd6;
-  /* Border-image has transparent carved corners: shadow the painted alpha. */
   filter: brightness(var(--build-brightness, 1)) drop-shadow(0 var(--build-shadow-y, 4px) 0 #070b14) drop-shadow(0 7px 6px #050914cc); }
 html.skin-button .town-tag.build-marker[role="button"] { border: solid transparent; border-width: 11px 28px;
-  border-image: url('/ui/frames/button.png') 22 78 22 78 fill / 11px 28px stretch; padding: 0 2px; background: none; box-shadow: none; }
+  border-image: none; padding: 0 2px; background: none; box-shadow: none; isolation: isolate;
+  filter: brightness(var(--build-brightness, 1)); }
+/* Shadow only the painted frame's alpha, not the border box, text or plot connector.
+   The transparent layout border above keeps the existing padding and hit area. */
+html.skin-button .town-tag.build-marker[role="button"]::after { content: ''; position: absolute; inset: -11px -28px;
+  z-index: -1; pointer-events: none; background: url('/ui/frames/button.png') center / 100% 100% no-repeat;
+  filter: drop-shadow(0 var(--build-shadow-y, 4px) 0 #070b14) drop-shadow(0 7px 6px #050914cc); }
 .town-tag.build-marker::before { content: ''; position: absolute; left: calc(50% + var(--build-anchor-offset, 0px) - 1px); bottom: calc(100% + 2px);
   height: 13px; width: 2px; background: #b89448; box-shadow: 0 0 0 1px #0d0c14; pointer-events: none; }
 .town-tag.build-marker.marker-above::before { bottom: auto; top: calc(100% + 2px); }
