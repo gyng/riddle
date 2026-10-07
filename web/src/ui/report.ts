@@ -342,7 +342,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     ...(r.bounty.taken ? [/* copy:callout */ `bounty D${r.bounty.depth} · taken $${r.bounty.gold}`] : [bountyText({ ...(L.bounty?.depth === r.bounty.depth ? L.bounty : {}), depth: r.bounty.depth }), h("b", { class: "missed-w" }, /* copy:callout */ " · missed")])) : null;
   // QA a946e04 (T: 3 of 19 runs went from D1, the night's pass unpaid, nothing said so): `D5 short · 3 runs from D1`
   const startShort = r.start_short ? h("div", { class: "start-short-line warn num" }, /* copy:callout */ `${"D" + r.start_short.depth} short · ${r.start_short.runs} runs from ${"D1"}`) : null;
-  const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "rested", " ", spanOf(r.rested_s)) : null;
+  const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "Rest assigned", " ", spanOf(r.rested_s), h("small", null, /* copy:label */ " · Includes pending")) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
     if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped && !r.repeat_short) return null;
@@ -612,8 +612,9 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
   const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
-  const meterTitle = r.runs > 1 ? /* copy:label */ "this night" : /* copy:label */ "this run";
-  details.append(...[pendingSec, tiles, grewBlock(r, heroFace(L), trainingBeats(r.packages)), workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest }), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null, goldLine(), picked, exitLines, rested,
+  const meterTitle = /* copy:label */ "Completed runs";
+  const meterScope = (): HTMLElement => h("span", null, h("span", null, absence ? /* copy:callout */ "Includes before away" : /* copy:label */ "Whole runs"), " · ", h("span", null, /* copy:callout */ "Camp rest separate"));
+  details.append(...[pendingSec, tiles, grewBlock(r, heroFace(L), trainingBeats(r.packages)), workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest }), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null, goldLine(), picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
     section(/* copy:label */ "learned", factChips(learnedFacts.filter((f) => !counterFacts.includes(f)), L.counters ?? [], (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
@@ -653,7 +654,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: readableUnlock(noteText(x.text)), n: x.n })))),
   ].filter((x): x is HTMLElement => !!x));
   detailsBtn.hidden = !details.childElementCount;
-  const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle }) : null);   // desktop: the rules left, the shaft right (wide.css)
+  const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null);   // desktop: the rules left, the shaft right (wide.css)
   const reportWell = h("div", { class: "well report-well" }, sheet);
   const el = h("main", { class: "report frame" }, bar.el, reportWell, cons.el, ...wide.els);
   const gemEl = cons.el.querySelector<HTMLElement>(".gem")!;

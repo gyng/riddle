@@ -1,3 +1,28 @@
+**CUT105 REPORT TIME SCOPE VERIFIED — 2026-10-07:**
+
+Previous turn Cut104c61b4cc pushed. Current Cut105 report meters Completed runs
+with Includes before away (absence) or Whole runs, Camp rest separate; rest
+Rest assigned/Includes pending. Core values unchanged: whole run added at exit,
+assigned rest not elapsed home rest. Optional meterPanel scope parameter only
+report uses. Fragment copy budgets unchanged;callouts3/labels2.
+
+43890 terminal5/5PASS9.2s /tmp/riddle-cut105-client.log: report-time-scope,
+report-reading/actions/exit-depth/death-actions.320/400/1440 fixture20m away,
+1h whole run/30m assigned rest, aggregate and single-exit fallback, exactsave.
+Build51375/typesPASS/copy1768zero/diffPASS. Diagnostic screenshots
+scratchpad/qa-cut105-time/time-{320,400,1440}.png;400inline. No scores.
+
+RemainingQA: empty historical HERO frame beside Corin, not goblin art (visible
+in original). Original request state unrecorded. Cut106 contract/test currently
+uncommitted: deliberately abort hero_rogue portrait on actual death component
+and expect same hero_rogue atlas fallback; original unitIcon has no onerror.
+Failed-before run95867 pending, no component edits yet. Healthy portrait first
+decodes; frame/text/save retained; unknown identity primitive check. Need inspect
+terminal then fix generic unitIcon same-unit fallback, actual checks/screenshots.
+After QA list empty, current broad client + bounded18cases and shippingWASM
+freeze before fresh blind2raters. Original frozen396f6ed:5251 preserved.
+No deployment; goal95active/unverified; isolation keeps desktop focus safe.
+
 **CUT104 COMBAT LOG SIGNAL VERIFIED — 2026-10-07:**
 
 User reaffirmed approval for two independent raters. Use fresh blind agents

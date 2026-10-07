@@ -69,7 +69,7 @@ export function compactLine(sm: SnapMeters | undefined): HTMLElement {
 
 /** The full breakdown of one meter (a fight, a run, a night): damage by side, healing by source, the time split, the rules' shares, the
  *  supplies used, the gold, the blows taken. `rows` names the rules (the set the meter ran). */
-export function meterPanel(m: MeterWire, rows: Row[], o: { title?: string; cls?: string } = {}): HTMLElement {
+export function meterPanel(m: MeterWire, rows: Row[], o: { title?: string; cls?: string; scope?: HTMLElement | string } = {}): HTMLElement {
   const line = (label: string, ...v: (HTMLElement | string)[]): HTMLElement => h("div", { class: "mrow num" }, h("span", { class: "mlab" }, label), " ", h("span", { class: "mval" }, ...v));
   const pets = m.dealt.pets > 0 || m.taken.pets > 0;
   const T = m.time_s, tot = Math.max(0.001, T.fight + T.travel + T.chores + T.rest);
@@ -81,6 +81,7 @@ export function meterPanel(m: MeterWire, rows: Row[], o: { title?: string; cls?:
   const sup = Object.entries(m.supplies).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]);
   return h("section", { class: `meters${o.cls ? ` ${o.cls}` : ""}`, "data-seconds": m.seconds },
     o.title ? h("div", { class: "label mhead" }, o.title, h("small", { class: "dim num" }, ` · ${secs(m.seconds)}`)) : "",
+    o.scope ? h("div", { class: "meter-scope dim" }, o.scope) : "",
     line(/* copy:label */ "dealt", h("b", null, rate1(m.dps_dealt.hero)), " dps", pets ? h("small", { class: "dim" }, ` · ${/* copy:label */ "pets"} ${rate1(m.dps_dealt.pets)} dps`) : "", h("small", { class: "dim" }, ` · ${m.dealt.hero + m.dealt.pets} hp`)),
     line(/* copy:label */ "taken", h("b", null, rate1(m.dps_taken.hero)), " dps", pets ? h("small", { class: "dim" }, ` · ${/* copy:label */ "pets"} ${rate1(m.dps_taken.pets)} dps`) : "", h("small", { class: "dim" }, ` · ${m.taken.hero} hp · ${m.hits_hero} hits`)),
     m.hps > 0 ? line(/* copy:label */ "healed", h("b", null, rate1(m.hps)), " hp/s", h("small", { class: "dim" }, ` · ${[...m.healed].sort((a, b) => b.total - a.total).map((x) => `${x.src} ${x.total} hp`).join(" · ")}`)) : "",
