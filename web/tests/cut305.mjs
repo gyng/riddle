@@ -134,10 +134,17 @@ try {
     check(s.tchest === "closed" && !s.targets.includes("chest"), `day 0: the chest drawn by the mouth, closed and empty — no surface (${s.tchest}; targets ${s.targets.join(",")})`);
     check(s.targets.includes("mouth") && /send/i.test(s.gem), `day 0: the mouth and the gem send (${s.targets.join(",")} · gem "${s.gem.trim()}")`);
     check(!!s.pill && s.pill === s.next?.text && ["send", "count"].includes(s.next?.kind), `day 0: the pill reads the wire's next goal (${s.pill} · ${s.next?.kind}; the contract's order: \`send\` while the hero waits before the scout, else \`porter · n/3\`)`);
-    check(surf.length <= 5 && ["mouth", "tent", "crate", "works"].every((x) => surf.includes(x)) && surf.some((x) => /send/.test(x)), `day 0: ≤ 5 interactive surfaces — mouth, tent, crate, gem, pill (${surf.length}: ${surf.join(" | ")})`);
+    check(surf.length <= 5 && ["mouth", "tent", "Heroes"].every((x) => surf.includes(x)) && surf.some((x) => /send/.test(x)) && surf.every((x) => ["mouth", "tent", "Heroes", "works"].includes(x) || /^send\s*0\/3$/i.test(x)), `day 0: ≤ 5 current surfaces — mouth, tent, Heroes, Send, optional Works (${surf.length}: ${surf.join(" | ")})`);
     const all = await fold();
     check(all.length <= 12, `day 0: ≤ 12 elements above the fold (${all.length}: ${all.join(" | ")})`);
     check(/0\/3/.test(s.gem), `day 0: the gem counts the sends toward the scout (${s.gem.trim()})`);
+    const saveBeforeHeroes = await page.evaluate(() => window.__riddle.engine.save());
+    await page.locator('.hero-expand:visible').click({ timeout: 5000 });
+    await until(() => !!document.querySelector('.heroes-sheet'), 'active Heroes sheet', 5000);
+    check(await page.locator('.heroes-sheet .label').textContent() === 'Active heroes', 'day 0: visible Heroes opens Active heroes');
+    await page.keyboard.press('Escape');
+    await until(() => !document.querySelector('.heroes-sheet'), 'Heroes dismissal', 5000);
+    check(await page.evaluate(() => window.__riddle.engine.save()) === saveBeforeHeroes, 'day 0: opening and dismissing Heroes preserves the exact save');
   }
 
   // ---- the scripted first 10 minutes (§4), step by step — on real (fake) sends

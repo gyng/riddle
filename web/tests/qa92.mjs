@@ -240,7 +240,7 @@ try {
   // ---- the report: one tile order; the shadowed pending line; LEARNED; the gold words; the plateau's floor
   await page.evaluate(() => { window.__riddle.lineage.counters = [{ boss: "goblin_warlord", text: "attack boss", row: { conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "attack", a: "tag:boss" } } }]; });
   const L = await page.evaluate(() => window.__riddle.lineage);
-  const base = { elapsed_s: 3600, runs: 16, sampled: false, bests: [], found: [], deaths: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [],
+  const base = { elapsed_s: 3600, runs: 16, deepest: 6, sampled: false, bests: [], found: [], deaths: [], reel: [], marks_earned: 0, live: null, tamed: [], hatched: [], lost: [],
     xp: { class: L.class, gained: 0, level_ups: 0 }, salvaged: [], renown: { gained: 0, rank: 0, ranks_up: 0 },
     learned: ["foe:stray:lock", "item:ashen=blink", "item:amber=speed", "alert:rising"],
     pending: ["R3 fired 0 of 16 runs: hp < 30% → drink heal · shadowed by R1"],
@@ -254,7 +254,7 @@ try {
     await go({ kind: "report", report: { ...base, banked: b, returned: rt } }); await waitFor((s) => s?.screen === "report", "report"); await sleep(250);
     tileOrder.push((await text(".report .tiles .tile .label")).join(" "));
   }
-  check(tileOrder.every((t) => t === "runs deepest Gold home runs best upgrade tokens full haul runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
+  check(tileOrder.every((t) => t === "runs deepest Gold home runs deepest upgrade tokens full haul runs returned deaths"), `the tiles keep one order whichever leads (${tileOrder.join(" / ")})`);
   const rep = await page.evaluate(() => {
     const sec = (l) => [...document.querySelectorAll(".report .rsec")].find((x) => new RegExp(l, "i").test(x.querySelector(".label")?.textContent ?? ""));
     return { pending: [...(sec("pending")?.querySelectorAll("li") ?? [])].map((l) => l.textContent), items: [...(sec("learned")?.querySelectorAll(".chips.items .chip") ?? [])].map((c) => c.textContent),

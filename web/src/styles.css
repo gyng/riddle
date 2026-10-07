@@ -1758,6 +1758,7 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .legacy-buy:disabled { opacity: .5; }
 .topbar button.legacy { min-height: var(--tap); }
 .heir-identity { display: flex; flex-direction: column; align-items: flex-start; }
+.heir-ordinal { white-space: nowrap; }
 .bloodline-label { font: 11px var(--sans); color: var(--dim); }
 
 /* Wall suggestions show the resulting policy in the same chips as the editor. */

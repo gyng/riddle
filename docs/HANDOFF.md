@@ -1,3 +1,26 @@
+**CUT69 FIRST-SESSION READABILITY AND QA — 2026-10-07:**
+
+Fresh built GPU phone seed7 walk finds actual split header ordinal: `1st`/`heir`
+are separate column-flex items. Group ordinal tooltip/text in nowrap inline
+span; real construction checks320/400/1440 verify same-line geometry, glossary,
+exact text and no overflow. Four opening/worker jobs PASS110.8s after retiring
+obsolete required crate/Works surfaces from legacy fake day0 QA; retain≤5/≤12
+budgets, exact current membership, actual Heroes open/Escape/save checks.
+First-plot extension PASS14.3s; shared claritycore26PASS; qa92 current-wire
+40PASS13.8s. Two qa92 intermediate failures were missing deepest fixture and
+old Details best label; exact order retained with current labels, logs preserved.
+Built/TS/copy1737zero/syntax/diff pass (root build invocation initially fails,
+correct web build passes; existing chunk warning). Fresh scripted real-WASM
+phone walk28.5s: manual house, death, Town, two more sends, earned Scout,20m
+return, nine captures/no browser errors. Trunk uses public engine calls; QA,
+not full rating horizon. Rebuilt phone ordinal/save/nooverflow/errors PASS.
+Corrected first-home screenshot shown. Artifacts scratchpad/qa-cut69-*;
+logs /tmp/riddle-cut69-*. Owned5432 stopped; shared5219 retained.
+No deployment or independent95 claim. Full audit99/117 remains authoritative;
+remaining current run-log/first-session QA routes then immutable cohort prep.
+Late Legacy depth remains a substantive content gap from earned class campaign,
+not fixed by this header/QA cut. Goal95 remains active and unverified.
+
 **CUT67/CUT68 VISIBLE PATHS AND BUILD SHADOW — 2026-10-07:**
 
 Cut67 restores report Details and explicit More samples QA, preserving original
