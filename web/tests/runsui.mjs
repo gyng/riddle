@@ -335,6 +335,7 @@ try {
       for(const expected of [2,3]){
         const before=await page.evaluate(()=>({gold:window.__riddle.lineage.gold,price:window.__riddle.lineage.bloodline_price}));
         await page.locator(`${root} .hero-add`).click();
+        if(await page.locator('.bloodline-confirm').count())await page.locator('.bloodline-confirm').click();
         await until(n=>window.__riddle.lineage.hero_slots.length===n,'paid bloodline founded',15000,expected);
         const after=await page.evaluate(()=>window.__riddle.lineage.gold);
         check(after===before.gold-before.price,`${width}: bloodline ${expected} pays its actual $${before.price} price`);

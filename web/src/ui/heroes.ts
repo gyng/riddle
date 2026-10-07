@@ -5,12 +5,13 @@ import type { HeroSlot, LiveRun } from '../engine/types';
 import { h, replace, spanOf } from './dom';
 import { paintFace } from './frame';
 import { openHero } from './town';
-import { openSheet, closeAllSheets } from './sheet';
+import { openSheet, openWindow, closeAllSheets } from './sheet';
 import { openChronicle } from './chronicle';
 import { kwHost } from './tips';
 import { penOpen } from './packages';
 import {classStyleName} from './class-styles';
 import { heirOrd } from './tokens';
+import { openSettings } from './settings';
 import { heroPresence, type ObservedPresence } from './hero-presence';
 export { heroPresence } from './hero-presence';
 export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
@@ -41,10 +42,21 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   const full=():HTMLElement=>{
     const L=app.lineage,slots=L.hero_slots??[];
     const add=h('button',{class:'chip hero-add',disabled:!app.engine.addBloodline||L.town?.home===false||slots.length>=(L.bloodline_cap??1)||L.gold<(L.bloodline_price??250),onclick:(e:Event)=>{
-      const button=e.currentTarget as HTMLButtonElement;button.disabled=true;
-      if(app.engine.addBloodline)void app.mutate(()=>app.engine.addBloodline!(),/* copy:callout */'Bloodline founded').finally(()=>{
-        if(button.isConnected)button.disabled=!app.engine.addBloodline||app.lineage.town?.home===false||(app.lineage.hero_slots?.length??0)>=(app.lineage.bloodline_cap??1)||app.lineage.gold<(app.lineage.bloodline_price??250);
-      });
+      const button=e.currentTarget as HTMLButtonElement;
+      const found=():void=>{
+        button.disabled=true;
+        if(app.engine.addBloodline)void app.mutate(()=>app.engine.addBloodline!(),/* copy:callout */'Bloodline founded').finally(()=>{
+          if(button.isConnected)button.disabled=!app.engine.addBloodline||app.lineage.town?.home===false||(app.lineage.hero_slots?.length??0)>=(app.lineage.bloodline_cap??1)||app.lineage.gold<(app.lineage.bloodline_price??250);
+        });
+      };
+      if(!app.lineage.tree?.auto_send){found();return;}
+      openWindow(close=>h('div',{class:'sheet-body bloodline-founding'},
+        h('h2',null,/* copy:label */'New bloodline'),
+        h('b',{class:'num gold'},`$${app.lineage.bloodline_price??250}`),
+        h('p',null,/* copy:callout */'Scout sends immediately'),
+        h('div',{class:'chips'},
+          h('button',{class:'chip',onclick:()=>{close();openSettings(app);}},/* copy:button */'Scout settings'),
+          h('button',{class:'chip bloodline-confirm',onclick:()=>{close();found();}},/* copy:button */'Found'))));
     }},/* copy:button */'New bloodline',h('span',{class:'num gold'},` $${L.bloodline_price??250}`));
     return h('div',{class:'hero-list'},...slots.map(row),L.town?.home===false?h('p',{class:'dim'},/* copy:callout */'Build a house'):'',slots.length<(L.bloodline_cap??1)&&L.town?.home!==false?add:'',
       h('button',{class:'chip hero-history',onclick:()=>openChronicle(app)},/* copy:button */'Chronicle'));

@@ -1,3 +1,29 @@
+**CUT102 NEW-BLOODLINE SCOUT WARNING VERIFIED — 2026-10-07:**
+
+Previous turnprogressCut100128c8a3 andCut10199ac3b5pushed. Current UI change
+Newbloodline with actual wiretree.auto_send opens centered price/warning
+Scout sends immediately BEFORE mutation. Found buys; Escape spendsnothing;
+Scoutsettings opens EXISTING settings worker toggles (openWorks has NOtoggles,
+so do not route there). OffScout retains immediate Ready founding. No game,
+workers, roster price, auto-send or core change. Existingrunsui:heroes adjusted
+to click confirmation whenpresent; sameprice/cap/identity checks retained.
+
+1529 existingheroesPASS18.7s; firstnewtestfailed CSS-transformed innerText
+heading comparison, rawtextContent convention corrected. Final66417 terminal
+newrealWASM320/400/1440PASS17.4s: exactsave opening/Escape/settingsreading,
+publicScouttoggle/directReady/confirmedprice/cap/heading. Types50109PASS,
+copy1762zero/diffPASS/build84943PASS. Settled screenshots
+scratchpad/qa-cut102-founding/founding-{320,400,1440}.png, 320showninline.
+Rustunchanged sinceCut100; pkg realfastWASM5521523bytes preserved. No current
+whole-suite/boundednative reacceptanceyet; required before scoringfreeze.
+
+RemainingQAitems: savedsetupfighter misread; Legacy/upgrade-token distinction;
+forge shortcut worker misread; combatdamage source/target; returnduration
+scope; unreproducedemptygoblinportrait; repetitivecorridorlog. Bothreports
+tracked, originalobservations preserved; frozen396f6ed:5251 unchanged. No
+cards/scores or newblindcohort. Next clarify savedsetup/forge/currency purpose
+then combatlog and remainingitems. Goal95active/unverified; no deployment.
+
 **CUT101 REPORT READING POSITION VERIFIED — 2026-10-07:**
 
 Prior turnprogressCut99pushed8aec134; currentturnCut100pushed128c8a3 with
