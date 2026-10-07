@@ -1,26 +1,25 @@
 #!/usr/bin/env node
-// RUNS_UI client gates (docs/RUNS_UI.md §8) — the run lanes, the live watch, the runs log, the replay; headless at 400 × 800 (and
-// 1440 × 900 for the desktop part), RIDDLE_BROWSER=headed for the GPU. Real wasm unless named (`?runs=1`: the open app's clock on under
-// automation).
-//   manual    day 0 before the scout: the lane `waits ▸ send`, `auto` greyed with the scout's count, the gem lit `SEND 0/3`, the lane inert,
-//             the log hidden; ≤ 12 elements above the fold; ≤ 5 surfaces in the well and console (AUTOMATION_TREE §4's day 0)
-//   live      SEND → the watch; `town ↻` leaves it mid-run: the lane reads `live D…` with hp, the run's tick moves on in the town (the
-//             run counter advances); the lane opens the watch on the same run; left again, the run ends in the town and the log holds
-//             it (`via town`), the lane `waits` again (the manual phase: one run a send); the log has one entry from run 1
-//   rests     the scout hired: home after a run the lane reads `rests Nm` with `↻ auto` lit; the gem `send`; due, the next run goes down
-//             by itself (the lane turns `live`)
-//   log       an absence (2 h) after the scout: the log folds it as `away · N runs` (one line until opened), the town's runs as `here`;
-//             the newest fold open; entries carry #, the end, D, $, length; a death's entry opens its verdict (when the fold holds one)
-//   replay    a watched run's events (every step and fold the engine returned, its exit line and trace left out) hash the same as its
-//             replay's; the log's ▶ opens the replay sheet and plays its floors to the end
-//   density   the camp with lanes: ≤ 12 elements above the fold at 400 × 800; the lane's labels ≤ 2 words; no sentences; the new terms tip
-//   heroes    (fake) the lanes render N rows from an array: 1 and 3 heroes; a 4th folds into `+1`; desktop shows them in the centre column
+// Current run UI gates (docs/RUNS_UI.md §8, superseded roster: docs/UX_BLOODLINES.md).
+// Real WASM at 400×800; responsive earned bloodline checks at 320/400/1440×900.
+// RIDDLE_BROWSER=headed selects the GPU. runs=1 enables the actual open-app clock;
+// runs=0 freezes the earned roster fixture while public purchases/selection are tested.
+//   manual    empty town → manual first house → Ready resident; no premature log/auto;
+//             original ≤5 main functions and ≤12 above-fold functions.
+//   live      Town preserves and advances the run; hero jump resumes the same ID;
+//             manual send finishes one run, reachable through Details → Run log.
+//   replay    normal exit/completion, exact watched event hash, full log replay.
+//   rests     scout earned through public sends/hiring; actual rest then automatic send.
+//   log       actual 2h absence, away/here folds, entries, verdict and house Details.
+//   density   original ≤12 above-fold functions, brief labels and bloodline/status tips.
+//   heroes    earned town: paid 1→3 bloodlines, cap refusal, persistent Legacy, mobile
+//             selection and desktop left roster. Display-only live/rest/ready refresh
+//             changes no Rust save; exit-animation ghosts are excluded from selectors.
 //
 //   node web/tests/runsui.mjs [--shots dir] [--part=a,b]      (part of `pnpm test` in web/)
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { pressWatchControl } from "../../tools/watch-control.mjs";
 
@@ -43,7 +42,7 @@ async function open(q, viewport = { width: 400, height: 800 }) {
   page = await browser.newPage({ viewport, deviceScaleFactor: shots ? 2 : 1 });
   page.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errors.push(`console.error: ${m.text()}`); });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
-  await page.goto(`${url}?dev=1&runs=1&${q}`);
+  await page.goto(`${url}?dev=1&${q.includes("runs=")?"":"runs=1&"}${q}`);
   await until(() => window.__riddle?.booted, "boot", 60_000);
 }
 const shot = async (name, ms = 400) => { if (shots) { await page.mouse.move(1, 300); await sleep(ms); await page.screenshot({ path: resolve(shots, `${name}.png`) }); } };
@@ -55,9 +54,9 @@ async function until(pred, label, timeout = 20_000, arg) {
 const camp = async () => { await until(() => window.__riddle?.booted && window.__riddle.screen === "camp" && !!document.querySelector(".town"), "camp", 30_000); await sleep(300); };
 /** Current visible active-hero roster; wire state is rendered by the Hero row. */
 const lanes = () => page.evaluate(() => {
-  const root=document.querySelector(innerWidth>=900?'.hero-desktop':'.hero-mobile');
+  const root=document.querySelector(innerWidth>=1024?'.hero-desktop':'.hero-mobile');
   const rows=[...root?.querySelectorAll('.hero-row')??[]];
-  return {n:window.__riddle.lineage.hero_slots.length, rows:rows.map(row=>{const title=row.querySelector('.hero-action')?.title??'',hp=/^(\d+)\/(\d+) hp/.exec(title);return {state:row.dataset.state,tag:row.tagName,text:row.textContent.replace(/\s+/g,' ').trim(),auto:window.__riddle.lineage.tree?.auto_send?'1':'0',gauge:hp?100*Number(hp[1])/Number(hp[2]):null};}),more:null,
+  return {n:window.__riddle.lineage.hero_slots.length, rows:rows.map(row=>{const title=row.querySelector('.hero-action')?.title??'',hp=/^(\d+)\/(\d+) hp/.exec(title);return {id:Number(row.dataset.slot),state:row.dataset.state,tag:row.tagName,text:row.textContent.replace(/\s+/g,' ').trim(),auto:window.__riddle.lineage.tree?.auto_send?'1':'0',gauge:hp?100*Number(hp[1])/Number(hp[2]):null};}),more:null,
     log:document.querySelector('.hero-runs')?.textContent??null,
     gem:document.querySelector('.console .gem')?.textContent.replace(/\s+/g,' ').trim()??'',pulse:!!document.querySelector('.console .gem.pulse')};
 });
@@ -82,7 +81,7 @@ const fold = (scope = "") => page.evaluate(([SAME, scope]) => {
   const live = document.querySelector(".console .gem[data-live='1']");
   const send = document.querySelector("main.camp .console .gem");
   const key = (b) => send && (b === send || b.dataset.building === "mouth") ? (live ? "watch" : "send") : live && (b === live || b.dataset.building === "mouth" || (b.matches(".lane[data-state=live]") && b === document.querySelector(".lanes .lane"))) ? "watch"
-    : b.classList.contains("lanes-log") || (b.dataset.building === "tent" && (window.__riddle.lineage.runs ?? []).some((r) => r.id > 0)) ? "log"   // (the tent keeps the hero's log: one function)
+    : b.classList.contains("hero-details") || b.dataset.building === "tent" ? "hero-details"   // The house and Details open the same hero menu.
     : b.classList.contains("next-pill") || b.dataset.building === "worker" ? "works" : b.dataset.building ?? (b.dataset.tile ? SAME[b.dataset.tile] ?? `tile:${b.dataset.tile}` : (b.getAttribute("aria-label") || b.textContent || b.className).replace(/\s+/g, " ").trim().slice(0, 24));
   return [...new Set(els.map(key))];
 }, [SAME, scope]);
@@ -225,7 +224,9 @@ try {
   if (part("rests") || part("log") || part("density")) {
     await open(`seed=${Number(process.env.RUNSUI_SEED2 ?? 4102)}&fresh=1`);
     await camp();
-    // the manual phase done by the save: the scout hired (as `hire` would), two hours away
+    await page.locator('.town-tag[data-next="house"]').click();
+    await until(()=>window.__riddle.lineage.town.home===true&&window.__riddle.lineage.hero_slots.length===1&&!document.querySelector('.console .gem')?.disabled,"the first resident before hiring",15000);
+    // Earn scout access through actual manual sends and paid public hire actions.
     await page.evaluate(async () => { const r = window.__riddle; for (let i = 0; i < 3 && !r.lineage.tree.auto_send; i++) { try { r.lineage = await r.engine.hire("scout"); } catch { /* not lit: send by hand */ break; } } });
     let l = await L();
     for (let i = 0; i < 8 && !l.auto; i++) {
@@ -240,7 +241,7 @@ try {
     await camp();
     const s = await lanes();
     await shot("rests");
-    check(s.rows[0]?.state === "rests" && /rests \d+m/.test(s.rows[0].text) && s.rows[0].auto === "1", `home after a run: \`rests Nm\` with \`↻ auto\` lit (${s.rows[0]?.text})`);
+    check(s.rows[0]?.state === "rests" && /Resting \d+[sm]/.test(s.rows[0].text) && s.rows[0].auto === "1", `home after a run: \`rests Nm\` with \`↻ auto\` lit (${s.rows[0]?.text})`);
     check(/send/i.test(s.gem) && !/watch/i.test(s.gem), `resting: the gem sends (${s.gem})`);
     // due: the rest left to a second, the open app's clock sends him down by itself
     await page.evaluate(async () => { const r = window.__riddle; const a = await r.engine.advance(Math.max(0, (r.lineage.rest_left_s ?? 0) - 2) * 1000); void a; r.lineage = await r.engine.lineage(); r.go({ kind: "camp" }); });
@@ -286,8 +287,10 @@ try {
       // the hero's tent keeps his log too
       await page.evaluate(() => { for (const s of document.querySelectorAll(".sheet .close-stud, .sheet .sheet-x")) s.click(); });
       await page.locator('.town-hit[data-building="tent"]').click();
-      const viaTent = await until(() => !!document.querySelector(".runs-sheet"), "the log from the tent", 5000).catch(() => false);
-      check(viaTent, "the hero's tent opens his log");
+      const heroFromTent=await until(()=>!!document.querySelector('.hero-sheet'),'Hero Details from the house',5000).catch(()=>false);
+      if(heroFromTent)await page.locator('.hero-runs:visible').click();
+      const viaTent = await until(() => !!document.querySelector(".runs-sheet"), "Run log from house Details", 5000).catch(() => false);
+      check(heroFromTent&&viaTent, "the hero's house opens Details and its Run log");
       // an entry opens the run's card (run-clear), its ▶ under it
       const anyRun = g.entries.find((e) => !e.verdict);
       if (viaTent && anyRun) {
@@ -302,43 +305,77 @@ try {
       await camp();
       const all = await fold();
       check(all.length <= 12, `the camp with its lane: ≤ 12 elements above the fold (${all.length}: ${all.join(" | ")})`);
-      const lab = await page.evaluate(() => [...document.querySelectorAll(".lanes .ls-w, .lanes .lane-auto, .lanes .ll-l, .runs-fold .rf-w, .console .tile[data-tile=town] .tl")].map((x) => x.textContent.replace(/[↻⊘\d/]/g, "").trim()));
-      check(lab.every((t) => words(t) <= 2), `lane labels ≤ 2 words (${[...new Set(lab)].join(" · ")})`);
-      const tips = await page.evaluate(() => [...document.querySelectorAll(".lanes [data-kwh]")].map((x) => x.dataset.kwh));
-      check(["scout"].every((t) => tips.includes(t)) && tips.some((t) => t === "live" || t === "lane") && tips.includes("log"), `the lane's terms carry tips (${[...new Set(tips)].join(", ")})`);
+      const lab = await page.evaluate(() => [...document.querySelectorAll('.hero-mobile .hero-action, .hero-mobile .hero-details, .hero-mobile .hero-expand')].map(x=>x.textContent));
+      check(lab.length>=3&&lab.every(t=>words(t)<=2), `active hero action labels ≤2 words (${[...new Set(lab)].join(' · ')})`);
+      const tips = await page.evaluate(() => ({terms:[...document.querySelectorAll('.hero-mobile [data-kwh]')].map(x=>x.dataset.kwh),health:document.querySelector('.hero-mobile .hero-action')?.title}));
+      check(tips.terms.includes('bloodline')&&!!tips.health, `the bloodline tooltip and current status detail remain available (${JSON.stringify(tips)})`);
     }
   }
 
-  // ---- heroes: N rows from an array (fake)
+  // ---- heroes: one and three actual paid bloodlines, mobile selection and desktop roster.
   if (part("heroes")) {
-    await open("engine=fake&seed=4103&fresh=1");
-    await camp();
-    // (the main hero live: the lineage's run under way is his, as the core's `live` says)
-    const set = (heroes) => page.evaluate(async (heroes) => { const r = window.__riddle; const e = JSON.parse(await r.engine.save()); e.lineage.heroes = heroes; e.lineage.live = heroes[0]?.state === "live" ? { run_id: 9, heir: e.lineage.heir, depth: heroes[0].depth, start: 1, hp: heroes[0].hp, max_hp: heroes[0].max_hp, turn: 120 } : null; r.lineage = await r.engine.load(JSON.stringify(e)); await r.refresh(); r.go({ kind: "camp" }); }, heroes);
-    const H = (i, state) => ({ id: `h${i}`, name: ["1st heir", "Ysolde", "Brann", "the Fens"][i], state, depth: state === "live" ? 3 + i : undefined, hp: state === "live" ? 20 : undefined, max_hp: state === "live" ? 36 : undefined, rest_s: state === "rests" ? 600 : undefined, auto: true, kind: i === 3 ? "expedition" : "hero" });
-    await set([H(0, "live")]); await camp();
-    let s = await lanes();
-    check(s.n === 1 && s.rows.length === 1 && s.more === null, `one hero: one row (${s.rows.map((r) => r.text).join(" | ")})`);
-    await set([H(0, "live"), H(1, "rests"), H(2, "waits")]); await camp();
-    s = await lanes();
-    await shot("heroes-3");
-    check(s.n === 3 && s.rows.length === 3 && s.rows.map((r) => r.state).join() === "live,rests,waits", `three heroes: three rows, each its state (${s.rows.map((r) => r.state).join(", ")})`);
-    const all = await fold();
-    check(all.length <= 12, `three lanes: ≤ 12 elements above the fold (${all.length}: ${all.join(" | ")})`);
-    await set([H(0, "live"), H(1, "rests"), H(2, "waits"), H(3, "live")]); await camp();
-    s = await lanes();
-    check(s.rows.length === 3 && s.more === "1", `a fourth lane folds into \`+1\` (${s.more}; rows ${s.rows.length})`);
-    // desktop: the same lanes in the centre column
-    await open("engine=fake&seed=4103", { width: 1440, height: 900 });
-    await set([H(0, "live"), H(1, "rests"), H(2, "waits")]); await camp();
-    const d = await page.evaluate(() => { const l = document.querySelector(".lanes")?.getBoundingClientRect(); const t = document.querySelector(".town")?.getBoundingClientRect(); return l && t ? { l: [l.left, l.right, l.top], t: [t.left, t.right, t.bottom] } : null; });
-    await shot("heroes-desktop");
-    check(!!d && d.l[0] >= d.t[0] - 2 && d.l[1] <= d.t[1] + 2 && d.l[2] >= d.t[2] - 4, `desktop: the lanes under the town in the centre column (${JSON.stringify(d)})`);
+    const engine=readFileSync(resolve(ROOT,'web/tests/fixtures/earned-gunner-home.json'),'utf8');
+    for(const width of [320,400,1440]){
+      await open('seed=4103&fresh=1&runs=0',{width,height:900});
+      check(await page.evaluate(async engine=>window.__riddle.importSave(JSON.stringify({v:2,engine,loadout:[],last_seen:Date.now(),runs:0})),engine),'actual earned save imported without grants');
+      await camp();
+      let s=await lanes();
+      check(s.n===1&&s.rows.length===1,`${width}: one active bloodline renders one hero`);
+      if(width<1024)await page.locator('.hero-mobile .hero-expand').click();
+      const root=width<1024?'.sheet-wrap:not([hidden]) .heroes-sheet':'.hero-desktop';
+      for(const expected of [2,3]){
+        const before=await page.evaluate(()=>({gold:window.__riddle.lineage.gold,price:window.__riddle.lineage.bloodline_price}));
+        await page.locator(`${root} .hero-add`).click();
+        await until(n=>window.__riddle.lineage.hero_slots.length===n,'paid bloodline founded',15000,expected);
+        const after=await page.evaluate(()=>window.__riddle.lineage.gold);
+        check(after===before.gold-before.price,`${width}: bloodline ${expected} pays its actual $${before.price} price`);
+        if(width<1024)check(await page.locator('.sheet-wrap:not([hidden]) .heroes-sheet .row-label').evaluateAll(nodes=>nodes[0]?.textContent??null)==='Active heroes',`${width}: paid founding preserves the Active heroes heading`);
+      }
+      const rows=await page.locator(`${root} .hero-row`).evaluateAll(rows=>rows.map(row=>({id:Number(row.dataset.slot),state:row.dataset.state,name:row.querySelector('.hero-info b')?.textContent,xp:row.querySelector('.hero-xp')?.textContent,icon:!!row.querySelector('.class-icon'),face:!!row.querySelector('.hero-thumb'),details:!!row.querySelector('.hero-details')})));
+      const slots=await page.evaluate(()=>window.__riddle.lineage.hero_slots);
+      check(rows.length===3&&rows.every(row=>slots.some(slot=>slot.id===row.id&&slot.state===row.state)&&row.name&&row.xp&&row.icon&&row.face&&row.details),`${width}: all three actual active slots retain identity, state, XP, icon, portrait and Details`);
+      check(await page.locator(`${root} .hero-add`).count()===0,`${width}: full roster offers no fourth bloodline`);
+      const refused=await page.evaluate(async()=>{const a=window.__riddle,before=await a.engine.save();let failed=false;try{await a.engine.addBloodline();}catch{failed=true;}return failed&&(await a.engine.save())===before;});
+      check(refused,`${width}: fourth bloodline is refused with exact save preservation`);
+      if(width===400){
+        const observed=await page.evaluate(async()=>{
+          const a=window.__riddle,before=await a.engine.save();
+          const slots=a.lineage.hero_slots;
+          // Controlled presentation only: Rust state/save is never edited.
+          slots[0].state='live';slots[0].live={run_id:7,heir:slots[0].heir,depth:13,start:1,hp:20,max_hp:36,turn:100,activity:'combat'};
+          slots[1].state='rests';slots[1].rest_s=600;slots[2].state='waits';
+          a.emitLive();
+          const rowStates=[...document.querySelectorAll('.sheet-wrap:not([hidden]) .heroes-sheet .hero-row')].map(row=>row.dataset.state);
+          const text=[...document.querySelectorAll('.sheet-wrap:not([hidden]) .heroes-sheet .hero-action')].map(row=>row.textContent);
+          const unchanged=(await a.engine.save())===before;
+          await a.refresh();
+          return {rowStates,text,unchanged};
+        });
+        check(observed.rowStates.join()==='live,rests,waits'&&observed.text.join()==='D13 · In combat,Resting 10m,Ready'&&observed.unchanged,`open Heroes tracks live/rest/ready wire changes without gameplay mutation: ${JSON.stringify(observed)}`);
+      }
+      await shot(`heroes-${width}`);
+      if(width<1024){await page.locator('.sheet-wrap:has(.heroes-sheet) .close-stud:visible').click();await page.locator('.sheet-wrap:has(.heroes-sheet)').waitFor({state:'detached'});await page.locator('.hero-mobile .hero-expand').click();await page.locator('.sheet-wrap:not([hidden]) .heroes-sheet [data-slot="3"] .hero-jump').click();}
+      else await page.locator('.hero-desktop [data-slot="3"] .hero-jump').click();
+      await until(()=>window.__riddle.lineage.selected_bloodline===3,'hero row selects its bloodline',15000);
+      const selected=await page.evaluate(()=>window.__riddle.lineage.hero_slots.find(slot=>slot.id===3));
+      check((await lanes()).rows.some(row=>row.id===3&&row.state===selected.state&&row.text.includes('Ready')),`${width}: jump selects bloodline 3 with its actual ${selected.state} state and Ready action`);
+      if(width<1024)await page.locator('.hero-mobile .hero-expand').click();
+      await page.locator(`${root} [data-slot="2"] .hero-details`).click();
+      await until(()=>!!document.querySelector('.hero-sheet')&&window.__riddle.lineage.selected_bloodline===2,'Details selects the requested bloodline',15000);
+      check(await page.locator('.sheet-wrap:not([hidden]) .hero-sheet .row-label').textContent()==='Bloodline 2',`${width}: Details opens the correct bloodline menu`);
+      await page.locator('.sheet-wrap:has(.hero-sheet) .close-stud:visible').click();
+      await page.locator('.sheet-wrap:has(.hero-sheet)').waitFor({state:'detached'});
+      check(await page.evaluate(expected=>JSON.stringify(window.__riddle.lineage.hero_slots.map(({id,legacy})=>({id,legacy})))===expected,JSON.stringify(slots.map(({id,legacy})=>({id,legacy})))),`${width}: selecting heroes preserves each bloodline's Legacy`);
+      const geometry=await page.evaluate(()=>{const roster=document.querySelector('.hero-desktop').getBoundingClientRect(),town=document.querySelector('.town').getBoundingClientRect();return {left:roster.right<=town.left+1,overflow:document.documentElement.scrollWidth>innerWidth};});
+      check(!geometry.overflow&&(width<1024||geometry.left),`${width}: mobile stays compact and desktop heroes occupy the left panel (${JSON.stringify(geometry)})`);
+      if(width<1024){const all=await fold();check(all.length<=12,`${width}: three bloodlines retain ≤12 above-fold functions (${all.length}: ${all.join(' | ')})`);}
+    }
   }
 } catch (e) {
   check(false, `threw: ${e.message}`);
 }
 await browser.close();
+if(errors.length)check(false,`browser emitted ${errors.length} errors`);
 for (const l of out) console.log(l);
 for (const e of errors.slice(0, 10)) console.log(`note ${e}`);
 console.log(failed ? `runsui: ${failed} FAIL` : "runsui: all ok");

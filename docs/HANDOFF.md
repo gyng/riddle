@@ -1,3 +1,20 @@
+**CUT76 ACTIVE HEROES / FULL RUNUI — 2026-10-07:**
+
+Fix actual open Heroes window: retain Active heroes heading after paid founding
+and repaint from existing roster onChange/onLive. Earn scout through public
+sends/hires; verify rest launch, actual2h report/history and house Details→log.
+Replace retired fake4lanes with actual earned-save paid1→3 bloodlines at320/
+400/1440: exact gold costs, cap refusal/save preservation, identities/XP/icons,
+selection/Details and unchanged slot Legacy, desktop left/mobile<=12functions.
+Display-only mixed-state refresh leaves Rust save identical. Active sheet-wrap
+selectors exclude inert exit ghosts. Ready automated slots have actual rests
+wire state with zero time, not manual waits; assert actual state and action.
+All7RunUI sections PASS64.2s isolated/headedGPU. Build/TS/copy1742zero/syntax/
+diff/watch-helper PASS. Screenshots scratchpad/qa-cut76-heroes shown. Full client
+audit live via unified session12370, log/tmp/riddle-cut76-client-audit.log;
+poll same handle, do not restart on silence. Previous99/117 remains full audit
+evidence until terminal result. No Rust/WASM/deploy/95claim; goal active.
+
 **CUT76 WATCH/OPENING QA CHECKPOINT — 2026-10-07:**
 
 Restore original disabled purchase opacity .4 through chunky CSS. Harness allows

@@ -99,3 +99,34 @@ geometry screenshot400 shown; artifacts scratchpad/qa-cut76. Logs/tmp/riddle-
 cut76-*. Rust/core/WASM unchanged. No deployment or independent fun score.
 Remaining RunUI rests/log/density/heroes sections require migration/verification;
 full historical99/117 audit is not superseded by these scoped successes.
+
+
+## Active heroes and complete RunUI checkpoint — 2026-10-07
+
+Paid founding exposed an actual Heroes window defect: replacing its body removed
+“Active heroes”, and later roster changes did not repaint the open window.
+Keep the heading and refresh the connected window through the roster's existing
+onChange/onLive paint. Re-enable an attached founding button after a refused
+mutation using current affordability/cap; no gameplay or Rust changes.
+
+Replace retired fake-four-lanes coverage with an actual untrimmed earned town,
+public paid founding from one to three bloodlines at320/400/1440, exact price
+checks, fourth-slot refusal with exact save preservation, hero jump and Details
+selection, unchanged per-slot Legacy, desktop left placement, no overflow and
+original <=12 mobile above-fold functions. Current Rust cap is3; unsupported
+fourth-lane folding is explicitly retired, not claimed as tested. Controlled
+live/rest/ready display changes test open-window refresh only and leave the
+Rust save identical. Actual automated new heroes show Ready with wire state
+rests at zero remaining time; assert actual identity/state and Ready action,
+not manual-only waits. Scope windows to real visible sheet-wrap elements:
+exit animations clone their contents into inert sheet-ghosts.
+
+Scout/rest/history/density tests earn automation through actual public sends
+and paid hires, not save grants. House opens Details then Run log. Counts and
+replay links are inspected after a real2h absence. Browser errors now fail the
+suite. All seven RunUI sections together PASS64.2s on isolated no-HMR server
+(headed GPU); prior full run failed only the three manual-state assumptions.
+Build, TypeScript, copy1742zero, syntax, diff and watch-control checks PASS.
+Responsive GPU screenshots shown from scratchpad/qa-cut76-heroes. Full client
+audit is running separately; these checks do not certify the historical full
+suite or an independent fun score. No deployment;95 remains unverified.

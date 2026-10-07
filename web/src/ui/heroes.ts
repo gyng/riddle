@@ -16,6 +16,7 @@ export { heroPresence } from './hero-presence';
 export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   const el=h('section',{class:'hero-roster','aria-label':/* copy:label */'Active heroes'});
   let key='';
+  let sheetBody:HTMLElement|undefined;
   let observed: ObservedPresence | undefined;
   const observedSlot = app.lineage.selected_bloodline ?? 1;
   const focus=async(s:HeroSlot):Promise<void>=>{
@@ -40,12 +41,18 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
   const full=():HTMLElement=>{
     const L=app.lineage,slots=L.hero_slots??[];
     const add=h('button',{class:'chip hero-add',disabled:!app.engine.addBloodline||L.town?.home===false||slots.length>=(L.bloodline_cap??1)||L.gold<(L.bloodline_price??250),onclick:(e:Event)=>{
-      const button=e.currentTarget as HTMLButtonElement,body=button.closest(".heroes-sheet");button.disabled=true;
-      if(app.engine.addBloodline)void app.mutate(()=>app.engine.addBloodline!(),/* copy:callout */'Bloodline founded').then(ok=>{if(ok&&body)replace(body,full());});
+      const button=e.currentTarget as HTMLButtonElement;button.disabled=true;
+      if(app.engine.addBloodline)void app.mutate(()=>app.engine.addBloodline!(),/* copy:callout */'Bloodline founded').finally(()=>{
+        if(button.isConnected)button.disabled=!app.engine.addBloodline||app.lineage.town?.home===false||(app.lineage.hero_slots?.length??0)>=(app.lineage.bloodline_cap??1)||app.lineage.gold<(app.lineage.bloodline_price??250);
+      });
     }},/* copy:button */'New bloodline',h('span',{class:'num gold'},` $${L.bloodline_price??250}`));
     return h('div',{class:'hero-list'},...slots.map(row),L.town?.home===false?h('p',{class:'dim'},/* copy:callout */'Build a house'):'',slots.length<(L.bloodline_cap??1)&&L.town?.home!==false?add:'',
       h('button',{class:'chip hero-history',onclick:()=>openChronicle(app)},/* copy:button */'Chronicle'));
   };
+  const sheetContents=()=>[h('div',{class:'label row-label'},/* copy:label */'Active heroes'),full()];
+  const openHeroes=():void=>{openSheet(()=>{
+    sheetBody=h('div',{class:'sheet-body heroes-sheet'},...sheetContents());return sheetBody;
+  },{onClose:()=>{sheetBody=undefined;}});};
   const paint=():void=>{
     const L=app.lineage;const slots=L.hero_slots??[];
     const next=JSON.stringify([slots.map(s=>[s.id,s.name,s.hero_name,s.look,s.heir,s.class,s.specialization,s.level,s.xp,s.next,s.state,s.live?.depth,s.live?.hp,heroPresence(s,observed),spanOf(s.rest_s),s.notice]),L.gold,L.town?.home,L.selected_bloodline]);
@@ -53,7 +60,8 @@ export function heroRoster(app:App, hooks:{focus?():void;rules?():void}={}) {
     const current=slots.find(s=>s.id===L.selected_bloodline);
     replace(el,h('header',{class:'hero-roster-head'},h('h2',null,/* copy:label */'Heroes'),hooks.rules&&penOpen(L)?h('button',{class:'chip',onclick:hooks.rules},/* copy:button */'Rules'):''),
       h('div',{class:'hero-desktop'},full()),
-      h('div',{class:'hero-mobile'},current?row(current):'',h('button',{class:'hero-expand game-control',onclick:()=>openSheet(()=>h('div',{class:'sheet-body heroes-sheet'},h('div',{class:'label row-label'},/* copy:label */'Active heroes'),full()))},/* copy:button */'Heroes')));
+      h('div',{class:'hero-mobile'},current?row(current):'',h('button',{class:'hero-expand game-control',onclick:openHeroes},/* copy:button */'Heroes')));
+    if(sheetBody?.isConnected)replace(sheetBody,...sheetContents());
   };
   const off=app.onChange(paint),offLive=app.onLive(paint),timer=window.setInterval(paint,1000);paint();
   return {el,paint,setPresence:(live:LiveRun,ended=false)=>{if(observed&&live.run_id===observed.live.run_id&&live.heir===observed.live.heir&&live.turn<observed.live.turn)return;observed={slot:observedSlot,live,ended};paint();},dispose:()=>{off();offLive();clearInterval(timer);}};
