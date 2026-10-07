@@ -1,3 +1,41 @@
+**CUT107 GATE SIGNAL RECOVERY / LIVE ACCEPTANCE — 2026-10-07:**
+
+Last turn29e5866 pushed2QAfixes anddebuggerevidence. Currentturn Cut107:
+readResult requiresintegerexit/stringoutput; writes skipstatusnull, oldnull
+cachemiss; termination signalprinted (including targeted). Gate thresholds,
+seeds/runtimekeys/sims unchanged; crashnotfixed/waived. Existing recovery test
+fixturemissingruntime-key stub corrected, nowtests interruption/completedreuse/
+corruptcache/oldnull/SIGSEGV evenPASSoutput/nocache/retryonlyunfinished/
+completednumericfailure preserved. HosttestPASS0.75s; defaultsandbox hides
+childstderr (minimalprobe1/empty) so diagnosticasserthostrequired. Addedtest
+into verify sidechecks; shell/node syntax anddiffPASS.
+
+Actualrecovered fullgatesPASS0.15s /tmp/riddle-cut107-gate-recovery.log;
+metrics8rows/qa10seed cachedgenuinepass, dayplayer18barsfrom completed same
+binary/key debuggerjobs. OriginalSIGSEGV37.7s stillunexplained. Copied original
+statusnull+fullverifyfailurelog scratchpad/qa-cut107-native. Never promote this
+cache recovery to a fix for native memory failure.
+
+LIVE wholeclient session26736 hostrunnerPID2089539 /tmp/riddle-ad71-client-full.log:
+first fights48/cut1377/claritydeep/card/corewatch/hold/qaj PASS sofar. Initially
+logemptybecausefirstfights166s; don'trestart. Appsourceunchanged duringrun.
+NEW dependentacceptance session30634 waits ONLYhostPID2089539gone then
+GATES_THREADS16 tools/verify.sh--full /tmp/riddle-cut107-full-verify.log;
+ifgreen, fullGATES_THREADS16 node tools/gates.mjs--full--fresh to
+/tmp/riddle-ad71-native-fresh.log. Needterminalfresh evidence beforeblind.
+No heavy native work alongside clienttiming. Verifyqueuecanrun evenbrowser
+failed (independentchecks); blindneedsBOTHterminalgreen.
+
+Frozen localpreviewsession35869 :5252, dirscratchpad/blind-ad71-frozen/dist,
+248assets allservedhashes verified. Manifestbb923bc23c32d6824a64f16c265a8911d133bd03b28594eab1b3ff919d86ae7e;
+shippingWASM5c065978c9a8014f8cde3b6d14dd1e73c7a5deb575a44019bd0c39b08f1b87fd
+4280168bytes. Original396f6ed5251unchanged. Cohortcontractstate frozenlocally/
+acceptanceincomplete/no playerreleased; freshseeds73/89,drivers5354/5355.
+Coldshippingdiagnostic session12765 /tmp/riddle-ad71-cold.log separateseed101,
+shot scratchpad/blind-ad71-frozen/cold-101.png pendinginspect. No QA/scoring
+agents spawned; existingQA agentscompletedmustNOTreuseforblind. Goal95active
+unverified;nodeployment/focusstealing. Nativeerrorreportedcandidly.
+
 **ACCEPTANCE CHECKPOINT UPDATE:** Debugger52707 nowTERMINAL0. Log confirms
 same compiled18case dayplayer allPASS and inferior exitednormally. Original
 SIGSEGV remains unexplained, notfixed/waived. Wholebrowser queue session26736

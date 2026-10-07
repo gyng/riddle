@@ -1,22 +1,31 @@
 {
   "kind": "Independent blind scoring; precommitted before play",
-  "status": "preparing; no player released",
+  "status": "frozen locally; acceptance incomplete; no player released",
   "build": "ad71e72909bba18cd06e2f8185302ea57f2d0a4b",
   "preset": "idle-hybrid",
   "profile": null,
   "tier": 1,
   "url": "http://127.0.0.1:5252/",
-  "manifest": null,
-  "manifestSha256": null,
-  "shippingWasmSha256": null,
+  "manifest": "scratchpad/blind-ad71-frozen/manifest.json",
+  "manifestSha256": "bb923bc23c32d6824a64f16c265a8911d133bd03b28594eab1b3ff919d86ae7e",
+  "shippingWasmSha256": "5c065978c9a8014f8cde3b6d14dd1e73c7a5deb575a44019bd0c39b08f1b87fd",
   "horizon": {
     "activeMinutes": 70,
     "coldMinutes": 40,
     "firstUnnotedMinutes": 10,
     "returns": [
-      {"absence": "20m", "activeMinutes": 5},
-      {"absence": "4h", "activeMinutes": 5},
-      {"absence": "8h", "activeMinutes": 20}
+      {
+        "absence": "20m",
+        "activeMinutes": 5
+      },
+      {
+        "absence": "4h",
+        "activeMinutes": 5
+      },
+      {
+        "absence": "8h",
+        "activeMinutes": 20
+      }
     ],
     "deathsReadMinimum": 3,
     "writtenRuleAttemptsMinimum": 2,
@@ -24,10 +33,29 @@
     "runsParam": 1,
     "measurement": "Timestamp active observation/play intervals per phase; exclude infrastructure, unattended waits and card-writing; actual wall-clock active play, not simulated time"
   },
-  "input": {"browser": "headed GPU through shared private X display launcher; no WSL desktop window", "viewport": [400,800], "dpr": 3, "callBudget": 200, "imageReadBudget": 120},
+  "input": {
+    "browser": "headed GPU through shared private X display launcher; no WSL desktop window",
+    "viewport": [
+      400,
+      800
+    ],
+    "dpr": 3,
+    "callBudget": 200,
+    "imageReadBudget": 120
+  },
   "players": [
-    {"name": "blind_a", "seed": 73, "driverPort": 5354, "card": "eval/cards/ad71e72.blind-a.json"},
-    {"name": "blind_b", "seed": 89, "driverPort": 5355, "card": "eval/cards/ad71e72.blind-b.json"}
+    {
+      "name": "blind_a",
+      "seed": 73,
+      "driverPort": 5354,
+      "card": "eval/cards/ad71e72.blind-a.json"
+    },
+    {
+      "name": "blind_b",
+      "seed": 89,
+      "driverPort": 5355,
+      "card": "eval/cards/ad71e72.blind-b.json"
+    }
   ],
   "beforePlay": [
     "All original396f6ed QA items repaired or reasoned deviations recorded in remediation ledger",
@@ -41,7 +69,13 @@
   "scoring": {
     "criterionBeforeAxes": true,
     "humanProbes": 16,
-    "anchors": [0,0.3,0.6,0.8,1],
+    "anchors": [
+      0,
+      0.3,
+      0.6,
+      0.8,
+      1
+    ],
     "oneAnchorRequires": "No material lapse across completed horizon and named genre benchmark",
     "rawCardsImmutable": true,
     "botCaps": "Coordinator applies measured current gate table to separate derived cards after raw cards lock; never edit raw awards",
@@ -51,5 +85,6 @@
     "delayedRecall": "Empty until next-day question; same-day retelling separate",
     "limitedHorizon": "Any missing duration, death, honest rule attempt or browser/input constraint is recorded; incomplete horizon cannot certify the goal"
   },
-  "deployment": false
+  "deployment": false,
+  "nativeFailure": "Original fullverify native SIGSEGV; same18cases pass debugger and completed-job gate recovery. Root cause unresolved; fresh repro/acceptance still required before release."
 }

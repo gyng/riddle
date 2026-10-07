@@ -67,10 +67,14 @@ if (compiler.status !== 0) throw new Error("cannot identify simulation compiler"
 const srcKey = runtimeKey(coreArtifact, process.cwd(), compiler.stdout) + (balance ? `:balance:${createHash("sha256").update(balance).digest("hex")}` : "");
 const jobEnv = { RIDDLE_SRC_KEY: srcKey, ...(fresh ? { RIDDLE_CACHE_FRESH: "1" } : {}) };
 const readResult = (file) => {
-  try { return JSON.parse(readFileSync(file, "utf8")); }
+  try {
+    const r = JSON.parse(readFileSync(file, "utf8"));
+    return Number.isInteger(r?.status) && typeof r.stdout === "string" ? r : null;
+  }
   catch { return null; }   // missing/corrupt cache is a miss, never evidence
 };
 const writeResult = (file, result) => {
+  if (!Number.isInteger(result.status)) return; // Signals are interruptions, not completed legs.
   mkdirSync("target/gates", { recursive: true });
   const temporary = `${file}.tmp-${process.pid}`;
   writeFileSync(temporary, JSON.stringify({ status: result.status, stdout: result.stdout }));
@@ -90,9 +94,10 @@ if (rows) {
     res = await new Promise((resolve) => {
       const p = spawn("target/fast/examples/dayplayer", args, { stdio: ["ignore", "pipe", "inherit"], env: { ...process.env, ...jobEnv } });
       let out = ""; p.stdout.on("data", (d) => (out += d));
-      p.on("close", (status) => resolve({ status, stdout: out }));
+      p.on("close", (status, signal) => resolve({ status, signal, stdout: out }));
     });
     writeResult(leg, res);
+    if (res.signal) console.error(`gates: targeted dayplayer terminated by ${res.signal}`);
   }
   const out = res.stdout ?? "";
   const from = out.lastIndexOf("\nfail-fast:") >= 0 ? out.lastIndexOf("\nfail-fast:") : out.lastIndexOf("\nbar (targeted");
@@ -135,7 +140,7 @@ const finishLeg = (leg, promise) => {
   return promise.then((result) => {
     if (!hit[leg]) keep(leg, result);
     pendingLegs.delete(leg);
-    console.error(`gates: ${leg} ${hit[leg] ? "cached" : `finished in ${((Date.now() - started) / 1000).toFixed(1)}s`} (exit ${result.status})`);
+    console.error(`gates: ${leg} ${hit[leg] ? "cached" : `finished in ${((Date.now() - started) / 1000).toFixed(1)}s`} (exit ${result.status}${result.signal ? `; signal ${result.signal}` : ""})`);
     return result;
   });
 };
@@ -159,7 +164,7 @@ const run = (bin, args, signal, env) => {
         }
       });
     }
-    p.on("close", (status) => { if (signal && buf) process.stderr.write(buf); started(); resolve({ status, stdout: out }); });
+    p.on("close", (status, terminationSignal) => { if (signal && buf) process.stderr.write(buf); started(); resolve({ status, signal: terminationSignal, stdout: out }); });
   });
   return { ready, done };
 };
