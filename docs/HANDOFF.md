@@ -11,8 +11,13 @@ independently confirms femaledecode; visible existing-session portrait check sti
 pending. Treat original blank observations as infrastructure lapse, not proven
 app failure; retain evidence and exclude recovery time from active horizon.
 
-QA-b ~38actualactive cold minutes,3deathsread,2fights/2fast,scout/porter/4+choices;
-no absences/cards yet. QA-a continuing cold after exclusions. Both remain active
+QA-b completed40actualcold minutes (~43.5elapsed after exclusions),3deathsread,
+2fights/2fast,scout/porter/4+choices;20mabsence now completed1run/D21/$9479,
+BloatMother/Lich defeated, Rogue+649XP/+1level/+22Legacy. Return screenshot
+scratchpad/fun-396f6ed-qa-b/shots/return-20m.png shown;5minreturn audit underway.
+No complete70min horizon/cards. QA-a trainedcounter normalrun actually cleared
+Warlord/D12; unresolved earlier captive·ally vs D11 attackcaptive/fell without
+observed allegiancechange, not yet established bug. Preserve independent report. QA-a continuing cold after exclusions. Both remain active
 on immutable396f6ed; no game/source hints, only same-server recovery notice.
 Remediation ledger eval/qa/396f6ed.remediation.json records4repairs/provenance,
 no score or complete-QA claim. Full current source client regression LIVE
