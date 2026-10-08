@@ -1,0 +1,42 @@
+{
+  "candidate": "c4705f9",
+  "applicationCommits": [
+    "2e2729f",
+    "c4705f9"
+  ],
+  "status": "accepted for blind cohort 2026-10-08",
+  "frozen": {
+    "dir": "scratchpad/blind-108b-frozen/dist",
+    "url": "http://127.0.0.1:5253/",
+    "files": 248,
+    "manifestSha256": "88742662c6832403483b009eff39041b18ca6607238b087d79a95bfc52357760",
+    "servedHashes": "248/248 match",
+    "engine": "wasm (shipping, window.__riddle.kind)",
+    "gpu": "ANGLE D3D12 NVIDIA RTX 3080, private X display"
+  },
+  "native": {
+    "cargoTests": "690 passed, 0 failed, 1 ignored",
+    "clippy": "clean",
+    "gates": "node tools/gates.mjs --full --fresh: all PASS except dayplayer 'Workers pay the away player' (28.86 vs 29.33 mean best), recorded deviation docs/CUT110_PEN_AND_WALL_TACTICS.md §4",
+    "log": "/tmp/riddle-c110-gates.log"
+  },
+  "browser": {
+    "full": "127/130 (/tmp/riddle-c110-client.log); qaj (clock rewind on queued floor load, fixed c4705f9), combat-identity (premise was the removed −0 hp row; check now stricter), runclear (seed 1 now dies; seed 2) — rechecked: qaj combat-identity runclear watch-live-edge cut13 cut24 cut25 cut27 clarity:hold ui:stall pass; fights 48/48 solo after one label-layout flake under load"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-108b-frozen/briefs/a.txt",
+      "scratchpad/blind-108b-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      131,
+      149
+    ],
+    "drivers": [
+      5356,
+      5357
+    ],
+    "toolBudget": 260
+  },
+  "score": "pending"
+}
