@@ -1320,7 +1320,7 @@ fn mirror_rhythm_availability_is_earned_read_only_and_equipping_is_explicit() {
     let mut g=Game::new_resident(5);
     let before=g.save();
     let card=|g:&Game|g.lineage().packages.all.into_iter().find(|p|p.id=="cadence").unwrap();
-    assert!(!card(&g).owned);assert_eq!(card(&g).trigger,"Clear dungeon");
+    assert!(!card(&g).owned);assert_eq!(card(&g).trigger,"meet Mirror King");
     assert!(!packages::candidates(&g.lineage).iter().any(|c|c.0=="cadence"));
     assert!(g.equip_package("cadence",0).is_err());assert_eq!(g.save(),before);
     g.lineage.ended=true;g.lineage.kills.insert("goblin_warlord".into());
@@ -1421,7 +1421,7 @@ fn tactic_lock_names_the_remaining_progression() {
     let mut g = Game::new_resident(7);
     let trigger = |g: &Game, id: &str| g.lineage().packages.all.into_iter().find(|p| p.id == id).unwrap().trigger;
     assert_eq!(trigger(&g, "thief_guard"), "slay Warlord");
-    assert_eq!(trigger(&g, "cadence"), "Clear dungeon");
+    assert_eq!(trigger(&g, "cadence"), "meet Mirror King");
     g.lineage.kills.insert("goblin_warlord".into());
     assert_eq!(trigger(&g, "boss_focus"), "next send");
     assert_eq!(trigger(&g, "thief_guard"), "bosses or days");
@@ -1565,4 +1565,112 @@ fn a_tactic_variant_is_the_players_pick_from_l3() {
     let w = packages::wire(&g.lineage);
     let p = w.all.iter().find(|p| p.id == "boss_focus").unwrap();
     assert_eq!((p.variants.len(), p.variant), (2, Some(1)));
+}
+
+/// Blind 1fb7786 (A: the Mother slain, the pen `locked · Upcoming reports` for the session's last 20 min; owner:
+/// the pen opens at the Mother met): the pen's group opens at the first report after her meeting, whatever the
+/// one-system-a-report budget has queued before it.
+#[test]
+fn the_pen_opens_at_the_mother_met_past_the_reveal_queue() {
+    let mut g = Game::new_resident(7);
+    // a report whose budget is spent, with other systems ready and waiting
+    g.lineage.kills.insert("goblin_warlord".into());
+    g.lineage.facts.insert("foe:goblin_captain".into());
+    g.lineage.clock_s = 30 * 3600;
+    g.lineage.reveal_left = 0;
+    crate::systems::update(&mut g.lineage, false);
+    assert!(!g.lineage.reveal_queue.is_empty(), "the queue holds the systems waiting");
+    assert!(!g.lineage.pkg.pen_open);
+    // the Mother met: the pen opens at once, the budget still spent
+    g.lineage.pkg.meets.insert("bloat_mother".into(), 1);
+    let opened = crate::systems::update(&mut g.lineage, false);
+    assert!(opened.iter().any(|s| s == "pen"), "{opened:?}");
+    assert!(g.lineage.pkg.pen_open, "the pen opens at the Mother met");
+    assert!(g.lineage().packages.pen_needs.is_empty());
+    assert!(!g.lineage.reveal_queue.iter().any(|s| crate::systems::PEN.contains(&s.as_str())));
+}
+
+/// Blind 1fb7786 (A: `COUNTER: CADENCE` with `Mirror rhythm ⊘ Clear dungeon`): the Mirror King's counter arrives
+/// when the King is met (as Cut 110's wall tactics do), announced, and can be slotted.
+#[test]
+fn mirror_rhythm_arrives_when_the_king_is_met() {
+    let mut g = Game::new_resident(5);
+    g.lineage.kills.insert("goblin_warlord".into());
+    let _ = packages::arrive(&mut g.lineage);
+    assert!(!g.lineage.pkg.owned.contains("cadence"));
+    assert!(g.equip_package("cadence", 0).is_err());
+    g.lineage.pkg.meets.insert("mirror_king".into(), 1);
+    let new = packages::arrive(&mut g.lineage);
+    assert!(new.iter().any(|id| id == "cadence"), "{new:?}");
+    g.equip_package("cadence", 0).unwrap();
+    assert!(g.lineage.rules().rows.iter().any(|r| r.origin.as_deref() == Some("tactic:cadence")));
+}
+
+/// Blind 1fb7786 (A: `try: attack boss` beside `boss focus ⊘ slay Warlord`, circular): a counter's suggestion is only
+/// what the player can take now — the row with the pen open, else the package carrying it once arrived, else the
+/// drill to come; never a locked package.
+#[test]
+fn counter_suggestions_offer_only_what_can_be_taken() {
+    let mut g = Game::new_resident(7);
+    let row = crate::facts::counter_row("goblin_warlord");
+    // the Warlord unslain, the pen shut: nothing to take — the drill comes
+    let (text, can) = packages::counter_offer(&g.lineage, "goblin_warlord", &row);
+    assert_eq!((text.as_str(), can), (packages::COUNTER_WAIT, false));
+    assert!(text.split(' ').count() <= 3);
+    // boss focus arrived (it carries `attack boss`): the package by name
+    g.lineage.kills.insert("goblin_warlord".into());
+    let _ = packages::arrive(&mut g.lineage);
+    assert!(g.lineage.pkg.owned.contains("boss_focus"));
+    assert_eq!(packages::counter_offer(&g.lineage, "goblin_warlord", &row), ("boss focus".to_string(), true));
+    // the King's: Mirror rhythm once he is met
+    let king = crate::facts::counter_row("mirror_king");
+    assert!(!packages::counter_offer(&g.lineage, "mirror_king", &king).1);
+    g.lineage.pkg.meets.insert("mirror_king".into(), 1);
+    assert_eq!(packages::counter_offer(&g.lineage, "mirror_king", &king), ("Mirror rhythm".to_string(), true));
+    // the pen open: the row itself, as before
+    g.lineage.pkg.pen_open = true;
+    assert_eq!(packages::counter_offer(&g.lineage, "goblin_warlord", &row), ("attack boss".to_string(), true));
+    // the forecast's `try` reads the same offer
+    let mut h = Game::new_resident(7);
+    h.lineage.facts.insert(crate::facts::boss_counter_fact("goblin_warlord"));
+    let rules = h.lineage.rules().clone();
+    match crate::forecast::try_row(&h, &rules, 9) {
+        Some(t) => assert_eq!(t.text, packages::COUNTER_WAIT, "no locked package named"),
+        None => assert!(crate::trace::has_counter_verb(&rules, &row), "a try unless the set holds the counter"),
+    }
+}
+
+/// Take control (a secondary mode): the world waits at the hero's turn for the player's action, a step moves him,
+/// a released run plays its rules again, and a sim or an absence never waits.
+#[test]
+fn take_control_waits_for_the_player_and_releases() {
+    let mut g = Game::new_resident(5);
+    g.send();
+    g.step(3);
+    g.take_control(true).unwrap();
+    let r = g.step(50);
+    let run = g.run.as_ref().unwrap();
+    assert!(run.awaiting && r.snapshot.awaiting, "the world waits for the player");
+    let (t0, p0) = (run.turn, run.hero.pos);
+    g.step(50);
+    assert_eq!(g.run.as_ref().unwrap().turn, t0, "no input, no time");
+    let open = [(1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1)].into_iter().find(|(dx, dy)| {
+        let q = crate::geom::Pos::new(p0.x + dx, p0.y + dy);
+        let r = g.run.as_ref().unwrap();
+        r.floor.map.can_step(p0, q) && !r.occupied(q)
+    }).expect("an open tile");
+    g.act(crate::engine::Manual::Step { dx: open.0, dy: open.1 }).unwrap();
+    g.step(50);
+    let run = g.run.as_ref().unwrap();
+    assert_eq!(run.hero.pos, crate::geom::Pos::new(p0.x + open.0, p0.y + open.1), "the step was the player's");
+    assert!(run.turn > t0 && run.awaiting, "time passed for one action, then waits again");
+    // a forecast's sim plays the rules
+    let mut s = g.sim_clone();
+    let t1 = s.run.as_ref().unwrap().turn;
+    s.step(20);
+    assert!(s.run.as_ref().is_none_or(|r| r.turn > t1 && !r.manual), "a sim never waits");
+    g.take_control(false).unwrap();
+    let t2 = g.run.as_ref().unwrap().turn;
+    g.step(30);
+    assert!(g.run.as_ref().is_none_or(|r| r.over.is_some() || r.turn > t2), "released, the rules play on");
 }

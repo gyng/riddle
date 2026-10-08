@@ -158,6 +158,12 @@ pub fn pen_needs(l: &LineageState) -> Vec<String> {
     needs
 }
 
+/// Blind 1fb7786: a system of the pen's group whose trigger (the Mother met) has come — it opens outside the
+/// one-a-report budget (the 5-day fallback alone still waits its turn in the queue).
+pub fn pen_due(l: &LineageState, id: &str) -> bool {
+    PEN.contains(&id) && triggered(l, id, false)
+}
+
 /// `update`, the age gates and the reveal budget on (`gate`) or off (an old save's upgrade, a harness).
 /// Cut 30 (PROGRESSION_V2 §4): at most `LineageState::reveal_left` new systems a report — a unit is the
 /// run of systems that share a trigger (the blacksmith's three, the pen's group) — the rest wait in
@@ -178,7 +184,9 @@ pub fn update_with(l: &mut LineageState, plateau: bool, gate: bool) -> Vec<Strin
         if unit.is_empty() {
             continue;
         }
-        let free = unit.iter().all(|u| DAY0.contains(&u.id));
+        // (blind 1fb7786, A: the Mother slain, the pen `locked · Upcoming reports` for the session's last 20 min —
+        // owner: the pen opens at the Mother met; its group never waits in the one-a-report queue)
+        let free = unit.iter().all(|u| DAY0.contains(&u.id) || pen_due(l, u.id));
         if gate && !free && l.reveal_left == 0 {
             queue.push(unit[0].id.to_string());
             continue;

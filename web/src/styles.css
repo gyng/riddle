@@ -695,6 +695,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .row.tablet .grip { font-size: 10px; color: #445d86; }
 .row.tablet .rn { margin: 0; font: 700 13px/1 var(--display); color: #aea48c; text-shadow: 0 1px 2px var(--ink); }
 .row.tablet .updown .step { width: 24px; font-size: 10px; }
+.row.tablet .chips > .pen-end-note { flex-basis: 100%; font-size: 11px; color: var(--dim); }   /* blind 1fb7786 (B): the pen ends here; the packages follow */
 .row.tablet .x { font-size: 20px; }
 /* rater A on c4705f9 (× "needed a double tap with no cue"): armed, the × reads `drop` in the warning red and the tablet is ringed */
 .row.tablet .x.armed { color: #ffc4be; font-size: 13px; font-weight: 600; border: 1px solid #fdaea8; border-radius: 4px; padding: 0 8px; background: rgba(147, 0, 18, .35); }

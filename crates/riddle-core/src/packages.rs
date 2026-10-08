@@ -85,7 +85,7 @@ pub const PACKAGES: &[PackageDef] = &[
     tactic("thief_guard", "thief guard"),
     tactic("gas_step", "gas step"),
     tactic("pack_break", "pack break"),
-    PackageDef { id: "cadence", kind: Kind::Tactic, name: "Mirror rhythm", card: Some("cadence"), trigger: "Clear dungeon", temperament: None },
+    PackageDef { id: "cadence", kind: Kind::Tactic, name: "Mirror rhythm", card: Some("cadence"), trigger: "meet Mirror King", temperament: None },
     // Cut 110 (cohort ad71e72: "nothing addressed the golem wall"; the owner: tactics, not the pen, are the
     // player's tuning): a wall's counter is a tactic that arrives when the wall is met, beside the drip
     PackageDef { id: "reflect_read", kind: Kind::Tactic, name: "mirror read", card: Some("reflect_read"), trigger: "meet a reflector", temperament: None },
@@ -830,8 +830,41 @@ pub fn temperament_open(l: &LineageState) -> bool {
 
 /// Equip a package in its slot (a tactic in `slot` 0/1). Free and instant; refused when it has not
 /// arrived or its slot is closed.
+/// The words for "wait": a boss's counter that only his drill can bring (the pen closed, no package of it here).
+pub const COUNTER_WAIT: &str = "wait for drill";
+
+/// Blind 1fb7786 (A: `try: attack boss` beside `boss focus ⊘ slay Warlord` — circular): what a player can take now
+/// against `boss`'s counter `row`, in ≤ 3 words, and whether it is takeable: the row itself with the pen open; the
+/// package that carries it when one has arrived (`boss focus`, `mirror read`); a revoked drill restored; else the
+/// drill to come (`wait for drill`, not takeable) — never a package still locked.
+pub fn counter_offer(l: &LineageState, boss: &str, row: &Row) -> (String, bool) {
+    if l.pkg.literal || l.pkg.pen_open {
+        return (crate::facts::counter_text(row), true);
+    }
+    let carries = |id: &str| {
+        let d = def(id);
+        let card = d.and_then(|d| d.card).unwrap_or(id);
+        let lv = l.pkg.level(id).max(1);
+        let v = l.pkg.variants.get(id).copied().unwrap_or(0);
+        row.verb == Verb::arg("tactic", id)
+            || tactic_rows_v(id, lv, v).iter().any(|r| r.verb == row.verb)
+            || crate::meta::unlock_rows(card).is_some_and(|rows| rows.iter().any(|r| r.verb == row.verb))
+    };
+    if let Some(d) = PACKAGES.iter().find(|d| d.kind == Kind::Tactic && available(l, d.id) && tactic_slots(l) > 0 && carries(d.id)) {
+        return (d.name.to_string(), true);
+    }
+    if l.pkg.drills.iter().any(|d| d.boss == boss && d.revoked) {
+        return ("restore drill".into(), true);
+    }
+    (COUNTER_WAIT.into(), false)
+}
+
+/// The Mirror King's counter (blind 1fb7786, A: `COUNTER: CADENCE` with `Mirror rhythm · ⊘ Clear dungeon` — a
+/// counter that could not be slotted): it arrives when the King is met, as Cut 110's wall tactics do (and stays
+/// with a cleared dungeon, as before).
 fn rhythm_available(l: &LineageState) -> bool {
-    l.ended || l.endgame.as_ref().is_some_and(|p| p.cleared.is_some())
+    let king = "mirror_king";
+    l.ended || l.endgame.as_ref().is_some_and(|p| p.cleared.is_some()) || l.pkg.meets.get(king).copied().unwrap_or(0) > 0 || l.facts.contains(&format!("foe:{king}")) || l.kills.contains(king)
 }
 fn available(l: &LineageState, id: &str) -> bool {
     l.pkg.owned.contains(id) || id == "cadence" && rhythm_available(l)

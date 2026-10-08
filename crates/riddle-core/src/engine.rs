@@ -50,10 +50,24 @@ pub fn set_capsules(on: bool) {
 }
 
 /// RUNS_UI: a player's input inside a live run, replayed at its tick (`Game::replay`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Input {
     Choose(u32),
     Bail,
+    /// Take control: on or off.
+    Control(bool),
+    /// Take control: the hero's next action.
+    Act(Manual),
+}
+
+/// Take control: one hand-chosen action — a step (dx, dy: a foe there is attacked), a verb as the rules write
+/// it (`drink heal`, `throw fire`, `descend`, `return`, `attack lowest` …), or a wait.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "k", rename_all = "snake_case")]
+pub enum Manual {
+    Step { dx: i32, dy: i32 },
+    Verb { verb: crate::rules::Verb },
+    Wait,
 }
 /// RUNS_UI: a real run's send, kept to re-simulate it — the game as `start_run` left it, the events
 /// it left pending, and the inputs the run took.
@@ -752,6 +766,15 @@ pub struct Run {
     /// §5: `bail()` queued a `return` for the next hero action.
     #[serde(default)]
     pub bail: bool,
+    /// Take control (owner 2026-10-08, a secondary mode): the player chooses the hero's actions in the watched run —
+    /// the world waits at each of his turns for `act` (`awaiting`), the rules rest until `take_control(false)`.
+    /// Never in a sim or an absence (the rules take it back there: `Game::tick_inner`).
+    #[serde(default)]
+    pub manual: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual_act: Option<Manual>,
+    #[serde(default)]
+    pub awaiting: bool,
     /// §4: sleeping dens the hero has seen (the chores keep two tiles clear of them, and
     /// their gold is not the chores' to fetch) — unless greed has been tempted this floor.
     #[serde(skip)]
@@ -2210,7 +2233,7 @@ impl LineageState {
     }
     /// Cut 29 §4: the standing orders, read off the lineage.
     pub fn standing_orders(&self) -> crate::wire::StandingOrders {
-        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure }
+        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone() }
     }
     /// The categories an unwatched exit keeps, in order (`Game::auto_keep`).
     pub fn keep_auto(&self) -> Vec<String> {
@@ -3236,6 +3259,8 @@ impl Game {
                         Input::Choose(id) => {
                             let _ = g.choose(*id);
                         }
+                        Input::Control(on) => { let _ = g.take_control(*on); }
+                        Input::Act(a) => { let _ = g.act(a.clone()); }
                         Input::Bail => g.bail(),
                     }
                 }
@@ -3526,6 +3551,33 @@ impl Game {
                 self.input(id, t, Input::Bail);
             }
         }
+    }
+
+    /// Take control (a secondary mode): the player chooses the watched run's hero actions until released.
+    pub fn take_control(&mut self, on: bool) -> Result<(), String> {
+        let run = self.run.as_mut().filter(|r| r.over.is_none()).ok_or("no run")?;
+        run.manual = on;
+        if !on {
+            run.manual_act = None;
+            run.awaiting = false;
+        }
+        let (id, t) = (run.id, run.turn);
+        self.input(id, t, Input::Control(on));
+        Ok(())
+    }
+
+    /// Take control: the hero's next action (the world waits for it at his turn).
+    pub fn act(&mut self, a: Manual) -> Result<(), String> {
+        let run = self.run.as_mut().filter(|r| r.over.is_none() && r.manual).ok_or("not in control")?;
+        if let Manual::Step { dx, dy } = a {
+            if dx.abs() > 1 || dy.abs() > 1 || (dx == 0 && dy == 0) {
+                return Err("one step".into());
+            }
+        }
+        run.manual_act = Some(a.clone());
+        let (id, t) = (run.id, run.turn);
+        self.input(id, t, Input::Act(a));
+        Ok(())
     }
 
     /// RUNS_UI: an input the live run took, on its capsule (replayed at its tick).
@@ -4081,6 +4133,9 @@ impl Game {
             first_stray: self.lineage.first_stray().map(|(d, n)| (d.max(start), n)).filter(|(_, n)| !self.lineage.named_resting(n, id)),
             strays_tamed: Vec::new(),
             bail: false,
+            manual: false,
+            manual_act: None,
+            awaiting: false,
             dens: Vec::new(),
             tempted: false,
             rows_why: Vec::new(),
@@ -4315,6 +4370,10 @@ impl Game {
                 run_over = true;
                 break;
             }
+            // take control: the world waits for the player's action
+            if self.run.as_ref().is_some_and(|r| r.awaiting) {
+                break;
+            }
         }
         let mut out = self.step_result(events, run_over);
         out.calm = crate::fold::calm_spans(&calm);
@@ -4370,6 +4429,13 @@ impl Game {
     fn tick_inner(&mut self) {
         if self.run.as_ref().is_none_or(|r| r.over.is_some()) {
             return;
+        }
+        // Take control is the watched run's alone: a sim (a forecast, a verdict's replay) or an absence plays the rules
+        if (self.sim || self.lineage.in_absence) && self.run.as_ref().is_some_and(|r| r.manual) {
+            let r = self.run.as_mut().unwrap();
+            r.manual = false;
+            r.manual_act = None;
+            r.awaiting = false;
         }
         if !self.sim && self.run.as_ref().unwrap().turn.is_multiple_of(HISTORY_STRIDE) && !NO_HISTORY.with(|c| c.get()) {
             let r = self.run.as_ref().unwrap();
@@ -4640,6 +4706,8 @@ impl Game {
             run: RunRef { id: run.id, heir: run.heir, started_turn: run.started_turn, start: run.start.max(1), passage: run.passage },
             stake: Stake { loot: run.loot, brought, return_row, kept, stalling: run.stuck_fires > 0, returning: run.homeward.is_some(), death_keep: run.kept(ExitTier::Death), swapped: run.swapped, swap_left: run.swap_left.last().cloned() },
             vision: run.vision(&l.unlocks),
+            manual: run.manual,
+            awaiting: run.awaiting,
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
                 items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
                 left: (t0 + VAULT_GRACE).saturating_sub(run.turn),
@@ -5577,7 +5645,7 @@ impl Game {
             // an `order` drive-off — the rows above it that acted in the fight kept it from its turn.
             let (held, over) = crate::trace::driven_order_in(self.lineage.rules(), &row, &run.trace);
             let verdict = if held.is_some() { "order" } else { "no counter" };
-            let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: verdict.into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::facts::counter_text(&row), row, run_id: run.id, hp: run.hero.hp, max_hp: run.hero.max_hp, lost: line.carried - line.kept, held, over };
+            let d = crate::wire::DrivenOff { boss: kind.clone(), title: crate::sifter::boss_short(kind).into(), depth: run.depth, verdict: verdict.into(), defence: crate::facts::boss_trait(kind).into(), counter: crate::packages::counter_offer(&self.lineage, kind, &row).0, row, run_id: run.id, hp: run.hero.hp, max_hp: run.hero.max_hp, lost: line.carried - line.kept, held, over };
             if !self.sim {
                 self.batch.drives.push(d.clone());
                 while self.batch.drives.len() > EXITS_CAP {

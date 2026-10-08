@@ -984,7 +984,9 @@ impl Play {
                     }
                     // (the purse keeps the shelf's money: three units — a few sends' potions at depth)
                     let reserve = 3 * riddle_core::kit::unit(g.lineage.best_depth) as i32;
-                    if !riddle_core::tree::on(&g.lineage, "apprentice") && forge_due(g, reserve) && ask.has("forge") {
+                    // (blind 1fb7786: the apprentice's `half` order leaves the rest of the purse to the player's own taps)
+                    let apprentice_all = riddle_core::tree::on(&g.lineage, "apprentice") && riddle_core::tree::forge_share(&g.lineage).is_none();
+                    if !apprentice_all && forge_due(g, reserve) && ask.has("forge") {
                         forge(g, reserve);
                     }
                     // Cut 30.5: the chores by hand until their worker: the herald's swap, the guide's start, the pets

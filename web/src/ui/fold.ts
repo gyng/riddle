@@ -113,7 +113,7 @@ export class FoldTally {
       const key = vc.items.map((i) => i.id).join(",");
       if (!this.cages.has(key)) { this.cages.add(key); const pick = vc.items.find((i) => i.id === vc.pick) ?? vc.items[0]; add("took", /* copy:callout */ `took ${short(pick.label)}`, s.turn); }
     }
-    const loot = s.stake?.loot ?? s.loot;
+    const loot = carriedOf(s);
     if (this.loot0 === undefined) this.loot0 = loot;   // (the watch sets it from the snapshot before the fold)
     this.loot = loot;
   }
@@ -141,4 +141,10 @@ export class FoldTally {
     const gain = this.loot - (this.loot0 ?? this.loot);
     return `${span}${share}${gain !== 0 ? ` · ${gain > 0 ? "+" : "−"}$${Math.abs(gain)}` : ""}`;
   }
+}
+
+/** blind 1fb7786 (A): the run's carried gold as the core counts it (`Run::carried`: the checkpoints' secured gold with the carry at risk
+ *  since) — the strip's `Carried`, the card's `carry`, a fold's gain; a checkpoint moves gold between its parts, never out of it. */
+export function carriedOf(s: { loot: number; stake?: { loot: number; death_keep?: number } }): number {
+  return s.stake ? Math.max(0, s.stake.loot) + (s.stake.death_keep ?? 0) : s.loot;
 }

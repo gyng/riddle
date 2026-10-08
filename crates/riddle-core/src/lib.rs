@@ -157,7 +157,7 @@ impl Game {
     pub fn seen_systems(&mut self) {
         self.lineage.systems_new.clear();
     }
-    /// Cut 29 §4: the standing orders at once (`keep`, `cage`, `start`, `repeat`, `insure`); each
+    /// Cut 29 §4: the standing orders at once (`keep`, `cage`, `start`, `repeat`, `insure`, `forge`); each
     /// through its own setter, so each keeps its rules (an unknown keep is refused; the repeat
     /// off refunds the shelf).
     pub fn set_orders(&mut self, o: &crate::wire::StandingOrders) -> Result<(), String> {
@@ -166,8 +166,12 @@ impl Game {
         if o.start != self.lineage.start.max(1) {
             self.set_start(o.start)?;
         }
+        if !crate::wire::FORGE_ORDERS.contains(&o.forge.as_str()) {
+            return Err("unknown forge order".into());
+        }
         self.set_restock(o.repeat);
         self.lineage.orders.insure = o.insure;
+        self.lineage.orders.forge = o.forge.clone();
         Ok(())
     }
     /// Cut 28 §2: the camp's move against the set sent, attributed to state and rows

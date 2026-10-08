@@ -29,7 +29,21 @@ try {
   if(shots){await page.waitForTimeout(400);await page.screenshot({path:`${shots}/rules-lock-${width}.png`});}
   await page.keyboard.press('Escape');await body.waitFor({state:'detached'});
   if(!await page.evaluate(async()=>await window.__riddle.engine.save()===window.__rulesLockSave))throw Error('Reading lock changed save');
+  // blind 1fb7786 (A, B: `Custom rules · locked → Upcoming reports`): the chip names what it waits for; every gate met, it opens next report
+  const chip=(await page.locator('.pkg-pen-lock').innerText()).replace(/\s+/g,' ').trim();
+  if(!/Custom rules · after Bloat Mother$/.test(chip))throw Error(`Lock chip must name the boss gate: ${chip}`);
   await page.keyboard.press('Escape');
+  await page.evaluate(async()=>{const a=window.__riddle; a.lineage.packages.pen_needs=['Upcoming reports'];const {openPackages}=await import('/src/ui/packages.ts');openPackages(a)});
+  await page.locator('.pkg-advanced > summary').click();
+  await page.locator('.pkg-rows-btn').click();
+  const ready=(await page.locator('.pkg-pen-lock').innerText()).replace(/\s+/g,' ').trim();
+  if(!/Custom rules · next report$/.test(ready))throw Error(`Ready lock chip must say next report: ${ready}`);
+  await page.locator('.pkg-pen-lock').click();
+  const readyText=await page.locator('.pkg-pen-needs').innerText();
+  if(!readyText.includes('opens next report')||/upcoming/i.test(readyText))throw Error(`Ready lock must read opens next report: ${readyText}`);
+  const tip=await page.evaluate(async()=>{const c=await import('/src/ui/concepts.ts');const a=window.__riddle;const locked=c.LIVE.pen(a);a.lineage.packages.pen_open=true;const open=c.LIVE.pen(a);a.lineage.packages.pen_open=false;return {gloss:c.TIP.pen,locked,open};});
+  if(/later|unlock/i.test(tip.gloss)||tip.locked!=='next report'||tip.open!==null)throw Error(`Pen tip must be live, not stale: ${JSON.stringify(tip)}`);
+  await page.keyboard.press('Escape');await page.keyboard.press('Escape');
   await page.evaluate(async()=>{const a=window.__riddle; a.lineage.packages.pen_open=true;const {openPackages}=await import('/src/ui/packages.ts');openPackages(a)});
   await page.locator('.pkg-advanced > summary').click();
   await page.locator('.pkg-rows-btn').click();

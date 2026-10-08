@@ -141,9 +141,10 @@ import { drivenDeath, exitExtras } from "./death";
 import { laneTitle, seenForks } from "./route";
 import { oathBeat } from "./oaths";
 import { lastRun, markEnd, recordRun } from "./runlog";
-import { FoldTally, foldFloors, stretchShare } from "./fold";
+import { FoldTally, carriedOf, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
+import { controlPanel } from "./control";   // take control (a secondary mode): the hero by hand
 import { kwHost } from "./tips";   // RUNS_UI: the live badge's tip
 import { goldWords } from "./gold-words";
    // RUNS_UI: the town tile's first-watches caption
@@ -213,6 +214,7 @@ const DEAD_JUMP_MS = 2500, DEAD_JUMP_WALL_MS = 1200, JUMP_LAND = 15;
 // cage, the exit flow, a fold) is landed live and the card let go — whatever held it, the watch never freezes
 const STUCK_MS = 4000;
 const CALM_MIN = 10;                // Cut 28 §3: a core calm stretch this long (ticks, 1 s at 1×) or more plays as travel
+const RISE_FREE = 16, RISE_MS = 150;   // blind 1fb7786 (B): the clock jumps freely up to the fights travel; past it, it doubles at most every RISE_MS
 const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
 /** Cut 25 §3 (AN: ~55 s of max hp draining 41 → 17 with only numbers moving): a drain — the hero's hp or max hp falling with no blow
  *  (hunger, poison, a curse). The core's `drain` (its word, or `true`) when it sends one, else a cause the word table knows. A drain is
@@ -517,11 +519,14 @@ export function renderWatch(app: App): Mounted {
   const watchLabel = h("span", { class: "watch-status-label" }, /* copy:label */ "Live delve");
   const watchDetail = h("span", { class: "lb-auto" }, " · ", /* copy:label */ "continues away");
   const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), watchLabel, watchDetail), "live");
+  // take control: the panel (a toggle, the pad, the turn's actions); an action kicks one engine step (the world waits for the next)
+  let manualKick = false;
+  const ctl = controlPanel(app.engine as unknown as Parameters<typeof controlPanel>[0], () => { manualKick = true; });
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine,
       h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
       meterBox, banner, h("div", { class: "watch-messages" }, whyTip, ticker, whyLine, tactics.el, combatLog)),
-    cons.el, ...wide.els);
+    ctl.el, cons.el, ...wide.els);
 
   let viewer: Viewer | null = null;
   let mode: Mode = mode0, paused = false, slowUntil = -Infinity, lastHp = NaN;
@@ -567,6 +572,8 @@ export function renderWatch(app: App): Mounted {
   // Cut 24 §1: the engine ticks where the watch moved — a blow that landed, a hurt, a drink, a kill, a pickup, a descent (ascending)
   const progress: number[] = [];
   let deadFrom = -1, lastJumpAt = 0, jumps = 0, stuckTick = -1, stuckAt = 0, unsticks = 0;   // QA ad71e72: the dead stretch's wall start, the jumps, the stuck-picture watchdog
+  let keepClose: (() => void) | null = null;   // blind 1fb7786: the open keep sheet's close (it keeps the ticked picks) — the gem's tap goes on through it
+  let riseAt = 0;                     // blind 1fb7786: when the clock last eased up (`eased`)
   let deadSince = -1;                 // Cut 18 §1: `fast` — when the current dead stretch began (wall ms; -1 none): its rate ramps
   let chore: { text: string; n: number; shown: string; depth: number } | null = null;   // Cut 14 §4: the chore callout streak on the ticker (`pick up ×8`)
   const rowFires: number[] = [];      // Cut 14 §4: this run's `rule` events per row (the death screen's least-fired row)
@@ -678,7 +685,7 @@ export function renderWatch(app: App): Mounted {
 
   let statusKey = "";
   function paintWatchStatus(): void {
-    const state = watchStatus(hud.depth, snap?.depth ?? hud.depth, paused, !!held || !!exitTier);
+    const state = snap?.manual && !held && !exitTier ? { kind: "live", label: /* copy:label */ "Hand control", detail: snap.awaiting ? /* copy:label */ "awaits order" : /* copy:label */ "acting" } : watchStatus(hud.depth, snap?.depth ?? hud.depth, paused, !!held || !!exitTier);
     const key = `${state.kind}:${state.label}:${state.detail}`;
     if (key === statusKey) return;
     statusKey = key;
@@ -776,7 +783,10 @@ export function renderWatch(app: App): Mounted {
       lootWhy = why; }
     lastLoot = st.loot; lastLootRun = s.run.id; lastLootTurn = s.turn; lastSwapped = st.swapped ?? 0; lastSecured = secured;
     // QA 1a2a4a9 (O: the bar's `$0` and the line's `$3 · death: lose all` on one screen, "neither labelled"): the run's own purse says so
-    const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "Carried"), ` $${st.loot}`];
+    // blind 1fb7786 (A: `Carried $0 · Secured $6988`, then `Carried $1329` — "don't reconcile"): `Carried` is the core's own carried
+    // (`Run::carried`: the secured gold with the carry since — the exit line's `$N carried`), so a checkpoint never reads as a fall to $0
+    // and Secured is always the part of Carried a death keeps; the stake's `loot` is only the carry at risk
+    const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "Carried"), ` $${Math.max(0, st.loot) + secured}`];
     if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? `${lootWhy === "left" ? " " : " → "}${lootItem.replace(/_/g, " ")}` : ""}`));
     parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `Secured $${secured}`));
     if (st.returning ?? walkingHome) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "Heading home"));
@@ -1355,7 +1365,7 @@ export function renderWatch(app: App): Mounted {
     const passage = way ? hudSnap?.run.passage ?? snap?.run.passage ?? 0 : 0;
     const text = way ? /* copy:callout */ `D${d}${title ? ` · ${title}` : ""} · waystone${passage > 0 ? ` · +$${passage} passage` : ""}`
       // QA 912e135 (qaX: `D2 · 16 rooms · $16` beside the header's `$16` — "which $"): the card's gold is the carry, named as the strip names it
-      : /* copy:callout */ `D${d}${title ? ` · ${title}` : rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `carry $${hudSnap?.stake?.loot ?? hudSnap?.loot ?? 0}`}`;
+      : /* copy:callout */ `D${d}${title ? ` · ${title}` : rooms ? ` · ${rooms} rooms` : ""} · ${twist ? withArticle(twist) : `carry $${hudSnap ? carriedOf(hudSnap) : 0}`}`;
     if (text !== cardText) { cardText = text; replace(card, text); }
   }
   /** Cut 20 §3: `fights` on the first floors — no card, the map at EARLY_TRAVEL, every fight at EARLY_FIGHT. */
@@ -1390,8 +1400,25 @@ export function renderWatch(app: App): Mounted {
   /** Cut 12 §6: a skip that found the run's end lands the viewer at the ending (its last ENDING_TICKS still play at 1×) —
    *  a fight that held the exit used to leave the press with nothing visible until the clock got there on its own. */
   function toEnding(): void { const t = Math.max(viewerTick(), endingFrom); if (t > viewerTick()) { release(t); seekTo(t); } applyFrame(); applySpeed(); }
+  function manualPump(): void {
+    paintWatchStatus();
+    if (cardUp) cardExpired();
+    applyFrame(); applySpeed();
+    let now = viewerTick();
+    // (the picture never runs past the frontier: the next action's events play from where he stands)
+    if (now > engineTick) { seekTo(engineTick); now = viewerTick(); }
+    el.dataset.tick = String(now); el.dataset.engineTick = String(engineTick);
+    release(now); paintScrub(now);
+    if (loads.length && viewerIdle()) loadFloor(takeLoad()!);
+    worldT = engineTick; lastPumpMs = performance.now();
+    if (inflight || (snap!.awaiting && !manualKick)) return;
+    manualKick = false; inflight = true;
+    app.engine.step(BATCH).then((r) => { inflight = false; if (!disposed && !done) handle(r); })
+      .catch((e) => { inflight = false; console.warn("step failed", e); });
+  }
   function handle(r: StepResult): void {
     const s = r.snapshot;
+    ctl.paint(r.run_over ? null : s);
     wide.setPresence?.(s, r.run_over);
     engineTick = s.turn;
     floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome });
@@ -1494,6 +1521,8 @@ export function renderWatch(app: App): Mounted {
   }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
+    // take control: no fold, no jump, no travel, no world clock — the engine steps when the hero acts (the core waits for him)
+    if (snap.manual && !held && !exitTier) { manualPump(); return; }
     paintWatchStatus();
     paintGun();
     paintKeepOut();
@@ -1828,6 +1857,16 @@ export function renderWatch(app: App): Mounted {
     if (engineTick - v > LEAD_FAST + BATCH_FAST) r = Math.max(r, CATCHUP_RATE);
     return r;
   }
+  /** blind 1fb7786 (B: "sped itself between fights, 1× to 107×, then dropped back — jumpy"): a rise past RISE_FREE eases — the clock at
+   *  most doubles every RISE_MS from what it shows (a carried dead-stretch age, a catch-up or a ramp never lands 1× → 128× in one frame).
+   *  Falls are never held back: the landing (`deadStretch`, `deadRate`) already slows toward the next move, and a hold is a hold. */
+  function eased(n: number): number {
+    const now = performance.now(), dt = Math.min(RISE_MS, Math.max(0, now - riseAt));
+    riseAt = now;
+    if (n <= RISE_FREE || n <= speed) return n;
+    const cap = Math.max(RISE_FREE, speed) * 2 ** (dt / RISE_MS);
+    return n <= cap ? n : Math.round(cap * 10) / 10;
+  }
   /** Cut 18 §1: the first tick after v where the picture must slow — a near tick, a scene, a kept fight span, the live fight, a beat,
    *  the ending. */
   function nextHold(v: number): number {
@@ -1842,7 +1881,7 @@ export function renderWatch(app: App): Mounted {
     return n;
   }
   function applySpeed(): void {
-    const n = rate();
+    const n = eased(rate());
     if (n === speed) { paintRate(); return; }
     if (!viewer?.tick) viewerTick();          // placeholder clock: bank the ticks run at the old rate first
     speed = n; viewer?.setSpeed(n);
@@ -1946,7 +1985,7 @@ export function renderWatch(app: App): Mounted {
     if (folding || !viewer || !snap) return;
     const from = loads.length ? loads[0].snap.depth : snap.depth, to = planTo(from);
     const tally = new FoldTally(from, stretchShare(app.forecastOfRules(), from, to, foldStartOf()));
-    tally.loot0 = (hudSnap ?? snap).stake?.loot ?? (hudSnap ?? snap).loot;
+    tally.loot0 = carriedOf(hudSnap ?? snap);
     const f: Fold = { tally, from, to, t0: performance.now(), holdUntil: Infinity, stepping: true, skip: false, replay: false };
     folding = f; el.dataset.fold = "1";
     releaseBeat(); clearTimeout(dockTimer);
@@ -2275,7 +2314,9 @@ export function renderWatch(app: App): Mounted {
     if (el.dataset.next === "1" || !pause.isConnected) return;
     el.dataset.next = "1";
     const next = exitTier === "death" ? /* copy:button */ "verdict" : /* copy:button */ "report";
-    const g = gem({ label: next, cls: "next-gem", pulse: true, onclick: () => { exitAt = 0; exitBeatUntil = 0; restUntil = 1; } });
+    // blind 1fb7786 (A: "REPORT gem unresponsive"): the gem stands above the keep sheet's backdrop — a tap there means go on: the sheet
+    // closes keeping its ticked picks (`exitSheet`'s close) and the flow goes to the report
+    const g = gem({ label: next, cls: "next-gem", pulse: true, onclick: () => { exitAt = 0; exitBeatUntil = 0; restUntil = 1; keepClose?.(); } });
     pause.replaceWith(g);
     setBusyHost(busyHost);
   }
@@ -2432,11 +2473,13 @@ export function renderWatch(app: App): Mounted {
     // QA 23ed91f: the owned automations' picks come pre-ticked (`ExitPending.auto_keep`), as many as the free slots take
     const keep = new Set<number>((p.auto_keep ?? []).filter((id) => p.items.some((it) => it.id === id)).slice(0, free));
     let sent = false;
+    keepClose = null;
     // QA 308f045 (qaAC: `mail $0 · sword $0 · … · unkept → salvage` after a drive-off that kept nothing): an exit whose salvage pays nothing
     // prices nothing — the chips carry no `$0` and the legend says the unkept are lost
     const worthOf = (i: number): number => p.worth?.[i] ?? salvageValue(p.items[i].kind, p.tier);
     const unpaid = p.items.length > 0 && p.items.every((_, i) => worthOf(i) <= 0);
     openSheet((close) => {
+      keepClose = close;
       const chips = h("div", { class: "chips" });
       const count = h("span", { class: "num dim" });
       const paint = (): void => {
@@ -2478,13 +2521,16 @@ export function renderWatch(app: App): Mounted {
         // Cut 29 §4: a full vault's decision is a swap — the pick replaces the vault's weakest (the core's `keep`)
         h("div", { class: "label row-label" }, /* copy:label */ "keep", " ", count, h("small", { class: "dim" }, swap ? /* copy:label */ " swap" : /* copy:label */ " free"), trace),
         chips, legend, cut, bones, news, ledger, traceBox,
-        h("button", { class: "btn primary wide", onclick: () => {
-          if (sent) return; sent = true;
-          salvagedRows = letGoRows(p, keep);
-          const vaultBefore = new Set(app.lineage.vault.map((v) => v.id));
-          app.engine.keep([...keep]).then((L) => { app.lineage = L; keptLabels = L.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.label); }).catch((e) => console.warn("keep", e)).finally(() => { close(); then(); });
-        } }, /* copy:button */ "keep"));
-    });
+        h("button", { class: "btn primary wide", onclick: () => submit(close) }, /* copy:button */ "keep"));
+    // blind 1fb7786 (A, twice: "REPORT gem unresponsive … only a reload fixed it"): the backdrop (a tap on the gem under it), Escape or
+    // the stud closed the sheet without its `keep`, and the exit flow waited on it for good — every close keeps the ticked picks
+    }, { onClose: () => submit(() => {}) });
+    function submit(close: () => void): void {
+      if (sent) return; sent = true; keepClose = null;
+      salvagedRows = letGoRows(p, keep);
+      const vaultBefore = new Set(app.lineage.vault.map((v) => v.id));
+      app.engine.keep([...keep]).then((L) => { app.lineage = L; keptLabels = L.vault.filter((v) => !vaultBefore.has(v.id)).map((v) => v.label); }).catch((e) => console.warn("keep", e)).finally(() => { close(); then(); });
+    }
   }
 
   async function init(): Promise<void> {
@@ -2525,7 +2571,7 @@ export function renderWatch(app: App): Mounted {
   const onVisibility = (): void => { freeze(paused, document.hidden); if (!hidden) goLiveOwed = true; applySpeed(); };
   document.addEventListener("visibilitychange", onVisibility);
   return { el, dispose: () => {
-    disposed = true; audio.bed(null); clearTimeout(meterTimer); clearTimeout(dockTimer); bar.dispose(); window.removeEventListener("riddle:focus-hero",focusHero); wide.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
+    disposed = true; ctl.dispose(); audio.bed(null); clearTimeout(meterTimer); clearTimeout(dockTimer); bar.dispose(); window.removeEventListener("riddle:focus-hero",focusHero); wide.dispose(); if (el.dataset.over === "1") setBusyHost(null); window.removeEventListener("resize", onResize); document.removeEventListener("visibilitychange", onVisibility); clearInterval(pumpTimer); clearTimeout(tickerTimer); clearTimeout(bannerTimer); clearTimeout(counterTimer); clearTimeout(quietTimer); viewer?.dispose();
     if (vaultClose) { const c = vaultClose; vaultClose = null; c(); }
     tactics.dispose();
     if (prepended && !done) void app.engine.setRules(app.rules);

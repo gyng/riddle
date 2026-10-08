@@ -1407,7 +1407,10 @@ pub fn try_row(game: &Game, rules: &RuleSet, depth: u32) -> Option<ForecastTry> 
     if crate::trace::has_counter_verb(rules, &row) {
         return None;
     }
-    Some(ForecastTry { boss: kind.to_string(), text: crate::facts::counter_text(&row), row, met: depth - 1 })
+    // (blind 1fb7786: what the player can take now — the row with the pen open, else the package that carries it,
+    // else the drill to come; never a package still locked)
+    let (text, _) = crate::packages::counter_offer(&game.lineage, kind, &row);
+    Some(ForecastTry { boss: kind.to_string(), text, row, met: depth - 1 })
 }
 
 /// Cut 18 §3: a forecast row's reach at or under this is a wall when a boss seals the stairs

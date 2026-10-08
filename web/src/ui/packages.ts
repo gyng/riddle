@@ -18,7 +18,7 @@ import { packageIcon, foeSrc, icon, verbIcon } from "./skin";
 import { itemIcon } from "./items";
 import { sysOpen } from "./systems";
 import { kw, kwHost } from "./tips";
-import type { Term } from "./concepts";
+import { penWaits, type Term } from "./concepts";
 
 /** The lineage climbs on packages (a Cut 30 core, not a harness's literal set). */
 export const onPackages = (L: Pick<Lineage, "packages"> | undefined): boolean => !!L?.packages && !L.packages.literal;
@@ -206,7 +206,8 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       };
       const section = (label: string, kind: string, ...kids: (HTMLElement | "")[]): HTMLElement => h("section", { class: "pkg-sec", "data-kind": kind }, h("div", { class: "label pkg-head" }, kw(kind as Term, label)), ...kids);   // docs/TOOLTIPS.md: the slot's word is its keyword
       const choices = (kind: string, ...kids: HTMLElement[]): HTMLElement => h("div", { class: "pkg-choices", hidden: !choosing.has(kind) }, ...kids);
-      const changeKind = (kind: string): HTMLElement => h("button", { class: "chip mini pkg-change", "data-change-kind": kind, "aria-expanded": String(choosing.has(kind)), onclick: () => { if (choosing.has(kind)) choosing.delete(kind); else choosing.add(kind); paint(); } }, /* copy:button */ "change");
+      // blind 1fb7786 (B: "'change' toggles a chooser closed"): the toggle says what a tap does — `change` opens the choices, `close` folds them
+      const changeKind = (kind: string): HTMLElement => h("button", { class: "chip mini pkg-change", "data-change-kind": kind, "aria-expanded": String(choosing.has(kind)), onclick: () => { if (choosing.has(kind)) choosing.delete(kind); else choosing.add(kind); paint(); } }, choosing.has(kind) ? /* copy:button */ "close" : /* copy:button */ "change");
       // the stance: worn, the others priced
       const stance = byId.get(P.stance);
       const stanceAlts = owned("stance").filter((p) => p.id !== P.stance);
@@ -290,8 +291,8 @@ function rowsFold(app: App, P: Packages): HTMLElement {
     h("small", { class: "dim" }, /* copy:label */ "Read only"),
     h("button", { class: "chip mini pkg-pen-lock", onclick: () => openSheet(() => h("div", { class: "pkg-pen-needs" },
       h("h2", {}, /* copy:label */ "Custom rules"),
-      ...((P.pen_needs?.length ? P.pen_needs : ["Locked"]).map((text) => h("p", {}, text))))) },
-      icon("edit", "✎"), /* copy:button */ "Custom rules", h("small", { class: "dim" }, /* copy:label */ " · locked")));
+      ...penNeeds(P).map((text) => h("p", {}, text)))) },
+      icon("edit", "✎"), /* copy:button */ "Custom rules", h("small", { class: "dim" }, ` · ${penWaits(P)}`)));
   const list = h("div", { class: "pkg-rows", hidden: true }, lock, ...rows.map((r, i) => {
     const s = src[i]?.shadowed_by;
     return h("div", { class: `pkg-row${s !== undefined && s !== null ? " shadowed" : ""}`, "data-i": i },
@@ -323,4 +324,11 @@ export function packagesStrip(app: App, opts: { ro?: boolean } = {}): { el: HTML
   };
   paint();
   return { el, paint };
+}
+
+/** blind 1fb7786 (A, B: `Custom rules · locked → Upcoming reports` — "opaque"): the lock reads what it waits for. The core's `pen_needs`
+ *  says `Upcoming reports` once every gate is met (the pen opens with the next report's reveals); the boss and the hours stand as said. */
+export function penNeeds(P: Packages): string[] {
+  const needs = P.pen_needs?.length ? P.pen_needs : [/* copy:label */ "Locked"];
+  return needs.map((n) => (/^upcoming reports?$/i.test(n) ? /* copy:callout */ "opens next report" : n));
 }

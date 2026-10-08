@@ -2136,7 +2136,7 @@ const SYSTEMS29: [string, string][] = [["send", ""], ["dial", ""], ["headline", 
   ["quests", "slay Warlord"], ["temperament", "heir 3"], ["tactic2", "meet Lich"], ["pen", "meet Mother"]];
 /** Cut 30: the systems the pen brings (the core's `systems::PEN`) — they open with it, not before. */
 const PEN30 = ["pen", "edit", "dial", "unlocks", "reorder", "vs", "tags", "walls", "divergence", "route"];
-type Fk29 = { s: { lineage: Lineage; rules: RuleSet; sys29?: { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean } };
+type Fk29 = { s: { lineage: Lineage; rules: RuleSet; sys29?: { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean; forge?: string } };
               lineage(): Lineage; gold(delta: number, why: string): void };
 const emptyMeter = (): MeterWire => ({ seconds: 0, dealt: { hero: 0, pets: 0, foes: 0 }, taken: { hero: 0, pets: 0, foes: 0 }, dps_dealt: { hero: 0, pets: 0, foes: 0 }, dps_taken: { hero: 0, pets: 0, foes: 0 },
   healed: [], hps: 0, time: { fight: 0, travel: 0, chores: 0, rest: 0 }, time_s: { fight: 0, travel: 0, chores: 0, rest: 0 }, rows: [], actions: 0, supplies: {}, gold: 0, gold_per_min: 0, hits_hero: 0, hits_pets: 0, fights: 0 });
@@ -2167,7 +2167,7 @@ function meter29(evs: Ev[]): MeterWire {
 const DEV_ALL_SYSTEMS = typeof location !== "undefined" && new URLSearchParams(location.search).get("systems") === "all";
 /** `?systems=none`: no curriculum on the wire (an older core's lineage) — the client's own reveal ladder alone, as before Cut 29. */
 const DEV_NO_SYSTEMS = typeof location !== "undefined" && new URLSearchParams(location.search).get("systems") === "none";
-function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean } {
+function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; works: string[]; meters: MeterWire[]; insure: boolean; forge?: string } {
   const st = (e.s.sys29 ??= { open: DEV_ALL_SYSTEMS ? SYSTEMS29.map(([id]) => id) : ["send", "headline"], fresh: [], plateau: false, works: [], meters: [], insure: true });   // Cut 30: the dial comes with the pen
   const L = e.s.lineage; const met = (d: number): boolean => L.best_depth >= d;
   const hit: Record<string, boolean> = {
@@ -2196,7 +2196,7 @@ function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; wo
     const price = Math.round(10 * (100 + 25 * L.best_depth) * Math.pow(1.25, st.works.length) / 10) * 10;
     if (st.works.length) L.works = [...st.works];
     L.commission = { price, label: ["heir's statue", "camp hall", "chronicle wall", "boss trophies"][st.works.length % 4], available: L.gold >= price };
-    L.orders = { keep: L.keep_pref, cage: L.vault_pref ?? "weapon", start: L.start ?? 1, repeat: L.repeat ?? true, insure: st.insure } as StandingOrders;
+    L.orders = { keep: L.keep_pref, cage: L.vault_pref ?? "weapon", start: L.start ?? 1, repeat: L.repeat ?? true, insure: st.insure, forge: st.forge ?? "half" } as StandingOrders;
     L.supply_cap = Math.min(8, (L.unlocks.includes("supply_cap_5") ? 5 : 3) + ((L.kit ?? []).find((k) => k.slot === "pack")?.owned ?? 0));
     const fire = this.s.rules.rows.find((r) => r.origin === "player" && r.verb.v === "throw" && (r.verb.a ?? "").startsWith("fire"));
     if (fire && !(L.repeat_kinds ?? []).includes("fire")) L.repeat_added = [{ kind: "fire", row: "throw fire" }];
@@ -2232,7 +2232,8 @@ function sys29(e: Fk29): { open: string[]; fresh: string[]; plateau: boolean; wo
   P.setOrders = function (this: Fk29, o: unknown): Lineage {
     const x = o as StandingOrders; const L = this.s.lineage;
     if (!["best_weapon", "best_armour", "none"].includes(x.keep)) throw new Error("unknown keep_pref");
-    L.keep_pref = x.keep; L.vault_pref = x.cage; L.start = x.start; L.repeat = x.repeat; sys29(this).insure = x.insure; return this.lineage();
+    if (x.forge !== undefined && !["half", "all", "off"].includes(x.forge)) throw new Error("unknown forge order");
+    L.keep_pref = x.keep; L.vault_pref = x.cage; L.start = x.start; L.repeat = x.repeat; sys29(this).insure = x.insure; if (x.forge) sys29(this).forge = x.forge; return this.lineage();
   };
   P.drawOath = function (this: Fk29): Lineage {
     const L = this.s.lineage; if (L.marks < 2) throw new Error("not enough marks"); L.marks -= 2;

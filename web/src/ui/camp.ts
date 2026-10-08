@@ -125,6 +125,9 @@ function campMeters(app: App): HTMLElement | null {
 const SEND_ARM_MS = 800;
 /** Cut 29 §4: the exit's keep order, in the vault panel's words. */
 const KEEP_ORDERS = ["best_weapon", "best_armour", "none"];
+/** blind 1fb7786 (core `FORGE_ORDERS`): the apprentice's forge order — half of each haul home, the spare purse, nothing. */
+const FORGE_ORDERS = ["half", "all", "off"];
+const FORGE_WORD: Record<string, string> = { half: "half haul", all: "all spare", off: "off" };
 /* copy:label */
 const KEEP_WORD: Record<string, string> = { best_weapon: "weapon", best_armour: "armour", none: "none" };
 const SEEN_MS = 1800;   // Cut 29 §2: a new system's glint plays before the core clears its `new`
@@ -603,6 +606,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     }, { anchor: ordersOn() ? ordersTab : startTab });
   }
   /** Cut 29 §4: the orders tablet stands for the cage's and the start's when the core sends the orders with its curriculum. */
+  function apprenticeOn(): boolean { return !!app.lineage.tree?.nodes.some((n) => n.id === "apprentice" && n.state === "done"); }
   function ordersOn(): boolean { return !!app.lineage.orders && hasCurriculum(app.lineage) && !!app.engine.setOrders; }
   function setOrder(patch: Partial<StandingOrders>, move: string): Promise<boolean> {
     const cur = app.lineage.orders!;
@@ -620,6 +624,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
       R.has("start") && o.start > 1 ? /* copy:callout */ `start D${o.start}` : "",
       o.repeat ? "" : /* copy:callout */ "restock off",
       o.insure ? "" : /* copy:callout */ "insurance off",
+      apprenticeOn() && o.forge && o.forge !== "half" ? /* copy:callout */ `forge ${o.forge}` : "",
     ].filter(Boolean);
     replace(ordersTab, h("span", { class: "rn num" }, icon("ledger", "☰")), h("span", { class: "rtext" }, h("b", { class: "orders-head" }, /* copy:label */ "run setup"), " ", h("span", { class: "orders-sum dim num" }, bits.join(" · "))));
   }
@@ -643,6 +648,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           R.has("start") ? row(/* copy:label */ "start", h("button", { class: "chip order on", onclick: () => { close(); openStartPicker(); } }, `D${o.start}`, h("small", { class: "dim" }, " ▸"))) : null,
           row(/* copy:label */ "Auto restock", pick(o.repeat, true, /* copy:button */ "on", act({ repeat: true }, /* copy:callout */ "repeat")), repeatOff),
           row(/* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
+          // blind 1fb7786 (A, B: "the apprentice spent my gold without asking"): what he may forge with — half of each haul (default), all, off
+          apprenticeOn() && o.forge ? row(/* copy:label */ "apprentice forges", ...FORGE_ORDERS.map((f) => pick(o.forge, f, FORGE_WORD[f], act({ forge: f }, /* copy:callout */ "forge")))) : null,
         ].filter((x): x is HTMLElement => !!x); };
         const rows = h("div", { class: "order-rows" }, ...build());
         body.appendChild(rows);

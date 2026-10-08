@@ -42,6 +42,8 @@ export type Entity = { modifiers?:EncounterModifiers; id: number; kind: string; 
 export type FloorItem = { id: number; x: number; y: number; kind: string; known: boolean; label: string };
 export type GunSnap = { item:number; kind:string; loaded:number; capacity:number; range:number;
   damage:[number,number]; armour_piercing:number; reload_ticks:number; reload_left:number; reload_until?:number; aiming?:boolean };
+/** Take control: one hand-chosen action — a step (a foe on the tile is attacked), a verb as rows write it, or a wait. */
+export type ManualAct = { k: "step"; dx: number; dy: number } | { k: "verb"; verb: Verb } | { k: "wait" };
 export type Snapshot = {
   difficulty?:number; modifier_catalogue?:ModifierInfo[];
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
@@ -56,7 +58,8 @@ export type Snapshot = {
   rooms?: number;                                                         // Cut 7 §4: rooms on this floor, for `D3 · 4 rooms` (optional)
   floor_twist?: string;                                                   // Cut 12 §4: the floor's one situation, one word (`nest`), for `D4 · 9 rooms · a nest` (optional; absent on D1–D2)
   fork?: SnapFork;                                                        // Cut 26 §2 (core): this floor's down stairs are a fork's (D4 on the base order) — draw a second stair at (x, y); the real stairs are `taken`'s
-  meters?: SnapMeters;                                                    // Cut 29 §3 (core): the watch's compact meter — the run so far, the fight in progress (or the last), `fighting` while one is; absent before the first tick
+  meters?: SnapMeters;
+  manual?: boolean; awaiting?: boolean;                                   // take control: the player has the hero · the world waits for his action                                                    // Cut 29 §3 (core): the watch's compact meter — the run so far, the fight in progress (or the last), `fighting` while one is; absent before the first tick
 };
 /** Cut 26 §2 (core) — the fork at this floor's down stairs: `depth` the band's first floor (5 · 9 · 14 · 19 · 24), `taken` the biome the
  *  run's route takes (the floor's own `stairs_down`), `other` the stair not taken, drawn at (`x`, `y`) beside it. The hero never takes
@@ -657,7 +660,7 @@ export type OathDraw = { cost: number; available: boolean; needs?: string };
 export type Commission = { price: number; label: string; available: boolean };
 /** Cut 29 §4 (core) — the standing orders: exit keep (`best_weapon|best_armour|none`), an unwatched cage's pick (`weapon|armour|potion|scroll`),
  *  the start floor, the repeat, insuring the brought items when the purse covers it (on by default). */
-export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean };
+export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string };   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
 /** Cut 29 §4 (core) — a kind the next send adds to the repeat, and the row's verb that wants it (`throw fire`). */
 export type RepeatAdd = { kind: string; row: string };
 /** Cut 29 §1 (core; E1) — a wall's edit: the floor, the edit labels (`drop R6`, `R1 → hp < 90% → rest`), the whole set with them, the share of
@@ -699,7 +702,9 @@ export interface Engine {
   unequipPackage?(id: string): Lineage;                 // §2: empty a tactic or temperament slot (the stance is never empty)
   pickTemperament?(id: string): Lineage;                // §2: take a wake card (`packages.offer`)
   spendLevel?(id: string): Lineage;
-  setTacticVariant?(id: string, variant: number): Lineage;   // Cut 111: a tactic's L3 row, `Package.variants[variant]`                     // §2: marks for a package's next level (`Package.level_price`)
+  setTacticVariant?(id: string, variant: number): Lineage;
+  takeControl?(on: boolean): void;                            // take control (a secondary mode): the watched run's hero is the player's
+  act?(action: ManualAct): void;                              // take control: his next action (the world waits for it — `Snapshot.awaiting`)   // Cut 111: a tactic's L3 row, `Package.variants[variant]`                     // §2: marks for a package's next level (`Package.level_price`)
   revokeDrill?(boss: string, revoked: boolean): Lineage;   // §1: revoke (or restore) a drill — one tap, it stays
   packageOptions?(sims: number): PkgOption[];           // §2: every package move priced on the paired panel (slow: background lane)
   packageOptionsFor?(sims: number, choices: [string, number][]): PkgOption[];

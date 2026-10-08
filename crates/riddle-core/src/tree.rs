@@ -114,6 +114,20 @@ pub struct Tree {
     /// The armourer's ledger: the recent sends and those that died (halved past `STONE_MEMORY`).
     #[serde(default)]
     pub sends: (u32, u32),
+    /// Blind 1fb7786: under the `half` forge order, the purse the apprentice may still spend — half of each
+    /// haul home since he was hired, less what he spent (never above the purse).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub forge_budget: i32,
+}
+
+/// Blind 1fb7786: the share of a haul the apprentice's order lets him forge with, in percent (`all` spends the
+/// whole spare purse, not a share — `None`).
+pub fn forge_share(l: &LineageState) -> Option<i32> {
+    match l.orders.forge.as_str() {
+        "all" => None,
+        "off" => Some(0),
+        _ => Some(50),
+    }
 }
 
 /// The sends a stone's record remembers before it halves.
@@ -256,6 +270,12 @@ pub fn on_gold(l: &mut LineageState, delta: i32, why: &str) {
         l.tree.ledger += delta as i64;
     }
     if delta > 0 && is_haul(why) {
+        // (the apprentice's share of the haul, under the `half` order)
+        if on(l, "apprentice") && !l.pkg.literal {
+            if let Some(pct) = forge_share(l) {
+                l.tree.forge_budget = l.tree.forge_budget.saturating_add(delta * pct / 100);
+            }
+        }
         if porter(l) {
             if !l.pkg.literal {
                 *l.tree.acts.entry("porter".into()).or_insert(0) += delta as u32;
@@ -541,20 +561,27 @@ fn workers_act(game: &mut Game, send: bool) {
         }
         act(game, "drillmaster", n);
     }
-    // the apprentice: the cheapest next step the purse pays with the reserve kept
-    if on(&game.lineage, "apprentice") {
+    // the apprentice: the cheapest next step the purse pays with the reserve kept — under his forge order
+    // (blind 1fb7786: `all` the spare purse; `half` half of each haul home, the rest the player's; `off` none)
+    if on(&game.lineage, "apprentice") && forge_share(&game.lineage) != Some(0) {
         let mut n = 0;
+        let share = forge_share(&game.lineage);
+        game.lineage.tree.forge_budget = game.lineage.tree.forge_budget.min(purse(&game.lineage).max(0));
         loop {
             let l = &game.lineage;
             let reserve = RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32;
             let Some((slot, p)) = crate::kit::ladders(l).iter().filter(|x|crate::kit::KIT_SLOTS.contains(&x.slot.as_str())).filter_map(|x| x.next.as_ref().map(|s| (x.slot.clone(), s.price as i32))).min_by_key(|x| x.1) else { break };
             let off = APPRENTICE_OFF_PCT * bonus_rank(l, "apprentice");
             let before = game.lineage.gold;
-            if purse(l) < p - p * off as i32 / 100 + reserve || crate::kit::buy_step_off(&mut game.lineage, &slot, off).is_err() {
+            let price = p - p * off as i32 / 100;
+            if purse(l) < price + reserve || share.is_some() && l.tree.forge_budget < price || crate::kit::buy_step_off(&mut game.lineage, &slot, off).is_err() {
                 break;
             }
             // blind c4705f9 (A, B: `purse −$12562` with no word of what went): each step's slot and its price, for the report
             let paid = (before - game.lineage.gold).max(0) as u32;
+            if share.is_some() {
+                game.lineage.tree.forge_budget -= paid as i32;
+            }
             let acts = &mut game.lineage.tree.acts;
             let spent = acts.entry(APPRENTICE_SPENT.to_string()).or_insert(0);
             *spent = spent.saturating_add(paid);

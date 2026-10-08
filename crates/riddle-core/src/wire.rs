@@ -117,6 +117,11 @@ pub struct Snapshot {
     /// and unwatched runs pick by `Lineage.vault_pref`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vault_choice: Option<VaultChoice>,
+    /// Take control: the player has the watched run (`manual`), and the world waits for his action (`awaiting`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub manual: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub awaiting: bool,
     /// Cut 7 §4: the room the hero stands in (`id` 0 = a corridor or a cave; rooms are
     /// numbered from 1 in the floor's room list) and the awake hostiles in it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2903,11 +2908,23 @@ mod tests {
 pub struct StandingSwitches {
     #[serde(default = "yes")]
     pub insure: bool,
+    /// Blind 1fb7786 (A, B: `forge −$20925 · purse +$823`, "losses I didn't choose"): what the apprentice may
+    /// forge with (`FORGE_ORDERS`): `all` the spare purse, `half` half of each haul home (the rest is the
+    /// player's to decide with), `off` nothing.
+    #[serde(default = "forge_half")]
+    pub forge: String,
+}
+
+/// The apprentice's orders (`StandingSwitches::forge`), the default first.
+pub const FORGE_ORDERS: [&str; 3] = ["half", "all", "off"];
+
+fn forge_half() -> String {
+    FORGE_ORDERS[0].into()
 }
 
 impl Default for StandingSwitches {
     fn default() -> Self {
-        StandingSwitches { insure: true }
+        StandingSwitches { insure: true, forge: forge_half() }
     }
 }
 
@@ -2945,8 +2962,8 @@ pub struct Commission {
 
 /// Cut 29 §4: the standing orders (`Lineage.orders`, `setOrders`): what an exit keeps (`keep`:
 /// `best_weapon | best_armour | none`), what an unwatched cage takes (`cage`: `weapon | armour |
-/// potion | scroll`), the floor a send starts on, the loadout's repeat, and insuring the brought
-/// items at each send the purse covers.
+/// potion | scroll`), the floor a send starts on, the loadout's repeat, insuring the brought
+/// items at each send the purse covers, and the apprentice's forge (`all · half · off`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StandingOrders {
     pub keep: String,
@@ -2954,11 +2971,14 @@ pub struct StandingOrders {
     pub start: u32,
     pub repeat: bool,
     pub insure: bool,
+    /// Blind 1fb7786: the apprentice's forge order (`all · half · off`; `FORGE_ORDERS`).
+    #[serde(default = "forge_half")]
+    pub forge: String,
 }
 
 impl Default for StandingOrders {
     fn default() -> Self {
-        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true }
+        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half() }
     }
 }
 

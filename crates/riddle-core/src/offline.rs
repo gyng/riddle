@@ -884,7 +884,8 @@ mod slice_tests {
         equal(&whole,&actual,"multiple days, workers, quests and reveals");
         assert_eq!(report,expected);
         let reveal_units:std::collections::BTreeSet<_>=report.systems_opened.iter()
-            .filter(|id|!crate::systems::DAY0.contains(&id.as_str()))
+            // (blind 1fb7786: the pen's group, the Mother met, opens outside the budget as the day-0 systems do)
+            .filter(|id|!crate::systems::DAY0.contains(&id.as_str())&&!crate::systems::pen_due(&actual.lineage,id))
             .map(|id|crate::systems::SYSTEMS.iter().find(|s|s.id==id).unwrap())
             .map(|s|(s.trigger,s.min_age_h)).collect();
         assert!(reveal_units.len()<=1,"the curriculum budgets trigger groups, such as forge/loadout/exits, as one reveal");

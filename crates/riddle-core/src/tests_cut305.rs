@@ -855,6 +855,8 @@ fn absence_gold_counts_passage_and_states_the_purse_change() {
 fn apprentice_itemises_its_purchases() {
     let mut g = Game::new_resident(29);
     tree::grant(&mut g.lineage, &["apprentice"]);
+    // (the whole spare purse: the itemising, not the order, is under test)
+    g.lineage.orders.forge = "all".into();
     g.lineage.best_depth = 12;
     g.lineage.gold = 40_000;
     let before = (*g.lineage.tree.acts).clone();
@@ -874,4 +876,55 @@ fn apprentice_itemises_its_purchases() {
     // a second look with nothing bought names nothing
     let again = (*g.lineage.tree.acts).clone();
     assert!(tree::report_acts(&g.lineage, &again, &g.lineage.tree.acts).is_empty());
+}
+
+/// Blind 1fb7786 (A, B: `forge −$20925 · purse +$823`, "−$24500 then −$21875 of my gold without asking"): the
+/// apprentice forges under a standing order — `half` (the default) half of each haul home and never the purse the
+/// player left, `all` the spare purse, `off` nothing; the order is the player's, round-trips and refuses nonsense.
+#[test]
+fn apprentice_forges_under_its_standing_order() {
+    let base = || {
+        let mut g = Game::new_resident(29);
+        tree::grant(&mut g.lineage, &["porter", "apprentice"]);
+        g.lineage.best_depth = 12;
+        g.lineage.gold = 40_000;
+        g
+    };
+    let spend = |g: &mut Game| {
+        let before = g.lineage.gold;
+        tree::at_send(g);
+        before - g.lineage.gold
+    };
+    // the default: the purse the player left is his — nothing is forged until a haul comes home
+    let mut h = base();
+    assert_eq!(h.lineage().orders.forge.as_str(), "half", "half is the default");
+    assert_eq!(spend(&mut h), 0, "the purse left behind is never forged");
+    h.lineage.gold_move(20_000, "returned D12");
+    let spent = spend(&mut h);
+    assert!(spent > 0 && spent <= 10_000, "half of the haul at most: spent {spent}");
+    assert!(tree::purse(&h.lineage) >= 50_000, "the player keeps his purse and half the haul: {}", tree::purse(&h.lineage));
+    assert!(h.lineage.tree.forge_budget >= 0 && h.lineage.tree.forge_budget <= 10_000 - spent);
+    // `all`: the spare purse down to the reserve, as before
+    let mut a = base();
+    a.lineage.orders.forge = "all".into();
+    let all = spend(&mut a);
+    assert!(all > 20_000, "all spends the spare purse: {all}");
+    // `off`: nothing, haul or not
+    let mut o = base();
+    let mut orders = o.lineage().orders;
+    orders.forge = "off".into();
+    o.set_orders(&orders).unwrap();
+    o.lineage.gold_move(20_000, "returned D12");
+    assert_eq!(spend(&mut o), 0, "off forges nothing");
+    assert_eq!(o.lineage().orders.forge, "off");
+    // a nonsense order is refused and changes nothing
+    orders.forge = "most".into();
+    assert!(o.set_orders(&orders).is_err());
+    assert_eq!(o.lineage.orders.forge, "off");
+    // the order survives a save
+    let o2 = Game::load(&o.save()).unwrap();
+    assert_eq!(o2.lineage.orders.forge, "off");
+    // an old save (no order written) reads `half`
+    let sw: crate::wire::StandingSwitches = serde_json::from_str(r#"{"insure":true}"#).unwrap();
+    assert_eq!(sw.forge, "half");
 }

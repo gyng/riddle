@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, DescentOffer, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption, Advance, Replay } from "./types";
+  CageOption, Death, DescentOffer, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption, Advance, Replay, ManualAct } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
 type GameCtor = (new (seed: number) => GameObj) & { fromSave?: (save: string) => GameObj };
@@ -125,6 +125,8 @@ export class WasmEngine implements Engine {
   pickTemperament(id: string): Lineage { return this.call("pickTemperament", id); }
   spendLevel(id: string): Lineage { return this.call("spendLevel", id); }
   setTacticVariant(id: string, variant: number): Lineage { return this.call("setTacticVariant", id, variant); }
+  takeControl(on: boolean): void { this.game.takeControl(on); }
+  act(action: ManualAct): void { this.game.act(JSON.stringify(action)); }
   revokeDrill(boss: string, revoked: boolean): Lineage { return this.call("revokeDrill", boss, revoked); }
   packageOptions(sims: number): PkgOption[] { return this.call("packageOptions", sims); }
   packageOptionsFor(sims: number, choices: [string, number][]): PkgOption[] {

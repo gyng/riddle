@@ -158,6 +158,13 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
     if run.over.is_some() {
         return;
     }
+    // Take control: at the hero's turn with no action queued, the world waits (nothing moves, no tick passes);
+    // paralysed, he passes his turn as ever
+    if run.manual && run.manual_act.is_none() && run.hero.paralysed == 0 && run.hero.energy + run.hero.speed() >= ACT_ENERGY {
+        run.awaiting = true;
+        return;
+    }
+    run.awaiting = false;
     run.turn += 1;
     run.floor_turn += 1;
     crate::firearm::tick(run, cx);
@@ -303,7 +310,9 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     run.dens = run.monsters.iter().filter(|m| m.hp > 0 && m.nest && m.dormant && map.is_seen(m.pos)).map(|m| m.pos).collect();
     // Cut 7 §3: the thief's den's sleepers are terrain the chores walk round.
     run.sleepers = run.monsters.iter().filter(|m| m.hp > 0 && m.dormant && m.situation.is_some()).map(|m| m.pos).collect();
-    oscillation_guard(run, cx);
+    if !run.manual {
+        oscillation_guard(run, cx);
+    }
     // Cut 5 §4: a den wakes when the hero comes within two tiles of it.
     wake_nest(run, cx);
     // Cut 7 §3: the thief's den pounces on a hero at the stairs.
@@ -478,6 +487,37 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     run.new_seen = false;
 }
 
+/// Take control: the queued action — a step (a foe on the tile is attacked), a verb, or a wait. An action that
+/// cannot be done (a wall, nothing to drink) costs the turn and says so.
+fn manual_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
+    let act = run.manual_act.take().unwrap_or(crate::engine::Manual::Wait);
+    let (verb, ok) = match act {
+        crate::engine::Manual::Wait => (Verb::new("wait"), true),
+        crate::engine::Manual::Step { dx, dy } => {
+            let hp = run.hero.pos;
+            let q = crate::geom::Pos::new(hp.x + dx, hp.y + dy);
+            if let Some(mi) = run.monsters.iter().position(|m| m.hp > 0 && m.pos == q && !m.ally && m.hostile()) {
+                (Verb::arg("attack", "nearest"), ai::hero_attack(run, cx, mi, "attack", false))
+            } else if run.floor.map.in_bounds(q) && run.floor.map.can_step(hp, q) && !run.occupied(q) {
+                ai::move_hero(run, cx, q);
+                (Verb::new("step"), true)
+            } else {
+                (Verb::new("step"), false)
+            }
+        }
+        crate::engine::Manual::Verb { verb } => {
+            let ok = ai::try_verb(run, cx, &verb, v);
+            (verb, ok)
+        }
+    };
+    if !ok {
+        callout(run, cx, "can't");
+    }
+    emit_rule(run, cx, -3, &verb, "you");
+    all_rows_why(run, cx, "you", None);
+    (-3, verb)
+}
+
 fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     run.rows_why.clear();
     if run.hero.paralysed > 0 {
@@ -501,6 +541,10 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
         emit_rule(run, cx, -2, &verb, "bail → return");
         all_rows_why(run, cx, "bail", None);
         return (-2, verb);
+    }
+    // Take control: the player's action, not a row (row −3: no row's tally, streak or oath reads it)
+    if run.manual {
+        return manual_act(run, cx, v);
     }
     let hp_pct = run.hero.hp_pct();
     let hp_now = run.hero.hp;

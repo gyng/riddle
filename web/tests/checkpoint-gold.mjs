@@ -13,22 +13,23 @@ try{for(const width of [400,1440]){
    return{events,snapshot:{...s,turn,stake:states[phase]},run_over:false};
   };a.go({kind:'watch'});
  });
- let checks=0;const wait=(carry,secured)=>p.waitForFunction(({carry,secured})=>{const t=document.querySelector('.stake')?.textContent;return t?.includes(`Carried $${carry}`)&&t.includes(`Secured $${secured}`);},{carry,secured});
+ let checks=0;// `carry`: the stake's carry at risk; the strip's Carried is the core's carried (secured + at risk)
+ const wait=(carry,secured)=>p.waitForFunction(({carry,secured})=>{const t=document.querySelector('.stake')?.textContent;return t?.includes(`Carried $${carry+secured}`)&&t.includes(`Secured $${secured}`);},{carry,secured});
  const check=async(regex,label)=>{const t=await p.locator('.stake').textContent();if(!regex.test(t))throw Error(`${label}: ${t}`);checks++;};
- await wait(30,10);await p.evaluate(()=>window.__stakePhase=1);await wait(0,40);await check(/^Carried \$0 · Secured \$40$/,'omitted zero swap checkpoint');
+ await wait(30,10);await p.evaluate(()=>window.__stakePhase=1);await wait(0,40);await check(/^Carried \$40 · Secured \$40$/,'omitted zero swap checkpoint');
  await p.evaluate(()=>window.__stakePhase=2);await wait(20,40);
  await p.evaluate(()=>window.__stakePhase=3);await wait(15,40);await check(/−\$5 stolen/,'actual theft');
  await p.evaluate(()=>window.__stakePhase=4);await wait(0,50);await check(/−\$5 left axe/,'swap plus checkpoint excludes secured transfer');
  await p.evaluate(()=>window.__stakePhase=5);await wait(20,50);
  await p.evaluate(()=>window.__stakePhase=6);await wait(0,65);await check(/−\$5 stolen/,'theft plus checkpoint excludes secured transfer');
  await p.evaluate(()=>window.__stakePhase=7);await wait(20,65);
- await p.evaluate(()=>window.__stakePhase=8);await wait(10,75);await check(/Carried \$10 −\$5 stolen · Secured \$75/,'new carry and checkpoint preserve only prior real loss');
+ await p.evaluate(()=>window.__stakePhase=8);await wait(10,75);await check(/Carried \$85 −\$5 stolen · Secured \$75/,'new carry and checkpoint preserve only prior real loss');
  await p.evaluate(()=>window.__stakePhase=9);await p.waitForFunction(()=>document.querySelector('.loot-drop')?.textContent==='−$3 left sword');checks++;
  // Fresh current wire with an explicit zero swap counter.
  await p.evaluate(()=>{const a=window.__riddle,s=window.__stakeBase;a.go({kind:'camp'});let turn=s.turn;
   a.engine.send=async()=>({...s,stake:{loot:6,death_keep:0,swapped:0,brought:[]}});
   a.engine.step=async ticks=>{turn+=ticks;const done=!!window.__explicitCheckpoint;return{events:done?[{k:'pickup',t:turn,id:s.hero.id,item:'folded scroll?'}]:[],snapshot:{...s,turn,stake:{loot:done?0:6,death_keep:done?6:0,swapped:0,brought:[]}},run_over:false};};a.go({kind:'watch'});
- });await wait(6,0);await p.evaluate(()=>window.__explicitCheckpoint=true);await wait(0,6);await check(/^Carried \$0 · Secured \$6$/,'explicit zero swap checkpoint');
+ });await wait(6,0);await p.evaluate(()=>window.__explicitCheckpoint=true);await wait(0,6);await check(/^Carried \$6 · Secured \$6$/,'explicit zero swap checkpoint');
  // Fresh watch on an older wire: no secured/swap counters, genuine carry fall
  // beside a pickup still uses its existing compatibility label.
  await p.evaluate(()=>{

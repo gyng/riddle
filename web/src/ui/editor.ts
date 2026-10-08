@@ -250,10 +250,14 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     const grip = h("button", { class: `grip${order ? "" : " still"}`, onpointerdown: (e) => startDrag(e as PointerEvent, i, order) }, order ? "≡" : "", h("small", { class: "rn num" }, `${i + 1}`));
     const end = penEnd(), pkg = i >= end, full = ownRowCount(rows()) >= vocab().max_rows;
     const up = moveTarget(rows(), i, i - 1, end, full), down = moveTarget(rows(), i, i + 1, end, full);
+    const penLast = i === end - 1 && end < rows().length && down < 0;
     // a package row's ▲ on a full set is off and says why (`rules full`), never a move the cap then blocks at `send`
     const updown = !order ? "" : h("div", { class: "updown" },
       h("button", { class: "step up", disabled: up < 0, title: pkg && full && !card ? /* copy:callout */ "rules full" : undefined, onclick: () => moveRow(i, i - 1) }, "▲"),
-      h("button", { class: "step down", disabled: down < 0, onclick: () => moveRow(i, i + 1) }, "▼"));
+      // blind 1fb7786 (B: "a custom row pinned at the top, step-down disabled"): the pen's rows sit above the packages' — the pen's last
+      // row's ▼ says so (and the row carries the line), never a silent dead control
+      h("button", { class: `step down${penLast ? " pen-end" : ""}`, disabled: down < 0, title: penLast ? /* copy:callout */ "packages below" : undefined, "aria-label": penLast ? /* copy:callout */ "packages below" : undefined, onclick: () => moveRow(i, i + 1) }, "▼"));
+    if (penLast && order) chips.appendChild(h("small", { class: "pen-end-note dim" }, "▼ ", /* copy:callout */ "packages below"));
     // QA 0c6e126 (qaY: a row's × deleted on the first tap, no undo — "my second tap deleted a second row"): the supplies' two-tap — the
     // first arms it (`drop`), the second deletes; armed, it stays armed across a repaint until a tap elsewhere
     // rater A on c4705f9 (a package row's × "did not drop it": the core compiled it back): a package's row has no × — it goes with its package

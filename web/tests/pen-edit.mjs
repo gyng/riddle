@@ -71,6 +71,9 @@ try {
     check(s2.mine.filter((k) => k.startsWith(moved + "|")).length === 1, `the package's copy yields to the pen's (${s2.mine.join(" · ")})`);
     const penDown = await page.evaluate((sel) => document.querySelector(sel)?.disabled, `${tablet(0)} .step.down`);
     check(penDown === true, "the pen's last row has no ▼ (it never sits under a package)");
+    // blind 1fb7786 (B: "pinned at the top, step-down disabled"): the dead ▼ says why, and the row carries the line
+    const penEnd = await page.evaluate((sel) => ({ title: document.querySelector(`${sel} .step.down`)?.title, note: document.querySelector(`${sel} .pen-end-note`)?.textContent, others: document.querySelectorAll(".camp .editor .pen-end-note").length }), tablet(0));
+    check(penEnd.title === "packages below" && penEnd.note === "▼ packages below" && penEnd.others === 1, `the pen's end reads \`packages below\` on its ▼ and its row, once (${JSON.stringify(penEnd)})`);
   }
 
   if (part("cap")) {

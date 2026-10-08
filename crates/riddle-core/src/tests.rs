@@ -11892,3 +11892,51 @@ fn arbitrary_camp_prefixes_match_fresh_ordered_panels() {
         }
     });
 }
+
+/// Blind 1fb7786 (A, twice: the D8 Warlord, no counter — "a minute on summoned goblins while hp ticks down,
+/// then driven out"): not a loop. On a player's lineage (Steady, Guarded) with no counter the Warlord's fight
+/// ends in a drive-off a bounded number of the hero's actions after he is first seen: his rallies are finite
+/// (each fallen rally goblin restarts the still count, reserves never do), no still stretch passes
+/// `BOSS_STILL`, and the pacing guard never sets the goblins hitting him aside. (Measured: 90–110 actions,
+/// 32–37 goblins cut down, ≤ 10 restarts; a hero of real hp banks out or dies before the bound.)
+#[test]
+fn a_warlord_without_his_counter_drives_the_hero_off_in_bounded_actions() {
+    for stance in ["steady", "guarded"] {
+        for seed in 1..=4u64 {
+            let mut g = Game::new(seed);
+            g.sim = true;
+            g.max_deaths = 1000;
+            g.lineage.kit.insert("weapon".into(), 2);
+            g.lineage.kit.insert("armour".into(), 2);
+            g.lineage.rest_left = 0;
+            g.lineage.pkg.owned.insert(stance.into());
+            g.lineage.pkg.stance = stance.into();
+            crate::packages::recompile(&mut g.lineage);
+            g.start_run(None);
+            g.descend_to(8);
+            // (a hero who cannot fall, so the fight runs to its own end: the bound is the fight's, not his hp's)
+            let h = &mut g.run.as_mut().unwrap().hero;
+            (h.max_hp, h.max_hp_base, h.hp) = (400, 400, 400);
+            let mut first = None;
+            let mut stuck = 0;
+            while g.run.as_ref().is_some_and(|r| r.over.is_none() && r.depth == 8 && r.turn < 20_000) {
+                let n0 = g.run.as_ref().unwrap().trace.len();
+                g.tick();
+                let r = g.run.as_ref().unwrap();
+                if first.is_none() && r.boss_still.is_some() {
+                    first = Some(r.actions);
+                }
+                if first.is_some() {
+                    stuck += r.trace.iter().skip(n0).filter(|t| t.verb.v == "stuck").count();
+                }
+            }
+            let r = g.run.as_ref().unwrap();
+            let first = first.unwrap_or_else(|| panic!("{stance} seed {seed}: the Warlord met on D8"));
+            assert_eq!(r.driven_off.as_deref(), Some("goblin_warlord"), "{stance} seed {seed}: no counter, driven off");
+            let fight = r.actions - first;
+            assert!(fight <= 2 * crate::turn::BOSS_STILL, "{stance} seed {seed}: a {fight}-action doomed fight");
+            assert!(r.nohp.2 <= crate::turn::BOSS_STILL, "{stance} seed {seed}: a still stretch of {}", r.nohp.2);
+            assert_eq!(stuck, 0, "{stance} seed {seed}: the pacing guard set the Warlord's goblins aside");
+        }
+    }
+}

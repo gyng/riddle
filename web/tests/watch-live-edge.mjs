@@ -7,6 +7,7 @@
 // keeps the hero up; `fake_depth=5`, the boss floor) with each engine step slowed 15 ms (the real wasm's step cost):
 //   · in `fights` and the plain 1× (`one`), no stretch of more than 6 s with the dead flag up and no news (a move, a jump, a floor);
 //   · the dead stretch jumps (`data-jumps` ≥ 1) and the whole standoff is crossed well under the old ~18 s;
+//   · the clock eases up (blind 1fb7786, B): no single change to > 64× from under half of it;
 //   · the combat log never reads `−0 hp` / `+0 hp` (a zero hit reads `blocked`).
 //   node web/tests/watch-live-edge.mjs
 import { execFileSync } from "node:child_process";
@@ -28,6 +29,10 @@ try {
     const r = await page.evaluate(async () => {
       const app = window.__riddle, step = app.engine.step.bind(app.engine);
       app.engine.step = async (n) => { await new Promise((z) => setTimeout(z, 15)); return step(n); };   // the real step's cost
+      // blind 1fb7786 (B: "1× to 107× … jumpy"): every clock change, as the watch sets it
+      const jumps = []; let was = Number(document.querySelector(".watch")?.dataset.speed ?? 1), top = was;
+      const mo = new MutationObserver(() => { const n = Number(document.querySelector(".watch")?.dataset.speed ?? 0); if (n === was) return; if (n > 64 && n > 2.05 * Math.max(was, 16)) jumps.push(`${was}→${n}`); top = Math.max(top, n); was = n; });
+      mo.observe(document.querySelector(".watch"), { attributes: true, attributeFilter: ["data-speed"] });
       const t0 = performance.now(); let news = "", newsAt = t0, worst = 0, worstAt = null, deadMs = 0, last = t0, zero = [];
       while (performance.now() - t0 < 60_000) {
         const w = document.querySelector(".watch"); if (!w || app.screen !== "watch") break;
@@ -41,12 +46,14 @@ try {
         if (d.over === "1") break;
         await new Promise((z) => setTimeout(z, 100));
       }
+      mo.disconnect();
       const d = document.querySelector(".watch")?.dataset ?? {};
-      return { worst: Math.round(worst), worstAt, deadS: Math.round(deadMs / 100) / 10, jumps: Number(d.jumps ?? 0), wall: Math.round((performance.now() - t0) / 100) / 10, zero: [...new Set(zero)].slice(0, 3), blocked: [...document.querySelectorAll(".combat-log li")].some((li) => /blocked$/.test(li.textContent)) };
+      return { jumps2: jumps.slice(0, 4), top, worst: Math.round(worst), worstAt, deadS: Math.round(deadMs / 100) / 10, jumps: Number(d.jumps ?? 0), wall: Math.round((performance.now() - t0) / 100) / 10, zero: [...new Set(zero)].slice(0, 3), blocked: [...document.querySelectorAll(".combat-log li")].some((li) => /blocked$/.test(li.textContent)) };
     });
     check(r.worst <= 6000, `${mode}: no dead stretch over 6 s without news (worst ${r.worst} ms at ${JSON.stringify(r.worstAt)})`);
     check(r.jumps >= 1, `${mode}: the standoff jumps (${r.jumps} jumps; ${r.deadS} s dead over a ${r.wall} s watch)`);
     check(r.deadS <= 12, `${mode}: the 6 000-tick standoff crossed in ≤ 12 s of dead picture (${r.deadS} s; was ~18 s)`);
+    check(r.jumps2.length === 0, `${mode}: the clock eases up — never one step past 64× from under half of it (${r.jumps2.join(" · ") || "none"}; top ${r.top}×)`);
     check(r.zero.length === 0 && r.blocked, `${mode}: no "−0 hp" in the combat log; a zero hit reads "blocked" (${r.zero.join(" / ") || "none"})`);
     await page.close();
   }

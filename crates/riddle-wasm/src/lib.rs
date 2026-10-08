@@ -500,6 +500,19 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Take control (a secondary mode): the player has the watched run's hero (`on`), or hands him back.
+    #[wasm_bindgen(js_name = takeControl)]
+    pub fn take_control(&mut self, on: bool) -> Result<(), JsError> {
+        self.inner.take_control(on).map_err(err)
+    }
+
+    /// Take control: the hero's next action — `{"k":"step","dx":1,"dy":0}` · `{"k":"verb","verb":{"v":"drink","a":"heal"}}` · `{"k":"wait"}`.
+    #[wasm_bindgen(js_name = act)]
+    pub fn act(&mut self, action_json: &str) -> Result<(), JsError> {
+        let a: riddle_core::engine::Manual = serde_json::from_str(action_json).map_err(|e| JsError::new(&e.to_string()))?;
+        self.inner.act(a).map_err(err)
+    }
+
     /// Cut 111: pick a tactic's L3 row variant (0 · 1); returns the Lineage.
     #[wasm_bindgen(js_name = setTacticVariant)]
     pub fn set_tactic_variant(&mut self, id: &str, variant: u32) -> Result<String, JsError> {

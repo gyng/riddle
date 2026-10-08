@@ -9,6 +9,7 @@
 import type { App } from "../app";
 import { h } from "./dom";
 import { icon } from "./skin";
+import type { Packages } from "../engine/types";
 
 export type Concept = "marks" | "renown" | "cage" | "vault" | "bones" | "oaths" | "bounty" | "waystone" | "fork" | "grudge";
 /** The concept's icon (a packed one, else its glyph) and its first-time caption. */
@@ -67,7 +68,7 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   heir: "the family's hero now · the next takes over", gold: "earned on runs · spent in town", best: "deepest floor any heir reached",
   reach: "chance a run gets that deep", package: "fighting, healing and returning rules", stance: "when to fight, heal and return",
   tactic: "extra rules for specific fights · alongside the combat style", temperament: "personality · changes the hero's behavior", drill: "learned boss counter · enabled automatically · can be disabled",
-  scar: "boss weaker each meeting", quest: "one goal · a reward when done", track: "one way the family grows", pen: "write hero rules · unlocks later",
+  scar: "boss weaker each meeting", quest: "one goal · a reward when done", track: "one way the family grows", pen: "hero rules written by hand",
   lever: "the cheapest move against this death", bank: "deposits earn interest each night", banked: "home with all the loot",
   returned: "turned back early · keeps most loot", death: "gear left on the floor as bones", plateau: "every run home · none deeper",
   ends: "full haul, early return or death", priority: "the top rule that fits acts", condition: "when a rule may act", action: "what he does then",
@@ -138,6 +139,12 @@ export const LIVE: Partial<Record<Term, (app: App) => string | null>> = {
   track: (a) => { const ts = a.lineage.tracks ?? []; return ts.length ? /* copy:tooltip */ `${ts.reduce((n, t) => n + t.stages, 0)} stages` : null; },
   bank: (a) => { const T = a.lineage.town; return T ? /* copy:tooltip */ `$${T.bank} in · cap $${T.bank_cap}` : null; },
   vault: (a) => { const n = a.lineage.vault?.length ?? 0; return n ? /* copy:tooltip */ `${n} kept` : null; },
+  // blind 1fb7786 (B: `custom rules · write hero rules · unlocks later` with five rules owned): the lock is live, never the gloss — the
+  // chip's own word while locked, the rules written once open
+  pen: (a) => {
+    const P = a.lineage.packages; if (!P) return null;
+    return P.pen_open || P.literal ? null : P.pen_needs?.length ? penWaits(P) : /* copy:tooltip */ "locked";
+  },
 };
 /** The term a word marks (`packages` → package), or null. */
 const ALIAS_OF = new Map<string, Term>(Object.entries(ALIASES).flatMap(([t, ws]) => (ws ?? []).map((w) => [w.toLowerCase(), t as Term] as [string, Term])));
@@ -145,3 +152,11 @@ export const termOf = (word: string): Term | null => ALIAS_OF.get(word.toLowerCa
 /** One regex for every alias, whole words, longest first. */
 export const ALIAS_RE = new RegExp(/* copy:none */ `(?<![\\p{L}\\d])(${[...ALIAS_OF.keys()].sort((a, b) => b.length - a.length).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?![\\p{L}\\d])`, "giu");
 export const TERMS = Object.keys(TIP) as Term[];
+
+/** The lock chip's short word: `next report` when only the reveal waits, `after Bloat Mother` while the boss gate stands, else `locked`. */
+export function penWaits(P: Pick<Packages, "pen_needs">): string {
+  const first = P.pen_needs?.[0] ?? "";
+  if (/^upcoming reports?$/i.test(first)) return /* copy:label */ "next report";
+  const boss = /^meet (.+)$/i.exec(first);
+  return boss ? /* copy:callout */ `after ${boss[1]}` : /* copy:label */ "locked";
+}
