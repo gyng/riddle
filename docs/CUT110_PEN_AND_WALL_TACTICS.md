@@ -35,3 +35,16 @@ rest **lands** — was: the whole blow back, nothing landed, so a melee hero cou
 all. `reflected!` still reads it; mirror read (shoot · burn · step away) stays the better answer.
 Tests: `iron_golem_reflects_melee_but_not_arrows` (lands, at a price, less back than lands), the
 Sentinel riposte (one riposte, no recursion; new numbers).
+
+## 4. Deviation: `Workers pay the away player` (dayplayer, routine full)
+
+After §3 the row fails: D18 48 vs 48 h · mean best **28.86 vs 29.33** (16 seeds; 29.06 vs 29.64 at 40).
+It passed before (24 vs 48 h · 28.50 vs 28.11). Bisect (targeted row, fresh): the generator, the pen age
+and the Legacy-in-rest fix do not move it; the softened mirror does (whole reflection again: 27.79 vs
+27.23, PASS) — both away players go deeper, the one doing every chore by hand at its check-in more so.
+Worker ablation: only the armourer's found weapons matter (without them the two tie at 40 seeds); a
+clearer-edge rule (115 %, 130 %), wield-only and no-slower-arm filters did not move it. No worker change
+honestly restores a strict win, and none was taken to pass the row. **Recorded deviation** (AGENTS.md
+"record a deviation with a reason"), owner-directed design; the row's threshold is unchanged. `Workers
+never cost the daily player a floor` passes (30.31 vs 30.43). Follow-up: a worker that pays the away
+player at a wall (e.g. the drillmaster wearing a wall tactic as it arrives, announced and revocable).
