@@ -35,7 +35,7 @@ try {
   const pick = () => page.evaluate(() => window.__riddle.lineage.return_pick ?? null);
   const p0 = await pick();
   check(p0?.offers?.length === 3 && p0.size === 1, `a 30m return carries a pick of three, size 1 (${p0?.offers?.map((o) => o.id).join(" · ")} · ${p0?.size})`);
-  const tiles = (where) => page.evaluate((w) => [...document.querySelectorAll(`.return-pick.${w} .tile[data-offer]`)].filter((t) => t.offsetParent).map((t) => t.dataset.offer), where);
+  const tiles = (where) => page.evaluate((w) => [...document.querySelectorAll(`.return-pick[data-return-pick="${w}"] .tile[data-offer]`)].filter((t) => t.offsetParent).map((t) => t.dataset.offer), where);
   if (process.env.SHOT) await page.screenshot({ path: `${process.env.SHOT}/report.png` });
   check((await tiles("report")).length === 3, `the report shows the pick as three tiles (${(await tiles("report")).join(" · ")})`);
   // left untaken, the pick waits on the camp
@@ -44,8 +44,8 @@ try {
   await sleep(500);
   check(JSON.stringify(await pick()) === JSON.stringify(p0), "untaken, the pick waits unchanged");
   // on the camp the waiting pick is one tile (the fold's budget) that opens the three
-  check((await tiles("camp")).length === 0 && await page.locator('.return-pick.camp .tile[data-tile="pick"]').isVisible(), "the camp shows the waiting pick as one tile");
-  await page.locator('.return-pick.camp .tile[data-tile="pick"]').click();
+  check((await tiles("camp")).length === 0 && await page.locator('.return-pick[data-return-pick=camp] .tile[data-tile="pick"]').isVisible(), "the camp shows the waiting pick as one tile");
+  await page.locator('.return-pick[data-return-pick=camp] .tile[data-tile="pick"]').click();
   await sleep(400);
   const camp = await tiles("sheet");
   if (process.env.SHOT) await page.screenshot({ path: `${process.env.SHOT}/camp.png` });
@@ -59,7 +59,7 @@ try {
   const after = await page.evaluate(async () => JSON.parse(await window.__riddle.engine.save()));
   const bl = (s) => (s.active ?? s).lineage?.bloodline?.points ?? 0;
   check(!!legacyOffer && bl(after) - bl(before) === Number(legacyOffer.line.replace(/\D/g, "")), `Legacy taken: ${legacyOffer?.line} points (${bl(before)} → ${bl(after)})`);
-  check(await page.locator('.return-pick.camp .tile').count() === 0 && (await tiles("sheet")).length === 0, "taken, the pick leaves the camp");
+  check(await page.locator('.return-pick[data-return-pick=camp] .tile').count() === 0 && (await tiles("sheet")).length === 0, "taken, the pick leaves the camp");
   void pts;
   // forge: two steps a tier, priced alike
   const kit = await page.evaluate(() => window.__riddle.lineage.kit ?? []);

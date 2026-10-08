@@ -29,7 +29,7 @@ function offerTile(app: App, o: ReturnOffer, busy: { on: boolean }, done?: () =>
 /** The pick's three tiles (hidden when none waits); repaints on every lineage change. On the camp the waiting pick is one tile
  *  (the camp's fold keeps its budget of controls) that opens the three in a sheet. */
 export function returnPick(app: App, where: "report" | "camp"): { el: HTMLElement; dispose: () => void } {
-  const el = h("section", { class: `return-pick ${where}`, "data-return-pick": where });
+  const el = h("section", { class: `return-pick at-${where}`, "data-return-pick": where });
   const busy = { on: false };
   const three = (done?: () => void): HTMLElement => h("div", { class: "cmd pick-tiles" }, ...(app.lineage.return_pick?.offers ?? []).map((o) => offerTile(app, o, busy, done)));
   const head = (size: number): HTMLElement => h("div", { class: "pick-head" }, h("b", { class: "row-label" }, /* copy:label */ "Pick one"), h("small", { class: "dim num" }, "◇".repeat(size)));

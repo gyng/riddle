@@ -264,7 +264,8 @@ async function qaL() {
   await fake({ depths: depthsF, known_to: 9, causes: [{ cause: "rat", share: 1 }], ends: { bank: 0, return: 0.04, death: 0.66, stall: 0.3, gold: 3, pm: 0.03 }, refined: true });
   await sleep(150);
   const ends = await page.evaluate(() => [...document.querySelectorAll(".shaft .shaft-ends .end")].map((e) => e.textContent.replace(/\s+/g, " ").trim()));
-  const sum = ends.map((e) => /(<?)(\d+)%$/.exec(e)).filter(Boolean).reduce((a, m) => a + (m[1] ? 0 : Number(m[2])), 0);   // Cut 23 §2: a `<N%` share is a 0 sampled
+  const sum = ends.map((e) => /(<?)(\d+)%(?: ±\d+)?$/.exec(e))   // Cut 113: the death gem carries its band (`66% ±3`)
+    .filter(Boolean).reduce((a, m) => a + (m[1] ? 0 : Number(m[2])), 0);   // Cut 23 §2: a `<N%` share is a 0 sampled
   check(ends.some((e) => e === "stall 30%") && sum === 100, `the shaft's gems sum to 100 with a stall gem (${ends.join(" · ")})`);
   await page.locator(".shaft").click({ timeout: 5000 }); await sleep(200);
   // (the panel's bars, polled up to 3 s; a camp measure landing late on a loaded machine repaints the real forecast over the
