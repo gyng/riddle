@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Blind 5331f40 (both Mirror King kills ended off-view: `Run ended · Watching D33`, then the report; the kill was a 5-line reel): a boss's
-// kill is a witnessed beat. Real wasm, the earned first-clear fixture, a numbered descent re-climbed to the King:
+// kill is a witnessed beat. Real wasm, the earned first-clear fixture, a numbered descent re-climbed to a band boss — the Foundry Master
+// (Cut 113's King, 220 hp · 13–19, is a wall a just-cleared kit is meant not to break in one run; the beat is any boss's):
 //   live — the watch is paused at the King's sighting while the world runs the run to its end; the hero tap (`riddle:focus-hero`,
-//          a jump to live) then lands short of the kill, `MIRROR KING DOWN` holds its beat before `COLLECTED`, and only then the report;
+//          a jump to live) then lands short of the kill, `FOUNDRY MASTER DOWN` holds its beat before `COLLECTED`, and only then the report;
 //   away — a boss slain while away offers `watch kill` on the absence's report; it opens that run's replay seeked to the fall, which plays.
 //   node web/tests/boss-kill-beat.mjs
 import { execFileSync } from "node:child_process";
@@ -35,23 +36,25 @@ try {
       for (let run = 0; run < 12; run++) {
         try { await a.engine.autoKeep?.(); } catch { /* nothing pending */ }
         const L = await a.engine.lineage();
-        for (const d of [29, 28, 24, 23, 19, 18]) if (d <= L.best_depth) { try { await a.engine.setStart(d); break; } catch { /* unlit */ } }
+        for (const d of [19, 18, 14]) if (d <= L.best_depth) { try { await a.engine.setStart(d); break; } catch { /* unlit */ } }
         s = await a.engine.send(); let over = false;
-        for (let i = 0; i < 6000; i++) { const x = await a.engine.step(50); s = x.snapshot; if (x.run_over) { over = true; break; } if (s.depth >= 33) break; }
-        if (!over && s.depth >= 33) return s.depth;
+        for (let i = 0; i < 6000; i++) { const x = await a.engine.step(50); s = x.snapshot; if (x.run_over) { over = true; break; } if (s.depth >= 23) break; }
+        if (!over && s.depth >= 23) return s.depth;
       }
       return s?.depth ?? 0;
     });
-    check(at === 33, `a live run stands on the King's floor (D${at})`);
+    check(at === 23, `a live run stands on the Foundry Master's floor (D${at})`);
+    // past the Master the hero turns home (the run ends on the next floor, as the King's fall ended it on the last)
+    await page.evaluate(async () => { const a = window.__riddle; const r = a.rules; try { await a.engine.setRules({ ...r, rows: [{ conds: [{ k: "depth>=", n: 24 }], verb: { v: "return" } }, ...r.rows] }); } catch { /* full: the run ends where it ends */ } });
     await page.evaluate(() => { window.__beatLog = []; const a = window.__riddle; a.watchMode = "fights"; a.go({ kind: "watch" }); });
     await page.waitForFunction(() => window.__riddle.screen === "watch", null, { timeout: 30_000 });
     // the King in view: pause, and let the world run the run out (the exit held: `Run ended`)
-    const sighted = await page.waitForFunction(() => !!document.querySelector("main.watch")?.dataset.boss || (window.__beatLog ?? []).some((b) => /MIRROR KING DOWN/.test(b.text)), null, { timeout: 120_000, polling: 50 }).then(() => true, () => false);
-    check(sighted, "the watch reaches the King");
-    const downEarly = await page.evaluate(() => (window.__beatLog ?? []).some((b) => /MIRROR KING DOWN/.test(b.text)));
+    const sighted = await page.waitForFunction(() => !!document.querySelector("main.watch")?.dataset.boss || (window.__beatLog ?? []).some((b) => /FOUNDRY MASTER DOWN/.test(b.text)), null, { timeout: 120_000, polling: 50 }).then(() => true, () => false);
+    check(sighted, "the watch reaches the Foundry Master");
+    const downEarly = await page.evaluate(() => (window.__beatLog ?? []).some((b) => /FOUNDRY MASTER DOWN/.test(b.text)));
     if (!downEarly) {
       await page.locator("main.watch [aria-label='Pause watch']").first().click().catch(() => {});
-      const ended = await page.waitForFunction(() => document.querySelector("main.watch")?.dataset.ending === "1", null, { timeout: 120_000 }).then(() => true, () => false);
+      const ended = await page.waitForFunction(() => document.querySelector("main.watch")?.dataset.ending === "1", null, { timeout: 240_000 }).then(() => true, () => false);
       check(ended, "paused, the world ran the run to its end");
       // the hero tap: a jump to live — the kill not yet shown, the picture lands short of it
       await page.evaluate(() => window.dispatchEvent(new Event("riddle:focus-hero")));
@@ -59,8 +62,8 @@ try {
     }
     await page.waitForFunction(() => window.__riddle.screen !== "watch", null, { timeout: 120_000 }).catch(() => {});
     const log = await page.evaluate(() => (window.__beatLog ?? []).map((b) => ({ text: b.text, ms: b.ms })));
-    const down = log.findIndex((b) => /MIRROR KING DOWN/.test(b.text)), exit = log.findIndex((b) => /^(COLLECTED|RETURNED)/.test(b.text));
-    check(down >= 0, `MIRROR KING DOWN is a beat (${log.map((b) => b.text).join(" | ")})`);
+    const down = log.findIndex((b) => /FOUNDRY MASTER DOWN/.test(b.text)), exit = log.findIndex((b) => /^(COLLECTED|RETURNED)/.test(b.text));
+    check(down >= 0, `FOUNDRY MASTER DOWN is a beat (${log.map((b) => b.text).join(" | ")})`);
     check(down >= 0 && (exit < 0 || down < exit), "the kill's beat comes before the exit's");
     check(down >= 0 && exit >= 0 && log[exit].ms - log[down].ms >= 3500, `the kill holds its beat before the exit (${down >= 0 && exit >= 0 ? log[exit].ms - log[down].ms : "?"} ms)`);
     check(await page.evaluate(() => window.__riddle.screen) === "report", "then the report");
@@ -74,7 +77,7 @@ try {
     await page.waitForFunction(() => window.__riddle.screen === "report", null, { timeout: 180_000 });
     // a descent's absence re-slays the King but reports no first victory (`boss:` bests are the lineage's firsts): the report is shown
     // again as a first clear's would read — the runs, their held replays and the King's fall in them are the engine's own
-    const held = await page.evaluate(() => { const a = window.__riddle, r = a.view.report; a.go({ kind: "report", report: { ...r, bests: [...r.bests, "boss:mirror_king"] }, absence: true }); return (a.lineage.replays ?? []).length; });
+    const held = await page.evaluate(() => { const a = window.__riddle, r = a.view.report; a.go({ kind: "report", report: { ...r, bests: [...r.bests, "boss:foundry_master"] }, absence: true }); return (a.lineage.replays ?? []).length; });
     check(held > 0, `the absence's runs are held for replay (${held})`);
     const btn = page.locator(".report-boss-watch").first();
     check(await btn.count() > 0, `a boss slain while away offers watch kill (${await page.locator(".report-boss-row").count()} bosses)`);
