@@ -1,0 +1,191 @@
+{
+  "$comment": "Raw blind card, rater b, cohort 60dc-frozen. Immutable once written. Horizon INCOMPLETE (56.8 of 70 active minutes; tool-call budget binding).",
+  "game": "Riddle",
+  "build": "1fb7786",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-b (agent, fresh, seed 173, headed D3D12 RTX 3080, 400x800 @3x)",
+  "horizon": {
+    "complete": false,
+    "activeMinutes": 56.8,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "07:48:24",
+        "end": "08:31:22",
+        "rawMin": 43.0,
+        "excludedMin": 3.0,
+        "creditedMin": 40.0,
+        "exclusion": "~3 min debugging driver hit-test on the rule picker (hidden duplicate chip)"
+      },
+      {
+        "phase": "absent=20m return",
+        "start": "08:31:22",
+        "end": "08:33:58",
+        "creditedMin": 2.6,
+        "deviation": "short of 5 min; misjudged elapsed time and navigated to the next absence early"
+      },
+      {
+        "phase": "absent=4h return",
+        "start": "08:33:58",
+        "end": "08:39:45",
+        "creditedMin": 5.8
+      },
+      {
+        "phase": "absent=8h return",
+        "start": "08:39:45",
+        "end": "08:48:10",
+        "creditedMin": 8.4,
+        "deviation": "short of 20 min; the 260-call budget with 20 reserved for filing ran out; also the dungeon was cleared at ~08:47 and the post-clear Ascension needed further setup"
+      }
+    ],
+    "absences": [
+      "20m (simulated)",
+      "4h (simulated)",
+      "8h (simulated)"
+    ],
+    "runsWatched": 14,
+    "watchesAtNormalSpeed": "5+ (several minutes each incl. Bloat Mother, Lich, Mirror King fights)",
+    "runsOffline": 9,
+    "deathsRead": 4,
+    "ruleEditsAttempted": 6,
+    "ruleEditsCompleted": 5,
+    "ruleEditNotes": "Attempt 1 locked ('Meet Bloat Mother / or 120h elapsed'). Pen opened after first death (D20). Completed: telegraph·hp<10%→retreat; on see captive→free captive; foe: drain→attack drain; applied death fix hp<20%→read unknown; foe: telegraph→shield bash (after buying +1 rule slot).",
+    "endState": "Dungeon cleared (7th heir, D34, 23 runs, 6 deaths)",
+    "blindnessViolations": "none known; read only allowed docs plus tools/driver.mjs header (operating instructions) and tools/drive.sh"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "My 7th heir, Iris, walked straight down to the Mirror King at D33 carrying the rules I had written after the last two deaths. I had just added a shield bash on telegraphs, and when the King mirrored her down to 23 of 52 she drank a heal, bashed, and the King fell. She walked on to D34 and the game told me the dungeon was cleared after 23 runs and 6 deaths.",
+  "audio": "unassessed (agent cannot listen)",
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Forecast deltas and death traces are clear ('VS LAST RUN · full haul 13→50%'), but copy misled me several times: pen lock 'Custom rules / Upcoming reports', tip 'custom rules · write hero rules · unlocks later' shown after I owned 5 rules, tactics 'change' toggles a chooser closed, compare 'noise · 8 runs'."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Real foreseeable trade-offs: Guarded 'better 8/8', corridor fighting 'worse 7/8', threshold sweep on my telegraph rule (hp<40% death 50%, hp<10% 13%), shield bash vs drink heal ($3075 vs $1368/run). Lapse: forge/legacy/worker buys are a strictly-ordered 'buy everything' chore."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "I learned captives are worth freeing and telegraphs want a bash; but much growth was the apprentice forging ('forge −$20925') rather than my skill, and hunger ('starving −56') stayed a wall I never learned to answer."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "King fights sweated ('KING MIRRORS' to 2/50 hp, 'Carried $4291 · Secured $0'); but most of each run is pre-resolved in a 'D1–32 · 100% · +$3228' summary chip, so stakes live in the last floors only."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Smooth on the GPU, big damage numbers ('30', 'MIRRORED!'), callouts like 'OGRE WINDS UP'. Lapse: the auto speed lurches 1×→107×→1× within seconds. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "'Cut the captive down. The stairs are clear.' changed my rules; nest wakes, iron golem 'REFLECTED!', gas, Lich summons. But fens hunger/drain repeated run after run ('hunger −26 max', '−30', '−56')."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "Five rules of my own (captives, drain, telegraph bash, low-hp unknown scroll) — recognisably mine; but they sit on top of 7+ package rows I did not author and the custom row is pinned at the top (step-down disabled)."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Heir 1 killed by 'Krusk the slag crawler', heir 2 report 'avenged Krusk', 7th heir 'MIRROR KING DOWN' after my bash rule. Lapse: offline runs collapse to one-line ledger entries ('died $0 · to gas'), so 4 of 6 deaths had no told story."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run: quiet stretches auto-skipped, fights at 1×. Admin: every return asked forge + legacy + tactics + unlock + worker taps. Cadence: whole dungeon cleared in ~57 active min + ~12 h simulated ('Dungeon cleared · 23 RUNS') — 20m and 4h returns felt similar in shape."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "'slag crawler · D20 · hero at 7 hp · bad luck · 1 in 6' + 'fixes · 12 replays' + trace with rule per tick, one-tap 'apply'. Lapse: one suggested fix was nonsensical for the cause ('foes ≥ 1 → free captive · survives 12/12' for a Mirror King death)."
+    },
+    {
+      "id": "social",
+      "human": 0.0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0 in idle-hybrid; only named heirs/workers and grudges."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I chose buy order and rules; route was fixed ('route D5 burrows'), goals were always 'Goal D(n+1) · New record'."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "D4 → 'best D34' with heirs, legacy ranks, forge tiers, unlocks ('action: throw', '+1 rule slot'), and workers automating send/haul/forge ('scout · sent 5', 'apprentice · +3 steps'). Lapse: the apprentice spends nearly all offline gold ('purse +$823 · forge −$20925'), so the gold number stops meaning anything."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Pixel dungeons with lighting, torn red death banner, fens and crypt palettes, ending art 'Dungeon cleared'. Lapse: some HUD text dense on dark backgrounds. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "8h: '5 RUNS · D33 · Boss defeated Lurker Queen · 3/5 DEATHS' with verdicts, unlocks ('+1 rule slot ◆3 or $400') and new tactics to choose; I acted within seconds. Lapse: the 20m return (2.6 min, short) and 4h return offered the same shape; I only saw 3 absences."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "'Freed the captive. It followed.' fired from my rule; the lurker death trace shows my 'retreat vs telegraph' firing at 3/53 and 1/53; King fell after my bash rule. Lapse: forecast once read 'VS LAST RUN · full haul same' while the same panel's numbers moved 13→38%, and many wins came from package rows and the apprentice, not me."
+    }
+  ]
+}

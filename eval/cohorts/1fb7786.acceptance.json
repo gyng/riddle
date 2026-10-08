@@ -4,7 +4,7 @@
     "60dcd5e",
     "1fb7786 (test only)"
   ],
-  "status": "accepted for blind cohort 2026-10-08",
+  "status": "cohort complete 2026-10-08: 65.1 / 69.7, alpha .835 reliable",
   "frozen": {
     "dir": "scratchpad/blind-60dc-frozen/dist",
     "url": "http://127.0.0.1:5254/",
@@ -17,11 +17,11 @@
   "native": {
     "cargoTests": "696 passed",
     "clippy": "clean",
-    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 28.00 vs 28.21 (docs/CUT110 \u00a74)",
+    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 28.00 vs 28.21 (docs/CUT110 §4)",
     "log": "/tmp/riddle-c111-gates.log"
   },
   "browser": {
-    "full": "136/137 (/tmp/riddle-c111-client.log); ui:frame read the speed tile before its Cut 111 rate badge \u2014 check now requires the badge; rerun PASS 63 checks"
+    "full": "136/137 (/tmp/riddle-c111-client.log); ui:frame read the speed tile before its Cut 111 rate badge — check now requires the badge; rerun PASS 63 checks"
   },
   "cohort": {
     "briefs": [
@@ -38,5 +38,35 @@
     ],
     "toolBudget": 260
   },
-  "score": "pending"
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/1fb7786.blind-a.json",
+      "total": 65.1,
+      "complete": false,
+      "activeMinutes": 69.5,
+      "note": "cold 0.4 min short"
+    },
+    "blind-b": {
+      "card": "eval/cards/1fb7786.blind-b.json",
+      "total": 69.7,
+      "complete": false,
+      "activeMinutes": 57,
+      "note": "8h phase short (budget); dungeon cleared ~08:47"
+    },
+    "alpha": 0.835,
+    "reliability": "reliable",
+    "mean": 67.4,
+    "trend": "ad71e72 56.7 → c4705f9 64.7 → 1fb7786 67.4",
+    "shared": [
+      "apprentice spends nearly all offline gold (forge −$20925/−$24500) — 'losses I didn't choose'",
+      "pen opens late behind the reveal queue ('Upcoming reports'; A only in the last 20 min)",
+      "unactionable advice: 'try: attack boss' while locked; King counter 'cadence' not slottable",
+      "REPORT gem unresponsive (A, twice, reload)",
+      "Carried/Secured not reconciling",
+      "auto speed lurches 1×→107×; D8 Warlord summons loop ~1 min",
+      "hunger repeats as a wall with no answer",
+      "most of each run pre-resolved in the fold chip"
+    ],
+    "verdict": "reliable 67.4; 80 not met"
+  }
 }

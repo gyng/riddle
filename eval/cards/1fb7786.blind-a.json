@@ -1,0 +1,215 @@
+{
+  "$comment": "Blind rater a, raw card, immutable once written. Social weight 0 in idle-hybrid. Audio unassessed (agent cannot listen).",
+  "game": "Riddle",
+  "build": "1fb7786",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (agent rater, seed 167)",
+  "horizon": {
+    "activeMinutes": 69.5,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "07:53:15",
+        "end": "08:34:53",
+        "excludedMin": 2.0,
+        "creditedMin": 39.6
+      },
+      {
+        "phase": "return-20m",
+        "start": "08:34:53",
+        "end": "08:40:29",
+        "excludedMin": 0.0,
+        "creditedMin": 5.6
+      },
+      {
+        "phase": "return-4h",
+        "start": "08:40:29",
+        "end": "08:45:45",
+        "excludedMin": 0.1,
+        "creditedMin": 5.2
+      },
+      {
+        "phase": "return-8h",
+        "start": "08:45:45",
+        "end": "09:05:53",
+        "excludedMin": 1.0,
+        "creditedMin": 19.1
+      }
+    ],
+    "exclusions": "helper-script authoring and failed label retries (~2 min cold); page reloads and js tooling (~1 min r8h); catch-up load (~6 s). Cold credited 39.6 min, ~0.4 min short of 40.",
+    "absences": [
+      "20m (simulated)",
+      "4h (simulated)",
+      "8h (simulated)"
+    ],
+    "runsWatched": 13,
+    "runsWatchedNormalSpeed": 12,
+    "runsOffline": 23,
+    "deathsRead": 4,
+    "deathsReadDetail": [
+      "Toren goblin archer D6 death screen",
+      "Una gas D13 via chronicle/report",
+      "Hale mirror king D33 full screen + 5 fixes + trace",
+      "Iris mirror king D33"
+    ],
+    "ruleEditsAttempted": 3,
+    "ruleEdits": 1,
+    "ruleEditNote": "Attempts 1 (08:28) and 2 (08:48): 'Custom rules · locked' -> 'Upcoming reports'. Attempt 3 (08:54) after Hale's death: pen open; reordered priorities (retreat/return/corridor/bank above attack boss) -> 'fighter · 4 rules'. Next heir still died to the King.",
+    "complete": false,
+    "completeNote": "All phases taken; cold phase credited 39.6 of 40 min after exclusions; total 69.5 of 70."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "Bryn Ash, my Guarded fighter, finally broke the Warlord that had driven him out twice, then went on to slay the Bloat Mother and Lich and was sent home by the Foundry Master at D23. I slotted mirror read, and on the very next run he killed the Foundry Master and banked over $13,000. Hours later his heirs kept dying to the Mirror King on D33, and even after I reordered my priorities so retreat sat above attack boss, Iris Ash still fell there with $3680 lost.",
+  "humanProbes": {
+    "clarity": "Did you ever not know what to do? Yes: forecast said 'D8 try: attack boss' but the tactic showed 'boss focus ⊘ slay Warlord', and twice the REPORT gem did nothing until I reloaded.",
+    "decisions": "I swapped Steady for Guarded after 'better 5/8' and slotted mirror read after the Foundry Master sent Bryn home; I would make both again.",
+    "mastery": "An hour ago I didn't know 'COUNTER: REFLECT READ'; now I read the enemy guide ('mirror king · counter cadence') before choosing tactics.",
+    "tension": "I sweated at 'Carried $3949 · Secured $0' on D33 with the King ahead; the game noticed with 'RETURNED $2418 · keeps 60%'.",
+    "feel": "The 'FOUNDRY MASTER DOWN' / 'WARLORD BREAKS' banners felt good; a minute of 'goblin warlord · calls goblins' with hp ticking 26→16 did not (audio unassessed).",
+    "surprise": "'Grusk the jackal, gone wild' and 'Cut the captive down. No one weeps.' surprised me; the King mirroring blows changed my rule order.",
+    "expression": "A bloodline of Guarded fighters with mirror read + quiet steps beside a rogue line on iron gut and kite archers.",
+    "story": "'♟2 the brave rogue · took the Warlord · found ♟1's bones · fell to gas · left bones on D13.'",
+    "pacing": "Play dragged at the D8 warlord loop and the 20m 'Departs' rests; admin dragged in fiddly sheets; I wanted one more when 'floor 24 75%' appeared.",
+    "failure": "Hale lost because 'attack boss over 45%' fired at 48/50 then 25/50 vs the King; the screen offered 'hp < 70% → return · survives 11/12 · was 3/12' — partly my fault for not having that rule.",
+    "social": "No one; heirs are names in a chronicle.",
+    "autonomy": "I founded a second bloodline for $250 and made Una a rogue though nothing asked me to.",
+    "progression": "Within run: D5 to D33; persistent: 'sword +5 · mail +2', legacy ranks; automation: porter, scout ('sends him each rest'), apprentice ('−$24500' forge on its own).",
+    "aesthetic": "A torn red banner with the archer's portrait over a broken shield, 'YOU DIED' wax seal; I'd sit in the lamplit town at night.",
+    "return": "After 4h: 'While away 9 RUNS D33 · purse +$313 · forge −$24500' and new tactics; I re-slotted personalities. After 8h: '8/12 DEATHS · $18399 lost' — I'd rather have stayed for that one.",
+    "attribution": "'Mirror read' was my pick and the Foundry Master fell next run; Iris's King death after I reordered retreat above attack boss was mine too — 'I' put return at 25% too low."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Floor-chance and counters readable ('COUNTER: ATTACK BOSS'); lapses: 'try: attack boss' unactionable, REPORT gem unresponsive twice (reload), 'Carried $0 · Secured $6988' then 'Carried $1329' after a $20 pickup."
+    },
+    {
+      "id": "decisions",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Guarded 'better 5/8', mirror read before Foundry Master; but most compares read 'close' / 'noise · 8 runs', forge purchases strictly ordered."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Learned counters via enemy guide ('mirror king · counter cadence'); my one edit did not beat the King and I had no way to act on 'cadence'."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "'Carried $3949 · Secured $0' at D33 then 'keeps 60%'; but most watched floors were never in doubt, 'Secured' climbing every floor after a record."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Callouts 'WARLORD BREAKS', 'POPS!', auto-skip summaries 'D1–5 · 100% · +$105'; lapse: a minute of hp 26→16 vs summoned goblins with nothing changing. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "'Grusk the jackal, gone wild', captives, 'starving −14', King 'MIRRORED!'; mid-run combat lines repeat ('attack goblin archer ×3')."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "Two bloodlines (fighter vs rogue), styles, 2 tactic slots, personality, saved setups 'fighter · 4 rules'; choices mostly from a short menu."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Chronicle: '♟6 the cowardly fighter · found ♟4, ♟5, ♟2's bones · fell to the King'. Lapse: early repels said only 'a boss drove him out / shields up'."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "Check-ins bounded and rich; lapses: D8 warlord loop twice, 'Departs 20m' rests, many fiddly sheets and hung REPORT."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Hale: 'attack boss over 45% 48/50 → mirror king −23 → 0/50' with 12-replay fixes 'hp < 70% → return survives 11/12'. Lapse: Toren's screen only 'Steady · return at 25% / BUY pack 4'; Una's death only in chronicle."
+    },
+    {
+      "id": "social",
+      "human": 0.0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "Weight 0 in idle-hybrid; no human or relationship play."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Founded a second bloodline, made Una a rogue, chose which hero to send; route fixed downward."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "D5→D33, classes, tactics, porter/scout/apprentice automation. Lapse: apprentice spent '−$24500' / '−$21875' of my gold unasked."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Lamplit town, banner death screens with wax 'YOU DIED'/'REPELLED'; lapse: watch view is dim small sprites under a log. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "4h: 'While away 9 RUNS D33', new tactics to slot; 8h: '8/12 DEATHS · $18399 lost' and gold pre-spent by apprentice — the long absence felt like losses I didn't choose."
+    },
+    {
+      "id": "attribution",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Mirror read → 'FOUNDRY MASTER DOWN' felt mine; most deaths came offline under drilled/default rules and the pen opened only in the last 20 min."
+    }
+  ],
+  "blindnessViolations": "None of the forbidden docs read. Read tools/driver.mjs header comments and tools/drive.sh for driver usage only (infrastructure). Port 5358 unreachable; driver run on 5378.",
+  "infrastructure": "Driver port 5358 dropped SYNs; relaunched own driver on 5378 before any page load. Two page reloads (same origin, dev=1&runs=1) to escape an unresponsive REPORT gem."
+}
