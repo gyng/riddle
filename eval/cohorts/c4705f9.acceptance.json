@@ -4,7 +4,7 @@
     "2e2729f",
     "c4705f9"
   ],
-  "status": "accepted for blind cohort 2026-10-08",
+  "status": "cohort complete 2026-10-08: 61.0 / 68.3, alpha .73 tentative",
   "frozen": {
     "dir": "scratchpad/blind-108b-frozen/dist",
     "url": "http://127.0.0.1:5253/",
@@ -38,5 +38,39 @@
     ],
     "toolBudget": 260
   },
-  "score": "pending"
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/c4705f9.blind-a.json",
+      "total": 61.0,
+      "complete": false,
+      "activeMinutes": 63,
+      "gates": [
+        "expression"
+      ]
+    },
+    "blind-b": {
+      "card": "eval/cards/c4705f9.blind-b.json",
+      "total": 68.3,
+      "complete": true,
+      "activeMinutes": 70.3,
+      "note": "genuine 1× watching ~6 min (fights-only persisted unnoticed)",
+      "driverPort": 5397
+    },
+    "alpha": 0.73,
+    "reliability": "tentative",
+    "mean": 64.65,
+    "vsPrevious": "ad71e72 57.1/56.3 alpha .61",
+    "shared": [
+      "rule editor felt broken (A: moves reverted on screen, APPLY no visible change, '5/4 · drop one' blocked SEND; B: 6 edits completed)",
+      "'compare outcomes' always 'all similar'",
+      "forecast vs outcome mismatches (A 'forecast said D13 100%' on a death; B hunger 'max -26' unexplained)",
+      "apprentice's large unexplained spend while away",
+      "absences produced no new record (A); 20m return thin"
+    ],
+    "raterSpecific": {
+      "a": "expression 0.3 (Steady + boss focus + trait + kit, little felt mine); autonomy 0.3",
+      "b": "label overlap; floor-chance panel wraps letter-per-line; sheets ignore Escape; tactic 'change' replaced another slot; fights-only speed persisted unnoticed; gas death without trace"
+    },
+    "verdict": "up from ad71e72 (+8 mean); 80 not met"
+  }
 }

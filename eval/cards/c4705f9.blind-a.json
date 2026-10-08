@@ -1,0 +1,66 @@
+{
+  "game": "Riddle",
+  "build": "c4705f9",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (agent rater, seed 131, headed D3D12 RTX 3080, 400x800 @3x)",
+  "horizon": {
+    "activeMinutes": 63,
+    "complete": false,
+    "incompleteReason": "Return after absent=20m was only ~1.6 active minutes (06:20:27-06:22:02Z) because I misjudged elapsed time; return after absent=8h credited ~15.5 of 20 minutes before the tool budget forced filing. Cold and 4h phases met.",
+    "activeIntervalsUTC": [
+      { "phase": "cold", "start": "2026-10-08T05:37:34Z", "end": "2026-10-08T06:20:21Z", "creditedMinutes": 40.3, "excluded": "~2.5 min driver selector timeouts" },
+      { "phase": "return absent=20m", "start": "2026-10-08T06:20:27Z", "end": "2026-10-08T06:22:02Z", "creditedMinutes": 1.6, "excluded": "none credited beyond wall time" },
+      { "phase": "return absent=4h", "start": "2026-10-08T06:22:09Z", "end": "2026-10-08T06:28:21Z", "creditedMinutes": 5.7, "excluded": "~0.5 min infra" },
+      { "phase": "return absent=8h", "start": "2026-10-08T06:28:32Z", "end": "2026-10-08T06:48:00Z", "creditedMinutes": 15.5, "excluded": "~4 min driver/locator fumbling" }
+    ],
+    "absences": ["20m (simulated)", "4h (simulated)", "8h (simulated)"],
+    "runsWatched": 16,
+    "runsOffline": 11,
+    "deathsRead": 6,
+    "ruleEditsAttempted": 6,
+    "ruleEditsCompleted": 2,
+    "ruleEditNote": "Custom rules locked until after the Bloat Mother; then the editor appeared. APPLY on death fixes never changed the list; moves of pre-written rows reverted. Added one row (verb changed to 'attack pack') and moved it; both were removed when '5/4 · drop one' blocked SEND.",
+    "blindnessViolations": "Read tools/driver.mjs header and drive.sh usage (harness, not game source); inspected DOM button classes/attributes to target clicks. No game source, plan, cut docs, cards or QA read.",
+    "evidenceFile": "scratchpad/108b-blind-a/evidence.md",
+    "ledger": "scratchpad/108b-blind-a/ledger.txt"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "Sable Ash, the third heir, went down with my boss-focus card and a fire potion I'd swapped in, and for the first time the Bloat Mother died to fire instead of driving him home. He kept going through the Crypt, killed the Lich at D18 and pushed into the Foundry, banking $6441 and setting the D19 record. One run later he reached D23 and then, while I was away, slew the Foundry Master and died to an iron golem with $1710 on him.",
+  "audio": "unassessed (agent cannot listen)",
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Numbers everywhere and mostly legible (Carried/Secured, FLOOR CHANCE per depth), but the death sheet said \"forecast said D13 100%\" on a death, 'compare outcomes' only ever said \"all similar\", the custom-rules lock text turned into \"Upcoming reports\", and '5/4 · drop one' appeared without my action." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Real trade-offs with shown consequence: one heal potion moved \"D7 50% -> 100%\", boss focus L4 took \"floor 14 13% -> 38%\"; but forge/upgrades were strictly ordered and the apprentice auto-spent $10k, and style comparisons returned \"all similar\"." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "Learned that unknown potions are never drunk (\"drink heal at 35% unknown item\") and that bosses name counters (\"COUNTER: THROW FIRE, BOSS\"); after D23 nothing new to learn surfaced in 8h away (\"Goal D24\" unchanged)." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Carried gold is a real stake: \"banked $448 ... 3/36 hp\" vs \"$1710 lost\"; but I chose the stakes only indirectly (rules were drilled), and three D23/D18 deaths in a row at 1 hp felt like the same coin flip." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Callouts land (\"THE NEST WAKES\", \"POPS!\", \"BLOAT MOTHER DOWN\") and floors fold into \"D1–15 · 100% · +$591\"; the picture lagged the log (shot at D7 while text at D12) and several panels needed force/double taps. Audio unassessed." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "\"Ulusk the goblin is avenged.\", captives, \"A shrine. Pray, at a price.\", four lanes (Burrows/Fens/Crypt/Foundry); by the 8h return deaths repeated at D18 ghoul and D23 skeleton/golem." },
+    { "id": "expression", "human": 0.3, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My configuration was Steady + boss focus + heir trait + forged kit; the one rule I wrote (\"hp < 50% → attack pack\") had to be dropped at \"5/4 · drop one\". Little of the build felt mine." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Reel lines carry a turn: \"Slag crawlers cornered him to 3 HP; attacked; died to golem.\", plus grudges (\"grudge: Vrul the iron golem\") and a 7-heir bloodline; repetitive by the end." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-run: 1-3 minute runs at normal speed with dead floors folded. Admin: keep sheet, upgrade and forge panels each check-in, scout rest \"Departs 20m\" between runs, and SEND blocked twice by \"5/4 · drop one\". Cadence: 20m return had little (\"1 RUNS · $27\"), 8h had a lot." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Death sheet gives cause, margin and odds (\"bad luck · 1 in 4 · 9/12 replays survive\"), a trace, and measured fixes (\"survives 12/12 · was 9/12\"). Lapse: APPLY never applied a fix, and \"forecast said D13 100%\" undercuts it." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "Weight 0. Named heirs and grudges only." },
+    { "id": "autonomy", "human": 0.3, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I chose supplies (swapped a leash for \"fire potion\") and tactic cards; route stayed \"D5 burrows\" and goals were set by the game (\"Goal D24 · New record\")." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within-run D4 -> D23 over the cold hour; persistent forge (\"sword +1\" -> \"sword +4\", mail), Legacy ranks; automation cadence strong (porter, scout, apprentice, keeper, drillmaster each 'no longer need to'). Lapse: 4h+8h away added no new depth (best D23 throughout)." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "Visual only: the town grows from \"Empty town\" to lit cottages, a campfire and walking workers; the torn red death banner is striking; dungeon lighting by lane. Lapse: summary chips overlap the boss bar/HUD in the watch view. Audio unassessed." },
+    { "id": "return", "human": 0.6, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "8h: \"While away 7 RUNS · D23 · $7283 · purse +$1267\" with a death to read, 41 Legacy and unlocks to spend; 20m return was thin (\"1 RUNS · $27\") and no absence produced a new record." },
+    { "id": "attribution", "human": 0.6, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Death 4 trace: \"attack nearest under attack summoned\" — my boss focus card; death 5 trace showed my row \"attack pack at 50%\" firing at 9->5 hp. But most rows were drilled for me (\"bank at 25% at D14\" shadowing others) and fixes could not be applied." }
+  ]
+}

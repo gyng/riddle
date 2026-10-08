@@ -1,0 +1,205 @@
+{
+  "$comment": "Copy me per build and rater. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot: green|amber|red|na is a cap, never an award. Answer criterion + idle probes BEFORE awarding.",
+  "game": "Riddle",
+  "build": "c4705f9",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-b (Claude agent, fresh blind rater, seed 149)",
+  "horizon": {
+    "activeMinutes": 70.3,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-08T05:38:09Z",
+        "end": "2026-10-08T06:18:28Z",
+        "credited": 39.4,
+        "excluded": "~0.9 min driver selector timeouts/output polling"
+      },
+      {
+        "phase": "absent=20m return",
+        "start": "2026-10-08T06:18:39Z",
+        "end": "2026-10-08T06:23:44Z",
+        "credited": 5.1,
+        "excluded": "none"
+      },
+      {
+        "phase": "absent=4h return",
+        "start": "2026-10-08T06:23:52Z",
+        "end": "2026-10-08T06:28:50Z",
+        "credited": 5.0,
+        "excluded": "none"
+      },
+      {
+        "phase": "absent=8h return",
+        "start": "2026-10-08T06:28:58Z",
+        "end": "2026-10-08T06:51:30Z",
+        "credited": 20.8,
+        "excluded": "~1.7 min (30 s scroll timeout, ~40 s selector fiddling, 30 s idle wait at end)"
+      }
+    ],
+    "absences": [
+      "20m (simulated, ?absent=20m)",
+      "4h (simulated)",
+      "8h (simulated)"
+    ],
+    "runsWatched": 15,
+    "runsWatchedNote": "Genuine 1x normal speed only ~6 min total: run1 05:38-05:39, run2 05:41-05:42, and 06:45:39-06:49:50 (one several-minute 1x watch ending in a live death). Other watches were at 'fights only 16x' because that choice persisted from run 3 and I did not notice until 06:45. Requirement of 2 several-minute 1x watches is only partly met (one).",
+    "runsOffline": 7,
+    "deathsRead": 3,
+    "ruleEditAttempts": 7,
+    "ruleEdits": 6,
+    "ruleEditsNote": "Attempt 1 (05:53) locked: 'Meet Bloat Mother / or 120h elapsed'. Pen unlocked ~06:02. Completed: return 25->40%; new rule boss->throw fire; +depth>=13; return 40->30%; applied death fix 'hp<30% · foes>=2 -> retreat'; new 'foe: mirror -> throw fire' (after rejecting 'foe: mirror -> retreat', forecast death 13->88%).",
+    "deviations": [
+      "Driver port 5397 instead of 5357: 5357 is held by Windows HTTP.sys (503 Service Unavailable).",
+      "Absences were simulated via ?absent= per contract; not same-day-separated in real time."
+    ]
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": ""
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Forecast deltas made edits legible ('VS LAST RUN · D14 88→50% · death 63→0%'), but they misled: after 'D29 25→100%' the run ended D15 'hp 7/25 · max -26' from hunger never explained; 'Secured $0' for whole deep runs unexplained; 'compare outcomes all similar' nearly every time."
+    },
+    {
+      "id": "decisions",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Real trade-off on the return threshold (40%: 'D14 50%, death 0%' vs 30%: 'D14 63%, death 38%'), forge armour vs weapon, tactic slots; but many buys were strictly better and tactic/personality compares said 'all similar'."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "I learned from the trace that 'return at 30%' turns him home without disengaging ('return at 30% 9/55 ... mirror king −14 0/55') and later that retreat fails when 'foes hold the way'; repeat King returns showed the next lesson but no clear way to learn 'cadence'."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Carried gold really at risk ('died · kept $0 · $3635 lost') and the live King fight with 'RETREAT' then 'LUCK · bad luck · 1 in 12' made me sweat; most resolution happened offline or at 16x."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Callouts 'WARLORD BREAKS / GOBLIN WARLORD DOWN', 'REFLECTED!' land on GPU at 3x; at 1x in the Deep long walls of 'lurker → Rook Ash · blocked/miss'; a 'Run ended' replay kept showing hits for ~1 min. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Lanes changed play: 'iron golem: reflect_melee' made me take mirror read, Bloat Mother made me write throw fire, heir bones 'Found heir 1's bones: 12 items'. Lapse: D13 'recently looted · shallower' returns repeated several times and hunger ('The floor is hungry. Find light.') never became something I could act on."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "'Guarded + deep march + mirror read, unbowed, return at 30%, throw fire at boss below D13' is mine, but four of five rules and all tactics are packaged and 'RULES chores 66% · attack nearest 21%' dominate."
+    },
+    {
+      "id": "story",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Reels carry turns: 'The King took him to 13 HP; read the mirror; returned. The Queen cornered him to 24 HP; drank; first boss.' but they are formulaic and the best story (D28 deep run) was only visible as summary chips."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "Check-ins bounded (2-6 min) and 20m/4h/8h distinct; friction from sheets that ignore Escape, two-tap confirms, accidental slot replacement, and dead 1x stretches."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "King death: 'never stepped back', trace naming my rule, 'fixes · 12 replays of D33 · hp < 30% · foes ≥ 2 → retreat · survives 11/12 · was 2/12', APPLY; second King death honestly 'bad luck · 1 in 12 · forecast said D33 63%'. Lapse: first death 'gas · D13 · hero at 3 hp' showed no trace or fixes, only 'BUY pack 4' which then did 'D14 same'."
+    },
+    {
+      "id": "social",
+      "human": 0.0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "No people or developing relationships; heirs and workers are labels."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Self-set goal (beat the Mirror King), chose personality 'unbowed' unprompted; route 'D5 burrows' never mattered and order of descent is fixed."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "All three layers seen: floors D4→D33, forge/legacy/tactics persistent, automation cadence high (scout 'SEND auto', porter, apprentice '+4 steps', drillmaster, keeper). Lapse: 'FORGED · D14 same' / 'D20 −25' and the apprentice silently spending 'purse −$12562'."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Torch-lit pixel dungeon, town that grows, red death banner are lovely on GPU; HUD chips overlap ('stolen fire potion' over 'Carried'), floor-chance wraps 'be hin d wa rlo rd', death banner text clipped at top. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "4h: 'While away 2 RUNS D33 $20185 · Boss defeated Lurker Queen · King weakness learned · cadence' and 8h: a death verdict with fixes to APPLY — real decisions each time. Lapse: 20m return was thin ('1 RUNS · D13 · shallower: D13, last D28') and led with 'purse −$12562'."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "'D13 · HP 39% → return', reel 'return at 30% got him out', 'throw fire mirror' and the King trace naming my return rule made deaths and saves mine. Lapse: second King death was paralysis/'no path' bad luck, and default 'attack nearest' does most of the fighting."
+    }
+  ],
+  "sameDayRetelling": "Rook Ash, the second heir, cleared the Warlord and Bloat Mother on the way down, then walked through the Crypt and Foundry where the mirror read tactic I picked let him beat the reflecting Foundry Master. In the Deep he pushed past D24 to D28 with $17,620 already secured. At 30% hp my return rule turned him home and he banked $19,383, the run that paid for the whole kit.",
+  "blindness": "No violations. Read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, FRAMEWORK §1-3, template, and tools/drive.sh+driver.mjs header for op syntax. Used dev 'state' op (includes a screen-name field) as a label only.",
+  "evidenceFiles": [
+    "scratchpad/108b-blind-b/ledger.md",
+    "scratchpad/108b-blind-b/evidence.md",
+    "scratchpad/108b-blind-b/shots/"
+  ],
+  "screenshots": {
+    "firstMinute": "shots/run-01.png (overwritten later; min0.png = first screen)",
+    "firstDeath": "shots/death1.png",
+    "firstEdit": "shots/first-edit.png",
+    "return": "shots/return-20m.png, return-4h.png, return-8h.png",
+    "afterReturnConfig": "shots/after-return-config.png",
+    "deathTrace": "shots/death2-trace.png, death3.png"
+  },
+  "audio": "unassessed (agent cannot listen)"
+}
