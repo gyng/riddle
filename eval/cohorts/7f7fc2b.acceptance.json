@@ -1,0 +1,43 @@
+{
+  "candidate": "7f7fc2b",
+  "applicationCommits": [
+    "7337d30",
+    "b14a4d5",
+    "7f7fc2b (test only)"
+  ],
+  "status": "accepted for blind cohort 2026-10-08",
+  "frozen": {
+    "dir": "scratchpad/blind-7f7fc2b-frozen/dist",
+    "url": "http://127.0.0.1:5256/",
+    "files": 252,
+    "manifestSha256": "886c66e9826ba93306ebedae935bcf4999d73f7a080826175203a1ffca27e8dd",
+    "servedHashes": "252/252",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "702 passed",
+    "clippy": "clean",
+    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 27.71 vs 28.04 (docs/CUT110 \u00a74, updated)",
+    "log": "/tmp/riddle-c113-gates.log"
+  },
+  "browser": {
+    "full": "142/143 (/tmp/riddle-c113-client.log): boss-kill-beat re-climbed to the Cut 113 King, a wall a just-cleared kit is not meant to break in one run \u2014 retargeted to the Foundry Master, assertions unchanged, PASS 19 checks"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-7f7fc2b-frozen/briefs/a.txt",
+      "scratchpad/blind-7f7fc2b-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      211,
+      223
+    ],
+    "drivers": [
+      5362,
+      5363
+    ],
+    "toolBudget": 260
+  },
+  "score": "pending"
+}
