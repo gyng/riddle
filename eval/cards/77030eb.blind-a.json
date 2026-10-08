@@ -1,0 +1,214 @@
+{
+  "$comment": "Copy me per build and rater. Anchors: ../eval-fun/docs/FRAMEWORK.md section 3, idle boundaries: docs/FUN_EVAL_IDLE.md. One quoted observation per axis. bot: green|amber|red|na is a cap, never an award. Answer criterion + idle probes BEFORE awarding.",
+  "game": "Riddle",
+  "build": "77030eb",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind rater a (Claude agent), seed 227, headed GPU D3D12 RTX 3080, phone 400x800 @3x",
+  "horizon": {
+    "activeMinutes": 70.2,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-09T19:27:50Z",
+        "end": "2026-10-09T20:10:40Z",
+        "excludedMinutes": 3.5,
+        "exclusions": "~19:35:20-19:38:20 driver label-click debugging (infrastructure); ~0.5 min backgrounded-call wait",
+        "creditedMinutes": 39.3
+      },
+      {
+        "phase": "return after absent=20m",
+        "start": "2026-10-09T20:10:41Z",
+        "end": "2026-10-09T20:15:25Z",
+        "creditedMinutes": 4.7
+      },
+      {
+        "phase": "return after absent=4h",
+        "start": "2026-10-09T20:15:25Z",
+        "end": "2026-10-09T20:20:25Z",
+        "creditedMinutes": 5.0
+      },
+      {
+        "phase": "return after absent=8h",
+        "start": "2026-10-09T20:20:30Z",
+        "end": "2026-10-09T20:41:40Z",
+        "creditedMinutes": 21.2
+      }
+    ],
+    "absences": [
+      "20m (simulated, ?absent=20m)",
+      "4h (simulated, ?absent=4h)",
+      "8h (simulated, ?absent=8h)"
+    ],
+    "runsWatched": 19,
+    "runsOffline": 11,
+    "ruleEdits": 6,
+    "ruleEditsAttempted": 7,
+    "editNotes": "1 add 'hp<50% → cleave' (condition change to 'adjacent ≥' attempted, did not take); 2 add corridor fighting card; 3 MOVE boss row above it (death-screen fix); 4 apply 'hp<30% → drink unknown' (first edit after return); 5 move drink heal above cleave; 6 drop cleave, move return up. Pen ('edit') became available after buying 'rule: corridor fighting' unlock (~25 min in).",
+    "deathsRead": [
+      "D4 jackal (run1)",
+      "D7 ogre",
+      "D8 Warlord repel with fix",
+      "D28 lurker queen (20m return)",
+      "D28 queen verdict w/ 7 fixes (4h)",
+      "D13 gas verdict (8h)",
+      "D28 queen live",
+      "D33 Mirror King x2"
+    ],
+    "screenshots": "scratchpad/77030eb-blind-a/shots (first-minute, first-death, first-edit, return-20m, return-8h, first-edit-after-return, verdict-queen, king-death)"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "Fenn Ash, my tenth heir, went down with the heal rule I had just moved above my own cleave row. At D28 the Lurker Queen cornered him three times and each time 'HP 30% → drink' pulled him back until 'LURKER QUEEN DOWN'. He pushed on through the Sanctum to D33 with $16404 secured and died to the Mirror King at 17 hp.",
+  "pronounCount": "retelling: my/I/I'd x3 first-person on config ('my tenth heir', 'I had just moved', 'my own cleave row')",
+  "humanProbes": {
+    "clarity": "Mostly yes: the death banner read 'lurker · D28 · hero at 1 hp' plus 'return at 25% never fired'; but my personality changed under me from 'unbowed' to 'light hands' to 'iron gut' and I never saw why.",
+    "decisions": "Adding 'hp < 50% → cleave' moved the forecast from 'return 63% · death 25%' to 'return 75% · death 13%', and I later dropped that same row when the verdict showed it shadowing my heal and return rows — I would make the drop again.",
+    "mastery": "An hour ago I did not know row order mattered; now I read 'drink heal at 45% under cleave at 50%' and know a high row starves the ones below it.",
+    "tension": "I sweated the D28 Queen fight watching 'HP 30% → drink', 'HP 43% → drink', 'HP 26% → drink' with three potions, then 'LURKER QUEEN DOWN'; the four heirs who died overnight carried no tension at all.",
+    "feel": "The 'GOBLIN WARLORD DOWN' banner and callouts like 'CORRIDOR FIGHTING JACKAL' land, but the log fills with 'always → corridor fighting ×7' and the watch jumps to 16×/40× on its own; audio unassessed.",
+    "surprise": "The lanes changed what I configured — the D13 'gas' death and D28 Queen 'blind · summoner' sent me to heal ordering and quiet steps; but every run re-climbed the same Warlord D8, Mother D13, Lich D18, Master D23 ladder.",
+    "expression": "My build: a fighter who drinks unknown below 30%, heals below 45%, goes home below 25%, kills bosses above 45% and fights everything from corridors — though most of those rows were the game's suggested fixes.",
+    "story": "Fenn Ash, the tenth heir, survived the Queen on three heal potions, reached D33 with '$16404' secured and died to the Mirror King 'at 17 hp'.",
+    "pacing": "In-run: a whole D1–D7 compresses to one chip 'D1–7 · 100% · +$204' and fights play at 2×; administratively the 'keep' sheet after each return waited for a tap and each new heir re-climbed 28 floors before anything new.",
+    "failure": "The Queen verdict ran '12 replays of D28' and ranked fixes like 'hp < 30% → drink unknown · survives 8/12 · was 1/12'; my own corridor card was blamed by name: 'move above tactic corridor fighting foe: boss → attack boss'.",
+    "social": "Nobody; heirs are named (Una, Vale, Wren, Yara, Fenn, Galen Ash) but they are interchangeable.",
+    "autonomy": "I chose to chase the Queen with 'quiet steps' and later 'mirror read' and to buy a 'silence scroll $39' that the game only hinted at with 'counter: read silence'.",
+    "progression": "Best depth went D4 → D6 → D8 → D13 → D23 → D28 → D33 in 70 minutes, with porter, scout, apprentice hired and forge steps; but the 8h absence left best at D28 and earned '$1496'.",
+    "aesthetic": "The night town grows lit cottages around a campfire and the death banner with the jackal portrait is lovely; I would sit in the town, less so in the text-heavy watch.",
+    "return": "After 20m I came back to 'While away · D28 · $10949' and a 'Pick one' (drill / legacy / forge −10%); after 8h only '$1496' and four dead heirs, so longer absence paid less — I chose the forge discount each time and edited rules from the verdicts.",
+    "attribution": "The last Queen death was my fault: my 'cleave at 50%' row sat above 'return at 25%', which 'never fired'; the Queen kill was my decision too — the heal row I moved up fired three times."
+  },
+  "blindnessViolations": "none known; read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK §1-3, template, presets.json idle-hybrid weights, and tools/driver.mjs + drive.sh usage headers (harness, not game source). Used page.locator DOM clicks via driver js op for multi-line buttons (DOM/user-visible only; no __riddle or engine APIs).",
+  "audio": "unassessed (agent cannot listen)",
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Death lines + named never-fired rows are clear ('return at 25% never fired'), but personality silently changed unbowed → light hands → iron gut, supplies/pick-one controls were easy to miss, and early 'compare outcomes' said only 'noise · 8 runs'."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Rule edits carried live forecast trade-offs ('return 63%→75% · death 25%→13%'; corridor card: 'full haul 13% → <13%, return 88%'). Lapse: forge and Legacy spending is a strictly ordered buy-what-you-can sequence."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "I learned row-order shadowing from three verdicts ('drink heal at 45% under cleave at 50%'), but the game's ranked fix list did most of the diagnosis for me."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Watched Queen fight ('HP 30% → drink' ×3, 'LURKER QUEEN DOWN') was real stakes; offline deaths (queen ×2, gas, lich over 8h) were read after the fact with no tension."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Callouts and boss banners ('GOBLIN WARLORD DOWN', 'CORRIDOR FIGHTING JACKAL') read well at 2×; log spam 'always → corridor fighting ×7' and auto 16×/40× jumps blur it. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Five lanes with new foes (Fens eels, Crypt lich, Foundry golems, Deep queen, Sanctum king) changed my config; but each run re-climbed the identical D8/D13/D18/D23 boss ladder."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My 4 written rows + corridor card are recognisably mine, but most were accepted game fixes and 'tactic corridor fighting 71%' of rule time is a package."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Fenn Ash: three heal potions at the Queen, D33, died to the Mirror King at 17 hp — a run with a turn. Lapse: offline runs come back as one-line reels ('Lich cornered him to 2 HP; held; died to Lich')."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "Compressed early floors ('D1–7 · 100% · +$204') and ~1–4 min runs are good; the keep sheet blocks auto-continue, each heir re-climbs 28 floors, and the 20m absence initially showed a dimmed 'VERDICT' screen with nothing changed."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Verdicts name the cause, the never-fired rule and replay-tested fixes ('12 replays of D28 … survives 8/12 · was 1/12'), applicable in one tap. Lapse: first death screen 'jackal · D4 · hero at 1 hp' gave no lever, and Mirror King deaths read 'bad luck · 1 in 1' with every fix 'below bar'."
+    },
+    {
+      "id": "social",
+      "human": 0.0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "Named heirs only; no relationship. Weight 0."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I chose route/tactics/supplies (quiet steps, mirror read, silence scroll) the game did not order, within a fairly fixed descent."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Within-run (D-depth, carry), persistent (forge steps, Legacy ranks, tactic levels, unlocks), automation (porter, scout, apprentice) all observed; D4→D33 in 70 min. Lapse: the 8h absence moved nothing ($1496, best still D28)."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Pixel town that grows lit houses, death banners with foe portraits, boss art. Lapse: the watch screen is crowded with text over the map. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Every return had a report, a 'Pick one', verdicts and fixes to apply; but payoff did not scale predictably (20m: $10949, D28; 8h: $1496, 4 deaths, best unchanged)."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Traces name my rows ('cleave at 50% · cooldown', 'HP 30% → drink') and I can say which deaths and kills were mine. Lapse: personalities changed without my choosing and package rows dominate firing."
+    }
+  ]
+}

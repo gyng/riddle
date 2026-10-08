@@ -1,0 +1,208 @@
+{
+  "$comment": "Raw immutable blind card, rater b, build 77030eb, seed 229. Criterion answers archived before axes in scratchpad/77030eb-blind-b/evidence-criterion.md. Audio unassessed (agent cannot listen). bot fields na; coordinator applies caps.",
+  "game": "Riddle",
+  "build": "77030eb",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-b (Claude agent, independent blind rater)",
+  "seed": 229,
+  "horizon": {
+    "activeMinutes": 70,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-08T19:27:50Z",
+        "end": "2026-10-08T20:10:55Z",
+        "excludedMinutes": 3,
+        "credited": 40,
+        "exclusions": "helper-script/selector debugging ~19:29:20-19:30:50; note writing ~19:42-19:43"
+      },
+      {
+        "phase": "absent=20m return",
+        "start": "2026-10-08T20:11:00Z",
+        "end": "2026-10-08T20:16:01Z",
+        "credited": 5
+      },
+      {
+        "phase": "absent=4h return",
+        "start": "2026-10-08T20:16:10Z",
+        "end": "2026-10-08T20:21:13Z",
+        "credited": 5
+      },
+      {
+        "phase": "absent=8h return",
+        "start": "2026-10-08T20:21:21Z",
+        "end": "2026-10-08T20:41:17Z",
+        "credited": 20
+      }
+    ],
+    "absences": [
+      "20m (simulated, ?absent=20m)",
+      "4h (simulated, ?absent=4h)",
+      "8h (simulated, ?absent=8h)"
+    ],
+    "runsWatched": 18,
+    "normalSpeedWatches": [
+      "run 4: 19:34:03-19:39:49 (~5.8 min, incl. ~2.5 min frozen at D7 start)",
+      "run 8: 19:54:46-19:59:02 (~4 min; Normal setting but replay jumped 16x/32x through explored floors)"
+    ],
+    "runsOffline": 10,
+    "deathsRead": 5,
+    "ruleEditsAttempted": 9,
+    "ruleEdits": 9,
+    "ruleEditsDetail": "custom rows unlocked after Bloat Mother (first opened ~19:53). Completed: own bank row hp<25->40%; retuned 60/50/30 then 40% against the forecast; applied death fix 'foe: boss -> read silence'; applied death fix 'hp<40% foes>=2 -> retreat'; added depth>=28 to the silence row; dropped my bank row; wrote own row 'foe: alarm -> attack alarm'.",
+    "notes": "Headed GPU D3D12 RTX 3080, 400x800 at 3x, own driver port 5365. Deepest D33 (Mirror King reached, never slain). 7 heirs. Tool calls ~190 / images 15 at filing."
+  },
+  "blindnessViolations": "none of the forbidden docs/source read. Read tools/drive.sh and ~20 comment lines of tools/driver.mjs (driver usage/label matching only, not game source).",
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "My second heir Alden pushed from D22 into the Deep and died to the lurker queen at D28 with 'BANK ✗ NO WAY' because a lurker held the path, and the next heir died to her again with 'no silence left'. I applied the death screen's fix (read silence, 'survives 10/12 · was 1/12') and later the retreat fix, and while I was away 4h the queen finally fell ('Boss defeated Lurker Queen ▶ watch kill') and the line reached the Mirror King at D33. Then my own silence row wasted the scroll on the King at full hp ('read silence vs boss at 55/55 hp'), so I gated it to depth≥28, wrote an 'attack alarm' row, and Fenn walked to the King, ran out of heals and turned home with $4227.",
+  "humanProbes": {
+    "clarity": "Mostly yes, but 'stuck · went home' at 'alert 8/8 · Path blocked' twice gave me no trace or fix, and tapping 'Training · Warlord tactic' did nothing.",
+    "decisions": "I set my bank row to 40% because the forecast showed 30% = 'death 88% · avg $9436/run' and 50% = 'death 25% · avg $3002/run'; I would make it again.",
+    "mastery": "An hour in I read traces like 'bank at 44% · no way ← lurker holds the way' and knew the queen needs silence and the foundry needs alarm handling, which I could not do at minute 10.",
+    "tension": "I sweated as Fenn reached 'KING MIRRORS' at D33 then 'DRINK ✗ NO ITEM · Heading home' with $4227 carried, and it paid off as 'COLLECTED $4227'.",
+    "feel": "Callouts like 'WARLORD BREAKS', 'POPS!', 'REFLECTED!' landed, but at Normal speed the watch sat on D7 with a motionless hero and no new lines for about 2.5 minutes; audio unassessed.",
+    "surprise": "'The monkey stole the black potion?', then 'stolen sword +1', 'Found heir 1's bones: 10 items' and 'Uleth the goblin archer is avenged' each changed what I watched for; by the 8h return the D23/D28 pattern was repeating.",
+    "expression": "My hero is a guarded corridor fighter who flees at 40% when two foes close in, reads silence only below D28 and smashes alarm bells first.",
+    "story": "The lurker queen killed two heirs at D28 before a fix I chose let a later heir kill her offline, and I watched the kill replay.",
+    "pacing": "Explored floors fold into 'D1–7 · 100% · +$177' which is great, check-ins stayed about 5 minutes, but an iron golem stalemate ran ~3 minutes at 2x with hp see-sawing 20-40 and every token level needs two taps ('◆2 L2' then 'ok ◆2').",
+    "failure": "'lurker queen · D28 · hero at 6 hp' then 'fixes · 12 replays of D28 · hp < 40% · foes ≥ 2 → retreat · survives 12/12 · was 1/12' told me cause, margin and the lever.",
+    "social": "Heirs have names and the archer 'Uleth' became a named grudge that was 'avenged', but no relationship developed beyond that line.",
+    "autonomy": "Nobody asked me to drop my own bank row; I chose to push for the King at 'death 63%' rather than farm safe D23 hauls.",
+    "progression": "Best went D4, D5, D6, D8, D13, D22, D28, D33 in 70 minutes with porter, scout, apprentice, keeper and drillmaster hired, but by the end gold sat at $27119 with 'Kit complete' and nothing to buy.",
+    "aesthetic": "Torch-lit pixel dungeons that change from brown Burrows to blue Deep, and the tattered red 'YOU DIED' banner with the killer's portrait; I would sit in the camp screen, less so in the dense log pane.",
+    "return": "The 4h return showed '3 RUNS · D33 · purse +$16024', 'Boss defeated Lurker Queen ▶ watch kill' and a 'Pick one' of drill/legacy/forge, and I changed tactics because of 'King weakness learned · Mirror rhythm'.",
+    "attribution": "The King death was partly mine: the trace said 'read silence vs boss at 55/55 hp', my own row firing too early, so I added depth ≥ 28 to it."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Goal/forecast/death lines are clear ('FLOOR CHANCE D14 88%±12', 'goblin archer · D8 · hero at 1 hp'). Lapses: 'stuck · went home' has no trace/fix; 'Training · Warlord tactic' inert; 'compare outcomes' only ever compared combat styles ('Steady L1 worse 8/8') even with a tactic selected; levelling corridor fighting L1->L5 moved D33 forecast 75%->25% without explanation."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Bank threshold was a real defended trade: 30% 'death 88% avg $9436' vs 50% 'death 25% avg $3002' vs 40% 'D28 50% death 25% avg $5274'; tactic swap kite archers->corridor fighting moved death 63->13%. Lapse: style choice was dominated ('better 7/8', 'worse 8/8') and hero upgrades are strictly ordered buys."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "I learned to read traces ('bank at 44% · no way ← lurker holds the way') and boss counters; but the fixes panel did much of the diagnosis for me, and the late plateau ('none beyond floor 28') offered no clear next lesson beyond the King."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Chosen stakes were real (carry lost on death: '$2950 lost'; King approach 'DRINK ✗ NO ITEM · Heading home' then 'COLLECTED $4227'). Most resolutions happened at 16x or offline, so release was often read rather than felt."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Visual only (audio unassessed). Callouts 'WARLORD BREAKS', 'POPS!', 'REFLECTED!' and hp ticking read well on GPU. Lapse: Normal-speed watch froze on D7 start ~2.5 min with no events, and a further ~45 s at D8; iron golem stalemate ~3 min."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Monkey/forge-imp thefts, heir bones recovered, nemesis 'Uleth ... avenged', hunger 'starving −23', reflectors, alarm bells, five bosses each with a counter. Repetition by the 8h return (D23 banks, D28 queen, 'stuck · went home' twice)."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My rows ('hp < 40% · foes ≥ 2 → retreat', 'foe: boss · depth ≥ 28 → read silence', 'foe: alarm → attack alarm') over a Guarded/corridor/Mirror rhythm kit feel mine, but two were one-tap applied fixes and only 4 custom rows are allowed ('2/4 rules')."
+    },
+    {
+      "id": "story",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "The queen arc has setup/turn/end (two heirs lost at D28, fix chosen, 'Boss defeated Lurker Queen ▶ watch kill'), but the chronicle is mostly a combat log ('D23 · smith · fell') and the turn happened offline."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-play: explored floors fold into 'D1–7 · 100% · +$177' (good), but dead stretches at Normal and a 3-min golem grind. Admin: check-ins ~5 min, but two-tap token levels ('◆2 L2' -> 'ok ◆2'), forge prices jumping, and a scrolling 15-row editor. Cadence: 20m/4h/8h felt distinct (1/3/6 runs)."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "'lurker queen · D28 · hero at 6 hp', 'never stepped back', per-tick rule trace and 'fixes · 12 replays of D28 · survives 12/12 · was 1/12' with one-tap apply. Lapse: 'stuck · went home' runs (60% kept) have no trace or fix, and the King verdict was just 'bad luck · 1 in 3'."
+    },
+    {
+      "id": "social",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "Named heirs (Yara, Alden, Bryn, Corin, Dara, Elian, Fenn Ash) and a named nemesis 'Uleth the goblin archer is avenged'; no developing relationship."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I set my own goals (push the King vs farm D23 hauls), dropped my own bank row, route/sets exist ('route D5 burrows', 'set 2', 'set 3'); discovery is mostly delivered by unlock popups ('New choices')."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Within-run (kit, floors), persistent (forge, legacy ranks, tactic levels, 'Supply slots 3 → 5', custom rows after Bloat Mother) and automation (scout auto-send, porter hauls, apprentice forges 'mail +1 · −$6400', keeper, drillmaster). Best D4->D33 in 70 min. Lapse: late gold has no sink ('$27119', 'Kit complete')."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Visual only, audio unassessed. Lit pixel dungeons that change palette by lane, death banner with killer portrait, scroll-paper reports. Lapse: the watch's log pane and editor are dense white text over the art."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Every return had content and a decision: 'While away 1/3/6 RUNS', 'purse +$16024', '▶ watch kill', 'King weakness learned', PENDING 'fired in 0 of 6 runs · shadowed by bank at 40%', 'Pick one' drill/legacy/forge-or-marks. Lapse: the 8h return was thinner than the 4h one (plateau 'none beyond floor 28', same D33 death)."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "I could name my rules in deaths and wins: 'read silence vs boss at 55/55 hp' (my row wasted the scroll), 'bank at 40% · going home' (mine), 'HIT ALARM BELL' (my row) before reaching the King. Lapse: early deaths (D8 archer) traced only to package rows I never chose."
+    }
+  ]
+}

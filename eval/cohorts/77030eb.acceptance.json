@@ -4,7 +4,7 @@
     "1617074",
     "77030eb"
   ],
-  "status": "accepted for blind cohort 2026-10-09",
+  "status": "cohort complete 2026-10-09: 68.3 / 68.9, alpha .808 reliable",
   "frozen": {
     "dir": "scratchpad/blind-77030eb-frozen/dist",
     "url": "http://127.0.0.1:5257/",
@@ -21,7 +21,7 @@
     "log": "/tmp/riddle-c113b-gates.log"
   },
   "browser": {
-    "full": "135/144 at 1617074; real regressions fixed in 77030eb (return-pick class clash, ui:qa band parse); hero-appearance mid-animation measure fixed; watch-live-edge, watch-meters, cut22, qa21 load flakes passing solo; clarity:paint A/B vs b14a4d5 under equal load: same margins (quiet 0.65\u20131.1 s both; loaded 1.5\u20131.9 s both) \u2014 a load flake, not a regression"
+    "full": "135/144 at 1617074; real regressions fixed in 77030eb (return-pick class clash, ui:qa band parse); hero-appearance mid-animation measure fixed; watch-live-edge, watch-meters, cut22, qa21 load flakes passing solo; clarity:paint A/B vs b14a4d5 under equal load: same margins (quiet 0.65–1.1 s both; loaded 1.5–1.9 s both) — a load flake, not a regression"
   },
   "machineLoad": {
     "atRelease": "39.26 37.35 32.29",
@@ -43,5 +43,39 @@
     ],
     "toolBudget": 260
   },
-  "score": "pending"
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/77030eb.blind-a.json",
+      "total": 68.3,
+      "activeMinutes": 70.2,
+      "complete": true
+    },
+    "blind-b": {
+      "card": "eval/cards/77030eb.blind-b.json",
+      "total": 68.9,
+      "activeMinutes": 70,
+      "complete": true
+    },
+    "alpha": 0.808,
+    "reliability": "reliable",
+    "mean": 68.6,
+    "trend": "56.7 → 64.7 → 67.4 → 63.8 → 65.9 → 68.6",
+    "atAxes": "0.8 both: decisions, failure, progression, aesthetic, attribution; A story; B return. 0.6: clarity, mastery, tension, feel, surprise, expression, pacing, autonomy",
+    "shared": [
+      "long absences pay less than short (A: 8h → $1 496 and four dead heirs vs 20m $10 949) — the away loop keeps sending into a lethal wall",
+      "every heir re-climbs the same boss ladder (surprise/pacing)",
+      "Normal-speed dead stretches (B: D7 start ~2.5 min, golem stalemate ~3 min)",
+      "'stuck · went home' (alert, path blocked) with no trace or fix (B)",
+      "gold piles up after 'Kit complete' with nothing to buy (B)",
+      "heir personality changes without the player's choice (A)",
+      "a tactic level-up that lowers the forecast with no reason (B); compare outcomes only styles"
+    ],
+    "machineLoad": {
+      "atRelease": "39.26 37.35 32.29",
+      "source": "another project's simulations (armee cli-k campaign), bursts to 38 on 32 cores",
+      "note": "raters' feel/frame-time observations may be affected; recorded rather than waited out",
+      "duringPlay": "eased to ~3 during the later phases"
+    },
+    "verdict": "reliable 68.6 (best); late walls held (King unslain both); 80 not met"
+  }
 }
