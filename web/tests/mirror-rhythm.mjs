@@ -7,7 +7,7 @@ try{for(const width of [320,400,1440]){
  const p=await b.newPage({viewport:{width,height:900},reducedMotion:'reduce'}),errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.goto(`${url}?dev=1&fresh=1&runs=0`);await p.waitForFunction(()=>window.__riddle?.booted);
  assert.equal(await p.evaluate(()=>window.__riddle.kind),'wasm');
- const locked=await p.evaluate(()=>window.__riddle.lineage.packages.all.find(p=>p.id==='cadence'));assert.equal(locked.owned,false);assert.equal(locked.trigger,'Clear dungeon');
+ const locked=await p.evaluate(()=>window.__riddle.lineage.packages.all.find(p=>p.id==='cadence'));assert.equal(locked.owned,false);assert.equal(locked.trigger,'meet Mirror King');   // Cut 112: the King's counter arrives with his meeting (was `Clear dungeon`)
  assert.equal(await p.evaluate(async({source,loadout})=>window.__riddle.importSave(JSON.stringify({v:2,engine:source,loadout,last_seen:Date.now(),runs:359})),{source,loadout:native.loadout}),true);
  await p.locator('.ending-town').click();await p.waitForSelector('.camp');
  await p.evaluate(()=>window.__riddle.runnerOn=false);const before=await p.evaluate(()=>window.__riddle.engine.save());

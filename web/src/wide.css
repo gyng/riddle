@@ -21,6 +21,9 @@
   main.frame > .well, main.frame > .stage { grid-area: well; }
   main.frame > .rules-col { grid-area: rules; }
   main.frame > .side-col { grid-area: side; }
+  /* take control: the hand-driving panel under the well, between the columns (an auto row: empty when hidden) */
+  main.frame.watch { grid-template-rows: auto minmax(0, 1fr) auto auto; grid-template-areas: "bar bar bar" "rules well side" "rules ctl side" "con con con"; }
+  main.frame > .ctl { grid-area: ctl; }
 
   /* the side columns: carved stone (the console's own frame), the tablets / the shaft set into it */
   .rules-col, .side-col { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain;
