@@ -1,0 +1,42 @@
+{
+  "candidate": "1fb7786",
+  "applicationCommits": [
+    "60dcd5e",
+    "1fb7786 (test only)"
+  ],
+  "status": "accepted for blind cohort 2026-10-08",
+  "frozen": {
+    "dir": "scratchpad/blind-60dc-frozen/dist",
+    "url": "http://127.0.0.1:5254/",
+    "files": 248,
+    "manifestSha256": "5226c474e234cea43e21b3b86211835e224baa140e0cf01d3905aae421a53afa",
+    "servedHashes": "248/248",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "696 passed",
+    "clippy": "clean",
+    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 28.00 vs 28.21 (docs/CUT110 \u00a74)",
+    "log": "/tmp/riddle-c111-gates.log"
+  },
+  "browser": {
+    "full": "136/137 (/tmp/riddle-c111-client.log); ui:frame read the speed tile before its Cut 111 rate badge \u2014 check now requires the badge; rerun PASS 63 checks"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-60dc-frozen/briefs/a.txt",
+      "scratchpad/blind-60dc-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      167,
+      173
+    ],
+    "drivers": [
+      5358,
+      5359
+    ],
+    "toolBudget": 260
+  },
+  "score": "pending"
+}
