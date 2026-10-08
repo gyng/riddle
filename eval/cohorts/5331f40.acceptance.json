@@ -4,7 +4,7 @@
     "6c89f44",
     "5331f40"
   ],
-  "status": "accepted for blind cohort 2026-10-08",
+  "status": "cohort complete 2026-10-08: 68.3 / 59.2, alpha .72",
   "frozen": {
     "dir": "scratchpad/blind-5331f40-frozen/dist",
     "url": "http://127.0.0.1:5255/",
@@ -17,7 +17,7 @@
   "native": {
     "cargoTests": "702 passed",
     "clippy": "clean",
-    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 28.25 vs 28.36 (narrowed; docs/CUT110 \u00a74)",
+    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 28.25 vs 28.36 (narrowed; docs/CUT110 §4)",
     "log": "/tmp/riddle-c112-gates.log"
   },
   "browser": {
@@ -39,5 +39,34 @@
     "toolBudget": 260,
     "note": "take control is a new secondary mode; briefs unchanged (raters discover it)"
   },
-  "score": "pending"
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/5331f40.blind-a.json",
+      "total": 68.3,
+      "activeMinutes": 69.8,
+      "note": "4h phase 1.1 min short"
+    },
+    "blind-b": {
+      "card": "eval/cards/5331f40.blind-b.json",
+      "total": 59.2,
+      "activeMinutes": 70.9,
+      "gates": [
+        "expression"
+      ]
+    },
+    "alpha": 0.72,
+    "reliability": "tentative",
+    "mean": 63.75,
+    "trend": "56.7 → 64.7 → 67.4 → 63.8",
+    "shared": [
+      "the dungeon bottom falls inside the evaluation (both raters cleared D34; Ascension 1 in one run) — tension, progression, return, pacing",
+      "boss kills off-view ('Run ended · Watching D33' then the report)",
+      "counter word 'cadence' vs tactic 'Mirror rhythm' (found only by browsing)",
+      "speed badge jumps 1×→128× even on Normal",
+      "one-tap replayed fixes do the learning (expression B .3, mastery)",
+      "numbers that disagree on one screen (header '<13%' vs 'D29 0→38%'); unexplained gold drop"
+    ],
+    "takeControl": "A used it twice (pressed return at the Queen; pushed a D17 record) — autonomy .6 cites it",
+    "verdict": "regression from 67.4: Cut 110–112 softened the walls (mirror, wall tactics, cadence early) and the descent now ends inside the horizon"
+  }
 }

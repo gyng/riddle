@@ -1,0 +1,186 @@
+{
+ "$comment": "Raw blind card, rater b, build 5331f40, seed 197. Evidence: scratchpad/5331f40-blind-b/{evidence.md,notes.txt,ledger.txt,shots/}. Criterion answered before axes. Audio unassessed (agent cannot listen).",
+ "game": "Riddle",
+ "build": "5331f40",
+ "genre": "idle-hybrid",
+ "presets": "../riddle/eval/presets.json",
+ "profile": null,
+ "tier": 1,
+ "evaluator": "blind-b (agent, headed D3D12 RTX 3080, 400x800 @3x)",
+ "seed": 197,
+ "horizon": {
+  "activeMinutes": 70.9,
+  "activeIntervalsUTC": [
+   {
+    "phase": "cold",
+    "start": "2026-10-08T10:30:52Z",
+    "end": "2026-10-08T11:14:07Z",
+    "credited": 40.2,
+    "exclusions": "~3.0 min note-writing; infra before start"
+   },
+   {
+    "phase": "return-20m",
+    "start": "2026-10-08T11:14:32Z",
+    "end": "2026-10-08T11:19:50Z",
+    "credited": 5.3
+   },
+   {
+    "phase": "return-4h",
+    "start": "2026-10-08T11:20:07Z",
+    "end": "2026-10-08T11:25:34Z",
+    "credited": 5.4
+   },
+   {
+    "phase": "return-8h",
+    "start": "2026-10-08T11:25:51Z",
+    "end": "2026-10-08T11:47:07Z",
+    "credited": 20.0,
+    "exclusions": "~1.0 min note-writing, ~0.3 min tool wait"
+   }
+  ],
+  "absences": [
+   "20m (simulated, dev absent=20m)",
+   "4h (simulated, dev absent=4h)",
+   "8h (simulated, dev absent=8h)"
+  ],
+  "runsWatched": 19,
+  "runsOffline": 9,
+  "deathsRead": 7,
+  "ruleEditsAttempted": 10,
+  "ruleEdits": 7,
+  "editNotes": "Editor unlocked by run 6 (not locked). Completed: foe:gas→throw fire; foe:boss·depth≥28→read unknown; foe:reflects→attack reflects; applied death-screen fixes: retreat foes≥2, retreat foes≥1, heal above retreat (post-return), foe:healer→attack healer (post-return). Abandoned: foe:drain→attack drain, foe:gas→retreat, one rule delete left at 'drop'. Plus package swaps (Guarded, boss focus, mirror read→Mirror rhythm).",
+  "outcome": "Dungeon cleared (Mirror King, D34) during 8h return phase; Ascension 1 cleared in one run; Ascension 2 in progress at end."
+ },
+ "killCriteria": {
+  "crashOrDataLoss": false,
+  "feltInputLatencyInCoreAct": false,
+  "firstSessionWithoutCoreAct": false,
+  "darkPatternInLoop": false,
+  "defaultRulesBeatEveryEdit": false,
+  "unfairDeathShareAbove10pct": false,
+  "returnWithNothingToDecide": false
+ },
+ "criterion": {
+  "fun_1to7": 5,
+  "playAgainTomorrow_1to7": 4,
+  "recommend_0to10": 6,
+  "checkInTomorrowUnprompted_1to7": 3,
+  "delayedRecall": ""
+ },
+ "sameDayRetelling": "After the gas death at D13 I wrote one rule, \"foe: gas → throw fire\", and sent Kael Ash back down. He burned the Bloat Mother, found heir 1's bones with 12 items, then dropped the Lich and the Foundry Master. He limped home from D23 with $12,954 banked, ten floors past my old best, and it was my rule that broke the wall.",
+ "blindnessViolations": "none. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK §1-3, template, presets idle-hybrid weights, and tools/driver.mjs + drive.sh header for driver op syntax (tooling, not game source). DOM selectors (class names like .legacy-buy, data-upgrade) were used to click visible controls; no hidden game data read.",
+ "axes": [
+  {
+   "id": "clarity",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "time-to-first-rule-edit; misread rate on the trace",
+   "note": "'VS LAST RUN · D34 0→63%' made every edit legible; but floor chart said 'counter: cadence' and the tactic is 'Mirror rhythm' (found by browsing); gold fell $19193→$14139 with no on-screen reason; first death showed no trace."
+  },
+  {
+   "id": "decisions",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "rule decision gap; dominated-rule rate",
+   "note": "Real trade in fixes: 'retreat · survives 7/12 · reach D29 same' vs 'return · 12/12 · reach D29 48→0%'; but forge/legacy buys were strictly better and 'compare outcomes' often said 'noise · 8 runs'."
+  },
+  {
+   "id": "mastery",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "depth-per-run vs sessions; rules-per-death trend",
+   "note": "Learned rule order ('drink heal at 45% under retreat at 50%') and boss counters; depth D5→D34 in ~65 min, then nothing left to learn at this layer."
+  },
+  {
+   "id": "tension",
+   "human": 0.3,
+   "bot": "na",
+   "proxy": "bloody-clear share; bank-or-push margin",
+   "note": "'Carried $13493 · Secured $10911' at the Queen mattered once; both King kills happened off-view ('Run ended · Watching D33' then report) and Ascension 1 steamrolled in one run."
+  },
+  {
+   "id": "feel",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "frame time; events per minute at 1x",
+   "note": "Smooth GPU pixel render, 'BLOAT MOTHER DOWN' banners; lapse: speed badge jumps '16×'/'2×' unasked and the log is a wall of 'D28 · Foe · listens'. Audio unassessed."
+  },
+  {
+   "id": "surprise",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "death-cause entropy; distinct situations per run",
+   "note": "'Found heir 1's bones: 12 items.', 'read unknown' = 'recall scroll · recalled', starving max-HP melt, thieves; but 4h and 8h absences both ended at the same D33 King wall."
+  },
+  {
+   "id": "expression",
+   "human": 0.3,
+   "bot": "na",
+   "proxy": "rule-set diversity across clears",
+   "note": "Setup 'fighter · 5 rules' is partly mine (gas→throw fire, reflects) but most rows were one-tap accepted fixes; nothing a friend would recognise as my style."
+  },
+  {
+   "id": "story",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "chronicle carries setup + turn + end",
+   "note": "'grudge: Vreth the lurker', 'avenged Moreth', 'Slew the Mirror King. The bottom. Nothing below.' — turns exist but the climactic kill was a 5-line reel, not seen."
+  },
+  {
+   "id": "pacing",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "run length; check-in length; dead time at 1x",
+   "note": "Check-ins 2–5 min, bounded; in-run every send re-walks D1–27 ('D1–27 · 100%'); cadence: 20m=1 run, 4h=3, 8h=5 runs but 4h/8h read the same; dungeon bottom inside the first session."
+  },
+  {
+   "id": "failure",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "share of deaths with a matched-rule trace",
+   "note": "Death screen: 'never stepped back · 4 unknown scrolls unused', trace rows 'tactic boss focus 14/51', 'fixes · 12 replays · survives 12/12 · was 0/12', 'ORDER / LUCK · 1 in 2'. Lapse: first death (gas D13) showed only 'BUY sword +2', no cause lever."
+  },
+  {
+   "id": "social",
+   "human": 0,
+   "bot": "na",
+   "proxy": "n/a",
+   "note": "weight 0; heirs churn by name only."
+  },
+  {
+   "id": "autonomy",
+   "human": 0.3,
+   "bot": "na",
+   "proxy": "route/goal freedom in rules",
+   "note": "I chose Ascension level and browsed tactics unasked; route stayed 'D5 burrows', no other goals."
+  },
+  {
+   "id": "progression",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "unlock cadence; vocabulary growth",
+   "note": "Automation every few runs (porter, scout, apprentice, keeper, drillmaster 'levels the stance'), forge tiers, legacy branches; but the declared long goal 'Dungeon cleared' fell at ~65 active min and Ascension 1 needed one run."
+  },
+  {
+   "id": "aesthetic",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "none",
+   "note": "Torch-lit cave camp, tattered YOU DIED/REPELLED banners, ending art. Lapse: header overlap ('best D5' over 'reputation'), truncated 'light ha...'. Audio unassessed."
+  },
+  {
+   "id": "return",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "offline yield vs active; decisions pending on return",
+   "note": "Every return had runs, a verdict and fixes ('While away · 5 RUNS · purse +$6968' + 'max-damage hit at 14 hp'); lapse: 4h and 8h returns were the same D33 plateau and the rule audit read 'fired in 0 of 5 runs' for most rows."
+  },
+  {
+   "id": "attribution",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "share of deaths attributable to a rule the player wrote",
+   "note": "Traces named my picks: 'tactic boss focus' (I equipped) fired as the King killed; 'drink heal at 45% under retreat at 50%' (my rule order). Lapse: two King deaths read 'bad luck · 1 in 2', and many rows were suggested fixes I only accepted."
+  }
+ ]
+}

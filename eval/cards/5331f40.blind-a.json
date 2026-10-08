@@ -1,0 +1,209 @@
+{
+  "$comment": "Blind rater A, raw card, immutable once written. Criterion answered before axes (scratchpad/5331f40-blind-a/evidence.md). Audio unassessed (agent cannot listen). Bot fields na; coordinator applies caps.",
+  "game": "Riddle",
+  "build": "5331f40",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (agent rater, headed D3D12 RTX 3080, 400x800 @3x, seed 191)",
+  "horizon": {
+    "activeMinutes": 69.8,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-08T10:30:49Z",
+        "end": "2026-10-08T11:14:45Z",
+        "wallMin": 43.9,
+        "excludedMin": 3.6,
+        "creditedMin": 40.3,
+        "exclusions": "driver locator timeouts ~2.5 min, background-wait 0.3, unattended sleep 0.8"
+      },
+      {
+        "phase": "return-20m",
+        "start": "2026-10-08T11:15:00Z",
+        "end": "2026-10-08T11:20:40Z",
+        "wallMin": 5.7,
+        "excludedMin": 0.6,
+        "creditedMin": 5.1
+      },
+      {
+        "phase": "return-4h",
+        "start": "2026-10-08T11:21:00Z",
+        "end": "2026-10-08T11:25:07Z",
+        "wallMin": 4.1,
+        "excludedMin": 0.2,
+        "creditedMin": 3.9,
+        "note": "short of the 5-min budget by ~1.1 min (mis-timed navigation); recorded, not padded"
+      },
+      {
+        "phase": "return-8h",
+        "start": "2026-10-08T11:25:15Z",
+        "end": "2026-10-08T11:48:00Z",
+        "wallMin": 22.75,
+        "excludedMin": 2.2,
+        "creditedMin": 20.5,
+        "exclusions": "driver timeouts ~1.4, unattended sleep 0.75"
+      }
+    ],
+    "absences": [
+      "20m (simulated, ?absent=20m)",
+      "4h (simulated)",
+      "8h (simulated)"
+    ],
+    "runsWatched": 14,
+    "normalSpeedWatchMinutes": 13,
+    "runsOffline": 10,
+    "deathsRead": 6,
+    "ruleEditsAttempted": 14,
+    "ruleEdits": 13,
+    "editLog": [
+      "gas retreat rule written",
+      "hunger rule descend->bank, depth 12/14",
+      "applied fix drink unknown",
+      "dropped own retreat rule (it killed heir 2)",
+      "hunger depth 15 (after 20m return)",
+      "foe: drain -> attack drain",
+      "dropped hunger rule (capped run at D15)",
+      "applied fix foe: boss -> read silence",
+      "moved boss focus card",
+      "wrote hp<40% -> drink heal above card",
+      "applied fix hp<50% foes>=2 -> retreat (dropped drink unknown)",
+      "removed boss focus card",
+      "added cadence card"
+    ],
+    "outcome": "Dungeon cleared at D34 by the 12th heir (27 runs, 11 deaths); Ascension 1 offered",
+    "blindnessViolations": "none known; read tools/driver.mjs header and label-matching lines (harness only, not game source)"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 4,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "My 10th and 11th heirs kept dying to the Lurker Queen at D28, because the boss focus card I had added sat above healing and retreat ('drink heal at 45% under tactic boss focus'). After four heirs fell overnight I wrote 'foe: boss -> read silence' with a $39 silence scroll, put a heal row above the card and then removed the card. The next heir read the scroll, the queen went down, he set a D33 record, and with the cadence card the 12th heir killed the Mirror King and reached 'The bottom. Nothing below.'",
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Mostly legible, but the editor opened below the fold (tapping 'edit' showed only a tooltip), and the tactics header read 'floor 29 <13%' while 'VS LAST RUN · D29 0->38%' sat on the same screen. 'fired in 0 of 1 runs' for attack nearest contradicted 'attack nearest 23%'."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "The hunger rule showed real foreseeable trades: '-> bank: D13 75->0% · full haul 0->75% · death 50->13%'. Lapse: forge and Legacy buys were strictly ordered, and 'compare outcomes' only compared stances ('Steady worse 8/8'), never tactics."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Learned that row order beats content ('drink heal at 45% under tactic boss focus') and counters ('read silence', 'cadence'). But the replayed fixes often did the learning for me ('survives 12/12 · was 1/12')."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Carried $3010 · Secured $0 into the queen. I took control and pressed return, and still lost '$3019'. Most stakes resolve off-screen or fast-forwarded, though."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Callouts 'OGRE WINDS UP', 'REFLECTED!', 'HIT DRAIN WRAITH' read well. But the speed badge jumped 1x->128x even on Normal, and watches began mid-run ('D1–10 · 95% · +$361'). Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Drain 'max hp 53->9', hunger, reflectors and the lurker swarm each changed my rules. But D1–13 replayed almost identically every run."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "The final pen was recognisably mine ('foe: drain -> attack drain', 'hp<40% -> drink heal' above the card), but half of it was applied fixes, and the build stayed fighter/Guarded throughout."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Queen saga: four heirs died, then 'Found heir 9's bones', 'silence scroll · silent', 'LURKER QUEEN DOWN', 'The bottom. Nothing below.' Lapse: the early runs (D3-D13) were indistinct."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "Check-ins were bounded (3–6 min) and travel is skipped. But the 8h absence was a stall ('5 RUNS · D28 · $528', '$11290 lost' to one cause), and the whole dungeon cleared inside one day."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "The death screen gives cause, a per-tick rule trace and replayed fixes ('ORDER · drink heal at 45% under tactic boss focus'; 'hp<70% -> return survives 11/12 · reach D17 82->36%'). Lapse: the D13 headline said 'never used unknown' while the trace showed my 'retreat at 50% 100%' loop."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "weight 0 in idle-hybrid; not scored"
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "'Take control' (attack/descend/return) let me push for a D17 record myself. Most goals are set by the next boss, though."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Automation cadence was visible: 'PORTER HIRED', 'SCOUT HIRED · SEND auto', apprentice 'mail +1 · pack 6 · −$7200' while away, drillmaster levels. Depth went D5->D34, with tactic slot 2, classes and oath slots unlocked. Lapse: the dungeon cleared within the horizon, so the long-goal layer jumps to 'Ascension 1'."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Visual only, audio unassessed. The torch-lit town, the tattered red 'YOU DIED' banner and the 'Dungeon cleared' vista were handsome. Lapse: watch sprites at 3x zoom were often mush."
+    },
+    {
+      "id": "return",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "The 4h return was rich ('D28 · $20193 · Boss defeated Lich, Foundry Master · New choices'). The 8h return was mostly '4/5 DEATHS' to one boss, with a counter to chase ('lurker queen [counter] read silence'). The 20m return was a modest '1 RUNS D14 $323'."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "I could name my rules in traces and reels: 'D15 · see hunger -> bank', 'retreat at 50% … 2/39', 'silence scroll · silent', 'CADENCE LURKER'. Lapse: the overnight deaths and much of the growth came from workers and packages, not from me."
+    }
+  ]
+}
