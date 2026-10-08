@@ -1,0 +1,47 @@
+{
+  "candidate": "77030eb",
+  "applicationCommits": [
+    "1617074",
+    "77030eb"
+  ],
+  "status": "accepted for blind cohort 2026-10-09",
+  "frozen": {
+    "dir": "scratchpad/blind-77030eb-frozen/dist",
+    "url": "http://127.0.0.1:5257/",
+    "files": 252,
+    "manifestSha256": "d32dd31202ba220d54b585ed5cec981baafb2af288c52d9de372815f619ca9fe",
+    "servedHashes": "252/252",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "707 passed",
+    "clippy": "clean",
+    "gates": "fresh full (1617074): all PASS except recorded deviation 'Workers pay the away player' 27.71 vs 28.04",
+    "log": "/tmp/riddle-c113b-gates.log"
+  },
+  "browser": {
+    "full": "135/144 at 1617074; real regressions fixed in 77030eb (return-pick class clash, ui:qa band parse); hero-appearance mid-animation measure fixed; watch-live-edge, watch-meters, cut22, qa21 load flakes passing solo; clarity:paint A/B vs b14a4d5 under equal load: same margins (quiet 0.65\u20131.1 s both; loaded 1.5\u20131.9 s both) \u2014 a load flake, not a regression"
+  },
+  "machineLoad": {
+    "atRelease": "39.26 37.35 32.29",
+    "source": "another project's simulations (armee cli-k campaign), bursts to 38 on 32 cores",
+    "note": "raters' feel/frame-time observations may be affected; recorded rather than waited out"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-77030eb-frozen/briefs/a.txt",
+      "scratchpad/blind-77030eb-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      227,
+      229
+    ],
+    "drivers": [
+      5364,
+      5365
+    ],
+    "toolBudget": 260
+  },
+  "score": "pending"
+}
