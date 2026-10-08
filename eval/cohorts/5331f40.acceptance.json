@@ -1,0 +1,43 @@
+{
+  "candidate": "5331f40",
+  "applicationCommits": [
+    "6c89f44",
+    "5331f40"
+  ],
+  "status": "accepted for blind cohort 2026-10-08",
+  "frozen": {
+    "dir": "scratchpad/blind-5331f40-frozen/dist",
+    "url": "http://127.0.0.1:5255/",
+    "files": 248,
+    "manifestSha256": "df42602b20564316a9511dec900ea08d83858b09aa852404f184ca9517198464",
+    "servedHashes": "248/248",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "702 passed",
+    "clippy": "clean",
+    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 28.25 vs 28.36 (narrowed; docs/CUT110 \u00a74)",
+    "log": "/tmp/riddle-c112-gates.log"
+  },
+  "browser": {
+    "full": "138/140 (/tmp/riddle-c112-client.log): mirror-rhythm read the pre-Cut-112 trigger text (spec change), layout: take-control panel outside the wide grid pushed the console (fixed 5331f40); rerun layout, mirror-rhythm, take-control PASS"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-5331f40-frozen/briefs/a.txt",
+      "scratchpad/blind-5331f40-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      191,
+      197
+    ],
+    "drivers": [
+      5360,
+      5361
+    ],
+    "toolBudget": 260,
+    "note": "take control is a new secondary mode; briefs unchanged (raters discover it)"
+  },
+  "score": "pending"
+}
