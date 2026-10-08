@@ -1575,6 +1575,10 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&format!("passes {:?}", l.night_passes));
     // Cut 23 §1: the forge's steps (the heir's starting kit).
     feed(&format!("kit {:?}", l.kit));
+    // Cut 113 §2: the tiers off the ladder's own branch (absent: the key it always was)
+    if !l.kit_alt.is_empty() {
+        feed(&format!("kit_alt {:?}", l.kit_alt));
+    }
     // Cut 28 §1: the sworn oath (a panel's sims say whether each kept it).
     if let Some(o) = crate::oath::sworn(l) {
         feed(&format!("oath {} {} {:?} {:?}", o.kind, o.depth, o.boss, o.seen));

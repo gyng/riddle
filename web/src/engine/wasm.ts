@@ -103,6 +103,7 @@ export class WasmEngine implements Engine {
   forecastVs(prev: RuleSet): ForecastVs { return this.call("forecastVs", JSON.stringify(prev)); }
   // Cut 23 §1: throw `wasm: buyKit` / `wasm: kitDeltas` on a build without them (the camp shows no forge)
   buyKit(slot: string): Lineage { return this.call("buyKit", slot); }
+  takeReturnPick(id: string): Lineage { return this.call("takeReturnPick", id); }   // Cut 113 §3
   kitDeltas(): KitLadder[] { return this.call("kitDeltas"); }
   kitEstimates(): KitLadder[] { return this.call(typeof this.game.kitEstimates === "function" ? "kitEstimates" : "kitDeltas"); }
   // Cut 27: throw `wasm: fold` / `wasm: divergence` on a build without them (the watch then plays every floor; the camp shows no scene)

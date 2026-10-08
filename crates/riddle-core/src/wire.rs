@@ -1346,6 +1346,9 @@ pub struct BloodlineReturn {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct ReturnReport {
+    /// Cut 113 §3: the return's pick (one of three, sized by the absence), as it waits at camp.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pick: Option<ReturnPick>,
     /// Actual inherited points earned by completed runs in this report.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub legacy_earned: u32,
@@ -2058,6 +2061,9 @@ pub struct Lineage {
     pub legacy_upgrades: Vec<LegacyUpgrade>,
     #[serde(default,skip_serializing_if="Option::is_none")]
     pub legacy_respec:Option<LegacyRespec>,
+    /// Cut 113 §3: the return's pick waiting at camp (`returns::wire`; `takeReturnPick(id)`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub return_pick: Option<ReturnPick>,
     /// RUNS_UI: the runs log, the run under way, the run ids a replay is held for, the lineage
     /// clock and the absences counted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -2659,6 +2665,45 @@ pub struct KitStep {
     /// Run-clear: the forged piece's rarity (`item::rarity`); absent = common.
     #[serde(default, skip_serializing_if = "crate::item::Rarity::is_common")]
     pub rarity: crate::item::Rarity,
+    /// Cut 113 §2: an owned tier's branch (`aim · edge`, `plate · pace`); absent on the pack's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+}
+
+/// Cut 113 §3: one offer of a return's pick — `drill` (runs on a worn package: `title` its name),
+/// `legacy` (points), `forge` (the next step of `target`'s ladder at `price`, discounted), `marks`
+/// (◆, when the drill or the forge has nothing left). `available`: takeable now (a forge offer the purse
+/// cannot pay waits like the rest).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ReturnOffer {
+    pub id: String,
+    pub title: String,
+    pub line: String,
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub price: i32,
+    pub available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<String>,
+}
+
+/// Cut 113 §3: the return's pick — the absence minutes behind it, its size (1–5) and its offers.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct ReturnPick {
+    pub minutes: u64,
+    pub size: u32,
+    pub offers: Vec<ReturnOffer>,
+}
+
+/// Cut 113 §2: one of the next tier's two steps (`buyKit("weapon:edge")`), priced as the tier:
+/// `label` its tile line (`aim +4%`, `edge +2`, `mail +1`, `pace +1`); `default` the ladder's own
+/// order; `lean` the branch the apprentice follows (the player's last off-default pick).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct KitBranch {
+    pub id: String,
+    pub label: String,
+    pub default: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub lean: bool,
 }
 
 /// Cut 23 §1: a ladder's next step — its price, whether the purse pays it now, the nights of
@@ -2699,6 +2744,9 @@ pub struct KitLadder {
     pub steps: Vec<KitStep>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<KitNext>,
+    /// Cut 113 §2: the next tier's two steps (weapon, armour); empty on the pack's and at the top.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub branches: Vec<KitBranch>,
 }
 
 /// Cut 23 §3: a count behind a reason (`RowStat.blocked` / `unmet`).

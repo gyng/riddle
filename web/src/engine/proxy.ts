@@ -22,6 +22,7 @@ const METHODS: (keyof Engine)[] = [
   "startForecast",    // Cut 21 §1: optional likewise (the start picker's per-start moves)
   "forecastVs", "forecastVsEstimate",       // Cut 22 §3: optional likewise (the edit's paired move under the shaft)
   "buyKit",           // Cut 23 §1: optional likewise (the forge)
+  "takeReturnPick",   // Cut 113 §3: optional likewise (no return pick without it)
   "kitDeltas", "kitEstimates",        // Cut 23 §1: optional likewise (the forge steps' measured moves)
   "forkForecast",     // Cut 26 §2: optional likewise (the fork chip's two stairs)
   "fold",             // Cut 27 §1: optional likewise (the watch steps the folded floors itself without it)

@@ -470,6 +470,7 @@ export type HeroSlot = { specialization?:ClassStyleId; look?:string; hero_name?:
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
+  pick?: ReturnPick;                                                           // Cut 113 §3 (core): the return's pick as it waits at camp (`Lineage.return_pick`)
   legacy_earned?: number;
   slice_pending?: boolean; // acknowledgement only; final slice reports the whole absence once
   bloodlines?: {legacy_earned?:number;id:number;name:string;runs:number;deepest:number;gold:number;packages?:string[];bests?:string[];boss_knowledge?:BossKnowledge[];xp?:ReturnReport["xp"][]}[];
@@ -525,6 +526,7 @@ export type Lineage = { bloodline?: BloodlineLegacy;
                         legacy_upgrades?: { id: string; rank: number; cap: number; price: number; effect: string; affordable: boolean; name?:string; branch?:string; parent?:string; min_depth?:number; blocked?:string; owned_effect?:string }[];
                         class_styles?:ClassStyles;
                         legacy_respec?: {refund:number;available:boolean;points_after:number|null;blocked:string|null};
+                        return_pick?: ReturnPick;                                                                     // Cut 113 §3 (core): the return's pick waiting at camp
                         runs?: RunRec[]; live?: LiveRun | null; replays?: number[]; clock_s?: number; absences?: number;   // RUNS_UI (core): the runs log, the run under way, the run ids a replay is held for, the lineage clock (s), the absences counted
                         heroes?: HeroLane[];                                                                     // RUNS_UI: reserved for Cut 31 (a lane per hero); the client derives the one hero's lane until then
                         age_h?: number; reveal_queue?: string[]; reveal_next?: { id: string; trigger: string; triggered: boolean; wait_h: number };   // Cut 30 (core; PROGRESSION_V2 §4): the lineage's age in hours (offline included); systems ready and waiting their turn (one opens a report); the next to come and the hours it still waits (`next · tactics · 3 h`)
@@ -599,8 +601,15 @@ export type ClassChip = { class: string; signature: string; level: number; opens
  *  core's estimate of nights of income until it is (0 = now; absent when there is no income to go on). With `kitDeltas()`:
  *  `delta` = the paired forecast move of buying it at `depth` (0..1, signed; the same paired panel as edits), `pm` its ±, and
  *  `bank`/`death` the ends' moves — the chip reads `mail +1 · D9 +7 · $340`. */
-export type KitStep = { label: string; price: number; owned: boolean; kind?: string; rarity?: Rarity };   // run-clear (core): the piece the step forges and its rarity
-export type KitLadder = { slot: "weapon" | "armour" | "pack" | "gun_sidearm"; selected?: boolean; owned: number; steps: KitStep[];
+export type KitStep = { label: string; price: number; owned: boolean; kind?: string; rarity?: Rarity; branch?: string };   // Cut 113 §2 (core): an owned tier's branch
+/** Cut 113 §2 (core): one of the next tier's two steps, priced as the tier (`buyKit("weapon:edge")`): `aim · edge`, `plate · pace`;
+ *  `default` the ladder's own order, `lean` the branch the apprentice follows. */
+export type KitBranch = { id: string; label: string; default: boolean; lean?: boolean };
+/** Cut 113 §3 (core): the return's pick — one of three offers, sized by the absence (`size` 1–5), waiting at camp until taken
+ *  (`takeReturnPick(id)`); `drill` (runs on a worn package, `title` its name) · `legacy` · `forge` (a discounted step, `price`) · `marks`. */
+export type ReturnOffer = { id: string; title: string; line: string; price?: number; available: boolean; target?: string };
+export type ReturnPick = { minutes: number; size: number; offers: ReturnOffer[] };   // run-clear (core): the piece the step forges and its rarity
+export type KitLadder = { slot: "weapon" | "armour" | "pack" | "gun_sidearm"; selected?: boolean; owned: number; steps: KitStep[]; branches?: KitBranch[];
                           next?: { label: string; price: number; affordable: boolean; nights?: number; per_night?: number;   // QA 912e135 (core): the night's net `nights` divides by
                                    depth?: number; delta?: number; pm?: number; bank?: number; death?: number } };
 /** Cut 23 §3 — a row's why-not over the recent sends (the rows the set still holds; a changed row starts over). `sends` the
@@ -797,6 +806,7 @@ export interface Engine {
   forkForecast?(fork: number, refined?: boolean): ForkOption[];   // QA 308f045 (qaAC: `fens D8 12%`, picked: `D8 16%`): `refined` — measured on the pass the camp shows, like `cageForecast`
     // §2: both stairs of a seen fork for the active set (one extra camp panel, memoised; seconds in wasm — call when the fork chip's sheet opens)
   // Cut 23
+  takeReturnPick?(id: string): Lineage;   // Cut 113 §3: take one offer of the return's pick (`drill · legacy · forge · marks`)
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
   kitDeltas?(): KitLadder[];            // full paired forecast, retained for detailed callers
   kitEstimates?(): KitLadder[];         // small depth/exit preview, with its actual uncertainty

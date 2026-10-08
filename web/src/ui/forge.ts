@@ -9,6 +9,7 @@ import { moveOf } from "./forecast";
 import { audio } from "../audio";
 import { icon } from "./skin";
 import { itemIcon, itemName, itemChip } from "./items";   // run-clear
+import "../forge-branches.css";   // Cut 113 §2
 
 /** Conservative wire snapshot: simulation inputs and displayed prices belong to this camp. */
 const kitKey = (app: App): string => JSON.stringify([app.lineage, app.rules, app.loadout]);
@@ -119,10 +120,22 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
           const choice = backupOwned ? `${lad.slot}:${lad.selected ? "stow" : "pack"}` : lad.slot;
           void app.mutate(() => app.engine.buyKit!(choice), backupOwned ? lad.selected ? /* copy:callout */ "Stowed" : /* copy:callout */ "Packed" : /* copy:callout */ "Forged").then((ok) => { if (ok) audio.cue("unlock"); if (kit.isConnected) paint(); });
         } }, backupOwned ? lad.selected ? /* copy:button */ "Stow" : /* copy:button */ "Pack" : next ? /* copy:button */ `Forge $${next.price}` : /* copy:button */ "Complete");
-        return h("section", { class: "kit-slot tablet", "data-slot": lad.slot },
+        // Cut 113 §2: a tier offers two steps priced alike (weapon aim · edge, armour plate · pace); the default first
+        const branches = next && lad.branches?.length ? h("div", { class: "forge-branches" }, ...lad.branches.map((b) => {
+          const pick = h("button", { class: `chip forge-buy forge-branch${b.default ? " default" : ""}${b.lean ? " lean" : ""}`, disabled: !next.affordable || !app.engine.buyKit,
+            "data-slot": lad.slot, "data-branch": b.id, onclick: () => {
+              if (!app.engine.buyKit) return;
+              pick.disabled = true;
+              void app.mutate(() => app.engine.buyKit!(`${lad.slot}:${b.id}`), /* copy:callout */ "Forged").then((ok) => { if (ok) audio.cue("unlock"); if (kit.isConnected) paint(); });
+            } }, b.label, h("small", { class: "num" }, ` $${next.price}`));
+          return pick;
+        })) : null;
+        const slotEl = h("section", { class: "kit-slot tablet", "data-slot": lad.slot },
           h("div", { class: "kit-head" }, h("b", null, SLOT_LABEL[lad.slot]), h("small", { class: "dim" }, current ? itemChip({kind:lad.steps[lad.owned - 1]?.kind ?? lad.slot,label:current,rarity:lad.steps[lad.owned - 1]?.rarity}) : lad.slot === "gun_sidearm" ? /* copy:label */ "Optional" : /* copy:label */ "Starting kit")),
           h("div", { class: "forge-action" }, h("div", { class: "forge-item" }, ...(item?.kind ? [itemIcon({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity }, { size: "s" }), itemName({ kind: item.kind, label: next?.label ?? item.label, rarity: item.rarity })] : [h("span", { class: "icon-socket" }, icon("loadout", "▤")), next?.label ?? current ?? "Complete"])), button),
-          lad.slot === "gun_sidearm" ? h("small", { class: "dim" }, /* copy:label */ "Ranged reflection") : "");
+          branches ?? "", lad.slot === "gun_sidearm" ? h("small", { class: "dim" }, /* copy:label */ "Ranged reflection") : "");
+        if (branches) button.remove();   // (the tier's two steps are its buttons)
+        return slotEl;
       }));
       replace(advanced, h("summary", null, /* copy:button */ "Details"),
         h("div", { class: "forge-ladders num dim" }, ...ladders.map((lad) => {

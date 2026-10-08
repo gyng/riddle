@@ -1481,6 +1481,18 @@ pub struct LineageState {
     /// Cut 24 §3: the forge's unit, fixed the first time the forge was shown (`kit::unit_of`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kit_unit: Option<u32>,
+    /// Cut 113 §2: the forge tiers that took the other branch (bit i: tier i; `kit::branch_at`),
+    /// per ladder — weapon aim · edge, armour plate · pace. Empty: the ladder's defaults.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub kit_alt: BTreeMap<String, u32>,
+    /// Cut 113 §2: the branch the player last chose off a ladder's default (the apprentice
+    /// follows it; a default chosen by hand clears it).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub kit_lean: BTreeMap<String, String>,
+    /// Cut 113 §3: the return's pick, waiting at camp until taken (`returns`); never lost —
+    /// a later return adds its minutes to it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub return_pick: Option<crate::returns::Pending>,
     /// QA on 0c6e126 (qaY: `+1 row ◆2 or $450` became `$600` overnight with no gold buy): the row slots' unit, fixed at the first
     /// exit (the unlock shelf shows the row's price from the first camp) — `kit::row_gold`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1787,6 +1799,9 @@ impl LineageState {
             found_kinds: BTreeSet::new(),
             last_run: None,
             kit_unit: None,
+            kit_alt: BTreeMap::new(),
+            kit_lean: BTreeMap::new(),
+            return_pick: None,
             row_unit: None,
             oaths: Vec::new(),
             oath_sworn: None,
@@ -2045,7 +2060,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { class_styles:Some(crate::specialization::offers(self,false)), legacy_respec:None, selected_loadout:vec![], hero_slots:vec![], selected_bloodline:1, bloodline_price:crate::bloodlines::SLOT_PRICE, bloodline_cap:crate::bloodlines::SLOT_CAP as u32, bloodline: self.bloodline.clone().unwrap_or_default(), legacy_upgrades: crate::legacy::offers(self, false), hero_legacy: self.hero_legacy.iter().cloned().map(|mut h| { if h.name.is_empty() { h.name = crate::legacy::hero_identity(self.seed, h.heir, self.bloodline_id); } h }).collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { class_styles:Some(crate::specialization::offers(self,false)), legacy_respec:None, return_pick:None, selected_loadout:vec![], hero_slots:vec![], selected_bloodline:1, bloodline_price:crate::bloodlines::SLOT_PRICE, bloodline_cap:crate::bloodlines::SLOT_CAP as u32, bloodline: self.bloodline.clone().unwrap_or_default(), legacy_upgrades: crate::legacy::offers(self, false), hero_legacy: self.hero_legacy.iter().cloned().map(|mut h| { if h.name.is_empty() { h.name = crate::legacy::hero_identity(self.seed, h.heir, self.bloodline_id); } h }).collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -3208,6 +3223,7 @@ impl Game {
     pub fn lineage(&self) -> Lineage {
         let mut l = self.lineage.to_wire();
         if self.lineage.endgame.is_some() || self.lineage.ended { l.endgame = Some(self.descent_progress()); }
+        l.return_pick = crate::returns::wire(&self.lineage);
         let (kinds, gold) = self.repeat_plan();
         l.repeat_kinds = kinds;
         l.repeat_gold = gold;

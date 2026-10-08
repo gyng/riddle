@@ -79,3 +79,54 @@ mean best 27.71 vs 28.04 (was 28.25 vs 28.36). Rows that moved: TUNED/PICKED at 
 ≥ 1 each); workers-daily 30.18 vs 29.96 → 29.25 vs 29.00 (PASS); the tree also held the concurrent oath.rs/engine.rs edits; IDLE stall 3 d, King 0/2.
 `cargo test --profile fast`: 703, the 307dbed send hash re-recorded (f22db4c57141f4d0 → ea30535a6c429390;
 the tree with only defs.rs at HEAD hashes to f22db4c57141f4d0).
+
+## §2 measured — forge choices, not a ladder (core + client, 2026-10-09)
+
+**Changed.** Each weapon and armour tier offers two steps priced alike (`kit::BRANCHES`): weapon `aim` (to-hit:
++4 % a step for the first three aim steps, +3 % past them, at most 100 %) · `edge` (the blow: +1 in the first three
+tiers, `EARLY_EDGE`, +2 from the fourth); armour `plate` (the next piece of the old ladder) · `pace` (speed in tenths,
+`PACE_TENTHS` 8 · 7 · 6 · 5 · 5 · 4 · 4 %, a fractional point paid a tick at a time). Each tier's default is the old
+ladder (aim to +3, then the edge; plate throughout), so a lineage that never chooses forges exactly what it did
+(`LineageState.kit_alt` empty, no `Item.forged`, no `Hero.pace`; the send hash and every test unchanged). Wire:
+`KitLadder.branches` (`KitBranch {id, label, default, lean}`), `KitStep.branch`; `buyKit("weapon:edge")`. The apprentice
+follows `kit_lean` — the player's last off-default pick on that ladder (a default picked by hand clears it), else the
+default. The forge sheet shows a tier's two steps as two buttons (`aim +4% $300` · `edge +1 $300`); the pack keeps one.
+
+**Gate** (`examples/forge_branch 16 96`: IDLE's wall snapshots, the record at the wall, sends from the deepest lit stone;
+value = share past the wall − ¼ deaths; paired, the same seeds both ways; median of 16 seeds). *Last tier* is the
+per-tier choice (k − 1 default tiers, then each branch); *whole lean* is k tiers all one way.
+
+| ladder · view | first branch ahead at | second branch ahead at |
+|---|---|---|
+| weapon · last tier (edge − aim) | k1–3: D13, D23 · k5–6: D28 | k1–3: D8, D18, D28 · k4–6: D8–D23 |
+| weapon · whole lean | k1–2: D13/D23 · k5–6: D28 (2/16 seeds edge) | k2–6: D13, D18, D23 |
+| armour · last tier (pace − plate) | k1: D8, D13, D23 · k2: D18, D23, D28 · k3: D18 · k5: D23 · k6–7: D23/D28 | every tier ahead somewhere (k4: D8–D28 ≥ 0, D23 0.000 with 5+/6−) |
+| armour · whole lean | k2–4: D18 (−0.03…−0.07) · D8/D13/D23 at k1–2 | k3+: D28 (11–16/16 seeds) |
+
+On every tier each branch is ahead at some wall, but for two ties: weapon k4 (D28 0.000, 7+/6−) and armour k4 (D23 0.000,
+5+/6−); and on the whole lean pace's 5th–7th steps lead every wall's median except D18's 3+/3− split. Two tunings got
+here: a full +2 edge in the aim's tiers out-reached aim at every wall (v1: k1 +0.003…+0.016, edge 7/8 seeds at D8); a
+full speed point a pace step out-reached plate at every wall from the fifth (v2: k5–7 +0.03…+0.42). Recorded, not gated
+(a diagnostic over IDLE's snapshots; D18 has 6 seeds, D13 10).
+
+**Bars**: no bot picks a branch or a return pick, so the dayplayer's games are the old ones (cargo tests incl. the send
+hash unchanged). `node tools/gates.mjs --full --rows return-pick,idle-d8,idle-d13,idle-d23,idle-stall,idle-king,picked-idle,outpace`
+(16 seeds, fresh cache): IDLE D8 16/16 · D13 day 1.3 · D23 16/16, day 4.8 · stall 4 d · King 0/16 · PICKED/IDLE 2.00 · 2.39 ·
+3.42 · never out-paced 100 % · return pick 672/672 check-ins — all PASS (targeted, not the gate).
+
+## §3 measured — each return carries a decision (core + client, 2026-10-09)
+
+**Changed.** `returns.rs`: every return of ≥ 10 min opens a pick (`LineageState.return_pick`: minutes, the absence that
+opened it); an untaken pick waits and the next return adds its minutes (never lost, nothing punishes absence). Size by
+minutes: 20 m 1 · 1 h 2 · 4 h 3 · 8 h 4 · 16 h 5 (4 h and 8 h now differ). Three offers, seeded from the lineage seed and
+the absence (never the game's dice): **drill** +3/6/10/16/24 runs on a worn package below L5 · **Legacy** +2/4/6/9/12 ·
+**forge** the next step of a seeded ladder at −10/20/30/40/50 % on the apprentice's branch (only once the blacksmith
+stands; `marks` +◆1–3 stands in for an empty drill or forge). Wire: `ReturnReport.pick`, `Lineage.return_pick`
+(`ReturnPick {minutes, size, offers}`), `takeReturnPick(id)` (wasm, native bridge regenerated). Client
+(`web/src/ui/return-pick.ts`): three chunky `tile`s on the report (under the summary); on the camp one `pick` tile under the town
+(below the fold: runsui's ≤ 12 controls above it hold) opens the three in a sheet; gone once taken; forge sheet branch buttons (`forge.ts`).
+
+**Gate**: dayplayer row `return-pick` — *Every IDLE check-in offers a return pick* — PASS 16/16 seeds (IDLE takes none).
+Rust: `tests_cut113.rs` (branches priced alike, default = old ladder, lean; pick sized, seeded, waits and grows, taking
+closes it; an untaken pick never moves the game). Client: `web/tests/return-pick.mjs` (real wasm: 30 m report shows three
+tiles, untaken waits on the camp as one tile opening the three, Legacy taken pays +2, forge tiers offer two steps). Copy-lint clean.

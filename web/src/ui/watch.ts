@@ -212,6 +212,9 @@ const DEAD_TICKS_ONE = 35;
 // ticks before it; with none found it lands on the frontier and plays on (another jump DEAD_JUMP_MS later)
 const DEAD_JUMP_MS = 2500, DEAD_JUMP_WALL_MS = 1200, JUMP_LAND = 15;
 const KILL_LEAD = 3;                // blind 5331f40: a jump that meets a boss's unshown kill lands this many ticks before it
+// blind 7f7fc2b (A: three 55–90 s static stretches after the fold line; B: the hero static > 30 s with the run over): a jump held short
+// of an unshown kill waits at most KILL_WAIT_MS of wall time for the picture to play it — then the kill lapses and the jump goes on
+const KILL_WAIT_MS = 3000;
 // …and a picture whose clock has not moved for STUCK_MS while the run is live, unfrozen and nothing deliberate holds it (a beat, the
 // cage, the exit flow, a fold) is landed live and the card let go — whatever held it, the watch never freezes
 const STUCK_MS = 4000;
@@ -574,6 +577,8 @@ export function renderWatch(app: App): Mounted {
   // beat — no jump (live, the ending, a dead stretch's jump, a skip) lands past one the playhead has not shown; `floorFrom` the tick the
   // viewer's floor opened (a kill on a floor already left cannot be shown again)
   const killBeats: Beat[] = []; let floorFrom = -Infinity;
+  const killWait = new Map<Beat, number>();   // blind 7f7fc2b: when a jump was first held short of the kill (wall ms)
+  let killsLapsed = 0;
   let heldBeat: Beat | null = null;   // the beat the hold is for
   const descends: number[] = [];      // engine ticks of the run's descends (a held beat stops short of the stairs)
   // Cut 24 §1: the engine ticks where the watch moved — a blow that landed, a hurt, a drink, a kill, a pickup, a descent (ascending)
@@ -795,7 +800,10 @@ export function renderWatch(app: App): Mounted {
     // and Secured is always the part of Carried a death keeps; the stake's `loot` is only the carry at risk
     const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "Carried"), ` $${Math.max(0, st.loot) + secured}`];
     if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? `${lootWhy === "left" ? " " : " → "}${lootItem.replace(/_/g, " ")}` : ""}`));
-    parts.push(" · ", h("span", { class: "kept" }, /* copy:callout */ `Secured $${secured}`));
+    // blind 7f7fc2b (A: `Secured $0` every run after heir 1, "nothing ever secured"): carry is secured only past the record (Cut 30.5's
+    // checkpoint) — below it, with nothing yet secured, the line names the floor that secures it (`Secured past D21`)
+    const record = app.lineage.best_depth ?? 0;
+    parts.push(" · ", h("span", { class: "kept" }, secured === 0 && s.depth <= record ? /* copy:callout */ `Secured past D${record}` : /* copy:callout */ `Secured $${secured}`));
     if (st.returning ?? walkingHome) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "Heading home"));
     if (st.stalling && s.depth >= hud.depth && !overridden) parts.push(" · ", h("span", { class: "stalling" }, /* copy:callout */ "Path blocked"));
     replace(stake, ...parts);
@@ -1110,7 +1118,7 @@ export function renderWatch(app: App): Mounted {
             break;
           }
           // Cut 15 §4: a boss's kill is a beat — the frame holds on it with `WARLORD DOWN` (its own line, not `slain`)
-          if (bossIds.has(ev.id) && !allies.has(ev.id)) { const id = ev.id; at(ev.t, () => { if (bossHud?.id === id) { bossHud = null; paintBoss(); } }); killBeats.push(beatAt(ev.t, bossDown(kinds.get(ev.id) ?? victims.get(ev.id) ?? "boss"), false, true)); at(ev.t, () => cue("boss_down")); break; }
+          if (bossIds.has(ev.id) && !allies.has(ev.id)) { const id = ev.id; at(ev.t, () => { if (bossHud?.id === id) { bossHud = null; paintBoss(); } }); { const kb = beatAt(ev.t, bossDown(kinds.get(ev.id) ?? victims.get(ev.id) ?? "boss"), false, true); if (!folding) killBeats.push(kb); } at(ev.t, () => cue("boss_down")); break; }
           const v = victims.get(ev.id), vk = kinds.get(ev.id) ?? v; if (v) at(ev.t, () => { callout(/* copy:callout */ `${v} slain`, "kill", HURT_MS); cue("slay", { kind: vk }); });
           break;
         }
@@ -1305,11 +1313,24 @@ export function renderWatch(app: App): Mounted {
   /** Land the viewer's clock on tick t (both directions; the placeholder viewer's wall clock too). */
   /** blind 5331f40: the first boss kill the playhead has not shown, on the viewer's floor (or a floor still queued), in (v, t]. */
   function killAhead(t: number): Beat | undefined {
-    const v = viewerTick();
-    return killBeats.find((b) => !b.shown && b.from > v && b.from <= t && b.from >= floorFrom);
+    const v = viewerTick(), now = performance.now();
+    for (const b of killBeats) {
+      if (b.shown || b.from <= v || b.from > t || b.from < floorFrom) continue;
+      // blind 7f7fc2b: a kill the picture has not played within KILL_WAIT_MS of the first jump held short of it lapses (never a hang)
+      const w = killWait.get(b);
+      if (w !== undefined && now - w > KILL_WAIT_MS) { b.shown = true; killsLapsed++; el.dataset.killsLapsed = String(killsLapsed); continue; }
+      return b;
+    }
+    return undefined;
   }
   /** blind 5331f40: a forward jump to t stops KILL_LEAD ticks short of a boss's kill the picture has yet to show (never back). */
-  function killStop(t: number): number { const k = killAhead(t); return k ? Math.max(viewerTick(), k.from - KILL_LEAD) : t; }
+  function killStop(t: number): number {
+    const k = killAhead(t); if (!k) return t;
+    if (!killWait.has(k)) killWait.set(k, performance.now());
+    return Math.max(viewerTick(), k.from - KILL_LEAD);
+  }
+  /** blind 7f7fc2b: every kill up to t given up (take control: the picture lands on the hero now). */
+  function killsPassed(t: number): void { for (const b of killBeats) if (!b.shown && b.from <= t) b.shown = true; }
   /** A queued floor is loaded only when no unshown kill comes before its stairs (the kill's floor would go with the load). */
   function loadNext(): void { if (loads.length && killAhead(loads[0].at ?? Infinity)) return; const p = takeLoad(); if (p) loadFloor(p); }
   function seekTo(t: number): void {
@@ -1420,6 +1441,12 @@ export function renderWatch(app: App): Mounted {
   /** Cut 12 §6: a skip that found the run's end lands the viewer at the ending (its last ENDING_TICKS still play at 1×) —
    *  a fight that held the exit used to leave the press with nothing visible until the clock got there on its own. */
   function toEnding(): void { const t = killStop(Math.max(viewerTick(), endingFrom)); if (t > viewerTick()) { release(t); seekTo(t); } applyFrame(); applySpeed(); }   // blind 5331f40: short of an unshown kill
+  let handGoing = false;
+  function letHandGo(): void {
+    if (handGoing || !snap) return;
+    handGoing = true; snap = { ...snap, manual: false, awaiting: false };
+    Promise.resolve().then(() => app.engine.takeControl?.(false)).catch(() => { /* the run is over: nothing to let go */ }).finally(() => { handGoing = false; });
+  }
   function manualPump(): void {
     paintWatchStatus();
     if (cardUp) cardExpired();
@@ -1427,6 +1454,9 @@ export function renderWatch(app: App): Mounted {
     let now = viewerTick();
     // (the picture never runs past the frontier: the next action's events play from where he stands)
     if (now > engineTick) { seekTo(engineTick); now = viewerTick(); }
+    // blind 7f7fc2b (B: control taken over a picture stuck behind the world — arrows and `descend` moved nothing visible): in hand
+    // the picture is the hero now — every queued floor in, any kill behind the frontier given up, the clock on the frontier
+    else if (engineTick - now > 2) { releaseBeat(); killsPassed(engineTick); drainLoads(); seekTo(engineTick); release(engineTick); now = viewerTick(); }
     el.dataset.tick = String(now); el.dataset.engineTick = String(engineTick);
     release(now); paintScrub(now);
     if (loads.length && viewerIdle()) loadFloor(takeLoad()!);
@@ -1438,7 +1468,7 @@ export function renderWatch(app: App): Mounted {
   }
   function handle(r: StepResult): void {
     const s = r.snapshot;
-    ctl.paint(r.run_over ? null : s);
+    ctl.paint(r.run_over || held || exitTier ? null : s);
     wide.setPresence?.(s, r.run_over);
     engineTick = s.turn;
     floors.set(s.depth, { rooms: s.rooms ?? floors.get(s.depth)?.rooms, twist: s.floor_twist ?? floors.get(s.depth)?.twist, biome: s.biome });
@@ -1541,6 +1571,9 @@ export function renderWatch(app: App): Mounted {
   }
   function pump(): void {
     if (done || disposed || !viewer || !snap) return;
+    // blind 7f7fc2b (B: `Hand control · awaits order` with the run over — arrows and `descend` inert): once the run is over or the exit
+    // flow holds, the panel goes and a hand still on the hero is let go (the core never waits on an order nobody can give)
+    if (held || exitTier) { if (!ctl.el.hidden) ctl.paint(null); if (snap.manual) letHandGo(); }
     // take control: no fold, no jump, no travel, no world clock — the engine steps when the hero acts (the core waits for him)
     if (snap.manual && !held && !exitTier) { manualPump(); return; }
     paintWatchStatus();

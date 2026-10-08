@@ -1674,3 +1674,42 @@ fn take_control_waits_for_the_player_and_releases() {
     g.step(30);
     assert!(g.run.as_ref().is_none_or(|r| r.over.is_some() || r.turn > t2), "released, the rules play on");
 }
+
+/// Blind 7f7fc2b (B: an applied fix went in above the stance's `drink heal`, where it was never
+/// measured, and killed the next heir 0/12): on packages a patch's added row is measured where the
+/// client can put it — the pen's rows compile above every package row, so no lower than the pen's end.
+#[test]
+fn package_death_patches_are_measured_where_they_apply() {
+    let mut seen = 0;
+    'seeds: for seed in 1..40u64 {
+        let mut g = Game::new_resident(seed);
+        for _ in 0..12 {
+            if g.lineage.pkg.literal { continue 'seeds; }
+            g.send();
+            let mut over = None;
+            for _ in 0..4000 {
+                let step = g.step(50);
+                if step.run_over {
+                    over = Some((step.snapshot.run.id, step.events.iter().any(|e| matches!(e, crate::wire::Ev::Exit { tier, .. } if tier == "death"))));
+                    break;
+                }
+            }
+            let Some((id, died)) = over else { continue 'seeds };
+            if died {
+                let rules = g.deaths[&id].rules.clone();
+                let pen_end = rules.rows.iter().position(|r| r.is_pkg()).unwrap_or(rules.rows.len());
+                let d = crate::trace::death(&mut g, id).expect("a death screen");
+                for p in d.patches.iter().filter(|p| p.insert_at >= 0 && !p.replace && !p.remove && p.root.is_none()) {
+                    let pkg_move = p.moves_from.is_some_and(|f| rules.rows.get(f as usize).is_some_and(|r| r.is_pkg()));
+                    if p.moves_from.is_none() || pkg_move {
+                        assert!(p.insert_at as usize <= pen_end, "seed {seed}: {} measured at R{} below the pen's end R{}", p.row.describe(), p.insert_at + 1, pen_end + 1);
+                    }
+                }
+                if pen_end < rules.rows.len() && !d.patches.is_empty() { seen += 1; }
+                if seen >= 3 { break 'seeds; }
+            }
+            let _ = g.keep(vec![]);
+        }
+    }
+    assert!(seen > 0, "no package death with patches to check");
+}

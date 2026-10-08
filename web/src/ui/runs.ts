@@ -145,7 +145,8 @@ function openRunCard(app: App, r: RunRec): void {
  *  frame, the floor chips to jump, a tap on the picture goes on. `window.__runReplay` carries the run, its hash and where it is (tests). */
 const REPLAY_RATE = 16, POLL_MS = 200;
 /** blind 5331f40: a kill replay opens KILL_PRE ticks before the boss falls, at KILL_RATE (the climax at a watchable pace). */
-const KILL_PRE = 60, KILL_RATE = 2;
+// blind 7f7fc2b (B: "the kill replay opened on BOSS DOWN already"): 6 s of the fight before the fall at 2×, not 3
+const KILL_PRE = 120, KILL_RATE = 2;
 type SeekViewer = Viewer & { seek?(t: number): void; setFrame?(frame: "map" | "fight"): void };
 /** blind 5331f40: where in a replay the boss `kind` falls — its floor (index) and the `die` tick; undefined when this run did not slay him. */
 export function killIn(R: Replay, kind: string): { floor: number; t: number } | undefined {

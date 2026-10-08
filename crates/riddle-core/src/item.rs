@@ -50,6 +50,11 @@ pub struct Item {
     /// items omit the field so older saves retain their exact representation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub firearm: Option<crate::firearm::Chambers>,
+    /// Cut 113 §2: on the forged arm, when a forge tier took the other branch: its aim steps, its
+    /// forged blow, and the tiers behind them (`kit::aim_steps`, `kit::blow`); none: the ladder's own
+    /// split (aim to +3, then the blow).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forged: Option<[i32; 3]>,
 }
 
 fn is_zero(x: &i32) -> bool {
@@ -58,7 +63,7 @@ fn is_zero(x: &i32) -> bool {
 
 impl Item {
     pub fn new(id: u32, kind: &str) -> Item {
-        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, auto_packed: false, enchanted: 0, firearm: crate::firearm::Profile::of(kind).map(crate::firearm::Chambers::loaded) }
+        Item { id, kind: kind.into(), hint: None, amount: 0, enchant: 0, known: false, free: false, found: false, paid: 0, auto_packed: false, enchanted: 0, firearm: crate::firearm::Profile::of(kind).map(crate::firearm::Chambers::loaded), forged: None }
     }
     /// Cut 6 §2: known by name (bought, crafted, vaulted) or by an identified flavour.
     pub fn is_known(&self, facts: &BTreeSet<String>, flavours: &Flavours) -> bool {
@@ -85,7 +90,8 @@ impl Item {
         // Cut 25 §1: the forged arm's steps are aim (`Hero::hit_pct`), not a harder blow.
         // Cut 30: the forge's steps past its aim are a harder blow.
         if crate::kit::is_kit_id(self.id) {
-            let more = crate::kit::DMG_PER_STEP * (self.enchant - crate::kit::AIM_STEPS).max(0);
+            // Cut 113 §2: the steps not taken as aim (`kit::aim_steps`)
+            let more = crate::kit::blow(self);
             return (a.0 + more, a.1 + more);
         }
         (a.0 + self.enchant, a.1 + self.enchant)

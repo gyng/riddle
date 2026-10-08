@@ -49,6 +49,7 @@ import { mountClear } from "./runclear";   // run-clear: the run's card before t
 import { itemIcon, itemName, itemChip } from "./items";
 import { enemyTraitName } from "./enemy-tips";
 import { labelOf as unlockLabel } from "./unlocks";
+import { returnPick } from "./return-pick";   // Cut 113 §3: each return carries a decision
 
 
 /** Persisted unlock IDs belong to the wire; report text uses catalogue words. */
@@ -646,12 +647,13 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const firstActs = (r.workers ?? []).filter((a) => a.first && (a.n > 0 || a.what));
   const goal = progressGoal(L);
   const newChoices = reportChoices(app, r);
+  const pick = returnPick(app, "report");
   const firstWorkers = firstActs.length ? h("section", { class: "report-first-workers" },
     h("b", { class: "row-label" }, /* copy:label */ "Workers started"),
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), classXpBlock(r), legacyEarnedBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, pick.el, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), classXpBlock(r), legacyEarnedBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
@@ -708,7 +710,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
   if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
   const restore = requestAnimationFrame(() => { if (reportWell.isConnected) reportWell.scrollTop = reading.scroll; });
-  return { el, dispose: () => { cancelAnimationFrame(restore); reading.scroll = reportWell.scrollTop; preparation.dispose(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
+  return { el, dispose: () => { cancelAnimationFrame(restore); reading.scroll = reportWell.scrollTop; pick.dispose(); preparation.dispose(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
 }
 
 /** Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): each companion that fell, by name — `Greth · ogre L5 · fell D12

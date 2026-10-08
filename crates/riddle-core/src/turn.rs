@@ -174,6 +174,9 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
         vault_take(run, cx, None);
     }
     run.hero.energy += run.hero.speed();
+    if run.hero.pace != 0 {
+        run.hero.energy += crate::kit::pace_energy(run.hero.pace, run.turn);
+    }
     for m in run.monsters.iter_mut() {
         if m.hp > 0 {
             m.energy += m.effective_speed();

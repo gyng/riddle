@@ -493,7 +493,7 @@ pub(crate) fn scout_sent(game: &mut Game) {
 /// A weapon's worth a blow: its mean hit with its aim (a forged arm's steps), at its pace.
 fn blow_worth(w: &crate::item::Item) -> i64 {
     let (lo, hi) = w.atk();
-    let hit = if crate::kit::is_kit_id(w.id) { 80 + crate::kit::AIM_PER_STEP as i64 * w.enchant.clamp(0, crate::kit::AIM_STEPS) as i64 } else { 80 };
+    let hit = if crate::kit::is_kit_id(w.id) { crate::kit::hit_pct(w) as i64 } else { 80 };
     (lo + hi) as i64 * hit * (10 + w.def().speed) as i64
 }
 

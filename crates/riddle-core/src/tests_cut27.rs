@@ -389,3 +389,30 @@ fn rough_previews_preserve_full_forecasts_and_actual_progress() {
         assert_eq!(direct.save(), clean.save());
     });
 }
+
+/// Blind 7f7fc2b (A: the Warlord fell inside the fold line `D1–8 · 100% · boss down` and was never
+/// seen): a fold never plays a boss's floor — a plan that runs past one stops on the floor before
+/// it, and the watch opens on the boss's floor.
+#[test]
+fn the_fold_stops_before_a_bosss_floor() {
+    let mut opened = 0;
+    for seed in 1..30u64 {
+        let g = edited(seed, 12);
+        let mut a = Game::load(&g.save()).unwrap();
+        let _ = a.forecast();
+        let _ = a.send();
+        a.fold_plan = Some((12, (1..=12).map(|d| (d, 1.0)).collect()));
+        let line = a.fold();
+        let route = a.run.as_ref().unwrap().route;
+        assert!(line.floors.iter().all(|f| route.boss(f.depth).is_none()), "a boss's floor folded: {:?}", line.floors.iter().map(|f| f.depth).collect::<Vec<_>>());
+        assert!(line.to < 8, "the fold ran past the Warlord's floor (D{})", line.to);
+        if !line.step.run_over {
+            assert!(route.boss(line.step.snapshot.depth).is_some(), "the watch opens on the boss's floor (D{})", line.step.snapshot.depth);
+            opened += 1;
+        }
+        if opened >= 2 {
+            break;
+        }
+    }
+    assert!(opened > 0, "no run reached the boss's floor under the fold");
+}

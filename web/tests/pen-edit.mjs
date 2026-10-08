@@ -113,6 +113,10 @@ try {
     await penOpen(4103);
     await page.click(".camp .editor .rows-foot .btn.ghost");
     await until(() => document.querySelector('.camp .editor .rows > .row.tablet[data-i="0"] > button.x'), "the written row's ×");
+    // blind 7f7fc2b (A: "the new row lands at position 3 … I edited the wrong row once"): the added row sits at the pen's end, marked
+    // `new` until edited, its verb chip focused
+    const fresh = await page.evaluate(() => { const r = document.querySelector(".camp .editor .rows > .row.tablet.fresh"); return { i: r?.dataset.i, note: r?.querySelector(".fresh-note")?.textContent, focus: !!r && r.contains(document.activeElement) && document.activeElement.classList.contains("verb"), n: document.querySelectorAll(".camp .editor .row.tablet.fresh").length }; });
+    check(fresh.n === 1 && fresh.i === "0" && fresh.note === "new" && fresh.focus, `the added row is the pen's last, marked new and focused (${JSON.stringify(fresh)})`);
     const n0 = await page.evaluate(() => window.__riddle.rules.rows.length);
     await page.click(`${tablet(0)} > button.x`);
     const armed = await page.evaluate((sel) => { const b = document.querySelector(`${sel} > button.x`); const cs = b ? getComputedStyle(b) : null; const t = document.querySelector(sel); return { cls: b?.classList.contains("armed"), text: b?.textContent, color: cs?.color, ring: t ? getComputedStyle(t).outlineStyle : "", rows: window.__riddle.rules.rows.length }; }, tablet(0));

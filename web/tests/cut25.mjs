@@ -236,7 +236,8 @@ try {
     await page.locator(".cmd .tile[data-tile=forge]").click({ timeout: 5000 }); await sleep(400);
     const btn = page.locator(".sheet-wrap .forge button.forge-buy:not([disabled])").first();
     const quote = await btn.evaluate((b) => { const L = window.__riddle.lineage, k = L.kit.find((k) => k.slot === b.dataset.slot); return {slot:k.slot, owned:k.owned, price:k.next.price, gold:L.gold, text:b.textContent}; });
-    check(quote.text === `Forge $${quote.price}`, `the forge quotes the actual step price (${quote.text})`);
+    // (Cut 113 §2: a weapon or armour tier quotes each of its two steps — `aim +4% $300` — the pack its one, `Forge $300`)
+    check(quote.text === `Forge $${quote.price}` || quote.text.endsWith(` $${quote.price}`), `the forge quotes the actual step price (${quote.text})`);
     await btn.click();
     await page.waitForFunction((q) => window.__riddle.lineage.kit.find((k) => k.slot === q.slot).owned === q.owned + 1, quote);
     const bought = await page.evaluate((slot) => ({ owned:window.__riddle.lineage.kit.find((k) => k.slot === slot).owned, gold:window.__riddle.lineage.gold, icon:!!document.querySelector(`.sheet-wrap .kit-slot[data-slot=${slot}] .item-ico`) }), quote.slot);

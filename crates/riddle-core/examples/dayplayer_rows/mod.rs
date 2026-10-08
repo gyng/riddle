@@ -104,6 +104,7 @@ pub const ROWS: &[RowDef] = &[
             and(vec![c.median(&["IDLE"], "L3 median day", false, move |o, _| Some(at(o[0], 3)), |m| m <= 2.0), c.median(&["IDLE"], "L5 median day", false, move |o, _| Some(at(o[0], 5)), |m| m <= 7.0)])
         },
     },
+    RowDef { id: "return-pick", key: "Every IDLE check-in offers a return pick", bots: &["IDLE"], present: &[], days: None, until: Until::Never, settle: |c| c.every(&["IDLE"], |o| if o[0].picks == o[0].checkins { Ok(()) } else { Err(format!("{}/{} check-ins offered", o[0].picks, o[0].checkins)) }) },
     RowDef { id: "grew", key: "Every IDLE check-in grows", bots: &["IDLE"], present: &[], days: None, until: Until::Never, settle: |c| c.every(&["IDLE"], |o| if o[0].grew == o[0].checkins { Ok(()) } else { Err(format!("{}/{} check-ins grew", o[0].grew, o[0].checkins)) }) },
     RowDef { id: "idle-stages", key: "Days with a stage opened: IDLE", bots: &["IDLE"], present: &[], days: None, until: Until::Never, settle: |c| c.median(&["IDLE"], "median days", false, |o, _| Some(o[0].stage_days as f64), |m| m >= 8.0) },
     RowDef {

@@ -27,6 +27,7 @@ pub mod packages;
 pub mod offline;
 pub mod probes;
 pub mod provenance;
+pub mod returns;
 pub mod rng;
 pub mod rules;
 pub mod save;
@@ -197,6 +198,10 @@ impl Game {
         tree::did(&mut self.lineage, "level");
         Ok(lv)
     }
+    /// Cut 113 §3: take one offer of the return's pick waiting at camp (`returns::take`).
+    pub fn take_return_pick(&mut self, id: &str) -> Result<String, String> {
+        returns::take(self, id)
+    }
     /// Cut 111: pick a tactic's L3 row (0 the first variant, 1 the second).
     pub fn set_tactic_variant(&mut self, id: &str, variant: u32) -> Result<(), String> {
         packages::set_variant(&mut self.lineage, id, variant.min(255) as u8)
@@ -283,3 +288,5 @@ mod tests_cut305;
 mod tests_runsui;
 #[cfg(test)]
 mod tests_runclear;
+#[cfg(test)]
+mod tests_cut113;

@@ -145,7 +145,10 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   }
   function commit(): void { bind.changed(); refresh(); }
   /** Cut 7 §2: a row the player edits any token of (or adds) is the player's, whatever offered it. */
-  function edited(row: Row): void { row.origin = "player"; commit(); }
+  function edited(row: Row): void { row.origin = "player"; if (row === fresh) fresh = null; commit(); }
+  // blind 7f7fc2b (A: "the new row lands at position 3 with a default filled in — I edited the wrong row once"): the row `+` added stays
+  // marked `new` (ringed) until a token of it is edited, and its verb chip takes the focus
+  let fresh: Row | null = null;
 
   function refresh(): void {
     clear(list); clear(foot);
@@ -178,7 +181,8 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // times): it goes in above the first own row with no hp cond (the broad engagement rows), under the hp rows before it
       // QA 0c6e126 (qaY: "`+` adds `hp < 50% → attack lowest` in the middle (R3) instead of at the end, so every add needs a reorder"): the `+`
       // under the rows adds at the end, where it sits; the new row is flashed and a ▲ moves it
-      n < max ? h("button", { class: "btn ghost", onclick: () => { const rs = rows(), at = penEnd(); rs.splice(at, 0, defaultRow()); hl = at; hlUntil = performance.now() + 1600; commit(); } }, "+") : "",
+      n < max ? h("button", { class: "btn ghost", onclick: () => { const rs = rows(), at = penEnd(), row = defaultRow(); rs.splice(at, 0, row); fresh = row; hl = at; hlUntil = performance.now() + 1600; commit();
+        (list.querySelector<HTMLElement>(".row.fresh .chip.verb") ?? null)?.focus({ preventScroll: true }); } }, "+") : "",
     );
     paintShadow();
     if (hl !== undefined && performance.now() < hlUntil) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", Math.max(600, hlUntil - performance.now())); r.scrollIntoView({ block: "center" }); } }
@@ -258,11 +262,12 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // row's ▼ says so (and the row carries the line), never a silent dead control
       h("button", { class: `step down${penLast ? " pen-end" : ""}`, disabled: down < 0, title: penLast ? /* copy:callout */ "packages below" : undefined, "aria-label": penLast ? /* copy:callout */ "packages below" : undefined, onclick: () => moveRow(i, i + 1) }, "▼"));
     if (penLast && order) chips.appendChild(h("small", { class: "pen-end-note dim" }, "▼ ", /* copy:callout */ "packages below"));
+    if (row === fresh) chips.prepend(h("small", { class: "fresh-note" }, /* copy:callout */ "new"));
     // QA 0c6e126 (qaY: a row's × deleted on the first tap, no undo — "my second tap deleted a second row"): the supplies' two-tap — the
     // first arms it (`drop`), the second deletes; armed, it stays armed across a repaint until a tap elsewhere
     // rater A on c4705f9 (a package row's × "did not drop it": the core compiled it back): a package's row has no × — it goes with its package
     const x = pkg ? h("span", { class: "x none", "aria-hidden": "true" }) : twoTap("×", /* copy:button */ "drop", () => { const at = rows().indexOf(row); if (at >= 0) { rows().splice(at, 1); commit(); } }, { class: "x", key: `rowx:${JSON.stringify([row.conds, row.verb])}` });
-    const rowNode = h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
+    const rowNode = h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}${row === fresh ? " fresh" : ""}`, "data-i": i }, grip, updown, chips, x);
     // Cut 29 §4 ("rule editing is fast: drag or long-press to reorder any distance"): a press held on the tablet lifts it like the grip
     if (order) rowNode.addEventListener("pointerdown", (e) => longPress(e, i, rowNode));
     return rowNode;

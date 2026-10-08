@@ -1,0 +1,5 @@
+/* Cut 113 §2: a forge tier's two steps, priced alike — side by side, the apprentice's lean marked */
+.forge .forge-branches { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.forge .forge-branch { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.forge .forge-branch.lean { box-shadow: 0 0 0 1px var(--acc, #f0c674); }
+.forge .simple-kit .kit-slot:has(.forge-branches) { grid-template-rows: auto auto auto; }

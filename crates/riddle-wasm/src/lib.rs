@@ -493,6 +493,13 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 113 §3: take one offer (`drill · legacy · forge · marks`) of the return's pick; returns the Lineage.
+    #[wasm_bindgen(js_name = takeReturnPick)]
+    pub fn take_return_pick(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.take_return_pick(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 30 §2: spend marks on a package's next level; returns the Lineage.
     #[wasm_bindgen(js_name = spendLevel)]
     pub fn spend_level(&mut self, id: &str) -> Result<String, JsError> {

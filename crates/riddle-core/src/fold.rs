@@ -32,7 +32,11 @@ impl Game {
         let plan = self.fold_plan.take();
         let live = self.run.as_ref().filter(|r| r.over.is_none()).map(|r| r.depth);
         let from = live.unwrap_or(1);
-        let to = plan.as_ref().map(|p| p.0).unwrap_or(0);
+        // blind 7f7fc2b (A: the Warlord fell inside `D1–8 · 100% · boss down`, never seen): a boss's
+        // floor is never folded — the fold stops on the floor before it and the watch shows the fall
+        let route = self.run.as_ref().map(|r| r.route);
+        let plan_to = plan.as_ref().map(|p| p.0).unwrap_or(0);
+        let to = (from..=plan_to).take_while(|d| route.is_none_or(|r| r.boss(*d).is_none())).last().unwrap_or(0);
         let clear_of = |d: u32| plan.as_ref().and_then(|p| p.1.iter().find(|(x, _)| *x == d).map(|(_, c)| *c)).unwrap_or(1.0);
         if live.is_none() || to < from {
             let snapshot = self.last_snapshot.clone().unwrap_or_else(|| self.snapshot());

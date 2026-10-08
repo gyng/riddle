@@ -947,6 +947,18 @@ fn replay_base(game: &Game, rec: &DeathRec) -> Option<(Game, u32)> {
     Some((base, ticks))
 }
 
+/// Blind 7f7fc2b (B: a fix measured below the stance's `drink heal` went in above it and killed
+/// the next heir, 0/12): on packages the pen's rows compile above every package row
+/// (`packages::compile`), so an added row can stand no lower than the pen's end — it is measured
+/// there, where the client applies it (`app.applyPatch`: `min(insert_at, penEnd)`).
+pub fn reachable(game: &Game, rules: &RuleSet, pos: usize) -> usize {
+    let p = &game.lineage.pkg;
+    if p.literal || p.stance == crate::packages::CUSTOM {
+        return pos;
+    }
+    pos.min(rules.rows.iter().position(|r| r.is_pkg()).unwrap_or(rules.rows.len()))
+}
+
 /// Where a patch may go: the top, and before the row that fired most in the trace.
 fn insert_positions(rules: &RuleSet, trace: &Trace) -> Vec<usize> {
     let mut counts = vec![0u32; rules.rows.len()];
@@ -1295,6 +1307,8 @@ fn order_moves(rec: &DeathRec, base: &Game, ticks: u32) -> Vec<Patch> {
     let max_rows = max_rows(rec);
     let rec_ref: &DeathRec = rec;
     let moved: Vec<Option<Patch>> = crate::forecast::par_map(base, jobs, |base, &j| {
+        // blind 7f7fc2b: a package row moved goes into the pen (the client's fork) — at the pen's end at the lowest
+        let top = if rec_ref.rules.rows[j].is_pkg() { reachable(base, &rec_ref.rules, top) } else { top };
         let p = Patch { no_gain: false, row: rec_ref.rules.rows[j].clone(), insert_at: top as i32, survive: 0.0, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: Some(j as i32), whole: None, gem: false, restores: None };
         let rules = patched_rules(&rec_ref.rules, &p, max_rows);
         let mut rp = Replayer::new(base, &rules, ticks, false)?;
@@ -1613,6 +1627,14 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
             positions.push(at);
         }
     }
+    // blind 7f7fc2b: only where the row can stand (on packages, the pen's end at the lowest)
+    let mut reach: Vec<usize> = Vec::new();
+    for p in positions.iter().map(|&p| reachable(game, &rec.rules, p)) {
+        if !reach.contains(&p) {
+            reach.push(p);
+        }
+    }
+    let positions = reach;
     // Baseline: the unpatched rules under the same reseeded replays. If they survive most of
     // the time the death was the dice, not the policy; a patch must beat the baseline clearly.
     let baseline = match Replayer::new(&base, &rec.rules, ticks, rec.stall) {
@@ -1634,7 +1656,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     };
     // Cut 27 §5 (AT: the bloat row deleted, then a gas death stamped DICE): a row the player took
     // out since the last set sent is a candidate too — measured where it stood (`restore R4`).
-    let restores: Vec<(Row, usize)> = if rec.stall { Vec::new() } else { rec.removed.iter().map(|(r, i)| (r.clone(), (*i).min(rec.rules.rows.len()))).collect() };
+    let restores: Vec<(Row, usize)> = if rec.stall { Vec::new() } else { rec.removed.iter().map(|(r, i)| (r.clone(), reachable(game, &rec.rules, (*i).min(rec.rules.rows.len())))).collect() };
     for (r, _) in &restores {
         if !cands.contains(r) {
             cands.push(r.clone());
@@ -1655,7 +1677,7 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // QA on 524827b (qaAA: `hp < 50% → read unknown` measured at R1 went in above the set's heal
     // and return rows): a row that would pre-empt the set's top block of safety rows is also
     // measured under it (`safe_slot`), and takes that place when it saves nearly as many.
-    let safe: Vec<Option<usize>> = cands.iter().map(|r| safe_slot(&rec.rules, r)).collect();
+    let safe: Vec<Option<usize>> = cands.iter().map(|r| safe_slot(&rec.rules, r).map(|s| reachable(game, &rec.rules, s))).collect();
     let jobs: Vec<(usize, usize)> = cands
         .iter()
         .enumerate()
@@ -1738,10 +1760,10 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // death the moment's survival decides (`edge_gap`); where the forecast has to (no edge), the
     // candidates are the usual slots' alone (the extra slot would crowd the forecast's few).
     if edge_gap {
-        let under: Vec<(Row, usize, f64)> = scored.iter().filter(|(_, row, pos)| safe_slot(&rec.rules, row) == Some(*pos)).map(|(rate, row, pos)| (row.clone(), *pos, *rate)).collect();
+        let under: Vec<(Row, usize, f64)> = scored.iter().filter(|(_, row, pos)| safe_slot(&rec.rules, row).map(|s| reachable(game, &rec.rules, s)) == Some(*pos)).map(|(rate, row, pos)| (row.clone(), *pos, *rate)).collect();
         scored.retain(|(rate, row, pos)| !under.iter().any(|(r, at, sr)| r == row && at != pos && *pos < *at && *sr >= rate - SAFE_BAND - 1e-9));
     } else {
-        scored.retain(|(_, row, pos)| positions.contains(pos) || safe_slot(&rec.rules, row) != Some(*pos));
+        scored.retain(|(_, row, pos)| positions.contains(pos) || safe_slot(&rec.rules, row).map(|s| reachable(game, &rec.rules, s)) != Some(*pos));
     }
     let mut patches: Vec<Patch> = scored.into_iter().map(|(rate, row, pos)| Patch { no_gain: false, row, insert_at: pos as i32, survive: rate, forecast_delta: 0.0, replace: false, remove: false, root: None, below_bar: false, forecast_depth: 0, forecast_pm: 0.0, camp_pending: false, drops: None, exits: false, buys: None, moves_from: None, whole: None, gem: false, restores: None }).collect();
     // Cut 27 §5: a removed row measured where it stood reads `restore R4`.

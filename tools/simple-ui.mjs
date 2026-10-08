@@ -86,7 +86,7 @@ try {
    await page.waitForFunction(({slot,owned})=>window.__riddle.lineage.kit.find(x=>x.slot===slot).owned===owned+1,{slot,owned:before.owned});
    check(`${width}: one-click forge preserves price`,await page.evaluate(b=>window.__riddle.lineage.gold===b.gold-b.price,before));
    check(`${width}: forge buy asks for no forecast`,await page.evaluate(()=>window.__kitForecastCalls===0));
-  } else check(`${width}: unaffordable forge disables buying`,await page.locator('.forge-buy:disabled').count()===3);
+  } else check(`${width}: unaffordable forge disables buying`,await page.locator('.forge-buy:not(:disabled)').count()===0&&await page.locator('.forge-buy:disabled').count()>=3);   // Cut 113 §2: a tier's two steps are two buttons
   await page.locator('.sheet-wrap button.stud').click();
   check(`${width}: no horizontal overflow`,await page.evaluate(()=>document.documentElement.scrollWidth)<=width);
   await page.evaluate(()=>window.__riddle.flush());

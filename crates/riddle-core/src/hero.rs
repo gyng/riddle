@@ -180,6 +180,10 @@ pub struct Hero {
     pub str_bonus: i32,
     #[serde(default)]
     pub legacy_armour: i32,
+    /// Cut 113 §2: the forge's pace steps (the armour ladder's other branch): speed in tenths (the
+    /// whole points in `speed`, the rest a tick at a time: `kit::pace_energy`).
+    #[serde(default, skip_serializing_if = "crate::specialization::zero")]
+    pub pace: i32,
     /// Selected inherited perks snapshotted at send; old roots alone omit it.
     #[serde(default,skip_serializing_if="crate::legacy::empty_effects")]
     pub legacy_effects:u16,
@@ -265,6 +269,7 @@ impl Hero {
             base_atk: (1, 2),
             str_bonus: 0,
             legacy_armour: 0,
+            pace: 0,
             legacy_effects: 0,
             specialization:None,
             special_cd:0,
@@ -335,7 +340,7 @@ impl Hero {
     /// a step), not damage; any other arm hits 80 %.
     pub fn hit_pct(&self) -> u32 {
         match &*self.weapon {
-            Some(w) if crate::kit::is_kit_id(w.id) => 80 + crate::kit::AIM_PER_STEP * w.enchant.clamp(0, crate::kit::AIM_STEPS) as u32,
+            Some(w) if crate::kit::is_kit_id(w.id) => crate::kit::hit_pct(w),
             _ => 80,
         }
     }
@@ -351,7 +356,7 @@ impl Hero {
         if self.speed_t > 0 {
             s += 5;
         }
-        s + self.gift.quick - self.gift.slow
+        s + self.pace / 10 + self.gift.quick - self.gift.slow
     }
     pub fn ranged(&self) -> bool {
         self.weapon.as_ref().is_some_and(|w| w.def().ranged)

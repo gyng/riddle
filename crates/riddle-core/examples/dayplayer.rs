@@ -84,6 +84,9 @@ struct SeedOut {
     stance_level_day: Vec<u32>,
     checkins: u32,
     grew: u32,
+    /// Cut 113 §3: check-ins whose return carried a pick (offered; no bot takes one).
+    #[serde(default)]
+    picks: u32,
     stage_days: usize,
     /// Sends and those that stalled (the stall guard's timeout) over the fortnight.
     #[serde(default)]
@@ -841,6 +844,7 @@ impl Play {
                 g.deaths.retain(|_, r| r.death.verdict != "stall");
             }
             out.grew += !rep.grew.is_empty() as u32;
+            out.picks += rep.pick.is_some() as u32;
             self.opened |= !rep.systems_opened.is_empty();
             // (a reveal is a unit: the pen's group is one)
             let mut triggers: Vec<&str> = rep.systems_opened.iter().filter_map(|id| riddle_core::systems::SYSTEMS.iter().find(|d| d.id == id).map(|d| d.trigger)).collect();
@@ -1489,6 +1493,9 @@ fn main() {
         let grew: u32 = idle.iter().map(|o| o.grew).sum();
         let cis: u32 = idle.iter().map(|o| o.checkins).sum();
         bars.push(("Every IDLE check-in grows ≥ 1 track".into(), format!("{grew}/{cis}"), grew == cis));
+        // Cut 113 §3: each return carries a decision (offered at every check-in; IDLE takes none)
+        let picks: u32 = idle.iter().map(|o| o.picks).sum();
+        bars.push(("Every IDLE check-in offers a return pick".into(), format!("{picks}/{cis}"), picks == cis));
         let sd = median(idle.iter().map(|o| o.stage_days as f64).collect());
         bars.push((format!("Days with a stage opened: IDLE ≥ 8/{days} (median)"), format!("{sd:.1}"), sd >= 8.0));
     }

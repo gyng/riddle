@@ -112,7 +112,7 @@ pub fn sidearm_ladder(l:&crate::engine::LineageState)->Option<crate::wire::KitLa
         affordable:l.town.home.unwrap_or(true)&&i64::from(crate::tree::purse(l))>=i64::from(price),
         nights:crate::kit::nights(l,i64::from(price)-i64::from(crate::tree::purse(l))),..Default::default()});
     Some(crate::wire::KitLadder{slot:SIDEARM_SLOT.into(),selected:Some(sidearm_selected(l)),owned,steps:vec![crate::wire::KitStep{
-        label,price,owned:owned==1,kind:Some("sword".into()),rarity:crate::item::rarity(&item,true)}],next})
+        label,price,owned:owned==1,kind:Some("sword".into()),rarity:crate::item::rarity(&item,true),branch:None}],next,branches:Vec::new()})
 }
 pub fn choose(game:&mut crate::Game,kind:&str)->Result<(),String> {
     if Profile::of(kind).is_none() {return Err("unknown gun".into());}

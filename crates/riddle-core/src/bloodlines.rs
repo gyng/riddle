@@ -189,7 +189,10 @@ impl Session {
             crate::offline::set_net(&mut r,before.gold_before,g.lineage.gold);
             r
         };
+        let away=self.active.offline_absence.as_ref().map_or(0,|a|a.elapsed_s);
         let mut r=finish(&mut self.active,full,with_stall);
+        // Cut 113 §3: the shown bloodline's pick (one a return, sized by the absence)
+        crate::returns::on_return(&mut self.active.lineage,away);r.pick=crate::returns::wire(&self.active.lineage);
         let summary=|id:u32,r:&ReturnReport,g:&Game|crate::wire::BloodlineReturn{legacy_earned:r.legacy_earned,id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),boss_knowledge:Self::victory_knowledge(g,&r.bests),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.passage+g.wake-g.spent)};
         if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r,&self.active));}
         for (id,g) in &mut self.others {

@@ -21,11 +21,14 @@ export function foldFloors(f: Forecast | null, start: number): Set<number> {
   const out = new Set<number>();
   if (!f || foldOff()) return out;
   const w = f as unknown as FoldWire;
-  if (typeof w.fold_to === "number") { for (let d = Math.max(1, start); d <= w.fold_to; d++) out.add(d); return out; }
+  // blind 7f7fc2b (A: the Warlord fell inside `D1–8 · 100% · boss down`, never seen): a boss's floor never folds (the core's
+  // `fold()` stops before it too) — the fold breaks there and the fall is watched
+  const boss = new Set(w.depths.filter((d) => d.boss).map((d) => d.depth));
+  if (typeof w.fold_to === "number") { for (let d = Math.max(1, start); d <= w.fold_to; d++) if (!boss.has(d)) out.add(d); return out; }
   const marked = w.depths.some((d) => d.fold !== undefined || d.folded !== undefined || d.clear !== undefined);
   const by = new Map(w.depths.map((d) => [d.depth, d]));
   for (const d of w.depths) {
-    if (d.depth < start) continue;
+    if (d.depth < start || boss.has(d.depth)) continue;
     if (marked) {
       if (d.fold || d.folded || (d.clear !== undefined && d.clear >= FOLD_CLEAR)) out.add(d.depth);
       continue;

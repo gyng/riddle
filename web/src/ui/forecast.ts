@@ -529,7 +529,10 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       h("span", { class: "end return" }, h("i", { class: "gemdot" }), /* copy:callout */ "return", " ", h("b", null, endShare(e.return, lowOf(last)), moveMark(vs?.return, true))),
       // QA 23ed91f (L: "`bank 0% · return 0% · death 96%` never sums to 100; `stall` only in the panel"): a stall share is its own gem
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
-      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true))),
+      // blind 7f7fc2b (A: the camp's `death 50%` → `63%` → `88%` between views, nothing edited — read as the game changing its mind): the
+      // death gem carries its sampling band (`±13`), as the panel's line does
+      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true)),
+        ((pm) => pm !== undefined ? h("small", { class: "dim pm band", style: bandW(pm), title: `±${pm}` }, /* copy:none */ ` ±${pm}`) : "")(pmShown(e.death, e.pm))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
       h("span", { class: "end gold" }, /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), ""));
     replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
