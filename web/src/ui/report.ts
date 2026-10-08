@@ -56,6 +56,12 @@ const readableUnlock = (text: string, names?: Map<string, string>): string => te
 
 type ReadingPosition = { expanded: boolean; scroll: number };
 const reportReading = new WeakMap<App, WeakMap<ReturnReport, ReadingPosition>>();
+/** The waystone passage the report's sends were paid into the purse at the send: the core's sum over an absence (`gold.passage`), a
+ *  watched run's own (`live.run.passage`; an absence's `live` is another run's, never read). */
+export function reportPassage(r: Pick<ReturnReport, "gold" | "live">): number {
+  return r.gold ? r.gold.passage ?? 0 : r.live?.run?.passage ?? 0;
+}
+
 function readingPosition(app: App, report: ReturnReport): ReadingPosition {
   let reports = reportReading.get(app);
   if (!reports) { reports = new WeakMap(); reportReading.set(app, reports); }
@@ -360,6 +366,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       if (bankedG + returnedG === r.gold.home && r.gold.home > 0) { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); }
       else { const w = homeWord(); if (w) piece(r.gold.home, "+", w, "up"); else pieces.push(h("span", { class: "up" }, `+$${r.gold.home}`)); }
       piece(r.gold.salvage, "+", WORD.salvage, "up");
+      piece(reportPassage(r), "+", /* copy:callout */ "passage", "up");
       // QA e75ec29 (Q, R: `+$40 heir purse` after one death, `+$30` after others, none after three): the purse rule — each death tops the
       // next heir's purse up to `wake_cap`; the top-ups counted (`+$70 purse ×2`), the deaths that found it full named (`purse full ×1`)
       if (r.gold.wake > 0) pieces.push(h("span", { class: "up" }, `+$${r.gold.wake} ${WORD.wake}`, r.gold.wake_n && r.gold.wake_n > 1 ? ` ×${r.gold.wake_n}` : ""));
@@ -369,6 +376,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // QA 0c6e126 (qaY: `heir purse ≥$40 ×12` beside one `+$20 heir purse` in the gold sheet — "the ≥ has no source"): only the top-ups
       // the ledger holds are named (`+$20 heir purse`, the gold sheet's own words); a death that found the purse full moved no gold
       piece(r.gold.spent, "−", WORD.spent, "down");
+      // blind ad71e72 (A: `$6712` earned, the purse up $78): the rest of the purse's change — the workers' forge steps, hires, the bank
+      if (r.gold.net !== undefined) { const other = r.gold.net - (r.gold.home + r.gold.salvage + reportPassage(r) + r.gold.wake - r.gold.spent); piece(-other, "−", /* copy:callout */ "workers, other", "down"); piece(other, "+", /* copy:callout */ "other", "up"); }
       // QA 912e135 (qaW: `STALLED $224 lost` and ~$1,900 carried by the dead, named nowhere on the gold side): what the exits did not keep —
       // a dim note beside the movements (it never was in the purse)
       // QA 524827b (qaAA: `$936 lost` on a report with 0 deaths): what a return did not keep (its 40 %) is `not kept`; `lost` is only
@@ -377,7 +386,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       if (lostG > 0) pieces.push(h("span", { class: "dim lost" }, /* copy:callout */ `$${lostG} lost`));
       if (unkept > 0) pieces.push(h("span", { class: "dim unkept" }, /* copy:callout */ `$${unkept} not kept`));
     }
-    else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(spentG, "−", WORD.spent, "down"); }
+    else { piece(bankedG, "+", WORD.banked, "up"); piece(returnedG, "+", WORD.returned, "up"); piece(salvageG, "+", WORD.salvage, "up"); piece(reportPassage(r), "+", /* copy:callout */ "passage", "up"); piece(spentG, "−", WORD.spent, "down"); }
     // Cut 19 §3: the repeat stopped once the night's spending reached what it brought home — Cut 21 §3 (AE, AF: `restock capped`
     // unread): it says the rule, `restock ≤ income`; both it and `repeat short` open the gold sheet, where the ledger lines are
     // QA 778fa1b (qaU: `carry $61 −$37 swapped` on the strip, in no ledger): what the pack's swaps took off the carry (`ReturnReport.swapped`,
@@ -583,12 +592,25 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const counterFacts = learnedFacts.filter((f) => /^boss:[^:]+:counter/.test(f) || /^counter_hint:/.test(f));
   const runGold = r.gold?.home ?? (r.exits ?? []).reduce((n, x) => n + x.kept, 0);
   const lootGold = r.gold?.salvage ?? (r.salvaged ?? []).reduce((n, x) => n + x.gold, 0);
+  // blind ad71e72 (A: `$8 GOLD EARNED` while the purse rose ~$1000 on a D19 start; `$6712` with the purse up $78): the waystone passage
+  // paid at the send is income too (the core's `gold.passage`, a watched run's `live.run.passage`), and an absence states the purse's
+  // actual change under it (`gold.net`: the workers' forge steps, hires and bank moves included)
+  const passageGold = reportPassage(r);
+  const net = r.gold?.net;
+  const otherGold = net === undefined || !r.gold ? 0 : net - (r.gold.home + r.gold.salvage + passageGold + r.gold.wake - r.gold.spent);
+  const signed = (n: number): string => `${n < 0 ? "−" : "+"}$${Math.abs(n)}`;
   const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", onclick: () => openGoldSheet(app) },
-    icon("gold"), h("b", { class: "num" }, `$${runGold + lootGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned")), () => [
+    icon("gold"), h("b", { class: "num" }, `$${runGold + lootGold + passageGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned"),
+    net !== undefined && net !== runGold + lootGold + passageGold ? h("small", { class: "report-net num" }, /* copy:callout */ `purse ${signed(net)}`) : ""), () => [
       h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
       h("div", { class: "num" }, /* copy:label */ "Run gold", ` · $${runGold}`),
       h("div", { class: "num" }, /* copy:label */ "Loot sold", ` · $${lootGold}`),
-      h("div", { class: "kw-tip-gloss" }, /* copy:tooltip */ "Before spending; excludes heir grants")]);
+      ...(passageGold > 0 ? [h("div", { class: "num" }, /* copy:label */ "Passage", ` · $${passageGold}`)] : []),
+      ...(net !== undefined && r.gold ? [h("div", { class: "num" }, /* copy:label */ "Heir grants", ` · +$${r.gold.wake}`)] : []),
+      ...(net !== undefined && r.gold ? [h("div", { class: "num" }, /* copy:label */ "Supplies, tolls", ` · −$${r.gold.spent}`)] : []),
+      ...(otherGold ? [h("div", { class: "num" }, /* copy:label */ "Workers, other", ` · ${signed(otherGold)}`)] : []),
+      ...(net !== undefined ? [h("div", { class: "num" }, h("b", null, /* copy:label */ "Purse change"), ` · ${signed(net)}`)] : []),
+      h("div", { class: "kw-tip-gloss" }, net !== undefined ? /* copy:tooltip */ "Earned before spending; purse change counts everything" : /* copy:tooltip */ "Before spending; excludes heir grants")]);
   const summary = h("div", { class: "report-summary" },
     h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended"),
     h("div", { class: `tiles report-basics${absence ? " fade-in" : ""}` },

@@ -250,3 +250,24 @@ fn earned_legacy_exit_and_batch_match_points_for_each_exit_and_skip_simulations(
         }
     }
 }
+
+/// Blind ad71e72 (B: Legacy piled to 80, "could not buy from it"): the camp rest's clock readies
+/// the next run at its first tick while the hero rests at home; a purchase then is no absence, and
+/// the readied hero carries it. A send (the rest skipped) is away.
+#[test]
+fn a_resting_hero_buys_legacy_and_the_readied_run_carries_it() {
+    let mut g=rich();g.start_run(Some(7));g.finish_run();
+    assert!(g.lineage.rest_left>0,"home from a run, resting");
+    g.step(1);
+    let run=g.run.as_ref().expect("the rest clock readied a run");assert_eq!(run.turn,0);
+    let base=run.hero.clone();
+    assert!(!away(&g));assert!(offers(&g.lineage,away(&g)).iter().any(|u|u.id=="health"&&u.affordable));
+    buy(&mut g,"health").unwrap();buy(&mut g,"damage").unwrap();buy(&mut g,"armour").unwrap();
+    let hero=&g.run.as_ref().unwrap().hero;
+    assert_eq!((hero.max_hp,hero.max_hp_base,hero.hp),(base.max_hp+3,base.max_hp_base+3,base.hp+3));
+    assert_eq!(hero.atk(),(base.atk().0+1,base.atk().1+1));assert_eq!(hero.legacy_armour,base.legacy_armour+1);
+    let sent=g.sent_state.as_ref().unwrap().lineage.bloodline.as_ref().unwrap();assert_eq!(sent.upgrades["health"],1);
+    respec(&mut g).unwrap();
+    let hero=&g.run.as_ref().unwrap().hero;assert_eq!((hero.max_hp,hero.atk(),hero.legacy_armour),(base.max_hp,base.atk(),base.legacy_armour),"a respec refits too");
+    g.send();assert!(away(&g),"a send skips the rest: away");let before=g.save();assert!(buy(&mut g,"health").is_err());assert_eq!(before,g.save());
+}

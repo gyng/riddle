@@ -22,6 +22,10 @@ pub struct Absence {
     pub rank_before: u32,
     pub acts_before: crate::shared::Shared<BTreeMap<String, u32>>,
     pub chest_before: i32,
+    /// Blind ad71e72 (A: `$6712 GOLD EARNED`, the purse up $78): the purse at the absence's
+    /// start, so the report states the purse's actual change (`GoldSummary.net`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gold_before: Option<i32>,
     /// Current guide quote, refreshed at transport boundaries for exact reloads.
     pub passage: Option<(u32, i32)>,
     pub bounty_seen: Option<u32>,
@@ -57,7 +61,7 @@ pub(crate) fn begin_absence(game: &mut Game) -> Absence {
         elapsed_s: 0, consumed: 0, hour: game.lineage.clock_s / 3600, day0,
         facts_before: game.lineage.facts.clone(), grew_before: crate::town::snap(&game.lineage),
         class: game.lineage.class.name().into(), rank_before: game.lineage.rank,
-        acts_before: game.lineage.tree.acts.clone(), chest_before: game.lineage.tree.chest,
+        acts_before: game.lineage.tree.acts.clone(), chest_before: game.lineage.tree.chest, gold_before: Some(game.lineage.gold),
         passage: game.passage, bounty_seen: game.bounty_seen, resting: false,
     }
 }
@@ -301,11 +305,20 @@ fn run_offline_partition(game: &mut Game, elapsed_s: u64, full: bool, with_stall
     r.grew = crate::town::grew(&absence.grew_before, &crate::town::snap(&game.lineage));
     r.workers = crate::tree::report_acts(&absence.acts_before, &game.lineage.tree.acts);
     r.chest = (game.lineage.tree.chest - absence.chest_before).max(0);
+    set_net(&mut r, absence.gold_before, game.lineage.gold);
     // (a system's reveal is a beat of the five)
     if !r.systems_opened.is_empty() {
         r.packages = crate::packages::beats_n(&game.batch.pkg_lines, crate::packages::BEATS - 1);
     }
     r
+}
+
+/// The purse's change over the absence on the report's gold (`GoldSummary.net`); none for an
+/// absence saved before the baseline existed.
+pub(crate) fn set_net(r: &mut ReturnReport, before: Option<i32>, after: i32) {
+    if let (Some(g), Some(b)) = (r.gold.as_mut(), before) {
+        g.net = Some(after - b);
+    }
 }
 
 fn settle_completed_run(game: &mut Game, consumed: u64, stall: &mut u32) {
@@ -468,7 +481,7 @@ pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::c
         stalled: b.stalls,
         driven: b.driven_off,
         spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
-        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost, unkept: b.gold_unkept }),
+        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost, unkept: b.gold_unkept, passage: b.passage, net: None }),
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,

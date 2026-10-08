@@ -28,6 +28,8 @@ export function combatLogEvents(events: readonly Ev[], heroId: number, kinds: Re
       if (["reloading", "loaded", "aim steady", "aim lost", "smoke retreat", "melee backup", "gun ready"].includes(ev.text)) rows.push(ev);
       continue;
     }
+    // QA ad71e72 (rater B: `−0 hp` lines spamming the log): a hurt or a heal of nothing is no line (the blow, if any, reads `blocked`)
+    if ((ev.k === "hurt" && ev.dmg <= 0) || ((ev.k === "heal" || ev.k === "recover") && ev.amount <= 0)) continue;
     if (ev.k === "attack" && ev.hit && ev.dmg > 0) {
       const cause = ev.src === heroId ? "hero" : kinds.get(ev.src);
       if (cause) {

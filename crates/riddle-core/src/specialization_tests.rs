@@ -148,7 +148,8 @@ fn selected_styles_leave_every_other_complete_game_and_shared_town_resources_unc
 fn reflecting_foes_counter_riposte_without_recursion_and_unused_style_memory_keeps_cache_key() {
     let mut g=arena(Style::Sentinel);foe(&mut g,"iron_golem");assert!(act(&mut g,"riposte"));
     hit(&mut g,10,Src::Mon(0));let r=g.run.as_ref().unwrap();
-    assert_eq!((r.hero.hp,r.monsters[0].hp,r.hero.riposte_t),(27,100,0));
+    // Cut 110: the golem returns a third of the riposte and takes the rest (was: all of it back, none landed)
+    assert_eq!((r.hero.hp,r.monsters[0].hp,r.hero.riposte_t),(32,95,0));
     assert_eq!(g.events.iter().filter(|e|matches!(e,Ev::Attack{verb:Some(v),..} if v=="riposte")).count(),1);
     let mut g=qualified(Class::Fighter);let key=crate::forecast::lineage_key(&g);
     g.lineage.specializations.insert("caster".into(),Style::Hexbinder);assert_eq!(crate::forecast::lineage_key(&g),key);

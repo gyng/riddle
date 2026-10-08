@@ -80,7 +80,8 @@ impl Session {
         let mut l=self.active.lineage();
         l.selected_loadout=self.active.loadout.clone();
         let slot=|id:u32,g:&Game| {
-            let live=g.run.as_ref().filter(|r|r.over.is_none());
+            // (a run the rest clock readied but has not begun is no delve: the hero still rests)
+            let live=g.run.as_ref().filter(|r|r.over.is_none()&&(r.turn>0||g.lineage.rest_left==0));
             let xp=g.lineage.classes.get(g.lineage.class.name());
             HeroSlot { specialization:live.map_or_else(||crate::specialization::current(&g.lineage),|r|r.hero.specialization), look:g.lineage.look.clone().unwrap_or_else(||g.lineage.class.default_look().into()), hero_name:crate::legacy::hero_identity(g.lineage.seed,g.lineage.heir,id), id, name:format!("Bloodline {id}"), heir:g.lineage.heir, class:g.lineage.class.name().into(),
                 level:xp.map_or(1,|x|x.level), xp:xp.map_or(0,|x|x.xp), next:xp.map(|x|if x.level>=crate::engine::MAX_LEVEL {0}else{crate::hero::xp_to_next(x.level)}),
@@ -88,7 +89,7 @@ impl Session {
                 live:g.live_run(), rest_s:g.lineage.rest_left as f64 /10.0,
                 legacy:g.lineage.bloodline.clone().unwrap_or_default(),
                 chronicle:g.lineage.chronicle.clone(),
-                notice:crate::legacy::offers(&g.lineage,g.run.is_some()).iter().any(|u|u.affordable),
+                notice:crate::legacy::offers(&g.lineage,crate::legacy::away(g)).iter().any(|u|u.affordable),
             }
         };
         l.hero_slots=self.others.iter().map(|(id,g)|slot(*id,g)).chain(std::iter::once(slot(self.selected,&self.active))).collect();
@@ -184,10 +185,12 @@ impl Session {
             r.grew=crate::town::grew(&before.grew_before,&crate::town::snap(&g.lineage));
             r.workers=crate::tree::report_acts(&before.acts_before,&g.lineage.tree.acts);
             r.chest=(g.lineage.tree.chest-before.chest_before).max(0);
+            // (the purse is the town's: every slot's sees the whole session's change)
+            crate::offline::set_net(&mut r,before.gold_before,g.lineage.gold);
             r
         };
         let mut r=finish(&mut self.active,full,with_stall);
-        let summary=|id:u32,r:&ReturnReport,g:&Game|crate::wire::BloodlineReturn{legacy_earned:r.legacy_earned,id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),boss_knowledge:Self::victory_knowledge(g,&r.bests),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.wake-g.spent)};
+        let summary=|id:u32,r:&ReturnReport,g:&Game|crate::wire::BloodlineReturn{legacy_earned:r.legacy_earned,id,name:format!("Bloodline {id}"),xp:vec![r.xp.clone()],packages:r.packages.clone(),bests:r.bests.clone(),boss_knowledge:Self::victory_knowledge(g,&r.bests),runs:r.runs,deepest:r.deepest,gold:r.gold.as_ref().map_or(0,|g|g.home+g.salvage+g.passage+g.wake-g.spent)};
         if !self.others.is_empty(){r.bloodlines.push(summary(self.selected,&r,&self.active));}
         for (id,g) in &mut self.others {
             town_from(&self.active.lineage,&mut g.lineage);
@@ -195,7 +198,7 @@ impl Session {
             r.bloodlines.push(summary(*id,&other,g));
             r.legacy_earned+=other.legacy_earned; r.runs+=other.runs; r.banked+=other.banked; r.returned+=other.returned;r.deepest=r.deepest.max(other.deepest);
             for death in other.deaths {if let Some(d)=r.deaths.iter_mut().find(|d|d.cause==death.cause){d.n+=death.n;}else{r.deaths.push(death);}}
-            if let Some(b)=other.gold {let a=r.gold.get_or_insert_with(Default::default);a.home+=b.home;a.salvage+=b.salvage;a.spent+=b.spent;a.wake+=b.wake;a.wake_n+=b.wake_n;a.wake_cap=a.wake_cap.max(b.wake_cap);a.lost+=b.lost;a.unkept+=b.unkept;}
+            if let Some(b)=other.gold {let a=r.gold.get_or_insert_with(Default::default);a.home+=b.home;a.salvage+=b.salvage;a.spent+=b.spent;a.wake+=b.wake;a.wake_n+=b.wake_n;a.wake_cap=a.wake_cap.max(b.wake_cap);a.lost+=b.lost;a.unkept+=b.unkept;a.passage+=b.passage;}
             for (target,rows) in [(&mut r.salvaged,other.salvaged),(&mut r.spent,other.spent)] {
                 for row in rows {if let Some(a)=target.iter_mut().find(|a|a.kind==row.kind){a.n+=row.n;a.gold+=row.gold;}else{target.push(row);}}
             }
@@ -373,7 +376,10 @@ mod tests {
     #[test]
     fn away_class_xp_belongs_to_each_reported_slot() {
         for selected_runs in [false,true] {
-        let mut s=resident();s.add_bloodline().unwrap();
+        // Both heroes must come home for class XP (deaths feed none). Cut 109's floors kill
+        // seed 1's fighter to a goblin; seed 2 returns both, as seed 1 did before.
+        let mut s=Session::new(2);s.active.build_town("house").unwrap();s.active.lineage.gold_move(1000,"test income");
+        s.add_bloodline().unwrap();
         s.select_bloodline(2).unwrap();s.lineage.class=crate::hero::Class::Rogue;s.send();
         s.select_bloodline(1).unwrap();if selected_runs {s.send();}
         let r=s.run_offline_mode(3600,false,true);

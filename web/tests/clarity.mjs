@@ -109,7 +109,7 @@ try {
     await page.evaluate(() => { const r = window.__riddle; r.lineage.rest_left_s = 1200; r.go({ kind: "camp" }); });
     await sleep(300);
     const rest = await page.evaluate(() => { const el = document.querySelector(".rest-line .rest"); return { text: el?.textContent.trim(), hidden: el?.hidden, tag: el?.tagName }; });
-    check(rest.text === "heir rests 20m" && !rest.hidden, `the rest chip reads "${rest.text}"`);
+    check(rest.text === "departs 20m" && !rest.hidden, `the rest chip reads "${rest.text}"`);
   }
   // §2 the try row: the counter fact known, the row absent → `D5 0% · goblin warlord · try: attack boss`; a tap inserts it at the top
   {

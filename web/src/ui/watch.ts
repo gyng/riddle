@@ -204,6 +204,14 @@ const DEAD_TICKS = 70, DEAD_MAX_FIGHTS = 48;   // seven actions (a tick is a ten
 // Cut 28 §3 (AU: ~50 s of `pick up ×N` and 9–12 s gaps at 1×): the plain 1× goes dead after 3.5 s of nothing (35 ticks at 1×, was 10 s),
 // so no 1× stretch passes 5 s without a fight, a beat, a pickup of note or a descent — the travel plays the rest
 const DEAD_TICKS_ONE = 35;
+// QA ad71e72 (rater A: 40 s–2 min of a boss standoff at D8 / D10 / D18 with no new line — the dead stretch's rate rides the engine's
+// short lead, ~16–30× however long the stretch): a dead stretch the picture has played DEAD_JUMP_MS of wall time jumps — the engine
+// steps ahead in big batches (≤ DEAD_JUMP_WALL_MS) to the next move, the stairs, a beat or the end, and the picture lands JUMP_LAND
+// ticks before it; with none found it lands on the frontier and plays on (another jump DEAD_JUMP_MS later)
+const DEAD_JUMP_MS = 2500, DEAD_JUMP_WALL_MS = 1200, JUMP_LAND = 15;
+// …and a picture whose clock has not moved for STUCK_MS while the run is live, unfrozen and nothing deliberate holds it (a beat, the
+// cage, the exit flow, a fold) is landed live and the card let go — whatever held it, the watch never freezes
+const STUCK_MS = 4000;
 const CALM_MIN = 10;                // Cut 28 §3: a core calm stretch this long (ticks, 1 s at 1×) or more plays as travel
 const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
 /** Cut 25 §3 (AN: ~55 s of max hp draining 41 → 17 with only numbers moving): a drain — the hero's hp or max hp falling with no blow
@@ -457,7 +465,7 @@ export function renderWatch(app: App): Mounted {
     const who = (id: number): string => names.get(id) ?? (id === heroId ? /* copy:label */ "Hero" : /* copy:label */ "Foe");
     const damage = (amount: number, id: number): HTMLElement => h("span", { class: amount < 0 ? "log-heal" : id === heroId ? "log-hurt" : "log-damage" }, `${amount < 0 ? "+" : "−"}${Math.abs(amount)} hp`);
     const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, itemIcon({kind:name, label:name}, {size:"xs"}), name);
-    if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · ${ev.src === heroId && gunShotText(ev.verb) ? `${gunShotText(ev.verb)} ` : ""}`, ev.hit ? damage(ev.dmg, ev.dst) : /* copy:label */ "miss"];
+    if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · ${ev.src === heroId && gunShotText(ev.verb) ? `${gunShotText(ev.verb)} ` : ""}`, ev.hit ? (ev.dmg > 0 ? damage(ev.dmg, ev.dst) : /* copy:label */ "blocked") : /* copy:label */ "miss"];   // QA ad71e72: never `−0 hp`
     else if (ev.k === "hurt") text = [`${ev.cause === "hero" ? who(heroId) : ev.cause.replace(/_/g, " ")} → ${who(ev.id)} · `, damage(ev.dmg, ev.id)];
     else if (ev.k === "heal" || ev.k === "recover") text = [`${who(ev.id)} · ${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id)];
     else if (ev.k === "telegraph") text = [h("span", { class: "log-warning" }, `${who(ev.id)} · ${warningText ?? ev.what}`)];
@@ -551,6 +559,7 @@ export function renderWatch(app: App): Mounted {
   const descends: number[] = [];      // engine ticks of the run's descends (a held beat stops short of the stairs)
   // Cut 24 §1: the engine ticks where the watch moved — a blow that landed, a hurt, a drink, a kill, a pickup, a descent (ascending)
   const progress: number[] = [];
+  let deadFrom = -1, lastJumpAt = 0, jumps = 0, stuckTick = -1, stuckAt = 0, unsticks = 0;   // QA ad71e72: the dead stretch's wall start, the jumps, the stuck-picture watchdog
   let deadSince = -1;                 // Cut 18 §1: `fast` — when the current dead stretch began (wall ms; -1 none): its rate ramps
   let chore: { text: string; n: number; shown: string; depth: number } | null = null;   // Cut 14 §4: the chore callout streak on the ticker (`pick up ×8`)
   const rowFires: number[] = [];      // Cut 14 §4: this run's `rule` events per row (the death screen's least-fired row)
@@ -1473,6 +1482,7 @@ export function renderWatch(app: App): Mounted {
     if (!still && ticker.classList.contains("beat") && ticker.classList.contains("show") && performance.now() - tickerAt > BEAT_MAX_MS) hideBeat();
     let now = viewerTick();
     el.dataset.tick = String(now);            // dev: tools sample the cadence off the DOM
+    if (!still && unstuck(now)) now = viewerTick();
     // Cut 14 §6: the world clock — wall time at the world's rate; the live playhead pulls it along (it is never behind the picture)
     const nowMs = performance.now(); const dtMs = nowMs - lastPumpMs; lastPumpMs = nowMs;
     // in `fights` the card and the travel are the world's skip (the engine is already ahead of the picture): the clock only
@@ -1534,6 +1544,8 @@ export function renderWatch(app: App): Mounted {
     // waits its minimum the engine is ahead of the picture, and the clock below has nothing to add
     if (mode === "fights" && (cardUp || cardWait) && !paused && !hidden) return;
     if (playing && mode === "fights" && !mapHeld() && !vaultClose && !fightOn && Number.isFinite(fightUntil) && now < fightUntil && !(beat && now < beat.until)) return;   // Cut 13 §4: a beat plays on at 1×
+    // QA ad71e72: a long dead stretch jumps (the engine steps ahead to the next move; the picture lands just before it)
+    if (playing && el.dataset.dead === "1" && deadFrom > 0 && performance.now() - Math.max(deadFrom, lastJumpAt) > DEAD_JUMP_MS && !cageWaits() && !vaultClose && !beatHeld() && !(snap && cageNear(snap))) { void deadJump(); return; }
     // Cut 14 §6: the engine's target — the world clock, or the playing viewer's lead, whichever is further; a world far behind its
     // clock (a paused or hidden picture) is caught up in CATCHUP_MAX-tick steps
     // Cut 18 §1: the ramp's lead (0.2 s of picture); `fast` keeps LEAD_PROBE ahead so a fight is costed before the picture meets it
@@ -1565,6 +1577,42 @@ export function renderWatch(app: App): Mounted {
     };
     chain(n, CAGE_CHAIN);
   }
+  /** QA ad71e72: a dead stretch's jump — the engine steps ahead in big batches until the frontier holds the next thing worth a frame
+   *  (a move, the stairs, a beat, the end, a cage) or DEAD_JUMP_WALL_MS passes; the picture lands JUMP_LAND ticks before it. */
+  async function deadJump(): Promise<void> {
+    inflight = true; lastJumpAt = performance.now();
+    const v0 = viewerTick(), t0 = performance.now();
+    const ahead = (): number => Math.min(progressAfter(v0), descends.find((t) => t > v0) ?? Infinity, beat && !beat.shown && beat.from > v0 ? beat.from : Infinity,
+      ...beatNext.filter((x) => !x.shown && x.from > v0).map((x) => x.from), held ? endingFrom : Infinity);
+    try {
+      while (!disposed && !done && !held && !exitTier && ahead() === Infinity && performance.now() - t0 < DEAD_JUMP_WALL_MS) {
+        const r = await app.engine.step(SKIP_END_BATCH);
+        if (disposed || done) break;
+        handle(r);
+        if (r.run_over || r.snapshot.vault_choice || (cage && !cage.done) || cageNear(r.snapshot)) break;
+      }
+    } catch (e) { console.warn("jump failed", e); }
+    inflight = false;
+    if (disposed || done) return;
+    const t = Math.max(viewerTick(), Math.min(engineTick, ahead() - JUMP_LAND));
+    if (t > viewerTick() + 1) { release(t); seekTo(t); letGo(t); }
+    jumps++; el.dataset.jumps = String(jumps); lastJumpAt = performance.now();
+    applyFrame(); applySpeed();
+  }
+  /** QA ad71e72: the stuck-picture watchdog — the viewer's clock unmoved for STUCK_MS with the run live and nothing deliberate holding
+   *  it: the card is let go and the picture lands live (the pump then steps the engine on as ever). True when it acted. */
+  function unstuck(v: number): boolean {
+    const now = performance.now();
+    if (v !== stuckTick) { stuckTick = v; stuckAt = now; return false; }
+    if (now - stuckAt < STUCK_MS) return false;
+    if (folding || held || exitTier || done || inflight || cageWaits() || vaultClose || beatHeld() || foldDue()) { stuckAt = now; return false; }
+    stuckAt = now; unsticks++; el.dataset.unstuck = String(unsticks);
+    console.warn("watch: picture stuck", { v, engine: engineTick, card: cardUp, cardWait, frame, span: el.dataset.span, spans: el.dataset.spans });
+    cardWait = false; mapHold = true; cardLive = true; releaseBeat();
+    if (fightUntil > engineTick && !fightOn) fightUntil = engineTick;   // a fight's tail the engine waits on is over
+    goLive();
+    return true;
+  }
   /** Cut 10 §1: is the engine free to run ahead under the card — `fights`, the card up and not held, no fight found yet, no exit. */
   function travelling(): boolean {
     return mode === "fights" && cardUp && !cardWait && !mapHeld() && !frozen() && !held && !exitTier && !done && !disposed && !fightAhead(viewerTick()) && !foldDue();
@@ -1591,10 +1639,12 @@ export function renderWatch(app: App): Mounted {
       }
       if (s.hero.max_hp > 0 && s.hero.hp / s.hero.max_hp < SHOW_HP) probe.low = true;
       if (s.entities.some((e) => e.tags.includes("boss") && hostile(e) && !e.remembered && s.visible[e.y * s.w + e.x])) probe.boss = true;
-      if (!held) return;
+      // QA ad71e72 (rater A: 40 s–2 min of a still picture at D8 / D10 / D18): a fight already worth showing is shown now, not at its
+      // close — a boss standoff (the Warlord's shield wall, the Lich's endless dead) ran thousands of ticks under the card first
+      if (!held) { if (!fightShow && fightFrom < Infinity && (probe.hurt >= SHOW_HURT || probe.low || probe.boss || probe.ally || probe.steal)) fightShow = true; return; }
     }
     if (!probe) return;
-    const show = held || probe.hurt >= SHOW_HURT || probe.low || probe.boss || probe.ally || probe.steal;
+    const show = fightShow || held || probe.hurt >= SHOW_HURT || probe.low || probe.boss || probe.ally || probe.steal;
     probe = null;
     if (show && fightFrom < Infinity) fightShow = true;
     else if (beat && viewerTick() < beat.until && fightFrom <= beat.from) { fightUntil = beat.until; closeSpan(); }   // Cut 13 §4: the beat keeps its frame
@@ -1721,7 +1771,7 @@ export function renderWatch(app: App): Mounted {
     const flat = !app.slowdowns || stalling();   // Cut 14: `slowdowns` off — no fight, near or scene hold; the mode's flat rate
     // Cut 24 §1: nothing has moved for DEAD_TICKS — the travel's rate, whatever the frame
     const dead = deadAt(v);
-    if ((el.dataset.dead === "1") !== dead) el.dataset.dead = dead ? "1" : "0";
+    if ((el.dataset.dead === "1") !== dead) { el.dataset.dead = dead ? "1" : "0"; deadFrom = dead ? performance.now() : -1; }
     el.dataset.progress = String(progressBefore(v));
     if (dead) return deadStretch(was, v);
     if (mode === "one") return 1;   // Cut 25 §3: the plain 1× — every live frame at 1× (the dead stretch above still travels)

@@ -3226,15 +3226,16 @@ mod tests_causal_root {
 
     #[test]
     fn historical_theft_root_stays_beside_the_immediate_fix_without_claiming_a_gain() {
-        let mut g = Game::new_literal(14);
+        // Cut 109 (floors on their own stream): seed 14's death 10 moved; seed 224's death 6.
+        let mut g = Game::new_literal(224);
         g.max_deaths = 1000;
         crate::systems::open_all(&mut g.lineage);
         crate::traits::neutral(&mut g.lineage);
         crate::offline::run_offline_counts(&mut g, 8 * 3600);
-        let death = g.death(10).expect("the seed's death after its monkey theft");
+        let death = g.death(6).expect("the seed's death after its monkey theft");
         assert_eq!(death.baseline, 0.0);
         let root = death.patches.iter().find(|p| p.root.is_some()).expect("the earlier theft still has its causal patch");
-        assert_eq!(root.root.as_ref().unwrap().text, "monkey took the murky potion?");
+        assert_eq!(root.root.as_ref().unwrap().text, "monkey took the smoky potion?");
         assert_eq!(root.survive, 0.0, "the root patch cannot undo the loss at the death checkpoint");
         assert_eq!(root.forecast_delta, 0.0);
         assert!(root.no_gain, "the screen must not claim a survival gain");

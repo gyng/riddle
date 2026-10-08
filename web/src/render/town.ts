@@ -85,6 +85,20 @@ const WORKER_AT: Record<string, Pt> = {
   keeper: T(CX - 5.9, 19.8), clerk: T(CX + 2.8, 11.7), drillmaster: T(CX + 1.4, 16.3), kennel_hand: T(CX + 2.4, 19.7), herald: T(CX - 3.6, 7.9),
   guide: T(CX + 1.65, 7.35),
 };
+/** Cut 109: the town's dressing — props that arrive with the stage (buildings standing), each a foot, a drawn height and the stage it
+ *  needs; the forest leaves their glades clear from day 0, so a prop arriving never stands in a tree */
+type Prop = Pt & { id: string; h: number; stage: number; lamp?: boolean; flip?: boolean };
+const PROPS: Prop[] = [
+  { id: "town_woodpile", ...T(CX - 2.75, 13.95), h: 13, stage: 0 },
+  { id: "town_lamppost", ...T(CX + 1.3, 12.35), h: 26, stage: 1, lamp: true },
+  { id: "town_well", ...T(CX - 2.9, 17.1), h: 26, stage: 2 },
+  { id: "town_lamppost", ...T(CX - 1.25, 21.9), h: 26, stage: 2, lamp: true },
+  { id: "town_stall", ...T(CX + 3.1, 22.6), h: 34, stage: 3 },
+  { id: "town_cart", ...T(CX - 3.3, 22.9), h: 20, stage: 3, flip: true },
+  { id: "town_lamppost", ...T(CX + 1.25, 26.4), h: 26, stage: 4, lamp: true },
+];
+/** Cut 109: townsfolk by stage (docs/TOWN.md §3: "townsfolk multiply with the houses") — cosmetic, seeded, never read back */
+const FOLK_AT = { smith: T(CX - 6.0, 11.35), merchant: T(CX + 4.75, 22.75) };
 export const workerAt = (w: { id: string; post: string }): Pt | null => WORKER_AT[w.id] ?? (PLOTS as Record<string, Pt | undefined>)[w.post] ?? null;
 /** a worker's frames (art/town-ids.md: `town_worker_<id>`, `_1` the idle beat) */
 export const workerIds = (id: string, frame = 0): string[] => frame ? [`town_worker_${id}_1`, `town_worker_${id}`] : [`town_worker_${id}`];
@@ -110,6 +124,8 @@ export type TownOpts = { board?: boolean; seen?: string[]; opened?: string[]; ki
 const hashN = (...xs: number[]): number => { let h = 2166136261; for (const x of xs) { h ^= x | 0; h = Math.imul(h, 16777619); h ^= h >>> 13; } return h >>> 0; };
 export const localDay = (now = new Date()): number => Math.floor((now.getTime() - now.getTimezoneOffset() * 60000) / 86400000);
 const PARTIES_MAX = 6;
+/** Cut 109: the hero's house grows with the town (cottage · lean-to · two storeys at 2 and 4 buildings standing) — a look, no rule */
+export const houseLook = (s: { stage: number }): number => (s.stage >= 4 ? 3 : s.stage >= 2 ? 2 : 1);
 /** The core's town (`Lineage.town`) and the absence's report → the scene. Pure (walkers are seeded, never read back). */
 export function townState(L: Lineage, absence?: ReturnReport | null, o: TownOpts = {}): TownState {
   const town = L.town;
@@ -333,7 +349,7 @@ export function nightOf(hour: number): number {
   return h < 7 ? 1 - (h - 5) / 2 : (h - 17) / 4;
 }
 const mix3 = (a: number[], b: number[], t: number): [number, number, number] => [a[0]! + (b[0]! - a[0]!) * t, a[1]! + (b[1]! - a[1]!) * t, a[2]! + (b[2]! - a[2]!) * t];
-const AMB_DAY = [1.1, 1.08, 1.06], AMB_DUSK = [0.86, 0.68, 0.62], AMB_NIGHT = [0.2, 0.28, 0.52];   // moonlight: cool and low, so the warm windows and the fire carry the night (the coordinator: night read as just darker)
+const AMB_DAY = [1.1, 1.08, 1.06], AMB_DUSK = [0.86, 0.68, 0.62], AMB_NIGHT = [0.27, 0.34, 0.58];   // moonlight: cool and low, so the warm windows and the fire carry the night (the coordinator: night read as just darker)
 export function ambientOf(night: number): [number, number, number] {
   return night < 0.5 ? mix3(AMB_DAY, AMB_DUSK, night * 2) : mix3(AMB_DUSK, AMB_NIGHT, (night - 0.5) * 2);
 }
@@ -449,6 +465,7 @@ export function createTownView(host: HTMLElement): TownView {
       walkers.push(w);
       if (p.pet) walkers.push({ id: `${w.id}pet`, sprite: [p.pet, "town_dog"], walk: [p.pet, "town_dog"], h: 14, legs, from: p.at + 0.7, to: end + 1.1, lag: 0.7, follow: w, emerge: true, vanish: true, pet: true });
     }
+    buildFolk();
     if (!s.home) { hero = null; addStress(); return; }
     // the hero at home: tent → forge → fire (→ the crate while no forge stands), a pause of 2–6 s at each
     const stops = ["tent", s.buildings.some((b) => b.id === "blacksmith") ? "smith" : "crate", "fireW"];
@@ -467,6 +484,27 @@ export function createTownView(host: HTMLElement): TownView {
     walkers.push(hero);
     s.pets.forEach((p, j) => walkers.push({ id: `pet${j}`, sprite: [p, "town_dog"], walk: [p, "town_dog"], h: 14, legs: hero!.legs, from: partyEnd, to: Infinity, lag: 0.9 + j * 0.6, follow: hero!, pet: true }));
     addStress();
+  }
+  /** Cut 109: the walking townsfolk (`folk` draws them by stage): the child's loop and the carter's round, seeded by the day */
+  let townsfolk: (Walker & { minStage: number })[] = [];
+  function buildFolk(): void {
+    townsfolk = [];
+    const loop = (id: string, sprite: string, h: number, stops: string[], speed: number, pauseLo: number, pauseHi: number, minStage: number, carry?: string): void => {
+      let i = 0, n = 0;
+      const w: Walker & { minStage: number } = { id, sprite: [sprite], walk: [sprite], h, legs: [], from: 0, to: Infinity, lag: rng(400 + id.length) * 3, minStage, carry, carryH: 16,
+        extend: (ww) => {
+          let tt = ww.legs.length ? ww.legs[ww.legs.length - 1]!.t1 : rng(500 + id.length) * 4;
+          for (let j = 0; j < 6; j++) {
+            const a = stops[i % stops.length]!, b = stops[(i + 1) % stops.length]!; i++;
+            const pause = pauseLo + rng(600 + n++ + id.length * 50) * (pauseHi - pauseLo);
+            const at = NODES[a]!; ww.legs.push({ t0: tt, t1: tt + pause, a: at, b: at }); tt += pause;
+            tt = legsAlong(route(a, b), tt, speed, ww.legs);
+          }
+        } };
+      w.extend!(w); townsfolk.push(w);
+    };
+    loop("child", "town_child", 17, ["fireS", "fireW", "fireN", "fireE"], SPEED * 1.15, 0.6, 2.5, 2);
+    loop("carter", "town_carter", 23, ["exit", "south", "store", "south", "kennel", "south"], SPEED * 0.6, 2, 6, 4, "town_cart");
   }
   function addStress(): void {
     walkers = walkers.filter((w) => !w.id.startsWith("stress"));
@@ -551,6 +589,8 @@ export function createTownView(host: HTMLElement): TownView {
       if (p.y < (5.6 + OY) * TILE || (p.x > (CX - 19.8) * TILE && p.x < (CX - 16.2) * TILE)) return false;
       if (EDGES.some(([a, b, r]) => segDist(p, NODES[a]!, NODES[b]!) <= (r + 0.9) * TILE)) return false;
       if (dist(p, PLOTS.fire) < 3 * TILE) return false;
+      if (PROPS.some((q) => Math.abs(p.x - q.x) < 2.2 * TILE && p.y > q.y - q.h * 0.6 && p.y < q.y + 1.4 * TILE)) return false;
+      if (Object.values(FOLK_AT).some((q) => dist(p, q) < 1.6 * TILE)) return false;
       for (const [id, pl] of Object.entries(PLOTS)) {
         const hw = id === "mouth" ? 4.2 * TILE : id === "fire" || id === "crate" ? 1.4 * TILE : 3.3 * TILE;
         if (Math.abs(p.x - pl.x) < hw && p.y > pl.y - pl.h * 0.55 && p.y < pl.y + 1.6 * TILE) return false;
@@ -576,12 +616,37 @@ export function createTownView(host: HTMLElement): TownView {
 
   let flickNow = 1;
   /** the warm emitters painted into a sprite (art/town_lights.json: [dx, dy, strength] from its foot), at `base` strength by day */
-  function emitters(id: string, p: Pt, night: number, r: number, base: number, gain = 1.5): void {
+  function emitters(id: string, p: Pt, night: number, r: number, base: number, gain = 1.5, scale = 1): void {
     const L = LIGHTS as Record<string, number[][]>;
     const list = L[id] ?? L[id.replace(/_\d$/, "_1")] ?? [];
     for (const [dx, dy, k] of list) {
       const a = (base + night * gain) * (k ?? 1) * flickNow; if (a < 0.04 || F.lights.length >= MAX_LIGHTS) continue;
-      F.lights.push({ x: p.x + dx!, y: p.y + dy!, r: r * (0.7 + 0.3 * (k ?? 1)) + night * 12, c: [1.0 * a, 0.64 * a, 0.3 * a] });
+      F.lights.push({ x: p.x + dx! * scale, y: p.y + dy! * scale, r: r * (0.7 + 0.3 * (k ?? 1)) + night * 12, c: [1.0 * a, 0.64 * a, 0.3 * a] });
+    }
+  }
+  /** Cut 109: the townsfolk — the smith at the forge's door from the first building, a child about the fire and the well from the
+   *  second, the merchant at the stall from the third, the carter up and down the south road from the fourth; a step bob, no walk frames */
+  function folk(s: TownState, night: number): void {
+    if (!s.home) return;
+    const bob = (ph: number, rate = 1.3): number => (Math.floor(t * rate + ph) & 1);
+    if (s.buildings.some((b) => b.id === "blacksmith")) { const p = FOLK_AT.smith; sprite("town_smith", 23, p.x, p.y - bob(0.3, 2.2), { flip: false }); }
+    if (s.stage >= 3) { const p = FOLK_AT.merchant; sprite("town_merchant", 22, p.x, p.y - bob(0.7, 0.9), { flip: true }); }
+    for (const w of townsfolk) {
+      if (w.minStage > s.stage) continue;
+      const at = walkerAt(w, t); if (!at) continue;
+      const step = at.moving && (Math.floor(t * 6 + w.lag) & 1) === 1;
+      sprite(w.sprite, w.h, at.x, at.y - (step ? 1 : 0), { flip: at.dx < -0.01 });
+      if (w.carry) sprite(w.carry, w.carryH ?? 14, at.x + (at.dx < -0.01 ? 13 : -13), at.y, { flip: at.dx < -0.01, z: zOf(at.y) - 0.0002 });
+    }
+    // fireflies from dusk: a dozen motes drifting over the grass, each blinking on its own beat
+    if (night > 0.35) for (let i = 0; i < 14; i++) {
+      const hx = hashN(i, 31), hy = hashN(i, 57);
+      const bx = PLOTS.fire.x + ((hx % 2000) / 1000 - 1) * 9 * TILE, by = PLOTS.fire.y + ((hy % 2000) / 1000 - 1) * 7 * TILE;
+      const x = bx + Math.sin(t * 0.37 + i) * 10 + Math.sin(t * 1.1 + i * 2.3) * 3, y = by + Math.cos(t * 0.29 + i * 1.7) * 7;
+      const blink = Math.max(0, Math.sin(t * (0.8 + (hx % 7) / 10) + i * 1.9));
+      if (blink < 0.25) continue;
+      sprite("fx_dot_e8f08a", 1, x, y, { z: 2.55, fade: 1 - blink });
+      if (blink > 0.8 && F.lights.length < MAX_LIGHTS - 4) F.lights.push({ x, y, r: 7, c: [0.5 * night, 0.6 * night, 0.25 * night] });
     }
   }
   function completionGlint(p: Pt & { h: number }, at: number | undefined): void {
@@ -615,12 +680,22 @@ export function createTownView(host: HTMLElement): TownView {
       const p = PLOTS.house, at = builtAt.get("house");
       if (at !== undefined && t - at < 1.3) sprite("town_scaffold", p.h, p.x, p.y);
       else {
-        sprite(["town_house_1", "town_storehouse_1"], p.h, p.x, p.y);
+        const look = houseLook(s);
+        sprite([`town_house_${look}`, "town_house_1", "town_storehouse_1"], p.h, p.x, p.y);
+        emitters(`town_house_${look}`, p, night, 16, 0, 1.3, p.h / 64);
         completionGlint(p, at);
       }
     }
     if (s.home && night > 0.3) F.lights.push({ x: PLOTS.tent.x, y: PLOTS.tent.y - 6, r: 14, c: [0.9, 0.55, 0.25] });
     if (s.home) sprite("town_crate", PLOTS.crate.h, PLOTS.crate.x, PLOTS.crate.y);
+    // Cut 109: the dressing the stage has earned, the lamps lit at dusk
+    for (const q of PROPS) {
+      if (q.stage > s.stage || (!s.home && q.stage === 0)) continue;
+      sprite(q.id, q.h, q.x, q.y, { flip: q.flip });
+      if (q.lamp && night > 0.15 && F.lights.length < MAX_LIGHTS) { const a = (0.2 + night * 1.05) * flickNow; F.lights.push({ x: q.x - 2, y: q.y - q.h * 0.78, r: 20 + night * 10, c: [1.0 * a, 0.66 * a, 0.32 * a] }); }
+      if (q.id === "town_stall") emitters("town_stall", q, night, 12, 0, 0.6, q.h / 40);
+    }
+    folk(s, night);
     if (s.board) sprite("town_board", PLOTS.board.h, PLOTS.board.x, PLOTS.board.y);
     // the buildings: scaffold → built (dust, a glint)
     for (const b of s.buildings) {
@@ -746,6 +821,7 @@ export function createTownView(host: HTMLElement): TownView {
     for (const b of s.buildings) add(PLOTS[b.id], 44);
     for (const w of s.workers) { const p = workerAt(w); if (p) add({ ...p, h: 24 }, 10); }
     if (s.staked) add({ ...PLOTS[s.staked.id], h: 22 }, 24);
+    for (const q of PROPS) if (q.stage <= s.stage && q.stage > 0 && q.y < PLOTS.kennel.y + 4.5 * TILE) add(q, 12);
     const M = 10; x0 -= M; x1 += M; y0 -= M; y1 += M + 4;
     // k: whole device px per texel — the largest that fits the box, or one more when that crops ≤ a margin's worth on each side
     const kf = Math.min(W / (x1 - x0), H / (y1 - y0));
@@ -892,7 +968,7 @@ function segDist(p: Pt, a: Pt, b: Pt): number {
 
 // ---- the GL view: one target of town texels, the light pass upscaling it ---------------------------------------------------------
 
-const MAX_LIGHTS = 24;
+const MAX_LIGHTS = 32;
 const BLIT_VERT = /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const BLIT_FRAG = /* glsl */ `
 uniform sampler2D tex;

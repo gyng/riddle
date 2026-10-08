@@ -78,19 +78,18 @@ fn the_pen_writes_nothing_until_it_opens() {
     set.rows.insert(0, Row::new(vec![Cond::n("hp<", 60)], Verb::new("rest")));
     g.set_rules(set).unwrap();
     assert_eq!(*g.lineage.rules(), before, "closed pen: the stance plays");
-    // the Mother met is not enough before 72 h of age; at 72 h it opens (one reveal); at 5 days without her
-    g.lineage.pkg.meets.insert("bloat_mother".into(), 1);
+    // Cut 110: a day old without the Mother, the pen waits; the Mother met opens it (one reveal, no age); at 5 days without her
     g.lineage.clock_s = 24 * 3600;
     g.lineage.reveal_left = 1;
     crate::systems::update(&mut g.lineage, false);
-    assert!(!g.lineage.pkg.pen_open, "a day old: the pen waits");
-    g.lineage.clock_s = crate::systems::PEN_AGE_H as u64 * 3600;
+    assert!(!g.lineage.pkg.pen_open, "a day old, no Mother: the pen waits");
+    g.lineage.pkg.meets.insert("bloat_mother".into(), 1);
     // (one reveal a report: the pen waits its turn behind what came before it)
     for _ in 0..crate::systems::SYSTEMS.len() {
         g.lineage.reveal_left = 1;
         crate::systems::update(&mut g.lineage, false);
     }
-    assert!(g.lineage.pkg.pen_open, "the Mother met and 72 h");
+    assert!(g.lineage.pkg.pen_open, "the Mother met");
     assert_eq!(g.lineage.rules().rows[0].verb.v, "rest");
     let mut h = Game::new_resident(8);
     h.lineage.clock_s = crate::systems::PEN_FALLBACK_H as u64 * 3600;
@@ -1400,11 +1399,10 @@ fn mirror_rhythm_earned_save_keeps_whole_sliced_and_reloaded_catchup_exact() {
 fn custom_rule_lock_explanation_matches_core_gate() {
     let mut g = Game::new_resident(7);
     let needs = |g: &Game| g.lineage().packages.pen_needs;
-    assert_eq!(needs(&g), ["Meet Bloat Mother", "72h elapsed", "or 120h elapsed"]);
+    assert_eq!(needs(&g), ["Meet Bloat Mother", "or 120h elapsed"]);
+    // Cut 110: the Mother met is enough — no age on top of her
     g.lineage.pkg.meets.insert("bloat_mother".into(), 1);
     g.lineage.clock_s = 24 * 3600;
-    assert_eq!(needs(&g), ["72h elapsed", "or 120h elapsed"]);
-    g.lineage.clock_s = 72 * 3600;
     assert_eq!(needs(&g), ["Upcoming reports"]);
     g.lineage.pkg.meets.clear();
     g.lineage.clock_s = 80 * 3600;
@@ -1440,4 +1438,26 @@ fn tactic_lock_names_the_remaining_progression() {
     let arrived = packages::arrive(&mut g.lineage);
     assert!(arrived.contains(&"corridor_fighting".into()) && arrived.contains(&"thief_guard".into()));
     assert_eq!(trigger(&g, "thief_guard"), "");
+}
+
+/// Cut 110: a wall's counter is a tactic that arrives when its wall is met (beside the drip, never
+/// counted on it), and plays only in its situation.
+#[test]
+fn wall_tactics_arrive_with_their_wall() {
+    let mut g = Game::new_resident(11);
+    g.lineage.kills.insert("goblin_warlord".into());
+    packages::arrive(&mut g.lineage);
+    let drip: Vec<String> = g.lineage.pkg.owned.iter().filter(|id| packages::def(id).is_some_and(|d| d.kind == packages::Kind::Tactic)).cloned().collect();
+    assert!(!g.lineage.pkg.owned.contains("reflect_read"), "no reflector met: no mirror read");
+    g.lineage.facts.insert("foe:iron_golem:reflect_melee".into());
+    let new = packages::arrive(&mut g.lineage);
+    assert_eq!(new, vec!["reflect_read".to_string()], "the golem met brings its counter, and only it");
+    let owned_drip = g.lineage.pkg.owned.iter().filter(|id| packages::def(id).is_some_and(|d| d.kind == packages::Kind::Tactic) && !packages::WALL_TACTICS.contains(&id.as_str())).count();
+    assert_eq!(owned_drip, drip.len(), "the drip is untouched");
+    packages::equip(&mut g.lineage, "reflect_read", 0).unwrap();
+    packages::recompile(&mut g.lineage);
+    let rows = &g.lineage.rules().rows;
+    let row = rows.iter().find(|r| r.verb.v == "tactic" && r.verb.a.as_deref() == Some("reflect_read")).expect("the mirror read row");
+    assert_eq!(row.conds, vec![Cond::t("foe_tag", "reflect_melee")], "it plays only at a reflector");
+    assert_eq!(packages::tactic_rows("noise_discipline", 1)[0].conds[0], Cond::t("in", "deep"), "quiet steps only in the Deep");
 }

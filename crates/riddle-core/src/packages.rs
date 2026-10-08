@@ -86,6 +86,11 @@ pub const PACKAGES: &[PackageDef] = &[
     tactic("gas_step", "gas step"),
     tactic("pack_break", "pack break"),
     PackageDef { id: "cadence", kind: Kind::Tactic, name: "Mirror rhythm", card: Some("cadence"), trigger: "Clear dungeon", temperament: None },
+    // Cut 110 (cohort ad71e72: "nothing addressed the golem wall"; the owner: tactics, not the pen, are the
+    // player's tuning): a wall's counter is a tactic that arrives when the wall is met, beside the drip
+    PackageDef { id: "reflect_read", kind: Kind::Tactic, name: "mirror read", card: Some("reflect_read"), trigger: "meet a reflector", temperament: None },
+    PackageDef { id: "noise_discipline", kind: Kind::Tactic, name: "quiet steps", card: Some("noise_discipline"), trigger: "meet a blinder", temperament: None },
+    PackageDef { id: "deep_march", kind: Kind::Tactic, name: "deep march", card: Some("deep_march"), trigger: "enter the Deep", temperament: None },
     temper("skittish", "skittish", crate::hero::Trait::Cowardly),
     temper("unbowed", "unbowed", crate::hero::Trait::Brave),
     temper("light_hands", "light hands", crate::hero::Trait::Greedy),
@@ -118,6 +123,9 @@ pub fn description(id: &str) -> &'static str {
         "gas_step" => "Keep gas enemies at range",
         "pack_break" => "Split groups · finish weak foes",
         "cadence" => "Alternate attacks against mirrors",
+        "reflect_read" => "Shoot or burn reflectors · never melee them",
+        "noise_discipline" => "Rest to full · slip past blinders",
+        "deep_march" => "Press on through explored floors",
         "skittish" => "Retreat when hurt and surrounded",
         "unbowed" => "Face bosses while healthy",
         "light_hands" => "Collect loot after kills",
@@ -402,10 +410,33 @@ pub fn stance_rows(id: &str, level: u32, best: u32) -> (Vec<Row>, Vec<Row>) {
     }
 }
 
+/// Cut 110: the wall tactics — each arrives when its wall is met (not on the drip) and plays only in its
+/// situation (`situation_conds`), so it never costs a slot's worth of play elsewhere.
+pub const WALL_TACTICS: [&str; 3] = ["reflect_read", "noise_discipline", "deep_march"];
+fn drip(id: &str) -> bool {
+    id != "cadence" && !WALL_TACTICS.contains(&id)
+}
+fn wall_met(l: &LineageState, id: &str) -> bool {
+    match id {
+        "reflect_read" => crate::facts::has_tag_fact(&l.facts, "reflect_melee"),
+        "noise_discipline" => crate::facts::has_tag_fact(&l.facts, "blind"),
+        "deep_march" => l.facts.contains("biome:deep"),
+        _ => false,
+    }
+}
+
 /// A tactic's rows at a level: its card (the card's rows play at the row), and from L3 a row the
 /// card's situation wants.
 pub fn tactic_rows(id: &str, level: u32) -> Vec<Row> {
     if id == "cadence" { return vec![r(vec![tag("mirror")], Verb::arg("tactic", id))]; }
+    if WALL_TACTICS.contains(&id) {
+        let when = match id {
+            "reflect_read" => vec![tag("reflect_melee")],
+            "noise_discipline" => vec![Cond::t("in", "deep"), n("hp<", 90)],
+            _ => vec![Cond::t("in", "deep")],
+        };
+        return vec![r(when, Verb::arg("tactic", id))];
+    }
     let mut v = vec![r(vec![], Verb::arg("tactic", id))];
     if level >= 3 {
         let extra = match id {
@@ -673,7 +704,7 @@ fn pending_arrivals(l: &LineageState) -> Vec<String> {
     let day = l.day;
     let since = |id: &str| l.pkg.arrived.get(id).map(|d| day > *d).unwrap_or(false);
     let slain = crate::descent::BOSS_DEPTHS.iter().filter(|(k, _)| l.kills.contains(*k)).count() as u32;
-    let tactics_owned = l.pkg.owned.iter().filter(|id| id.as_str() != "cadence" && def(id).is_some_and(|d| d.kind == Kind::Tactic)).count() as u32;
+    let tactics_owned = l.pkg.owned.iter().filter(|id| drip(id) && def(id).is_some_and(|d| d.kind == Kind::Tactic)).count() as u32;
     let tactic_day = l.pkg.arrived.get("tactics").copied();
     let tactics_due = match tactic_day {
         Some(d0) => slain.max(1) + day.saturating_sub(d0),
@@ -688,6 +719,7 @@ fn pending_arrivals(l: &LineageState) -> Vec<String> {
         }
         let ok = match (d.kind, d.id) {
             (Kind::Tactic, "cadence") => rhythm_available(l),
+            (Kind::Tactic, w) if WALL_TACTICS.contains(&w) => wall_met(l, w) && l.kills.contains("goblin_warlord"),
             (Kind::Stance, "steady") => true,
             (Kind::Stance, "guarded") => met("goblin_captain") || met("goblin_warlord"),
             (Kind::Stance, "bold") => since("guarded"),
@@ -700,7 +732,7 @@ fn pending_arrivals(l: &LineageState) -> Vec<String> {
             _ => false,
         };
         if ok {
-            if d.kind == Kind::Tactic && d.id != "cadence" {
+            if d.kind == Kind::Tactic && drip(d.id) {
                 tactics_new += 1;
             }
             new.push(d.id.to_string());
@@ -711,7 +743,7 @@ fn pending_arrivals(l: &LineageState) -> Vec<String> {
 
 pub fn arrive(l: &mut LineageState) -> Vec<String> {
     let new = pending_arrivals(l);
-    if !l.pkg.arrived.contains_key("tactics") && new.iter().any(|id| id != "cadence" && def(id).is_some_and(|d| d.kind == Kind::Tactic)) {
+    if !l.pkg.arrived.contains_key("tactics") && new.iter().any(|id| drip(id) && def(id).is_some_and(|d| d.kind == Kind::Tactic)) {
         l.pkg.arrived.insert("tactics".into(), l.day);
     }
     for id in &new {
@@ -725,7 +757,7 @@ pub fn arrive(l: &mut LineageState) -> Vec<String> {
 /// the drip arrives the day after the one before it — `tomorrow`, `next send` once that day has come,
 /// `after <name>` while the one before is still to come.
 fn trigger_now(l: &LineageState, d: &PackageDef, pending: &[String]) -> String {
-    if d.kind == Kind::Tactic && d.id != "cadence" && l.kills.contains("goblin_warlord") {
+    if d.kind == Kind::Tactic && drip(d.id) && l.kills.contains("goblin_warlord") {
         return if pending.iter().any(|id| id == d.id) { "next send" } else { "bosses or days" }.into();
     }
     let before = match d.id {

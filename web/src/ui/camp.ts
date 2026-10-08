@@ -378,7 +378,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     // Cut 30.5: before the scout the hero is home and waits for a SEND (no rest runs out into a send)
     const waits = !!app.lineage.tree?.waits;
     // QA 912e135 (qaW: "`rest 20m · send skips` — no screen says what rests or what `send skips` means"): who rests, and what the send skips
-    replace(rest, waits ? /* copy:callout */ "heir waits" : /* copy:callout */ `heir rests ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
+    replace(rest, waits ? /* copy:callout */ "heir waits" : /* copy:callout */ `departs ${spanOf(restS)}`);   // docs/COPY.md pass 2: `send skips rest` read as a cost; nothing punishes a send
     // RUNS_UI: the lane says it now (`rests 18m` · `waits ▸ send` · `live D3`); the old chip stays for screen readers only
     rest.hidden = !waits && restS <= 0; rest.classList.add("vh"); rest.classList.toggle("waits", waits);
     restLine.hidden = false; lanes.paint();

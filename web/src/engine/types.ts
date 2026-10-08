@@ -477,7 +477,8 @@ export type ReturnReport = {
   stalled?: number;                                                            // Cut 13 §1: sends that stalled (among `returned`, keeping nothing); the tiles count them apart
   spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
   heirs?: number[];                                                                           // QA 912e135 (core): the first and last heir who ran these runs (`♟2–17` under RUNS)
-  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number; unkept?: number };   // QA 912e135 (core): `lost` — the carry the exits did not keep; QA 524827b (qaAA): `unkept` — the part of it exits that kept something left (a return's 40 %: `not kept`)
+  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number; unkept?: number; passage?: number; net?: number };   // blind ad71e72 (core): `passage` the waystone passages paid at the sends; `net` the purse's actual change over the absence (forge steps, hires and bank moves included)
+    // QA 912e135 (core): `lost` — the carry the exits did not keep; QA 524827b (qaAA): `unkept` — the part of it exits that kept something left (a return's 40 %: `not kept`)
         // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
   pending: string[]; reel: Highlight[]; marks_earned: number; worst_death?: Death; worst_death_id?: number; live?: Snapshot;

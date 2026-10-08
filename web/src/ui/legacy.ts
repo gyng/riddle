@@ -72,9 +72,13 @@ export function renderLegacy(app:App,onChange:()=>void,opened?:Set<string>):HTML
   for(const branch of branches){
     const nodes=upgrades.filter(u=>(u.branch??ROOT_BRANCH[u.id]??'')===branch),root=nodes.find(u=>!u.parent),children=nodes.filter(u=>!!u.parent);
     const leaves=children.filter(u=>u.min_depth===18),follow=children.filter(u=>u.min_depth!==18);
-    const open=opened?opened.has(branch):matchMedia('(min-width:900px)').matches||children.some(u=>u.rank>0);
+    // blind ad71e72 (B: Legacy piled to 80 with "no obvious way to spend it" — the deeper tree folded under `More upgrades`): a branch
+    // with an upgrade the points buy now stands open, its fold says how many
+    const ready=children.filter(u=>u.affordable).length;
+    const open=ready>0||(opened?opened.has(branch):matchMedia('(min-width:900px)').matches||children.some(u=>u.rank>0));
     tree.append(h('section',{class:'legacy-branch','data-legacy-branch':branch},h('h3',null,branch),root?card(root):null,
-      children.length?h('details',{class:'legacy-path',open,'data-branch':branch},h('summary',null,/* copy:button */'More upgrades'),
+      children.length?h('details',{class:'legacy-path',open,'data-branch':branch},h('summary',null,/* copy:button */'More upgrades',
+        ready?h('small',{class:'legacy-ready num'},/* copy:callout */` · ${ready} ready`):null),
         ...follow.map(card),h('div',{class:'legacy-fork'},h('small',{class:'legacy-fork-label'},/* copy:label */'Choose one'),...leaves.map(card))):null));
   }
   const respec=h('button',{class:'chip legacy-respec',disabled:!L.legacy_respec?.available||!app.engine.respecLegacy,

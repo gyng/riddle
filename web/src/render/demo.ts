@@ -308,6 +308,24 @@ function main(): void {
   const canvas = document.getElementById("view") as HTMLCanvasElement;
   const q = new URLSearchParams(location.search);
   const viewer = createViewer(canvas, q.get("texels") ? { baseTexels: Number(q.get("texels")) } : {});
+  // Cut 109: `?plan=/plans/crypt-15-0.json` — a generated floor (`cargo run --example floors -- crypt 15 1 json`), all seen, the hero
+  // on the up stairs: how a layout reads through the renderer
+  const plan = q.get("plan");
+  if (plan) {
+    void fetch(plan).then((r) => r.json()).then((p: { w: number; h: number; tiles: Tile[]; biome: string; depth: number; up: [number, number] }) => {
+      const all = new Array<boolean>(p.w * p.h).fill(true);
+      viewer.load({ depth: p.depth, biome: p.biome, w: p.w, h: p.h, tiles: p.tiles, seen: all.slice(), visible: all.slice(), overlays: [],
+        hero: { id: 1, kind: "hero_fighter", x: p.up[0], y: p.up[1], hp: 30, max_hp: 30, tags: [], inv: [], class: "fighter", trait: "stubborn", weapon: "sword", armour: "leather" },
+        entities: [], items: [], alert: 0, turn: 0, loot: 0, run: { id: 1, heir: 1, started_turn: 0 } } as unknown as Snapshot);
+      viewer.setSpeed(0);
+      if (q.get("frame")) viewer.setFrame(q.get("frame") as "fight");
+      document.getElementById("bar")!.style.display = "none";
+      document.getElementById("hud")!.hidden = true;
+      (window as unknown as { planReady: boolean }).planReady = true;
+    });
+    window.addEventListener("resize", () => viewer.resize());
+    return;
+  }
   if (q.get("boss") === "1") {
     const biome = q.get("biome") ?? "burrows", depth = Number(q.get("depth") ?? 8);
     const floor = busyFloor(depth, biome);

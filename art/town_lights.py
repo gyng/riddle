@@ -58,7 +58,7 @@ def main() -> None:
     fr = json.loads((ATLAS / "atlas.json").read_text())["frames"]
     res = {}
     for k, f in sorted(fr.items()):
-        if not k.startswith(("town_mouth", "town_campfire", "town_blacksmith", "town_storehouse", "town_kennel", "town_bank")):
+        if not k.startswith(("town_mouth", "town_campfire", "town_blacksmith", "town_storehouse", "town_kennel", "town_bank", "town_house", "town_lamppost", "town_stall", "town_board")):
             continue
         e = emitters(a[f["y"]:f["y"] + f["h"], f["x"]:f["x"] + f["w"]])
         if e:

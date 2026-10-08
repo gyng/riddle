@@ -68,9 +68,10 @@ pub const SYSTEMS: &[SystemDef] = &[
     sys("heir_pick", "an oath kept"),
 ];
 
-/// Cut 30 (PROGRESSION_V2 §4): the pen waits for the Mother met and an age of 72 h, and opens at 5 days
-/// whatever the climb.
-pub const PEN_AGE_H: u32 = 72;
+/// Cut 30 (PROGRESSION_V2 §4): the pen waits for the Mother met, and opens at 5 days whatever the climb.
+/// Cut 110 (owner 2026-10-08, cohort ad71e72: the pen never opened in a session, expression 0.3 on both
+/// cards): no age on top of the Mother — she is the late beat (D13, a band boss); was 72 h.
+pub const PEN_AGE_H: u32 = 0;
 pub const PEN_FALLBACK_H: u32 = 120;
 
 /// The systems open on day 0.

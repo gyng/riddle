@@ -2854,6 +2854,9 @@ pub struct Batch {
     pub spent: BTreeMap<String, (u32, i32)>,
     #[serde(default)]
     pub salvage_gold: i32,
+    /// The waystone passages paid into the purse at this batch's sends (`GoldSummary.passage`).
+    #[serde(default)]
+    pub passage: i32,
     #[serde(default)]
     pub wake_pay: i32,
     /// Cut 19 §3: the repeat skipped a kind this batch because the batch's spending had
@@ -3197,8 +3200,8 @@ impl Game {
         l.live = self.live_run();
         l.guns=crate::firearm::offers(&self.lineage,self.run.is_some());
         l.class_styles=Some(crate::specialization::offers(&self.lineage,self.run.is_some()));
-        l.legacy_upgrades = crate::legacy::offers(&self.lineage, self.run.is_some());
-        l.legacy_respec = Some(crate::legacy::respec_offer(&self.lineage,self.run.is_some()));
+        l.legacy_upgrades = crate::legacy::offers(&self.lineage, crate::legacy::away(self));
+        l.legacy_respec = Some(crate::legacy::respec_offer(&self.lineage,crate::legacy::away(self)));
         l.replays = self.capsules.0.iter().map(|c| c.id).collect();
         l
     }
@@ -4155,6 +4158,7 @@ impl Game {
         if let Some(coins) = paid {
             let d = self.run.as_ref().map_or(1, |r| r.depth);
             self.lineage.gold_move(coins, &format!("passage D{d}"));
+            self.batch.passage += coins;
             self.events.push(Ev::Callout { t: 0, text: format!("passage +${coins}"), why: None });
         }
         let mut cx = self.ctx();

@@ -173,7 +173,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       term && stamp !== "you died" ? h("p", null, TIP[term]) : null,
       drove?.defence ? h("p", { class: "num" }, drove.defence) : null,
       action ? h("p", { class: "num" }, action) : null,
-      d.lever ? h("div", null, h("h4", null, /* copy:label */ "Next run"), h("p", { class: "num" }, d.lever.text)) : null));
+      d.lever ? h("div", null, h("h4", null, /* copy:label */ "Next run"), h("p", { class: "num" }, leverLine(d.lever))) : null));
   };
   const seal = h("button", { class: /* copy:none */ `verdict ${word}${luck ? " lean-seal" : ""}`, onclick: () => { if (prePen) { explainOutcome(); return; } patches.scrollIntoView({ block: "center", behavior: "smooth" }); const p = patches.querySelector<HTMLElement>(".patch.top") ?? patches.querySelector<HTMLElement>(".patch"); if (p) { p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); } } , "data-size": stamp.includes(" ") ? "w2" : stamp.length > 6 ? "l" : stamp.length > 3 ? "m" : undefined }, stamp);
   // QA 524827b (qaAB: tapped `gas · D6` expecting the clip; it only scrolled to the trace): the cause opens the moment — the killing
@@ -265,9 +265,23 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   let measuring = measureAll && !!app.engine.deathDeltas;
   const lever = prePen ? (d as Death & { lever?: Lever }).lever : undefined;   // Cut 30 (core): before the pen opens, the one cheapest lever (spend · package · wait) leads
   const canSend = !kept && app.rules.rows.length > 0 && !app.overBudget;
-  /** The lever's act: `spend` opens the blacksmith on its step, `package` wears it (free, instant) and goes to camp, `wait` sends again. */
+  // blind ad71e72 (B: `WAIT Guarded L5` "unreadable" — a lever names what to do now): a stance's next level reads as the act that
+  // gets it — `level · Guarded L5` when the marks pay for it now (a tap buys it), else `train · Guarded L5` (a send trains it); a
+  // level already worn, or the drill and the scars to come, read `send · …`
+  const waitPkg = lever?.kind === "wait" ? (() => {
+    const m = /^(.+) L(\d+)$/.exec(lever.text); if (!m) return undefined;
+    const p = app.lineage.packages?.all.find((x) => x.name === m[1] || x.id === m[1].toLowerCase());
+    return p ? { p, to: Number(m[2]) } : undefined;
+  })() : undefined;
+  const levelNow = !!waitPkg && waitPkg.p.level < waitPkg.to && !!waitPkg.p.level_price && app.lineage.marks >= waitPkg.p.level_price && !!app.engine.spendLevel;
+  /* copy:label */
+  const waitWord = !lever || lever.kind !== "wait" ? undefined : levelNow ? "level" : waitPkg && waitPkg.p.level < waitPkg.to ? "train" : "send";
+  const waitText = lever?.kind === "wait" && waitPkg && waitPkg.p.level >= waitPkg.to ? /* copy:label */ "again" : lever?.text ?? "";
+  /** The lever's act: `spend` opens the blacksmith on its step, `package` wears it (free, instant) and goes to camp, `wait` levels the
+   *  stance with marks when it can, else sends again. */
   const leverAct = (): void => {
     if (!lever) { app.go({ kind: "camp" }); return; }
+    if (levelNow && waitPkg) { void app.mutate(() => app.engine.spendLevel!(waitPkg.p.id), /* copy:callout */ `L${waitPkg.p.level + 1}`, true).then(() => app.go({ kind: "camp" })); return; }
     if (lever.kind === "spend") { openPreparationForge(app); return; }
     if (lever.kind === "package") {
       const p = app.lineage.packages?.all.find((x) => x.name === lever.text || x.id === lever.text.toLowerCase());
@@ -281,14 +295,16 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const LEVER_WORD: Record<string, string> = { spend: "buy", package: "wear", wait: "wait" };
   /* copy:button */
   const LEVER_GEM: Record<string, string> = { spend: "forge", package: "wear", wait: "send" };
+  /** The lever in words, as its tablet reads (`train · Guarded L5`, `buy · sword +2`). */
+  function leverLine(l: Lever): string { return l === lever && l.kind === "wait" ? `${waitWord} · ${waitText}` : `${LEVER_WORD[l.kind] ?? l.kind} · ${l.text}`; }
   const leverBtn = lever ? h("button", { class: "death-lever tablet", "data-kind": lever.kind, onclick: leverAct },
-    h("span", { class: "lever-kind" }, LEVER_WORD[lever.kind] ?? lever.kind), h("b", { class: "lever-name" },
+    h("span", { class: "lever-kind" }, waitWord ?? LEVER_WORD[lever.kind] ?? lever.kind), h("b", { class: "lever-name" },
       lever.kind === "spend" ? itemIcon({ kind: lever.text, label: lever.text }) : lever.kind === "package" ? (() => {
         const p = app.lineage.packages?.all.find((x) => x.name === lever.text || x.id === lever.text.toLowerCase());
         return p ? packageIcon(p.id) : "";
-      })() : "", lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
+      })() : waitPkg && waitText !== "again" ? packageIcon(waitPkg.p.id) : "", lever.kind === "wait" ? waitText : lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
   if (leverBtn) kwHost(leverBtn, "lever");
-  function leverGem(): HTMLButtonElement { return gem({ label: lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "town" : /* copy:button */ "town", cls: "lever-gem", pulse: true, onclick: leverAct }); }
+  function leverGem(): HTMLButtonElement { return gem({ label: levelNow ? /* copy:button */ "level" : lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "town" : /* copy:button */ "town", cls: "lever-gem", pulse: true, onclick: leverAct }); }
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
   const makeGem = (): HTMLButtonElement => prePen ? leverGem() : top && measuring && isPatchTop()
     ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, "…"), h("small", { class: "gem-w" }, /* copy:label */ "measuring")), cls: "patch-gem pending", onclick: () => undefined })

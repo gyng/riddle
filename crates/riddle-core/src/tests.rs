@@ -2302,7 +2302,9 @@ fn death_deltas_are_the_camp_forecasts_move() {
     // Cut 22 §3 (a forecast's sims draw each floor from its own stream): 1033's.
     // Cut 23 (thieves take the leash last, a walk home answers): 1010's.
     // Cut 24 (the floors' arrival events, named foes resting): 1047's.
-    let mut g = Game::new_literal(1047);
+    // Cut 109 (floors on their own stream; 1047's drink patch ran out of panel budget a sim
+    // short, 49 vs 50): 1031's.
+    let mut g = Game::new_literal(1031);
     g.send();
     let mut died = None;
     for _ in 0..4000 {
@@ -2312,7 +2314,7 @@ fn death_deltas_are_the_camp_forecasts_move() {
             break;
         }
     }
-    let id = died.expect("seed 1047's first heir dies");
+    let id = died.expect("seed 1031's first heir dies");
     g.keep(vec![]).unwrap();
     let d = g.death(id).unwrap();
     assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.camp_pending && p.forecast_depth == 0), "{:?}", d.patches);
@@ -2721,10 +2723,13 @@ fn iron_golem_reflects_melee_but_not_arrows() {
     attack_rules(&mut g);
     let hp0 = hero(&g).hp;
     let evs = ticks(&mut g, 40);
-    let m = monster(&g, id).expect("the golem stands");
-    assert_eq!(m.hp, m.max_hp, "melee never lands on a golem");
+    // Cut 110: a third of each swing comes back (at least 1), the rest lands — no longer a wall
+    let golem_lost = monster(&g, id).map_or(24, |m| m.max_hp - m.hp);
+    assert!(golem_lost > 0, "melee lands on a golem, at a price");
     assert!(hero(&g).hp < hp0, "the swings came back");
-    assert!(evs.iter().any(|e| matches!(e, Ev::Attack { verb: Some(v), dst: HERO_ID, .. } if v == "reflect")));
+    let back: Vec<i32> = evs.iter().filter_map(|e| match e { Ev::Attack { verb: Some(v), dst: HERO_ID, dmg, .. } if v == "reflect" => Some(*dmg), _ => None }).collect();
+    assert!(!back.is_empty(), "the mirror answers");
+    assert!(back.iter().sum::<i32>() < golem_lost, "less comes back than lands: {back:?} vs {golem_lost}");
     assert!(g.lineage.facts.contains("foe:iron_golem:reflect_melee"));
     // Arrows land.
     let mut g = arena();
@@ -3211,7 +3216,9 @@ fn new_potions_take_effect() {
         Row::new(vec![Cond::t("item", "regen")], Verb::arg("drink", "regen")),
         Row::new(vec![Cond::t("item", "resist_fire")], Verb::arg("drink", "resist_fire")),
     ]);
-    ticks(&mut g, 30);
+    // Three drinks plus one turn's slack: the confused hero may stumble before the clarity
+    // (a dice roll; since Cut 109 the arena's stream stumbles once on the first turn).
+    ticks(&mut g, 40);
     let h = hero(&g);
     assert_eq!(h.confused, 0);
     assert!(h.regen_t > 0 && h.resist_fire_t > 0 && h.clarity_t > 0, "{:?}", h.status_tags());
@@ -11281,6 +11288,12 @@ fn saves_from_307dbed_send_identically() {
     // Cut 30.5 lane balance: b710ceddd931b776 → c70ffd182d4080f1. An isolated
     // control build restoring only the shallow lock's two corridor reserves matches
     // b710ceddd931b776 exactly; the changed send stream is the intended gas exposure.
+    // Cut 109 floor generation on its own stream; new layouts: c70ffd182d4080f1 →
+    // e5315d0b45e0bedf. A control build of the parent tree with only the new gen.rs hashes
+    // to e5315d0b45e0bedf exactly; the parent tree alone to c70ffd182d4080f1.
+    // Cut 110 (the golem's mirror sends back a third of a melee blow; the rest lands):
+    // e5315d0b45e0bedf → f22db4c57141f4d0. The same control build plus only turn.rs's
+    // mirror change hashes to f22db4c57141f4d0 exactly.
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }

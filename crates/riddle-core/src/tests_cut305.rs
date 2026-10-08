@@ -828,3 +828,23 @@ fn snapshot_actor_identity_survives_load_heir_advance_and_slot_switch() {
     let old: crate::wire::Snapshot = serde_json::from_value(old).unwrap();
     assert!(old.hero.entity.name.is_none(), "old snapshots still decode");
 }
+
+/// Blind ad71e72 (A: `$8 GOLD EARNED` while the purse rose ~$1000 on a D19 start; `$6712` with
+/// the purse up $78): the report's gold counts the waystone passage the sends were paid, and
+/// states the purse's actual change over the absence.
+#[test]
+fn absence_gold_counts_passage_and_states_the_purse_change() {
+    let mut g = guide_quote_camp();
+    tree::grant(&mut g.lineage, &["scout"]);
+    g.lineage.start = 24;
+    let before = g.lineage.gold;
+    let r = run_offline_counts(&mut g, 8 * 3600);
+    let gold = r.gold.expect("an absence reports its gold");
+    assert!(r.runs > 0, "the absence ran");
+    assert_eq!(gold.net, Some(g.lineage.gold - before), "net is the purse's change");
+    assert!(gold.passage > 0, "waystone sends were paid passage: {gold:?}");
+    assert_eq!(gold.home + gold.salvage + gold.passage + gold.wake - gold.spent, g.lineage.gold - before, "with nothing else bought, the parts reconcile: {gold:?}");
+    let saved = crate::wire::GoldSummary { net: None, passage: 0, ..gold.clone() };
+    let text = serde_json::to_string(&saved).unwrap();
+    assert!(!text.contains("passage") && !text.contains("net"), "old wire unchanged when absent: {text}");
+}

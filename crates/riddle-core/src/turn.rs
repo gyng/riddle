@@ -1634,7 +1634,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
 }
 
 /// Monster takes damage; handles counters, splits, pops, drops, kills. Returns true if it died.
-pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Src) -> bool {
+pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, mut dmg: i32, src: &Src) -> bool {
     if run.monsters[mi].hp <= 0 {
         return false;
     }
@@ -1695,7 +1695,10 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
             }
         }
     }
-    // Cut 3: `reflect_melee` — a melee blow (the hero's, or an ally's) lands on the attacker.
+    // Cut 3: `reflect_melee` — a melee blow (the hero's, or an ally's) comes back on the attacker.
+    // Cut 110 (owner: "the golem shouldn't be a hard wall — make the mirror less punishing"): a third of
+    // the blow comes back (at least 1) and the rest lands — melee works at a price; reading the mirror
+    // (shoot, burn, step away) is still the better answer. Was: the whole blow back, none landed.
     if run.monsters[mi].reflects_melee() && dmg > 0 {
         let reflected = match src {
             Src::Hero { ranged: false } => run.monsters[mi].pos.cheb(run.hero.pos) <= 2,
@@ -1710,20 +1713,27 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Sr
                 learn_tag(run, cx, &kind, "reflect_melee");
                 callout(run, cx, "reflected!");
             }
+            let back = ((dmg + 2) / 3).max(1);
             match src {
                 Src::Hero { .. } => {
-                    cx.events.push(Ev::Attack { t: run.turn, src: id, dst: HERO_ID, dmg, hit: true, verb: Some("reflect".into()) });
-                    damage_hero(run, cx, dmg, &Src::Reflect(mi));
+                    cx.events.push(Ev::Attack { t: run.turn, src: id, dst: HERO_ID, dmg: back, hit: true, verb: Some("reflect".into()) });
+                    damage_hero(run, cx, back, &Src::Reflect(mi));
                 }
                 Src::Mon(j) => {
                     let j = *j;
                     let jid = run.monsters[j].id;
-                    cx.events.push(Ev::Attack { t: run.turn, src: id, dst: jid, dmg, hit: true, verb: Some("reflect".into()) });
-                    damage_monster(run, cx, j, dmg, &Src::Reflect(mi));
+                    cx.events.push(Ev::Attack { t: run.turn, src: id, dst: jid, dmg: back, hit: true, verb: Some("reflect".into()) });
+                    damage_monster(run, cx, j, back, &Src::Reflect(mi));
                 }
                 _ => {}
             }
-            return false;
+            if run.hero.hp <= 0 || run.monsters[mi].hp <= 0 {
+                return false;
+            }
+            dmg -= back;
+            if dmg <= 0 {
+                return false;
+            }
         }
     }
     let cause = src.cause(run);

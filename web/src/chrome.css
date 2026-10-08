@@ -71,8 +71,11 @@ html.skin-tablet .pkg-panel button.chip.pkg { border: 8px solid transparent; bor
 .pkg-panel .pkg-equipped { align-items: center; gap: 12px; }
 .pkg-panel .pkg-slot { flex-wrap: wrap; gap: 8px; }
 .pkg-panel .pkg-slot .pkg.on { flex: 1; }
-.pkg-panel .pkg-slots { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+/* blind ad71e72 (A: two worn tactics squeezed into slivers, `archer change shots`): a slot is a column only where its card and its
+   buttons fit side by side; the card takes its row and the buttons wrap under it */
+.pkg-panel .pkg-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
 .pkg-panel .pkg-slots .pkg-slot { min-width: 0; }
+.pkg-panel .pkg-slots .pkg-slot .pkg.on { flex: 1 1 100%; min-width: 0; }
 .pkg-panel .pkg-slots .pkg-slot.empty .pkg-change { width: 100%; min-height: 52px; }
 .pkg-panel .pkg-alts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap: 10px; }
 .pkg-panel .pkg-alts .pkg { width: 100%; }

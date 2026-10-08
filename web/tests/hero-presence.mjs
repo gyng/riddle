@@ -21,7 +21,7 @@ try{for(const width of [320,400,1440]){
   s.live={...live,run_id:8,depth:1};r.paint();check(text(1)==='D1 · In combat','new run ignores old observation');
   s.heir=3;s.live={...live,heir:3,depth:1};r.paint();check(text(1)==='D1 · In combat','new heir ignores old observation');
   s.heir=2;s.live=live;r.setPresence({...live,depth:16,turn:130},true);check(text(1)==='D16 · Run ended','end presence');
-  s.state='rests';s.rest_s=120;r.paint();check(text(1)==='Resting 2m','rest wins ended observation');
+  s.state='rests';s.rest_s=120;r.paint();check(text(1)==='Departs 2m','rest wins ended observation');
   s.rest_s=0;r.paint();check(text(1)==='Ready','zero rest is ready');
   s.state='waits';r.paint();check(text(1)==='Ready','ready');
   check(heroPresence({...s,state:'live',live:{...live,activity:undefined}}).text==='D13 · Delving','old wire never invents activity');

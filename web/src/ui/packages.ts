@@ -43,7 +43,9 @@ export const beatText = (b: string): string => b;
  *  the wire omits actual counts, so never assume more than five for this filter. */
 export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
   /* copy:label */
-  const terms: [string, number, boolean, number][] = [["deaths", o.d_death, true, o.death], ["deeper", o.d_past, false, o.past], ["full haul", o.d_bank, false, o.bank]];
+  // blind ad71e72 (B: `deeper ≈+90` "no unit"): each term is a share of sends, its move in points (`%`); `past best` names what
+  // `past` counts — the sends that went past the record
+  const terms: [string, number, boolean, number][] = [["deaths", o.d_death, true, o.death], ["past best", o.d_past, false, o.past], ["full haul", o.d_bank, false, o.bank]];
   const variance = (p: number): number => Math.max(0.01, p * (1 - p));
   const band = (p: number, delta: number): number => {
     const base = Math.max(0, Math.min(1, p - delta));
@@ -54,7 +56,7 @@ export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "pa
   const [label, d, worse] = clear.reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
   const pts = Math.round(d * 20) * 5;
   const good = (pts > 0) !== worse;
-  return { text: `${label} ≈${pts > 0 ? "+" : "−"}${Math.abs(pts)}`, good, score: good ? Math.abs(pts) : -Math.abs(pts) };
+  return { text: `${label} ≈${pts > 0 ? "+" : "−"}${Math.abs(pts)}%`, good, score: good ? Math.abs(pts) : -Math.abs(pts) };
 }
 /** Small first estimate: actual runs remain unchanged. */
 export const PRICE_SIMS = 8;
@@ -215,9 +217,13 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       // the compiled rows, folded: each its package, a shadowed one greyed with its winner
       extra.push(rowsFold(app, P));
       const more = h("details", { class: "pkg-advanced", open: details, ontoggle: (e: Event) => { details = (e.currentTarget as HTMLDetailsElement).open; } }, h("summary", null, /* copy:button */ "details"), ...extra, h("div", { class: "chips pkg-unlocks" }, locked("stance"), locked("tactic")));
-      const compareButton = h("button", { class: "chip pkg-compare", disabled: compare && !!reading && !opts, onclick: () => { if (!choosing.has("stance") && !choosing.has("tactic")) { if (stanceAlts.length) choosing.add("stance"); else if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); } compare = true; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
+      // blind ad71e72 (A: "inert" on three taps): nothing to compare (no other style or tactic owned) — the button stands disabled;
+      // a comparison whose every move sits in the noise says so (`all similar`) rather than painting nothing
+      const comparable = stanceAlts.length > 0 || owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id));
+      const anyClear = !!opts && opts.some((o) => o.action === "equip" && priceOf(o).good !== null);
+      const compareButton = h("button", { class: "chip pkg-compare", disabled: !comparable || (compare && !!reading && !opts), onclick: () => { if (!choosing.has("stance") && !choosing.has("tactic")) { if (stanceAlts.length) choosing.add("stance"); else if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); } compare = true; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
       const head = headline(app);
-      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: /* copy:tooltip */ "Small sample · minor differences unclear" }, /* copy:label */ "rough estimate") : "", more);
+      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: /* copy:tooltip */ "Small sample · minor differences unclear" }, anyClear ? /* copy:label */ "rough estimate" : /* copy:label */ "all similar") : "", more);
     };
     const changed = (): void => { compare = false; reading = null; paint(); };
     const offChange = app.onChange?.(changed), offRules = app.onRules?.(changed);

@@ -95,8 +95,31 @@ pub fn offers(l: &LineageState, away: bool) -> Vec<LegacyUpgrade> {
             })}
     }).collect()
 }
+/// The hero is away: a run under way (or ended, its exit pending). Blind ad71e72 (B: Legacy piled
+/// to 80, "could not buy"): the camp rest's clock readies the next run at its first tick
+/// (`Game::step` → `ensure_run`) while the hero still rests at home — that run is no absence
+/// until the rest is out or a send skips it.
+pub fn away(g: &Game) -> bool {
+    g.run.as_ref().is_some_and(|r| r.turn > 0 || r.over.is_some() || g.lineage.rest_left == 0)
+}
+/// A run readied by the rest clock but not begun carries the bloodline as it stands: its hero and
+/// the camp state it left from (the verdict's replays) take a purchase or a respec made since.
+fn refit(g: &mut Game, before: &BloodlineLegacy) {
+    if away(g) { return; }
+    let Some(run) = g.run.as_mut() else { return };
+    let after = g.lineage.bloodline.clone().unwrap_or_default();
+    let rank = |b: &BloodlineLegacy, id: &str| b.upgrades.get(id).copied().unwrap_or(0).min(CAP) as i32;
+    let hero = &mut run.hero;
+    let hp = 3 * (rank(&after, "health") - rank(before, "health"));
+    hero.max_hp += hp; hero.max_hp_base += hp; hero.hp = (hero.hp + hp).clamp(1, hero.max_hp.max(1));
+    hero.str_bonus += rank(&after, "damage") - rank(before, "damage");
+    hero.legacy_armour = rank(&after, "armour");
+    hero.legacy_effects = NODES.iter().filter(|n| after.upgrades.get(n.id).is_some_and(|r| *r > 0)).fold(0, |mask, n| mask | n.mask);
+    if let Some(sent) = g.sent_state.as_mut() { sent.lineage.bloodline = Some(after); }
+}
 pub fn buy(g: &mut Game, id: &str) -> Result<(), String> {
-    if g.run.is_some() || !g.lineage.town.home.unwrap_or(true) { return Err("hero away".into()); }
+    if away(g) || !g.lineage.town.home.unwrap_or(true) { return Err("hero away".into()); }
+    let before = g.lineage.bloodline.clone().unwrap_or_default();
     let offer = offers(&g.lineage, false).into_iter().find(|u| u.id == id).ok_or("unknown upgrade")?;
     if offer.rank >= offer.cap { return Err("upgrade complete".into()); }
     if !offer.affordable { return Err(offer.blocked.unwrap_or_else(||"more Legacy needed".into())); }
@@ -106,6 +129,7 @@ pub fn buy(g: &mut Game, id: &str) -> Result<(), String> {
     h.points -= offer.price;
     h.spent = spent;
     h.upgrades.insert(id.into(), offer.rank + 1);
+    refit(g, &before);
     Ok(())
 }
 fn respec_points(l:&LineageState,away:bool)->Result<u32,String> {
@@ -121,9 +145,11 @@ pub fn respec_offer(l:&LineageState,away:bool)->crate::wire::LegacyRespec {
         points_after:result.as_ref().ok().copied(),blocked:result.err()}
 }
 pub fn respec(g:&mut Game)->Result<(),String> {
-    let points=respec_points(&g.lineage,g.run.is_some())?;
+    let points=respec_points(&g.lineage,away(g))?;
+    let before=g.lineage.bloodline.clone().unwrap_or_default();
     let h=g.lineage.bloodline.as_mut().expect("bloodline");
-    h.points=points;h.spent=0;h.upgrades.clear();Ok(())
+    h.points=points;h.spent=0;h.upgrades.clear();
+    refit(g,&before);Ok(())
 }
 pub fn apply(l: &LineageState, hero: &mut Hero) {
     if let Some(h) = current(l) {

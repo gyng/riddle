@@ -1,0 +1,106 @@
+You are painting CHARACTER SPRITE masters for the game "Riddle" (a gothic dark-fantasy roguelike on a phone, seen
+top-down at a high three-quarter angle). FIRST look at these approved STYLE TARGETS (you may open these images and nothing
+else in the repository): /home/g/p/riddle/art/ui/targets/style/town.png, /home/g/p/riddle/art/ui/targets/style/hero_sheet.png, /home/g/p/riddle/art/ui/targets/style/watch_warrens.png, /home/g/p/riddle/art/ui/targets/style/watch_fens.png, /home/g/p/riddle/art/ui/targets/style/boss.png. They show the target look: moonlit ink and wash on a visible pixel grid, one BLOOD accent.
+Use your built-in image_gen tool, one call per asset below. Do NOT write code beyond a PIL resample / alpha fix; do NOT
+touch anything outside /home/g/p/riddle/art/staging/town_v2/. Do not leave _inspection_*.png or any other scratch file behind. OVERWRITE existing files.
+
+For each asset: generate at the stated size and save the final PNG (sRGB) to the exact path. BACKGROUND: a TRANSPARENT
+background (PNG alpha) is best; if the tool returns an opaque image, the background must be ONE flat uniform pure MAGENTA
+#FF00FF (255,0,255) edge to edge (the pipeline keys it) — never paper, never a floor, never a gradient. Self-check each
+output: the four corners transparent or magenta, no magenta/pink-violet inside the subject, the subject not cropped;
+regenerate that asset once if not.
+
+=== STYLE (docs/ART_DIRECTION.md, approved — the FIRST and loudest rule) ===
+STYLE: gothic moonlit dark fantasy, a HYBRID of pixel art and painted illustration, leaning PAINTED. It looks
+like a late-1980s anime-magazine watercolour illustration printed on paper, painted over a coarse visible pixel
+grid: forms are blocked in chunky square pixel clusters with stepped edges (the pixel grid is visible at a
+glance), but the fills inside them are transparent watercolour WASHES: soft granulation, pigment pooling darker
+at the edge of each wash, slight colour bleed across a boundary, warm cream PAPER GRAIN showing through the
+lightest areas, a fine HALFTONE dot screen only inside the deepest shadows (like offset print). Contours are
+HAND-INKED: one confident blue-black ink line around every silhouette (thick on the shadow side, thin on the lit
+side), a few fine ink hatching lines in the shadows, nothing feathered. Silhouettes are ELEGANT and LONG: tall
+figures, long flowing cloaks and coats that trail and flare, sharp shapes, dramatic gesture, but each figure is
+ONE bold readable mass with a clear shape against the ground (legible at 48 px tall).
+PALETTE (stark and limited; name the colours, use nothing outside them except the biome tint):
+  INK #0d0c14 (blue-black: outlines, the deepest shadow), UMBRA #1c1b2b (shadow), DUSK #2b3350 (mid shadow),
+  MOON #4d6c99 (moonlit mid-tone), MIST #a4bcd6 (moonlit highlight), BONE #eadfc5 (paper, skin highlight, bone,
+  moon), BLOOD #c01530 (THE signature accent), CLOT #5c0b1c (dark blood), EMBER #e8923a (torch flame and its
+  small warm pool ONLY), GILT #b89448 (worn gold on metal trims, used sparingly).
+  Per-place tint: the mid-tones (DUSK and MOON) shift toward the place's tint colour; INK, BONE and BLOOD never
+  change.
+VALUES: high contrast. About 60 % of the frame sits in INK/UMBRA shadow; light comes from a cold MOONLIGHT from
+above (blue-white rims on the top edges of forms) and small warm EMBER torch pools. BLOOD red covers at most
+~8 % of any frame and only marks what matters: the hero's cloak, blood, danger, the one primary button.
+NEVER: text other than the few words asked for, logos, signatures, watermarks, photorealism, glossy 3D render,
+smooth airbrushed digital gradients, lens flares, a warm brown/amber overall cast, rainbow saturation, noisy
+dense detail, clean vector flat design, chibi proportions.
+
+=== SPRITE RULES (on top of the style) ===
+- ONE object, seen from the high three-quarter town camera, centred with ~10 % margin, nothing cropped.
+- Proportions (these override "tall" in the style above): the object's own shape as briefed; buildings and landmarks fill the canvas width with ~8 % margin.
+- INK: one closed blue-black INK #0d0c14 contour around the whole silhouette, 12-16 px thick at 1024 px (it must survive a
+  downscale to 40-96 px tall), thicker on the lower/right shadow side; a few interior ink lines on the big forms only.
+- LIGHT: cold MOONLIGHT from ABOVE: MIST #a4bcd6 rims on the top edges (head, shoulders, weapon), the lower half falling
+  into DUSK/UMBRA. The lit side must stay clearly lighter than a dark stone floor; keep one pale element (BONE face,
+  MIST blade edge, bone) high on the figure so it pops at game size.
+- WASH on the GRID at sprite scale: chunky clusters (~12 px at 1024), washes with granulation inside them; no hairline
+  detail, no smooth airbrushed gradients, no noisy speckle. Paper grain only faintly inside the lightest washes.
+- COLOUR: only the palette above (+ the monster's one local hue when the brief names it). BLOOD only where the brief puts it.
+- NOTHING but the figure: NO floor, NO contact shadow, NO cast-shadow pool, NO scenery, NO paper sheet, NO frame, NO glow
+  halo, NO text or letters.
+
+=== READABILITY (the sprites are shown TINY: buildings ~64 px tall, the plot ~32 px) ===
+One bold readable mass, one clear gesture, 3-4 signature details. The defining feature (the "tag" in each brief) must
+be visible in the SILHOUETTE alone. Judge each output shrunk to that size before accepting it.
+
+=== ASSETS ===
+Keep each building's materials, roof and palette like the existing town buildings (open /home/g/p/riddle/art/generated/town_blacksmith_1.png and /home/g/p/riddle/art/generated/town_storehouse_1.png as the family to match; you may open those two images).
+--- 1. id: town_house_1
+Output path: /home/g/p/riddle/art/staging/town_v2/town_house_1.png
+Size: exactly 1536x1024 px (width x height), PNG.
+Shown in game at about 56 px tall; judge readability at that size.
+Brief: the HERO'S HOME, look 1 of 3 (built): a small one-room TIMBER COTTAGE with whitewashed BONE-grey daub between dark timber beams, a fieldstone CHIMNEY on the right gable, a single small lit window, a BLOOD-red front DOOR (the tag: the red door says 'home', never a shed or barn), a bench by the door; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. It must NOT look like a store shed: no crates, no barrels, no big barn door.
+
+--- 2. id: town_house_2
+Output path: /home/g/p/riddle/art/staging/town_v2/town_house_2.png
+Size: exactly 1536x1024 px (width x height), PNG.
+Shown in game at about 56 px tall; judge readability at that size.
+Brief: the HERO'S HOME, look 2 of 3 (improved): the SAME cottage as look 1 (same BLOOD-red door, same stone chimney, same timber-and-daub walls) grown by a lean-to side room with its own lit window, flower boxes, a lantern by the red door, a small vegetable patch fence; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. The three looks must read as the same house growing.
+
+--- 3. id: town_house_3
+Output path: /home/g/p/riddle/art/staging/town_v2/town_house_3.png
+Size: exactly 1536x1024 px (width x height), PNG.
+Shown in game at about 56 px tall; judge readability at that size.
+Brief: the HERO'S HOME, look 3 of 3 (grand): the SAME cottage grown into a two-storey timber HOUSE: an upper storey jettied out over the ground floor, two chimneys, three lit windows, the same BLOOD-red front door now under a small porch roof, a hanging BLOOD pennant/banner of the bloodline by the door; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing.
+
+--- 4. id: town_board
+Output path: /home/g/p/riddle/art/staging/town_v2/town_board.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 28 px tall; judge readability at that size.
+Brief: a village NOTICE BOARD: two weathered wooden posts with a small peaked plank roof, a square board between them with three or four pinned BONE paper notes (blank, no writing, no marks) and one BLOOD wax seal on a note, a hanging lantern; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing — the board must be seen from ABOVE at the same angle as the buildings (its roof top visible, the board face foreshortened toward the viewer), NOT a flat front elevation. The pale notes on the dark board are the tag at 28 px.
+
+--- 5. id: town_well
+Output path: /home/g/p/riddle/art/staging/town_v2/town_well.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 28 px tall; judge readability at that size.
+Brief: a VILLAGE WELL: a round fieldstone well ring with a small peaked slate roof on two timber posts, a winch with rope and a wooden BUCKET on the rim; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. The round stone ring and the little roof are the tag: at 28 px it reads 'well'.
+
+--- 6. id: town_lamppost
+Output path: /home/g/p/riddle/art/staging/town_v2/town_lamppost.png
+Size: exactly 1024x1024 px (width x height), PNG.
+Shown in game at about 26 px tall; judge readability at that size.
+Brief: a wrought-iron STREET LANTERN POST: a tall slim dark iron post on a small stone footing, a square iron-and-glass lantern at the top with a warm EMBER flame inside (the only warm colour), a small curl of iron bracket; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Very slim: the post is thin, the lantern the tag.
+
+--- 7. id: town_woodpile
+Output path: /home/g/p/riddle/art/staging/town_v2/town_woodpile.png
+Size: exactly 1536x1024 px (width x height), PNG.
+Shown in game at about 18 px tall; judge readability at that size.
+Brief: a FIREWOOD PILE: split logs stacked neatly in a low wide pile against two short stakes, a chopping STUMP beside it with an AXE bitten into it, a few wood chips; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Wide and low.
+
+--- 8. id: town_stall
+Output path: /home/g/p/riddle/art/staging/town_v2/town_stall.png
+Size: exactly 1536x1024 px (width x height), PNG.
+Shown in game at about 40 px tall; judge readability at that size.
+Brief: a small MARKET STALL: a wooden trestle counter under a slanted cloth AWNING striped BONE and BLOOD (the tag), baskets of apples and cabbages and a few bottles on the counter, a crate and a sack beside it, a tiny hanging lantern; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing.
+
+When all assets are saved, list the final paths and sizes. Do nothing else.

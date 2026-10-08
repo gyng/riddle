@@ -1791,6 +1791,14 @@ pub struct GoldSummary {
     /// the exits that kept something left unkept (a return's 40 %) — `not kept`, not `lost`.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub unkept: i32,
+    /// Blind ad71e72 (A: `$8 GOLD EARNED` while the purse rose ~$1000 on a D19 start): the
+    /// waystone passages paid into the purse at the sends — income beside `home`.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub passage: i32,
+    /// The purse's actual change over the absence (`home + salvage + passage + wake − spent`
+    /// and every other movement: forge steps the apprentice bought, hires, bank moves).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub net: Option<i32>,
 }
 
 /// QA on e75ec29: a kind thieves took and kept (`ReturnReport.stolen`): the label, how many.

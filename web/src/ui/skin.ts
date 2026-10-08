@@ -60,7 +60,7 @@ export function verbIcon(v: string): string | null {
 
 /** Moonlit character/relic silhouettes for styles/traits; action icons for extra tactics. */
 export function packageIcon(id: string): HTMLElement {
-  const actions: Record<string, string> = { boss_focus: "v_attack", corridor_fighting: "v_corridor", kite_archers: "v_shoot", thief_guard: "v_shield", gas_step: "v_retreat", pack_break: "v_throw", cadence: "v_attack", custom: "edit" };
+  const actions: Record<string, string> = { boss_focus: "v_attack", corridor_fighting: "v_corridor", kite_archers: "v_shoot", thief_guard: "v_shield", gas_step: "v_retreat", pack_break: "v_throw", cadence: "v_attack", reflect_read: "v_shoot", noise_discipline: "v_shadow", deep_march: "v_descend", custom: "edit" };
   const expressive = [7, 6, 4, 3, 2].some((version) => hasIcon(`pkg_${id}_v${version}`));
   const name = hasIcon(`pkg_${id}_v7`) ? `pkg_${id}_v7` : hasIcon(`pkg_${id}_v6`) ? `pkg_${id}_v6` : hasIcon(`pkg_${id}_v4`) ? `pkg_${id}_v4` : hasIcon(`pkg_${id}_v3`) ? `pkg_${id}_v3` : hasIcon(`pkg_${id}_v2`) ? `pkg_${id}_v2` : hasIcon(`pkg_${id}`) ? `pkg_${id}` : actions[id] ?? "unlocks";
   return h("span", { class: `icon-socket${expressive ? " expressive-emblem" : ""}`, "aria-hidden": "true" }, icon(name, "✦"));

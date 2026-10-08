@@ -33,6 +33,12 @@ try{for(const width of [320,400,1440]){const p=await b.newPage({viewport:{width,
  guard.owned=false;go({kind:'death',death:{...base,lever:{kind:'package',text:'Guarded'}},kept:true});document.querySelector('.death-lever').click();check(calls.length===1&&dest.at(-1)==='camp','unowned recommendation never equips');
  go({kind:'death',death:{...base,lever:{kind:'wait',text:'Steady L2'}},kept:true});document.querySelector('.death-lever').click();check(dest.at(-1)==='camp','historical wait cannot send');
  go({kind:'death',death:{...base,lever:{kind:'wait',text:'Steady L2'}},kept:false});document.querySelector('.death-lever').click();check(dest.at(-1)==='watch','current wait can send');
+ guard.owned=true;guard.level=2;delete guard.level_price;const marks=a.lineage.marks,spend=a.engine.spendLevel,spent=[];
+ go({kind:'death',death:{...base,lever:{kind:'wait',text:'Guarded L5'}},kept:false});check(document.querySelector('.death-lever .lever-kind').textContent==='train'&&document.querySelector('.death-lever .lever-name').textContent==='Guarded L5','unaffordable stance level reads as training');document.querySelector('.death-lever').click();check(dest.at(-1)==='watch','training lever sends');
+ guard.level_price=3;a.lineage.marks=5;a.engine.spendLevel=async id=>{spent.push(id);return a.lineage;};
+ go({kind:'death',death:{...base,lever:{kind:'wait',text:'Guarded L5'}},kept:false});check(document.querySelector('.death-lever .lever-kind').textContent==='level','affordable stance level reads as a level purchase');document.querySelector('.death-lever').click();await new Promise(r=>setTimeout(r,20));check(JSON.stringify(spent)==='["guarded"]'&&dest.at(-1)==='camp','level lever buys the level');
+ guard.level=5;go({kind:'death',death:{...base,lever:{kind:'wait',text:'Guarded L5'}},kept:false});check(document.querySelector('.death-lever').textContent.replace('›','')==='sendagain','a level already worn reads send again');
+ a.lineage.marks=marks;a.engine.spendLevel=spend;
  a.go=go;a.mutate=mutate;a.engine.equipPackage=equip;
  for(const [verb,kind] of [[{v:'throw',a:'fire,tag:boss'},'fire'],[{v:'drink',a:'unknown'},'potion'],[{v:'read',a:'unknown'},'scroll']]){const el=rowChips({conds:[],verb});check(el.querySelector('.item-ico').dataset.kind===kind,'targeted/unknown item family');}
  check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow');return {checks,driven};

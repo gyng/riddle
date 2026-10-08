@@ -3915,8 +3915,8 @@
       "gen": "1024x1024",
       "master_h": 112,
       "texel_h": 56,
-      "description": "a village NOTICE BOARD: two weathered wooden posts with a small peaked plank roof, a square board between them with three or four pinned BONE paper notes (blank, no writing, no marks) and one BLOOD wax seal on a note, a lantern hook; the board faces the viewer; it must read at 32 px as 'a notice board' — the pale notes on the dark board are the tag. (Cut 30 town v1, art/town-ids.md.)",
-      "brief3": "a village NOTICE BOARD: two weathered wooden posts with a small peaked plank roof, a square board between them with three or four pinned BONE paper notes (blank, no writing, no marks) and one BLOOD wax seal on a note, a lantern hook; the board faces the viewer; it must read at 32 px as 'a notice board' — the pale notes on the dark board are the tag."
+      "description": "a village NOTICE BOARD: two weathered wooden posts with a small peaked plank roof, a square board between them with three or four pinned BONE paper notes (blank, no writing, no marks) and one BLOOD wax seal on a note, a hanging lantern; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing — the board must be seen from ABOVE at the same angle as the buildings (its roof top visible, the board face foreshortened toward the viewer), NOT a flat front elevation. The pale notes on the dark board are the tag at 28 px. (Cut 109 town v2, art/prompts/town_v2.txt.)",
+      "brief3": "a village NOTICE BOARD: two weathered wooden posts with a small peaked plank roof, a square board between them with three or four pinned BONE paper notes (blank, no writing, no marks) and one BLOOD wax seal on a note, a hanging lantern; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing — the board must be seen from ABOVE at the same angle as the buildings (its roof top visible, the board face foreshortened toward the viewer), NOT a flat front elevation. The pale notes on the dark board are the tag at 28 px."
     },
     {
       "id": "town_worker_porter",
@@ -4187,6 +4187,76 @@
       "texel_h": 48,
       "description": "Gunner: full-body moonlit ink-and-wash hunter, broad dark hat, blood cloak, long antique rifle aimed right. Actual alpha; default/male share one generated sprite.",
       "brief3": "GUNNER. Long adult figure in dark leather coat and broad hunter hat, pale bone face patch, blood-red cloak trailing left, two hands holding a long wood-and-steel flintlock rifle to the right. No bow or quiver. Sharp moonlit barrel edge and hard ink outline; actual transparent alpha."
+    },
+    {
+      "id": "town_house_1",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 256,
+      "texel_h": 128,
+      "description": "the HERO'S HOME, look 1 of 3 (built): a small one-room TIMBER COTTAGE with whitewashed BONE-grey daub between dark timber beams, a fieldstone CHIMNEY on the right gable, a single small lit window, a BLOOD-red front DOOR (the tag: the red door says 'home', never a shed or barn), a bench by the door; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. It must NOT look like a store shed: no crates, no barrels, no big barn door. (Cut 109 town v2, art/prompts/town_v2.txt.)",
+      "brief3": "the HERO'S HOME, look 1 of 3 (built): a small one-room TIMBER COTTAGE with whitewashed BONE-grey daub between dark timber beams, a fieldstone CHIMNEY on the right gable, a single small lit window, a BLOOD-red front DOOR (the tag: the red door says 'home', never a shed or barn), a bench by the door; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. It must NOT look like a store shed: no crates, no barrels, no big barn door."
+    },
+    {
+      "id": "town_house_2",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 256,
+      "texel_h": 128,
+      "description": "the HERO'S HOME, look 2 of 3 (improved): the SAME cottage as look 1 (same BLOOD-red door, same stone chimney, same timber-and-daub walls) grown by a lean-to side room with its own lit window, flower boxes, a lantern by the red door, a small vegetable patch fence; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. The three looks must read as the same house growing. (Cut 109 town v2, art/prompts/town_v2.txt.)",
+      "brief3": "the HERO'S HOME, look 2 of 3 (improved): the SAME cottage as look 1 (same BLOOD-red door, same stone chimney, same timber-and-daub walls) grown by a lean-to side room with its own lit window, flower boxes, a lantern by the red door, a small vegetable patch fence; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. The three looks must read as the same house growing."
+    },
+    {
+      "id": "town_house_3",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 256,
+      "texel_h": 128,
+      "description": "the HERO'S HOME, look 3 of 3 (grand): the SAME cottage grown into a two-storey timber HOUSE: an upper storey jettied out over the ground floor, two chimneys, three lit windows, the same BLOOD-red front door now under a small porch roof, a hanging BLOOD pennant/banner of the bloodline by the door; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. (Cut 109 town v2, art/prompts/town_v2.txt.)",
+      "brief3": "the HERO'S HOME, look 3 of 3 (grand): the SAME cottage grown into a two-storey timber HOUSE: an upper storey jettied out over the ground floor, two chimneys, three lit windows, the same BLOOD-red front door now under a small porch roof, a hanging BLOOD pennant/banner of the bloodline by the door; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing."
+    },
+    {
+      "id": "town_well",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a VILLAGE WELL: a round fieldstone well ring with a small peaked slate roof on two timber posts, a winch with rope and a wooden BUCKET on the rim; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. The round stone ring and the little roof are the tag: at 28 px it reads 'well'. (Cut 109 town v2, art/prompts/town_v2.txt.)",
+      "brief3": "a VILLAGE WELL: a round fieldstone well ring with a small peaked slate roof on two timber posts, a winch with rope and a wooden BUCKET on the rim; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. The round stone ring and the little roof are the tag: at 28 px it reads 'well'."
+    },
+    {
+      "id": "town_lamppost",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1024x1024",
+      "master_h": 128,
+      "texel_h": 64,
+      "description": "a wrought-iron STREET LANTERN POST: a tall slim dark iron post on a small stone footing, a square iron-and-glass lantern at the top with a warm EMBER flame inside (the only warm colour), a small curl of iron bracket; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Very slim: the post is thin, the lantern the tag. (Cut 109 town v2, art/prompts/town_v2.txt.)",
+      "brief3": "a wrought-iron STREET LANTERN POST: a tall slim dark iron post on a small stone footing, a square iron-and-glass lantern at the top with a warm EMBER flame inside (the only warm colour), a small curl of iron bracket; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Very slim: the post is thin, the lantern the tag."
+    },
+    {
+      "id": "town_woodpile",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 96,
+      "texel_h": 48,
+      "description": "a FIREWOOD PILE: split logs stacked neatly in a low wide pile against two short stakes, a chopping STUMP beside it with an AXE bitten into it, a few wood chips; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Wide and low. (Cut 109 town v2, art/prompts/town_v2.txt.)",
+      "brief3": "a FIREWOOD PILE: split logs stacked neatly in a low wide pile against two short stakes, a chopping STUMP beside it with an AXE bitten into it, a few wood chips; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. Wide and low."
+    },
+    {
+      "id": "town_stall",
+      "kind": "town",
+      "bg": "keyed",
+      "gen": "1536x1024",
+      "master_h": 160,
+      "texel_h": 80,
+      "description": "a small MARKET STALL: a wooden trestle counter under a slanted cloth AWNING striped BONE and BLOOD (the tag), baskets of apples and cabbages and a few bottles on the counter, a crate and a sack beside it, a tiny hanging lantern; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing. (Cut 109 town v2, art/prompts/town_v2.txt.)",
+      "brief3": "a small MARKET STALL: a wooden trestle counter under a slanted cloth AWNING striped BONE and BLOOD (the tag), baskets of apples and cabbages and a few bottles on the counter, a crate and a sack beside it, a tiny hanging lantern; seen from the town's high three-quarter camera (the roof and the front wall both visible, the front wall facing the viewer and slightly to the lower-left, exactly like town_blacksmith_1.png and town_storehouse_1.png), INK line and washes on the pixel grid, steep dark slate roofs with MIST moonlit ridges, warm EMBER light only in its windows/door, standing on nothing."
     }
   ]
 }

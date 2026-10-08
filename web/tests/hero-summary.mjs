@@ -23,7 +23,7 @@ try{for(const width of [400,1440]){
   const details=document.querySelector('.hero-sheet .hero-history');details.open=true;check(details.textContent.includes('Class L10 · Class XP 900 / 1200'),`class training explicitly labelled: ${details.textContent}`);
   s.state='live';s.live={run_id:90,heir:s.heir,depth:13,start:1,hp:25,max_hp:40,turn:2,activity:'combat'};s.xp=180;a.emitLive();
   check(document.querySelector('.hero-progress').textContent==='Hero L3XP 180/540','live XP refresh');check(document.querySelector('.hero-menu-presence').textContent==='D13 · In combat','actual activity refresh');check(document.querySelector('.hero-menu-presence').title==='25/40 hp · run 90','actual health detail');check(document.querySelector('.hero-sheet .hero-history').open,'Details remains expanded');
-  s.state='rests';s.rest_s=20;a.emitLive();check(document.querySelector('.hero-menu-presence').textContent==='Resting 20s','rest refresh');
+  s.state='rests';s.rest_s=20;a.emitLive();check(document.querySelector('.hero-menu-presence').textContent==='Departs 20s','rest refresh');
   check(document.documentElement.scrollWidth<=innerWidth,'no overflow');closeAllSheets();check(a.liveListeners.size===before,'live listener removed on close');return n;
  });assert.equal(await p.evaluate(()=>window.__riddle.engine.save()),saved);assert.deepEqual(errors,[]);console.log(width,count,'hero/class progress and read-only live summary PASS');await p.close();
 }}finally{await b.close();}

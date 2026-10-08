@@ -34,6 +34,13 @@ const sameRow = (a: Row, b: Row): boolean =>
   a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
   a.conds.every((c, i) => c.k === b.conds[i].k && (c.n ?? "") === (b.conds[i].n ?? "") && (c.t ?? "") === (b.conds[i].t ?? ""));
 /** Cut 10 §2: the known-but-absent counter for a boss cause, from `Lineage.counters` (a client fallback for the wire's `try`). */
+/** The wall's words under a floor the boss above seals: `behind mother`; once the lineage has slain him, `mother returns` — blind
+ *  ad71e72 (B: `behind mother` "after the Bloat Mother was beaten"): every send meets him again, and the sims still stop there. */
+function wallWords(app: App, kind: string, name: string): string {
+  const slain = (app.lineage.walls ?? []).some((w) => w.slain && (w.boss === kind || kind.endsWith(w.boss) || w.boss.endsWith(kind)));
+  return slain ? /* copy:callout */ `${name} returns` : /* copy:callout */ `behind ${name}`;
+}
+
 export function clientTry(app: App, cause: string | undefined): ForecastTry | undefined {
   if (!cause) return undefined;
   const key = cause.replace(/ pack$/, "").trim().replace(/ /g, "_");
@@ -320,7 +327,7 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
         // wall says what it does (the boss above seals the stairs)
         cause ? enemyHost(h("small", { class: "dim" }, foeSrc(cause) ? unitLabel(cause, /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`, { px: 22 }) : /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`), cause, app.lineage) : "",
         boss ? enemyHost(h("small", { class: "boss-here" }, unitLabel(d.boss!, ` · ${boss}`, { px: 22 })), d.boss!, app.lineage) : "",
-        wall ? enemyHost(h("small", { class: "wall" }, unitLabel(d.wall!, /* copy:callout */ ` · behind ${wall}`, { px: 22 })), d.wall!, app.lineage) : "",
+        wall ? enemyHost(h("small", { class: "wall" }, unitLabel(d.wall!, ` · ${wallWords(app, d.wall!, wall)}`, { px: 22 })), d.wall!, app.lineage) : "",
         wall && sysOpen(app.lineage, "walls") ? h("small", { class: "wall-counter" }, ` · ${wallCounter(app, d.wall!, d as { counter?: string; counter_hint?: string })}`) : "",   // Cut 28 §1: the wall's path
         // Cut 20 §5: the bounty floor; Cut 28 §1: what it pays and needs (`bounty · $×2 · item · reach`)
         d.bounty ? h("small", { class: "bounty-x" }, ` · ${app.lineage.bounty?.depth === d.depth && (app.lineage.bounty.pays || app.lineage.bounty.needs) ? bountyText({ ...app.lineage.bounty, depth: d.depth }).replace(/^bounty · D\d+ · /, /* copy:callout */ "bounty · ") : bountyMult(d.bounty)}`) : "",
@@ -475,7 +482,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       // Cut 24 §5: the floor he stands on names him too (`D8 · warlord`); his wall below keeps its own mark
       const bossHere = d?.boss && !wall ? wallName(d.boss) : undefined;
       // QA 0c6e126 (qaY: `D8 · warlord` over `D9 · warlord` — "two warlords"): under a notch that names him the wall reads `· wall`
-      const wallText = wall ? /* copy:callout */ `behind ${wall}` : wall;   // docs/COPY.md pass 2 (`sealed` read as "D9 locked", no boss): who holds the stairs   // QA 524827b (qaAA: `D9 · wall <1%` unexplained): the boss above seals the stairs
+      const wallText = wall ? wallWords(app, d!.wall!, wall) : wall;   // docs/COPY.md pass 2 (`sealed` read as "D9 locked", no boss): who holds the stairs   // QA 524827b (qaAA: `D9 · wall <1%` unexplained): the boss above seals the stairs
       // QA 92eb880 (N: "D7 and D8 read 0% … the D8 label stays gold at 0%"): a notch nobody reaches is dim, label and all; a floor past
       // the set's own `depth ≥ N → bank` row is capped (dim), and the bank floor says so (`D6 · bank`)
       const zero = !!d && Math.round(d.reach * 100) === 0;
