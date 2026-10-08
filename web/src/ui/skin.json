@@ -204,7 +204,11 @@
   "v_shield",
   "v_shoot",
   "v_throw",
-  "vault"
+  "vault",
+  "ctl_hand",
+  "ctl_arrow",
+  "ctl_wait",
+  "ctl_release"
  ],
  "portraits": [
   "boss_goblin_captain",
