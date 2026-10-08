@@ -10,7 +10,10 @@ const answer=(j)=>j.choices.map(([id,slot])=>({id,slot,action:'equip',past:.9,ba
 closeAllSheets();openPackages(app);await tick();check(jobs.length===0,'opening starts no simulations');
 document.querySelector('.pkg-compare').click();await tick();check(jobs.length===1&&jobs[0].sims===8,'explicit eight-sample query');
 const styles=L.packages.all.filter(p=>p.kind==='stance'&&p.id!=='steady').map(p=>p.id);
-check(jobs[0].choices.length===styles.length&&jobs[0].choices.every(([id,slot])=>styles.includes(id)&&slot===0),'only opened styles queried');
+// 29e496a (blind 77030eb): compare opens both choosers (styles and tactics), so both are queried — exactly the opened ones, nothing closed or equipped
+const tactics=L.packages.all.filter(p=>p.kind==='tactic'&&p.owned&&!L.packages.tactics.includes(p.id)).map(p=>p.id),opened=[...document.querySelectorAll('.pkg-sec .pkg-choices')].filter(e=>!e.hidden).map(e=>e.closest('.pkg-sec').dataset.kind).sort().join();
+check(opened==='stance,tactic','compare opens both choosers');
+check(jobs[0].choices.length===styles.length+tactics.length&&jobs[0].choices.every(([id,slot])=>(styles.includes(id)&&slot===0)||(tactics.includes(id)&&slot===0)),'only opened styles and tactics queried');
 document.querySelector('[data-edit-slot="1"]').click();await tick();check(jobs.length===2&&jobs[1].choices.some(([id,slot])=>L.packages.all.find(p=>p.id===id).kind==='tactic'&&slot===1),'tactics use selected slot');
 document.querySelector('[data-change-kind="stance"]').click();await tick();check(jobs.length===3&&jobs[2].choices.every(([id,slot])=>L.packages.all.find(p=>p.id===id).kind==='tactic'&&slot===1),'closed styles excluded');
 jobs[2].resolve(answer(jobs[2]));await tick();jobs[0].resolve(answer(jobs[0]));jobs[1].resolve(answer(jobs[1]));await tick();

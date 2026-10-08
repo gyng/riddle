@@ -88,7 +88,7 @@ function trainingBadge(beat: string, open?: OpenTraining): HTMLElement {
     className: `beat-plaque${drill ? " drill" : ""}` });
   badge.dataset.training = beat;
   if (!open) return badge;
-  const b: HTMLButtonElement = h("button", { class: "training-open", "data-training": beat, onclick: () => open(b, beat) }, badge);
+  const b: HTMLButtonElement = h("button", { class: "training-open", onclick: () => open(b, beat) }, badge);
   return b;
 }
 const trainingBadges = (earned: string[], open?: OpenTraining): HTMLElement => h("div", { class: "beats" }, ...earned.map((b) => trainingBadge(b, open)));
