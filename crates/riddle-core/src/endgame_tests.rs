@@ -213,8 +213,8 @@ fn preview_is_read_only_matches_birth_and_removes_old_challenge_on_new_path() {
     let before=g.save();
     for tier in 0..=5 {
         let offer=g.descent_offer(tier).unwrap();
-        assert_eq!(offer.hp_bonus_percent,u64::from(tier)*8);
-        assert_eq!(offer.attack_bonus_percent,u64::from(tier)*4);
+        assert_eq!(offer.hp_bonus_percent,u64::from(tier)*5);
+        assert_eq!(offer.attack_bonus_percent,u64::from(tier)*2);
         assert_eq!(offer.affixes.iter().fold(0,|mask,m|mask|m.mask),affixes(tier));
         assert_eq!(offer.elites.len(),if tier>0 {2}else{0});
         assert_eq!(offer.boss.is_some(),tier>0);

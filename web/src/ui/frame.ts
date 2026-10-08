@@ -7,7 +7,7 @@ import { conceptCap, type Concept, type Term } from "./concepts";
 import { kwHost, kwText } from "./tips";
 const withCap = (el: HTMLElement | "", c: Concept, words?: string): HTMLElement | "" => { if (el) { const cap = conceptCap(c, words); if (cap) el.appendChild(cap); } return el; };
 import type { App } from "../app";
-import type { Row, Snapshot } from "../engine/types";
+import type { GoldLine, Row, Snapshot } from "../engine/types";
 import { h, replace } from "./dom";
 import { closeAllSheets, openSheet, openWindow } from "./sheet";
 import { heirOrd, rowLabel } from "./tokens";
@@ -17,6 +17,7 @@ import { icon, portraitSrc, verbIcon } from "./skin";
 import { openSettings } from "./settings";
 import { openHero } from "./town";
 import { openGoldSheet } from "./gold";
+import { goldWords } from "./gold-words";
 import { revealed } from "./reveal";
 import { onPackages, packagesShown } from "./packages";
 
@@ -40,6 +41,30 @@ export function flyCoins(target: HTMLElement, amount: number): void {
     void animation.finished.catch(() => undefined).finally(() => coin.remove());
   }
 }
+/** Blind 5331f40 (B: `$19193 → $14139` "between deaths without me spending"): the purse as last shown off the watch and the ledger's
+ *  newest line then; a fall since reads beside the `$` as the ledger's own spends (`−$5054 · forge`) until the purse moves again. */
+type PurseSeen = { gold: number; tail?: GoldLine; drop?: { text: string; title: string } };
+const purseSeen = new WeakMap<App, PurseSeen>();
+/** The ledger's word for a spend (`forge sword +3` → `forge`, `repeat heal` → `restock`, a supply kind → `supplies`). */
+export function spendWord(why: string): string {
+  const w = goldWords(why).split(/\s+/)[0] ?? "";
+  if (/^(forge|hire|unlock|oath|insure|hatch|bloodline|waystone|savings|ascended)$/.test(w)) return w;
+  return w === "repeat" ? /* copy:label */ "restock" : /* copy:label */ "supplies";
+}
+/** The purse's fall since `seen`, named from the ledger lines after `seen.tail` (by their spends, largest first); null on no fall. */
+export function purseDrop(seen: PurseSeen, gold: number, ledger: GoldLine[]): { text: string; title: string } | null {
+  if (gold >= seen.gold) return null;
+  const same = (a: GoldLine, b: GoldLine): boolean => a.t === b.t && a.why === b.why && a.delta === b.delta && (a.bloodline_id ?? 1) === (b.bloodline_id ?? 1);
+  const tail = seen.tail;
+  let at = -1; if (tail) for (let i = ledger.length - 1; i >= 0; i--) if (same(ledger[i], tail)) { at = i; break; }
+  const fresh = !tail ? [] : at >= 0 ? ledger.slice(at + 1) : ledger.filter((g) => g.t > tail.t);
+  const by = new Map<string, number>();
+  for (const g of fresh) if (g.delta < 0) by.set(spendWord(g.why), (by.get(spendWord(g.why)) ?? 0) + -g.delta);
+  const parts = [...by].sort((a, b) => b[1] - a[1]);
+  const fell = seen.gold - gold;
+  return { text: parts.length ? /* copy:callout */ `−$${fell} · ${parts[0][0]}` : /* copy:callout */ `−$${fell}`,
+    title: parts.length ? /* copy:tooltip */ parts.map(([w, n]) => `${w} −$${n}`).join(" · ") : /* copy:tooltip */ "gold ledger" };
+}
 /** `live`: the camp's bar (the stud the settings; the wake's offers row under it). The `$` opens the gold sheet everywhere but on
  *  the watch (`watch`): a sheet over the run reads as the exit sheet to the tooling. */
 export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait?: string; watch?: boolean } = {}): Bar {
@@ -49,6 +74,12 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
   let previousGold = app.lineage.gold;
   function paint(): void {
     const L = app.lineage, R = revealed(app), past = opts.heir !== undefined && opts.heir !== L.heir;
+    // the purse's fall since it was last shown off the watch, with what spent it (the watch neither reads nor moves the mark)
+    const ledger = L.gold_ledger ?? [];
+    let seen = purseSeen.get(app);
+    if (!seen) { seen = { gold: L.gold, tail: ledger[ledger.length - 1] }; purseSeen.set(app, seen); }
+    if (!opts.watch && L.gold !== seen.gold) { seen.drop = purseDrop(seen, L.gold, ledger) ?? undefined; seen.gold = L.gold; seen.tail = ledger[ledger.length - 1]; }
+    const drop = !opts.watch && L.town?.home !== false ? seen.drop : undefined;
     // the glyph (`◆` `★`) stays in the text (the tooling reads `◆7`) but the icon stands for it on screen
     // (owner check, 2026-10-02: `rank from deeds` over `levels packages` — one first-time caption on the bar at a time; the next waits
     // until this one is seen)
@@ -71,7 +102,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
         // docs/COPY.md pass 3: the word over it (`lineage`, then `family`) read "no idea" 11 of 14 times — the purse needs none
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
-        !opts.watch ? kwHost(h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), h("small", { class: "resource-label" }, /* copy:label */ "Gold"), `$${L.gold}`), "gold") : h("span", { class: "num stat gold" }, icon("gold"), h("small", { class: "resource-label" }, /* copy:label */ "Gold"), `$${L.gold}`),
+        !opts.watch ? kwHost(h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), h("small", { class: "resource-label" }, /* copy:label */ "Gold"), `$${L.gold}`, drop ? h("small", { class: "gold-drop", title: drop.title }, drop.text) : ""), "gold") : h("span", { class: "num stat gold" }, icon("gold"), h("small", { class: "resource-label" }, /* copy:label */ "Gold"), `$${L.gold}`),
         L.town?.home !== false && L.hero_legacy?.length ? h(opts.watch ? "span" : "button", { class: "num stat legacy", onclick: !opts.watch ? (e: Event) => openHero(app, e.currentTarget as HTMLElement) : undefined, "aria-label": /* copy:label */ `Hero Legacy ${L.bloodline?.points ?? L.hero_legacy.find((x) => x.heir === (opts.heir ?? L.heir))?.points ?? 0}` }, h("small", { class: "resource-label" }, /* copy:label */ "Legacy"), String(L.bloodline?.points ?? L.hero_legacy.find((x) => x.heir === (opts.heir ?? L.heir))?.points ?? 0)) : null,
         cap1(stat("marks", "mark", "◆", L.marks, !opts.watch && (R.has("unlocks") || (packagesShown(L) && L.marks > 0)), "marks"), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "upgrade tokens"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
         cap1(stat("rank", "renown", "★", L.rank ?? 0, !opts.watch && R.has("rank") && !past, "renown"), "renown"),

@@ -7,8 +7,10 @@ pub const ARMOURED: u8 = 1;
 pub const SWIFT: u8 = 2;
 pub const REGENERATING: u8 = 4;
 pub const STAT_CAP: i32 = 1_000_000;
-const HP_PERCENT: u64 = 8;
-const ATTACK_PERCENT: u64 = 4;
+// Cut 113 §4: the dungeon's own late walls rose (Queen, King), so each numbered tier adds less on
+// top: +5 % HP, +2 % damage a tier (was 8 / 4; a fixed earned set cleared tiers 2–3 0/4 at 8 / 4).
+const HP_PERCENT: u64 = 5;
+const ATTACK_PERCENT: u64 = 2;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

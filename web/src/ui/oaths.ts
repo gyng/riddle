@@ -16,6 +16,7 @@
 //   Forecast.oath: OathShare        the sworn oath's share of the sims that keep it (with ±)
 //   ReturnReport.oath: OathReport   the sworn oath's night: kept or not, its progress words, done → the reward
 //   engine.swearOath(id) / engine.forswearOath()
+import { counterName } from "./counter-name";
 import { conceptCap } from "./concepts";
 import type { App } from "../app";
 import type { Forecast, Lineage, Oath, OathReport, OathReward, OathShare, ReturnReport, Row } from "../engine/types";
@@ -167,7 +168,7 @@ export function openOathBoard(app: App, anchor: HTMLElement): void {
   }, { anchor });
 }
 /** `warlord: aim` → `counter: attack boss` when the lineage knows the counter's rule; the core's fact otherwise (`mother: ?`). */
-const counterShown = (L: Lineage, fact: string): string => { const boss = fact.split(":")[0].trim(); const c = (L.counters ?? []).find((x) => x.boss.endsWith(boss.replace(/ /g, "_")) || x.boss.endsWith(boss)); return c?.text ? /* copy:callout */ `counter: ${c.text}` : fact; };
+const counterShown = (L: Lineage, fact: string): string => { const boss = fact.split(":")[0].trim(); const c = (L.counters ?? []).find((x) => x.boss.endsWith(boss.replace(/ /g, "_")) || x.boss.endsWith(boss)); return c?.text ? /* copy:callout */ `counter: ${counterName(L, c.text, c.row)}` : counterName(L, fact); };
 const eng = (app: App): Pick<App["engine"], "swearOath" | "forswearOath" | "forswearOathId" | "drawOath" | "commission"> => app.engine;
 
 /** The sworn oath on the shaft: the seal and the share, then its formula (`D3 no rest → ▤`). */

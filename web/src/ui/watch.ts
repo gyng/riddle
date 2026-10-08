@@ -114,6 +114,7 @@
 // ticks after the last of those stops holding. Entry and exit are released at the viewer's clock (the engine runs ahead),
 // so the cut lands when the foes are on screen. The fight frame runs at 1× whatever the mode; the map frame keeps the
 // cadence above. `data-frame="map|fight"` on the element for tooling.
+import { namedCounters } from "./counter-name";
 import { enemyHost } from "./enemy-tips";
 import { unitLabel } from "./unit-icon";
 import "../legible.css";
@@ -210,11 +211,13 @@ const DEAD_TICKS_ONE = 35;
 // steps ahead in big batches (≤ DEAD_JUMP_WALL_MS) to the next move, the stairs, a beat or the end, and the picture lands JUMP_LAND
 // ticks before it; with none found it lands on the frontier and plays on (another jump DEAD_JUMP_MS later)
 const DEAD_JUMP_MS = 2500, DEAD_JUMP_WALL_MS = 1200, JUMP_LAND = 15;
+const KILL_LEAD = 3;                // blind 5331f40: a jump that meets a boss's unshown kill lands this many ticks before it
 // …and a picture whose clock has not moved for STUCK_MS while the run is live, unfrozen and nothing deliberate holds it (a beat, the
 // cage, the exit flow, a fold) is landed live and the card let go — whatever held it, the watch never freezes
 const STUCK_MS = 4000;
 const CALM_MIN = 10;                // Cut 28 §3: a core calm stretch this long (ticks, 1 s at 1×) or more plays as travel
 const RISE_FREE = 16, RISE_MS = 150;   // blind 1fb7786 (B): the clock jumps freely up to the fights travel; past it, it doubles at most every RISE_MS
+const ONE_MAX = 4;                  // blind 5331f40: `one` (Speed Normal) — a dead stretch travels at most 4× (then jumps, announced)
 const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
 /** Cut 25 §3 (AN: ~55 s of max hp draining 41 → 17 with only numbers moving): a drain — the hero's hp or max hp falling with no blow
  *  (hunger, poison, a curse). The core's `drain` (its word, or `true`) when it sends one, else a cause the word table knows. A drain is
@@ -567,11 +570,15 @@ export function renderWatch(app: App): Mounted {
   // the beat's end or the tick before the stairs), its line keeps the ticker; a beat whose tick comes meanwhile waits its turn
   let beatHoldUntil = 0;
   const beatNext: Beat[] = [];
+  // blind 5331f40 (both Mirror King kills ended off-view: `Run ended · Watching D33`, then the report): a boss's kill is a witnessed
+  // beat — no jump (live, the ending, a dead stretch's jump, a skip) lands past one the playhead has not shown; `floorFrom` the tick the
+  // viewer's floor opened (a kill on a floor already left cannot be shown again)
+  const killBeats: Beat[] = []; let floorFrom = -Infinity;
   let heldBeat: Beat | null = null;   // the beat the hold is for
   const descends: number[] = [];      // engine ticks of the run's descends (a held beat stops short of the stairs)
   // Cut 24 §1: the engine ticks where the watch moved — a blow that landed, a hurt, a drink, a kill, a pickup, a descent (ascending)
   const progress: number[] = [];
-  let deadFrom = -1, lastJumpAt = 0, jumps = 0, stuckTick = -1, stuckAt = 0, unsticks = 0;   // QA ad71e72: the dead stretch's wall start, the jumps, the stuck-picture watchdog
+  let jumpsSaid = 0; let deadFrom = -1, lastJumpAt = 0, jumps = 0, stuckTick = -1, stuckAt = 0, unsticks = 0;   // QA ad71e72: the dead stretch's wall start, the jumps, the stuck-picture watchdog
   let keepClose: (() => void) | null = null;   // blind 1fb7786: the open keep sheet's close (it keeps the ticked picks) — the gem's tap goes on through it
   let riseAt = 0;                     // blind 1fb7786: when the clock last eased up (`eased`)
   let deadSince = -1;                 // Cut 18 §1: `fast` — when the current dead stretch began (wall ms; -1 none): its rate ramps
@@ -597,7 +604,7 @@ export function renderWatch(app: App): Mounted {
   let exitLine: ExitLine | undefined;   // Cut 6 §1: the exit's ledger line (exit sheet, report, death)
   let exitTrace: Trace | undefined;     // Cut 9 §5: the exit's last-5 trace (on the event, or on its line)
   const bonesFound: string[] = []; const bossSeen = new Set<number>();
-  let counters = app.lineage.counters ?? [];   // Cut 6 §5: bosses with a named counter row, re-read on a sighting
+  let counters = namedCounters(app.lineage);   // Cut 6 §5: bosses with a named counter row, re-read on a sighting
   let snap: Snapshot | null = null;
   let runId = -1, engineTick = 0, startTick = 0, inflight = false, lastPersist = performance.now();
   const loads: { snap: Snapshot; rest: Ev[]; at?: number }[] = [];   // at: Cut 25 §3, the descend tick that opens the floor   // Cut 14 §6: floors the engine reached that the viewer has not (a queue, oldest first)
@@ -816,7 +823,7 @@ export function renderWatch(app: App): Mounted {
           const named = counters.find((c) => c.boss === e.kind)?.text;
           showCounter(named ? /* copy:callout */ `counter: ${named}` : known() ? /* copy:callout */ "counter: known" : /* copy:callout */ "counter: unknown", BOSS_BANNER_MS);
         };
-        app.engine.lineage().then((L) => { counters = L.counters ?? counters; }).catch(() => { /* the mounted lineage's counters stand */ }).finally(() => { if (!disposed) show(); });
+        app.engine.lineage().then((L) => { counters = L.counters ? namedCounters(L) : counters; }).catch(() => { /* the mounted lineage's counters stand */ }).finally(() => { if (!disposed) show(); });
       });
     }
   }
@@ -869,7 +876,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** Cut 13 §4: a situation's note opens the fight frame for SCENE_TICKS from its tick (or rides a fight already framed there);
    *  its text is the callout, shown once the frame is up. */
-  function beatAt(t: number, text: string, exit = false, hold = false, isCage = false, why?: string): void {
+  function beatAt(t: number, text: string, exit = false, hold = false, isCage = false, why?: string): Beat {
     const v = viewerTick();
     // a frame that is up (or opening) before t carries the beat; a fight the probe dropped (`fightFrom` cleared) does not
     const framed = fightFrom <= t && (fightOn || v < fightUntil);
@@ -883,6 +890,7 @@ export function renderWatch(app: App): Mounted {
     el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
     // Cut 18 §1: a beat the playhead jumped over (a skip, a seek to live) is not held after the fact
     at(t, () => { if (b.shown) return; if (!b.exit && viewerTick() >= b.until) { b.shown = true; if (b.cage && cage) cage.done = true; return; } beat = b; showBeat(true); });
+    return b;
   }
   /** The beat's line, once the frame is up and the PLAYHEAD has reached the beat's tick (`reached`: released at the viewer's clock).
    *  A fight cut before it (a kept span the viewer replays behind the frontier) never carries a later beat's line (QA on 3d71c33:
@@ -1102,7 +1110,7 @@ export function renderWatch(app: App): Mounted {
             break;
           }
           // Cut 15 §4: a boss's kill is a beat — the frame holds on it with `WARLORD DOWN` (its own line, not `slain`)
-          if (bossIds.has(ev.id) && !allies.has(ev.id)) { const id = ev.id; at(ev.t, () => { if (bossHud?.id === id) { bossHud = null; paintBoss(); } }); beatAt(ev.t, bossDown(kinds.get(ev.id) ?? victims.get(ev.id) ?? "boss"), false, true); at(ev.t, () => cue("boss_down")); break; }
+          if (bossIds.has(ev.id) && !allies.has(ev.id)) { const id = ev.id; at(ev.t, () => { if (bossHud?.id === id) { bossHud = null; paintBoss(); } }); killBeats.push(beatAt(ev.t, bossDown(kinds.get(ev.id) ?? victims.get(ev.id) ?? "boss"), false, true)); at(ev.t, () => cue("boss_down")); break; }
           const v = victims.get(ev.id), vk = kinds.get(ev.id) ?? v; if (v) at(ev.t, () => { callout(/* copy:callout */ `${v} slain`, "kill", HURT_MS); cue("slay", { kind: vk }); });
           break;
         }
@@ -1141,7 +1149,7 @@ export function renderWatch(app: App): Mounted {
           if (/^fork\b/i.test(ev.fact)) { const key = `stairs@${s.depth}`; if (!refused.has(key)) { refused.add(key); beatAt(ev.t, /* copy:callout */ "TWO STAIRS"); } }
           // Cut 6 §5: the counter learned mid-fight (the boss's first telegraph) names itself: `boss · counter: attack boss`
           const m = /^boss:([a-z_]+):counter(?:=|$)/.exec(ev.fact);
-          if (m) at(ev.t, () => { app.engine.lineage().then((L) => { counters = L.counters ?? counters; }).catch(() => { /* keep */ }).finally(() => {
+          if (m) at(ev.t, () => { app.engine.lineage().then((L) => { counters = L.counters ? namedCounters(L) : counters; }).catch(() => { /* keep */ }).finally(() => {
             const named = counters.find((c) => c.boss === m[1])?.text; if (named && !disposed) showCounter(/* copy:callout */ `counter: ${named}`, BOSS_BANNER_MS);
           }); });
           break;
@@ -1276,10 +1284,10 @@ export function renderWatch(app: App): Mounted {
   function drainLoads(): void { if (!viewer) return; for (let p = takeLoad(); p; p = takeLoad()) loadFloor(p); }
   /** A queued floor into the viewer. QA (qaj under load: `COLLECTED $N` at t816, then the picture at t791): a load resets the clock to
    *  its snapshot's turn — a picture already past it (the walk-out plays on past the frontier) is put back where it was, never rewound. */
-  function loadFloor(p: { snap: Snapshot; rest: Ev[] }): void {
+  function loadFloor(p: { snap: Snapshot; rest: Ev[]; at?: number }): void {
     if (!viewer) return;
     const v = viewer.tick?.() ?? viewerTick();
-    viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest);
+    viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); floorFrom = p.at ?? p.snap.turn;
     if (Number.isFinite(v) && v > p.snap.turn + 1) seekTo(v);
   }
   /** Cut 14 §6: the viewer lands on the frontier (live) — every queued floor loaded, the clock at the engine's tick (the ending's
@@ -1288,12 +1296,24 @@ export function renderWatch(app: App): Mounted {
   window.addEventListener("riddle:focus-hero",focusHero);
   function goLive(): void {
     releaseBeat();   // Cut 18 §1: landing live lets a held beat go
-    drainLoads();
-    const t = held ? Math.max(viewerTick(), endingFrom) : Math.max(viewerTick(), engineTick);
+    // blind 5331f40: live (or the ending's start) at most — short of a boss's kill not yet shown, whose floor stays loaded
+    const want = held ? Math.max(viewerTick(), endingFrom) : Math.max(viewerTick(), engineTick);
+    while (loads.length && !killAhead(loads[0].at ?? Infinity)) loadFloor(takeLoad()!);
+    const t = killStop(want);
     seekTo(t); release(t); letGo(t); applyFrame(); applySpeed();
   }
   /** Land the viewer's clock on tick t (both directions; the placeholder viewer's wall clock too). */
+  /** blind 5331f40: the first boss kill the playhead has not shown, on the viewer's floor (or a floor still queued), in (v, t]. */
+  function killAhead(t: number): Beat | undefined {
+    const v = viewerTick();
+    return killBeats.find((b) => !b.shown && b.from > v && b.from <= t && b.from >= floorFrom);
+  }
+  /** blind 5331f40: a forward jump to t stops KILL_LEAD ticks short of a boss's kill the picture has yet to show (never back). */
+  function killStop(t: number): number { const k = killAhead(t); return k ? Math.max(viewerTick(), k.from - KILL_LEAD) : t; }
+  /** A queued floor is loaded only when no unshown kill comes before its stairs (the kill's floor would go with the load). */
+  function loadNext(): void { if (loads.length && killAhead(loads[0].at ?? Infinity)) return; const p = takeLoad(); if (p) loadFloor(p); }
   function seekTo(t: number): void {
+    t = killStop(t);
     const fv = viewer as (Viewer & { seek?: (t: number) => void }) | null;
     if (fv?.seek) fv.seek(t); else fv?.skipToEvent();
     fbTick = t; fbAt = performance.now();
@@ -1399,7 +1419,7 @@ export function renderWatch(app: App): Mounted {
   }
   /** Cut 12 §6: a skip that found the run's end lands the viewer at the ending (its last ENDING_TICKS still play at 1×) —
    *  a fight that held the exit used to leave the press with nothing visible until the clock got there on its own. */
-  function toEnding(): void { const t = Math.max(viewerTick(), endingFrom); if (t > viewerTick()) { release(t); seekTo(t); } applyFrame(); applySpeed(); }
+  function toEnding(): void { const t = killStop(Math.max(viewerTick(), endingFrom)); if (t > viewerTick()) { release(t); seekTo(t); } applyFrame(); applySpeed(); }   // blind 5331f40: short of an unshown kill
   function manualPump(): void {
     paintWatchStatus();
     if (cardUp) cardExpired();
@@ -1567,7 +1587,8 @@ export function renderWatch(app: App): Mounted {
     else if (held) {
       // Cut 7 §4: the clock runs on (8× through dead air) to the ending, then the exit batch plays and the exit flow waits for it
       // Cut 10 §1: under the card the viewer jumps to the ending (the walk-out plays at 1×; the card hides there)
-      if (cardUp && now < endingFrom) { release(endingFrom); seekTo(endingFrom); now = endingFrom; applyFrame(); applySpeed(); }
+      // blind 5331f40: …short of a boss's kill not yet shown (the climax plays, then the walk-out)
+      { const to = killStop(endingFrom); if (cardUp && now < to) { release(to); seekTo(to); now = to; applyFrame(); applySpeed(); } }
       if (now < endingFrom) return;
       const hb = held; held = null; feed(hb.evs, hb.snap);
       exitTier = hb.tier; exitAt = performance.now() + EXIT_GRACE_MS;
@@ -1578,7 +1599,8 @@ export function renderWatch(app: App): Mounted {
       if (!(viewerIdle() || performance.now() > exitAt)) return;
       // Cut 28 (a loaded machine: the 1× walk-out outlasted the grace and `COLLECTED $N` took the line at t791 of an exit at t800): the grace
       // seeks the picture to the frontier first — the exit's line is released with the picture on the exit, never before it
-      if (!viewerIdle() && viewerTick() < engineTick) { seekTo(engineTick); applyFrame(); }
+      if (!viewerIdle() && viewerTick() < engineTick) { const to = killStop(engineTick); seekTo(to); applyFrame(); if (to < engineTick) return; }
+      if (beatHeld() && heldBeat && killBeats.includes(heldBeat)) return;   // blind 5331f40: the kill's beat holds its wall time before the exit flow
       release(Infinity);
       nextGem();   // QA 92eb880: the walk-out has played — now the gem says what comes next
       if (performance.now() < exitBeatUntil) return;   // Cut 14 §3: `COLLECTED $N` has its SCENE_MS first
@@ -1653,8 +1675,12 @@ export function renderWatch(app: App): Mounted {
     } catch (e) { console.warn("jump failed", e); }
     inflight = false;
     if (disposed || done) return;
-    const t = Math.max(viewerTick(), Math.min(engineTick, ahead() - JUMP_LAND));
-    if (t > viewerTick() + 1) { release(t); seekTo(t); letGo(t); }
+    const t = killStop(Math.max(viewerTick(), Math.min(engineTick, ahead() - JUMP_LAND)));
+    if (t > viewerTick() + 1) {
+      release(t); seekTo(t); letGo(t);
+      // blind 5331f40 (A): in `one` the picture never ramps past ONE_MAX — a jump over a dead stretch says so
+      if (mode === "one") { jumpsSaid++; el.dataset.jumpsSaid = String(jumpsSaid); callout(/* copy:callout */ "skipped ahead", "beat"); }
+    }
     jumps++; el.dataset.jumps = String(jumps); lastJumpAt = performance.now();
     applyFrame(); applySpeed();
   }
@@ -1794,9 +1820,11 @@ export function renderWatch(app: App): Mounted {
   /** Cut 24 §1: a dead stretch's rate — the travel's, ramping as `fast`'s dead stretch does, landing on the next move DEAD_LAND_MS out. */
   function deadStretch(was: number, v: number): number {
     deadSince = was < 0 ? performance.now() : was;
-    const base = earlyFloor() ? EARLY_TRAVEL : mode === "one" ? AUTO_FAST : RATE[mode], age = performance.now() - deadSince;
-    // `fights` tops out at DEAD_MAX_FIGHTS (a stretch the core cuts at 60 actions is ~1 s there; its engine lead stays short of a cage)
-    let r = age < DEAD_RAMP_MS ? base : Math.min(mode === "fights" ? DEAD_MAX_FIGHTS : FAST_MAX, base * 2 ** (1 + Math.floor((age - DEAD_RAMP_MS) / DEAD_STEP_MS)));
+    const base = earlyFloor() ? EARLY_TRAVEL : mode === "one" ? ONE_MAX : RATE[mode], age = performance.now() - deadSince;
+    // `fights` tops out at DEAD_MAX_FIGHTS (a stretch the core cuts at 60 actions is ~1 s there; its engine lead stays short of a cage);
+    // blind 5331f40 (A: "even on Speed Normal the badge jumped 1× … 128× … 16×"): `one` never ramps past ONE_MAX — a long dead
+    // stretch is jumped instead (DEAD_JUMP_MS), and the jump is announced (`skipped ahead`)
+    let r = age < DEAD_RAMP_MS ? base : Math.min(mode === "fights" ? DEAD_MAX_FIGHTS : mode === "one" ? ONE_MAX : FAST_MAX, base * 2 ** (1 + Math.floor((age - DEAD_RAMP_MS) / DEAD_STEP_MS)));
     // lands DEAD_LAND_MS before the next move, the stairs, the ending; never past the frontier (the engine is stepped to the lead)
     // (and before a beat not yet shown — a cage's, a situation's: at 128× the playhead jumped a cage's whole beat and its tap with it)
     const d = descends.find((t) => t >= v), b = beat && !beat.shown && beat.from >= v ? beat.from : Infinity;
@@ -2114,7 +2142,7 @@ export function renderWatch(app: App): Mounted {
         for (let i = 0; i < SKIP_FIGHT_BATCHES && !held && !disposed && performance.now() < budget; i++) {
           const r = await app.engine.step(snap && cageNear(snap) ? CAGE_BATCH : SKIP_END_BATCH); handle(r);
           if (held || r.run_over || cageMet()) break;
-          const p = takeLoad(); if (p) loadFloor(p);
+          loadNext();
         }
       } catch (e) { console.warn("skip failed", e); }
       inflight = false;
@@ -2135,7 +2163,7 @@ export function renderWatch(app: App): Mounted {
         for (let i = 0; i < 120 && fightOn && !Number.isFinite(fightUntil) && !disposed && performance.now() < until; i++) {
           const r = await app.engine.step(BATCH); handle(r);
           if (held) break;
-          const p = takeLoad(); if (p) loadFloor(p);
+          loadNext();
         }
       } catch (e) { console.warn("skip failed", e); }
       inflight = false;
@@ -2148,7 +2176,7 @@ export function renderWatch(app: App): Mounted {
       else {
         // Cut 14 §6: the end of the span the playhead is in (a kept one, or the live fight's), whichever is later
         const v = viewerTick(), sp = spans.find((x) => v >= x.from && v < x.until);
-        const t = Math.max(Number.isFinite(fightUntil) ? fightUntil : -Infinity, sp?.until ?? -Infinity, Number.isFinite(fightUntil) || sp ? -Infinity : Math.max(v, engineTick));
+        const t = killStop(Math.max(Number.isFinite(fightUntil) ? fightUntil : -Infinity, sp?.until ?? -Infinity, Number.isFinite(fightUntil) || sp ? -Infinity : Math.max(v, engineTick)));   // blind 5331f40: short of an unshown kill
         seekTo(t); release(t); letGo(t); applyFrame(); applySpeed();
         // QA e75ec29: then on to the next fight worth watching — the card takes the travel as soon as the frame gives way
         if (mode === "fights" && earlyFloor()) { if (frame !== "fight") skipToCard(); else skipEarly = true; }
@@ -2173,7 +2201,7 @@ export function renderWatch(app: App): Mounted {
         hit = r.run_over || (inFight ? !fightOn : fightOn);
         if (held || cageMet()) break;   // QA 1a2a4a9: a cage stops the skip (its beat, then the next press goes on)
         // a floor change on the way: load it now (the skip is the drain), the queued events straight into place
-        const p = takeLoad(); if (p) loadFloor(p);
+        loadNext();
       }
       landed = fightOn && fightFrom > viewerTick();
     } catch (e) { console.warn("skip failed", e); }

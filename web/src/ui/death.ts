@@ -9,6 +9,7 @@
 // the patches like a death's. §4: the run's last two notes (`Death.notes`, engine data verbatim) sit under the headline.
 // §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
 // when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
+import { counterName } from "./counter-name";
 import { trainingBlock } from "./tracks";
 import { meterPanel } from "./meters";
 import { AUTO, autoDismiss } from "./autodismiss";
@@ -546,10 +547,10 @@ function drivenBlock(app: App, dv: DrivenOff, select: (b: HTMLButtonElement) => 
   };
   const moveIt = have >= 0 && over >= 0;
   const btn: HTMLButtonElement = h("button", { class: `patch tablet driven-line${have >= 0 && !moveIt ? " held" : ""}${moveIt ? " move" : ""}`, onclick: () => select(btn), "data-gem": moveIt ? /* copy:button */ "move" : have >= 0 ? /* copy:button */ "edit" : /* copy:button */ "write",
-    "data-short": moveIt ? /* copy:button */ `move ${ruleName(app.rules.rows, have)} up` : have >= 0 ? ruleName(app.rules.rows, have) : `+ ${dv.counter}`, "data-eff": /* copy:callout */ "counter" },
+    "data-short": moveIt ? /* copy:button */ `move ${ruleName(app.rules.rows, have)} up` : have >= 0 ? ruleName(app.rules.rows, have) : `+ ${counterName(app.lineage, dv.counter, dv.row)}`, "data-eff": /* copy:callout */ "counter" },
     h("b", { class: "rank num", "aria-hidden": "true" }, "1."),
     h("span", { class: "patch-main" }, h("span", { class: "chips-inline" }, moveIt ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move above ${ruleName(app.rules.rows, over)} `) : "", rowLabel(dv.row))),
-    h("span", { class: "patch-nums" }, h("span", { class: "num surv" }, moveIt ? /* copy:callout */ `under ${ruleName(app.rules.rows, over)}` : have >= 0 ? /* copy:callout */ "already written" : /* copy:callout */ `try: ${dv.counter}`)));
+    h("span", { class: "patch-nums" }, h("span", { class: "num surv" }, moveIt ? /* copy:callout */ `under ${ruleName(app.rules.rows, over)}` : have >= 0 ? /* copy:callout */ "already written" : /* copy:callout */ `try: ${counterName(app.lineage, dv.counter, dv.row)}`)));
   applyOf.set(btn, write);
   return h("div", { class: "patches driven" }, h("div", { class: "patches-moment num dim" }, have >= 0 ? /* copy:callout */ `D${dv.depth} · order` : /* copy:callout */ `D${dv.depth} · counter unwritten`), btn);
 }

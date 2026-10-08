@@ -5024,8 +5024,9 @@ impl Game {
         if self.batch.row_runs.len() < ROWS_TOTAL {
             self.batch.row_runs = vec![0; ROWS_TOTAL];
         }
+        // (every compiled row's fires — the package rows past the pen's ten too: a later `attack nearest` read 'fired in 0 of N')
         for (i, n) in run.row_fired.iter().enumerate() {
-            if i < MAX_ROWS {
+            if i < ROWS_TOTAL {
                 self.batch.row_fired[i] += n;
                 if *n > 0 {
                     self.batch.row_runs[i] += 1;

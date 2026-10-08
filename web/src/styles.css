@@ -1832,3 +1832,6 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 .replay .gun-hud[data-state="reload"] { color:#cfbf9f; }
 .gun-reload-track { width:44px; height:3px; background:#17131c; box-shadow:0 1px 0 #75634d; border-radius:2px; overflow:hidden; }
 .gun-reload-fill { display:block; height:100%; background:var(--gilt); }
+/* blind 5331f40 (B: the purse fell $5054 with no word): the fall since last shown and what spent it, under the `$` */
+.topbar .stat.gold { position: relative; }
+.topbar .stat.gold .gold-drop { position: absolute; left: 0; top: calc(100% - 6px); font-size: 11px; line-height: 1; white-space: nowrap; color: #d99a8a; pointer-events: none; }

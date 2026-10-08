@@ -5,6 +5,7 @@
 //            last row has no ▼ (it cannot sit under a package); package rows carry no ×
 //   cap      on a full set a package row's ▲ is off; a move patch that takes a row asks first (`patchTakesRow`) and, over a drop, lands
 //            without crossing the cap
+//   fold     the edit tile brings the editor's first row into view (blind 5331f40 A: the rows sat below the fold)
 //   delete   the first × tap arms it visibly (`drop`, the tablet ringed) and keeps the row; the second deletes it
 //
 //   node web/tests/pen-edit.mjs [--part=a,b]      (part of `pnpm test` in web/)
@@ -74,6 +75,20 @@ try {
     // blind 1fb7786 (B: "pinned at the top, step-down disabled"): the dead ▼ says why, and the row carries the line
     const penEnd = await page.evaluate((sel) => ({ title: document.querySelector(`${sel} .step.down`)?.title, note: document.querySelector(`${sel} .pen-end-note`)?.textContent, others: document.querySelectorAll(".camp .editor .pen-end-note").length }), tablet(0));
     check(penEnd.title === "packages below" && penEnd.note === "▼ packages below" && penEnd.others === 1, `the pen's end reads \`packages below\` on its ▼ and its row, once (${JSON.stringify(penEnd)})`);
+  }
+
+  if (part("fold")) {
+    // blind 5331f40 (A: "tapping `edit` only showed a tooltip; the rows sat under the town and needed a scroll"): the edit tile brings
+    // the editor's rows into view
+    await penOpen(4104);
+    await sleep(300);
+    const seen = await page.evaluate(() => {
+      const r = document.querySelector(".camp .editor .rows > .row.tablet")?.getBoundingClientRect(), w = document.querySelector(".camp .well")?.getBoundingClientRect();
+      if (!r || !w) return { r: !!r, w: !!w };
+      const cx = r.left + r.width / 2, cy = r.top + Math.min(r.height / 2, 12), hit = document.elementFromPoint(cx, cy);
+      return { top: Math.round(r.top), bottom: Math.round(r.bottom), wellTop: Math.round(w.top), wellBottom: Math.round(w.bottom), vh: innerHeight, onRow: !!hit?.closest(".editor") };
+    });
+    check(seen.top >= seen.wellTop - 1 && seen.top < Math.min(seen.wellBottom, seen.vh) - 20 && seen.onRow, `after \`edit\` the editor's first row is in view, uncovered (${JSON.stringify(seen)})`);
   }
 
   if (part("cap")) {

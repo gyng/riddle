@@ -247,7 +247,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
-  const lanes = heroRoster(app, { focus:()=>{town.el.scrollIntoView({block:"nearest"});town.view.focusHero();}, rules:()=>{app.editing=true;editor.refresh();paintTiles();} });
+  const lanes = heroRoster(app, { focus:()=>{town.el.scrollIntoView({block:"nearest"});town.view.focusHero();}, rules:()=>{app.editing=true;editor.refresh();paintTiles();showEditor();} });
   const restLine = h("div", { class: "rest-line lanes-line heroes-col" }, lanes.el, rest);
   const face = portrait(app, { label: "" });
   const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
@@ -271,6 +271,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   wellRo?.observe(well);
   const el = h("main", { class: "camp frame" }, strip, h("div", { class: "well-wrap" }, well, scene.el, shaft.vsEl, scene.line, restLine, panelHost, panelStore), cons.el);
   setBusyHost(busyStrip);
+  // blind 5331f40 (A: "tapping edit only showed a tooltip; the rows sat under the town and needed a scroll"): opening the editor
+  // brings its rows into the well's view (after the refresh lays them out)
+  function showEditor(): void { requestAnimationFrame(() => { if (editor.el.isConnected && editor.el.offsetParent) editor.el.scrollIntoView({ block: "start" }); }); }
   function flashRow(i: number): void { const r = editor.el.querySelector<HTMLElement>(`.row[data-i="${i}"]`); if (r) { flash(r, "hl", 1600); r.scrollIntoView({ block: "center" }); } }
 
   // QA 1a2a4a9 (P: "nothing on the camp shows what's packed — only opening SUPPLIES does"): the loadout tile carries the pack's count
@@ -314,7 +317,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
         // Cut 30 §2/§5: the packages and the quest board (the board by the mouth opens it too)
         packagesShown(app.lineage) && tile({ id: "packages", label: /* copy:button */ "tactics", icon: "unlocks", glyph: "✦", fresh: freshSys("stances", "tactics", "tactic2", "temperament"), onclick: (e: Event) => { closeAllSheets(); openPackages(app, e.currentTarget as HTMLElement); } }),
         questShown(app.lineage) && tile({ id: "quest", label: /* copy:button */ "quest", icon: "renown", glyph: "✠", fresh: freshSys("quests"), onclick: () => { closeAllSheets(); openQuest(app, anchor("board")); } }),
-        R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
+        R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); showEditor(); }, app.editing),
         R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "supplies", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
         R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
         R.has("heirs") && t("ledger", /* copy:button */ "enemy guide", "ledger", () => openLedger(app)),
@@ -326,7 +329,7 @@ export function renderCamp(app: App, highlight?: number): Mounted {
     cons.setTiles([
       // QA 92eb880 (N: "the `edit` tile toggles: tapping it while editing closes the editor (I lost the next tap twice)"): it turns
       // editing on and stays lit; a second tap closes the open panel, never the editor
-      R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); }, app.editing),
+      R.has("edit") && penOpen(app.lineage) && t("edit", /* copy:button */ "edit", "edit", () => { closePanel(); if (!app.editing) { app.editing = true; editor.refresh(); } paintTiles(); showEditor(); }, app.editing),
       R.has("loadout") && withBadge(withPack(t("loadout", /* copy:button */ "supplies", "loadout", () => togglePanel("loadout"), open === "loadout")), repeatBadge()),
       R.has("unlocks") && t("unlocks", /* copy:button */ "unlocks", "unlocks", () => togglePanel("unlocks"), open === "unlocks"),
       R.has("vault") && t("vault", /* copy:button */ "stored gear", "vault", () => togglePanel("vault"), open === "vault"),

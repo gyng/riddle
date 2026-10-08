@@ -48,3 +48,8 @@ honestly restores a strict win, and none was taken to pass the row. **Recorded d
 "record a deviation with a reason"), owner-directed design; the row's threshold is unchanged. `Workers
 never cost the daily player a floor` passes (30.31 vs 30.43). Follow-up: a worker that pays the away
 player at a wall (e.g. the drillmaster wearing a wall tactic as it arrives, announced and revocable).
+
+Update 2026-10-08 (Cut 112 apprentice order, Cut 113 late walls): the row reads 28.25 vs 28.36 after
+Cut 112, then **27.71 vs 28.04** after Cut 113's harder late bosses (both away players slow at the King;
+the one forging by hand at its check-ins keeps its edge). Still a recorded deviation, threshold
+unchanged; its fix is Cut 114 §3 (a worker that pays at a wall).

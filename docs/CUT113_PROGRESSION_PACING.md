@@ -37,3 +37,45 @@ on most cards; tension, mastery and decisions at 0.6 name the same causes. Runs 
 
 Each item lands with its numeric gate, the routine full gate table without a lowered threshold, the
 full client suite, then a fresh blind pair.
+
+## §4 measured — the late bands breathe (core, 2026-10-08)
+
+Evidence: blind 5331f40 (68.3 / 59.2): both raters cleared D34 inside ~70 active min + ~12.5 h away
+(A: 27 runs, sword +5 · plate at the King); B cleared Ascension 1 in one run. The counter alone broke
+each late wall; the forge's upper steps were bought on day 1.
+
+**Before** (HEAD 5331f40+, `dayplayer --routine --seeds 8 --tuned-seeds 8`, median hours / King-kill day):
+PICKED D23 24 · D28 24 · D29 120 · D33 136 · King day 6. TUNED D23 24 · D28 24 · D29 36 · D33 40 · King
+day 2. IDLE D23 128 · D28 168, King 0/8. Probes: Queen 60→150 hp alone moved TUNED's D29 34→60 h but not
+its King (killed the day D33 was reached even at 200 hp: with the counter he never touched the hero's
+forged armour). Damage through the armour is what makes the kit a threshold.
+
+**Changed** (content numbers only, `defs.rs`, `endgame.rs`):
+Foundry Master hp 42→52; Lurker Queen hp 60→120, atk 4–7→7–11; Mirror King hp 80→220, atk 3–6→13–19;
+Sanctum wardens 30→34, echoes 16→18, sentinels 26→30. Numbered descents add +5 % HP / +2 % damage a
+tier (was 8 / 4) since tier 0's own late walls rose. Deep-band boosts (lurker 12, troll 40) were tried
+and dropped: they walled every numbered tier on the Queen's swarm.
+
+**After** (same harness): PICKED D23 24 · D28 28 · D29 136 · D33 136 · King day 9 (6–14). TUNED D23 24 ·
+D28 28 · D29 48 · D33 60 · King day 4 (3–7). IDLE unchanged to D23 (median day 5.3, stall 4 d), King 0/8.
+All dayplayer bars PASS (PICKED/IDLE 1.50 · 2.39 · 5.33, TUNED/PICKED at D33 2.43, RANDOM 8/8 · 8/8).
+
+**Kit threshold** (`examples/descent_check SAVE 0 --kit …`: the earned seed-3 King save, every counter
+known, Legacy full, replayed from D1 at tier 0, 4 seeds): full kit 16–48 h; sword +5 · plate (the rater's)
+24–64 h; +3 · mail +1 40–64 h (the kit now buys days; the King kills 1–28 heirs per clear).
+
+**Ascension 1** (same save, untuned set, 8 h check-ins to the next clear): before 8–16 h (11–22 runs);
+after 16–32 h (25–65 runs). Tier 3 3/4 within 14 days; **tier 2 1/4** — its Swift affix on the
+13–19 King is a cliff for an untuned set (before: tiers 1–5 all cleared). Recorded, not gated
+(Cut 31: higher-tier build viability is not certified); a tuned set or the King's damage is the lever.
+
+Not measured: a human's day. The raters ran ~3× faster than TUNED; on the same ratio the first King
+kill lands day 2 (TUNED day 4). The next blind pair is the check.
+
+**Gate** (`node tools/gates.mjs --full --fresh`, source ffd6335885f2ffbb): metrics 8/8 PASS, qa 10 seeds PASS,
+dayplayer all PASS except the recorded deviation *Workers pay the away player* (docs/CUT110 §4):
+mean best 27.71 vs 28.04 (was 28.25 vs 28.36). Rows that moved: TUNED/PICKED at D33 1.55 → 2.62, at D29
+1.66 → 2.62; Steady deaths a send 5 → 6 % (bold 88 → 89 %); stance walls won 7 → 6 (Guarded 4 → 3, still
+≥ 1 each); workers-daily 30.18 vs 29.96 → 29.25 vs 29.00 (PASS); the tree also held the concurrent oath.rs/engine.rs edits; IDLE stall 3 d, King 0/2.
+`cargo test --profile fast`: 703, the 307dbed send hash re-recorded (f22db4c57141f4d0 → ea30535a6c429390;
+the tree with only defs.rs at HEAD hashes to f22db4c57141f4d0).

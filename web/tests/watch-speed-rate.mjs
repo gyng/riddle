@@ -22,6 +22,13 @@ try{for(const width of [400,1440]){
  await p.waitForFunction(()=>document.querySelector('.watch')?.dataset.mode==='one'&&!document.querySelector('.sheet'));
  await p.waitForFunction(()=>document.querySelector('.console [data-tile=speed] .watch-speed-rate')?.textContent==='1×',null,{timeout:5000});
  s=await read();check(s.mode==='Normal'&&!s.sped,`normal reads 1× unlit (${JSON.stringify(s)})`);
+ // blind 5331f40 (A: "even on Speed Normal the badge jumped 1× … 128× … 16×"): Normal keeps the picture steady — a dead stretch
+ // travels at most 4× (a longer one is jumped, and the jump says `skipped ahead`)
+ const seen=await p.evaluate(()=>new Promise(res=>{let max=0,dead=0;const rates=new Set();const w=document.querySelector('.watch');const t0=performance.now();
+  const id=setInterval(()=>{const r=parseFloat(document.querySelector('.console [data-tile=speed] .watch-speed-rate')?.textContent)||0;max=Math.max(max,r,parseFloat(w.dataset.speed)||0);rates.add(w.dataset.speed);if(w.dataset.dead==='1')dead++;
+   if(performance.now()-t0>9000||w.dataset.over||!document.body.contains(w)){clearInterval(id);res({max,dead,rates:[...rates],jumps:w.dataset.jumps??'0',said:w.dataset.jumpsSaid??'0'});}},40);}));
+ check(seen.max<=4,`normal never plays past 4× (${JSON.stringify(seen)})`);
+ console.log(width,'normal sampled',JSON.stringify(seen));
  await p.locator('[data-tile=speed]').click();await p.locator('.sheet [data-tile=fast]').click();
  await p.waitForFunction(()=>document.querySelector('.watch')?.dataset.mode==='fast'&&!document.querySelector('.sheet'));
  await p.waitForFunction(()=>parseFloat(document.querySelector('.console [data-tile=speed] .watch-speed-rate')?.textContent)>1,null,{timeout:5000});

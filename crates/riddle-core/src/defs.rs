@@ -50,14 +50,17 @@ pub const MONSTERS: &[MonsterDef] = &[
     MonsterDef { kind: "siren", title: "siren", hp: 14, atk: (1, 3), def: 0, speed: 10, tags: &["aura"], boss: false },
     MonsterDef { kind: "mirror_shade", title: "mirror shade", hp: 14, atk: (2, 4), def: 0, speed: 10, tags: &["mirror"], boss: false },
     // The Sanctum (Cut 7: D29–33): variety is enforced.
-    MonsterDef { kind: "warden", title: "warden", hp: 30, atk: (3, 6), def: 1, speed: 9, tags: &["reflect_melee", "reflect", "telegraph"], boss: false },
+    MonsterDef { kind: "warden", title: "warden", hp: 34, atk: (3, 6), def: 1, speed: 9, tags: &["reflect_melee", "reflect", "telegraph"], boss: false },
     MonsterDef { kind: "acolyte", title: "acolyte", hp: 12, atk: (1, 3), def: 0, speed: 10, tags: &["healer"], boss: false },
-    MonsterDef { kind: "echo", title: "echo", hp: 16, atk: (2, 5), def: 0, speed: 10, tags: &["echo"], boss: false },
-    MonsterDef { kind: "sentinel", title: "sentinel", hp: 26, atk: (3, 6), def: 1, speed: 8, tags: &["gaze", "telegraph"], boss: false },
-    // Cut 3 bosses.
-    MonsterDef { kind: "foundry_master", title: "Foundry Master", hp: 42, atk: (3, 6), def: 1, speed: 8, tags: &["boss", "reflect_melee", "buffer", "telegraph"], boss: true },
-    MonsterDef { kind: "lurker_queen", title: "Lurker Queen", hp: 60, atk: (4, 7), def: 0, speed: 10, tags: &["boss", "blind", "brood", "summoner", "telegraph"], boss: true },
-    MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 80, atk: (3, 6), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
+    MonsterDef { kind: "echo", title: "echo", hp: 18, atk: (2, 5), def: 0, speed: 10, tags: &["echo"], boss: false },
+    MonsterDef { kind: "sentinel", title: "sentinel", hp: 30, atk: (3, 6), def: 1, speed: 8, tags: &["gaze", "telegraph"], boss: false },
+    // Cut 3 bosses. Cut 113 §4 (blind 5331f40: both raters cleared D34 inside a day; the counter alone
+    // broke each late wall): the Master 42 → 52 hp, the Queen 60 → 120 hp and 4–7 → 7–11, the King 80 →
+    // 220 hp and 3–6 → 13–19 — a learned counter *and* the forge's upper steps (and scars, by the day);
+    // the Sanctum's wardens 30 → 34, echoes 16 → 18, sentinels 26 → 30 (`examples/descent_check`).
+    MonsterDef { kind: "foundry_master", title: "Foundry Master", hp: 52, atk: (3, 6), def: 1, speed: 8, tags: &["boss", "reflect_melee", "buffer", "telegraph"], boss: true },
+    MonsterDef { kind: "lurker_queen", title: "Lurker Queen", hp: 120, atk: (7, 11), def: 0, speed: 10, tags: &["boss", "blind", "brood", "summoner", "telegraph"], boss: true },
+    MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 220, atk: (13, 19), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
 ];
 
 pub fn monster_def(kind: &str) -> &'static MonsterDef {

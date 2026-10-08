@@ -13,6 +13,7 @@
 // The first paint (`Forecast.refined` false) has rough state and an explicit quality label.
 // Uncertainty remains a numeric band on both passes; refine clears the rough state and label.
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
+import { counterName } from "./counter-name";
 import { openDropSheet } from "./patches";
 import { enemyHost } from "./enemy-tips";
 import { unitLabel } from "./unit-icon";
@@ -71,9 +72,9 @@ export function wallCounter(app: Pick<App, "lineage">, kind: string, d?: { count
   const known = (app.lineage.counters ?? []).find((c) => c.boss === key || key.endsWith(c.boss) || c.boss.endsWith(name));
   // docs/COPY.md pass 2 (both readers took `warlord: aim` for the boss's move): a known counter reads as the rule that beats him
   // (`counter: attack boss`), under the notch that names him (`behind warlord`)
-  if (known?.text) return /* copy:callout */ `counter: ${known.text}`;
+  if (known?.text) return /* copy:callout */ `counter: ${counterName(app.lineage, known.text, known.row)}`;
   // (a known word the lineage has no counter row for: `warlord: aim` → `counter: aim`; an unknown one stays `mother: ?`)
-  if (w?.fact) return w.fact.replace(/^[^:]+: (?!\?)/, /* copy:callout */ "counter: ");
+  if (w?.fact) return w.fact.replace(/^[^:]+: (?!\?)(.+)$/, (_m, t: string) => /* copy:callout */ `counter: ${counterName(app.lineage, t)}`);
   const text = d?.counter ?? known?.text?.replace(/,? ?boss$/, "").replace(/^(attack|throw|read|drink) /, "") ?? (d?.counter_hint ? `${d.counter_hint.replace(/\?$/, "")}?` : "?");
   return `${name}: ${text}`;
 }
@@ -144,12 +145,27 @@ export function moveMark(m: VsMove | number | undefined, bare = false, worse = f
 /** QA 778fa1b (qaV: `death −90` and `death 9% ▼` drawn red — "a drop in death drawn as good"): the colour says good or bad, the arrow
  *  and the sign say which way — a share where more is worse (death) takes the other colour. */
 const tone = (dir: "up" | "down" | "flat", worse: boolean): string => !worse || dir === "flat" ? dir : dir === "up" ? "down" : "up";
+/** Blind 5331f40 (A: the tactics head `floor 29 <13%` beside `vs last run · D29 0→38%` on one screen): a move's `to` is the bar's own
+ *  share — where the forecast painted now (a package swapped or levelled since the move was paired) reads another number at that depth
+ *  or end, the term is re-read against it (`base` → the share painted), so the line never names a share no bar shows. */
+export function pinnedVs(vs: ForecastVs, f: Forecast | null): ForecastVs {
+  if (!f) return vs;
+  const pin = <T extends VsMove>(m: T, now: number | undefined): T => {
+    if (typeof now !== "number" || typeof m.base !== "number" || Math.round((m.base + m.delta) * 100) === Math.round(now * 100)) return m;
+    return { ...m, delta: now - m.base };
+  };
+  const end = (m: number | VsMove | undefined, now: number | undefined): number | VsMove | undefined => typeof m === "object" && m ? pin(m, now) : m;
+  const at = new Map(f.depths.map((d) => [d.depth, d.reach]));
+  const e = f.ends;
+  return { ...vs, depths: vs.depths.map((d) => pin(d, at.get(d.depth))), bank: end(vs.bank, e?.bank), death: end(vs.death, e?.death), return: end(vs.return, e?.return), stall: vs.stall ? pin(vs.stall, e?.stall) : vs.stall };
+}
 /** Cut 22 §3: the line under the shaft — `vs last · D8 +6 · bank +4`: the depth whose move is the largest outside its ± (else the
  *  frontier's, `D8 ≈`), the bank's move when the gems show, and the death's when it clears its ±. Null without a move to show. */
 export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, withEnds: boolean): HTMLElement | null {
   if (!sysOpen(app.lineage, "vs")) return null;   // Cut 29 §2: the vs line opens at the first plateau
   // QA 778fa1b (qaV): an edit whose move is still being measured reads `vs sent …`, never the last move or a hollow `≈`
   if (!vs) return app.vsPending() ? h("div", { class: "shaft-vs num rough pending" }, h("span", { class: "vs-label" }, /* copy:callout */ "vs last run", "…")) : null;
+  vs = pinnedVs(vs, f);
   const rough = vs.refined === false;
   const start = forecastStart(app, f), next = Math.max(start, app.lineage.best_depth + 1);
   const ds = vs.depths.filter((d) => d.depth >= start && d.depth <= (f?.known_to ?? Infinity));
@@ -279,7 +295,8 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
     const key = cause.replace(/ pack$/, "").trim().replace(/ /g, "_");
-    return (app.lineage.counters ?? []).find((c) => c.boss === key || key.endsWith(c.boss))?.text;
+    const c = (app.lineage.counters ?? []).find((k) => k.boss === key || key.endsWith(k.boss));
+    return c && counterName(app.lineage, c.text, c.row);
   };
   const paint = (f: Forecast): void => {
     clear(bars); clear(causes); paintEnds(f); paintPicked(); paintVs();

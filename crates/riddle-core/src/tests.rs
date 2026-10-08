@@ -11294,6 +11294,9 @@ fn saves_from_307dbed_send_identically() {
     // Cut 110 (the golem's mirror sends back a third of a melee blow; the rest lands):
     // e5315d0b45e0bedf → f22db4c57141f4d0. The same control build plus only turn.rs's
     // mirror change hashes to f22db4c57141f4d0 exactly.
+    // Cut 113 §4 (the late walls breathe: Foundry Master 52 hp, Lurker Queen 120 hp (7–11), Mirror King
+    // 220 hp (13–19), wardens 34, echoes 18, sentinels 30): f22db4c57141f4d0 → ea30535a6c429390. The same
+    // tree with only defs.rs back at HEAD hashes to f22db4c57141f4d0 exactly.
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }

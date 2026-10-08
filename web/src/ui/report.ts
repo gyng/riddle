@@ -1,4 +1,5 @@
 import { supplyLimit, reportIncome } from "./report-supplies";
+import { counterName, namedCounters } from "./counter-name";
 import { goldWords } from "./gold-words";
 // Return report: learned · bests · found · deaths · pending · reel · marks. Delta, not totals.
 // Cut 10 §3: the exit tiles read `banked · returned · deaths`, `returned` first when it is the larger; each exit line leads
@@ -43,7 +44,7 @@ import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 import { progressGoal, progressGoalRow } from "./progress-goal";
 import { kwHost, kwText, detailHost } from "./tips";
-import { openRuns } from "./runs";   // RUNS_UI: the runs tile opens the log
+import { openRuns, killRuns, watchKill } from "./runs";   // RUNS_UI: the runs tile opens the log
 import { mountClear } from "./runclear";   // run-clear: the run's card before the town
 import { itemIcon, itemName, itemChip } from "./items";
 import { enemyTraitName } from "./enemy-tips";
@@ -269,6 +270,18 @@ function withHeirs(el: HTMLElement, heirs: number[] | undefined): HTMLElement {
   return el;
 }
 
+/** blind 5331f40 (both Mirror King kills off-view): after an absence a boss slain while away offers `watch kill` — the absence's held runs
+ *  that reached his floor (`Lineage.walls` gives it), replayed to his fall. Null for a boss no held run reached. */
+function killWatch(app: App): (boss: string) => (() => void) | null {
+  const away = (app.lineage.runs ?? []).filter((x) => x.via === "away" && x.absence !== undefined);
+  const absence = away.length ? Math.max(...away.map((x) => x.absence!)) : undefined;
+  return (boss) => {
+    if (!app.engine.replay || absence === undefined) return null;
+    const depth = (app.lineage.walls ?? []).find((w) => w.boss === boss)?.depth;
+    if (!killRuns(app.lineage, depth, absence).length) return null;
+    return () => { void watchKill(app, boss, depth, absence); };
+  };
+}
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
   setRefRows(() => app.rules.rows);
   const reading = readingPosition(app, r);
@@ -467,7 +480,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
         // QA 524827b (qaAA: COUNTER `no counter` beside LEARNED `counter: attack boss`): the counter is known — the set lacked it
         // QA 524827b (qaAB: 12 of 16 sends driven off, twelve like lines): the tablet counts the sends that boss drove off (`Warlord ×12`)
         h("span", { class: "chips-inline" }, [/* copy:callout */ `${d.title} repelled him${drivenBy(d.boss) > 1 ? ` ×${drivenBy(d.boss)}` : ""}`, d.verdict === "no counter" ? (have >= 0 ? /* copy:callout */ "order" : "") : d.verdict, d.defence].filter(Boolean).join(" · ")),   // docs/COPY.md pass 6: `counter unwritten` said what `try:` under it says
-        h("small", { class: "try" }, have >= 0 ? /* copy:callout */ "already written" : /* copy:callout */ `try: ${d.counter}`),
+        h("small", { class: "try" }, have >= 0 ? /* copy:callout */ "already written" : /* copy:callout */ `try: ${counterName(L, d.counter, d.row)}`),
         // Cut 26 §6 (AP): the drive-off opens its verdict, as a death's line does (here when no exit line of his carries its own chip)
         // Cut 28 §2: the tablet is above the fold and the exit lines under it — it carries the verdict always
         h("span", { class: "chip mini verdict-chip", role: "button", onclick: (e: Event) => { e.stopPropagation(); closeAllSheets(); const x = allExits.find((y) => y.driven?.boss === d.boss && (d.run_id === undefined || y.run_id === d.run_id)); app.go({ kind: "death", death: drivenDeath(x ?? d, d.run_id ?? x?.run_id ?? 0), kept: true, from: { report: r } }); } }, /* copy:button */ "verdict"));
@@ -523,9 +536,13 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const paintPending = (affordable: ReturnType<typeof visible>): void => {
     // `R1 fired n of m runs` lines come for every row (summed across slices); only the quiet ones are decisions
     const quiet = (p: string): boolean => { const m = /^R\d+ fired (\d+) of (\d+) runs/.exec(p); return !m || Number(m[1]) * 3 < Number(m[2]); };
+    // blind 5331f40 (A: `attack nearest · fired in 0 of 1 runs` beside the RULES meter's `attack nearest 23%`): a row the same report's
+    // meter saw act did fire in a run — a `fired 0` line for it is the audit's miscount (package rows past the own-row cap), not news
+    const meterSaw = new Set((r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined))?.rows.filter((x) => x.fires > 0).map((x) => x.row) ?? []);
+    const miscount = (p: string): boolean => { const m = /^R(\d+) fired 0 of \d+ runs/.exec(p); return !!m && meterSaw.has(Number(m[1]) - 1); };
     // Cut 30: before the pen no line speaks the pen's words (a patch, a rule's fires, the marks' catalogue)
     const penWords = (p: string): boolean => !penOpen(L) && /^(patch|unlock|R\d+)\b|\bfired\b/.test(p);
-    const pendingLines = (affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending).filter(quiet).filter((p) => !penWords(p));
+    const pendingLines = (affordable.length ? r.pending.filter((p) => !/^unlock\b/.test(p)) : r.pending).filter(quiet).filter((p) => !miscount(p)).filter((p) => !penWords(p));
     pendingBody.replaceChildren();
     // Cut 23 §1: the core's `forge sword +1 · $300` (a kit step the purse buys now) opens the forge
     const forgeLines = pendingLines.filter((p) => /^forge /.test(p));
@@ -634,16 +651,16 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage), classXpBlock(r), legacyEarnedBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), classXpBlock(r), legacyEarnedBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
   const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
   const meterTitle = /* copy:label */ "Completed runs";
   const meterScope = (): HTMLElement => h("span", null, h("span", null, absence ? /* copy:callout */ "Includes before away" : /* copy:label */ "Whole runs"), " · ", h("span", null, /* copy:callout */ "Camp rest separate"));
-  details.append(...[pendingSec, tiles, grewBlock(r, heroFace(L), trainingBeats(r.packages)), workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest }), newsBlock(r, named, L.counters ?? [], shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, L.counters ?? [])) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null, goldLine(), picked, exitLines, rested,
+  details.append(...[pendingSec, tiles, grewBlock(r, heroFace(L), trainingBeats(r.packages)), workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest }), newsBlock(r, named, namedCounters(L), shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, namedCounters(L))) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null, goldLine(), picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
-    section(/* copy:label */ "learned", factChips(learnedFacts.filter((f) => !counterFacts.includes(f)), L.counters ?? [], (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
+    section(/* copy:label */ "learned", factChips(learnedFacts.filter((f) => !counterFacts.includes(f)), namedCounters(L), (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
     section(/* copy:label */ "hatched", chips(r.hatched ?? [], "chip ally")),
     // Cut 10 §3: a companion `◯ jackal · Ashar fell` (the name small); Cut 12 §6: a summoned ally `ally hound fell`

@@ -698,11 +698,24 @@ pub fn counter_word(boss: &str) -> &'static str {
         "goblin_warlord" => "aim",
         "bloat_mother" => "fire",
         "lich" => "summons first",
-        "foundry_master" => "reflect read",
+        // blind 5331f40 (both raters: `counter: cadence` beside the tactic `Mirror rhythm`, found only by browsing): a
+        // counter that is a tactic package reads as the package's own name
+        "foundry_master" => "mirror read",
         "lurker_queen" => "silence",
-        "mirror_king" => "cadence",
+        "mirror_king" => "mirror rhythm",
         _ => "aim",
     }
+}
+
+/// A counter row as the player finds it: a `tactic` row by its package's name (`Mirror rhythm`, `mirror read`),
+/// any other row as `facts::counter_text` (`attack boss`, `read silence`).
+pub fn counter_name(row: &crate::rules::Row) -> String {
+    if row.verb.v == "tactic" {
+        if let Some(p) = row.verb.a.as_deref().and_then(|id| crate::packages::PACKAGES.iter().find(|p| p.id == id)) {
+            return p.name.to_string();
+        }
+    }
+    crate::facts::counter_text(row)
 }
 
 /// The band bosses as walls: every one up to the best depth, and the first unslain past it.
@@ -721,7 +734,7 @@ pub fn walls(l: &LineageState) -> Vec<BossWall> {
             known,
             fact: counter_fact(l, kind),
             learn: (!known).then(|| if kind == "bloat_mother" || kind == "lurker_queen" { "meet her" } else { "meet him" }.into()),
-            counter: row.as_ref().map(crate::facts::counter_text),
+            counter: row.as_ref().map(counter_name),
             row,
         });
         if past && !slain {

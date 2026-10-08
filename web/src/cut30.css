@@ -124,6 +124,9 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .report-bosses { margin: 12px 0; }
 .report-boss-row { display: flex; align-items: center; gap: 8px; min-height: 52px; margin-top: 6px; }
 .report-boss-row > img, .report-boss-row > .ico { width: 44px; height: 44px; flex: 0 0 44px; object-fit: contain; }
+.report-boss-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.report-boss-line > .report-boss-row { flex: 1 1 auto; min-width: 0; }
+.report-boss-watch { flex: 0 0 auto; min-height: 44px; }   /* blind 5331f40: a boss slain while away, his kill replayed */
 .report-boss-copy { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
 .report-boss-copy small { font-size: 13px; line-height: 1.3; opacity: .8; }
 .report-choice-list { display: grid; gap: 6px; margin-top: 6px; }
