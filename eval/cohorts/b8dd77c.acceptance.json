@@ -1,0 +1,46 @@
+{
+  "candidate": "b8dd77c",
+  "applicationCommits": [
+    "29e496a",
+    "b8dd77c"
+  ],
+  "status": "accepted for blind cohort 2026-10-09",
+  "frozen": {
+    "dir": "scratchpad/blind-b8dd77c-frozen/dist",
+    "url": "http://127.0.0.1:5258/",
+    "files": 252,
+    "manifestSha256": "778f1f430486608d0086dca1129df18d43122ece87afafe4b002b07ce236eeb8",
+    "servedHashes": "252/252",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "717 passed",
+    "clippy": "clean",
+    "gates": "fresh full (29e496a): all PASS (IDLE bars restored by the pick-only temperament keep) except recorded deviation 'Workers pay the away player' 27.68 vs 27.96",
+    "log": "/tmp/riddle-c114-gates.log"
+  },
+  "browser": {
+    "full": "143/146 at 29e496a: bloodline-training (double data-training, fixed b8dd77c), package-selection (spec followed compare's two choosers, b8dd77c), watch-live-edge load flake (passes solo)"
+  },
+  "machineLoad": {
+    "atRelease": "25.52 30.14 30.93",
+    "source": "another project's simulations (armee)"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-b8dd77c-frozen/briefs/a.txt",
+      "scratchpad/blind-b8dd77c-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      233,
+      239
+    ],
+    "drivers": [
+      5366,
+      5367
+    ],
+    "toolBudget": 260
+  },
+  "score": "pending"
+}
