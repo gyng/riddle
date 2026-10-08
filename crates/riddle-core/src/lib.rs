@@ -173,6 +173,12 @@ impl Game {
         self.set_restock(o.repeat);
         self.lineage.orders.insure = o.insure;
         self.lineage.orders.forge = o.forge.clone();
+        if let Some(w) = &o.wall {
+            if !crate::wire::WALL_ORDERS.contains(&w.as_str()) {
+                return Err("unknown wall order".into());
+            }
+            self.lineage.orders.wall = w.clone();
+        }
         Ok(())
     }
     /// Cut 28 §2: the camp's move against the set sent, attributed to state and rows
@@ -284,6 +290,8 @@ mod tests_cut30;
 mod tests_cut30_pkg;
 #[cfg(test)]
 mod tests_cut305;
+#[cfg(test)]
+mod tests_cut114;
 #[cfg(test)]
 mod tests_runsui;
 #[cfg(test)]

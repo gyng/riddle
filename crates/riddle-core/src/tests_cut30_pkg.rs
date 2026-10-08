@@ -1713,3 +1713,60 @@ fn package_death_patches_are_measured_where_they_apply() {
     }
     assert!(seen > 0, "no package death with patches to check");
 }
+
+/// Blind 77030eb (A: "unbowed → light hands → iron gut without my choosing"): a new heir's wake keeps
+/// the personality worn — card 1 of the offer, in it even when the draw skipped it; with none worn yet
+/// the wake still wears its card 1.
+#[test]
+fn a_new_heir_keeps_the_worn_temperament() {
+    let mut g = Game::new_resident(11);
+    g.lineage.heir = 3;
+    packages::wake(&mut g.lineage);
+    let first = g.lineage.pkg.offer.first().cloned().expect("heir 3 is offered cards");
+    assert_eq!(g.lineage.pkg.temperament.as_ref(), Some(&first), "no pick yet: card 1 is worn");
+    let other = g.lineage.pkg.offer[1].clone();
+    packages::pick(&mut g.lineage, &other).unwrap();
+    for heir in 4..24 {
+        g.lineage.heir = heir;
+        packages::wake(&mut g.lineage);
+        let o = &g.lineage.pkg.offer;
+        assert_eq!(o.len(), 3, "heir {heir}: three cards");
+        assert_eq!(o[0], other, "heir {heir}: the worn personality is card 1 ({o:?})");
+        assert_eq!(o.iter().filter(|c| **c == other).count(), 1, "heir {heir}: once ({o:?})");
+        assert_eq!(g.lineage.pkg.temperament.as_ref(), Some(&other), "heir {heir}: still worn");
+    }
+}
+
+/// Blind 77030eb (B): a level's why — corridor fighting's L3 brings its crowd row; L2 and L4 bring none.
+#[test]
+fn a_level_names_the_rows_it_brings() {
+    let mut g = Game::new_resident(5);
+    g.lineage.pkg.owned.insert("corridor_fighting".into());
+    assert!(packages::level_adds(&g.lineage, "corridor_fighting").is_empty(), "L1 → L2 adds no row");
+    g.lineage.pkg.runs.insert("corridor_fighting".into(), packages::next_at(0).unwrap());
+    let lv = g.lineage.pkg.level("corridor_fighting");
+    let adds = packages::level_adds(&g.lineage, "corridor_fighting");
+    if lv == 2 {
+        assert_eq!(adds.len(), 1, "L2 → L3 adds the crowd row: {adds:?}");
+        assert_eq!(adds[0].verb.v, "back_corridor");
+    }
+    let w = packages::wire(&g.lineage);
+    let p = w.all.iter().find(|p| p.id == "corridor_fighting").unwrap();
+    assert_eq!(p.level_adds, adds, "the wire carries it");
+    assert!(!packages::level_adds(&g.lineage, "steady").is_empty(), "Steady L1 → L2 changes its heal");
+}
+
+/// Blind 77030eb, IDLE's bars: a lineage that never picked a personality keeps the wake's draw for each heir (the
+/// keep without a pick walled IDLE at D23); only the player's pick is kept.
+#[test]
+fn an_unpicked_temperament_is_the_wakes_draw() {
+    let mut g = Game::new_resident(11);
+    let mut seen = std::collections::BTreeSet::new();
+    for heir in 3..24 {
+        g.lineage.heir = heir;
+        packages::wake(&mut g.lineage);
+        assert_eq!(g.lineage.pkg.temperament.as_ref(), g.lineage.pkg.offer.first(), "card 1 worn");
+        seen.insert(g.lineage.pkg.temperament.clone());
+    }
+    assert!(!g.lineage.pkg.temperament_chosen && seen.len() > 1, "no pick: the draws vary ({seen:?})");
+}

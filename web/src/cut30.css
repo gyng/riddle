@@ -154,3 +154,7 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .pkg-variants { display: flex; gap: 4px; flex-basis: 100%; margin-top: 2px; }
 .pkg-variants .chip.pkg-variant { flex: 1 1 0; justify-content: center; opacity: .7; }
 .pkg-variants .chip.pkg-variant.on { opacity: 1; color: var(--acc); box-shadow: inset 0 0 0 1px var(--acc); }
+/* blind 77030eb (B: a training plaque tap did nothing): the plaque is a button onto the tactics panel */
+.run-training .training-open { all: unset; cursor: pointer; display: inline-flex; border-radius: 4px; }
+.run-training .training-open:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+.run-training .training-open:hover .beat-plaque { filter: brightness(1.15); }

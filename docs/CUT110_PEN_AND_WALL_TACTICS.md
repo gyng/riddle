@@ -53,3 +53,8 @@ Update 2026-10-08 (Cut 112 apprentice order, Cut 113 late walls): the row reads 
 Cut 112, then **27.71 vs 28.04** after Cut 113's harder late bosses (both away players slow at the King;
 the one forging by hand at its check-ins keeps its edge). Still a recorded deviation, threshold
 unchanged; its fix is Cut 114 §3 (a worker that pays at a wall).
+
+Update 2026-10-09 (Cut 114 §3, the scout's wall order): 28.58 vs 28.78 under the default `bank` (28.61 vs 28.88
+pushing). The order pays the absence (+26 % haul, half the deaths on walled camps) but cannot move the fortnight's
+depth: the gap is days 1–4, before the deep walls, which are day-gated. Still a recorded deviation, threshold
+unchanged (docs/CUT114_AUTOMATION.md §3 landed).

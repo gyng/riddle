@@ -220,6 +220,7 @@ const KILL_WAIT_MS = 3000;
 const STUCK_MS = 4000;
 const CALM_MIN = 10;                // Cut 28 §3: a core calm stretch this long (ticks, 1 s at 1×) or more plays as travel
 const RISE_FREE = 16, RISE_MS = 150;   // blind 1fb7786 (B): the clock jumps freely up to the fights travel; past it, it doubles at most every RISE_MS
+const NEWS_MAX_MS = 8000;           // blind 77030eb (B): Normal never stands longer without news — the stretch is jumped
 const ONE_MAX = 4;                  // blind 5331f40: `one` (Speed Normal) — a dead stretch travels at most 4× (then jumps, announced)
 const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
 /** Cut 25 §3 (AN: ~55 s of max hp draining 41 → 17 with only numbers moving): a drain — the hero's hp or max hp falling with no blow
@@ -583,6 +584,7 @@ export function renderWatch(app: App): Mounted {
   const descends: number[] = [];      // engine ticks of the run's descends (a held beat stops short of the stairs)
   // Cut 24 §1: the engine ticks where the watch moved — a blow that landed, a hurt, a drink, a kill, a pickup, a descent (ascending)
   const progress: number[] = [];
+  let newsKey = "", newsAt = performance.now();   // blind 77030eb: Normal's news watchdog (NEWS_MAX_MS)
   let jumpsSaid = 0; let deadFrom = -1, lastJumpAt = 0, jumps = 0, stuckTick = -1, stuckAt = 0, unsticks = 0;   // QA ad71e72: the dead stretch's wall start, the jumps, the stuck-picture watchdog
   let keepClose: (() => void) | null = null;   // blind 1fb7786: the open keep sheet's close (it keeps the ticked picks) — the gem's tap goes on through it
   let riseAt = 0;                     // blind 1fb7786: when the clock last eased up (`eased`)
@@ -1658,6 +1660,14 @@ export function renderWatch(app: App): Mounted {
     // waits its minimum the engine is ahead of the picture, and the clock below has nothing to add
     if (mode === "fights" && (cardUp || cardWait) && !paused && !hidden) return;
     if (playing && mode === "fights" && !mapHeld() && !vaultClose && !fightOn && Number.isFinite(fightUntil) && now < fightUntil && !(beat && now < beat.until)) return;   // Cut 13 §4: a beat plays on at 1×
+    // blind 77030eb (B: Normal stood ~2.5 min with no new line): Normal never plays NEWS_MAX_MS of wall time without news (a move, a floor,
+    // a jump) — the stretch is jumped, and the jump says `skipped ahead`
+    if (mode === "one") {
+      const key = `${progressBefore(viewerTick())}|${snap?.depth ?? 0}|${jumps}`;
+      const wall = performance.now();
+      if (key !== newsKey || !playing || beatHeld() || viewerTick() >= endingFrom) { newsKey = key; newsAt = wall; }
+      else if (wall - newsAt > NEWS_MAX_MS && !cageWaits() && !vaultClose && !(snap && cageNear(snap))) { newsAt = wall; void deadJump(); return; }
+    }
     // QA ad71e72: a long dead stretch jumps (the engine steps ahead to the next move; the picture lands just before it)
     if (playing && el.dataset.dead === "1" && deadFrom > 0 && performance.now() - Math.max(deadFrom, lastJumpAt) > DEAD_JUMP_MS && !cageWaits() && !vaultClose && !beatHeld() && !(snap && cageNear(snap))) { void deadJump(); return; }
     // Cut 14 §6: the engine's target — the world clock, or the playing viewer's lead, whichever is further; a world far behind its
@@ -1795,12 +1805,26 @@ export function renderWatch(app: App): Mounted {
   /** Cut 24 §1: the batch's moves (an hp change, a kill, a pickup, a descent) as progress ticks. With a boss in view (the batch's
    *  snapshot) only his hp, his fall, a descent or the exit move it — the Warlord's summons hitting the hero and dying under his
    *  shield wall is a dead stretch (the coordinator's read of AL's four minutes: the hero's bar moved, the boss's never did). */
+  // blind 77030eb (B: ~2.5 min at the start of D7 at Normal with no new line, the badge flicking 1×/4×; a ~3 min iron-golem stalemate,
+  // hp see-sawing 20–40): a move is one the player can see — the hero's, or a foe's once in his sight (blows out of sight broke every
+  // dead stretch before its jump) — and a blow moves the fight only when it takes a body to a new low since the last kill, find,
+  // drink or descent (a see-saw of hits and heals, or blows on a foe that heals them back, is a stalemate: a dead stretch)
+  const sighted = new Set<number>(), lows = new Map<number, number>();
   function noteProgress(evs: Ev[], s: Snapshot): void {
     const boss = s.entities.some((e) => e.tags.includes("boss") && !e.ally && e.hp > 0 && !!s.visible[e.y * s.w + e.x]);
+    const heroId = s.hero.id;
+    for (const e of s.entities) if (s.visible[e.y * s.w + e.x]) sighted.add(e.id);
+    const seen = (id: number): boolean => id === heroId || sighted.has(id);
     for (const e of evs) {
-      const moved = boss
-        ? e.k === "descend" || e.k === "exit" || ((e.k === "hurt" || e.k === "die") && bossIds.has(e.id)) || (e.k === "attack" && e.hit && e.dmg > 0 && bossIds.has(e.dst))
-        : (e.k === "hurt" && !isDrain(e)) || e.k === "die" || (e.k === "pickup" && pickupOfNote(e)) || e.k === "descend" || e.k === "use" || e.k === "exit" || (e.k === "attack" && e.hit && e.dmg > 0);
+      let moved: boolean;
+      if (boss) moved = e.k === "descend" || e.k === "exit" || ((e.k === "hurt" || e.k === "die") && bossIds.has(e.id)) || (e.k === "attack" && e.hit && e.dmg > 0 && bossIds.has(e.dst));
+      else if (e.k === "die") moved = seen(e.id);
+      else if (e.k === "hurt") {
+        const low = lows.get(e.id) ?? Infinity;
+        moved = !isDrain(e) && e.dmg > 0 && seen(e.id) && e.hp < low;
+        if (e.hp < low) lows.set(e.id, e.hp);
+      } else moved = (e.k === "pickup" && pickupOfNote(e)) || e.k === "descend" || e.k === "use" || e.k === "exit";
+      if (!boss && (e.k === "die" || e.k === "descend" || e.k === "use" || (e.k === "pickup" && moved))) lows.clear();   // a decisive move: the lows start over
       if (moved && (!progress.length || e.t > progress[progress.length - 1])) progress.push(e.t);
     }
     while (progress.length > 64 && progress[1] < viewerTick() - 4000) progress.shift();   // the playhead never seeks back that far

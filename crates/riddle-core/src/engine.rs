@@ -766,6 +766,15 @@ pub struct Run {
     /// §5: `bail()` queued a `return` for the next hero action.
     #[serde(default)]
     pub bail: bool,
+    /// Cut 114 §3: the scout's order at a wall for this send (`tree::wall_hold`) — the wall's floor, the
+    /// heir banked at its stairs (`true`) or the haul carried home from them (`false`); `wall_held` once he
+    /// banked there, `wall_carried` the haul the scout secured there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wall_hold: Option<(u32, bool)>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub wall_held: bool,
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub wall_carried: i32,
     /// Take control (owner 2026-10-08, a secondary mode): the player chooses the hero's actions in the watched run —
     /// the world waits at each of his turns for `act` (`awaiting`), the rules rest until `take_control(false)`.
     /// Never in a sim or an absence (the rules take it back there: `Game::tick_inner`).
@@ -2248,7 +2257,7 @@ impl LineageState {
     }
     /// Cut 29 §4: the standing orders, read off the lineage.
     pub fn standing_orders(&self) -> crate::wire::StandingOrders {
-        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone() }
+        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone(), wall: Some(self.orders.wall.clone()) }
     }
     /// The categories an unwatched exit keeps, in order (`Game::auto_keep`).
     pub fn keep_auto(&self) -> Vec<String> {
@@ -4149,6 +4158,9 @@ impl Game {
             first_stray: self.lineage.first_stray().map(|(d, n)| (d.max(start), n)).filter(|(_, n)| !self.lineage.named_resting(n, id)),
             strays_tamed: Vec::new(),
             bail: false,
+            wall_hold: None,
+            wall_held: false,
+            wall_carried: 0,
             manual: false,
             manual_act: None,
             awaiting: false,
@@ -4865,6 +4877,7 @@ impl Game {
             // Passage was already paid at the send; a checkpoint can pay even on death.
             // Count actual income, not survival or a carry that rounds down to nothing.
             crate::tree::note_start(&mut self.lineage, run.start, run.passage > 0 || run.kept(tier) > 0, tier == ExitTier::Death);
+            crate::tree::note_wall(self, &run, tier);
         }
         // (c30-legible: the record before this run, for the end's reason)
         let best0 = self.lineage.best_depth;
@@ -4873,6 +4886,10 @@ impl Game {
         // Cut 13 §1: a stall (the guard fired `STALL_FIRES` times on one floor) is a run the
         // player can read: it gets a death-style record below.
         let stalled = run.timed_out && run.stuck_fires >= STALL_FIRES;
+        // Blind 77030eb (B: twice `stuck · went home` at `alert 8/8 · Path blocked`, no trace, no fix): a floor the
+        // guard stopped that the idle floor gave up (`Run.bail`, Cut 30 §1) walks home with its share — and gets
+        // the stall's record (its trace, the guard's moment, the patches that leave the floor) as a stall does
+        let gave_up = gave_up(&run, tier);
         let t = run.turn;
         // Cut 24 §2: what was new (against the lineage before this run settles into it).
         let news = if self.sim { Vec::new() } else { self.run_news(&run, tier, pct) };
@@ -5571,8 +5588,9 @@ impl Game {
         // patches measured from the first guard (`trace::stall_record`); `death(id)` returns
         // it. It is a worst candidate below a death at its depth or deeper: the deepest stall
         // leads the report only when no death reached its floor.
-        if stalled && !self.sim {
-            if run.depth > self.batch.worst_depth || (run.depth == self.batch.worst_depth && (self.batch.worst_stall || self.batch.worst_death.is_none())) {
+        if (stalled || gave_up) && !self.sim {
+            // (a floor given up leads the report only when nothing else died or stalled)
+            if (!gave_up || self.batch.worst_death.is_none()) && (run.depth > self.batch.worst_depth || (run.depth == self.batch.worst_depth && (self.batch.worst_stall || self.batch.worst_death.is_none()))) {
                 self.batch.worst_depth = run.depth;
                 self.batch.worst_death = Some(run.id);
                 self.batch.worst_stall = true;
@@ -5762,7 +5780,7 @@ impl Game {
             }
         }
         debug_assert!(self.lineage.gold - gold_before == loot_kept - spent + self.lineage.gold_ledger.iter().rev().take_while(|g| g.t == self.lineage.total_turns).filter(|g| g.why.starts_with("salvage")).map(|g| g.delta).sum::<i32>());
-        if tier == ExitTier::Death || stalled {
+        if tier == ExitTier::Death || stalled || gave_up {
             if let Some(rec) = self.deaths.get_mut(&run.id) {
                 // The death's (or the stall's) own trace is longer; its line does not repeat it.
                 rec.death.line = Some(ExitLine { trace: None, ..line.clone() });
@@ -5789,7 +5807,7 @@ impl Game {
                 kept: line.found.iter().filter(|f| f.fate == "kept").map(|f| f.kind.clone()).collect(),
                 turns: run.turn,
                 best: outcome.new_best,
-                death_id: (matches!(tier, ExitTier::Death) || stalled).then_some(run.id).filter(|id| self.deaths.contains_key(id)),
+                death_id: (matches!(tier, ExitTier::Death) || stalled || gave_up).then_some(run.id).filter(|id| self.deaths.contains_key(id)),
                 sampled: None,
                 finds: line.finds.clone(),
                 secured: line.secured,
@@ -5820,6 +5838,10 @@ impl Game {
             if let Some(line) = crate::town::on_run(&mut self.lineage, run.max_depth, tier, run.home_return, run.depth, &slew) {
                 self.batch.pkg_lines.push(line);
             }
+            // blind 77030eb (A, B: the Mother slain, the pen's `edit` a run later): the systems read again once this run's
+            // kills and meetings are on the lineage (the update above ran before them) — same one-a-report budget
+            let opened = crate::systems::update(&mut self.lineage, false);
+            self.batch.systems_opened.extend(opened);
         }
         Some(outcome)
     }
@@ -6665,6 +6687,12 @@ pub fn exit_line(carried: i32, keep_pct: i32, kept: i32, spent: i32, spent_on: V
     exit_line_of(carried, keep_pct, kept, spent, spent_on, tier, timed_out, false, 0, bones, depth)
 }
 
+/// Blind 77030eb (B): a run home from a floor the oscillation guard stopped and the idle floor gave up — no row
+/// took him home (`stuck · went home`); it carries the stall's record (`trace::stall_record`).
+pub fn gave_up(run: &Run, tier: ExitTier) -> bool {
+    tier == ExitTier::Return && !run.timed_out && run.bail && run.stuck_fires > 0 && run.exit_row.is_none() && run.driven_off.is_none()
+}
+
 /// c30-legible: why a run ended, ≤ 3 words (`ExitLine.reason`) — the committing row's reason, not its
 /// words: a bank at the record (Steady's `depth ≥ best → bank`, which ends a fresh lineage's first runs
 /// at D2, D3, D4 …) reads `banks every record`; a hurt row `hurt · went home`; a death `slain · jackal`.
@@ -6686,6 +6714,10 @@ pub fn exit_reason(run: &Run, tier: ExitTier, best0: u32, rules: &RuleSet) -> St
     }
     if let Some(k) = &run.driven_off {
         return format!("repelled · {}", crate::sifter::boss_short(k));
+    }
+    // Cut 114 §3: the scout's order banked him at the stairs to the wall (`before Queen · banked`)
+    if run.wall_held && tier == ExitTier::Bank {
+        return format!("before {} · banked", crate::tree::wall_name(run.route, run.depth + 1));
     }
     let row = run.exit_row.and_then(|i| usize::try_from(i).ok()).and_then(|i| rules.rows.get(i));
     let Some(row) = row else {

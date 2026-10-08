@@ -2314,6 +2314,26 @@ fn tick_alert(run: &mut Run, cx: &mut Ctx) {
 pub const FLOOR_STREAM: u64 = 0xF100_2201_0000_0000;
 
 pub fn descend(run: &mut Run, cx: &mut Ctx) {
+    // Cut 114 §3 (blind 77030eb, A: an 8 h absence of four heirs dead at the Queen paid $1 496): the scout's
+    // order at a wall — the stairs down to the floor that killed the last heirs are the walk's end, banked as
+    // at that floor's up-stairs (`tree::wall_hold`; the order `push` sends every heir on)
+    if let Some((_, bank)) = run.wall_hold.filter(|(d, _)| *d == run.depth + 1 && run.over.is_none()) {
+        let at = crate::tree::wall_name(run.route, run.depth + 1);
+        if bank {
+            run.wall_held = true;
+            note(run, cx, format!("Banked before {at}: the scout's order."));
+            end_run(run, cx, ExitTier::Bank);
+            return;
+        }
+        // (`carry`: the haul so far secured as a record's is — safe whatever the exit — and the heir goes on)
+        let carry = run.loot.max(0);
+        if carry > 0 {
+            run.secured += carry;
+            run.loot = 0;
+            run.wall_carried += carry;
+            note(run, cx, format!("The scout carried ${carry} home before {at}."));
+        }
+    }
     note_saved(run, cx);
     // Cut 5 §1: the floor changing after a low resolves the episode; §4: an open vault is
     // settled by the preference before the stairs.

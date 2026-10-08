@@ -377,7 +377,9 @@ export type Town = { home?: boolean; auto_collect?: boolean; buildings: Building
 /** Cut 30 §2 (core) — a package (`Guarded L3`): `kind` stance · tactic · temperament; `level` 1–5 from `runs` (the runs one of its rows
  *  fired in; `next_at` the runs the next level wants); `slot` when equipped; `owned` once its stage came (`trigger` until then);
  *  `level_price` the marks a level spend costs (`spendLevel`). */
-export type Package = { id: string; name: string; description?: string; kind: string; level: number; runs: number; next_at?: number; slot?: number; owned: boolean; trigger?: string; level_price?: number; variants?: string[]; variant?: number };
+export type Package = { id: string; name: string; description?: string; kind: string; level: number; runs: number; next_at?: number; slot?: number; owned: boolean; trigger?: string; level_price?: number; variants?: string[]; variant?: number;
+  /** Blind 77030eb (core `packages::level_adds`): the rows the next level brings or changes to; absent: none (or an older core). */
+  level_adds?: Row[] };
 /** Cut 30 §1 (core) — a drilled counter (`drill · attack boss`, named, announced once as `DRILLED · Warlord`), revocable (`revokeDrill`);
  *  `scar` the boss's scar now in % (`scarred ×3` = 15). */
 export type Drill = { boss: string; rows: Row[]; revoked: boolean; scar: number };
@@ -669,7 +671,7 @@ export type OathDraw = { cost: number; available: boolean; needs?: string };
 export type Commission = { price: number; label: string; available: boolean };
 /** Cut 29 §4 (core) — the standing orders: exit keep (`best_weapon|best_armour|none`), an unwatched cage's pick (`weapon|armour|potion|scroll`),
  *  the start floor, the repeat, insuring the brought items when the purse covers it (on by default). */
-export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string };   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
+export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string; wall?: string };   // Cut 114 §3 (core): `wall` the scout's order at a wall — bank (default) · carry · push   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
 /** Cut 29 §4 (core) — a kind the next send adds to the repeat, and the row's verb that wants it (`throw fire`). */
 export type RepeatAdd = { kind: string; row: string };
 /** Cut 29 §1 (core; E1) — a wall's edit: the floor, the edit labels (`drop R6`, `R1 → hp < 90% → rest`), the whole set with them, the share of

@@ -201,8 +201,11 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
               onclick: () => { if (p.variant !== i) void app.mutate(() => app.engine.setTacticVariant!(p.id, i), /* copy:callout */ name, true).then(() => paint()); } }, name)))
           : "";
         const off = kind === "tactic" && app.engine.unequipPackage ? h("button", { class: "chip mini pkg-off", "aria-label": "remove", onclick: () => void app.mutate(() => app.engine.unequipPackage!(p.id), undefined, true).then(() => paint()) }, "×") : "";
+        // blind 77030eb (B: "levelling corridor fighting L1→L5 dropped D33 75%→25% with no reason"): beside a buyable level, the rows it
+        // brings (`L3 + 3+ foes → to corridor`, the core's `level_adds`) — a level that changes no row says nothing
+        const adds = lv && p.level_adds?.length ? h("small", { class: "num dim pkg-level-adds", "data-level-adds": p.level + 1 }, /* copy:label */ `L${p.level + 1} + ${p.level_adds.map(rowLabel).join(" · ")}`) : "";
         return h("div", { class: `pkg-slot${target ? " target" : ""}`, "data-kind": kind, "data-slot": slot },
-          h("span", { class: "chip pkg on", "data-pkg": p.id }, packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", levelBar(p))), change, lv, off, vary);
+          h("span", { class: "chip pkg on", "data-pkg": p.id }, packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", levelBar(p))), change, lv, off, vary, adds);
       };
       const section = (label: string, kind: string, ...kids: (HTMLElement | "")[]): HTMLElement => h("section", { class: "pkg-sec", "data-kind": kind }, h("div", { class: "label pkg-head" }, kw(kind as Term, label)), ...kids);   // docs/TOOLTIPS.md: the slot's word is its keyword
       const choices = (kind: string, ...kids: HTMLElement[]): HTMLElement => h("div", { class: "pkg-choices", hidden: !choosing.has(kind) }, ...kids);
@@ -267,7 +270,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       // blind ad71e72 (A: "inert" on three taps): nothing to compare (no other style or tactic owned) — the button stands disabled;
       // a comparison whose every move sits in the noise says so (`all similar`) rather than painting nothing
       const comparable = stanceAlts.length > 0 || owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id));
-      const compareButton = h("button", { class: "chip pkg-compare", disabled: !comparable || (compare && !!reading && !opts), onclick: () => { if (!choosing.has("stance") && !choosing.has("tactic")) { if (stanceAlts.length) choosing.add("stance"); else if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); } compare = true; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
+      const compareButton = h("button", { class: "chip pkg-compare", disabled: !comparable || (compare && !!reading && !opts), onclick: () => { if (stanceAlts.length) choosing.add("stance"); if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); compare = true; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
       const head = headline(app);
       replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: opts.some((o) => o.n) ? /* copy:tooltip */ "same seeds both sides · a send better or worse" : /* copy:tooltip */ "Small sample · minor differences unclear" }, compareSummary(opts)) : "", more);
     };

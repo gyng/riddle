@@ -189,6 +189,9 @@ pub struct PkgState {
     /// Package id → runs one of its rows fired in (the level's count).
     #[serde(default)]
     pub runs: BTreeMap<String, u32>,
+    /// The worn temperament is the player's pick (`pick`), not the wake's draw: a new heir keeps it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub temperament_chosen: bool,
     /// Cut 111: tactic id → the variant of its L3 row the player chose (0 the first, 1 the second).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub variants: BTreeMap<String, u8>,
@@ -234,6 +237,7 @@ impl Default for PkgState {
             temperament: None,
             runs: BTreeMap::new(),
             variants: BTreeMap::new(),
+            temperament_chosen: false,
             owned: ["steady".to_string()].into_iter().collect(),
             drills: Vec::new(),
             meets: BTreeMap::new(),
@@ -945,6 +949,18 @@ pub fn wake(l: &mut LineageState) {
     let mut cards: Vec<String> = ids.iter().enumerate().filter(|(i, _)| *i != skip).map(|(_, s)| s.to_string()).collect();
     let k = rng.below(cards.len() as u32) as usize;
     cards.rotate_left(k);
+    // blind 77030eb (A: "unbowed → light hands → iron gut without my choosing"): a personality the
+    // player picked stays worn — card 1 of the new offer (in it when the draw skipped it); a change is
+    // the player's pick, never the wake's. A lineage that never picked keeps the wake's draw (IDLE: the
+    // keep without a pick walled IDLE at D23 — 3/16 seeds by day 12)
+    if let Some(prev) = l.pkg.temperament.clone().filter(|t| l.pkg.temperament_chosen && ids.contains(&t.as_str())) {
+        if let Some(i) = cards.iter().position(|c| *c == prev) {
+            cards.remove(i);
+        } else {
+            cards.pop();
+        }
+        cards.insert(0, prev);
+    }
     l.pkg.offer = cards;
     let first = l.pkg.offer.first().cloned();
     wear(l, first.as_deref());
@@ -957,6 +973,7 @@ pub fn pick(l: &mut LineageState, id: &str) -> Result<(), String> {
         return Err("not on offer".into());
     }
     wear(l, Some(id));
+    l.pkg.temperament_chosen = true;
     recompile(l);
     Ok(())
 }
@@ -965,6 +982,29 @@ pub fn pick(l: &mut LineageState, id: &str) -> Result<(), String> {
 pub fn level_price(l: &LineageState, id: &str) -> Option<u32> {
     let lv = l.pkg.level(id);
     (lv < MAX_LEVEL).then_some(lv + 1)
+}
+
+/// Blind 77030eb (B: "levelling corridor fighting L1→L5 dropped D33 75%→25% with no reason"): the rows
+/// a package's next level brings (or changes to) — its rows at the next level not among its rows now,
+/// for the level button's why. Empty at the top level and for a level that changes no row.
+pub fn level_adds(l: &LineageState, id: &str) -> Vec<Row> {
+    let Some(d) = def(id) else { return Vec::new() };
+    let lv = l.pkg.level(id);
+    if lv >= MAX_LEVEL {
+        return Vec::new();
+    }
+    let rows = |lv: u32| -> Vec<Row> {
+        match d.kind {
+            Kind::Stance => {
+                let (g, f) = stance_rows(id, lv, l.best_depth);
+                g.into_iter().chain(f).collect()
+            }
+            Kind::Tactic => tactic_rows_v(id, lv, l.pkg.variants.get(id).copied().unwrap_or(0)),
+            Kind::Temperament => temperament_rows(id, lv),
+        }
+    };
+    let now = rows(lv);
+    rows(lv + 1).into_iter().filter(|r| !now.contains(r)).collect()
 }
 
 /// Spend marks on a package's next level (its runs set to the level's count).
@@ -1286,6 +1326,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
                 level_price: p.owned.contains(d.id).then(|| level_price(l, d.id)).flatten(),
                 variants: variants(d.id).map(|v| v.iter().map(|x| x.to_string()).collect()).unwrap_or_default(),
                 variant: (variants(d.id).is_some() && level_of(runs) >= 3).then(|| p.variants.get(d.id).copied().unwrap_or(0) as u32),
+                level_adds: if p.owned.contains(d.id) { level_adds(l, d.id) } else { Vec::new() },
             }
         })
         .collect();

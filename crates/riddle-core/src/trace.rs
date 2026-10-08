@@ -76,7 +76,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     // Cut 14 §2: `heal unused` / `N unknown unused` are the verdict's to add (`margin_lines`):
     // only when the candidate that drinks it survived the replays — a `dice` death's margin
     // never names an item the replays say would not have saved him (cohort 10, rater S).
-    let margin = if stall { "keeps $0".to_string() } else { format!("{} hp short", run.death_short.max(1)) };
+    // (a floor given up went home with its share: `went home`, not `keeps $0`)
+    let margin = if stall && !run.timed_out { "went home".to_string() } else if stall { "keeps $0".to_string() } else { format!("{} hp short", run.death_short.max(1)) };
     let facts = &game.lineage.facts;
     let fl = &game.lineage.flavours;
     let heal_held = !stall && run.hero.inv.iter().any(|i| i.kind == "heal" && i.is_known(facts, fl));
@@ -481,7 +482,8 @@ fn morgue(game: &Game, run: &Run, rules: &RuleSet, stall: bool) -> String {
     let mut s = String::new();
     s.push_str(&format!("Riddle morgue · seed {} · heir {} · run {}\n", game.lineage.seed, run.heir, run.id));
     if stall {
-        s.push_str(&format!("D{} ({}) · tick {} · stalled · {} · ${} carried, kept $0\n", run.depth, run.biome().name(), run.turn, run.stuck_cause.as_deref().unwrap_or("paced"), run.loot.max(0)));
+        let kept = if run.timed_out { "kept $0".to_string() } else { format!("gave up, went home with ${}", run.kept(ExitTier::Return)) };
+        s.push_str(&format!("D{} ({}) · tick {} · stalled · {} · ${} carried, {kept}\n", run.depth, run.biome().name(), run.turn, run.stuck_cause.as_deref().unwrap_or("paced"), run.loot.max(0)));
     } else {
         s.push_str(&format!(
             "D{} ({}) · tick {} · slain by {} · blow {} at {} hp\n",
@@ -852,9 +854,11 @@ impl Replayer {
         }
         let survived = match self.stall {
             None => self.g.run.as_ref().is_some_and(|r| r.over != Some(ExitTier::Death)),
+            // (blind 77030eb: the idle floor's walk home from the guard's floor — `Run.bail` — gives the floor
+            // up; it is not the loop broken)
             Some((depth, _)) => self.g.run.as_ref().is_some_and(|r| match r.over {
                 Some(ExitTier::Death) => false,
-                Some(_) => !r.timed_out,
+                Some(t) => !r.timed_out && !crate::engine::gave_up(r, t),
                 None => r.depth > depth,
             }),
         };

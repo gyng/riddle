@@ -32,7 +32,7 @@ import { renderScene } from "./divergence";
 import { gem, metersSlot, portrait, renderBar, renderConsole, stud, tile } from "./frame";
 import { revealed, type Step } from "./reveal";
 import { openLedger } from "./party";
-import { kitAffordable, openForge } from "./forge";
+import { goldSink, kitAffordable, openForge } from "./forge";
 import { afterOf, labelOf, stallLabel, classList, classUnlockReason, deltaClass, deltaLabel, deltaPts, goldAffordable, addCard, isCard, openOwnedSheet, openUnlockSheet, ownedRows, priceLabel, supplyCap, visible, vaultSlots, withRowsGate } from "./unlocks";
 import { audio, biomeOf } from "../audio";
 import { salvageValue } from "./salvage";
@@ -129,6 +129,9 @@ const KEEP_ORDERS = ["best_weapon", "best_armour", "none"];
 /** blind 1fb7786 (core `FORGE_ORDERS`): the apprentice's forge order — half of each haul home, the spare purse, nothing. */
 const FORGE_ORDERS = ["half", "all", "off"];
 const FORGE_WORD: Record<string, string> = { half: "half haul", all: "all spare", off: "off" };
+/** Cut 114 §3 (core `WALL_ORDERS`): the scout's order at a wall that killed the last heirs — bank before it (default), carry the haul, push on. */
+const WALL_ORDERS = ["bank", "carry", "push"];
+const WALL_WORD: Record<string, string> = { bank: "bank before", carry: "carry home", push: "push on" };
 /* copy:label */
 const KEEP_WORD: Record<string, string> = { best_weapon: "weapon", best_armour: "armour", none: "none" };
 const SEEN_MS = 1800;   // Cut 29 §2: a new system's glint plays before the core clears its `new`
@@ -281,7 +284,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   // QA 1a2a4a9 (P: "nothing on the camp shows what's packed — only opening SUPPLIES does"): the loadout tile carries the pack's count
   const withPack = (el: HTMLElement): HTMLElement => { const n = app.lineage.supplies?.length ?? 0; if (n) el.appendChild(h("span", { class: "pack-n num" }, `${n}/${app.lineage.supply_cap ?? supplyCap(app.lineage.unlocks)}`)); return el; };
   /** Cut 23 §1: the forge tile's badge — the kit steps the purse can buy now (`2`), none when there are none. */
-  const kitBadge = (): HTMLElement | null => { const n = kitAffordable(app.lineage); return n ? h("span", { class: "kit-n num", "data-n": n }, `${n}`) : null; };
+  // blind 77030eb (B: "$27 119 with 'Kit complete'"): a complete kit with a town work the purse covers badges `$` (the forge holds the build)
+  const kitBadge = (): HTMLElement | null => { const n = kitAffordable(app.lineage); return n ? h("span", { class: "kit-n num", "data-n": n }, `${n}`) : app.engine.commission && goldSink(app.lineage) ? h("span", { class: "kit-n num", "data-sink": "commission" }, "$") : null; };
   const withBadge = (el: HTMLElement, badge: HTMLElement | null): HTMLElement => { if (badge) { el.appendChild(badge); el.classList.add("badged"); } return el; };
   /** Cut 30 (the Reveal): a system the core opened since the camp last looked glints once (its `new`). */
   const freshSys = (...ids: string[]): boolean => !!app.lineage.systems?.some((x) => ids.includes(x.id) && x.new);
@@ -655,6 +659,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
           row(/* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
           // blind 1fb7786 (A, B: "the apprentice spent my gold without asking"): what he may forge with — half of each haul (default), all, off
           apprenticeOn() && o.forge ? row(/* copy:label */ "apprentice forges", ...FORGE_ORDERS.map((f) => pick(o.forge, f, FORGE_WORD[f], act({ forge: f }, /* copy:callout */ "forge")))) : null,
+          // Cut 114 §3 (blind 77030eb, A: "the 8h absence came back with four dead heirs"): what the scout's sends do at a wall
+          o.wall ? row(/* copy:label */ "at walls", ...WALL_ORDERS.map((w) => pick(o.wall, w, WALL_WORD[w], act({ wall: w }, /* copy:callout */ "wall")))) : null,
         ].filter((x): x is HTMLElement => !!x); };
         const rows = h("div", { class: "order-rows" }, ...build());
         body.appendChild(rows);

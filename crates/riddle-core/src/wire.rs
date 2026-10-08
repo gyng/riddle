@@ -1683,6 +1683,9 @@ pub struct PackageWire {
     pub variants: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variant: Option<u32>,
+    /// Blind 77030eb: the rows the next level brings or changes to (`packages::level_adds`; empty: none).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub level_adds: Vec<crate::rules::Row>,
 }
 
 /// Cut 30 §1: a drilled counter on the stance (`drill · attack boss`), revocable.
@@ -2961,10 +2964,23 @@ pub struct StandingSwitches {
     /// player's to decide with), `off` nothing.
     #[serde(default = "forge_half")]
     pub forge: String,
+    /// Cut 114 §3 (blind 77030eb, A: "the 8h absence came back with $1 496, four dead heirs and the best
+    /// unchanged"): the scout's order at a wall that killed the last heirs (`WALL_ORDERS`, `tree::wall_hold`) —
+    /// `bank` the heir home at its stairs until he is stronger (a retry every `WALL_RETRY` sends, its haul
+    /// carried), `carry` the haul home from its stairs (secured, as a record's is) while the heir goes on,
+    /// `push` nothing.
+    #[serde(default = "wall_bank")]
+    pub wall: String,
 }
 
 /// The apprentice's orders (`StandingSwitches::forge`), the default first.
 pub const FORGE_ORDERS: [&str; 3] = ["half", "all", "off"];
+/// Cut 114 §3: the scout's orders at a wall (`StandingSwitches::wall`), the default first.
+pub const WALL_ORDERS: [&str; 3] = ["bank", "carry", "push"];
+
+fn wall_bank() -> String {
+    WALL_ORDERS[0].into()
+}
 
 fn forge_half() -> String {
     FORGE_ORDERS[0].into()
@@ -2972,7 +2988,7 @@ fn forge_half() -> String {
 
 impl Default for StandingSwitches {
     fn default() -> Self {
-        StandingSwitches { insure: true, forge: forge_half() }
+        StandingSwitches { insure: true, forge: forge_half(), wall: wall_bank() }
     }
 }
 
@@ -3022,11 +3038,15 @@ pub struct StandingOrders {
     /// Blind 1fb7786: the apprentice's forge order (`all · half · off`; `FORGE_ORDERS`).
     #[serde(default = "forge_half")]
     pub forge: String,
+    /// Cut 114 §3: the scout's order at a wall (`bank · carry · push`; `WALL_ORDERS`); absent on a set from a client
+    /// that does not know it (the order stands).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wall: Option<String>,
 }
 
 impl Default for StandingOrders {
     fn default() -> Self {
-        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half() }
+        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half(), wall: Some(wall_bank()) }
     }
 }
 

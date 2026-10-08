@@ -6,7 +6,7 @@ import { icon } from './skin';
 import { paintFace } from './frame';
 import { openWindow } from './sheet';
 import { openHero } from './town';
-import { kitAffordable, openForge } from './forge';
+import { goldSink, kitAffordable, openForge } from './forge';
 import { openPackages, packagesShown } from './packages';
 import { unitLabel } from './unit-icon';
 import { enemyHost } from './enemy-tips';
@@ -67,10 +67,12 @@ export function preparationActions(app: App, options: { collapsed?: boolean; obs
     const build = home && forgeReady(L) && !!app.engine.buildTown;
     const kit = kitAffordable(L);
     const forge = home && (!L.town || forgeBuilt(L)) && kit > 0 && !!app.engine.buyKit;
+    // blind 77030eb (B): a complete kit with gold to spare names the next town work (the forge holds its button)
+    const sink = home && !forge && !build && !!app.engine.commission && (!L.town || forgeBuilt(L)) ? goldSink(L) : null;
     const tactics = home && !!options.obstacle && packagesShown(L) && !!app.engine.equipPackage && !!L.packages?.all.some(p => p.owned && p.slot === undefined);
-    const next = JSON.stringify([hero, build, forge, tactics, kit, points, L.selected_bloodline, L.class, L.look]);
+    const next = JSON.stringify([hero, build, forge, tactics, kit, points, L.selected_bloodline, L.class, L.look, sink]);
     if (next === key) return;
-    key = next; host.hidden = !(hero || build || forge || tactics);
+    key = next; host.hidden = !(hero || build || forge || tactics || sink);
     const row = (className: string, art: Node, label: string, detail: string, open: (anchor: HTMLElement) => void): HTMLElement =>
       h('button', { class: `chip preparation-action ${className}`, onclick: (e: Event) => open(e.currentTarget as HTMLElement) }, art,
         h('span', { class: 'report-upgrade-copy' }, h('b', null, label), h('small', { class: 'num' }, detail)));
@@ -79,6 +81,7 @@ export function preparationActions(app: App, options: { collapsed?: boolean; obs
     replace(actions,
       ...(hero ? [row('report-upgrade', face, /* copy:button */ 'Upgrade hero', /* copy:label */ `Bloodline ${L.selected_bloodline ?? 1} · ${points} Legacy`, anchor => openHero(app, anchor))] : []),
       ...(build || forge ? [row('preparation-forge', icon('forge', '⚒'), build ? /* copy:button */ 'Build forge' : /* copy:button */ 'Forge gear', build ? /* copy:label */ 'Free' : /* copy:label */ `${kitAffordable(L)} upgrades ready`, anchor => openPreparationForge(app, anchor))] : []),
+      ...(sink ? [row('preparation-sink', icon('camp', '⌂'), /* copy:button */ 'Town upgrade', /* copy:label */ `${sink.label} · $${sink.price}`, anchor => openForge(app, anchor))] : []),
       ...(tactics ? [row('preparation-tactics', icon('unlocks', '✦'), /* copy:button */ 'Tactics', /* copy:label */ 'Owned choices', anchor => openPackages(app, anchor))] : []));
   };
   paint();

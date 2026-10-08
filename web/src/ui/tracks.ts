@@ -74,7 +74,10 @@ export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: str
 export const trainingBeats = (beats: string[] | undefined): string[] => (beats ?? []).filter((b) => /^DRILLED\b/.test(b) || / L\d+$/.test(b));
 // Reverse the core's sifter::boss_short labels, not the selected hero's knowledge.
 const TRAINING_BOSSES: Record<string, string> = { Warlord: "goblin_warlord", Mother: "bloat_mother", Lich: "lich", Master: "foundry_master", Queen: "lurker_queen", King: "mirror_king" };
-function trainingBadge(beat: string): HTMLElement {
+/** Blind 77030eb (B: "tapping 'Training · Warlord tactic' did nothing"): with `open` a badge is a button onto the tactics panel, where
+ *  the drill (On / Off) and the level stand. */
+type OpenTraining = (anchor: HTMLElement, beat: string) => void;
+function trainingBadge(beat: string, open?: OpenTraining): HTMLElement {
   const drill = /^DRILLED · (.+)$/.exec(beat);
   const boss = drill ? TRAINING_BOSSES[drill[1]] : undefined;
   const level = /^(.*) L\d+$/.exec(beat);
@@ -84,20 +87,22 @@ function trainingBadge(beat: string): HTMLElement {
     art: boss ? undefined : id ? packageIcon(id) : icon("unlocks", "✦"),
     className: `beat-plaque${drill ? " drill" : ""}` });
   badge.dataset.training = beat;
-  return badge;
+  if (!open) return badge;
+  const b: HTMLButtonElement = h("button", { class: "training-open", "data-training": beat, onclick: () => open(b, beat) }, badge);
+  return b;
 }
-const trainingBadges = (earned: string[]): HTMLElement => h("div", { class: "beats" }, ...earned.map(trainingBadge));
-export function trainingBlock(beats: string[] | undefined): HTMLElement | null {
+const trainingBadges = (earned: string[], open?: OpenTraining): HTMLElement => h("div", { class: "beats" }, ...earned.map((b) => trainingBadge(b, open)));
+export function trainingBlock(beats: string[] | undefined, open?: OpenTraining): HTMLElement | null {
   const earned = trainingBeats(beats);
   return earned.length ? h("section", { class: "run-training" },
-    h("b", { class: "row-label" }, /* copy:label */ "Training"), trainingBadges(earned)) : null;
+    h("b", { class: "row-label" }, /* copy:label */ "Training"), trainingBadges(earned, open)) : null;
 }
 /** Multihero progress uses the report's persistent slot, never today's selected heir. */
-export function reportTrainingBlock(r: Pick<ReturnReport, "bloodlines" | "packages">): HTMLElement | null {
-  if (!r.bloodlines?.some((s) => s.packages !== undefined)) return trainingBlock(r.packages);
+export function reportTrainingBlock(r: Pick<ReturnReport, "bloodlines" | "packages">, open?: OpenTraining): HTMLElement | null {
+  if (!r.bloodlines?.some((s) => s.packages !== undefined)) return trainingBlock(r.packages, open);
   const earned = [...r.bloodlines].sort((a,b) => a.id-b.id).map((s) => ({ ...s, beats: trainingBeats(s.packages) })).filter((s) => s.beats.length);
   return earned.length ? h("section", { class: "run-training" },
     h("b", { class: "row-label" }, /* copy:label */ "Training"),
     ...earned.map((s) => h("div", { class: "bloodline-training", "data-bloodline": s.id },
-      h("small", { class: "training-lineage" }, s.name), trainingBadges(s.beats)))) : null;
+      h("small", { class: "training-lineage" }, s.name), trainingBadges(s.beats, open)))) : null;
 }

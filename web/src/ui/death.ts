@@ -32,7 +32,7 @@ import { foeSrc, packageIcon } from "./skin";
 import { enemyHost } from "./enemy-tips";
 import { unitLabel, unitPortrait } from "./unit-icon";
 import { itemIcon } from "./items";
-import { penOpen } from "./packages";
+import { openPackages, penOpen } from "./packages";
 import { openPreparationForge, preparationActions } from "./preparation";
 import { kwHost } from "./tips";
 import { TIP, type Term } from "./concepts";
@@ -361,6 +361,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     more.setAttribute("aria-expanded", String(open)); more.classList.toggle("on", open);
     if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
+  // blind 77030eb (B): a training plaque opens the tactics panel (the drill's On / Off, the level)
+  const training = app.lineage.packages && app.engine.equipPackage ? (a: HTMLElement): void => openPackages(app, a) : undefined;
   const well = h("div", { class: "well death-well" },
     d.hero?.name ? unitLabel(d.hero.class, h("span", null, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`), { hero: true, art: unitPortrait(d.hero.class, 64, true), className: "death-hero num dim" }) : null,
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerPortrait ? " has-killer" : ""}` },
@@ -368,7 +370,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       luckLead, line)),
     // run-clear: the death screen is a death's card — its header carries the floor, a new best, the finds left in the bones
     kept || from ? null : clearStrip(d.line),
-    ...(prePen ? [whyEl, trainingBlock(d.line?.packages), now] : [whyEl, trainingBlock(d.line?.packages), details, now, more, tail]));
+    ...(prePen ? [whyEl, trainingBlock(d.line?.packages, training), now] : [whyEl, trainingBlock(d.line?.packages, training), details, now, more, tail]));
   const wide = wideCols(app, null);   // desktop: the rules left, the shaft right (wide.css); the fight is under details
   const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}${prePen ? " prepen" : ""}` }, bar.el, well, cons.el, ...wide.els);
   setWhy(); rest();

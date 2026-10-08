@@ -118,6 +118,106 @@ pub struct Tree {
     /// haul home since he was hired, less what he spent (never above the purse).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub forge_budget: i32,
+    /// Cut 114 §3: the scout's wall ledger (`note_wall`) — the floor the last heirs died on near the record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wall: Option<WallLedger>,
+    /// Cut 114 §3: the floor the scout last banked before (the report's `banked before Queen ×4`).
+    #[serde(default, skip_serializing_if = "is_zero_u")]
+    pub held_at: u32,
+}
+
+fn is_zero_u(n: &u32) -> bool {
+    *n == 0
+}
+
+/// Cut 114 §3 (blind 77030eb, A: "long absences paid less than short ones … $1 496, four dead heirs and the
+/// best depth unchanged"): the floor the sends die on — deaths there in a row (a send past it forgets it), the
+/// hero's strength at the last (`strength`), and the sends the scout has banked before it since.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WallLedger {
+    pub depth: u32,
+    pub deaths: u32,
+    pub strength: u64,
+    pub held: u32,
+}
+
+/// Deaths on one floor before the scout banks the sends at its stairs (order `bank`).
+pub const WALL_DEATHS: u32 = 2;
+/// A death this many floors above the record or nearer is a wall's (deeper on the walk is not).
+pub const WALL_NEAR: u32 = 2;
+/// Sends banked before an unchanged wall before the scout lets one try it again.
+pub const WALL_RETRY: u32 = 3;
+/// The `acts` keys of the sends the scout banked before a wall, of those whose haul he carried home from its
+/// stairs, and of that haul in all (never a node's).
+pub const SCOUT_HELD: &str = "scout:held";
+pub const SCOUT_CARRIED: &str = "scout:carried";
+pub const SCOUT_CARRIED_GOLD: &str = "scout:carried$";
+
+/// What the hero brings to a wall that a camp can change: the forge's steps, the class level, the Legacy, the
+/// worn packages and their levels, the rules. A wall is tried again when any of it moved.
+pub fn strength(l: &LineageState) -> u64 {
+    let kit: Vec<u32> = crate::kit::KIT_SLOTS.iter().map(|s| crate::kit::owned(l, s)).collect();
+    let legacy = crate::legacy::current(l).map(|b| format!("{:?}", b.upgrades)).unwrap_or_default();
+    let pkgs: Vec<(String, u32)> = std::iter::once(l.pkg.stance.clone()).chain(l.pkg.tactics.iter().cloned()).chain(l.pkg.temperament.iter().cloned()).map(|id| { let n = l.pkg.level(&id); (id, n) }).collect();
+    crate::rng::hash_str(&format!("{kit:?}|{}|{legacy}|{pkgs:?}|{}", l.class_level(), crate::forecast::rules_key(l.rules())))
+}
+
+/// A wall's name on the report and the exit (`Queen`; `D27` on a floor with no boss).
+pub fn wall_name(route: crate::descent::Route, depth: u32) -> String {
+    route.boss(depth).map(|k| crate::sifter::boss_short(k).to_string()).unwrap_or_else(|| format!("D{depth}"))
+}
+
+/// The scout's order for his next send at a wall — `WALL_DEATHS` heirs dead on one floor in a row: (the floor,
+/// banked at its stairs). `carry`: the haul carried home from the stairs, every send. `bank`: the heir banked
+/// there while he is no stronger than at the last death and fewer than `WALL_RETRY` sends were banked before it
+/// since — the next tries it again, its haul carried. `push`: none.
+pub fn wall_hold(l: &LineageState) -> Option<(u32, bool)> {
+    if l.pkg.literal || !on(l, "scout") || l.orders.wall == "push" {
+        return None;
+    }
+    let w = l.tree.wall.as_ref().filter(|w| w.deaths >= WALL_DEATHS && w.depth > l.start.max(1))?;
+    // (`bank`: a send that tries the wall again has its haul carried home from the stairs as `carry`'s)
+    Some((w.depth, l.orders.wall == "bank" && w.held < WALL_RETRY && w.strength == strength(l)))
+}
+
+/// A real run home (never a sim's, never a harness's literal lineage): the scout's wall ledger.
+pub fn note_wall(game: &mut Game, run: &crate::engine::Run, tier: crate::engine::ExitTier) {
+    if game.sim || game.lineage.pkg.literal {
+        return;
+    }
+    if run.wall_held {
+        if let Some(w) = game.lineage.tree.wall.as_mut() {
+            w.held += 1;
+        }
+        game.lineage.tree.held_at = run.depth + 1;
+        *game.lineage.tree.acts.entry(SCOUT_HELD.to_string()).or_insert(0) += 1;
+        return;
+    }
+    if run.wall_carried > 0 {
+        game.lineage.tree.held_at = run.wall_hold.map_or(run.depth, |(d, _)| d);
+        let acts = &mut game.lineage.tree.acts;
+        *acts.entry(SCOUT_CARRIED.to_string()).or_insert(0) += 1;
+        let g = acts.entry(SCOUT_CARRIED_GOLD.to_string()).or_insert(0);
+        *g = g.saturating_add(run.wall_carried as u32);
+    }
+    let l = &mut game.lineage;
+    if tier == crate::engine::ExitTier::Death {
+        let d = run.depth;
+        if d + WALL_NEAR < l.best_depth {
+            return;
+        }
+        let s = strength(l);
+        match l.tree.wall.as_mut() {
+            Some(w) if w.depth == d => {
+                w.deaths += 1;
+                w.strength = s;
+                w.held = 0;
+            }
+            _ => l.tree.wall = Some(WallLedger { depth: d, deaths: 1, strength: s, held: 0 }),
+        }
+    } else if l.tree.wall.as_ref().is_some_and(|w| run.max_depth > w.depth) {
+        l.tree.wall = None;
+    }
 }
 
 /// Blind 1fb7786: the share of a haul the apprentice's order lets him forge with, in percent (`all` spends the
@@ -487,6 +587,11 @@ fn act(game: &mut Game, id: &str, n: u32) {
 pub(crate) fn scout_sent(game: &mut Game) {
     if !game.sim && !game.lineage.pkg.literal && on(&game.lineage, "scout") {
         act(game, "scout", 1);
+        // Cut 114 §3: his order at a wall rides with the send
+        let hold = wall_hold(&game.lineage);
+        if let Some(run) = game.run.as_mut().filter(|r| r.turn == 0) {
+            run.wall_hold = hold;
+        }
     }
 }
 
@@ -914,14 +1019,29 @@ pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTr
                     _ => format!("{k}"),
                 };
                 let moved = |key: &str| after.get(key).copied().unwrap_or(0).saturating_sub(acts_before.get(key).copied().unwrap_or(0));
+                let (held, carried) = if n.id == "scout" { (moved(SCOUT_HELD), moved(SCOUT_CARRIED)) } else { (0, 0) };
                 let (items, spent) = if n.id == "apprentice" {
                     let items = crate::kit::KIT_SLOTS.iter().filter(|s| moved(&format!("{APPRENTICE_SLOT}{s}")) > 0)
                         .filter_map(|s| crate::kit::owned(l, s).checked_sub(1).map(|i| crate::kit::step_label(l, s, i as usize))).collect();
                     (items, moved(APPRENTICE_SPENT) as i32)
+                } else if held + carried > 0 {
+                    // Cut 114 §3: the sends he banked before the wall (`banked before Queen ×4`), the haul he carried
+                    // home from its stairs (`carried $5400 · Queen`)
+                    let at = wall_name(l.rules().route(), l.tree.held_at);
+                    let mut v = Vec::new();
+                    if carried > 0 {
+                        v.push(format!("carried ${} · {at}", moved(SCOUT_CARRIED_GOLD)));
+                    }
+                    if held > 0 {
+                        v.push(format!("banked before {at} ×{held}"));
+                    }
+                    (v, 0)
                 } else {
                     (Vec::new(), 0)
                 };
-                WorkerAct { id: n.id.into(), what, n: k, first: acts_before.get(n.id).copied().unwrap_or(0) == 0, items, spent }
+                // (his order's first act at a wall is announced as a hire's first act is)
+                let first = acts_before.get(n.id).copied().unwrap_or(0) == 0 || (held > 0 && acts_before.get(SCOUT_HELD).copied().unwrap_or(0) == 0) || (carried > 0 && acts_before.get(SCOUT_CARRIED).copied().unwrap_or(0) == 0);
+                WorkerAct { id: n.id.into(), what, n: k, first, items, spent }
             })
         })
         .collect()

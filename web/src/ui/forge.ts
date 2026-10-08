@@ -3,7 +3,7 @@ import { gunName } from './gun-names';
 // and explicitly requested forecasts live under Details; purchases never wait for simulations.
 import type { App } from "../app";
 import type { KitLadder, Lineage } from "../engine/types";
-import { h, replace } from "./dom";
+import { h, replace, twoTap } from "./dom";
 import { openWindow as openSheet } from "./sheet";
 import { moveOf } from "./forecast";
 import { audio } from "../audio";
@@ -46,6 +46,11 @@ const SLOT_LABEL: Record<string, string> = { weapon: "weapon", armour: "armour",
 
 /** Cut 23 §1: steps the purse can buy now (the tile's badge; the reveal ladder's `kit` step). */
 export const kitAffordable = (L: Pick<Lineage, "kit">): number => (L.kit ?? []).filter((k) => k.next?.affordable).length;
+
+/** Blind 77030eb (B: "$27 119 with 'Kit complete' and nothing to buy"): every ladder at its top (the optional backup aside). */
+export const kitComplete = (L: Pick<Lineage, "kit">): boolean => { const k = (L.kit ?? []).filter((x) => x.slot !== "gun_sidearm"); return k.length > 0 && k.every((x) => !x.next); };
+/** What gold still buys once the kit is complete: the next town work (the core's commission, policy-neutral), when the purse covers it. */
+export const goldSink = (L: Pick<Lineage, "kit" | "commission">): NonNullable<Lineage["commission"]> | null => (kitComplete(L) && L.commission?.available ? L.commission : null);
 
 /** The next step's measured move in the edits' form (Cut 24 §3, AL: `leather +1 · death +7` read as armour raising death): the depth
  *  first, then the ends that clear their ± — `D9 +7 · death −7`, `D9 ≈ ±4 · bank +6`; null until measured. `worse`: more is worse. */
@@ -109,7 +114,14 @@ export function openForge(app: App, anchor?: HTMLElement | null): void {
             /* copy:label */ `Range ${gun.range}`, " · ", gun.capacity === 1 ? /* copy:label */ "1 shot" : /* copy:label */ `${gun.capacity} shots`, " · ",
             /* copy:label */ `Reload ${gun.reload_ticks / 10}s`));
       });
-      replace(kit, ...guns, ...(!guns.length && !choices.length ? [h("div", { class: "num dim" }, /* copy:label */ "Kit complete")] : []), ...choices.map((lad) => {
+      // blind 77030eb (B): a complete kit names what the gold still buys — the next town work (the oath board's sink, on the forge too)
+      const c = app.lineage.commission, works = app.lineage.works ?? [];
+      const sink = kitComplete(app.lineage) && c && app.engine.commission ? h("section", { class: "kit-slot tablet forge-works", "data-sink": "commission" },
+        h("div", { class: "kit-head" }, h("b", null, /* copy:label */ "town upgrades"), works.length ? h("small", { class: "dim works-built num" }, works.slice(-3).join(" · ")) : ""),
+        h("div", { class: "forge-action" }, h("div", { class: "forge-item" }, h("span", { class: "icon-socket" }, icon("camp", "⌂")), c.label),
+          twoTap(/* copy:button */ `build $${c.price}`, /* copy:button */ `ok $${c.price}`, () => void app.mutate(() => app.engine.commission!(), /* copy:callout */ "town upgrade").then(() => { if (kit.isConnected) paint(); }), { class: "chip forge-buy commission num", disabled: !c.available, key: "forge-commission" })),
+        !c.available ? h("small", { class: "num dim" }, /* copy:callout */ `$${Math.max(0, c.price - app.lineage.gold)} short`) : "") : null;
+      replace(kit, ...guns, ...(kitComplete(app.lineage) || (!guns.length && !choices.length) ? [h("div", { class: "num dim" }, /* copy:label */ "Kit complete")] : []), ...(sink ? [sink] : []), ...choices.map((lad) => {
         const next = lad.next;
         const item = lad.steps[lad.owned] ?? lad.steps[lad.owned - 1];
         const current = lad.owned > 0 ? lad.steps[lad.owned - 1]?.label : null;

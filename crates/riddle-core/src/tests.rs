@@ -11297,6 +11297,9 @@ fn saves_from_307dbed_send_identically() {
     // Cut 113 §4 (the late walls breathe: Foundry Master 52 hp, Lurker Queen 120 hp (7–11), Mirror King
     // 220 hp (13–19), wardens 34, echoes 18, sentinels 30): f22db4c57141f4d0 → ea30535a6c429390. The same
     // tree with only defs.rs back at HEAD hashes to f22db4c57141f4d0 exactly.
+    // Blind 77030eb: a new heir keeps a temperament the PLAYER picked (`packages::wake`, `temperament_chosen`);
+    // this save never picked, so its wakes draw as before — the hash stays ea30535a6c429390 (an unconditional keep
+    // moved it to 584fbd1f31722aa8 and walled IDLE; the second `systems::update` at the run's end leaves it unchanged).
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }

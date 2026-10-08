@@ -830,6 +830,10 @@ impl Play {
                 by_hand_until_scout(g, out, ask, h);
             }
             let elapsed = if *k == 1 { interval.saturating_sub(*session_s).max(1) } else { interval };
+            // (`DP_SAVE_DIR=dir`: each absence's camp saved, for the wall-absence probe — never in a gate run)
+            if let Some(dir) = std::env::var_os("DP_SAVE_DIR") {
+                let _ = std::fs::write(std::path::Path::new(&dir).join(format!("{}-s{}-d{}-c{ci}.json", cfg.label(), self.seed, day + 1)), g.save());
+            }
             let rep = ph("offline", || riddle_core::offline::run_offline_counts(g, elapsed));
             out.checkins += 1;
             out.sends += rep.runs;

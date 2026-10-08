@@ -40,7 +40,7 @@ import { grewBlock, heroFace, reportTrainingBlock, trainingBeats } from "./track
 import { reportChoices } from "./report-choices";
 import { bossName, reportBosses } from "./report-bosses";
 import { workersBlock, workersSpent } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
-import { onPackages, penOpen } from "./packages";
+import { onPackages, openPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 import { progressGoal, progressGoalRow } from "./progress-goal";
 import { kwHost, kwText, detailHost } from "./tips";
@@ -653,7 +653,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, pick.el, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), classXpBlock(r), legacyEarnedBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r), firstWorkers,
+    summary, pick.el, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), classXpBlock(r), legacyEarnedBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a) => openPackages(app, a) : undefined), firstWorkers,
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
