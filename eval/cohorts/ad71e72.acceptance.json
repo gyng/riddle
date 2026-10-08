@@ -1,6 +1,6 @@
 {
   "candidate": "ad71e72909bba18cd06e2f8185302ea57f2d0a4b",
-  "status": "browser accepted 2026-10-08 (128/129 whole run; ui:frame test-sampling fix rechecked 3/3); blind raters released",
+  "status": "cohort complete 2026-10-08: 57.1 / 56.3, alpha .61 unreliable; next candidate Cut 109/110",
   "applicationSourceChangedSinceFreeze": false,
   "shippingWasm": {
     "bytes": 4280168,
@@ -129,6 +129,39 @@
     },
     "release": "2026-10-08: whole-suite 128/129 with the single remaining failure attributed to test sampling of an in-flight 60ms transition, fixed test-side and rechecked 3/3; application unchanged; blind raters released by coordinator (Claude)"
   },
-  "score": "none yet; cohort ad71e72 blind-a/b launched; owner target revised to 80",
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/ad71e72.blind-a.json",
+      "total": 57.1,
+      "complete": false,
+      "activeMinutes": 59,
+      "gates": [
+        "expression",
+        "pacing"
+      ]
+    },
+    "blind-b": {
+      "card": "eval/cards/ad71e72.blind-b.json",
+      "total": 56.3,
+      "complete": true,
+      "activeMinutes": 70.4,
+      "gates": [
+        "expression"
+      ]
+    },
+    "alpha": 0.608,
+    "reliable": false,
+    "shared": [
+      "custom-rules pen locked all horizon (Mother met AND 72h age; eval reaches ~13h) -> expression 0.3 both",
+      "late wall D19-21 iron golem with no counter and Legacy/forge sinks out of reach",
+      "repeated per-bloodline admin on every return",
+      "copy: unitless 'deeper ≈+90', lever 'WAIT Guarded L5', 'behind mother' after kill, '−0 hp' spam, gold earned vs purse unreconciled"
+    ],
+    "raterSpecific": {
+      "a": "live-edge dead air ~55s at D8/D10/D18 and a >2 min freeze at 'D18 · Floor 18' until Speed was tapped; rules export failed (driver quit)",
+      "b": "RULES export in settings produced no download"
+    },
+    "verdict": "regression from 9720ff7 (~73); not a certifiable combined score; 80 not met"
+  },
   "deployment": false
 }

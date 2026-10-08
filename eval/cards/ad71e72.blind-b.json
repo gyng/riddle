@@ -1,0 +1,204 @@
+{
+ "game": "Riddle",
+ "build": "ad71e72909bba18cd06e2f8185302ea57f2d0a4b",
+ "genre": "idle-hybrid",
+ "presets": "../riddle/eval/presets.json",
+ "profile": null,
+ "tier": 1,
+ "evaluator": "blind-b (agent rater, fresh seed 89, headed D3D12 RTX 3080, 400x800@3x)",
+ "horizon": {
+  "activeMinutes": 70.4,
+  "activeIntervalsUTC": [
+   {
+    "phase": "cold",
+    "start": "2026-10-07T16:02:21Z",
+    "end": "2026-10-07T16:44:02Z",
+    "creditedMin": 40.2,
+    "excluded": "~1.5 min: two 30 s locator timeouts, helper-script errors"
+   },
+   {
+    "phase": "return absent=20m",
+    "start": "16:44:10Z",
+    "end": "16:49:17Z",
+    "creditedMin": 5.1
+   },
+   {
+    "phase": "return absent=4h",
+    "start": "16:49:30Z",
+    "end": "16:54:40Z",
+    "creditedMin": 5.2
+   },
+   {
+    "phase": "return absent=8h",
+    "start": "16:54:40Z",
+    "end": "17:19:28Z",
+    "creditedMin": 19.9,
+    "excluded": "~4.9 min: report screen left unattended inside chained watches, failed upgrade-click retries, sleep tail"
+   }
+  ],
+  "absences": [
+   "20m (simulated)",
+   "4h (simulated)",
+   "8h (simulated)"
+  ],
+  "runsWatched": 15,
+  "runsOffline": 37,
+  "ruleEdits": 0,
+  "ruleEditAttempts": 3,
+  "ruleEditNote": "Custom rules locked all horizon: 'Meet Bloat Mother / 72h elapsed / or 120h elapsed', then '72h elapsed / or 120h elapsed' after Bloat Mother. Zero completed edits. Configuration changes made instead: styles, extra tactics, personality, forge, legacy, workers.",
+  "deathsRead": 5,
+  "notes": "Watches at normal speed (Orin, Iris, Dara, Elian, Quill, Fenn, Orin Thorn) and Fights-only (Iris D3-D13 warlord+mother run, Orin Thorn). 8h phase ~19.9 of 20 min after honest exclusions; total 70.4."
+ },
+ "killCriteria": {
+  "crashOrDataLoss": false,
+  "feltInputLatencyInCoreAct": false,
+  "firstSessionWithoutCoreAct": false,
+  "darkPatternInLoop": false,
+  "defaultRulesBeatEveryEdit": false,
+  "unfairDeathShareAbove10pct": false,
+  "returnWithNothingToDecide": false,
+  "notes": "defaultRulesBeatEveryEdit not assessable by hand: rule writing never unlocked; packaged tactic choices visibly moved forecasts (D13 63%->88%, D14 <13%->100%+87)."
+ },
+ "criterion": {
+  "fun_1to7": 4,
+  "playAgainTomorrow_1to7": 4,
+  "recommend_0to10": 5,
+  "checkInTomorrowUnprompted_1to7": 4,
+  "delayedRecall": ""
+ },
+ "sameDayRetelling": "Iris Thorn, my second bloodline, had been turned back twice by the Goblin Warlord at D8 until I switched her to Guarded and the town trained a warlord counter; on the next run 'GOBLIN WARLORD DOWN' flashed and she ran straight through the Fens to D13 with $2442 secured, where she met the Bloat Mother and limped home at 6/30 hp with $3144. Two absences later the chronicle told me she had died at D8 to a goblin archer ('return at 25% too late'), and her line went on to lose five more heirs to gas, fire and an iron golem. I picked boss focus for that line, and its third heir burned himself to death: 'own fire · D13 · hero at 5 hp · boss focus'.",
+ "humanProbes": {
+  "clarity": "Mostly yes: the forecast told me 'D13 · mother 63%±34' became '88%±12' after I picked kite archers, but 'compare outcomes' only ever said 'deeper ≈+90' with no unit and a death lever read 'WAIT Guarded L5'.",
+  "decisions": "After two archer deaths ('goblin archer · D8 · hero at 1 hp') I gave the third bloodline kite archers and iron gut, and I would do it again; forge purchases were just 'buy next when affordable'.",
+  "mastery": "I learned that archers and gas kill my fighters and that corridor fighting lifted D14 from <13% to '100%+87', but I never got to write a row ('Custom rules · locked · 72h elapsed').",
+  "tension": "I sweated watching Dara at '1/36 hp' still 'Heading home' with unknown potions in her pack, and she died: 'goblin archer · D4 · hero at 2 hp'.",
+  "feel": "Callouts like 'OGRE WINDS UP', 'SHIELDS UP' and 'GOBLIN WARLORD DOWN' landed, but the log is buried in 'goblin → Iris Thorn · −0 hp' lines; audio unassessed.",
+  "surprise": "'own fire · D13 · hero at 5 hp' surprised me and made me drop boss focus for corridor fighting; gas deaths then repeated ('gas ×3').",
+  "expression": "Every hero was a fighter in Guarded with nearly the same tactics, so the three lines read as one build with different epithets ('the chokepoint fighter', 'the greedy fighter').",
+  "story": "'♟2 the chokepoint fighter · D12 · took the Warlord · found ♟1's bones · fell to a wraith' is a real little saga.",
+  "pacing": "Runs watch in about a minute ('D1–10 · 100% · +$256' skips the shallow floors) and returns take a few minutes, but each check-in repeats forge/legacy/tactics chores across three bloodlines and heroes 'Resting 20m' unless I tap SEND.",
+  "failure": "Deaths name foe, depth, hp and rule ('wraith · D12 · hero at 2 hp · Guarded · attack nearest') and the reel adds 'return at 25% too late', but the offered fix was often 'BUY pack 4'.",
+  "social": "Nobody; heirs and named grudges ('grudge: Vrar the goblin archer') are flavour, not relationships.",
+  "autonomy": "I chose which bloodline to fund and which to SEND, but the route and goals were the game's ('Goal D14 · New record').",
+  "progression": "Automation grew every few runs (porter, scout, apprentice 'buys forge steps', keeper, drillmaster '+3 levels'), but depth stalled at 'best D20' from the 4h return through the whole 8h return while Legacy piled to 80.",
+  "aesthetic": "A lamp-lit pixel town at night and a torn red 'YOU DIED' banner with the killer's portrait; I would sit in the town.",
+  "return": "I came back to 'While away · 12 RUNS · D20 · $16947 · Boss defeated Lich' and two heirs to read about, and decided to add corridor fighting; after 8h it was '22 RUNS · D20' again with less to decide.",
+  "attribution": "Kael died because I gave his line boss focus ('own fire · boss focus · tactic boss focus') — that one was mine; the Warlord kill felt mine too, but with seven heirs per line most deaths felt like the bloodline's, not my rule's."
+ },
+ "axes": [
+  {
+   "id": "clarity",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Forecast panel shows per-floor odds that move after choices ('D13 63%±34' -> '88%±12'). Lapses: 'deeper ≈+90' unitless, lever 'WAIT Guarded L5', 'behind mother' shown after the Mother was defeated, rest timers bypassed by SEND, deeper legacy tree hidden under 'More upgrades'."
+  },
+  {
+   "id": "decisions",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Style/tactic/personality picks had foreseeable trade-offs (kite archers after archer deaths, corridor fighting: D14 '<13%' -> '100%+87'); forge and legacy were strictly ordered buys."
+  },
+  {
+   "id": "mastery",
+   "human": 0.3,
+   "bot": "na",
+   "proxy": "",
+   "note": "Learned killers (archers, gas, iron golem) and countered with packaged tactics, but rule writing stayed locked ('72h elapsed') all horizon; drillmaster levelled tactics for me."
+  },
+  {
+   "id": "tension",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Dara at '1/36 hp · Heading home' died to an archer; carry at risk ('returned $150 · keeps 60%'). After 4h most stakes resolved offline."
+  },
+  {
+   "id": "feel",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Readable callouts ('OGRE WINDS UP', 'REST ✗ NOT SAFE', 'GOBLIN WARLORD DOWN'); 3x GPU smooth; lapse: log spam of '−0 hp' lines and black interstitial screens. Audio unassessed."
+  },
+  {
+   "id": "surprise",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Thieves den ('THIEVES! The den wakes'), captives, own-fire death, Bloat Mother/Lich; later deaths repeated gas ×3 and iron golem wall."
+  },
+  {
+   "id": "expression",
+   "human": 0.3,
+   "bot": "na",
+   "proxy": "",
+   "note": "All three lines ended as Guarded fighters with corridor fighting plus one of boss focus/kite archers; rules list differs by one or two rows."
+  },
+  {
+   "id": "story",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Chronicle carries setup/turn/end ('took the Warlord · found ♟1's bones · fell to a wraith'); epithets add colour; story is told in summaries rather than witnessed."
+  },
+  {
+   "id": "pacing",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "In-run: ~1 min per watched run, shallow floors summarised. Check-in: 3-6 min but repeated forge/legacy/tactics admin x3 bloodlines; heroes 'Resting 20m' unless SEND tapped. Cadence: 20m vs 4h distinct, 4h vs 8h similar."
+  },
+  {
+   "id": "failure",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Every death screen: killer portrait, 'D12 · hero at 2 hp', firing rule, lever; reel 'return at 25% too late'. Lapse: lever often generic ('BUY pack 4', 'WAIT Guarded L5')."
+  },
+  {
+   "id": "social",
+   "human": 0.0,
+   "bot": "na",
+   "proxy": "",
+   "note": "No social layer; weight 0."
+  },
+  {
+   "id": "autonomy",
+   "human": 0.3,
+   "bot": "na",
+   "proxy": "",
+   "note": "Choice of which bloodline to fund/send; goals and route are fixed by records and bosses."
+  },
+  {
+   "id": "progression",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Three layers seen: within-run depth, persistent legacy/forge, automation cadence (porter, scout, apprentice, keeper, drillmaster all within 70 min). Lapse: best D20 unchanged from 4h through 8h return; Legacy 80 with no visible sink; forge prices outran income."
+  },
+  {
+   "id": "aesthetic",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "",
+   "note": "Night pixel town with lit windows, torn red death banner with killer portrait, boss cards. Lapse: watch view frequently a black screen with a floor title; audio unassessed."
+  },
+  {
+   "id": "return",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "20m: deaths to read and levers; 4h: '12 RUNS · D20 · $16947 · Lich' plus new tactic to place; 8h: '22 RUNS · D20', same wall, fewer decisions (legacy maxed)."
+  },
+  {
+   "id": "attribution",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "",
+   "note": "Some deaths traced to my picks ('own fire · boss focus · tactic boss focus'; iron gut row 'unknown item · hp > 60% → drink unknown'), but no player-written rule existed and seven heirs per line diluted ownership."
+  }
+ ],
+ "blindnessViolations": "None known. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md §1-3 (printed up to §4 heading), the template and eval/presets.json idle-hybrid weights (needed for preset). Used a JS helper to click visible buttons by their visible text (player-equivalent taps); no engine/debug APIs.",
+ "lockedAt": "2026-10-07T17:21Z"
+}

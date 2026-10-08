@@ -1,0 +1,192 @@
+{
+ "$comment": "Blind rater A, frozen cohort ad71e72. Raw card; do not revise.",
+ "game": "Riddle",
+ "build": "ad71e72909bba18cd06e2f8185302ea57f2d0a4b",
+ "genre": "idle-hybrid",
+ "presets": "../riddle/eval/presets.json",
+ "profile": null,
+ "tier": 1,
+ "evaluator": "blind-a (Claude agent)",
+ "horizon": {
+  "activeMinutes": 59,
+  "activeIntervalsUTC": [
+   {
+    "phase": "cold",
+    "start": "2026-10-07T16:02:20Z",
+    "end": "2026-10-07T16:42:01Z",
+    "credited": 36.5,
+    "exclusions": "~3 min driver click timeouts (16:23, 16:36-16:38, 16:40)"
+   },
+   {
+    "phase": "return after absent=20m",
+    "start": "2026-10-07T16:42:01Z",
+    "end": "2026-10-07T16:47:29Z",
+    "credited": 5.5
+   },
+   {
+    "phase": "return after absent=4h",
+    "start": "2026-10-07T16:47:32Z",
+    "end": "2026-10-07T16:51:45Z",
+    "credited": 4.2,
+    "note": "short of 5 min target"
+   },
+   {
+    "phase": "return after absent=8h",
+    "start": "2026-10-07T16:51:45Z",
+    "end": "2026-10-07T17:05:11Z",
+    "credited": 12.5,
+    "exclusions": "~1 min driver timeouts",
+    "note": "INCOMPLETE: stopped ~7 min short of the 20-min target to stay within the 200-tool-call budget"
+   }
+  ],
+  "absences": [
+   "simulated 20m",
+   "simulated 4h",
+   "simulated 8h"
+  ],
+  "runsWatched": 17,
+  "runsOffline": 12,
+  "deathsRead": 6,
+  "ruleEdits": 0,
+  "ruleEditAttempts": 3,
+  "ruleEditNote": "Custom rules '· locked' on all three attempts ('Meet Bloat Mother / 72h elapsed / or 120h elapsed', later '72h elapsed / or 120h elapsed'); zero completed edits. Package picks made: Steady->Guarded, kite archers, corridor fighting, boss focus (replacing kite archers), skittish, waystone start D14/D19/D1.",
+  "complete": false,
+  "incompleteReason": "70 active minutes not reached (~59 credited); 4h-return phase 4.2/5 min and 8h-return phase ~12.5/20 min, due to tool-call budget.",
+  "blindnessViolations": "None intended. I read tools/driver.mjs header and tools/drive.sh (harness usage only, no game source). Notes began ~6 min in, before the 10-min no-notes mark (minor protocol slip)."
+ },
+ "killCriteria": {
+  "crashOrDataLoss": false,
+  "feltInputLatencyInCoreAct": false,
+  "firstSessionWithoutCoreAct": false,
+  "darkPatternInLoop": false,
+  "defaultRulesBeatEveryEdit": false,
+  "unfairDeathShareAbove10pct": false,
+  "returnWithNothingToDecide": false,
+  "notes": "Two late screenshots captured pure white while DOM text was normal; could not tell render failure from capture failure, not counted as crash. defaultRulesBeatEveryEdit not testable by me (zero edits possible)."
+ },
+ "criterion": {
+  "fun_1to7": 4,
+  "playAgainTomorrow_1to7": 4,
+  "recommend_0to10": 5,
+  "checkInTomorrowUnprompted_1to7": 3,
+  "delayedRecall": ""
+ },
+ "sameDayRetelling": "My second heir Elian Ash, on Guarded with kite archers, broke the Goblin Warlord at D8, ground through the Fens and crypt, found his dead father's bones at D13 and killed the Lich at D18 for a new best. Heading home with $1115 carried and the path blocked, an ogre and a skeleton cornered him and he died at 3 HP. The game told me 'Guarded · attack nearest' was the deciding row and offered 'BUY pack 5', so I took corridor fighting for the next heir.",
+ "probes": {
+  "clarity": "Mostly yes; but 'compare outcomes · rough estimate' showed nothing when tapped three times, and gold went $4305 -> $5340 on a run whose report said '$8 GOLD EARNED'.",
+  "decisions": "After 'gas · D13 · hero at 3 hp' I spent 18 Legacy on 'Clear Lungs · Gas and poison damage −2', and after 'Lich repelled him · try: attack summoned' I swapped kite archers for boss focus; I'd make both again, the D14/D19 waystone starts I would not ('banked $8').",
+  "mastery": "I now read 'COUNTER: ATTACK BOSS' / 'try: attack summoned' and the enemy guide counters and pick packages to them, which I could not an hour ago.",
+  "tension": "I leaned in at '5/39 hp' with 'OGRE WINDS UP' on run 2 and at 'Down to 2 HP. return at 30% got him out.'; later runs ended 'Heading home' at 12-15 hp so routinely that the doubt went away.",
+  "feel": "Callouts like 'ARCHER DRAWS', 'REFLECTED!', 'GOBLIN WARLORD DOWN' land well, but at the live edge the hero stood still at 'D18 · Floor 18' for over two minutes until I tapped Speed.",
+  "surprise": "'Found heir 1's bones: 12 items.' and 'grudge: Thusk the skeleton' surprised me; the iron golem 'REFLECTED!' wall then repeated four runs in a row.",
+  "expression": "My hero is 'Guarded L5 + corridor fighting + boss focus, skittish' — the same three menus anyone gets; custom rules stayed 'locked'.",
+  "story": "Best line: 'The Goblin Warlord waits. The Warlord breaks. Slew the Goblin Warlord. return at 25% pulled him through.'",
+  "pacing": "Check-ins were quick (report -> forge -> tactics in under a minute) but the live watch had ~55 s dead stretches at D8, D10 and D18, and the 8h return was the same golem wall again.",
+  "failure": "'goblin archer · D8 · hero at 1 hp / YOU DIED / kite archers · tactic kite archers' told me exactly which of my picks was on the hook, with a replay clip and a lever.",
+  "social": "Only the bloodline: '7th heir', 'avenged Drog', 'grudge: Thusk the skeleton' — names, not a relationship that changed play.",
+  "autonomy": "I chose to try waystone 'start D14 crypt' and 'start D19 foundry' unprompted; both went badly and I reverted.",
+  "progression": "Workers stacked up on a steady beat (porter, scout, apprentice, keeper, drillmaster, armourer) and best went D4 -> D21, but the last ~15 active minutes added 'none beyond floor 21'.",
+  "aesthetic": "The night town with the glowing cave mouth and the red 'YOU DIED' banner are lovely; the extra-tactic cards collapsed into overlapping slivers ('archer change shots').",
+  "return": "After 4h I came back to '1 death · skeleton', 'repelled by Lich', 'COUNTER ... try: attack summoned' and acted on it within a minute; after 8h I came back to '$6712 GOLD EARNED' with gold up only $78 and a plateau note.",
+  "attribution": "'tactic kite archers 5%' and 'tactic corridor fighting 28%' in the RULES line made the runs feel partly mine, but 'chores 67%' and a death credited to 'drill · Warlord · attack boss over 45%' on the Lich floor were not mine."
+ },
+ "axes": [
+  {
+   "id": "clarity",
+   "human": 0.6,
+   "bot": "na",
+   "note": "Death and report screens name cause, hp, deciding row and lever ('gas · D13 · hero at 3 hp'), but 'compare outcomes · rough estimate' is inert to me, 'Resting 19m' sat beside a live delve, and gold did not reconcile ($4305 -> $5340 on '$8 GOLD EARNED')."
+  },
+  {
+   "id": "decisions",
+   "human": 0.6,
+   "bot": "na",
+   "note": "Real foreseeable trades: Clear Lungs vs other 36-Legacy picks after a gas death, Fireward 'Choose one' locking Brace, boss focus for 'try: attack summoned', waystone start D14/D19 (bad: 'banked $8'); but only three tactics existed and nothing addressed the golem wall."
+  },
+  {
+   "id": "mastery",
+   "human": 0.6,
+   "bot": "na",
+   "note": "I learned to read counters ('COUNTER: ATTACK BOSS', enemy guide '[counter] attack summoned') and map deaths to buys; the late plateau left no next thing to learn."
+  },
+  {
+   "id": "tension",
+   "human": 0.6,
+   "bot": "na",
+   "note": "Watched near-misses ('5/39 hp', 'Down to 2 HP. return at 30% got him out', death at 1 hp); bank 100% vs return 60% is a stake, but by mid-session 'Heading home' at 10-15 hp was routine."
+  },
+  {
+   "id": "feel",
+   "human": 0.3,
+   "bot": "na",
+   "note": "Callouts ('ARCHER DRAWS', 'REFLECTED!', 'WARLORD BREAKS') read well, but live-edge watching stalled ~55 s at D8, D10, D18 and once >2 min frozen at 'D18 · Floor 18' until I tapped Speed. Audio unassessed."
+  },
+  {
+   "id": "surprise",
+   "human": 0.6,
+   "bot": "na",
+   "note": "'Found heir 1's bones: 12 items.', captives, 'grudge: Thusk the skeleton', Bloat Mother, Lich drain 'max -50' changed my picks; then four consecutive D19 golem 'REFLECTED!' runs."
+  },
+  {
+   "id": "expression",
+   "human": 0.3,
+   "bot": "na",
+   "note": "My config is a combination of three menus (Guarded + corridor fighting + boss focus, skittish); custom rules stayed '· locked' all session; nothing recognisably mine."
+  },
+  {
+   "id": "story",
+   "human": 0.6,
+   "bot": "na",
+   "note": "Reels produce turns: 'The Goblin Warlord waits. The Warlord breaks. Slew the Goblin Warlord. return at 25% pulled him through.'; offline reels also repeat ('Untouched by a goblin; held the corridor; reached D13.' x3)."
+  },
+  {
+   "id": "pacing",
+   "human": 0.3,
+   "bot": "na",
+   "note": "Check-ins short and clean, but in-run dead air at the live edge (repeated ~55 s, one >2 min freeze) and a late loop of identical golem walls with nothing affordable (Legacy 35 < 36, forge $4400/$7200)."
+  },
+  {
+   "id": "failure",
+   "human": 0.8,
+   "bot": "na",
+   "note": "Death screen gives cause/floor/hp ('goblin archer · D8 · hero at 1 hp'), the deciding row ('kite archers · tactic kite archers'), a replay clip ('NEAR DEATH' among bloats) and a lever ('BUY sword +2'); lapse: a Lich-floor death credited to 'drill · Warlord · attack boss over 45%' and 'REPELLED ... hero at 35 hp' never said why."
+  },
+  {
+   "id": "social",
+   "human": 0.3,
+   "bot": "na",
+   "note": "Bloodline/nemesis flavour only: 'avenged Drog', 'grudge: Thusk the skeleton', heirs 1-8."
+  },
+  {
+   "id": "autonomy",
+   "human": 0.3,
+   "bot": "na",
+   "note": "Some self-set goals (waystone starts, class path peek, enemy guide) but route/goal freedom was thin and mostly failed ('banked $8')."
+  },
+  {
+   "id": "progression",
+   "human": 0.8,
+   "bot": "na",
+   "note": "Clear three-layer growth: within-run floors, persistent forge/Legacy/heirs, and automation every few minutes (porter, scout, apprentice, keeper, drillmaster, armourer); lapse: 8h return 'Recent full hauls · 4 runs, none beyond floor 21' and the last ~15 min added nothing."
+  },
+  {
+   "id": "aesthetic",
+   "human": 0.8,
+   "bot": "na",
+   "note": "Night town with lit cave mouth, heirs' portraits, red 'YOU DIED' banner are genuinely nice to sit in; lapse: extra-tactic cards collapsed into overlapping slivers ('archer change shots') and two late captures were pure white."
+  },
+  {
+   "id": "return",
+   "human": 0.6,
+   "bot": "na",
+   "note": "Each return had something to read and decide ('1 death · skeleton', 'repelled by Lich', 'try: attack summoned', 'bones to recover: D21', +41 Legacy) and I acted within a minute; the 8h return was the plateau plus an unreconciled '$6712 GOLD EARNED' vs +$78 gold."
+  },
+  {
+   "id": "attribution",
+   "human": 0.6,
+   "bot": "na",
+   "note": "RULES lines credit my picks ('tactic kite archers 5%', 'tactic corridor fighting 28%') and a death named my kite archers; but 'chores 67-79%' and drilled/automatic rows dominate, I wrote zero rules, and one death was credited to a drill I never chose."
+  }
+ ],
+ "screenshots": "scratchpad/ad71-blind-a/shots: first-minute.png, first-death-repelled.png, first-death.png, death-cause.png, death2-clip.png, death3.png, return-20m.png, return-4h.png, return-8h.png, after-return-config(2).png (white), tactics-after-death2.png"
+}
