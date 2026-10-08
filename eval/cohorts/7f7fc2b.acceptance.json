@@ -5,7 +5,7 @@
     "b14a4d5",
     "7f7fc2b (test only)"
   ],
-  "status": "accepted for blind cohort 2026-10-08",
+  "status": "cohort complete 2026-10-08: 64.4 / 67.3, alpha .866 reliable",
   "frozen": {
     "dir": "scratchpad/blind-7f7fc2b-frozen/dist",
     "url": "http://127.0.0.1:5256/",
@@ -18,11 +18,11 @@
   "native": {
     "cargoTests": "702 passed",
     "clippy": "clean",
-    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 27.71 vs 28.04 (docs/CUT110 \u00a74, updated)",
+    "gates": "fresh full: all PASS except recorded deviation 'Workers pay the away player' 27.71 vs 28.04 (docs/CUT110 §4, updated)",
     "log": "/tmp/riddle-c113-gates.log"
   },
   "browser": {
-    "full": "142/143 (/tmp/riddle-c113-client.log): boss-kill-beat re-climbed to the Cut 113 King, a wall a just-cleared kit is not meant to break in one run \u2014 retargeted to the Foundry Master, assertions unchanged, PASS 19 checks"
+    "full": "142/143 (/tmp/riddle-c113-client.log): boss-kill-beat re-climbed to the Cut 113 King, a wall a just-cleared kit is not meant to break in one run — retargeted to the Foundry Master, assertions unchanged, PASS 19 checks"
   },
   "cohort": {
     "briefs": [
@@ -39,5 +39,36 @@
     ],
     "toolBudget": 260
   },
-  "score": "pending"
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/7f7fc2b.blind-a.json",
+      "total": 64.4,
+      "activeMinutes": 71.8,
+      "gates": [
+        "expression"
+      ],
+      "note": "cold 0.7 min short; cleared D34 after the 8h return; Ascension 1 in one run"
+    },
+    "blind-b": {
+      "card": "eval/cards/7f7fc2b.blind-b.json",
+      "total": 67.3,
+      "activeMinutes": 68.5,
+      "note": "best D28 (no clear); return .8"
+    },
+    "alpha": 0.866,
+    "reliability": "reliable",
+    "mean": 65.85,
+    "trend": "56.7 → 64.7 → 67.4 → 63.8 → 65.9",
+    "shared": [
+      "watch static after a run ended / after the fold strip (B: D20 >1 min; A: 55–90 s ×3) — Cut 113's kill-beat wait suspected",
+      "take control inert while the exit flow holds (B)",
+      "'watch kill' opens on BOSS DOWN, after the kill",
+      "an applied death patch placed above 'drink heal' killed the next heir (B)",
+      "'Secured $0' every run after the first heir; forecast swings with no change (A)",
+      "a boss kill inside the fold strip never seen (A)",
+      "humans still clear D34 within ~12 h simulated (A); Ascension 1 in one run",
+      "counters announced by the boss ('COUNTER: READ SILENCE') — expression A .3"
+    ],
+    "verdict": "reliable 65.9; plateau mid-60s; 80 not met"
+  }
 }

@@ -1,0 +1,195 @@
+{
+ "rows": [
+  {
+   "conds": [
+    {
+     "k": "hp<",
+     "n": 50
+    }
+   ],
+   "verb": {
+    "v": "drink",
+    "a": "unknown"
+   },
+   "origin": "patch"
+  },
+  {
+   "conds": [
+    {
+     "k": "depth>=",
+     "n": 28
+    }
+   ],
+   "verb": {
+    "v": "bank"
+   },
+   "origin": "player"
+  },
+  {
+   "conds": [
+    {
+     "k": "foe_tag",
+     "t": "gas"
+    }
+   ],
+   "verb": {
+    "v": "throw",
+    "a": "fire"
+   },
+   "origin": "player"
+  },
+  {
+   "conds": [
+    {
+     "k": "foe_tag",
+     "t": "boss"
+    },
+    {
+     "k": "hp>",
+     "n": 45
+    }
+   ],
+   "verb": {
+    "v": "attack",
+    "a": "tag:boss"
+   },
+   "origin": "drill:goblin_warlord"
+  },
+  {
+   "conds": [
+    {
+     "k": "hp<",
+     "n": 45
+    }
+   ],
+   "verb": {
+    "v": "drink",
+    "a": "heal"
+   },
+   "origin": "stance:guarded"
+  },
+  {
+   "conds": [
+    {
+     "k": "hp<",
+     "n": 30
+    },
+    {
+     "k": "depth>=",
+     "n": 29
+    }
+   ],
+   "verb": {
+    "v": "bank"
+   },
+   "origin": "stance:guarded"
+  },
+  {
+   "conds": [
+    {
+     "k": "hp<",
+     "n": 30
+    }
+   ],
+   "verb": {
+    "v": "return"
+   },
+   "origin": "stance:guarded"
+  },
+  {
+   "conds": [
+    {
+     "k": "hp<",
+     "n": 100
+    }
+   ],
+   "verb": {
+    "v": "rest"
+   },
+   "origin": "stance:guarded"
+  },
+  {
+   "conds": [
+    {
+     "k": "lacks",
+     "t": "heal"
+    },
+    {
+     "k": "hp<",
+     "n": 45
+    }
+   ],
+   "verb": {
+    "v": "bank"
+   },
+   "origin": "stance:guarded"
+  },
+  {
+   "conds": [
+    {
+     "k": "foe_tag",
+     "t": "telegraph"
+    },
+    {
+     "k": "hp<",
+     "n": 60
+    }
+   ],
+   "verb": {
+    "v": "drink",
+    "a": "heal"
+   },
+   "origin": "stance:guarded"
+  },
+  {
+   "conds": [],
+   "verb": {
+    "v": "tactic",
+    "a": "boss_focus"
+   },
+   "origin": "tactic:boss_focus"
+  },
+  {
+   "conds": [
+    {
+     "k": "in",
+     "t": "deep"
+    }
+   ],
+   "verb": {
+    "v": "tactic",
+    "a": "deep_march"
+   },
+   "origin": "tactic:deep_march"
+  },
+  {
+   "conds": [
+    {
+     "k": "on_kill"
+    },
+    {
+     "k": "hp>",
+     "n": 50
+    }
+   ],
+   "verb": {
+    "v": "pick_up"
+   },
+   "origin": "temper:light_hands"
+  },
+  {
+   "conds": [
+    {
+     "k": "foes>=",
+     "n": 1
+    }
+   ],
+   "verb": {
+    "v": "attack",
+    "a": "nearest"
+   },
+   "origin": "stance:guarded"
+  }
+ ],
+ "name": "fighter"
+}

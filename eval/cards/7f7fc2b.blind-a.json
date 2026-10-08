@@ -1,0 +1,194 @@
+{
+  "$comment": "Raw blind card, rater A, immutable once written. Criterion answered before axes (scratchpad/7f7fc2b-blind-a/evidence.md). Audio unassessed.",
+  "game": "Riddle",
+  "build": "7f7fc2b",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (agent rater, headed GPU 400x800 @3x, seed 211)",
+  "horizon": {
+    "activeMinutes": 71.8,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-08T14:37:11Z",
+        "end": "2026-10-08T15:18:15Z",
+        "excludedMin": 2.0,
+        "creditedMin": 39.3,
+        "note": "first 10 min without notes; exclusions = driver click timeouts"
+      },
+      {
+        "phase": "absent=20m return",
+        "start": "2026-10-08T15:18:25Z",
+        "end": "2026-10-08T15:23:50Z",
+        "excludedMin": 0.3,
+        "creditedMin": 5.2
+      },
+      {
+        "phase": "absent=4h return",
+        "start": "2026-10-08T15:24:00Z",
+        "end": "2026-10-08T15:30:00Z",
+        "excludedMin": 0.1,
+        "creditedMin": 5.9
+      },
+      {
+        "phase": "absent=8h return",
+        "start": "2026-10-08T15:30:13Z",
+        "end": "2026-10-08T15:54:00Z",
+        "excludedMin": 2.4,
+        "creditedMin": 21.4,
+        "note": "excluded ~2 min self-inflicted 'Hand control · awaits order' stall + tooling"
+      }
+    ],
+    "absences": [
+      "20m (simulated, ?absent=20m)",
+      "4h (simulated, ?absent=4h)",
+      "8h (simulated, ?absent=8h)"
+    ],
+    "runsWatched": 14,
+    "runsOffline": 10,
+    "deathsRead": 6,
+    "ruleEdits": 5,
+    "ruleEditsAttempted": 7,
+    "ruleEditDetail": "Locked attempt at 14:46 ('Meet Bloat Mother or 120h elapsed'); hand-written: 'foe: paralyse → attack paralyse', 'foe: drain → attack drain', refined 'foe: boss · in: deep → read silence'; written-and-reverted: 'foe: gas → retreat' (forecast D21 88→25%); death-fix applied: 'foe: boss → read silence' (+scroll), 'hp < 40% → read unknown'.",
+    "longGoalReached": "Dungeon cleared (Mirror King, D34) at the 8h return; then Ascension 1 cleared in one run; Ascension 2 in progress at horizon end",
+    "ledger": "scratchpad/7f7fc2b-blind-a/ledger.txt"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 4,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "My seventh heir, Jora Ash, reached the Lurker Queen at D28 carrying $2785 with the silence row I had written, but the scroll came up 'READ ✗ NO USE' and the Queen took him from 43 to 21 hp. He turned for home and, at 19 hp, my newly applied 'hp < 40% → read unknown' row made him read a mystery scroll. It was a recall scroll — 'COLLECTED $2785 · hurt · collected' — and the next long absence brought back 'Boss defeated · Lurker Queen'.",
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Goals and last-action feedback are mostly visible (\"Goal D29 · New record\", \"COUNTER: MIRROR READ\"), but I misread repeatedly: \"Carried $1521 · Secured $0\" for every heir after the first with no explanation, forecast \"death 50%\"→\"63%\"→\"88%\" with no change of mine, couldn't work out how to wear the kept mail from STORED GEAR, and 'control' silently froze the hero ('Hand control · awaits order')."
+    },
+    {
+      "id": "decisions",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Real trade-offs offered with numbers: fix \"hp < 50% → return · survives 12/12 · reach D16 83→9%\" (declined), 'foe: gas → retreat' showed \"D21 88→25%\" (reverted), Guarded \"better 6/8\". But boss decisions mostly reduce to equipping the counter the game names (\"Counter read silence\", \"COUNTER: MIRROR RHYTHM\")."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "I learned to read traces (\"max hp 51→5 · drain −46\") and turn them into rows that then fired (\"hit drain wraith\"); next thing to learn kept arriving (Sanctum traits, Mirror King). Kept from strong because the enemy guide and boss 'COUNTER:' banners hand over the answer."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Stakes I carried resolved when I looked: Warlord blocking D8 twice, the Queen killing heirs 2/3 at D28, \"Carried $2785\" at 21/48 hp saved by a recall. After the 8h return it evaporated: Ascension 1 \"Bloat Mother down at 37/39 hp\", Warlord \"BROKEN\" in seconds."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Smooth on the GPU, readable hit numbers and banners (\"POPS!\", \"REFLECTED!\", \"LURKER QUEEN DOWN\"), but three ~55–90 s static stretches right after the catch-up strip with only the speed badge changing (\"16×\"/\"48×\"), and boss kills land in ~9 s with little punctuation. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Material surprises changed my setup: \"A thief snatched the sword.\", heirs' bones found, drain cutting max hp to 5, the unknown scroll being a recall. The floor-band/boss sequence was identical every heir (D8 Warlord … D33 King), so later runs repeated."
+    },
+    {
+      "id": "expression",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My setup is Guarded + mirror read + Mirror rhythm + four short rows, mostly the counters the game named; report says my rows were ~3% of decisions (\"chores 67% · attack nearest 22% · attack paralyse 3%\"). Not recognisably mine."
+    },
+    {
+      "id": "story",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "The Jora/recall run has a real turn and the reel writes lines like \"Queen cornered him to 1 HP; aimed; died to a lurker.\" and \"Ashim the ogre is avenged.\"; most other runs read as identical floor lists."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "Check-ins were bounded (2–5 min, ending on a send) and the 20m/4h/8h absences felt distinct (1 / 3 / 6 runs). In-play dead time >20 s occurred three times (runs 6, 8, 11) and report screens are long scrolls of stats; whole dungeon cleared within ~12 h simulated."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Death screens name cause + margin + rule trace + replayed fixes: \"lurker · D28 · hero at 1 hp · returned too late … hp < 50% → return · survives 12/12 · was 0/12\", with \"apply\". Lapse: heir 1's first death (foundry master) showed only \"Guarded · attack nearest\" with no fix list, and one fix read self-contradictory (\"survives 10/12 · was 0/12 … death 45→82%\")."
+    },
+    {
+      "id": "social",
+      "human": 0.0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "Weight 0 in idle-hybrid; no co-presence or developing relationships (grudges/heir names are flavour)."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Some self-set choices (wrote my own drain row instead of 'apply'; declined \"No rest\" because \"Shared gold: $47763 → $0\"), but route and order are fixed lanes (\"D5–8 · the Burrows … D29–33 · the Sanctum\")."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "All three layers observed: in-run kit (\"took sword +1\"), persistent Legacy/forge (\"sword +5\"), and automation every few minutes (porter → scout → apprentice → keeper → drillmaster; \"apprentice · sword +5 · −$6250\" while away); long goal \"Dungeon cleared\" reached. Lapse: after the clear, Ascension is a flat \"Enemy HP +5% · damage +2%\" and gold piles up meaninglessly ($47763)."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Visual only (audio unassessed): torch-lit pixel floors that change per lane, lit town at night, painted 'YOU DIED' banner and 'Dungeon cleared' splash. Lapse: report/details screens are dense text walls (\"DEALT 1.1 dps · 4690 hp … TIME fight 27% travel 73%\")."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Every absence returned something to read and decide: 20m a death with \"max hp 51→5 · drain −46\" (wrote a drain row), 4h \"never used unknown\" fix (applied), 8h \"Boss defeated · Lurker Queen ▶ watch kill · New choices · Mirror rhythm\" (equipped). Lapse: the 20m return led with \"$0 GOLD EARNED · Supplies limited · $0 budget\", which I couldn't parse, and 'watch kill' drifted on past the kill."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "I can say whose call each ending was: Mirror rhythm (mine) → \"MIRROR KING DOWN\"; my 'foe: boss → read silence' wasted the scroll on the Bloat Mother (\"D13 · boss → read silence\") — my fault, then fixed with 'in: deep'; 'read unknown' saved $2785. Lapse: package rows still run ~97% of turns (\"chores 67% · attack nearest 22% · attack paralyse 3%\"), and early heirs' deaths traced to rows I never wrote."
+    }
+  ],
+  "audio": "unassessed (agent cannot listen)",
+  "blindnessViolations": [
+    "14:41Z: the driver's 'sheets' op tapped every control in a throwaway copy of my save and returned text from that copy's next run (D4–D5, 'A thief snatched the sword.') before I played it. DOM-only; no source, docs or hidden data read beyond the permitted four files."
+  ],
+  "evidence": "scratchpad/7f7fc2b-blind-a/evidence.md; notes.txt; ledger.txt; shots/"
+}
