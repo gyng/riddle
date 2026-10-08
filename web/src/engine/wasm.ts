@@ -124,6 +124,7 @@ export class WasmEngine implements Engine {
   unequipPackage(id: string): Lineage { return this.call("unequipPackage", id); }
   pickTemperament(id: string): Lineage { return this.call("pickTemperament", id); }
   spendLevel(id: string): Lineage { return this.call("spendLevel", id); }
+  setTacticVariant(id: string, variant: number): Lineage { return this.call("setTacticVariant", id, variant); }
   revokeDrill(boss: string, revoked: boolean): Lineage { return this.call("revokeDrill", boss, revoked); }
   packageOptions(sims: number): PkgOption[] { return this.call("packageOptions", sims); }
   packageOptionsFor(sims: number, choices: [string, number][]): PkgOption[] {

@@ -13,6 +13,7 @@
 // The first paint (`Forecast.refined` false) has rough state and an explicit quality label.
 // Uncertainty remains a numeric band on both passes; refine clears the rough state and label.
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
+import { openDropSheet } from "./patches";
 import { enemyHost } from "./enemy-tips";
 import { unitLabel } from "./unit-icon";
 import { conceptCap, conceptIcon } from "./concepts";
@@ -344,7 +345,7 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
       bars.appendChild(tr && !opts.readOnly
-        ? h("button", { class: `bar next try${wall ? " walled" : ""}`, onclick: () => { const i = app.applyPatch({ row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }); closeAllSheets(); app.go({ kind: "camp", highlight: i }); } }, ...inner)
+        ? h("button", { class: `bar next try${wall ? " walled" : ""}`, onclick: () => { const p = { row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }; closeAllSheets(); if (app.rowsFull && app.patchTakesRow(p)) { openDropSheet(app, p); return; } const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); } }, ...inner)
         : h("div", { class: `bar${cause || wall || boss ? " next" : ""}${wall ? " walled" : ""}` }, ...inner));
     }
     bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, h("span", { class: "hex", "aria-hidden": "true" }), `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));

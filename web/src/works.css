@@ -96,3 +96,6 @@
 .report-first-workers .work-act { flex-wrap: wrap; max-width: 100%; font-size: 16px; }
 .report-first-workers .work-act .num { overflow-wrap: anywhere; }
 .report-first-workers .wa-ico .ico { width: 24px; height: 24px; }
+/* blind c4705f9: what a worker bought rides its chip (` · sword +3 · −$12562`) and wraps inside the parchment */
+.work-act:has(.work-bought) { flex-wrap: wrap; max-width: 100%; }
+.work-act .work-bought { color: var(--dim, inherit); }

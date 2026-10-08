@@ -3367,7 +3367,7 @@ impl Game {
         // Cut 30 §2: a lineage on packages keeps the rows the pen wrote (above every package) and
         // recompiles; a sim's set, and a harness's literal lineage, are the set as written.
         if !self.sim && !self.lineage.pkg.literal {
-            crate::packages::absorb(&mut self.lineage, &set);
+            crate::packages::absorb(&mut self.lineage, &set, true);
             crate::packages::recompile(&mut self.lineage);
             return Ok(());
         }

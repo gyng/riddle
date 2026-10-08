@@ -183,7 +183,7 @@ impl Session {
             g.offline=false;
             let mut r=crate::offline::report_with(g,before.elapsed_s,&before.facts_before,&before.class,before.rank_before,false,full,with_stall);
             r.grew=crate::town::grew(&before.grew_before,&crate::town::snap(&g.lineage));
-            r.workers=crate::tree::report_acts(&before.acts_before,&g.lineage.tree.acts);
+            r.workers=crate::tree::report_acts(&g.lineage,&before.acts_before,&g.lineage.tree.acts);
             r.chest=(g.lineage.tree.chest-before.chest_before).max(0);
             // (the purse is the town's: every slot's sees the whole session's change)
             crate::offline::set_net(&mut r,before.gold_before,g.lineage.gold);

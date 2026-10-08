@@ -193,6 +193,10 @@ impl Game {
         tree::did(&mut self.lineage, "level");
         Ok(lv)
     }
+    /// Cut 111: pick a tactic's L3 row (0 the first variant, 1 the second).
+    pub fn set_tactic_variant(&mut self, id: &str, variant: u32) -> Result<(), String> {
+        packages::set_variant(&mut self.lineage, id, variant.min(255) as u8)
+    }
     /// Cut 30 §1: revoke a drill (or restore it) — one tap, it stays.
     pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<(), String> {
         packages::revoke(&mut self.lineage, boss, revoked)

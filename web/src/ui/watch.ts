@@ -220,6 +220,9 @@ const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128
 /* copy:callout */
 const DRAIN_WORDS: Record<string, string> = { hunger: "starving", starving: "starving", starve: "starving", poison: "poisoned", poisoned: "poisoned", curse: "cursed", cursed: "cursed", drain: "drained", drained: "drained", bleed: "bleeding", bleeding: "bleeding", wither: "withering" };
 const drainWord = (cause: string): string => DRAIN_WORDS[cause] ?? cause.replace(/_/g, " ");
+/** blind c4705f9 (B: "hunger I never understood"): the hunger's word names its cause where it shows (`starving · no light`: an unlit hunger
+ *  floor bites the max; a lit shrine or a lantern stops it) — other drains say their word alone. */
+export const drainSaid = (word: string, cause: string): string => /^(hunger|starv)/.test(cause) ? /* copy:callout */ `${word} · no light` : word;
 const DRAIN_CALLOUT = /^(hunger|poison|curse|drain(ed)?|bleed) [−-]\d+( max)?$/;
 export function drainOf(e: Ev): string | null {
   if (e.k !== "hurt" && e.k !== "max_hp") return null;
@@ -436,6 +439,10 @@ export function renderWatch(app: App): Mounted {
   } });
   const speedMode = h("small", { class: "watch-speed-mode" }, mode0 === "one" ? /* copy:label */ "Normal" : mode0 === "fast" ? /* copy:label */ "Fast" : /* copy:label */ "Fights only");
   speedBtn.querySelector(".tl")!.append(" ", speedMode);
+  // blind c4705f9 (A, B: `fights only` 16× persisted across runs and both believed they watched at 1×): the tile carries the clock the
+  // picture plays at now (`16×`, `2×` in a fight, `1×`), lit whenever it is not normal speed
+  const speedRate = h("b", { class: "watch-speed-rate num", "aria-hidden": "true" });
+  speedBtn.append(speedRate); speedBtn.dataset.mode = mode0;
   const cons = renderConsole({ portrait: face.el, tiles: [speedBtn, toTown], gem: pause, top: scrub, compact: true });
   const combatRows = h("ol", { class: "combat-lines", "aria-live": "off" });
   let logFollowing = true;
@@ -642,6 +649,8 @@ export function renderWatch(app: App): Mounted {
   const note_ = (e: { id: number; kind: string; name?: string }): void => { kinds.set(e.id, e.kind); if (e.name) names.set(e.id, e.name); };
   // HUD updates released at the viewer's clock
   const hud = { hp: 0, maxHp: 1, depth: 1 };
+  /** blind c4705f9 (B: `hp 7/25 · max -26` "from hunger I never understood"): the max a drain took this run, by its word (`starving −26`) */
+  const maxLoss = new Map<string, number>();
   // the snapshot the stake line was last painted from (the card's loot is the stake's), and each floor's rooms / situation as the
   // engine reported them (the card names the HUD's floor, which may be behind the engine's — QA on 56f2a1d: HUD `17/40 D4` under
   // `D5 · 15 rooms · a shrine`, `$6 · keeps $3` under `D2 · 16 rooms · $13`)
@@ -683,7 +692,8 @@ export function renderWatch(app: App): Mounted {
     const p = hud.maxHp ? hud.hp / hud.maxHp : 0;
     face.set(p);
     stake.classList.toggle("warn", p < 0.4);
-    replace(hpText, /* copy:callout */ `${Math.max(0, hud.hp)}/${hud.maxHp} hp`);   // docs/COPY.md pass 5: `28/36` read as XP or rooms
+    const lost = [...maxLoss].filter(([, n]) => n > 0);
+    replace(hpText, /* copy:callout */ `${Math.max(0, hud.hp)}/${hud.maxHp} hp`, ...lost.map(([w, n]) => h("small", { class: "hp-max-loss", "data-cause": w, title: /* copy:tooltip */ `max hp −${n} · ${w}` }, /* copy:callout */ ` ${w} −${n}`)));   // docs/COPY.md pass 5: `28/36` read as XP or rooms
     replace(depth, `D${hud.depth}`);
     depth.dataset.floor = String(hud.depth); wide.paintDepth?.();
     paintWatchStatus();
@@ -1056,7 +1066,7 @@ export function renderWatch(app: App): Mounted {
         case "drain": {   // Cut 25 §3 (core): the stretch's word, once (a floor)
           if (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
           const w = drainWord(ev.cause), key = `${w}@${s.depth}`;
-          at(ev.t, () => { el.dataset.drain = String(ev.t); if (!drainsShown.has(key)) { drainsShown.add(key); callout(w, "hurt", HURT_MS * 2); } });
+          at(ev.t, () => { el.dataset.drain = String(ev.t); if (!drainsShown.has(key)) { drainsShown.add(key); callout(drainSaid(w, ev.cause), "hurt", HURT_MS * 2); } });
           break;
         }
         case "hurt": if (bossIds.has(ev.id)) { const id = ev.id, hp = ev.hp; at(ev.t, () => { if (bossHud?.id === id) { bossHud.hp = hp; paintBoss(); } }); }
@@ -1065,7 +1075,7 @@ export function renderWatch(app: App): Mounted {
             const dw = drainOf(ev) ?? (drainEvs.has(ev) ? drainOn : null);
             if (dw) { if (ev.hp <= 0) killBlow = dw; if (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
               at(ev.t, () => { el.dataset.drain = String(ev.t); });   // tooling: the last drain the picture reached
-              const key = `${dw}@${s.depth}`; at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (!drainsShown.has(key)) { drainsShown.add(key); callout(dw, "hurt", HURT_MS * 2); } }); break; }
+              const key = `${dw}@${s.depth}`; at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (!drainsShown.has(key)) { drainsShown.add(key); callout(drainSaid(dw, ev.cause), "hurt", HURT_MS * 2); } }); break; }
             if (ev.hp <= 0 && ev.dmg > 0) killBlow = hurtText(ev.dmg, ev.cause);   // the blow the 0-hp frame names (`paintHud`)
             at(ev.t, () => { hud.hp = ev.hp; paintHud(); if (ev.dmg > 0) { callout(hurtText(ev.dmg, ev.cause), "hurt", HURT_MS); cue("hit", { dmg: ev.dmg, kind: ev.cause }); } });
           } else if (ev.dmg > 0 && !allies.has(ev.id)) { const kind = kinds.get(ev.id) ?? victims.get(ev.id), dmg = ev.dmg; at(ev.t, () => cue("strike", { dmg, kind })); }   // juice pass 2: the blow lands, by the foe's family
@@ -1095,7 +1105,8 @@ export function renderWatch(app: App): Mounted {
           if (dw && (!drainTicks.length || drainTicks[drainTicks.length - 1] < ev.t)) { drainTicks.push(ev.t); if (drainTicks.length > 64) drainTicks.shift(); }
           // QA 308f045 (qaAC: `36/36` → `22/22` → `12/24` with no cause): the shrine's price names itself (`shrine −7 max`)
           const priced = ev.cause === "shrine" && ev.delta < 0 ? /* copy:callout */ `shrine −${-ev.delta} max` : null;
-          at(ev.t, () => { hud.maxHp = m; paintHud(); if (priced) callout(priced, "hurt", HURT_MS * 2); else if (dw && !drainsShown.has(key)) { drainsShown.add(key); callout(dw, "hurt", HURT_MS * 2); } });
+          const said = dw ? drainSaid(dw, ev.cause) : dw, bite = -ev.delta;   // blind c4705f9 (B): `starving · no light`
+          at(ev.t, () => { hud.maxHp = m; if (dw) maxLoss.set(dw, (maxLoss.get(dw) ?? 0) + bite); paintHud(); if (priced) callout(priced, "hurt", HURT_MS * 2); else if (said && !drainsShown.has(key)) { drainsShown.add(key); callout(said, "hurt", HURT_MS * 2); } });
         } break;
         case "steal": lastStealT = ev.t; if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; stolenGold += n; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
@@ -1447,10 +1458,21 @@ export function renderWatch(app: App): Mounted {
     scrubHead.style.left = `${Math.max(0, Math.min(100, ((v - startTick) / span) * 100)).toFixed(1)}%`;
     el.dataset.frontier = String(engineTick); el.dataset.world = String(Math.floor(worldT));
   }
+  /** Blind c4705f9 (A, B: `stolen fire potion` over `Carried $2468`; the summary chips over the boss bar): the docked fold line sits under
+   *  the HUD's actual bottom (the stake line, an alert and the boss bar make it taller than the CSS's fixed 70 px), never over it. */
+  function dockBelowHud(): void {
+    if (foldLine.hidden || !foldLine.classList.contains("docked")) return;
+    const hud = el.querySelector<HTMLElement>(".hud.top"), host = foldLine.offsetParent as HTMLElement | null;
+    if (!hud || !host) return;
+    const below = Math.round(hud.getBoundingClientRect().bottom - host.getBoundingClientRect().top + 4);
+    const top = `${Math.max(70, below)}px`;
+    if (foldLine.style.top !== top) foldLine.style.top = top;
+  }
   /** Cut 28 §4: the DOM over the canvas — the HUD's line, the docked fold line's head and chips, the banner, the ticker, the reason —
    *  handed to the renderer as keep-out rects (canvas CSS px) every KEEP_MS, so no pixel callout, caption or name plate lands on them. */
   let keepAt = 0;
   function paintKeepOut(force = false): void {
+    dockBelowHud();
     const now = performance.now();
     if (!viewer?.setKeepOut || (!force && now - keepAt < KEEP_MS)) return;
     keepAt = now;
@@ -1834,6 +1856,10 @@ export function renderWatch(app: App): Mounted {
     // QA 1a2a4a9 (P: `fast 0.5×` mid-fight while `fights` read 2×): a held beat's eased clock is the beat's, not the mode's — the chip
     // reads the mode's fight rate through it
     const r = paused || hidden || done || exitTier ? 0 : beatHeld() ? fightRate() : speed > 0 ? speed : cardUp || cardWait ? RATE[mode] : 0;
+    // (paused or between pictures: the mode's own clock, so the tile never reads blank)
+    const shown = `${rateText(r > 0 ? r : RATE[mode])}×`;
+    if (speedRate.textContent !== shown) { speedRate.textContent = shown; speedBtn.dataset.rate = shown; }
+    speedBtn.classList.toggle("sped", (r > 0 ? r : RATE[mode]) > 1);
     for (const m of Object.keys(modeBtn) as Mode[]) {
       const want = m === mode && r > 0 ? rateText(r) : "";
       if ((modeBtn[m].dataset.rate ?? "") !== want) { if (want) modeBtn[m].dataset.rate = want; else delete modeBtn[m].dataset.rate; }
@@ -1843,7 +1869,7 @@ export function renderWatch(app: App): Mounted {
     if (app.watchMode !== m) { app.watchMode = m; app.persist(); }   // remembered for the next run
     const wasCard = cardUp;
     speedMode.textContent = m === "one" ? /* copy:label */ "Normal" : m === "fast" ? /* copy:label */ "Fast" : /* copy:label */ "Fights only";
-    mode = m; freeze(false, hidden); mapHold = false; cardLive = false; el.dataset.mode = m;
+    mode = m; freeze(false, hidden); mapHold = false; cardLive = false; el.dataset.mode = m; speedBtn.dataset.mode = m;
     // Cut 14 §6: leaving the card (`fights` → `fast`) lands live — the travel under it was the world's skip, not a replay owed
     if (wasCard && m !== "fights" && !held && !exitTier) goLive();
     for (const k of Object.keys(modeBtn) as Mode[]) modeBtn[k].classList.toggle("on", k === m);
@@ -1925,7 +1951,7 @@ export function renderWatch(app: App): Mounted {
     folding = f; el.dataset.fold = "1";
     releaseBeat(); clearTimeout(dockTimer);
     cardUp = false; card.hidden = true; el.dataset.card = "0"; ticker.classList.remove("show"); tickerQueue.length = 0;
-    foldLine.classList.remove("docked", "faded"); foldLine.hidden = false; paintFold(f);
+    foldLine.classList.remove("docked", "faded"); foldLine.style.top = ""; foldLine.hidden = false; paintFold(f);
     inflight = true;
     // Cut 27 §1 (core): right after the send the core plays the stretch itself (`fold()`: the line, its floors for the replay, the whole
     // stretch as one step); a core without it — or a stretch later in the run — is stepped here, batch by batch

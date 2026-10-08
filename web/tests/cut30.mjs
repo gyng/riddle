@@ -86,6 +86,9 @@ try {
     await page.click('.pkg-compare');
     if (await page.locator('[data-change-kind="stance"]').getAttribute('aria-expanded') === 'false') await page.click('[data-change-kind="stance"]');
     await page.click('[data-edit-slot="0"]');
+    // blind rater B on c4705f9 ("replaced a different slot"): the slot the open choices fill is ringed, its `change` pressed
+    const tgt = await page.evaluate(() => [...document.querySelectorAll('.pkg-sec[data-kind="tactic"] .pkg-slot')].map((x) => `${x.dataset.slot}:${x.classList.contains("target")}:${x.querySelector("[data-edit-slot]")?.getAttribute("aria-pressed")}`));
+    check(tgt[0] === "0:true:true" && tgt.slice(1).every((x) => /:false:false$/.test(x)), `the tactic slot being changed is marked (${tgt.join(" ")})`);
     await until(() => !document.querySelector(".pkg-panel .pkg-price.pending"), "the prices", 10_000);
     const P = await page.evaluate(() => {
       const q = (s) => [...document.querySelectorAll(s)];

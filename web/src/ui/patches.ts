@@ -12,7 +12,10 @@ import type { App } from "../app";
 import type { Patch, Row, Trace } from "../engine/types";
 import { h, pct } from "./dom";
 import { closeX, openSheet } from "./sheet";
-import { condLabel, verbLabel, isCardRow, refName, rowLabel, ruleName, sameCond, sameVerb } from "./tokens";
+import { condLabel, verbLabel, isCardRow, isPkgRow, refName, rowLabel, ruleName, sameCond, sameVerb } from "./tokens";
+/** A row the cap counts and a drop frees (`max_rows` caps the pen's own rows: never a card's, never a package's — the core recompiles
+ *  a dropped package row straight back). */
+const ownRow = (r: Row): boolean => !isCardRow(r) && !isPkgRow(r);
 import { icon, verbIcon } from "./skin";
 /** gfx round 2 (raters: "the three fix rows are plain brown slabs — give each an icon, as the target does"): the fix's action plaque. */
 const patchPlaque = (row: Row | undefined): HTMLElement | "" => { const id = row ? verbIcon(row.verb.v) : null; return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
@@ -39,7 +42,7 @@ export function unlockOf(app: App, p: Patch): string | undefined {
 export function leastFiredRow(app: App, trace?: Trace): number {
   const rows = app.rules.rows, fires = firesOf(app, trace);
   let best = -1;
-  rows.forEach((r, i) => { if (isCardRow(r)) return; if (best < 0 || (fires[i] ?? 0) <= (fires[best] ?? 0)) best = i; });
+  rows.forEach((r, i) => { if (!ownRow(r)) return; if (best < 0 || (fires[i] ?? 0) <= (fires[best] ?? 0)) best = i; });
   return best;
 }
 
@@ -47,14 +50,14 @@ export function leastFiredRow(app: App, trace?: Trace): number {
 export function dropsOf(app: App, p: Patch): number {
   const i = p.drops; if (i === undefined || i < 0) return -1;
   const r = app.rules.rows[i];
-  return r && !isCardRow(r) ? i : -1;
+  return r && ownRow(r) ? i : -1;
 }
 
 /** The least-fired own row when its count is unique among the own rows, else −1 (the drop sheet's `↓`). */
 function uniqueLeast(app: App, trace?: Trace): number {
   const least = leastFiredRow(app, trace); if (least < 0) return -1;
   const fires = firesOf(app, trace), n = (i: number): number => fires[i] ?? 0;
-  return app.rules.rows.some((r, i) => i !== least && !isCardRow(r) && n(i) === n(least)) ? -1 : least;
+  return app.rules.rows.some((r, i) => i !== least && ownRow(r) && n(i) === n(least)) ? -1 : least;
 }
 /** Each row's fires: `app.rowFires`, else the rows the trace shows firing. */
 function firesOf(app: App, trace?: Trace): number[] {
@@ -111,7 +114,9 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     const held = unlock || p.remove || p.replace || move ? -1 : app.rules.rows.findIndex((r) => sameRow(r, p.row));
     const stallish = baseline === undefined && held < 0 && !p.below_bar;   // the first line already says `reach`
     // Cut 15 §3: an insert onto a full set asks which own row to drop (`+ drop one`)
-    const full = !unlock && !move && !p.remove && !p.replace && held < 0 && app.rowsFull && app.rules.rows.some((r) => !isCardRow(r));
+    // Rater A on c4705f9 (`5/4 · drop one` blocked SEND after an apply): a move or a rewrite that takes a package row into the pen
+    // takes a row too (`App.patchTakesRow`) — it asks first, like an insert
+    const full = !unlock && held < 0 && app.rowsFull && app.patchTakesRow(p) && app.rules.rows.some(ownRow);
     // QA a946e04 (S: `R1 − hp < 20% · foes ≥ 1 → drink unknown` — "delete R1?"): a cut reads as one (`cut R1`); a replace keeps `R1 ↻`
     const target = move ? h("small", { class: "target move-tag" }, /* copy:death_line */ `move above ${refName(p.insert_at)} `)
       : p.remove || p.replace ? h("small", { class: "dim target" }, opts.plain ? p.remove ? /* copy:label */ "Remove " : /* copy:label */ "Change " : p.remove ? /* copy:callout */ "cut " : /* copy:callout */ `replaces ${refName(p.insert_at)} `)
@@ -374,7 +379,7 @@ export function openDropSheet(app: App, p: Patch, trace?: Trace): void {
   const least = named >= 0 ? named : uniqueLeast(app, trace);
   openSheet((close) => h("div", { class: "sheet-body drop-sheet" },
     h("div", { class: "label row-label" }, /* copy:label */ "drop", " ", h("small", { class: "dim" }, rowLabel(p.row)), closeX(close)),
-    ...rows.map((r, i) => isCardRow(r) ? null : h("button", {
+    ...rows.map((r, i) => !ownRow(r) ? null : h("button", {
       class: `drop-row${i === least ? " least" : ""}`, "data-row": String(i),
       onclick: () => { close(); const at = app.applyPatchOver(p, i); app.go({ kind: "camp", highlight: at }); },
     },

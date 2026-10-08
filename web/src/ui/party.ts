@@ -2,6 +2,7 @@
 // eggs with hatch_in, hatch (◆2) for eggs from a loss, breed (two level ≥ 2), ledger sheet.
 // Cut 7 §1: a boss row of the ledger whose counter is known carries the counter row as a chip; a tap inserts it at
 // the top of the active set the way a patch does (overflow rules apply) and opens the camp on it.
+import { openDropSheet } from "./patches";
 import { enemyHost } from "./enemy-tips";
 import { unitLabel } from "./unit-icon";
 import type { App } from "../app";
@@ -107,8 +108,10 @@ export function openLedger(app: App): void {
       // Cut 7 §1: the counter row as a chip; lit when the active set already holds it
       const c = r.counter; const held = app.rules.rows.some((x) => sameRow(x, c.row));
       const chip = h("button", { class: `chip verb counter${held ? " on" : ""}`, disabled: held, onclick: () => {
-        const i = app.applyPatch({ row: c.row, insert_at: 0, survive: 0, forecast_delta: 0 });
-        closeAllSheets(); app.go({ kind: "camp", highlight: i });
+        const p = { row: c.row, insert_at: 0, survive: 0, forecast_delta: 0 };
+        closeAllSheets();
+        if (app.rowsFull && app.patchTakesRow(p)) { openDropSheet(app, p); return; }   // a full set asks which row makes room
+        const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i });
       } }, h("small", { class: "dim" }, /* copy:rule_token */ "[counter]"), " ", c.text);
       return [row, h("div", { class: "lrow counter" }, chip)];
     });

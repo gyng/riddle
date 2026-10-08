@@ -374,7 +374,7 @@ export type Town = { home?: boolean; auto_collect?: boolean; buildings: Building
 /** Cut 30 §2 (core) — a package (`Guarded L3`): `kind` stance · tactic · temperament; `level` 1–5 from `runs` (the runs one of its rows
  *  fired in; `next_at` the runs the next level wants); `slot` when equipped; `owned` once its stage came (`trigger` until then);
  *  `level_price` the marks a level spend costs (`spendLevel`). */
-export type Package = { id: string; name: string; description?: string; kind: string; level: number; runs: number; next_at?: number; slot?: number; owned: boolean; trigger?: string; level_price?: number };
+export type Package = { id: string; name: string; description?: string; kind: string; level: number; runs: number; next_at?: number; slot?: number; owned: boolean; trigger?: string; level_price?: number; variants?: string[]; variant?: number };
 /** Cut 30 §1 (core) — a drilled counter (`drill · attack boss`, named, announced once as `DRILLED · Warlord`), revocable (`revokeDrill`);
  *  `scar` the boss's scar now in % (`scarred ×3` = 15). */
 export type Drill = { boss: string; rows: Row[]; revoked: boolean; scar: number };
@@ -390,7 +390,10 @@ export type Packages = { all: Package[]; stance: string; tactics?: string[]; tac
 /** Cut 30 §2 (core) — a package move priced on the paired panel (`packageOptions(sims)`, best first): `action` equip · level, the shares
  *  of the sends that pass the record / reach it / bank / die, and each move against the set as it stands (`Guarded · death −8`). */
 export type PkgOption = { id: string; action: string; slot?: number; price?: number; past: number; bank: number; death: number; reach?: number;
-  d_past: number; d_bank: number; d_death: number; d_reach?: number };
+  d_past: number; d_bank: number; d_death: number; d_reach?: number;
+  /** Blind c4705f9: the paired read — the sends both panels ran on the same seeds, and of them those the move ended better / worse
+   *  (deeper, or as deep with a better exit). Absent on an older core. */
+  n?: number; better?: number; worse?: number };
 /** Cut 30.5 (core; docs/CUT30_5.md, docs/AUTOMATION_TREE.md §2) — a node of the works tree. A **worker** retires a chore done by hand a few
  *  times (`count`/`need`, or `fallback_h` of lineage age once its chore exists); a **stage** is one of the four tracks' stages (the tracks
  *  panel's rows, now the tree's branches). ids — workers: quartermaster · porter · scout · armourer · apprentice · keeper · clerk · drillmaster ·
@@ -430,7 +433,8 @@ export type Works = { nodes: WorkNode[]; lit?: string; lit_rank?: string; next?:
 export type WorkerPost = { id: string; post: string; lit?: boolean; price?: number; paused?: boolean; rank?: number };   // rank 1–3 (week 2): the worker's look
 /** Cut 30.5 (core) — what a worker did over an absence (`ReturnReport.workers`): `apprentice` · `+2 steps` (n 2); `first` the first time it
  *  ever acted (name it once: `apprentice · +1 step`; later fold into the report's lines). */
-export type WorkerAct = { id: string; what: string; n: number; first: boolean };
+/** blind c4705f9 (A, B: `purse −$12562` unexplained): `items` the steps a buying worker reached (`sword +3`), `spent` the purse it paid. */
+export type WorkerAct = { id: string; what: string; n: number; first: boolean; items?: string[]; spent?: number };
 /** RUNS_UI (core; docs/RUNS_UI.md) — one run in the runs log (`Lineage.runs`, oldest first, cap 60). `via`: how it ran — `away` (an absence's
  *  batch, `runOffline*`), `town` (unwatched while the app was open: `advance`), `watched` (live in the watch). `absence`: the absence an `away`
  *  run belongs to (the log folds by it). `clock_s`: the lineage clock at its end (the stamp: `Lineage.clock_s` − it). `gold` what came home,
@@ -694,7 +698,8 @@ export interface Engine {
   equipPackage?(id: string, slot: number): Lineage;     // §2: a stance, a tactic in `slot` 0/1, a temperament — free, instant
   unequipPackage?(id: string): Lineage;                 // §2: empty a tactic or temperament slot (the stance is never empty)
   pickTemperament?(id: string): Lineage;                // §2: take a wake card (`packages.offer`)
-  spendLevel?(id: string): Lineage;                     // §2: marks for a package's next level (`Package.level_price`)
+  spendLevel?(id: string): Lineage;
+  setTacticVariant?(id: string, variant: number): Lineage;   // Cut 111: a tactic's L3 row, `Package.variants[variant]`                     // §2: marks for a package's next level (`Package.level_price`)
   revokeDrill?(boss: string, revoked: boolean): Lineage;   // §1: revoke (or restore) a drill — one tap, it stays
   packageOptions?(sims: number): PkgOption[];           // §2: every package move priced on the paired panel (slow: background lane)
   packageOptionsFor?(sims: number, choices: [string, number][]): PkgOption[];

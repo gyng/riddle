@@ -81,6 +81,9 @@ pub struct Tree {
     /// Hired workers switched off.
     #[serde(default, skip_serializing_if = "crate::shared::set_is_empty")]
     pub paused: crate::shared::Shared<BTreeSet<String>>,
+    /// Cut 111: the wall tactics the drillmaster has put on (once each: a tactic the player takes off stays off).
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub walls_worn: BTreeSet<String>,
     /// The haul not yet collected (part of `LineageState::gold`; the purse is the rest).
     #[serde(default)]
     pub chest: i32,
@@ -522,6 +525,20 @@ fn workers_act(game: &mut Game, send: bool) {
                 n += 1;
             }
         }
+        // Cut 111: a wall's counter arrived while the slots stand open — the drillmaster puts it on (never over a
+        // tactic the player wears; revocable as any tactic; counted as his act on the return)
+        let slots = crate::packages::tactic_slots(&game.lineage);
+        for id in crate::packages::WALL_TACTICS {
+            let l = &game.lineage;
+            if l.pkg.tactics.len() >= slots || !l.pkg.owned.contains(id) || l.tree.walls_worn.contains(id) || l.pkg.tactics.iter().any(|t| t == id) {
+                continue;
+            }
+            let slot = l.pkg.tactics.len();
+            if crate::packages::equip(&mut game.lineage, id, slot).is_ok() {
+                game.lineage.tree.walls_worn.insert(id.to_string());
+                n += 1;
+            }
+        }
         act(game, "drillmaster", n);
     }
     // the apprentice: the cheapest next step the purse pays with the reserve kept
@@ -532,9 +549,16 @@ fn workers_act(game: &mut Game, send: bool) {
             let reserve = RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32;
             let Some((slot, p)) = crate::kit::ladders(l).iter().filter(|x|crate::kit::KIT_SLOTS.contains(&x.slot.as_str())).filter_map(|x| x.next.as_ref().map(|s| (x.slot.clone(), s.price as i32))).min_by_key(|x| x.1) else { break };
             let off = APPRENTICE_OFF_PCT * bonus_rank(l, "apprentice");
+            let before = game.lineage.gold;
             if purse(l) < p - p * off as i32 / 100 + reserve || crate::kit::buy_step_off(&mut game.lineage, &slot, off).is_err() {
                 break;
             }
+            // blind c4705f9 (A, B: `purse −$12562` with no word of what went): each step's slot and its price, for the report
+            let paid = (before - game.lineage.gold).max(0) as u32;
+            let acts = &mut game.lineage.tree.acts;
+            let spent = acts.entry(APPRENTICE_SPENT.to_string()).or_insert(0);
+            *spent = spent.saturating_add(paid);
+            *acts.entry(format!("{APPRENTICE_SLOT}{slot}")).or_insert(0) += 1;
             n += 1;
         }
         act(game, "apprentice", n);
@@ -706,6 +730,16 @@ pub struct WorkerAct {
     pub what: String,
     pub n: u32,
     pub first: bool,
+    /// Blind c4705f9 (A, B: `purse −$12562` unexplained): what the worker bought, each slot's step it
+    /// reached (`sword +3`, `mail +2`), and the purse it spent on them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub items: Vec<String>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub spent: i32,
+}
+
+fn is_zero(n: &i32) -> bool {
+    *n == 0
 }
 
 fn gate_text(gate: &str) -> String {
@@ -826,8 +860,14 @@ pub fn posts(l: &LineageState) -> Vec<WorkerPost> {
     v
 }
 
-/// The report's worker lines: what each did between two looks at its acts (`before`, `after`).
-pub fn report_acts(before: &BTreeMap<String, u32>, after: &BTreeMap<String, u32>) -> Vec<WorkerAct> {
+/// The apprentice's purse spent on forge steps in all (an `acts` key beside the workers' ids; never a node's).
+pub const APPRENTICE_SPENT: &str = "apprentice$";
+/// The apprentice's steps bought per forge slot (`apprentice:weapon`; an `acts` key, never a node's).
+pub const APPRENTICE_SLOT: &str = "apprentice:";
+
+/// The report's worker lines: what each did between two looks at its acts (`before`, `after`); `l` the
+/// lineage after (the forge steps the apprentice reached, by name: `sword +3`).
+pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTreeMap<String, u32>) -> Vec<WorkerAct> {
     let acts_before = before;
     NODES
         .iter()
@@ -846,7 +886,15 @@ pub fn report_acts(before: &BTreeMap<String, u32>, after: &BTreeMap<String, u32>
                     "armourer" => format!("wore {k}"),
                     _ => format!("{k}"),
                 };
-                WorkerAct { id: n.id.into(), what, n: k, first: acts_before.get(n.id).copied().unwrap_or(0) == 0 }
+                let moved = |key: &str| after.get(key).copied().unwrap_or(0).saturating_sub(acts_before.get(key).copied().unwrap_or(0));
+                let (items, spent) = if n.id == "apprentice" {
+                    let items = crate::kit::KIT_SLOTS.iter().filter(|s| moved(&format!("{APPRENTICE_SLOT}{s}")) > 0)
+                        .filter_map(|s| crate::kit::owned(l, s).checked_sub(1).map(|i| crate::kit::step_label(l, s, i as usize))).collect();
+                    (items, moved(APPRENTICE_SPENT) as i32)
+                } else {
+                    (Vec::new(), 0)
+                };
+                WorkerAct { id: n.id.into(), what, n: k, first: acts_before.get(n.id).copied().unwrap_or(0) == 0, items, spent }
             })
         })
         .collect()

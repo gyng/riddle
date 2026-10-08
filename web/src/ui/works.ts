@@ -203,10 +203,17 @@ export function workersBlock(L: Lineage, r: Pick<ReturnReport, "workers" | "ches
   const acts = (r.workers ?? []).filter((a) => a.n > 0 || a.what);
   if (!acts.length && !r.chest) return null;
   return h("div", { class: "works-acts" },
-    ...acts.slice(0, limit).map((a) => h("span", { class: `chip work-act${a.first ? " first" : ""}`, "data-worker": a.id }, h("span", { class: "wa-ico" }, nodeIcon(a.id, nameOf(L, a.id))), h("b", null, nameOf(L, a.id)), h("span", { class: "num" }, ` · ${a.what}`))),
+    ...acts.slice(0, limit).map((a) => h("span", { class: `chip work-act${a.first ? " first" : ""}`, "data-worker": a.id }, h("span", { class: "wa-ico" }, nodeIcon(a.id, nameOf(L, a.id))), h("b", null, nameOf(L, a.id)), h("span", { class: "num" }, ` · ${a.what}`), boughtText(a) ? h("span", { class: "num work-bought" }, boughtText(a)) : "")),
     acts.length > limit ? h("small", { class: "dim" }, /* copy:callout */ `+${acts.length - limit} more`) : "",
     r.chest ? h("span", { class: "chip work-act chest", "data-worker": "chest" }, h("span", { class: "num gold" }, /* copy:callout */ `chest +$${r.chest}`)) : "");
 }
+/** blind c4705f9 (A, B: `purse −$12562` with only `apprentice · +4 steps`): what a worker bought and paid — ` · sword +3 · mail +2 · −$12562`. */
+export function boughtText(a: Pick<WorkerAct, "items" | "spent">): string {
+  const items = (a.items ?? []).map((i) => ` · ${i}`).join("");
+  return /* copy:callout */ `${items}${a.spent ? ` · −$${a.spent}` : ""}`;
+}
+/** The purse the absence's workers spent on what they bought (the apprentice's forge steps). */
+export const workersSpent = (acts: WorkerAct[] | undefined): number => (acts ?? []).reduce((n, a) => n + (a.spent ?? 0), 0);
 /** Slices of one absence merge: each worker's acts summed (its line's number is the sum), `first` if any slice's was. */
 export function mergeWorkers(a: WorkerAct[] | undefined, b: WorkerAct[] | undefined): WorkerAct[] | undefined {
   if (!a?.length) return b; if (!b?.length) return a;
@@ -216,6 +223,9 @@ export function mergeWorkers(a: WorkerAct[] | undefined, b: WorkerAct[] | undefi
     if (!x) { out.push({ ...y }); continue; }
     const n = x.n + y.n;
     x.what = /\d/.test(y.what) ? y.what.replace(/\d+/, String(n)).replace(/\b(step|level)$/, n > 1 ? "$1s" : "$1") : y.what; x.n = n; x.first = x.first || y.first;
+    // (a later slice's step of a slot is the higher: `sword +4` replaces `sword +3`)
+    if (x.items?.length || y.items?.length) { const key = (i: string): string => i.replace(/ ?[+\d].*$/, ""); const later = y.items ?? []; x.items = [...(x.items ?? []).filter((i) => !later.some((j) => key(j) === key(i))), ...later]; }
+    if (x.spent || y.spent) x.spent = (x.spent ?? 0) + (y.spent ?? 0);
   }
   return out;
 }

@@ -145,3 +145,9 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 
 .pkg-rule-lock { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 6px 2px; }
 .pkg-pen-needs p { margin: 10px 0; }
+/* blind rater B on c4705f9: the tactic slot the open choices replace is ringed */
+.pkg-slots .pkg-slot.target { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 6px; }
+/* Cut 111: a tactic's L3 row, the player's pick of two — a small segmented pair under the worn chip */
+.pkg-variants { display: flex; gap: 4px; flex-basis: 100%; margin-top: 2px; }
+.pkg-variants .chip.pkg-variant { flex: 1 1 0; justify-content: center; opacity: .7; }
+.pkg-variants .chip.pkg-variant.on { opacity: 1; color: var(--acc); box-shadow: inset 0 0 0 1px var(--acc); }

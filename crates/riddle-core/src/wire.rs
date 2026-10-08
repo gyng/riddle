@@ -1670,6 +1670,11 @@ pub struct PackageWire {
     /// Marks the next level costs (a level spend), when there is one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub level_price: Option<u32>,
+    /// Cut 111: a tactic's two L3 row variants (names ≤ 3 words), and the one worn (from L3).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variants: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variant: Option<u32>,
 }
 
 /// Cut 30 §1: a drilled counter on the stance (`drill · attack boss`), revocable.

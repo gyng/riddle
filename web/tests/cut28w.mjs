@@ -95,7 +95,15 @@ try {
               .filter((e) => e && !e.hidden && getComputedStyle(e).opacity !== "0" && getComputedStyle(e).visibility !== "hidden")
               .map((e) => { const r = e.getBoundingClientRect(); return { what: (e.textContent || e.className).trim().slice(0, 24), x: r.left - c.left, y: r.top - c.top, w: r.width, h: r.height }; })
               .filter((r) => r.w > 0 && r.h > 0 && (r.what.length > 0));
-            if (fold) acc.docked++;
+            if (fold) {
+              acc.docked++;
+              // blind c4705f9 (B: `stolen fire potion` over `Carried $2468`): the docked chips sit under the HUD's line, never on it
+              const hud = [...w.querySelectorAll(".hud.top > *")].filter((e) => !e.hidden && e.getBoundingClientRect().height > 0).map((e) => e.getBoundingClientRect());
+              for (const ch of [fold.querySelector(".fold-head"), ...fold.querySelectorAll(".fchip")].filter(Boolean)) {
+                const r = ch.getBoundingClientRect();
+                if (hud.some((x) => r.left < x.right - 1 && r.right > x.left + 1 && r.top < x.bottom - 1 && r.bottom > x.top + 1)) acc.hits.push(`fold chip on HUD: ${ch.textContent.trim().slice(0, 24)}`);
+              }
+            }
             const texts = v.debugText().filter((t) => t.w !== undefined);
             const plates = (v.debugLabels?.() ?? []).filter((l) => l.w).map((l) => ({ what: l.text, x: l.x - l.w / 2, y: l.y - l.h, w: l.w, h: l.h }));
             acc.callouts += texts.filter((t) => t.kind === "callout").length; acc.captions += texts.filter((t) => t.kind === "caption").length; acc.plates += plates.length;

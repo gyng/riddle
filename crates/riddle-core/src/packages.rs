@@ -189,6 +189,9 @@ pub struct PkgState {
     /// Package id → runs one of its rows fired in (the level's count).
     #[serde(default)]
     pub runs: BTreeMap<String, u32>,
+    /// Cut 111: tactic id → the variant of its L3 row the player chose (0 the first, 1 the second).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub variants: BTreeMap<String, u8>,
     /// Packages that have arrived (stances, tactics, temperaments offered and taken).
     #[serde(default)]
     pub owned: BTreeSet<String>,
@@ -230,6 +233,7 @@ impl Default for PkgState {
             tactics: Vec::new(),
             temperament: None,
             runs: BTreeMap::new(),
+            variants: BTreeMap::new(),
             owned: ["steady".to_string()].into_iter().collect(),
             drills: Vec::new(),
             meets: BTreeMap::new(),
@@ -425,9 +429,28 @@ fn wall_met(l: &LineageState, id: &str) -> bool {
     }
 }
 
+/// Cut 111 (owner: tactics, not the pen, are the player's tuning; cohort c4705f9: "Steady + boss focus — little
+/// felt mine"): from L3 a tactic's extra row is the player's pick of two, each a different trade.
+pub fn variants(id: &str) -> Option<[&'static str; 2]> {
+    Some(match id {
+        "boss_focus" => ["summons first", "boss first"],
+        "kite_archers" => ["hunt archers", "keep cover"],
+        "thief_guard" => ["chase thieves", "swat close"],
+        "gas_step" => ["step away", "burn them"],
+        "pack_break" => ["to corridor", "pick the weak"],
+        "corridor_fighting" => ["at three", "at two"],
+        _ => return None,
+    })
+}
+
 /// A tactic's rows at a level: its card (the card's rows play at the row), and from L3 a row the
-/// card's situation wants.
+/// card's situation wants (the first variant).
 pub fn tactic_rows(id: &str, level: u32) -> Vec<Row> {
+    tactic_rows_v(id, level, 0)
+}
+
+/// A tactic's rows at a level with its L3 row's variant.
+pub fn tactic_rows_v(id: &str, level: u32, variant: u8) -> Vec<Row> {
     if id == "cadence" { return vec![r(vec![tag("mirror")], Verb::arg("tactic", id))]; }
     if WALL_TACTICS.contains(&id) {
         let when = match id {
@@ -439,13 +462,19 @@ pub fn tactic_rows(id: &str, level: u32) -> Vec<Row> {
     }
     let mut v = vec![r(vec![], Verb::arg("tactic", id))];
     if level >= 3 {
-        let extra = match id {
-            "boss_focus" => Some(r(vec![tag("summoned")], Verb::arg("attack", "tag:summoned"))),
-            "kite_archers" => Some(r(vec![tag("ranged"), n("adj>=", 1)], Verb::arg("attack", "tag:ranged"))),
-            "thief_guard" => Some(r(vec![tag("thief")], Verb::arg("attack", "tag:thief"))),
-            "gas_step" => Some(r(vec![tag("gas"), n("adj>=", 1)], Verb::new("retreat"))),
-            "pack_break" => Some(r(vec![tag("pack"), n("adj>=", 2)], Verb::new("back_corridor"))),
-            "corridor_fighting" => Some(r(vec![n("foes>=", 3)], Verb::new("back_corridor"))),
+        let extra = match (id, variant) {
+            ("boss_focus", 0) => Some(r(vec![tag("summoned")], Verb::arg("attack", "tag:summoned"))),
+            ("boss_focus", _) => Some(r(vec![tag("boss")], Verb::arg("attack", "tag:boss"))),
+            ("kite_archers", 0) => Some(r(vec![tag("ranged"), n("adj>=", 1)], Verb::arg("attack", "tag:ranged"))),
+            ("kite_archers", _) => Some(r(vec![tag("ranged"), n("adj>=", 1)], Verb::new("back_corridor"))),
+            ("thief_guard", 0) => Some(r(vec![tag("thief")], Verb::arg("attack", "tag:thief"))),
+            ("thief_guard", _) => Some(r(vec![tag("thief"), n("adj>=", 1)], Verb::arg("attack", "tag:thief"))),
+            ("gas_step", 0) => Some(r(vec![tag("gas"), n("adj>=", 1)], Verb::new("retreat"))),
+            ("gas_step", _) => Some(r(vec![tag("gas")], Verb::arg("throw", "fire,tag:gas"))),
+            ("pack_break", 0) => Some(r(vec![tag("pack"), n("adj>=", 2)], Verb::new("back_corridor"))),
+            ("pack_break", _) => Some(r(vec![tag("pack"), n("adj>=", 2)], Verb::arg("attack", "lowest"))),
+            ("corridor_fighting", 0) => Some(r(vec![n("foes>=", 3)], Verb::new("back_corridor"))),
+            ("corridor_fighting", _) => Some(r(vec![n("foes>=", 2)], Verb::new("back_corridor"))),
             _ => None,
         };
         v.extend(extra);
@@ -580,7 +609,7 @@ pub fn compile(l: &LineageState) -> RuleSet {
     if let Some(row)=crate::specialization::row(l) {rows.push(row);}
     for t in &p.tactics {
         if t == "cadence" { continue; }
-        rows.extend(tagged(tactic_rows(t, p.level(t)), &format!("tactic:{t}")));
+        rows.extend(tagged(tactic_rows_v(t, p.level(t), p.variants.get(t).copied().unwrap_or(0)), &format!("tactic:{t}")));
     }
     if let Some(t) = &p.temperament {
         rows.extend(tagged(temperament_rows(t, p.level(t)), &format!("temper:{t}")));
@@ -629,9 +658,19 @@ pub fn recompile(l: &mut LineageState) -> bool {
 
 /// The pen's rows (or the custom stance's) from a set the editor wrote: every row that is not a
 /// package's as compiled now — a package row the player edited is the player's.
-pub fn absorb(l: &mut LineageState, set: &RuleSet) {
+///
+/// `by_origin` (the public door, `Game::set_rules`): the origin tag is ownership — every row
+/// still tagged with a package's origin is that package's, whatever its tokens. The client
+/// retags a row the player edits, moves out of the packages or a patch rewrites (`player` /
+/// `patch`); an untouched package row that a recompile has since changed (a stance's home row
+/// deepening with the best depth, a level's heal threshold) is the package's stale copy, not a
+/// row the player wrote. Rater A on c4705f9: any edit from a copy older than the last run's
+/// recompile turned those stale rows into five unasked `player` rows and `5/4 · drop one`.
+/// Without it (a projection of a core-made candidate, whose rewritten rows keep the package's
+/// origin) a package row that no longer matches the compiled one is the edit's.
+pub fn absorb(l: &mut LineageState, set: &RuleSet, by_origin: bool) {
     let compiled = compile(l);
-    let is_ours = |row: &Row| row.is_pkg() && compiled.rows.iter().any(|c| c == row && c.origin == row.origin);
+    let is_ours = |row: &Row| row.is_pkg() && (by_origin || compiled.rows.iter().any(|c| c == row && c.origin == row.origin));
     if l.pkg.stance == CUSTOM {
         // the custom stance is the pen's own set: every row but the drills
         l.pkg.custom = set.rows.iter().filter(|row| !row.origin.as_deref().is_some_and(|o| o.starts_with("drill:") || ((o.starts_with("style:")||o=="class:gunner")&&is_ours(row)))).cloned().map(|mut row| {
@@ -662,7 +701,7 @@ pub fn project_edit(l: &LineageState, set: &RuleSet) -> LineageState {
         let i = edited.active_set.min(edited.sets.len() - 1);
         edited.sets[i] = set.clone();
     } else {
-        absorb(&mut edited, set);
+        absorb(&mut edited, set, false);
         recompile(&mut edited);
     }
     edited
@@ -896,6 +935,22 @@ pub fn level_price(l: &LineageState, id: &str) -> Option<u32> {
 }
 
 /// Spend marks on a package's next level (its runs set to the level's count).
+/// Cut 111: pick a tactic's L3 row (`variants`): owned, at L3 or above. Free, instant, revocable.
+pub fn set_variant(l: &mut LineageState, id: &str, v: u8) -> Result<(), String> {
+    if variants(id).is_none() || v > 1 {
+        return Err("no such variant".into());
+    }
+    if !l.pkg.owned.contains(id) {
+        return Err("not yet".into());
+    }
+    if l.pkg.level(id) < 3 {
+        return Err("from L3".into());
+    }
+    if v == 0 { l.pkg.variants.remove(id); } else { l.pkg.variants.insert(id.into(), v); }
+    recompile(l);
+    Ok(())
+}
+
 pub fn spend_level(l: &mut LineageState, id: &str) -> Result<u32, String> {
     if !l.pkg.owned.contains(id) || def(id).is_none() {
         return Err("not yet".into());
@@ -1196,6 +1251,8 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
                 owned: available(l, d.id),
                 trigger: if available(l, d.id) { String::new() } else { trigger_now(l, d, &pending) },
                 level_price: p.owned.contains(d.id).then(|| level_price(l, d.id)).flatten(),
+                variants: variants(d.id).map(|v| v.iter().map(|x| x.to_string()).collect()).unwrap_or_default(),
+                variant: (variants(d.id).is_some() && level_of(runs) >= 3).then(|| p.variants.get(d.id).copied().unwrap_or(0) as u32),
             }
         })
         .collect();
@@ -1258,6 +1315,14 @@ pub struct PkgOption {
     pub d_death: f64,
     #[serde(default)]
     pub d_reach: f64,
+    /// The paired sends (same seeds on both panels), and of them the ones this move ended better
+    /// and worse than the worn set (`paired`).
+    #[serde(default)]
+    pub n: u32,
+    #[serde(default)]
+    pub better: u32,
+    #[serde(default)]
+    pub worse: u32,
 }
 
 /// Every move the camp offers now: each arrived stance not worn, each arrived tactic into each open
@@ -1327,18 +1392,29 @@ fn read_shares(g: &crate::engine::Game, rs: &[crate::forecast::SimResult]) -> (f
 /// when the panel is run here, not read from the memo) — or at a shallower start whose passage is the
 /// wall's sims cut there. Priced from those sims (`forecast::passage_from`), each passage is the one
 /// `passage_for` runs; the shares are `shares`' and the wall's past share `at_wall`'s.
-fn panels(g: &crate::engine::Game, set: &RuleSet, sims: u32, stone: Option<u32>) -> ((f64, f64, f64, f64, f64), Option<f64>) {
+/// One send's outcome as the paired comparison orders it: the floor reached first, then how it
+/// ended (died < turned back < full haul) — the camp's sends play the same seeds, so a move's
+/// send `i` and the worn set's send `i` met the same dungeon (`forecast_tag`).
+fn outcome_rank(r: &crate::forecast::SimResult) -> u32 {
+    use crate::engine::ExitTier;
+    r.max_depth * 4 + match r.tier { ExitTier::Death => 0, ExitTier::Bank => 2, _ => 1 }
+}
+
+type Panels = ((f64, f64, f64, f64, f64), Option<f64>, Vec<u32>);
+
+fn panels(g: &crate::engine::Game, set: &RuleSet, sims: u32, stone: Option<u32>) -> Panels {
     if sims < crate::forecast::REFINE_SIMS {
         // Ordinary Tactics reads depths and exit tiers, never skipped-floor gold. Skip that
         // independent ledger forecast and isolate its incomplete panel cache.
         // Explicit refinement retains its existing serialized camp-quality state.
-        let own = read_shares(g, &crate::forecast::camp_panel_outcomes(g, set, sims));
+        let rs = crate::forecast::camp_panel_outcomes(g, set, sims);
+        let own = read_shares(g, &rs);
         let wall = stone.map(|s| {
             let mut w = g.sim_clone();
             w.lineage.start = s;
             read_shares(&w, &crate::forecast::camp_panel_outcomes(&w, set, sims)).0
         });
-        return (own, wall);
+        return (own, wall, rs.iter().map(outcome_rank).collect());
     }
 
     use crate::forecast::{camp_panel, panel_key, passage_from, passage_run, sim_start, FORECAST_SIMS};
@@ -1354,21 +1430,21 @@ fn panels(g: &crate::engine::Game, set: &RuleSet, sims: u32, stone: Option<u32>)
     let memo = g.panel_cache.borrow();
     let cached = memo.contains_key(&panel_key(g, set, sims)) || (sims > FORECAST_SIMS && memo.contains_key(&panel_key(g, set, FORECAST_SIMS)));
     drop(memo);
-    let own = if wall_start > 1 && start > 1 && start < wall_start && !cached {
+    let panel = if wall_start > 1 && start > 1 && start < wall_start && !cached {
         // (the deeper passage first: the shallower one is its sims cut, then the panel reads it)
         let w = wall.as_ref().expect("a wall start");
         let d1 = passage_run(w, set, wall_start);
         passage_from(w, set, wall_start, &d1);
         passage_from(g, set, start, &d1);
-        read_shares(g, &camp_panel(g, set, sims))
+        camp_panel(g, set, sims)
     } else {
         let panel = camp_panel(g, set, sims);
         if let Some(w) = wall.as_ref().filter(|_| wall_start > 1 && g.lineage.start == 1 && !cached) {
             passage_from(w, set, wall_start, &panel);
         }
-        read_shares(g, &panel)
+        panel
     };
-    (own, wall.map(|w| shares(&w, set, sims).0))
+    (read_shares(g, &panel), wall.map(|w| shares(&w, set, sims).0), panel.iter().map(outcome_rank).collect())
 }
 
 /// The camp's package prices (`sims` sends each, on the camp's seeds), best move first — read twice:
@@ -1428,7 +1504,7 @@ pub fn options_for(g: &crate::engine::Game, sims: u32, choices: &[(String, usize
 fn options_from(g: &crate::engine::Game, sims: u32, moves: Vec<(String, String, usize)>) -> Vec<PkgOption> {
     let best = g.lineage.best_depth;
     let stone = g.lineage.stones().into_iter().filter(|w| *w <= best && *w > g.lineage.start.max(1)).max();
-    let (base, wall_base) = panels(g, g.lineage.rules(), sims, stone);
+    let (base, wall_base, base_ranks) = panels(g, g.lineage.rules(), sims, stone);
     // Preserve the complete query's native panel execution policy for exact subset answers.
     let full_count = candidates(&g.lineage).len();
     let threaded = full_count > 1 && 2 * full_count >= crate::forecast::sim_width();
@@ -1456,18 +1532,30 @@ fn options_from(g: &crate::engine::Game, sims: u32, moves: Vec<(String, String, 
         let set = compile(&c.lineage);
         Some(panels(&c, &set, sims, stone))
     };
-    let mut measured = vec![Some((base, wall_base))];
+    let mut measured = vec![Some((base, wall_base, base_ranks.clone()))];
     measured.extend(if threaded {
         crate::forecast::par_map(g, jobs, one)
     } else { jobs.iter().map(|m| one(g, m)).collect() });
     let mut out: Vec<PkgOption> = plan.into_iter().filter_map(|((id, action, slot), group)| {
-        let ((past, bank, death, reach, mean), wall) = measured[group]?;
+        let ((past, bank, death, reach, mean), wall, ranks) = measured[group].clone()?;
         let d_wall = match (wall_base, wall) { (Some(a), Some(b)) => b - a, _ => 0.0 };
         let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
-        Some(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall })
+        let (n, better, worse) = paired(&base_ranks, &ranks);
+        Some(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall, n, better, worse })
     }).collect();
     out.sort_by(|a, b| score(b).total_cmp(&score(a)));
     out
+}
+
+/// Blind c4705f9 (A, B: `compare outcomes` read `all similar` nearly always): the paired read of a
+/// move — of the sends both panels ran on the same seeds (`n`), how many the move ended better
+/// (deeper, or as deep and a better exit) and how many worse. The shares' bands treated the two
+/// panels as independent draws of five; the pairs are the resolution the panel actually has.
+pub fn paired(base: &[u32], with: &[u32]) -> (u32, u32, u32) {
+    let n = base.len().min(with.len());
+    let better = (0..n).filter(|&i| with[i] > base[i]).count() as u32;
+    let worse = (0..n).filter(|&i| with[i] < base[i]).count() as u32;
+    (n as u32, better, worse)
 }
 
 /// A move's worth: the sends past the record, then those reaching it and banked, the floors the

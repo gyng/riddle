@@ -279,6 +279,11 @@ button.re-body { cursor: pointer; }
 .watch .tile[data-tile="speed"] { overflow: visible; }
 .watch .watch-speed-mode { display: block; margin-top: 3px;
   white-space: nowrap; font: 600 11px/15px var(--sans); color: var(--bone); text-shadow: 0 1px 3px #000; }
+/* blind c4705f9: the clock the picture plays at, always on the speed tile; lit when it is not 1× */
+.watch .tile[data-tile="speed"] .watch-speed-rate { position: absolute; top: 3px; right: 5px; padding: 0 4px; border-radius: 7px;
+  font: 700 13px/17px var(--num); color: var(--bone); background: rgba(13, 12, 20, .72); text-shadow: 0 1px 2px #000; pointer-events: none; }
+.watch .tile[data-tile="speed"].sped .watch-speed-rate { color: #1a1208; background: #f3d192; text-shadow: none; }
+.watch .tile[data-tile="speed"].sped .watch-speed-mode { color: #f3d192; }
 .watch .combat-lines { overflow-anchor: none; }
 .watch .combat-lines:focus-visible { outline: 1px solid var(--gilt); outline-offset: 2px; }
 .watch .log-latest { display: block; margin: 0 0 4px auto; padding: 3px 6px;

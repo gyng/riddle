@@ -696,6 +696,10 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .row.tablet .rn { margin: 0; font: 700 13px/1 var(--display); color: #aea48c; text-shadow: 0 1px 2px var(--ink); }
 .row.tablet .updown .step { width: 24px; font-size: 10px; }
 .row.tablet .x { font-size: 20px; }
+/* rater A on c4705f9 (× "needed a double tap with no cue"): armed, the × reads `drop` in the warning red and the tablet is ringed */
+.row.tablet .x.armed { color: #ffc4be; font-size: 13px; font-weight: 600; border: 1px solid #fdaea8; border-radius: 4px; padding: 0 8px; background: rgba(147, 0, 18, .35); }
+.row.tablet:has(> .x.armed) { outline: 1px solid #fdaea8; outline-offset: -1px; }
+.row.tablet .x.none { min-width: var(--tap); }
 .row.tablet .chips { gap: 4px; }
 .row.tablet .chip { min-height: var(--tap); padding: 0 9px; font-size: 16px; border-radius: 4px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 1px 0 var(--ink); }
 .chip.cond { background: linear-gradient(#292f4a, #1f1f32); border-color: #3b4e73; }
@@ -785,6 +789,7 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 /* QA 1a2a4a9 (P: the stake line "sits straight on wall tiles and torches"): a dark plate under it, readable over any tile */
 .watch .stake { justify-self: start; max-width: max-content; padding: 1px 6px; border-radius: 3px; background: rgba(13, 12, 20, .62); }
 .watch .portrait .plabel .hp-text { color: inherit; }
+.watch .hp-text .hp-max-loss { margin-left: 3px; font: 600 .78em/1 var(--sans); color: #d68a85; white-space: nowrap; }   /* blind c4705f9: what took the max (`starving −26`) */
 
 /* --- the death: the banner over the dimmed floor, the seal, the trace on parchment, patches as tablets with a gauge --- */
 .death-well { display: flex; flex-direction: column; gap: 10px; padding-top: 0;
@@ -1439,6 +1444,12 @@ body:has(.sheet-wrap:not(.modeless)) .panel-host.open { visibility: hidden; }
 /* docs/COPY.md pass 3: the shaft's words wrap inside the column instead of running off the panel (`behind warlord`, `counter: attack boss`,
    `fens · D5 · untried` were clipped at 400 px) */
 .notch .dl .wall, .notch .frontier, .notch .wall-counter, .notch .dl .bounty-x { white-space: normal; overflow-wrap: break-word; }
+/* blind c4705f9 (B: `be hin d wa rlo rd` in the floor-chance column at 400 px): a unit label's text broke anywhere (`.unit-label-text`
+   `overflow-wrap: anywhere` shrinks an inline-flex to one letter's width); in a notch the portrait and the words wrap as whole words */
+.notch .dl .unit-label { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; max-width: 100%; }
+.notch .dl .unit-label-text { flex: 1 1 auto; min-width: min-content; overflow-wrap: normal; word-break: normal; hyphens: none; }
+.shaft .notch .dl :is(.wall, .boss-here, .bounty-x, .lane, .cap), .shaft .notch .concept-cap { white-space: normal; overflow-wrap: normal; word-break: normal; }
+.shaft .notch > .dl { min-width: 0; }
 .editor .rows-head { display: block; margin: 0 0 2px 10px; font: 600 10px/1 var(--display, serif); letter-spacing: .12em; text-transform: uppercase; color: #aea48c; }   /* docs/COPY.md pass 5 */
 
 /* ===== gfx round 1 (docs/JUICE.md §10) — the blind raters' round-0 read: "flat saturated orange web button", "flat green web progress

@@ -38,7 +38,7 @@ import { oathProgress } from "./oaths";
 import { grewBlock, heroFace, reportTrainingBlock, trainingBeats } from "./tracks";
 import { reportChoices } from "./report-choices";
 import { bossName, reportBosses } from "./report-bosses";
-import { workersBlock } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
+import { workersBlock, workersSpent } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 import { progressGoal, progressGoalRow } from "./progress-goal";
@@ -377,7 +377,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // the ledger holds are named (`+$20 heir purse`, the gold sheet's own words); a death that found the purse full moved no gold
       piece(r.gold.spent, "−", WORD.spent, "down");
       // blind ad71e72 (A: `$6712` earned, the purse up $78): the rest of the purse's change — the workers' forge steps, hires, the bank
-      if (r.gold.net !== undefined) { const other = r.gold.net - (r.gold.home + r.gold.salvage + reportPassage(r) + r.gold.wake - r.gold.spent); piece(-other, "−", /* copy:callout */ "workers, other", "down"); piece(other, "+", /* copy:callout */ "other", "up"); }
+      if (r.gold.net !== undefined) { const bought = workersSpent(r.workers), other = r.gold.net - (r.gold.home + r.gold.salvage + reportPassage(r) + r.gold.wake - r.gold.spent) + bought; piece(bought, "−", /* copy:callout */ "apprentice forge", "down"); piece(-other, "−", /* copy:callout */ "workers, other", "down"); piece(other, "+", /* copy:callout */ "other", "up"); }
       // QA 912e135 (qaW: `STALLED $224 lost` and ~$1,900 carried by the dead, named nowhere on the gold side): what the exits did not keep —
       // a dim note beside the movements (it never was in the purse)
       // QA 524827b (qaAA: `$936 lost` on a report with 0 deaths): what a return did not keep (its 40 %) is `not kept`; `lost` is only
@@ -599,16 +599,21 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const net = r.gold?.net;
   const otherGold = net === undefined || !r.gold ? 0 : net - (r.gold.home + r.gold.salvage + passageGold + r.gold.wake - r.gold.spent);
   const signed = (n: number): string => `${n < 0 ? "−" : "+"}$${Math.abs(n)}`;
+  // blind c4705f9 (A, B: `purse −$12562` from a 20 min absence, unexplained): the workers' purchases are named under the purse
+  // (`forge −$12562`), and the rest of the other movements apart
+  const boughtGold = net === undefined ? 0 : workersSpent(r.workers);
   const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", onclick: () => openGoldSheet(app) },
     icon("gold"), h("b", { class: "num" }, `$${runGold + lootGold + passageGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned"),
-    net !== undefined && net !== runGold + lootGold + passageGold ? h("small", { class: "report-net num" }, /* copy:callout */ `purse ${signed(net)}`) : ""), () => [
+    net !== undefined && net !== runGold + lootGold + passageGold ? h("small", { class: "report-net num" }, /* copy:callout */ `purse ${signed(net)}`) : "",
+    boughtGold > 0 ? h("small", { class: "report-bought num" }, /* copy:callout */ `forge −$${boughtGold}`) : ""), () => [
       h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
       h("div", { class: "num" }, /* copy:label */ "Run gold", ` · $${runGold}`),
       h("div", { class: "num" }, /* copy:label */ "Loot sold", ` · $${lootGold}`),
       ...(passageGold > 0 ? [h("div", { class: "num" }, /* copy:label */ "Passage", ` · $${passageGold}`)] : []),
       ...(net !== undefined && r.gold ? [h("div", { class: "num" }, /* copy:label */ "Heir grants", ` · +$${r.gold.wake}`)] : []),
       ...(net !== undefined && r.gold ? [h("div", { class: "num" }, /* copy:label */ "Supplies, tolls", ` · −$${r.gold.spent}`)] : []),
-      ...(otherGold ? [h("div", { class: "num" }, /* copy:label */ "Workers, other", ` · ${signed(otherGold)}`)] : []),
+      ...(boughtGold > 0 ? [h("div", { class: "num" }, /* copy:label */ "Apprentice forge", ` · −$${boughtGold}`)] : []),
+      ...(otherGold + boughtGold ? [h("div", { class: "num" }, /* copy:label */ "Workers, other", ` · ${signed(otherGold + boughtGold)}`)] : []),
       ...(net !== undefined ? [h("div", { class: "num" }, h("b", null, /* copy:label */ "Purse change"), ` · ${signed(net)}`)] : []),
       h("div", { class: "kw-tip-gloss" }, net !== undefined ? /* copy:tooltip */ "Earned before spending; purse change counts everything" : /* copy:tooltip */ "Before spending; excludes heir grants")]);
   const summary = h("div", { class: "report-summary" },

@@ -31,6 +31,16 @@ const condItem = (c: Cond): HTMLElement | null => c.k === "item" && c.t ? itemIc
 /** gfx round 1: the action's icon plaque at a tablet's right end (camp.png); nothing when its icon is not packed. */
 const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
 import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, ruleName, sameCond, sameVerb, verbLabel } from "./tokens";
+/** Rater A on c4705f9 ("▲▼ moves on pre-written rows reverted on screen", "× did not drop it"): on packages the core compiles the order —
+ *  the pen's rows first, each package's rows below in the package's order. A pen row moves within the pen; a package row's ▲ takes it
+ *  into the pen as the player's (when a row is free), its ▼ and × are off (the package's rows go with the package); `+` adds at the
+ *  pen's end. `end` is the first package row's index; `full` the cap reached. Returns where the row lands, or −1 when it cannot go. */
+export function moveTarget(rows: Row[], from: number, to: number, end: number, full: boolean): number {
+  if (to === from || from < 0 || from >= rows.length) return -1;
+  if (from < end) { const at = Math.max(0, Math.min(to, end - 1)); return at === from ? -1 : at; }
+  if (to >= from || full || isCardRow(rows[from]!)) return -1;
+  return Math.min(to, end);
+}
 
 const CLICK_EV = "cli" + "ck";   // (the event name, spelled so copy-lint's forbidden-word check — for player copy — passes it)
 const LONG_MS = 450;   // Cut 29 §4: a press held this long on a tablet lifts it
@@ -46,7 +56,8 @@ export type Binding = { rules(): RuleSet; vocab(): Vocabulary; changed(): void; 
                         rowWhy?(): (RowWhy | null)[];             // Cut 23 §3: per row, what it did over the recent sends and why not (the core's `row_why`)
                         inert?(row: Row): string | undefined;
                         lockedGate?(row: Row, i: number): string | undefined;
-                        canReorder?(): boolean };   // Cut 29 §2: the order opens at the first plateau (`systems` reorder) — ▲▼ and the grip's drag until then absent   // Cut 26 §6: the core's gate for a row's locked cond (`Lineage.locked_rows`)   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
+                        canReorder?(): boolean;
+                        penEnd?(): number };   // rater A on c4705f9: on packages, the first package row's index — the pen's rows sit above it, the packages keep their order   // Cut 29 §2: the order opens at the first plateau (`systems` reorder) — ▲▼ and the grip's drag until then absent   // Cut 26 §6: the core's gate for a row's locked cond (`Lineage.locked_rows`)   // QA 912e135: a row that cannot act yet, and what it waits on (`identify heal`)
 /** QA 912e135 (qaW: the default `hp < 30% → drink heal` ran inert all night — `0/760 · blocked · unknown item` — while `has: heal` read
  *  `⊘ identify heal` in the cond sheet): a row whose verb uses a kind the lineage has not identified (the vocabulary's locked `has:`) and
  *  no packed supply of it (a bought one is known) waits on it — `identify heal` on the tablet. */
@@ -75,7 +86,7 @@ export const heroBinding = (app: App): Binding => ({ rules: () => app.rules, voc
   nums: (k) => k === "depth>=" ? depthNums(app.lineage?.best_depth ?? 0, app.vocab) : undefined, rowWhy: () => app.rowWhy(), inert: (r) => inertOf(app, r),
   // the core's read of the set it holds — the row at `i` there must be this row (an edit since has not reached it yet)
   lockedGate: (r, i) => { const L = app.lineage, held = L?.sets?.[L.active_set ?? 0]?.rows[i]; return held && JSON.stringify([held.conds, held.verb]) === JSON.stringify([r.conds, r.verb]) ? L.locked_rows?.[i] ?? undefined : undefined; },
-  canReorder: () => sysOpen(app.lineage, "reorder") });
+  canReorder: () => sysOpen(app.lineage, "reorder"), penEnd: () => app.penEnd() });
 /** Cut 29 §2: the editor offers what the curriculum has opened — the foe tags (`foe: caster`, `attack tag:`) from the first foe fact, the
  *  exits (`bank` · `return` · `rest`) from the first gold home. A row already holding one keeps it (the verb sheet lights a row's own). */
 export function gateVocab(V: Vocabulary, L: App["lineage"] | undefined): Vocabulary {
@@ -122,6 +133,16 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
   const numsOf = (k: string): number[] | undefined => bind.nums?.(k) ?? NUMS[k];
 
   function rows(): Row[] { return bind.rules().rows; }
+  /** The first package row's index (the set's length off packages). */
+  function penEnd(): number { return Math.min(bind.penEnd?.() ?? rows().length, rows().length); }
+  /** Moves row `from` toward `to` as the core will keep it (`moveTarget`); a package row taken into the pen is the player's. */
+  function moveRow(from: number, to: number): void {
+    const rs = rows(), end = penEnd(), at = moveTarget(rs, from, to, end, ownRowCount(rs) >= vocab().max_rows);
+    if (at < 0) return;
+    const [r] = rs.splice(from, 1);
+    rs.splice(at, 0, from >= end ? { ...r!, origin: "player" } : r!);
+    hl = at; hlUntil = performance.now() + 1600; commit();
+  }
   function commit(): void { bind.changed(); refresh(); }
   /** Cut 7 §2: a row the player edits any token of (or adds) is the player's, whatever offered it. */
   function edited(row: Row): void { row.origin = "player"; commit(); }
@@ -157,7 +178,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       // times): it goes in above the first own row with no hp cond (the broad engagement rows), under the hp rows before it
       // QA 0c6e126 (qaY: "`+` adds `hp < 50% → attack lowest` in the middle (R3) instead of at the end, so every add needs a reorder"): the `+`
       // under the rows adds at the end, where it sits; the new row is flashed and a ▲ moves it
-      n < max ? h("button", { class: "btn ghost", onclick: () => { const rs = rows(); rs.push(defaultRow()); hl = rs.length - 1; hlUntil = performance.now() + 1600; commit(); } }, "+") : "",
+      n < max ? h("button", { class: "btn ghost", onclick: () => { const rs = rows(), at = penEnd(); rs.splice(at, 0, defaultRow()); hl = at; hlUntil = performance.now() + 1600; commit(); } }, "+") : "",
     );
     paintShadow();
     if (hl !== undefined && performance.now() < hlUntil) { const r = list.children[hl] as HTMLElement | undefined; if (r) { flash(r, "hl", Math.max(600, hlUntil - performance.now())); r.scrollIntoView({ block: "center" }); } }
@@ -227,14 +248,16 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
     }
     const order = bind.canReorder?.() ?? true;
     const grip = h("button", { class: `grip${order ? "" : " still"}`, onpointerdown: (e) => startDrag(e as PointerEvent, i, order) }, order ? "≡" : "", h("small", { class: "rn num" }, `${i + 1}`));
-    const n = rows().length;
-    const swap = (to: number): void => { const rs = rows(); const [r] = rs.splice(i, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); };
+    const end = penEnd(), pkg = i >= end, full = ownRowCount(rows()) >= vocab().max_rows;
+    const up = moveTarget(rows(), i, i - 1, end, full), down = moveTarget(rows(), i, i + 1, end, full);
+    // a package row's ▲ on a full set is off and says why (`rules full`), never a move the cap then blocks at `send`
     const updown = !order ? "" : h("div", { class: "updown" },
-      h("button", { class: "step up", disabled: i === 0, onclick: () => swap(i - 1) }, "▲"),
-      h("button", { class: "step down", disabled: i >= n - 1, onclick: () => swap(i + 1) }, "▼"));
+      h("button", { class: "step up", disabled: up < 0, title: pkg && full && !card ? /* copy:callout */ "rules full" : undefined, onclick: () => moveRow(i, i - 1) }, "▲"),
+      h("button", { class: "step down", disabled: down < 0, onclick: () => moveRow(i, i + 1) }, "▼"));
     // QA 0c6e126 (qaY: a row's × deleted on the first tap, no undo — "my second tap deleted a second row"): the supplies' two-tap — the
     // first arms it (`drop`), the second deletes; armed, it stays armed across a repaint until a tap elsewhere
-    const x = twoTap("×", /* copy:button */ "drop", () => { const at = rows().indexOf(row); if (at >= 0) { rows().splice(at, 1); commit(); } }, { class: "x", key: `rowx:${JSON.stringify([row.conds, row.verb])}` });
+    // rater A on c4705f9 (a package row's × "did not drop it": the core compiled it back): a package's row has no × — it goes with its package
+    const x = pkg ? h("span", { class: "x none", "aria-hidden": "true" }) : twoTap("×", /* copy:button */ "drop", () => { const at = rows().indexOf(row); if (at >= 0) { rows().splice(at, 1); commit(); } }, { class: "x", key: `rowx:${JSON.stringify([row.conds, row.verb])}` });
     const rowNode = h("div", { class: `row tablet${card ? " locked" : ""}${drop ? " drop" : ""}`, "data-i": i }, grip, updown, chips, x);
     // Cut 29 §4 ("rule editing is fast: drag or long-press to reorder any distance"): a press held on the tablet lifts it like the grip
     if (order) rowNode.addEventListener("pointerdown", (e) => longPress(e, i, rowNode));
@@ -383,7 +406,7 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
       if (!moved && !lifted && ev.type === "pointerup" && bind.rowWhy?.()[from]) { me.classList.remove("dragging"); me.style.transform = ""; openWhy(from, me); return; }
       me.classList.remove("dragging", "lifted"); me.style.transform = "";
       rowEls.forEach((r) => r.classList.remove("before", "after"));
-      if (to !== from) { const rs = rows(); const [r] = rs.splice(from, 1); rs.splice(to, 0, r); hl = to; hlUntil = performance.now() + 1600; commit(); }
+      if (to !== from) moveRow(from, to);
     };
     grip.addEventListener("pointermove", move); grip.addEventListener("pointerup", up); grip.addEventListener("pointercancel", up);
   }

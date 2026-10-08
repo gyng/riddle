@@ -189,7 +189,8 @@ pub fn beat(e: &Ev, depth: u32, is_ally: impl Fn(u32) -> bool) -> Option<FoldBea
         },
         Ev::Use { t, item, .. } => b(*t, "use", format!("used {item}")),
         Ev::Fact { t, fact } => b(*t, "fact", fact_words(fact)),
-        Ev::MaxHp { t, delta, .. } => b(*t, "max_hp", format!("max {delta:+}")),
+        // blind c4705f9 (B: `hp 7/25 · max -26` "from hunger I never understood"): the beat names what took the max (`hunger −1 max`)
+        Ev::MaxHp { t, delta, cause, .. } => b(*t, "max_hp", max_words(cause, *delta)),
         Ev::Bones { t, items, .. } => b(*t, "bones", format!("bones · {items}")),
         Ev::Level { t, level, .. } => b(*t, "level", format!("level {level}")),
         Ev::Hatch { t, kind } => b(*t, "hatch", format!("hatched {}", kind.replace('_', " "))),
@@ -201,6 +202,21 @@ pub fn beat(e: &Ev, depth: u32, is_ally: impl Fn(u32) -> bool) -> Option<FoldBea
         Ev::Callout { t, text, .. } if text == "boss down" => b(*t, "boss", text.clone()),
         _ => None,
     }
+}
+
+/// A max-hp move as its beat's words: the cause's one word and the signed amount (`hunger −26 max`,
+/// `shrine −7 max`, `recovery +3 max`) — never a bare `max -26`.
+pub fn max_words(cause: &str, delta: i32) -> String {
+    let word = cause.split(['_', ' ']).find(|w| !w.is_empty()).unwrap_or("max");
+    format!("{word} {}{} max", if delta < 0 { "−" } else { "+" }, delta.abs())
+}
+
+/// The cause and the signed amount of a `max_words` beat.
+fn max_parts(text: &str) -> Option<(String, i32)> {
+    let mut it = text.split(' ');
+    let (cause, n) = (it.next()?, it.next()?);
+    let v: i32 = n.trim_start_matches(['+', '−', '-']).parse().ok()?;
+    Some((cause.to_string(), if n.starts_with(['−', '-']) { -v } else { v }))
 }
 
 /// A fact as ≤ 3 words (`foe:jackal:pack` → `jackal pack`).
@@ -221,7 +237,21 @@ pub fn chips(beats: &[FoldBeat]) -> Vec<String> {
         let Some(first) = of.first() else { continue };
         let chip = match kind {
             "dip" => of.iter().min_by_key(|b| b.text.split(['/', ' ']).nth(1).and_then(|n| n.parse::<i32>().ok()).unwrap_or(0)).map(|b| b.text.clone()).unwrap_or_default(),
-            "max_hp" => format!("max {:+}", of.iter().filter_map(|b| b.text.strip_prefix("max ").and_then(|n| n.parse::<i32>().ok())).sum::<i32>()),
+            "max_hp" => {
+                // one chip per cause, summed (`hunger −26 max`), in the order the causes first bit
+                let mut by: Vec<(String, i32)> = Vec::new();
+                for b in &of {
+                    let Some((cause, n)) = max_parts(&b.text) else { continue };
+                    match by.iter_mut().find(|(c, _)| *c == cause) {
+                        Some(e) => e.1 += n,
+                        None => by.push((cause, n)),
+                    }
+                }
+                for (cause, n) in by.into_iter().filter(|(_, n)| *n != 0) {
+                    out.push(crate::chronicle::clamp_words(&max_words(&cause, n), 3));
+                }
+                continue;
+            }
             "level" => of.last().map(|b| b.text.clone()).unwrap_or_default(),
             _ if of.len() == 1 => first.text.clone(),
             _ => format!("{} {many}", of.len()),
@@ -278,3 +308,23 @@ pub fn calm_spans(ticks: &[(u32, bool)]) -> Vec<[u32; 2]> {
     out
 }
 
+
+#[cfg(test)]
+mod hunger_tests {
+    use super::*;
+
+    /// blind c4705f9 (B: `hp 7/25 · max -26` from a hunger never understood): the fold line's
+    /// max-hp chip names its cause, one chip per cause, summed.
+    #[test]
+    fn max_hp_chip_names_its_cause() {
+        let ev = |delta: i32, cause: &str| Ev::MaxHp { t: 1, id: HERO_ID, max: 30, delta, cause: cause.into() };
+        let mut beats: Vec<FoldBeat> = (0..26).filter_map(|_| beat(&ev(-1, "hunger"), 13, |_| false)).collect();
+        assert_eq!(beats[0].text, "hunger −1 max");
+        beats.push(beat(&ev(-7, "shrine"), 13, |_| false).unwrap());
+        let chips = chips(&beats);
+        assert!(chips.contains(&"hunger −26 max".to_string()), "{chips:?}");
+        assert!(chips.contains(&"shrine −7 max".to_string()), "{chips:?}");
+        assert!(!chips.iter().any(|c| c.starts_with("max ")), "{chips:?}");
+        assert_eq!(max_words("recovery", 3), "recovery +3 max");
+    }
+}

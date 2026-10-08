@@ -848,3 +848,30 @@ fn absence_gold_counts_passage_and_states_the_purse_change() {
     let text = serde_json::to_string(&saved).unwrap();
     assert!(!text.contains("passage") && !text.contains("net"), "old wire unchanged when absent: {text}");
 }
+
+/// Blind c4705f9 (A, B: `purse −$12562` while away, the apprentice's `+4 steps` the only word): the report names
+/// each step the apprentice reached and the purse it spent, to the coin of the purse's fall.
+#[test]
+fn apprentice_itemises_its_purchases() {
+    let mut g = Game::new_resident(29);
+    tree::grant(&mut g.lineage, &["apprentice"]);
+    g.lineage.best_depth = 12;
+    g.lineage.gold = 40_000;
+    let before = (*g.lineage.tree.acts).clone();
+    let (gold0, kit0): (i32, Vec<u32>) = (g.lineage.gold, crate::kit::KIT_SLOTS.iter().map(|s| crate::kit::owned(&g.lineage, s)).collect());
+    tree::at_send(&mut g);
+    let acts = tree::report_acts(&g.lineage, &before, &g.lineage.tree.acts);
+    let a = acts.iter().find(|w| w.id == "apprentice").expect("the apprentice bought steps");
+    assert_eq!(a.spent, gold0 - g.lineage.gold, "spent reconciles with the purse: {a:?}");
+    assert!(a.spent > 0 && a.n > 0);
+    let moved: Vec<&str> = crate::kit::KIT_SLOTS.iter().zip(&kit0).filter(|(s, k)| crate::kit::owned(&g.lineage, s) > **k).map(|(s, _)| *s).collect();
+    assert_eq!(a.items.len(), moved.len(), "one item per slot bought: {a:?}");
+    for (s, item) in moved.iter().zip(&a.items) {
+        assert_eq!(item, &crate::kit::step_label(&g.lineage, s, crate::kit::owned(&g.lineage, s) as usize - 1));
+    }
+    // the bookkeeping keys are no worker of their own
+    assert!(acts.iter().all(|w| !w.id.contains(['$', ':'])));
+    // a second look with nothing bought names nothing
+    let again = (*g.lineage.tree.acts).clone();
+    assert!(tree::report_acts(&g.lineage, &again, &g.lineage.tree.acts).is_empty());
+}

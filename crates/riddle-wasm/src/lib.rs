@@ -500,6 +500,13 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 111: pick a tactic's L3 row variant (0 · 1); returns the Lineage.
+    #[wasm_bindgen(js_name = setTacticVariant)]
+    pub fn set_tactic_variant(&mut self, id: &str, variant: u32) -> Result<String, JsError> {
+        self.inner.set_tactic_variant(id, variant).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 30 §1: revoke (or restore) a drill — one tap; returns the Lineage.
     #[wasm_bindgen(js_name = revokeDrill)]
     pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<String, JsError> {

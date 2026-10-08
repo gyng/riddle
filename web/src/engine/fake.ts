@@ -267,7 +267,7 @@ function fakeBeat(e: Ev, depth: number): FoldBeat[] {
     case "pickup": return e.item.startsWith("gold") ? b("gold", e.item.replace(/^gold /, "")) : b("find", `found ${e.item}`);
     case "use": return b("use", `used ${e.item}`);
     case "fact": return b("fact", e.fact.split(/[:=]/).slice(1).join(" ").replace(/_/g, " ") || e.fact);
-    case "max_hp": return b("max_hp", `max ${e.delta > 0 ? "+" : ""}${e.delta}`);
+    case "max_hp": return b("max_hp", `${e.cause.split(/[_\s]/)[0] || "max"} ${e.delta > 0 ? "+" : "−"}${Math.abs(e.delta)} max`);   // the core's `fold::max_words`
     case "bones": return b("bones", `bones · ${e.items}`);
     case "level": return b("level", `level ${e.level}`);
     case "tame": return e.ok ? b("pet", `tamed ${e.kind.replace(/_/g, " ")}`) : [];
@@ -289,7 +289,11 @@ function fakeChips(beats: FoldBeat[]): string[] {
   for (const [k, many] of ORDER) {
     const of = beats.filter((b) => b.kind === k); if (!of.length) continue;
     if (k === "dip") out.push(of.map((b) => b.text).sort((x, y) => Number(x.split(/[ /]/)[1]) - Number(y.split(/[ /]/)[1]))[0]);
-    else if (k === "max_hp") { const n = of.reduce((s, b) => s + Number(b.text.replace(/^max /, "")), 0); out.push(`max ${n > 0 ? "+" : ""}${n}`); }
+    else if (k === "max_hp") {   // the core's: one chip per cause, summed (`hunger −26 max`)
+      const by = new Map<string, number>();
+      for (const x of of) { const [c, n] = x.text.split(" "); by.set(c, (by.get(c) ?? 0) + Number(n.replace("−", "-"))); }
+      for (const [c, n] of by) if (n) out.push(`${c} ${n > 0 ? "+" : "−"}${Math.abs(n)} max`);
+    }
     else if (k === "level") out.push(of[of.length - 1].text);
     else out.push(of.length === 1 ? of[0].text : `${of.length} ${many}`);
   }
@@ -2390,7 +2394,9 @@ const BUILD30: [string, string][] = [["blacksmith", "first gold home"], ["storeh
     // the pen's rows are checked against the cap alone and sit above every package row, which keep their place among themselves
     const pen = S.rows.filter((r) => !isPkg(r)), pkg = this.s.rules.rows.filter(isPkg);
     setR.call(this, { ...S, rows: pen });
-    const rows = [...this.s.rules.rows.map((r) => ({ ...r, origin: "player" as RowOrigin })), ...pkg.map((r) => ({ ...r, conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } }))];
+    // (the core's `compile`: a package row the pen took — retagged by the editor's ▲ or a move patch — yields to the pen's copy)
+    const same = (a: Row, b: Row): boolean => JSON.stringify([a.conds, a.verb]) === JSON.stringify([b.conds, b.verb]);
+    const rows = [...this.s.rules.rows.map((r) => ({ ...r, origin: (r.origin === "patch" || r.origin === "card" ? r.origin : "player") as RowOrigin })), ...pkg.filter((r) => !pen.some((x) => same(x, r))).map((r) => ({ ...r, conds: r.conds.map((c) => ({ ...c })), verb: { ...r.verb } }))];
     this.s.rules = { ...this.s.rules, rows }; this.s.lineage.sets[this.s.lineage.active_set] = JSON.parse(JSON.stringify(this.s.rules)) as RuleSet;
   };
   P.swapQuest = function (this: Fk30): Lineage { const st = st30(this); if (st.swapped >= 0) throw new Error("swapped today"); st.swapped = 1; st.quest++; st.qd = undefined; st.qbest = undefined; return this.lineage(); };

@@ -41,7 +41,11 @@ export const beatText = (b: string): string => b;
  *  `good`: whether the move helps (a death share that falls helps). */
 /** A rough noise filter, not calibrated confidence. Panels can stop after five sends;
  *  the wire omits actual counts, so never assume more than five for this filter. */
-export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
+export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank" | "n" | "better" | "worse">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
+  // blind c4705f9 (A, B: `all similar` on nearly every compare): the two panels play the same seeds, so a move is judged send by send
+  // (`better 7/8`) — the independent-draw band below needed a ~60-point move to call anything at eight sends
+  const pr = pairedOf(o);
+  if (pr) return pr;
   /* copy:label */
   // blind ad71e72 (B: `deeper ≈+90` "no unit"): each term is a share of sends, its move in points (`%`); `past best` names what
   // `past` counts — the sends that went past the record
@@ -57,6 +61,40 @@ export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "pa
   const pts = Math.round(d * 20) * 5;
   const good = (pts > 0) !== worse;
   return { text: `${label} ≈${pts > 0 ? "+" : "−"}${Math.abs(pts)}%`, good, score: good ? Math.abs(pts) : -Math.abs(pts) };
+}
+/** Two-sided sign test on the paired sends that differ: the chance of a split at least this lopsided from a fair coin. */
+export function signP(better: number, worse: number): number {
+  const k = better + worse, m = Math.max(better, worse);
+  if (k === 0) return 1;
+  let tail = 0, c = 1;   // C(k, i)
+  for (let i = 0; i <= k; i++) { if (i >= m) tail += c; c = (c * (k - i)) / (i + 1); }
+  return Math.min(1, (2 * tail) / 2 ** k);
+}
+/** A paired price (an option the core read send by send): `better 7/8` / `worse 5/8` when the split is clear (sign test ≤ 10 %),
+ *  `same` when every send played alike, `close` when they differ both ways; null without the paired counts (an older core). */
+export function pairedOf(o: Pick<PkgOption, "n" | "better" | "worse">): { text: string; good: boolean | null; score: number } | null {
+  const n = o.n ?? 0; if (!n) return null;
+  const b = o.better ?? 0, w = o.worse ?? 0;
+  /* copy:label */
+  if (b + w === 0) return { text: "same", good: null, score: 0 };
+  const score = Math.round(((b - w) / n) * 100);
+  /* copy:label */
+  if (signP(b, w) > 0.1) return { text: "close", good: null, score };
+  /* copy:label */
+  return b > w ? { text: `better ${b}/${n}`, good: true, score } : { text: `worse ${w}/${n}`, good: false, score };
+}
+/** The compare's one summary: what was compared (`8 paired runs`), or that it all fell inside the noise (`noise · 8 runs`) or played
+ *  alike (`identical · 8 runs`); the older core's band reads `rough estimate` / `all similar`. */
+export function compareSummary(opts: PkgOption[]): string {
+  const eq = opts.filter((o) => o.action === "equip");
+  const n = Math.min(...eq.map((o) => o.n ?? 0));
+  const anyClear = eq.some((o) => priceOf(o).good !== null);
+  /* copy:label */
+  if (!eq.length || !n) return anyClear ? "rough estimate" : "all similar";
+  /* copy:label */
+  if (anyClear) return `${n} paired runs`;
+  /* copy:label */
+  return eq.every((o) => !(o.better ?? 0) && !(o.worse ?? 0)) ? `identical · ${n} runs` : `noise · ${n} runs`;
 }
 /** Small first estimate: actual runs remain unchanged. */
 export const PRICE_SIMS = 8;
@@ -105,7 +143,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
     let reading: OptionsRead | null = null;
     let compare = false, details = false, tacticSlot: number | null = null;
     const choosing = new Set<string>(initialKind ? [initialKind] : []);
-    const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then((ok) => { if (ok) choosing.delete(p.kind); paint(); }); };
+    const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then((ok) => { if (ok) { choosing.delete(p.kind); if (p.kind === "tactic") tacticSlot = null; } paint(); }); };
     const paint = (): void => {
       const L = app.lineage, P = L.packages; if (!P) { close(); return; }
       const freeSlot = Math.min(tacticSlot ?? Math.max(0, (P.tactics ?? []).length), Math.max(0, (P.tactic_slots ?? 0) - 1));
@@ -133,7 +171,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
         const pr = o ? priceOf(o) : null;
         const pending = !!reading && !opts && selected.some(([id, at]) => id === p.id && at === slot);
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : pending ? " pending" : " flat"}` }, pr && pr.good !== null ? pr.text : ""), "price")));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
+          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : pending ? " pending" : " flat"}`, title: o?.n ? /* copy:tooltip */ `same seeds · better ${o.better ?? 0} · worse ${o.worse ?? 0} of ${o.n}` : undefined }, pr && (pr.good !== null || o?.n) ? pr.text : ""), "price")));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {
@@ -148,15 +186,23 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       };
       /** The worn package of a slot: its chip `Steady L3`, the level bar, a level bought with marks when the purse holds them. */
       const worn = (p: Package | undefined, kind: string, slot: number): HTMLElement => {
-        const change = kind === "tactic" ? h("button", { class: "chip mini pkg-change", "data-edit-slot": slot, onclick: () => { tacticSlot = slot; choosing.add(kind); paint(); } }, p ? /* copy:button */ "change" : /* copy:button */ "choose tactic") : "";
+        // blind rater B on c4705f9 ("deep march replaced mirror read by accident — slot `change` ambiguity"): the slot the choices will fill
+        // is ringed and its `change` pressed; the slot resets after an equip
+        const target = kind === "tactic" && choosing.has("tactic") && slot === freeSlot;
+        const change = kind === "tactic" ? h("button", { class: "chip mini pkg-change", "data-edit-slot": slot, "aria-pressed": String(target), onclick: () => { tacticSlot = slot; choosing.add(kind); paint(); } }, p ? /* copy:button */ "change" : /* copy:button */ "choose tactic") : "";
         // (an open slot reads as a place to put one: an outlined socket, the chips under it fill it)
-        if (!p) return h("div", { class: "pkg-slot empty", "data-kind": kind, "data-slot": slot }, change);
+        if (!p) return h("div", { class: `pkg-slot empty${target ? " target" : ""}`, "data-kind": kind, "data-slot": slot }, change);
         const lv = p.level_price && L.marks >= p.level_price && app.engine.spendLevel
           ? twoTap(/* copy:button */ `◆${p.level_price} L${p.level + 1}`, /* copy:button */ `ok ◆${p.level_price}`, () => void app.mutate(() => app.engine.spendLevel!(p.id), /* copy:callout */ `L${p.level + 1}`, true).then(() => paint()), { class: "chip mini pkg-level", key: `lvl:${p.id}` })
           : "";
+        // Cut 111: from L3 a tactic's extra row is the player's pick of two (`variants`) — the worn one pressed
+        const vary = kind === "tactic" && p.variants?.length === 2 && p.variant !== undefined && app.engine.setTacticVariant
+          ? h("div", { class: "pkg-variants", role: "group", "aria-label": "variant" }, ...p.variants.map((name, i) => h("button", { class: `chip mini pkg-variant${p.variant === i ? " on" : ""}`, "aria-pressed": String(p.variant === i), "data-variant": i,
+              onclick: () => { if (p.variant !== i) void app.mutate(() => app.engine.setTacticVariant!(p.id, i), /* copy:callout */ name, true).then(() => paint()); } }, name)))
+          : "";
         const off = kind === "tactic" && app.engine.unequipPackage ? h("button", { class: "chip mini pkg-off", "aria-label": "remove", onclick: () => void app.mutate(() => app.engine.unequipPackage!(p.id), undefined, true).then(() => paint()) }, "×") : "";
-        return h("div", { class: "pkg-slot", "data-kind": kind, "data-slot": slot },
-          h("span", { class: "chip pkg on", "data-pkg": p.id }, packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", levelBar(p))), change, lv, off);
+        return h("div", { class: `pkg-slot${target ? " target" : ""}`, "data-kind": kind, "data-slot": slot },
+          h("span", { class: "chip pkg on", "data-pkg": p.id }, packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", levelBar(p))), change, lv, off, vary);
       };
       const section = (label: string, kind: string, ...kids: (HTMLElement | "")[]): HTMLElement => h("section", { class: "pkg-sec", "data-kind": kind }, h("div", { class: "label pkg-head" }, kw(kind as Term, label)), ...kids);   // docs/TOOLTIPS.md: the slot's word is its keyword
       const choices = (kind: string, ...kids: HTMLElement[]): HTMLElement => h("div", { class: "pkg-choices", hidden: !choosing.has(kind) }, ...kids);
@@ -220,10 +266,9 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       // blind ad71e72 (A: "inert" on three taps): nothing to compare (no other style or tactic owned) — the button stands disabled;
       // a comparison whose every move sits in the noise says so (`all similar`) rather than painting nothing
       const comparable = stanceAlts.length > 0 || owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id));
-      const anyClear = !!opts && opts.some((o) => o.action === "equip" && priceOf(o).good !== null);
       const compareButton = h("button", { class: "chip pkg-compare", disabled: !comparable || (compare && !!reading && !opts), onclick: () => { if (!choosing.has("stance") && !choosing.has("tactic")) { if (stanceAlts.length) choosing.add("stance"); else if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); } compare = true; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
       const head = headline(app);
-      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: /* copy:tooltip */ "Small sample · minor differences unclear" }, anyClear ? /* copy:label */ "rough estimate" : /* copy:label */ "all similar") : "", more);
+      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: opts.some((o) => o.n) ? /* copy:tooltip */ "same seeds both sides · a send better or worse" : /* copy:tooltip */ "Small sample · minor differences unclear" }, compareSummary(opts)) : "", more);
     };
     const changed = (): void => { compare = false; reading = null; paint(); };
     const offChange = app.onChange?.(changed), offRules = app.onRules?.(changed);

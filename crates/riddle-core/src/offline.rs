@@ -303,7 +303,7 @@ fn run_offline_partition(game: &mut Game, elapsed_s: u64, full: bool, with_stall
     }
     let mut r = report_with(game, elapsed_s, &absence.facts_before, &absence.class, absence.rank_before, sampled, full, with_stall);
     r.grew = crate::town::grew(&absence.grew_before, &crate::town::snap(&game.lineage));
-    r.workers = crate::tree::report_acts(&absence.acts_before, &game.lineage.tree.acts);
+    r.workers = crate::tree::report_acts(&game.lineage, &absence.acts_before, &game.lineage.tree.acts);
     r.chest = (game.lineage.tree.chest - absence.chest_before).max(0);
     set_net(&mut r, absence.gold_before, game.lineage.gold);
     // (a system's reveal is a beat of the five)

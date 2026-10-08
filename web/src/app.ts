@@ -2,7 +2,7 @@
 // the editing copy of the three saved sets, and persistence.
 import type { RowWhy } from "./engine/types";
 import type { AsyncEngine, ComboHit, Death, Highlight, Forecast, ForecastMove, ForecastVs, Lineage, Patch, ReturnReport, Row, RowOrigin, RuleSet, SupplyEntry, UnlockInfo, Vocabulary, VsMove } from "./engine/types";
-import { combosIn, isCardRow, isFreeSupply, ownRowCount, setWhyGloss } from "./ui/tokens";
+import { combosIn, isCardRow, isFreeSupply, isPkgRow, ownRowCount, setWhyGloss } from "./ui/tokens";
 import { selectEngine, type EngineKind } from "./engine/index";
 import { readBlob, writeBlob, clearBlob, randomSeed, type SaveBlob } from "./store";
 import { renderCamp } from "./ui/camp";
@@ -61,6 +61,9 @@ const SLOWDOWNS_KEY = "riddle.slowdowns";
 const EDITING_KEY = "riddle.editing";
 function readSlowdowns(): boolean { try { return localStorage.getItem(SLOWDOWNS_KEY) !== "0"; } catch { return true; } }
 
+/** A patch's row as the set takes it: a package's origin becomes the patch's (the row is the player's choice now — `packages::absorb`
+ *  reads the origin as ownership), any other kept. */
+const patchOrigin = (r: Row): RowOrigin => (isPkgRow(r) || !r.origin ? "patch" : r.origin);
 export class App {
   engine!: AsyncEngine;
   kind: EngineKind = "fake";
@@ -793,22 +796,56 @@ export class App {
   applyPatch(p: Patch): number | undefined {
     const rows = this.rules.rows;
     // Cut 25 §2: a move — the set's own row at `moves_from` goes above the row at `insert_at` (as `offline::apply_patch`)
+    // Rater A on c4705f9 (`move bank above return` applied, the list unchanged): on packages a package row keeps the package's
+    // place — moving one takes it into the pen as the patch's row (the core keeps the pen above every package), so it lands at the
+    // pen's end at the latest; `forks` said beforehand whether that needs a free row
     if (p.moves_from !== undefined && p.moves_from >= 0) {
-      const from = p.moves_from, at = p.insert_at;
-      if (from < rows.length && at >= 0 && at < from) { const [r] = rows.splice(from, 1); rows.splice(at, 0, r); this.rulesChanged(); }
-      return at;
+      const from = p.moves_from;
+      if (from < rows.length && p.insert_at >= 0 && p.insert_at < from) {
+        const fork = this.pkgOrder && isPkgRow(rows[from]!);
+        const at = fork ? Math.min(p.insert_at, this.penEnd()) : p.insert_at;
+        const [r] = rows.splice(from, 1);
+        rows.splice(at, 0, fork ? { ...r!, origin: "patch" } : r!);
+        this.rulesChanged();
+        return at;
+      }
+      return p.insert_at;
     }
     if (p.remove) { if (p.insert_at < rows.length) rows.splice(p.insert_at, 1); this.rulesChanged(); return undefined; }
-    if (p.replace && p.insert_at < rows.length) { rows[p.insert_at] = { ...cloneRow(p.row), origin: p.row.origin ?? "patch" }; this.rulesChanged(); return p.insert_at; }
-    return this.insertRow(p.row, p.insert_at, p.row.origin ?? "patch");
+    if (p.replace && p.insert_at < rows.length) {
+      // a rewritten package row is the patch's (in the pen, above the packages)
+      const row = { ...cloneRow(p.row), origin: patchOrigin(p.row) };
+      if (this.pkgOrder && isPkgRow(rows[p.insert_at]!)) { rows.splice(p.insert_at, 1); const at = this.penEnd(); rows.splice(at, 0, row); this.rulesChanged(); return at; }
+      rows[p.insert_at] = row; this.rulesChanged(); return p.insert_at;
+    }
+    return this.insertRow(p.row, this.pkgOrder ? Math.min(p.insert_at, this.penEnd()) : p.insert_at, patchOrigin(p.row));
+  }
+  /** Cut 30 §2: the lineage is on packages (the core compiles the set: the pen's rows first, every package row below in its own
+   *  order) — the editor's moves and the patches keep to that order instead of showing one the core would undo. */
+  get pkgOrder(): boolean { const P = this.lineage?.packages; return !!P && !P.literal && P.stance !== "custom"; }   // (the custom stance's rows are the pen's own: edited in place)
+  /** The index of the first package row (the pen's rows sit above it); the set's length when none, or not on packages. */
+  penEnd(rows: Row[] = this.rules.rows): number { if (!this.pkgOrder) return rows.length; const i = rows.findIndex(isPkgRow); return i < 0 ? rows.length : i; }
+  /** Whether applying `p` takes a new own row (an insert the set lacks, or a move / rewrite that takes a package row into the pen) —
+   *  on a full set such a patch asks which row to drop before it applies (never `5/4 · drop one` after). */
+  patchTakesRow(p: Patch): boolean {
+    const rows = this.rules.rows;
+    if (p.insert_at < 0 || p.remove) return false;
+    if (p.moves_from !== undefined && p.moves_from >= 0) { const r = rows[p.moves_from]; return !!r && this.pkgOrder && isPkgRow(r) && !isCardRow(r); }
+    if (p.replace) { const r = rows[p.insert_at]; return !!r && !isCardRow(p.row) && (isCardRow(r) || (this.pkgOrder && isPkgRow(r))); }
+    return !isCardRow(p.row);
   }
   /** Cut 14 §4: a patch onto a full set — row `drop` goes and the patch row lands where it was measured (`insert_at`, one up
    *  when the dropped row sat above it), so the set never crosses `max_rows` (rater S: "an offered patch pushed me to `6/5 ·
-   *  drop one` with no warning"). Returns the patch row's index. */
+   *  drop one` with no warning"). Returns the patch row's index. A move or a rewrite of a package row (`patchTakesRow`) applies
+   *  as itself once the room is made. */
   applyPatchOver(p: Patch, drop: number): number {
     const rows = this.rules.rows;
+    const shift = (i: number): number => (drop >= 0 && drop < i ? i - 1 : i);
     if (drop >= 0 && drop < rows.length) rows.splice(drop, 1);
-    return this.insertRow(p.row, drop >= 0 && drop < p.insert_at ? p.insert_at - 1 : p.insert_at, p.row.origin ?? "patch");
+    if (p.moves_from !== undefined && p.moves_from >= 0) return this.applyPatch({ ...p, moves_from: shift(p.moves_from), insert_at: shift(p.insert_at) }) ?? 0;
+    if (p.replace) return this.applyPatch({ ...p, insert_at: shift(p.insert_at) }) ?? 0;
+    const at = shift(p.insert_at);
+    return this.insertRow(p.row, this.pkgOrder ? Math.min(at, this.penEnd()) : at, patchOrigin(p.row));
   }
   /** Cut 29 §1 (E1): a whole set measured by the core (the wall's edit) replaces the active one's rows; a row the set already held keeps
    *  its origin, a new one is the patch's. */

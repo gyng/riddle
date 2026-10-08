@@ -1461,3 +1461,108 @@ fn wall_tactics_arrive_with_their_wall() {
     assert_eq!(row.conds, vec![Cond::t("foe_tag", "reflect_melee")], "it plays only at a reflector");
     assert_eq!(packages::tactic_rows("noise_discipline", 1)[0].conds[0], Cond::t("in", "deep"), "quiet steps only in the Deep");
 }
+
+/// Rater A on c4705f9: the origin tag is ownership at the public door. A package row copied
+/// before a recompile changed it (the editor's copy older than the last run's best depth) is
+/// the package's stale copy — never five unasked `player` rows over the cap; an untouched
+/// package row the client moved stays the package's (its order is the package's); a row the
+/// player took (retagged `player` / `patch`) is the pen's, above every package, counted.
+#[test]
+fn set_rules_reads_origin_as_ownership_never_forking_stale_package_rows() {
+    let mut g = Game::new_resident(11);
+    g.lineage.pkg.pen_open = true;
+    packages::recompile(&mut g.lineage);
+    let compiled = g.lineage.rules().clone();
+    let bank = compiled.rows.iter().position(|r| r.verb.v == "bank" && r.conds.iter().any(|c| c.k == "depth>=")).expect("Steady's hurt bank");
+    // a stale copy: the hurt bank as an older best depth compiled it, plus a written row
+    let mut stale = compiled.clone();
+    for c in &mut stale.rows[bank].conds { if c.k == "depth>=" { c.n = c.n.map(|n| n + 7); } }
+    let mine = Row::new(vec![Cond::n("hp<", 50)], Verb::new("rest")).from("player");
+    stale.rows.insert(0, mine.clone());
+    g.set_rules(stale).unwrap();
+    assert_eq!(g.lineage.pkg.pen, vec![mine.clone()], "only the written row is the pen's");
+    assert_eq!(g.lineage.rules().own_rows(), 1, "{:?}", origins(&g));
+    assert_eq!(g.lineage.rules().rows[1..], compiled.rows[..], "the packages recompiled fresh, the stale copy gone");
+    // an untouched package row moved (still tagged) keeps the package's place
+    let mut moved = g.lineage.rules().clone();
+    let r = moved.rows.remove(bank + 1);
+    moved.rows.insert(0, r);
+    g.set_rules(moved).unwrap();
+    assert_eq!(g.lineage.rules().rows[1..], compiled.rows[..]);
+    assert_eq!(g.lineage.pkg.pen.len(), 1);
+    // taken into the pen (the editor's ▲ / a move patch retags it): above every package, counted against the cap
+    let mut taken = g.lineage.rules().clone();
+    let r = taken.rows.remove(bank + 1).from("patch");
+    taken.rows.insert(1, r.clone());
+    g.set_rules(taken).unwrap();
+    assert_eq!(g.lineage.rules().rows[..2], [mine, r.clone()], "{:?}", origins(&g));
+    assert_eq!(g.lineage.rules().rows[1].origin.as_deref(), Some("patch"));
+    assert_eq!(g.lineage.rules().own_rows(), 2);
+    assert_eq!(g.lineage.rules().rows.iter().filter(|x| **x == r).count(), 1, "the package's copy yields to the pen's");
+    // a projection of a core-made candidate (a rewritten row keeping the package's origin) still reads it as the edit's
+    let mut cand = compiled.clone();
+    for c in &mut cand.rows[bank].conds { if c.k == "hp<" { c.n = c.n.map(|n| n + 20); } }
+    let projected = packages::project_edit(&g.lineage, &cand);
+    assert!(projected.pkg.pen.iter().any(|x| *x == cand.rows[bank] && x.origin.as_deref() == Some("player")), "{:?}", projected.pkg.pen);
+}
+
+#[test]
+fn package_prices_carry_their_paired_sends() {
+    // Blind c4705f9 (A, B: `compare outcomes` read `all similar`): every price carries the paired read
+    // the client judges it by — the sends both panels ran on the same seeds, better and worse.
+    let mut g = Game::new_resident(21);
+    for id in ["guarded", "boss_focus", "kite_archers"] { g.lineage.pkg.owned.insert(id.into()); }
+    g.lineage.pkg.meets.insert("lich".into(), 1);
+    g.lineage.marks = 10;
+    packages::wear(&mut g.lineage, Some("unbowed"));
+    packages::recompile(&mut g.lineage);
+    static WIDTH: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+    crate::forecast::with_sim_width(&WIDTH, || {
+        let options = packages::options(&g, 8);
+        assert!(!options.is_empty());
+        for o in &options {
+            eprintln!("{} {} slot{} n{} +{} -{} d_mean{:.2} d_death{:.2}", o.id, o.action, o.slot, o.n, o.better, o.worse, o.d_mean, o.d_death);
+            assert!(o.n >= crate::forecast::MIN_SIMS, "{}: a price reads at least the panel's floor of sends", o.id);
+            assert!(o.better + o.worse <= o.n);
+        }
+        let level = options.iter().find(|o| o.id == "unbowed" && o.action == "level").unwrap();
+        assert_eq!((level.better, level.worse), (0, 0), "a forecast-neutral level plays every seed alike");
+    });
+    assert_eq!(packages::paired(&[4, 8, 9], &[5, 8, 2, 7]), (3, 1, 1));
+}
+
+/// Cut 111: the drillmaster puts a wall's counter on as it arrives, in an open slot only and once — a wall
+/// tactic the player takes off stays off.
+#[test]
+fn the_drillmaster_wears_a_wall_tactic_once() {
+    let mut g = Game::new_resident(11);
+    g.lineage.kills.insert("goblin_warlord".into());
+    g.lineage.facts.insert("foe:iron_golem:reflect_melee".into());
+    packages::arrive(&mut g.lineage);
+    g.lineage.pkg.tactics.clear();
+    g.lineage.tree.hired.push(("drillmaster".into(), 0));
+    crate::tree::at_hour(&mut g);
+    assert!(g.lineage.pkg.tactics.iter().any(|t| t == "reflect_read"), "worn in the open slot: {:?}", g.lineage.pkg.tactics);
+    packages::unequip(&mut g.lineage, "reflect_read").unwrap();
+    crate::tree::at_hour(&mut g);
+    assert!(!g.lineage.pkg.tactics.iter().any(|t| t == "reflect_read"), "taken off, it stays off");
+}
+
+/// Cut 111: from L3 a tactic's extra row is the player's pick of two; before L3 the pick is refused.
+#[test]
+fn a_tactic_variant_is_the_players_pick_from_l3() {
+    let mut g = Game::new_resident(11);
+    g.lineage.kills.insert("goblin_warlord".into());
+    g.lineage.pkg.owned.insert("boss_focus".into());
+    packages::equip(&mut g.lineage, "boss_focus", 0).unwrap();
+    assert!(packages::set_variant(&mut g.lineage, "boss_focus", 1).is_err(), "before L3 the row is fixed");
+    g.lineage.pkg.runs.insert("boss_focus".into(), 1000);
+    packages::recompile(&mut g.lineage);
+    let has = |g: &Game, a: &str| g.lineage.rules().rows.iter().any(|r| r.verb.v == "attack" && r.verb.a.as_deref() == Some(a));
+    assert!(has(&g, "tag:summoned"), "L3's first variant: summons first");
+    packages::set_variant(&mut g.lineage, "boss_focus", 1).unwrap();
+    assert!(has(&g, "tag:boss"), "the second: boss first");
+    let w = packages::wire(&g.lineage);
+    let p = w.all.iter().find(|p| p.id == "boss_focus").unwrap();
+    assert_eq!((p.variants.len(), p.variant), (2, Some(1)));
+}

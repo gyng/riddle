@@ -202,7 +202,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 13 §5: a `dice` death says what the forecast said for that depth — the reach the camp showed for the floor, verbatim
   // an old death (the chronicle) was sent under another forecast: today's would be a false number (QA on 56f2a1d: `forecast said D7 0%`)
   const said = (word === "dice" || lean) && !kept ? forecastSaid(app, d.depth) : undefined;
-  const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, /* copy:callout */ `forecast said D${d.depth} ${share(said, lowOf(app.lastForecast))}`) : null;
+  const forecastLine = said !== undefined ? h("div", { class: "forecast-said num dim" }, forecastSaidText(app.lastForecast, d.depth, said)) : null;
   // Cut 6 §1: the exit's arithmetic, verbatim from the engine (`$144 carried · death keeps 0% → $0 · bones: 7 items on D5`)
   // Cut 11 §5: tappable — the gold sheet filtered to this run's movements
   // Cut 20 §4 (AC: "$80 gone after death, `repeat · $80` — only understood when removing refunded $40"): the loadout's re-pack for
@@ -534,7 +534,12 @@ function drivenBlock(app: App, dv: DrivenOff, select: (b: HTMLButtonElement) => 
   // above it), and the tablet moves it above that row
   const over = have >= 0 ? orderOver(dv, have, trace) : -1;
   const write = (): void => {
-    if (have >= 0 && over >= 0) { const i = app.applyPatch({ row: app.rules.rows[have], insert_at: over, moves_from: have, survive: 0, forecast_delta: 0 }); app.go({ kind: "camp", highlight: i }); return; }
+    if (have >= 0 && over >= 0) {
+      const mv: Patch = { row: app.rules.rows[have], insert_at: over, moves_from: have, survive: 0, forecast_delta: 0 };
+      // a package row moved up joins the pen: on a full set it asks which row makes room first
+      if (app.rowsFull && app.patchTakesRow(mv)) { openDropSheet(app, mv); return; }
+      const i = app.applyPatch(mv); app.go({ kind: "camp", highlight: i }); return;
+    }
     if (have >= 0) { app.go({ kind: "camp", highlight: have }); return; }
     if (app.rowsFull) { openDropSheet(app, { row: { ...dv.row, origin: "patch" }, insert_at: 0, survive: 0, forecast_delta: 0 } as Patch); return; }
     app.go({ kind: "camp", highlight: app.insertRow(dv.row, 0, "patch") });
@@ -595,6 +600,17 @@ export function luckOf(d: Death): { event: string; oneIn: string } {
 export function forecastSaid(app: App, depth: number): number | undefined {
   const f = app.lastForecast; if (!f || depth > f.known_to) return undefined;
   return f.depths.find((x) => x.depth === depth)?.reach;
+}
+
+/** Blind c4705f9 (A: `forecast said D13 100%` over a D13 death read as a contradiction): reach is the share of sends that got TO the
+ *  floor, not past it. With the sample size on the wire the line counts sends and adds the floor's own odds — the share that reached the
+ *  next floor (`forecast · reach D13 8/8 · past 5/8`); without it (an older core) the camp's share verbatim. */
+export function forecastSaidText(f: { depths: { depth: number; reach: number }[]; known_to: number; sims?: number; low?: number } | null | undefined, depth: number, said: number): string {
+  const n = f?.sims && f.sims > 0 ? Math.round(f.sims) : 0;
+  if (!f || !n) return /* copy:callout */ `forecast said D${depth} ${share(said, lowOf(f))}`;
+  const of = (x: number): string => `${Math.round(x * n)}/${n}`;
+  const next = depth + 1 <= f.known_to ? f.depths.find((x) => x.depth === depth + 1)?.reach : undefined;
+  return /* copy:death_line */ `forecast · reach D${depth} ${of(said)}${next !== undefined ? ` · past ${of(Math.min(said, next))}` : ""}`;
 }
 
 /** Cut 30 (core, `Death.lever`, before the pen opens): the one cheapest lever — `spend` (buy the counter item), `package` (a swap), `wait`
