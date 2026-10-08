@@ -71,7 +71,7 @@ try{for(const width of [400,1440]){
   check(has('Scarface → Hero · −6 hp')&&has('goblin → Hero · −9 hp'),'modified damage retained');
   check(has('Foe → Hero · −5 hp')&&has('goblin → Hero · −5 hp'),'unknown source cannot hide damage');
   check(has('Nib → Hero · miss')&&has('rat → Hero · −4 hp'),'miss cannot hide damage');
-  check(has('Hero → Scarface · −0 hp'),'zero attack cannot hide hurt');
+  check(has('Hero → Scarface · blocked')&&!rows.some(r=>/[−+]0 hp/.test(r)),'zero attack cannot hide hurt: the zero hit reads blocked, never −0 hp (QA ad71e72)');
   check(has('Hero → Scarface · −2 hp'),'different tick damage retained');
   check(has('Hero → Foe · −3 hp'),'different destination damage retained');
   check(has('poison → Scarface · −3 hp'),'different cause damage retained');

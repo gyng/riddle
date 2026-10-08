@@ -1252,7 +1252,15 @@ export function renderWatch(app: App): Mounted {
   /** The next queued floor load, taken. */
   function takeLoad(): { snap: Snapshot; rest: Ev[]; at?: number } | null { return loads.shift() ?? null; }
   /** Cut 14 §6: load every queued floor into the viewer (the last one is the picture; the ones between were never watched). */
-  function drainLoads(): void { if (!viewer) return; for (let p = takeLoad(); p; p = takeLoad()) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); } }
+  function drainLoads(): void { if (!viewer) return; for (let p = takeLoad(); p; p = takeLoad()) loadFloor(p); }
+  /** A queued floor into the viewer. QA (qaj under load: `COLLECTED $N` at t816, then the picture at t791): a load resets the clock to
+   *  its snapshot's turn — a picture already past it (the walk-out plays on past the frontier) is put back where it was, never rewound. */
+  function loadFloor(p: { snap: Snapshot; rest: Ev[] }): void {
+    if (!viewer) return;
+    const v = viewer.tick?.() ?? viewerTick();
+    viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest);
+    if (Number.isFinite(v) && v > p.snap.turn + 1) seekTo(v);
+  }
   /** Cut 14 §6: the viewer lands on the frontier (live) — every queued floor loaded, the clock at the engine's tick (the ending's
    *  start at most when the run is over, so the walk-out plays). */
   const focusHero=():void=>{goLive();canvas.scrollIntoView({block:"nearest"});};
@@ -1503,7 +1511,7 @@ export function renderWatch(app: App): Mounted {
       // gone to black and the new floor's own beat (the purse, on its first tick) held the load behind it — a beat on the floor the load
       // opens never holds it (only one on the floor being left: the kill's frame)
       const beatHere = beatHeld() && !(heldBeat && loads[0].at !== undefined && heldBeat.from >= loads[0].at);
-      if ((cardUp || viewerIdle()) && !beatHere) { const p = takeLoad()!; viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }   // Cut 18 §1: not under a held beat
+      if ((cardUp || viewerIdle()) && !beatHere) { loadFloor(takeLoad()!); }   // Cut 18 §1: not under a held beat
     }
     else if (held) {
       // Cut 7 §4: the clock runs on (8× through dead air) to the ending, then the exit batch plays and the exit flow waits for it
@@ -2041,7 +2049,7 @@ export function renderWatch(app: App): Mounted {
         for (let i = 0; i < SKIP_FIGHT_BATCHES && !held && !disposed && performance.now() < budget; i++) {
           const r = await app.engine.step(snap && cageNear(snap) ? CAGE_BATCH : SKIP_END_BATCH); handle(r);
           if (held || r.run_over || cageMet()) break;
-          const p = takeLoad(); if (p) { viewer!.load(p.snap); hudFrom(p.snap); viewer!.apply(p.rest); }
+          const p = takeLoad(); if (p) loadFloor(p);
         }
       } catch (e) { console.warn("skip failed", e); }
       inflight = false;
@@ -2062,7 +2070,7 @@ export function renderWatch(app: App): Mounted {
         for (let i = 0; i < 120 && fightOn && !Number.isFinite(fightUntil) && !disposed && performance.now() < until; i++) {
           const r = await app.engine.step(BATCH); handle(r);
           if (held) break;
-          const p = takeLoad(); if (p) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+          const p = takeLoad(); if (p) loadFloor(p);
         }
       } catch (e) { console.warn("skip failed", e); }
       inflight = false;
@@ -2100,7 +2108,7 @@ export function renderWatch(app: App): Mounted {
         hit = r.run_over || (inFight ? !fightOn : fightOn);
         if (held || cageMet()) break;   // QA 1a2a4a9: a cage stops the skip (its beat, then the next press goes on)
         // a floor change on the way: load it now (the skip is the drain), the queued events straight into place
-        const p = takeLoad(); if (p) { viewer.load(p.snap); hudFrom(p.snap); viewer.apply(p.rest); }
+        const p = takeLoad(); if (p) loadFloor(p);
       }
       landed = fightOn && fightFrom > viewerTick();
     } catch (e) { console.warn("skip failed", e); }
