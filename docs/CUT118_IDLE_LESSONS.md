@@ -55,3 +55,29 @@ Gates: focused tests per item; the routine full gate; the full client suite; a f
 - New: **a roster preview of the next wall** (its boss, affix, guard and their counters) on the camp chart.
 - New: **requests from the hero**: one wish at a time (`a lantern`, `a pet`), upside only, never decaying;
   granting one pays a small morale or legacy bonus.
+
+## Owner amendment (2026-10-10): heroes yolo; death is progress
+
+Owner: "yes [heroes yolo], but also think about how to make deaths core to progression/gameplay and less
+punishing / less upsetting for the player". Measured basis: the scout's wall order bought no depth (mean best
+28.58 vs 28.61, D18 at the same hour) and 26 % more gold in a game whose late gripe is gold with nothing to buy.
+
+1. **No wall order.** The scout's `at a wall` order (`bank · carry · push`) is retired; every send pushes.
+   "Bank" means only the exit share again. The forecast's `hold` line goes with it. Record checkpoints still
+   secure carry permanently, even on death.
+2. **The wall learns you back (siege).** Each heir who dies at a band boss adds to that boss's *siege*: a lineage
+   counter per boss (tries, the best hp the boss was left on). Each try gives the next heir a small, capped edge
+   against that boss alone (e.g. +4 % damage per try up to +20 %, kept until the boss falls, then cleared and
+   remembered in the chronicle). Shown as `Queen · 4 tries · best 22 %` on the death screen, the report and the
+   wall preview. Deterministic; IDLE gets it too. Gate: IDLE bars hold (King never in a fortnight); dice deaths ≤ 5 %.
+3. **The grave.** A dead heir's carry lies where he fell, as a named grave (`Ada's pack · $1 240`). The next heir to
+   reach that floor recovers it (one grave per floor, the newest kept; older ones settle into the chronicle).
+   The death's exit share stays 0 % and the 30 % heir purse floor is unchanged; the gold comes home only when a
+   later heir walks there. Gate: no gold created (a grave holds only lost carry); the ledger shows `recovered`.
+4. **A memorial, not a loss.** The town keeps a graveyard: a stone per fallen heir with the cause as an epitaph
+   (`fell to the Queen's mirror, D28`). On the death screen the lead line is the progress (`the Queen · try 4 ·
+   +16 %`), then the cause, the trace and the lever, as now. A slain wall boss names the heirs who wore it down.
+5. **An echo (optional, if the bars allow).** On the next try at the same wall the fallen heir's ghost fights one
+   round beside the new heir (a callout `Ada's echo`). Cut if it moves a bar.
+
+Every death still names its cause, trace and cheapest lever (AGENTS.md).
