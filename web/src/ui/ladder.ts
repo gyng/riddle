@@ -1,5 +1,5 @@
-// Cut 118 §7 (research/IDLE_STEAM_2026-10.md §8, Scapewatch): the control earned, read as progress — one rail of four rungs, weights →
-// orders → workers → pen (the packages worn, the run setup, the hired hands, the rule pen). A rung is lit once the lineage has it; the
+// Cut 118 §7 (research/IDLE_STEAM_2026-10.md §8, Scapewatch): the control earned, read as progress — one rail of rungs, weights →
+// orders → (heirs, owner amendment 2) → workers → pen (the packages worn, the run setup, the hired hands, the rule pen). A rung is lit once the lineage has it; the
 // first rung still dark names what opens it. Quiet: four words and one condition, no taps (each system has its own door). Hidden on a
 // fresh lineage, on a literal (harness) lineage and once every rung is lit. All truth is the core's: the systems' triggers, the tree.
 import "../ladder.css";
@@ -11,22 +11,23 @@ import { onPackages, packagesShown, penOpen } from "./packages";
 import { choreWord, nodeState, workerNodes, worksView } from "./works";
 import { detailHost } from "./tips";
 
-export type RungId = "weights" | "orders" | "workers" | "pen";
+export type RungId = "weights" | "orders" | "heirs" | "workers" | "pen";
 /** round 2 §7: `retires` the chore the rung takes off the player's hands; `litBy` the feat or the time that lit it (a lit rung). */
 export type Rung = { id: RungId; label: string; lit: boolean; cond: string; retires: string; litBy?: string };
 
 /* copy:label */
-const LABEL: Record<RungId, string> = { weights: "tactics", orders: "orders", workers: "workers", pen: "pen" };
+const LABEL: Record<RungId, string> = { weights: "tactics", orders: "orders", heirs: "heirs", workers: "workers", pen: "pen" };
 /* copy:tooltip */
-const TIP: Record<RungId, string> = { weights: "packages worn · how he fights", orders: "run setup · keep, restock, walls", workers: "hired hands · chores while away", pen: "own rules · written by hand" };
+const TIP: Record<RungId, string> = { weights: "packages worn · how he fights", orders: "run setup · keep, restock, start", heirs: "heir order · who succeeds", workers: "hired hands · chores while away", pen: "own rules · written by hand" };
 /* copy:callout */
-const FALLBACK: Record<RungId, string> = { weights: "second stance", orders: "first supplies", workers: "first hire", pen: "meet Mother" };
+const FALLBACK: Record<RungId, string> = { weights: "second stance", orders: "first supplies", heirs: "first death", workers: "first hire", pen: "meet Mother" };
 
 /* copy:callout */
-const RETIRES: Record<RungId, string> = { weights: "each move", orders: "each send", workers: "town chores", pen: "package limits" };
+const RETIRES: Record<RungId, string> = { weights: "each move", orders: "each send", heirs: "picking heirs", workers: "town chores", pen: "package limits" };
 const trigger = (L: Pick<Lineage, "systems">, id: string): string | undefined => L.systems?.find((s) => s.id === id && !s.open)?.trigger;
-/** what lit an open system: the core's trigger when it keeps it on an open system */
-const litBy = (L: Pick<Lineage, "systems">, id: string): string | undefined => L.systems?.find((s) => s.id === id && s.open)?.trigger;
+/** what lit an open system: the core's `lit_by` (Cut 118 §6: its trigger, `time`, or `feat: …`), else its trigger */
+const litBy = (L: Pick<Lineage, "systems">, id: string): string | undefined => { const s = L.systems?.find((x) => x.id === id && x.open); return s?.lit_by ?? s?.trigger; };
+const sysOf = (L: Pick<Lineage, "systems">, id: string) => L.systems?.find((s) => s.id === id);
 
 /** The four rungs as the lineage stands (`has`: the client's reveal steps, for the run setup the camp shows). */
 export function ladderRungs(L: Lineage, has: (step: string) => boolean): Rung[] {
@@ -39,9 +40,12 @@ export function ladderRungs(L: Lineage, has: (step: string) => boolean): Rung[] 
   const firstLit = first ? (first.need ? `${first.need} ${choreWord(first.chore)}` : first.fallback_h ? `${first.fallback_h}h` : undefined) : undefined;
   const rung = (id: RungId, lit: boolean, cond: string | undefined, by?: string, retires?: string): Rung =>
     ({ id, label: LABEL[id], lit, cond: cond || FALLBACK[id], retires: retires || RETIRES[id], ...(lit ? { litBy: by || FALLBACK[id] } : {}) });
+  // owner amendment 2: the heir order's rung (`heirs` · retires picking heirs · lit by the first death) — only on a core that sends it
+  const heirs = sysOf(L, "heirs");
   return [
     rung("weights", packagesShown(L), trigger(L, "stances"), litBy(L, "stances")),
     rung("orders", !!L.orders && ["loadout", "vault", "cage", "start"].some(has), trigger(L, "loadout"), litBy(L, "loadout")),
+    ...(heirs ? [rung("heirs", heirs.open, heirs.trigger, litBy(L, "heirs"))] : []),
     rung("workers", hired, focus ? `${focus.name} · ${nodeState(focus)}` : undefined, firstLit, firstChore),
     rung("pen", onPackages(L) && penOpen(L), trigger(L, "pen"), litBy(L, "pen")),
   ];

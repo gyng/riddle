@@ -4,19 +4,37 @@
 // Goblin Warlord on D8`), this return's first, then the earlier ones, newest first. The acts are the report's real events (its bests,
 // its exits' news — the run traces' firsts and avengings —, the packages' beats, the oath, the workers' first acts, the bounty, the
 // tamed); nothing here is game truth. The diary is kept per viewer (browser storage, a convenience: it is rebuilt from the reports it
-// heard). Read once, he falls quiet until the next absence. (Core fields wanted: a set completed, a trial cleared, and each act's own
-// lineage clock — see the cut's report.)
+// heard). Read once, he falls quiet until the next absence. Cut 118 core: each act's own lineage day (`News.day`, `FeatNews.day`) dates
+// its diary line, and the core's feats (`ReturnReport.feats`: a siege won, a title, a trial cleared, a set completed, a sought boss slain,
+// a wish granted, the swift floors, a grave recovered) are cried in his words.
 import "../crier.css";
 import type { App } from "../app";
-import type { Lineage, ReturnReport } from "../engine/types";
+import type { FeatNews, Lineage, ReturnReport } from "../engine/types";
 import { h, replace } from "./dom";
 import { openWindow } from "./sheet";
 import { bossName } from "./report-bosses";
 
-export type Cry = { k: string; short: string; long: string };
+export type Cry = { k: string; short: string; long: string; day?: number };
 const MOST = 6;
 /** most notable first */
-const RANK = ["boss", "record", "avenged", "first", "quest", "oath", "built", "worker", "bounty", "tamed"];
+const RANK = ["boss", "siege_won", "title", "trial", "record", "seek", "avenged", "set", "first", "quest", "oath", "built", "recovered", "worker", "wish", "swift", "bounty", "tamed"];
+/** Cut 118: a core feat in the hero's voice — `short` ≤ 3 words for the chrome, `long` the diary's (≤ 8 words); null for the report's quiet
+ *  facts (the heir chosen, a siege try, a trial failed). */
+function featCry(f: FeatNews): Cry | null {
+  const head = f.text.split(" · ");
+  const word1 = (t: string): string => t.split(/\s+/)[0] ?? t;
+  switch (f.k) {
+    case "siege_won": return { k: f.k, day: f.day, short: /* copy:callout */ `${word1(head[0])} fell`, long: /* copy:diary_line */ `We wore down the ${head[0]} · ${head[1] ?? ""}`.replace(/ · $/, "") };
+    case "title": return { k: f.k, day: f.day, short: f.text.replace(/^the line is /, "").split(/\s+/).slice(0, 3).join(" "), long: /* copy:diary_line */ `Our line is called ${f.text.replace(/^the line is /, "")}` };
+    case "trial": return { k: f.k, day: f.day, short: /* copy:callout */ "trial cleared", long: /* copy:diary_line */ `I cleared the trial · ${head[1] ?? ""}`.replace(/ · $/, "") };
+    case "seek": return /slain$/.test(f.text) ? { k: f.k, day: f.day, short: /* copy:callout */ `sought ${word1(head[0])}`, long: /* copy:diary_line */ `I sought the ${head[0]} and slew him` } : null;
+    case "set": return { k: f.k, day: f.day, short: /* copy:callout */ "set complete", long: /* copy:diary_line */ `A set complete · ${head[0]}` };
+    case "wish": return { k: f.k, day: f.day, short: /* copy:callout */ "wish granted", long: /* copy:diary_line */ `${f.text.replace(/^granted /, "Granted: ").split(" · ")[0]}` };
+    case "swift": return { k: f.k, day: f.day, short: f.text.split(/\s+/).slice(0, 2).join(" "), long: /* copy:diary_line */ `The early floors pass quickly now · ${f.text}` };
+    case "recovered": return { k: f.k, day: f.day, short: /* copy:callout */ "pack recovered", long: /* copy:diary_line */ `I brought home ${head[0]}` };
+    default: return null;
+  }
+}
 
 /** The notable acts of a report in the hero's voice, most notable first, each once: `short` ≤ 3 words for the chrome, `long` the diary's. */
 export function cries(r: ReturnReport, L: Pick<Lineage, "walls">): Cry[] {
@@ -34,10 +52,14 @@ export function cries(r: ReturnReport, L: Pick<Lineage, "walls">): Cry[] {
   // the run traces' own news (core `ExitLine.news`): a foe avenged, a first met (a boss's first fall is the bests' line already)
   for (const n of (r.exits ?? []).flatMap((x) => x.news ?? [])) {
     const av = n.k === "named" ? /^avenged (.+)$/.exec(n.text) : null;
-    if (av) { out.push({ k: "avenged", short: /* copy:callout */ `avenged ${av[1].split(",")[0]}`, long: /* copy:diary_line */ `I avenged ${av[1]}` }); continue; }
+    if (av) { out.push({ k: "avenged", day: n.day, short: /* copy:callout */ `avenged ${av[1].split(",")[0]}`, long: /* copy:diary_line */ `I avenged ${av[1]}` }); continue; }
     const f = n.k === "first" ? /^first: (.+)$/.exec(n.text) : null;
-    if (f && !/slain$/.test(f[1])) out.push({ k: "first", short: /* copy:callout */ `met ${f[1].replace(/^the /, "")}`.split(/\s+/).slice(0, 3).join(" "), long: /* copy:diary_line */ `First time below: ${f[1]}` });
+    if (f && !/slain$/.test(f[1])) out.push({ k: "first", day: n.day, short: /* copy:callout */ `met ${f[1].replace(/^the /, "")}`.split(/\s+/).slice(0, 3).join(" "), long: /* copy:diary_line */ `First time below: ${f[1]}` });
+    // (the core's own day of a boss's first fall dates his line)
+    const slain = n.k === "first" ? /^first: (?:the )?(.+?) slain$/i.exec(n.text) : null;
+    if (slain) { const c = out.find((x) => x.k === "boss" && x.day === undefined && x.long.toLowerCase().includes(slain[1].toLowerCase())); if (c) c.day = n.day; }
   }
+  for (const f of r.feats ?? []) { const c = featCry(f); if (c) out.push(c); }
   for (const beat of r.packages ?? []) {
     const q = /^quest done(?: · (.+))?$/i.exec(beat);
     if (q) { out.push({ k: "quest", short: /* copy:callout */ "quest done", long: q[1] ? /* copy:diary_line */ `I finished the quest · ${q[1]}` : /* copy:diary_line */ "I finished the board's quest" }); continue; }
@@ -63,11 +85,12 @@ const diaryKey = (L: Pick<Lineage, "seed">): string => /* copy:none */ `riddle.d
 export function readDiary(L: Pick<Lineage, "seed">): DiaryLine[] {
   try { const s = localStorage.getItem(diaryKey(L)); const v = s ? JSON.parse(s) : []; return Array.isArray(v) ? v : []; } catch { return []; }
 }
-/** Writes a return's cries under its day (once: a line already written on that day is not written again); the diary as it stands. */
+/** Writes a return's cries under their days — the core's own day for each act (`News.day`, `FeatNews.day`), else the lineage's day now —
+ *  once (a line already written on that day is not written again); the diary as it stands. */
 export function writeDiary(L: Pick<Lineage, "seed" | "age_h">, cs: Cry[]): DiaryLine[] {
-  const day = Math.floor((L.age_h ?? 0) / 24) + 1;
+  const today = Math.floor((L.age_h ?? 0) / 24) + 1;
   const old = readDiary(L);
-  const fresh = cs.map((c) => ({ day, k: c.k, text: c.long })).filter((x) => !old.some((y) => y.day === x.day && y.text === x.text));
+  const fresh = cs.map((c) => ({ day: c.day ?? today, k: c.k, text: c.long })).filter((x) => !old.some((y) => y.day === x.day && y.text === x.text));
   const all = [...fresh, ...old].slice(0, DIARY_MAX);
   try { localStorage.setItem(diaryKey(L), JSON.stringify(all)); } catch { /* private mode: this visit only */ }
   return all;

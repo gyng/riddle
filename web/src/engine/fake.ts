@@ -6,6 +6,7 @@ import type {
   Oath, OathReward, OathShare, ForecastMove, MovePart, ReportLead, MeterWire, SystemInfo, StandingOrders, WallEdit,
   Packages, Package, PkgOption, Town, Track, GrewLine, Quest, RowOrigin,
   WorkNode, Works, NextPill, WorkerPost, WorkerAct, Rarity,
+  BossToken, TrialWire, Sink, WishWire, SiegeWire, GraveWire, Stone, FeatNews, Find, TraitCard, SeekOption,
 } from "./types";
 import { CLASSES, XP_LEVEL_CAP, isFreeClass, verbsAt, verbsUpTo, xpToNext } from "./classes";
 import { combosIn } from "../ui/tokens";
@@ -2531,4 +2532,148 @@ function works305(e: Fk305, L: Lineage, purse: number): Works {
   }
   const keep = P.keep; P.keep = function (this: Fk305, ...a: unknown[]): unknown { const r = keep.apply(this, a); count(this, "keeper"); return r; };
   const lo = P.loadout; P.loadout = function (this: Fk305, ids: unknown): unknown { const r = lo.call(this, ids); if ((ids as number[]).length) count(this, "armourer"); return r; };
+}
+
+// ---- Cut 118 stand-ins (the core's `feats.rs`): boss tokens, the weekly trials, away finds, the sinks after Kit complete, the hero's
+// wish, the siege, the graves, the graveyard's stones, the heir order and its cards, the King's pace. Shapes only: the numbers are the
+// fake's own (no sims), the strings the core's forms.
+type St118 = { tokens: Record<string, number>; seek?: string; trial?: number; cleared: number[]; marks: number; sinkOrder: string; heirOrder: string; tithed: number; rations: number;
+  surveyed: boolean; wishes: number; wishAt: number; siege: Record<string, { tries: number; best: number; heirs: string[] }>; graves: GraveWire[]; stones: Stone[]; titles: string[];
+  worn: Record<string, string[]>; log: string[]; sets: string[]; news: FeatNews[]; deed: number };
+type Fk118 = Fk305 & { s: Fk305["s"] & { st118?: St118 } };
+const st118 = (e: Fk118): St118 => (e.s.st118 ??= { tokens: {}, cleared: [], marks: 0, sinkOrder: "both", heirOrder: "answer", tithed: 0, rations: 0, surveyed: false, wishes: 0, wishAt: 0,
+  siege: {}, graves: [], stones: [], titles: [], worn: {}, log: [], sets: [], news: [], deed: 0 });
+const BOSS118: [string, string, number, string, string, string, string][] = [   // (kind, short, depth, affix, its answer, guard, its answer)
+  ["goblin_warlord", "Warlord", 8, "shield", "attack boss", "goblin archer", "kite archers"],
+  ["bloat_mother", "Mother", 13, "brood", "fire", "bloat", "burn"],
+  ["lich", "Lich", 18, "drain", "mend", "skeleton", "boss focus"],
+  ["mirror_queen", "Queen", 28, "mirror", "boss focus", "knight", "guarded"],
+];
+const NAMES118 = ["Ada", "Bram", "Cora", "Dell", "Edda", "Finn", "Greta", "Hal", "Ines", "Jory"];
+const name118 = (heir: number): string => NAMES118[(heir - 1) % NAMES118.length];
+const FINDS118: Find[] = [
+  { id: "quilt", kind: "piece", name: "sleeper's quilt", rank: 3, set: "sleeper", table: 1 }, { id: "lamp", kind: "cosmetic", name: "brass lamp", rank: 1, table: 1 },
+  { id: "shard", kind: "shard", name: "legacy shard", rank: 2, table: 1 }, { id: "quill", kind: "piece", name: "scholar's quill", rank: 4, set: "scholar", table: 2 },
+];
+const SETS118: [string, string, string[], string][] = [["sleeper", "Sleeper's rest", ["quilt", "pillow", "candle"], "rest −2%"], ["scholar", "Scholar's", ["quill", "ink", "lens"], "class xp +2%"], ["hearth", "Hearth", ["kettle", "rug", "bell"], "+1 Legacy a return"]];
+const WISH118: [string, string][] = [["lantern", "a lantern"], ["pet", "a pet"], ["boots", "new boots"]];
+const day118 = (L: Lineage): number => Math.floor((L.age_h ?? (L.clock_s ?? 0) / 3600) / 24) + 1;
+const week118 = (L: Lineage): number => 40 + Math.floor(day118(L) / 7);
+{
+  const P = FakeEngine.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
+  const kitDone = (L: Lineage): boolean => (L.kit ?? []).length > 0 && (L.kit ?? []).every((k) => !k.next);
+  const lin = P.lineage; P.lineage = function (this: Fk118): Lineage {
+    const L = lin.call(this) as Lineage; if (DEV_NO_SYSTEMS) return L;
+    const st = st118(this);
+    const purse = L.gold, unit = Math.max(20, 10 * Math.round((100 + 25 * L.best_depth) / 10));
+    const met = BOSS118.filter(([, , d]) => L.best_depth >= d);
+    const tokens: BossToken[] = met.filter(([k]) => (st.tokens[k] ?? 0) > 0).map(([k, t, d]) => ({ boss: k, title: t, depth: d, n: st.tokens[k], cap: 3, stone: Math.max(1, d - 3) }));
+    const trials: TrialWire[] = met.length ? [0, 1].map((i) => { const [k, t, d, a] = BOSS118[(week118(L) - i) % met.length]; const w = week118(L) - i; const cleared = st.cleared.includes(w);
+      return { week: w, boss: k, title: t, depth: d, rule: i ? "affixes" : "barred", label: i ? `${a} + swift` : "no boss focus", ...(i ? { affixes: [a, "swift"] } : { barred: "boss_focus" }),
+        answers: ["guarded", "hunter"], owned: (L.packages?.all ?? []).filter((p) => p.owned && ["guarded", "hunter"].includes(p.id)).map((p) => p.id), open: !cleared, cleared, opted: st.trial === w, weeks_left: 3 - i, legacy: 10 }; }) : [];
+    const sinks: Sink[] = kitDone(L) ? [{ id: "tithe", price: unit * (1 + Math.floor(st.tithed / 6)), line: `1 Legacy / $${unit * (1 + Math.floor(st.tithed / 6))}`, available: purse >= unit, ...(st.tithed ? { n: st.tithed } : {}) },
+      { id: "ration", price: Math.round(unit / 10), line: "+10% hp · 1 run", available: true, ...(st.rations ? { n: st.rations } : {}) },
+      ...(st.surveyed ? [] : [{ id: "survey", price: unit * 20, line: "forks D19 · D24", available: purse >= unit * 20 }])] : [];
+    const w = WISH118[st.wishes % WISH118.length];
+    const wish: WishWire | undefined = (L.runs?.length ?? 0) > 0 && day118(L) >= st.wishAt ? { id: w[0], text: w[1], price: Math.round(unit / 2), legacy: 2 + (st.wishes % 2), available: purse >= Math.round(unit / 2) } : undefined;
+    const siege: SiegeWire[] = Object.entries(st.siege).map(([k, s]) => { const b = BOSS118.find((x) => x[0] === k)!; return { boss: k, title: b[1], depth: b[2], tries: s.tries, best_pct: s.best, edge_pct: Math.min(10, 2 * s.tries), heirs: s.heirs }; });
+    L.feats = { tokens, ...(st.seek ? { seek: st.seek } : {}), trials, ...(st.trial !== undefined ? { trial: st.trial } : {}), trial_marks: st.marks, sealed: 0,
+      sets: SETS118.map(([id, title, pieces, bonus]) => ({ id, title, pieces, have: pieces.map((p) => st.log.includes(p)), done: st.sets.includes(id), bonus })),
+      swift_to: L.best_depth > 8 && (L.runs?.length ?? 0) >= 3 ? 7 : 0, sinks, sink_order: st.sinkOrder, ...(wish ? { wish } : {}), feats: 0,
+      siege, graves: [...st.graves], graveyard: [...st.stones], worn: { ...st.worn }, heir_order: st.heirOrder, titles: [...st.titles], deed_legacy: st.deed };
+    L.king_pct = Math.min(100, Math.round(100 * L.best_depth / 33));
+    if (L.best_depth >= 5 && (L.age_h ?? 0) >= 1) L.king_eta_h = Math.round((L.age_h ?? 1) * Math.pow(33 / L.best_depth, 1 / 0.45)); else delete L.king_eta_h;
+    L.walls = (L.walls ?? []).map((x) => { const b = BOSS118.find((y) => y[0] === x.boss); return b ? { ...x, affix: b[3], affix_counter: b[4], guard: b[5], guard_counter: b[6] } : x; });
+    if (L.orders) L.orders = { ...L.orders, heir: st.heirOrder, ...(kitDone(L) ? { sink: st.sinkOrder } : {}) };
+    // owner amendment 2: the heirs rung (lit by the first death); `lit_by` names each open system's trigger
+    if (L.systems) { L.systems = [...L.systems.filter((s) => s.id !== "heirs"), { id: "heirs", open: L.graveyard.length > 0, trigger: "first death" }].map((s) => (s.open && s.trigger ? { ...s, lit_by: s.trigger } : s)); }
+    // the wake's three cards: one answers the last killer; the order picks
+    const last = L.graveyard[L.graveyard.length - 1];
+    if (last && L.heir > 1) {
+      const card = (chip: string, gift: string, when: string, source: string, tier = "common"): TraitCard => ({ chip, head: chip.split(" · ")[0], formula: `[${when}] → ${gift} +1`, when, gift, tier, source, learned: true });
+      const offer = [card("stout · slow", "guard", "crowded", "fresh"), card("guarded · bosses", "guard", "boss", "answer", "uncommon"), card("swift · frail", "quick", "first", "fresh", "rare")];
+      const pick = (this.s as { born118?: string }).born118;
+      const i = pick ? Math.max(0, offer.findIndex((c) => c.chip === pick)) : st.heirOrder === "strongest" ? 2 : st.heirOrder === "surprise" ? L.heir % 3 : 1;
+      L.heir_traits = { born: { ...offer[i], source: "born" }, offer, blood_open: false, bloodline_open: false };
+    }
+    return L;
+  };
+  const setTrait = P.setTrait; P.setTrait = function (this: Fk118, name: unknown): Lineage {
+    const L = this.lineage(); if (L.heir_traits?.offer?.some((c) => c.chip === name)) { (this.s as { born118?: string }).born118 = name as string; return this.lineage(); }
+    return setTrait.call(this, name) as Lineage;
+  };
+  // a death: a stone; at a band boss a siege try (deeds pay 1 Legacy); the carry lost lies in a grave on its floor. A run that reaches a
+  // grave's floor brings it home (`recovered Ada's pack`). A boss slain: a token, the siege won (a title).
+  const settle = P.settle; P.settle = function (this: Fk118, run: unknown, real: unknown, ...a: unknown[]): unknown {
+    const R = run as { id: number; heir: number; exit: string; depth: number; cause?: string; loot: number; loot_kept: number; kills: Record<string, number> };
+    const r = settle.call(this, run, real, ...a); if (DEV_NO_SYSTEMS) return r;
+    const st = st118(this), L = this.s.lineage, day = day118(L);
+    for (const g of st.graves.filter((x) => R.depth >= x.depth && x.heir !== R.heir)) { this.gold(g.gold, `recovered ${g.name}'s pack`); st.news.push({ k: "recovered", text: `${g.name}'s pack · $${g.gold} · D${g.depth}`, day }); }
+    st.graves = st.graves.filter((x) => !(R.depth >= x.depth && x.heir !== R.heir));
+    for (const [k, t] of BOSS118) if (R.kills?.[k]) { st.tokens[k] = Math.min(3, (st.tokens[k] ?? 0) + 1); const s = st.siege[k];
+      if (s) { delete st.siege[k]; st.worn[k] = s.heirs; if (!st.titles.includes(`${t}bane`)) st.titles.push(`${t}bane`); st.news.push({ k: "siege_won", text: `${t} fell · ${s.tries + 1} tries`, day }); }
+      if (st.seek === k) { st.seek = undefined; st.news.push({ k: "seek", text: `${t} sought · slain`, day }); } }
+    if (R.exit === "death") {
+      const name = name118(R.heir), b = BOSS118.find(([, , d]) => d === R.depth);
+      let tryN: number | undefined, edge: number | undefined;
+      if (b) { const s = (st.siege[b[0]] ??= { tries: 0, best: 100, heirs: [] }); s.tries++; s.best = Math.min(s.best, 20 + (R.id * 7) % 50); s.heirs.push(name); tryN = s.tries; edge = Math.min(10, 2 * s.tries); st.deed++;
+        st.news.push({ k: "siege", text: `${b[1]} · try ${tryN} · +${edge}%`, day }); }
+      const lost = Math.max(0, R.loot - R.loot_kept);
+      if (lost > 0) { st.graves = st.graves.filter((g) => g.depth !== R.depth); st.graves.push({ depth: R.depth, heir: R.heir, name, gold: lost, day }); }
+      const foe = b ? `the ${b[1]}` : (R.cause ?? "?").replace(/_/g, " ");
+      st.stones.push({ heir: R.heir, name, depth: R.depth, cause: R.cause ?? "?", epitaph: `fell to ${foe}, D${R.depth}`, day, run: R.id, ...(b ? { boss: b[0], try_n: tryN, edge_pct: edge } : {}), ...(lost ? { grave_gold: lost } : {}), legacy: 2 + (b ? 1 : 0) });
+      while (st.stones.length > 40) st.stones.shift();
+    }
+    return r;
+  };
+  const death = P.death; P.death = function (this: Fk118, id: unknown): Death {
+    const d = death.call(this, id) as Death; if (DEV_NO_SYSTEMS || d.verdict === "stall") return d;
+    const s = st118(this).stones.find((x) => x.run === id); if (!s) return d;
+    const siege = this.lineage().feats?.siege.find((x) => x.boss === s.boss);
+    const short = BOSS118.find((b) => b[0] === s.boss)?.[1];
+    const lead = short ? `+${s.legacy} Legacy · ${short} try ${s.try_n} · +${s.edge_pct}%` : `+${s.legacy} Legacy · ${s.epitaph}`;
+    return { ...d, memorial: { lead, epitaph: s.epitaph, name: s.name, ...(siege ? { siege } : {}), ...(s.grave_gold ? { grave_gold: s.grave_gold } : {}), legacy: s.legacy } };
+  };
+  const off = P.runOffline; P.runOffline = function (this: Fk118, s: unknown): ReturnReport {
+    const st = st118(this); st.news = []; const L0 = this.s.lineage;
+    const r = off.call(this, s) as ReturnReport; if (DEV_NO_SYSTEMS) return r;
+    const L = this.s.lineage, day = day118(L);
+    // one find sealed a run ending away (the second table after 6 h), opened now: one reveal, best first
+    const n = Math.min(r.runs, 9), long = r.elapsed_s >= 6 * 3600;
+    const finds = Array.from({ length: n }, (_, i) => FINDS118[(i + (L0.heir ?? 1)) % (long ? 4 : 3)]).sort((a, b) => b.rank - a.rank);
+    for (const f of finds) if (!st.log.includes(f.id)) st.log.push(f.id);
+    if (st.trial !== undefined && r.runs > 0) { const w = st.trial; st.trial = undefined; st.cleared.push(w); st.marks++; st.news.push({ k: "trial", text: `trial cleared · Mother · +10 Legacy`, day }); }
+    const heir = L.heir_traits?.born; if (r.deaths.length && heir) st.news.push({ k: "heir", text: `${name118(L.heir)} · ${heir.chip}${heir.source === "answer" || /bosses/.test(heir.chip) ? ` · answers the ${(L.graveyard.at(-1)?.cause ?? "?").replace(/_/g, " ")}` : ""}`, day });
+    const shards = finds.filter((f) => f.kind === "shard").length;
+    return { ...r, ...(n ? { finds: { sealed: n, best: finds[0], finds, ...(shards ? { legacy: shards } : {}) } } : {}), ...(st.news.length ? { feats: [...st.news] } : {}) };
+  };
+  P.seekBoss = function (this: Fk118, boss: unknown): Lineage { const st = st118(this); if (boss && !(st.tokens[boss as string] > 0)) throw new Error("no token"); st.seek = (boss as string) || undefined; return this.lineage(); };
+  P.seekForecast = function (this: Fk118): SeekOption[] {
+    const L = this.lineage(); return (L.feats?.tokens ?? []).map((t, i) => ({ boss: t.boss, title: t.title, depth: t.depth, stone: t.stone, tokens: t.n, reach: Math.max(0.2, 0.9 - 0.1 * i), past: Math.max(0.05, 0.4 - 0.1 * i), death: 0.3 + 0.1 * i, sims: 24, current: L.feats?.seek === t.boss }));
+  };
+  P.setTrial = function (this: Fk118, week: unknown): Lineage {
+    const st = st118(this), w = week as number; if (w < 0) { st.trial = undefined; return this.lineage(); }
+    const t = this.lineage().feats?.trials.find((x) => x.week === w); if (!t || !t.open) throw new Error(t?.cleared ? "trial cleared" : "trial closed"); st.trial = w; return this.lineage();
+  };
+  P.tithe = function (this: Fk118, n: unknown): Lineage {
+    const L = this.lineage(), sk = L.feats?.sinks.find((x) => x.id === "tithe"); if (!sk) throw new Error("kit first");
+    const k = Math.max(1, Math.min(3, n as number)); if (L.gold < sk.price * k) throw new Error("not enough gold");
+    this.gold(-sk.price * k, "tithe"); st118(this).tithed += k; if (L.bloodline) this.s.lineage.bloodline = { ...L.bloodline, points: L.bloodline.points + k }; return this.lineage();
+  };
+  P.buySurvey = function (this: Fk118): Lineage {
+    const L = this.lineage(), sk = L.feats?.sinks.find((x) => x.id === "survey"); if (!sk) throw new Error("no survey"); if (L.gold < sk.price) throw new Error("not enough gold");
+    this.gold(-sk.price, "survey"); st118(this).surveyed = true; return this.lineage();
+  };
+  P.grantWish = function (this: Fk118): Lineage {
+    const L = this.lineage(), w = L.feats?.wish; if (!w) throw new Error("no wish"); if (L.gold < w.price) throw new Error("not enough gold");
+    const st = st118(this); this.gold(-w.price, `wish ${w.text}`); st.wishes++; st.wishAt = day118(L) + 1;
+    if (L.bloodline) this.s.lineage.bloodline = { ...L.bloodline, points: L.bloodline.points + w.legacy }; return this.lineage();
+  };
+  const setOrders = P.setOrders; P.setOrders = function (this: Fk118, o: unknown): Lineage {
+    const x = o as StandingOrders, st = st118(this);
+    if (x.heir !== undefined && !["answer", "strongest", "surprise"].includes(x.heir)) throw new Error("unknown heir order");
+    if (x.sink !== undefined && !["both", "ration", "tithe", "off"].includes(x.sink)) throw new Error("unknown sink order");
+    if (x.heir) { if (x.heir !== st.heirOrder) delete (this.s as { born118?: string }).born118; st.heirOrder = x.heir; } if (x.sink) st.sinkOrder = x.sink;
+    return setOrders.call(this, o) as Lineage;
+  };
 }

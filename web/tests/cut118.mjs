@@ -173,7 +173,7 @@ try {
       const L = (age_h, best, extra = {}) => ({ age_h, best_depth: best, ended: false, walls: [], runs: [], trophies: [], ...extra });
       const idle = kingEta(L(24, 8)), picked = kingEta(L(24, 13)), d23 = kingEta(L(12 * 24, 23));
       const slain = kingEta(L(240, 33, { walls: [{ boss: "mirror_king", slain: true }] })), young = kingEta(L(0.5, 3));
-      app.lineage = { ...app.lineage, age_h: 30, best_depth: 12, tree: { ...(app.lineage.tree ?? { nodes: [], waits: false, sent: false, ledger: 0 }), chest: 0, auto_send: true } };
+      app.lineage = { ...app.lineage, age_h: 30, best_depth: 12, king_eta_h: undefined, king_pct: undefined, tree: { ...(app.lineage.tree ?? { nodes: [], waits: false, sent: false, ledger: 0 }), chest: 0, auto_send: true } };
       app.go({ kind: "report", report: REP, absence: true });
       await new Promise((res) => setTimeout(res, 400));
       const k = document.querySelector(".report .report-king");

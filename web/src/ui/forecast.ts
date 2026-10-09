@@ -15,6 +15,7 @@
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
 import { kingLine } from "./king-eta";   // Cut 118 §9
 import { wallPreview } from "./wall-preview";   // Cut 118 round 2: the next wall's roster
+import { graveMark } from "./feats";   // Cut 118 (owner amendment §3): the graves on their floors
 import { counterName } from "./counter-name";
 import { openDropSheet } from "./patches";
 import { enemyHost } from "./enemy-tips";
@@ -123,18 +124,9 @@ export function endShare(x: number, low: number | undefined): string {
 /** The low end of the forecast now painted (`Forecast.low`, else from its `sims`). */
 export const lowOf = (f: { low?: number; sims?: number } | null | undefined): number | undefined => f?.low ?? (f?.sims ? Math.ceil(100 / f.sims) : undefined);
 
-/** Cut 117 §1 (blind 8cf9050: `D33 88%` then the send banked at D32): the ends the send will play — the scout's wall order applied
- *  (`Forecast.hold.ends`) when the core prices it, else the panel's. */
-export const endsOf = (f: Forecast | null | undefined): Forecast["ends"] => f?.hold?.ends ?? f?.ends;
-/** Cut 117 §1: the horizon the forecast prices — `reach D33 88% · banks D32` when the scout's wall order holds the send (a `carry`
- *  order: `secures D32`); the depths' bars stay the reach if pushed. Null without an order. */
-export function holdLine(f: Forecast | null | undefined): HTMLElement | null {
-  const o = f?.hold; if (!o) return null;
-  const verb = o.order === "bank" ? /* copy:callout */ ` · banks D${o.stop}` : o.order === "carry" ? /* copy:callout */ ` · secures D${o.stop}` : "";
-  const tip = o.order === "bank" ? /* copy:tooltip */ `Scout's order · banks at D${o.stop} stairs` : /* copy:tooltip */ `Scout's order · haul secured at D${o.stop}`;
-  return h("span", { class: "fc-hold num", "data-depth": o.depth, "data-stop": o.stop, "data-order": o.order, title: tip },
-    /* copy:callout */ `reach D${o.depth} ${share(o.share, lowOf(f))}`, h("b", { class: "fc-hold-order" }, verb));
-}
+/** Cut 117 §1: the ends the send will play. Cut 118 (owner amendment §1): the scout's wall order is retired — every send pushes, the core
+ *  never sets `Forecast.hold` — so the ends are the panel's (the `reach D33 · banks D32` hold line is gone with the order). */
+export const endsOf = (f: Forecast | null | undefined): Forecast["ends"] => f?.ends;
 /** Cut 22 §4: a move in whole points, signed (`+6`, `−3`), never a `%` — a delta must not read as a chance. */
 /** Cut 117 §1 (blind 8cf9050: the 8-sample previews swing; advice flipped between two reads of one camp): a move with no ± of its own
  *  reads `same` under this many points — a sign two reads of one camp could flip is no call. */
@@ -316,8 +308,7 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
     const epm = pmShown(e.death, e.pm);
     const pm = epm !== undefined ? h("small", { class: "dim pm band", style: bandW(epm), title: `±${epm}` }, /* copy:none */ ` ±${epm}`) : "";   // Cut 29: `±6` read as −6 — a band
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, kw("ends", /* copy:label */ "run outcomes")), " ", /* copy:callout */ `full haul ${eh(e.bank)}`, /* copy:callout */ ` · turn back ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)),
-      ((x) => x ? h("div", { class: "fc-hold-row" }, x) : "")(holdLine(f)));
+    replace(ends, h("span", { class: "label ends-label" }, kw("ends", /* copy:label */ "run outcomes")), " ", /* copy:callout */ `full haul ${eh(e.bank)}`, /* copy:callout */ ` · turn back ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -379,6 +370,8 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
         // Cut 20 §5: the bounty floor; Cut 28 §1: what it pays and needs (`bounty · $×2 · item · reach`)
         d.bounty ? h("small", { class: "bounty-x" }, ` · ${app.lineage.bounty?.depth === d.depth && (app.lineage.bounty.pays || app.lineage.bounty.needs) ? bountyText({ ...app.lineage.bounty, depth: d.depth }).replace(/^bounty · D\d+ · /, /* copy:callout */ "bounty · ") : bountyMult(d.bounty)}`) : "",
         counter ? h("small", { class: "dim" }, /* copy:callout */ ` · counter: ${counter}`) : "",
+        // Cut 118 (owner amendment §3): a dead heir's pack lies here (`Ada's pack · $1240`) — the next heir to reach the floor brings it home
+        graveMark(app.lineage, d.depth) ?? "",
       ].filter((x) => x !== "");
       const inner = [
         // gfx raters (every round: "web bars"): each floor is the shaft's hex gem, lit by its reach; the track under it is a thin rail
@@ -543,6 +536,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       if (d?.pm !== undefined) n.style.setProperty("--pm", Math.min(1, d.pm * 4).toFixed(3));
       // QA 308f045 (qaAC: `fens · D5 · ?` — "what the `?` asks"): a lane never entered says so (`untried`)
       if (wall && d?.wall && sysOpen(app.lineage, "walls")) n.appendChild(h("small", { class: "wall-counter num" }, wallCounter(app, d.wall, d as { counter?: string; counter_hint?: string })));   // Cut 28 §1
+      { const g = graveMark(app.lineage, depth); if (g) n.appendChild(g); }   // Cut 118: the grave on its floor
       if (fr) n.appendChild(h("small", { class: `frontier${fr.entered ? " entered" : ""}`, "data-biome": fr.biome }, conceptIcon("fork"), /* copy:callout */ `or ${fr.biome}${fr.entered ? "" : " · untried"}`, conceptCap("fork")   /* docs/COPY.md pass 7: the other stair at this fork (`fens · D5 · untried` read "[elsewhere]" 2/2) */));
       return n;
     }),
@@ -563,8 +557,7 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true)),
         ((pm) => pm !== undefined ? h("small", { class: "dim pm band", style: bandW(pm), title: `±${pm}` }, /* copy:none */ ` ±${pm}`) : "")(pmShown(e.death, e.pm))),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
-      h("span", { class: "end gold" }, /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), ""),
-      holdLine(last) ?? "");
+      h("span", { class: "end gold" }, /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), ""));
     replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
     paintDepth();
     const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last), st = stateLine(app);

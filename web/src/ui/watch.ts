@@ -2045,6 +2045,7 @@ export function renderWatch(app: App): Mounted {
   // Cut 27 §1 — solved floors fold: the floors the camp's forecast says the sent set clears ≥ 95 % (`foldFloors`) are stepped flat out
   // under the fold line, never watched; the watch opens at the first floor below the bar. The world stands while the line holds.
   let foldSet = new Set<number>();
+  let swiftTo = 0;   // Cut 118 §5: the last swift floor of this send (0: none)
   type Fold = { tally: FoldTally; from: number; to: number; t0: number; holdUntil: number; stepping: boolean; skip: boolean; replay: boolean; core?: FoldLine };
   let folding: Fold | null = null;
   let lastFold: { from: number; to: number; core?: FoldLine } | null = null;
@@ -2057,6 +2058,7 @@ export function renderWatch(app: App): Mounted {
     if (L) {
       // the core's line (`fold()`): its clear through the stretch, the gold it added, its chips (≤ 3 words each, by kind)
       replace(foldHead, `${L.to > L.from ? `D${L.from}–${L.to}` : `D${L.from}`} · ${Math.round(L.clear * 100)}%${L.gold ? ` · ${L.gold > 0 ? "+" : "−"}$${Math.abs(L.gold)}` : ""}`);
+      if (swiftTo && L.from <= swiftTo) foldHead.append(h("i", { class: "fchip k-swift", "data-k": "swift" }, /* copy:callout */ " swift"));
       // Cut 28 §3: a hero handed off low (`low`: hp ≤ half his max) — his `hp 9/40` chip leads the line (the core's, else built here)
       const hpChip = L.low && L.hp !== undefined && L.max_hp !== undefined ? L.chips.find((c) => /^hp\b/.test(c)) ?? `hp ${L.hp}/${L.max_hp}` : undefined;
       const chipList = hpChip ? [hpChip, ...L.chips.filter((c) => c !== hpChip)] : L.chips;
@@ -2066,6 +2068,7 @@ export function renderWatch(app: App): Mounted {
       return;
     }
     replace(foldHead, f.tally.head(f.to));
+    if (swiftTo && f.from <= swiftTo) foldHead.append(h("i", { class: "fchip k-swift", "data-k": "swift" }, /* copy:callout */ " swift"));
     const chips = f.tally.list();
     replace(foldChips, ...chips.map((c) => h("i", { class: `fchip k-${c.k}`, "data-k": c.k }, c.text)));
     foldLine.dataset.kinds = [...new Set(chips.map((c) => c.k))].join(",");
@@ -2654,7 +2657,10 @@ export function renderWatch(app: App): Mounted {
     hudFrom(s);
     // Cut 27 §1: the floors this send folds — the camp's forecast for the rules sent, from the floor the sims started on (a send whose
     // start fell back — a toll short — is not the one the forecast measured: nothing folds)
-    { const f = app.forecastOfRules(); startDepth = s.run.start ?? s.depth; if (f && (f.start ?? 1) === startDepth) foldSet = foldFloors(f, startDepth); el.dataset.foldPlan = [...foldSet].join(","); }
+    { const f = app.forecastOfRules(); startDepth = s.run.start ?? s.depth; if (f && (f.start ?? 1) === startDepth) foldSet = foldFloors(f, startDepth);
+      // Cut 118 §5: the swift floors (a band boss cleared 3×: `Snapshot.swift`, the core's `feats.swift_to`) fold too — one beat, its line
+      if (s.swift) { const to = app.lineage.feats?.swift_to ?? s.depth; for (let d = s.depth; d <= Math.max(s.depth, to); d++) foldSet.add(d); swiftTo = Math.max(s.depth, to); el.dataset.swift = String(swiftTo); }
+      el.dataset.foldPlan = [...foldSet].join(","); }
     const { viewer: v0 } = await makeViewer(canvas);
     if (disposed) { v0.dispose(); return; }
     // Cut 11 §2: every floor load and event batch is kept in the run log, so the death screen's chain can scrub a replay

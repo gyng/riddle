@@ -17,8 +17,9 @@ import type { App, Mounted } from "../app";
 import type { Death, DrivenOff, ExitLine, Patch, ReturnReport, Row } from "../engine/types";
 import { morgueVerbs } from "./chain";
 import { lastRun, replayable } from "./runlog";
+import { siegeText } from "./feats";
 import { openReplay } from "./replay";
-import { h, copyText, items } from "./dom";
+import { h, copyText, items, replace } from "./dom";
 import { clearStrip } from "./runclear";   // run-clear: the death's header strip
 import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
@@ -397,14 +398,23 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
   // blind 77030eb (B): a training plaque opens the tactics panel (the drill's On / Off, the level)
   const training = app.lineage.packages && app.engine.equipPackage ? (a: HTMLElement, beat: string): void => openPackages(app, a, undefined, trainingFocus(beat)) : undefined;   // Cut 117 §2: on the plaque's own tactic
+  // Cut 118 (owner amendment §4, §7): the death leads with what it gave the line — `+3 Legacy · Mother try 4 · +8%` (the core's memorial),
+  // then the cause, the trace and the lever as ever; the stone's epitaph under the banner. A stall or a drive-off is no death: no memorial.
+  const mem = !stalled ? d.memorial : undefined;
+  const memLead = mem?.lead ? h("div", { class: "memorial-lead num", "data-legacy": mem.legacy ?? 0, title: mem.siege ? siegeText(mem.siege) : undefined, "data-siege": mem.siege ? siegeText(mem.siege) : undefined }, mem.lead) : null;
+  const epitaph = mem?.epitaph ? h("div", { class: "memorial-epitaph dim" }, mem.name ? `${mem.name} · ${mem.epitaph}` : mem.epitaph,
+    mem.grave_gold ? h("small", { class: "memorial-grave num" }, /* copy:callout */ ` · pack $${mem.grave_gold} on D${d.depth}`) : "") : null;
+  const heirs = kept || from ? null : heirsFold(app);
   const well = h("div", { class: "well death-well" },
     d.hero?.name ? unitLabel(d.hero.class, h("span", null, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`), { hero: true, art: unitPortrait(d.hero.class, 64, true), className: "death-hero num dim" }) : null,
+    memLead,
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerPortrait ? " has-killer" : ""}` },
       // The framed killer portrait stays centered above the cause text.
       luckLead, line)),
+    epitaph,
     // run-clear: the death screen is a death's card — its header carries the floor, a new best, the finds left in the bones
     kept || from ? null : clearStrip(d.line),
-    ...(prePen ? [whyEl, trainingBlock(d.line?.packages, training), now] : [whyEl, trainingBlock(d.line?.packages, training), details, now, more, tail]));
+    ...(prePen ? [whyEl, trainingBlock(d.line?.packages, training), now, heirs] : [whyEl, trainingBlock(d.line?.packages, training), details, now, heirs, more, tail]));
   const wide = wideCols(app, null);   // desktop: the rules left, the shaft right (wide.css); the fight is under details
   const el = h("main", { class: `death frame${stalled ? " stalled" : ""}${drove ? " driven" : ""}${prePen ? " prepen" : ""}` }, bar.el, well, cons.el, ...wide.els);
   setWhy(); rest();
@@ -737,4 +747,24 @@ export function pickTablet(app: App, pick: Lever): HTMLElement {
 function replacesTag(app: App, l: Lever): HTMLElement | "" {
   const out = l.id ? fixReplaces(app.lineage.packages, l.id, l.variant ?? 0) : null;
   return out ? h("small", { class: "lever-replaces", "data-replaces": out }, /* copy:callout */ ` ← ${out}`) : "";
+}
+
+/** Owner amendment 2: the heirs the wake offered (`Lineage.heir_traits.offer`) — the heir order already chose one (the worn card); an
+ *  optional fold (`other heirs`, never a prompt) swaps to another before the next send (`setTrait(chip)`, one tap). The card that answers
+ *  the killer says so. Null with fewer than two cards or no `setTrait`. */
+export function heirsFold(app: App): HTMLElement | null {
+  const T = app.lineage.heir_traits;
+  const offer = T?.offer ?? [];
+  if (offer.length < 2 || !app.engine.setTrait) return null;
+  const el = h("details", { class: "heirs-fold", "data-heirs": offer.length });
+  const paint = (): void => {
+    const born = app.lineage.heir_traits?.born?.chip;
+    replace(el, h("summary", { class: "dim num" }, /* copy:button */ "other heirs"),
+      h("div", { class: "chips" }, ...(app.lineage.heir_traits?.offer ?? offer).map((c) => h("button", {
+        class: `chip heir-card num${c.chip === born ? " on" : ""}${c.source === "answer" ? " answers" : ""}`, "data-chip": c.chip, "aria-pressed": c.chip === born ? "true" : "false", title: c.formula,
+        onclick: () => { if (c.chip === born) return; void app.mutate(() => app.engine.setTrait!(c.chip), /* copy:callout */ "heir").then((ok) => { if (ok && el.isConnected) paint(); }); },
+      }, c.chip, c.source === "answer" ? h("small", { class: "dim" }, /* copy:callout */ " · answers") : ""))));
+  };
+  paint();
+  return el;
 }

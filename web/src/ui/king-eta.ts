@@ -3,8 +3,9 @@
 // sim of days, only the lineage's age (`age_h`) and its best floor, and the runs log's records (`RunRec.best`, `clock_s`). The depth a
 // lineage reaches grows slower the deeper it goes (the dayplayer's IDLE: D8 on day 1, D23 by day 12 — about depth ∝ age^0.45), so the
 // line is a power curve through today's best, its bend read off the log's records when they span a few hours, else 0.45. The
-// estimate is the day the curve reaches D33. Not a forecast of the rules: a pace. (Core field wanted: `Lineage.king_eta_h`, the core's
-// own projection from its sims, would replace this.)
+// estimate is the day the curve reaches D33. Not a forecast of the rules: a pace. Cut 118 core: `Lineage.king_eta_h` (hours until he
+// may fall, 0 once slain) and `Lineage.king_pct` (the record's share of the way) replace the estimate wherever the core sends them; the
+// crude curve stays only for an older save without them.
 import type { Lineage } from "../engine/types";
 import { h } from "./dom";
 
@@ -16,8 +17,14 @@ export type KingEta = { day: number; today: number; far: boolean; bend: number }
 
 /** The day (1 = the lineage's first 24 h) the King may fall at the current pace; null before there is a pace to read (best < D5, under
  *  an hour old), once he is slain, or on an ended lineage. `far` past day 99. */
-export function kingEta(L: Pick<Lineage, "age_h" | "best_depth" | "walls" | "ended" | "runs" | "clock_s" | "trophies">): KingEta | null {
+export function kingEta(L: Pick<Lineage, "age_h" | "best_depth" | "walls" | "ended" | "runs" | "clock_s" | "trophies" | "king_eta_h">): KingEta | null {
   const age = L.age_h, best = L.best_depth;
+  // the core's own pace (Cut 118 §8): hours from now; 0 means slain (the line reads `slain`)
+  if (typeof L.king_eta_h === "number" && !L.ended) {
+    if (L.king_eta_h <= 0) return null;
+    const now = age ?? 0, today = Math.floor(now / 24) + 1, day = Math.max(today, Math.floor((now + L.king_eta_h) / 24) + 1);
+    return { day, today, far: day > 99, bend: 0 };
+  }
   if (age === undefined || !(age >= 1) || best < 5 || L.ended) return null;
   if (L.walls?.some((w) => w.boss === "mirror_king" && w.slain) || (L.trophies ?? []).some((t) => /mirror_king/.test(t))) return null;
   // the bend off the log: the oldest record still held against today's best, when they are hours apart and the depth moved
@@ -39,19 +46,20 @@ export function kingEta(L: Pick<Lineage, "age_h" | "best_depth" | "walls" | "end
 }
 
 /** Round 2 §9: how far down to the King, 0..1 (the best floor of his 33). */
-export const kingShare = (L: Pick<Lineage, "best_depth">): number => Math.max(0, Math.min(1, L.best_depth / KING_DEPTH));
-export const kingSlain = (L: Pick<Lineage, "walls" | "ended" | "trophies">): boolean =>
-  !!L.ended || !!L.walls?.some((w) => w.boss === "mirror_king" && w.slain) || (L.trophies ?? []).some((t) => /mirror_king/.test(t));
+export const kingShare = (L: Pick<Lineage, "best_depth" | "king_pct">): number => Math.max(0, Math.min(1, typeof L.king_pct === "number" ? L.king_pct / 100 : L.best_depth / KING_DEPTH));
+export const kingSlain = (L: Pick<Lineage, "walls" | "ended" | "trophies" | "king_eta_h">): boolean =>
+  !!L.ended || L.king_eta_h === 0 || !!L.walls?.some((w) => w.boss === "mirror_king" && w.slain) || (L.trophies ?? []).some((t) => /mirror_king/.test(t));
 
 /** `King · ~day 23` (`King · far off`), a thin % bar to him and what comes after him (`then ascend`: the ending's next descent); its tip
  *  names the crudeness. Slain: `King slain · then ascend`. Null when there is nothing to say yet. */
-export function kingLine(L: Parameters<typeof kingEta>[0], cls = ""): HTMLElement | null {
+export function kingLine(L: Parameters<typeof kingEta>[0] & Pick<Lineage, "king_pct">, cls = ""): HTMLElement | null {
   const slain = kingSlain(L);
   const e = slain ? null : kingEta(L);
   if (!slain && !e) return null;
   const pct = Math.round(kingShare(L) * 100);
   return h("span", { class: `king-eta num ${cls}`.trim(), "data-day": slain ? "slain" : e!.far ? "far" : e!.day, "data-pct": slain ? 100 : pct,
-    title: /* copy:tooltip */ "crude · current pace carried on · not a promise" },
+    "data-src": typeof L.king_eta_h === "number" ? "core" : "client",
+    title: typeof L.king_eta_h === "number" ? /* copy:tooltip */ "current pace carried on · not a promise" : /* copy:tooltip */ "crude · current pace carried on · not a promise" },
     h("b", null, /* copy:label */ "King"), " · ", slain ? /* copy:callout */ "slain" : e!.far ? /* copy:callout */ "far off" : /* copy:callout */ `~day ${e!.day}`,
     h("span", { class: "king-bar", role: "img", "aria-label": `${slain ? 100 : pct}%` }, h("span", { class: "fill", style: `width:${slain ? 100 : pct}%` })),
     h("small", { class: "king-pct" }, `${slain ? 100 : pct}%`),

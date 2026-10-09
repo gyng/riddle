@@ -13,10 +13,12 @@ import "../return-pick.css";
 const WORD: Record<string, string> = { drill: "drill", legacy: "legacy", legacy2: "legacy", forge: "forge", marks: "marks" };
 const ICON: Record<string, [string, string]> = { drill: ["node_drillmaster", "✦"], legacy: ["legacy", "❖"], legacy2: ["legacy", "❖"], forge: ["forge", "⚒"], marks: ["mark", "◆"] };
 
-/** Cut 118 round 2 §6: the pick's default — what `collect & send` takes when no tile is tapped: Legacy (never a shop, never gold), else
- *  the drill, else the first free offer, else the first available. */
-export function defaultOffer(offers: ReturnOffer[] | undefined): ReturnOffer | undefined {
+/** Cut 118 round 2 §6: the pick's default — what `collect & send` takes when no tile is tapped: the core's (`ReturnPick.default`) when it
+ *  names an available offer; else (an older core) Legacy (never a shop, never gold), the drill, the first free offer, the first available. */
+export function defaultOffer(offers: ReturnOffer[] | undefined, core?: string): ReturnOffer | undefined {
   const ok = (offers ?? []).filter((o) => o.available);
+  const named = core ? ok.find((o) => o.id === core) : undefined;
+  if (named) return named;
   return ok.find((o) => o.id === "legacy") ?? ok.find((o) => o.id === "legacy2") ?? ok.find((o) => o.id === "drill") ?? ok.find((o) => !o.price) ?? ok[0];
 }
 
@@ -39,7 +41,7 @@ function offerTile(app: App, o: ReturnOffer, busy: { on: boolean }, done?: () =>
 export function returnPick(app: App, where: "report" | "camp"): { el: HTMLElement; dispose: () => void } {
   const el = h("section", { class: `return-pick at-${where}`, "data-return-pick": where });
   const busy = { on: false };
-  const three = (done?: () => void): HTMLElement => { const os = app.lineage.return_pick?.offers ?? [], d = defaultOffer(os); return h("div", { class: "cmd pick-tiles" }, ...os.map((o) => offerTile(app, o, busy, done, o === d))); };
+  const three = (done?: () => void): HTMLElement => { const os = app.lineage.return_pick?.offers ?? [], d = defaultOffer(os, app.lineage.return_pick?.default); return h("div", { class: "cmd pick-tiles" }, ...os.map((o) => offerTile(app, o, busy, done, o === d))); };
   const head = (size: number): HTMLElement => h("div", { class: "pick-head" }, h("b", { class: "row-label" }, /* copy:label */ "Pick one"), h("small", { class: "dim num" }, "◇".repeat(size)));
   const paint = (): void => {
     const p = app.lineage.return_pick;

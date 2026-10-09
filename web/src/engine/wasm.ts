@@ -9,7 +9,7 @@
 // This synchronous engine runs inside the Web Worker (./worker.ts); the main thread talks to it
 // through the AsyncEngine proxy in ./proxy.ts.
 import type {
-  CageOption, Death, DescentOffer, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption, Advance, Replay, ManualAct } from "./types";
+  CageOption, Death, DescentOffer, Divergence, FoldLine, KitLadder, ForecastVs, StartOption, ForkOption, Engine, Forecast, Lineage, Patch, ReturnReport, RuleSet, Snapshot, StepResult, SupplyEntry, UnlockInfo, Vocabulary, ForecastMove, StandingOrders, WallEdit, PkgOption, Advance, Replay, ManualAct, SeekOption } from "./types";
 
 type GameObj = Record<string, (...args: unknown[]) => unknown>;
 type GameCtor = (new (seed: number) => GameObj) & { fromSave?: (save: string) => GameObj };
@@ -104,6 +104,13 @@ export class WasmEngine implements Engine {
   // Cut 23 §1: throw `wasm: buyKit` / `wasm: kitDeltas` on a build without them (the camp shows no forge)
   buyKit(slot: string): Lineage { return this.call("buyKit", slot); }
   takeReturnPick(id: string): Lineage { return this.call("takeReturnPick", id); }   // Cut 113 §3
+  // Cut 118: throw `wasm: <name>` on a build without them (the camp then shows no seek / trial / sink / wish chip)
+  seekBoss(boss: string): Lineage { return this.call("seekBoss", boss); }
+  seekForecast(): SeekOption[] { return this.call("seekForecast"); }
+  setTrial(week: number): Lineage { return this.call("setTrial", week); }
+  tithe(n: number): Lineage { return this.call("tithe", n); }
+  buySurvey(): Lineage { return this.call("buySurvey"); }
+  grantWish(): Lineage { return this.call("grantWish"); }
   kitDeltas(): KitLadder[] { return this.call("kitDeltas"); }
   kitEstimates(): KitLadder[] { return this.call(typeof this.game.kitEstimates === "function" ? "kitEstimates" : "kitDeltas"); }
   // Cut 27: throw `wasm: fold` / `wasm: divergence` on a build without them (the watch then plays every floor; the camp shows no scene)

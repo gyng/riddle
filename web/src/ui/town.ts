@@ -18,6 +18,7 @@ import { tile, paintFace } from "./frame";
 import { audio } from "../audio";
 import { questShown } from "./quest";
 import { nextPill, openWorks } from "./works";
+import { townGraveyard } from "./feats";   // Cut 118 (owner amendment §4): the graveyard's stones
 import { townCrier } from "./crier";   // Cut 118 §8: the town crier   // Cut 30.5: the `next` pill, the works sheet
 import { openChronicle } from "./chronicle";
 import { openRuns } from "./runs";
@@ -102,7 +103,9 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   const arrival = h("div", { class: "town-arrival num", "aria-live": "polite" });
   // Cut 118 §8: the crier, top right (the pill's opposite), crying the last absence's notable acts
   const crier = townCrier(app);
-  el.append(hits, foundation, tag, arrival, pill.el, crier.el);
+  // Cut 118 (owner amendment §4): the graveyard at the scene's foot, left — a stone per fallen heir (the newest few), epitaphs on hover
+  const yard = townGraveyard(app);
+  el.append(hits, foundation, tag, arrival, pill.el, crier.el, yard.el);
   let arrivalTimer = 0;
   const view = createTownView(el);
   let chestOpenUntil = 0, chestTimer = 0;
@@ -139,6 +142,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     pill.paint();
     pill.el.hidden = !state.home || !L.tree;
     crier.paint(!!state.home);
+    yard.paint(!!state.home);
     if (fresh.length) arrive(fresh);
   }
   /** c30-legible: the arrival's beat — `first gold home → blacksmith` (≤ 4 words + the arrow) — and the eye drawn to the building */

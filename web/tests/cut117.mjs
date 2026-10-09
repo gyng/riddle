@@ -213,7 +213,7 @@ try {
     const r = await page.evaluate(async () => {
       const { momentHp } = await import("/src/ui/death.ts");
       const { priceOf } = await import("/src/ui/packages.ts");
-      const { holdLine, endsOf } = await import("/src/ui/forecast.ts");
+      const fc = await import("/src/ui/forecast.ts"), { endsOf } = fc;
       const { supplyReason, supplyLimit } = await import("/src/ui/report-supplies.ts");
       const { workersBlock } = await import("/src/ui/works.ts");
       const app = window.__riddle;
@@ -224,20 +224,18 @@ try {
       const ends = { bank: 0.4, return: 0.3, death: 0.3, gold: 100 };
       const held = { ...ends, bank: 0.85, death: 0.1, return: 0.05 };
       const f = { depths: [{ depth: 33, reach: 0.88 }], causes: [], known_to: 33, ends, sims: 100, hold: { depth: 33, stop: 32, order: "bank", share: 0.88, ends: held } };
-      const line = holdLine(f);
-      const carry = holdLine({ ...f, hold: { ...f.hold, order: "carry" } })?.textContent;
       const sb = { gold: { home: 0, salvage: 0, wake: 0, spent: 0 }, supply_budget: { income: 0, spent: 0, left: 0, reason: "no_income" } };
       const lim = supplyLimit(app, sb, true);
       const L = app.lineage;
       const w = workersBlock(L, { workers: [{ id: "apprentice", n: 1, what: "+1 step", first: false, reason: "purse_short" }] });
-      return { hp, price, hold: line?.textContent, holdTitle: line?.title, carry, none: holdLine({ ...f, hold: undefined }), ends: endsOf(f).bank, old: endsOf({ ...f, hold: undefined }).bank,
+      return { hp, price, holdGone: !("holdLine" in fc), ends: endsOf(f).bank, old: endsOf({ ...f, hold: undefined }).bank,
         reasons: ["no_income", "income_spent", "purse_short", "x"].map((c) => supplyReason(c)?.text ?? null), lim: lim.textContent, limReason: lim.dataset.reason,
         worker: w?.querySelector(".work-reason")?.textContent, workerTip: w?.querySelector(".work-reason")?.title };
     });
     check(r.hp.core === 5 && r.hp.old === 18, `the header hp is the core's moment, an old save the blow's (${JSON.stringify(r.hp)})`);
     check(r.price.even === "same" && r.price.wide === "—" && r.price.tight !== "—", `an even move reads same; the core's noise is the band (${JSON.stringify(r.price)})`);
-    check(r.hold === "reach D33 88% · banks D32" && /banks at D32/.test(r.holdTitle) && r.carry === "reach D33 88% · secures D32" && r.none === null, `the forecast names the scout's order (${r.hold} · ${r.carry})`);
-    check(r.ends === 0.85 && r.old === 0.4, `the ends are what the send will do (${r.ends}, ${r.old})`);
+    // Cut 118 (owner amendment §1): the scout's wall order is retired — no hold line, and the ends are the panel's whatever a stale `hold` says
+    check(r.holdGone && r.ends === 0.4 && r.old === 0.4, `the retired wall order prints nothing; the ends are the panel's (${r.holdGone} · ${r.ends}, ${r.old})`);
     check(r.reasons.join() === "no income,income spent,purse short," && /Supplies limited · \$0 budget · no income$/.test(r.lim), `the $0 budget says why (${r.lim} · ${r.reasons})`);
     check(r.limReason === "no_income" && r.worker === " · purse short" && /Purse could not pay/.test(r.workerTip ?? ""), `the apprentice's line says why, its gloss on hover (${r.worker} · ${r.workerTip})`);
     await page.close();

@@ -54,6 +54,7 @@ import { kwHost } from "./tips";
 import { returnPick } from "./return-pick";   // Cut 113 §3: the return's pick waits on the camp
 import { checkinBatch } from "./checkin";   // Cut 117 §5: the routine buys of a return in one chip
 import { controlLadder } from "./ladder";   // Cut 118 §7: the automation earned, one rail
+import { campFeats, featOrderBits, heirOrderShown, HEIR_ORDERS, HEIR_WORD, SINK_ORDERS, SINK_WORD, sinkHandChip } from "./feats";   // Cut 118: seek · trial · wish; the heir and sink orders
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -131,9 +132,7 @@ const KEEP_ORDERS = ["best_weapon", "best_armour", "none"];
 /** blind 1fb7786 (core `FORGE_ORDERS`): the apprentice's forge order — half of each haul home, the spare purse, nothing. */
 const FORGE_ORDERS = ["half", "all", "off"];
 const FORGE_WORD: Record<string, string> = { half: "half haul", all: "all spare", off: "off" };
-/** Cut 114 §3 (core `WALL_ORDERS`): the scout's order at a wall that killed the last heirs — bank before it (default), carry the haul, push on. */
-const WALL_ORDERS = ["bank", "carry", "push"];
-const WALL_WORD: Record<string, string> = { bank: "bank before", carry: "carry home", push: "push on" };
+// (Cut 114 §3's scout order at a wall — bank · carry · push — is retired by Cut 118's owner amendment: every send pushes; no row for it)
 /* copy:label */
 const KEEP_WORD: Record<string, string> = { best_weapon: "weapon", best_armour: "armour", none: "none" };
 const SEEN_MS = 1800;   // Cut 29 §2: a new system's glint plays before the core clears its `new`
@@ -252,7 +251,8 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
   const pick = returnPick(app, "camp");
   const batch = checkinBatch(app);
   const ladder = controlLadder(app);
-  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, batch.el, ladder.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
+  const feats = campFeats(app);
+  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, batch.el, ladder.el, feats.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
@@ -638,6 +638,7 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
       o.repeat ? "" : /* copy:callout */ "restock off",
       o.insure ? "" : /* copy:callout */ "insurance off",
       apprenticeOn() && o.forge && o.forge !== "half" ? /* copy:callout */ `forge ${o.forge}` : "",
+      ...featOrderBits(o),
     ].filter(Boolean);
     replace(ordersTab, h("span", { class: "rn num" }, icon("ledger", "☰")), h("span", { class: "rtext" }, h("b", { class: "orders-head" }, /* copy:label */ "run setup"), " ", h("span", { class: "orders-sum dim num" }, bits.join(" · "))));
   }
@@ -663,8 +664,11 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
           row(/* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
           // blind 1fb7786 (A, B: "the apprentice spent my gold without asking"): what he may forge with — half of each haul (default), all, off
           apprenticeOn() && o.forge ? row(/* copy:label */ "apprentice forges", ...FORGE_ORDERS.map((f) => pick(o.forge, f, FORGE_WORD[f], act({ forge: f }, /* copy:callout */ "forge")))) : null,
-          // Cut 114 §3 (blind 77030eb, A: "the 8h absence came back with four dead heirs"): what the scout's sends do at a wall
-          o.wall ? row(/* copy:label */ "at walls", ...WALL_ORDERS.map((w) => pick(o.wall, w, WALL_WORD[w], act({ wall: w }, /* copy:callout */ "wall")))) : null,
+          // Cut 118 (owner amendment 2): which offered heir succeeds — set once, nobody prompted (`answer the killer` the default)
+          heirOrderShown(app.lineage) ? row(/* copy:label */ "next heir", ...HEIR_ORDERS.map((x) => pick(o.heir, x, HEIR_WORD[x], act({ heir: x }, /* copy:callout */ "heirs")))) : null,
+          // Cut 118 §4: the apprentice's sinks after Kit complete (a ration a send, the tithe on the hour), and one sink by hand
+          apprenticeOn() && o.sink && (app.lineage.feats?.sinks.length ?? 0) > 0 ? row(/* copy:label */ "apprentice sinks", ...SINK_ORDERS.map((x) => pick(o.sink, x, SINK_WORD[x], act({ sink: x }, /* copy:callout */ "sinks")))) : null,
+          o.sink ? (() => { const c = sinkHandChip(app, () => { if (body.isConnected) { replace(rows, ...build()); paintOrders(); } }); return c ? row(/* copy:label */ "by hand", c) : null; })() : null,
         ].filter((x): x is HTMLElement => !!x); };
         const rows = h("div", { class: "order-rows" }, ...build());
         body.appendChild(rows);
@@ -981,5 +985,5 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
   const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
   const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
   const offLive = app.onLive(() => { paintRest(); if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
-  return { el, dispose: () => { pick.dispose(); batch.dispose(); ladder.dispose(); window.removeEventListener("riddle:focus-hero",focusHome); offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  return { el, dispose: () => { pick.dispose(); batch.dispose(); ladder.dispose(); feats.dispose(); window.removeEventListener("riddle:focus-hero",focusHome); offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

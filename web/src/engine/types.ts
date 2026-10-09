@@ -559,6 +559,7 @@ export type Lineage = { bloodline?: BloodlineLegacy;
   feats?: FeatsWire;                     // Cut 118 (core): boss tokens, trials, the find log, swift floors, the sinks, the hero's wish
   king_eta_h?: number;                   // Cut 118 §8 (core): hours until the King may fall at the current pace (0: slain; absent: no pace yet)
   king_pct?: number;                     // Cut 118 §8 (core): the record's share of the way to the King (percent)
+  heir_traits?: HeirTraits;              // Cut 30 §3 (core): the heir's trait slots and the wake's three cards (owner amendment 2: the heir order picks one; `setTrait(chip)` swaps)
   guns?:{kind:string;selected:boolean;owned:boolean;price:number;available:boolean;blocked:string|null;
     capacity:number;range:number;damage:[number,number];armour_piercing:number;reload_ticks:number}[];
                         selected_loadout?: number[];
@@ -903,6 +904,9 @@ export type FeatsWire = { tokens: BossToken[]; seek?: string; trials: TrialWire[
   swift_to: number; sinks: Sink[]; sink_order: string; wish?: WishWire; feats: number;
   siege: SiegeWire[]; graves: GraveWire[]; graveyard: Stone[]; worn: Record<string, string[]>;   // owner amendment: the siege per band boss, graves on their floors, the graveyard's stones, the heirs who wore down each fallen boss
   heir_order: "answer" | "strongest" | "surprise" | string; titles: string[]; deed_legacy: number };   // owner amendment 2: the heir order, the line's titles (`Queensbane`), the Legacy deeds paid
+/** Cut 30 §3 (core `traits::TraitCard`): a trait card — `chip` (`wrathful · frail`), `source` fresh · twist · marked · answer (a card), blood · born (worn). */
+export type TraitCard = { chip: string; head: string; formula: string; when: string; gift: string; cost?: string; tier: string; source: string; learned: boolean };
+export type HeirTraits = { blood?: TraitCard; born?: TraitCard; offer?: TraitCard[]; blood_open: boolean; bloodline_open: boolean; bloodline?: string; faded?: string; kin?: string };
 export type SiegeWire = { boss: string; title: string; depth: number; tries: number; best_pct: number; edge_pct: number; heirs: string[] };
 export type GraveWire = { depth: number; heir: number; name: string; gold: number; day: number };
 export type Stone = { heir: number; name: string; depth: number; cause: string; epitaph: string; day: number; run: number; boss?: string; try_n?: number; edge_pct?: number; grave_gold?: number; legacy?: number };

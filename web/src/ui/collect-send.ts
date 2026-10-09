@@ -8,12 +8,11 @@ import type { App } from "../app";
 import { h, replace, toast, twoTap } from "./dom";
 import { routineItems, takeRoutine } from "./checkin";
 import { defaultOffer } from "./return-pick";
+import { featOrderBits } from "./feats";
 import { audio } from "../audio";
 
 /* copy:callout */
 const KEEP: Record<string, string> = { best_weapon: "keep weapon", best_armour: "keep armour", none: "keep none" };
-/* copy:callout */
-const WALL: Record<string, string> = { bank: "bank at walls", carry: "carry at walls", push: "push walls" };
 
 /** The standing orders as the fold reads them (≤ 3 words each). */
 export function ordersLine(o: NonNullable<App["lineage"]["orders"]>): string[] {
@@ -21,7 +20,8 @@ export function ordersLine(o: NonNullable<App["lineage"]["orders"]>): string[] {
     o.repeat ? /* copy:callout */ "restock on" : /* copy:callout */ "restock off",
     o.insure ? /* copy:callout */ "insure on" : /* copy:callout */ "insure off",
     o.start > 1 ? /* copy:callout */ `start D${o.start}` : "",
-    o.wall ? WALL[o.wall] ?? "" : ""].filter(Boolean);
+    // Cut 118: the heir and sink orders off their defaults (the scout's retired wall order is never named)
+    ...featOrderBits(o)].filter(Boolean);
 }
 
 /** Can the camp send (or watch) now — the gem's own gates. */
@@ -42,7 +42,7 @@ export function collectSend(app: App): { el: HTMLElement; dispose: () => void } 
       const chest = app.lineage.tree?.chest ?? 0;
       if (chest > 0 && app.engine.openChest) await app.mutate(() => app.engine.openChest!());
       // round 2 §6: a pick left untapped goes to its default (the tile marked `default`)
-      const d = app.engine.takeReturnPick ? defaultOffer(app.lineage.return_pick?.offers) : undefined;
+      const d = app.engine.takeReturnPick ? defaultOffer(app.lineage.return_pick?.offers, app.lineage.return_pick?.default) : undefined;
       if (d) await app.mutate(() => app.engine.takeReturnPick!(d.id), /* copy:callout */ "Picked");
       const n = await takeRoutine(app);
       if (n || chest > 0) audio.cue("unlock");
@@ -59,7 +59,7 @@ export function collectSend(app: App): { el: HTMLElement; dispose: () => void } 
     const items = routineItems(L).filter((x) => (x.kind === "kit" ? !!app.engine.buyKit : !!app.engine.hire));
     const chest = app.engine.openChest ? L.tree?.chest ?? 0 : 0;
     const live = !!L.live && L.live.turn > 0;
-    const pick = app.engine.takeReturnPick ? defaultOffer(L.return_pick?.offers) : undefined;
+    const pick = app.engine.takeReturnPick ? defaultOffer(L.return_pick?.offers, L.return_pick?.default) : undefined;
     const total = items.reduce((s, x) => s + x.price, 0);
     const key = JSON.stringify([show, items, chest, live, total, L.orders, pick?.id]);
     if (key === last) return;
