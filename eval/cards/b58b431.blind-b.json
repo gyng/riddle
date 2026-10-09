@@ -1,0 +1,189 @@
+{
+ "$comment": "Raw blind card, rater blind-b, frozen contract briefs/b.txt. Immutable once written.",
+ "game": "Riddle",
+ "build": "b58b431",
+ "genre": "idle-hybrid",
+ "presets": "../riddle/eval/presets.json",
+ "profile": null,
+ "tier": 1,
+ "evaluator": "blind-b (agent rater, Claude Opus, headed GPU D3D12 RTX 3080, 400x800 @3x, seed 263)",
+ "horizon": {
+  "activeMinutes": 70.6,
+  "activeIntervalsUTC": [
+   {
+    "phase": "cold",
+    "start": "2026-10-09T09:10:28Z",
+    "end": "2026-10-09T09:51:51Z",
+    "credited": 40.4,
+    "exclusions": "1.0 min: a 60 s watch op while hand control awaited an order (game paused, nothing observed)"
+   },
+   {
+    "phase": "absent=20m return",
+    "start": "2026-10-09T09:52:05Z",
+    "end": "2026-10-09T09:55:47Z",
+    "credited": 3.7,
+    "exclusions": "none; SHORTFALL 1.3 min vs the 5 min contract (rater navigated to the next absence early)"
+   },
+   {
+    "phase": "absent=4h return",
+    "start": "2026-10-09T09:55:53Z",
+    "end": "2026-10-09T10:02:00Z",
+    "credited": 6.1,
+    "exclusions": "none; includes ~60 s on an inert 'watch kill' that later read 'not held'"
+   },
+   {
+    "phase": "absent=8h return",
+    "start": "2026-10-09T10:02:11Z",
+    "end": "2026-10-09T10:22:33Z",
+    "credited": 20.4,
+    "exclusions": "none"
+   }
+  ],
+  "absences": [
+   "20m (simulated, ?absent=20m)",
+   "4h (simulated, ?absent=4h)",
+   "8h (simulated, ?absent=8h)"
+  ],
+  "runsWatched": 14,
+  "runsWatchedNormalSpeed": "at least 8 runs had several minutes at Normal (1x with auto 4x through quiet stretches)",
+  "runsOffline": 10,
+  "deathsRead": 4,
+  "ruleEditsAttempted": 8,
+  "ruleEdits": 7,
+  "editsDetail": "1 new row hp<40% depth>=20 -> bank (tuned from 50/20/30); 2 on see captive -> free captive; 3 dropped captive row after return; 4 applied death fix foe: boss -> read silence; 5 applied death fix telegraph drink heal moved above; 6 added depth>=25 to the silence row; 7 bank row hp<25% depth>=24; attempted: 'retreat' fix shown as risky, not applied",
+  "notes": "Phase-1 return short by 1.3 min (honest). Rule pen available from ~23 min (after first D23 run); no lock encountered for rows (rule slot 2..3/4 used)."
+ },
+ "killCriteria": {
+  "crashOrDataLoss": false,
+  "feltInputLatencyInCoreAct": false,
+  "firstSessionWithoutCoreAct": false,
+  "darkPatternInLoop": false,
+  "defaultRulesBeatEveryEdit": false,
+  "unfairDeathShareAbove10pct": false,
+  "returnWithNothingToDecide": false
+ },
+ "criterion": {
+  "fun_1to7": 5,
+  "playAgainTomorrow_1to7": 5,
+  "recommend_0to10": 6,
+  "checkInTomorrowUnprompted_1to7": 5,
+  "delayedRecall": ""
+ },
+ "sameDayRetelling": "My eighth heir, Elian Ash, went down carrying a silence scroll I had told him to save for deep bosses, and at D28 he read it on the Lurker Queen and walked past her. At D33 the Mirror King traded blows with him while my telegraph rule poured heal potions down him, and the first time my bank rule dragged him home at 31% hp. I lowered the bank threshold to 25%, sent him again, and he came back with 'MIRROR KING DOWN' and a new best of D34.",
+ "blindnessViolations": "none known. Read tools/drive.sh and the usage header of tools/driver.mjs (infrastructure) only; no game source, plans, cards or QA notes.",
+ "audio": "unassessed (agent cannot listen; audio muted by harness)",
+ "axes": [
+  {
+   "id": "clarity",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "time-to-first-rule-edit; misread rate on the trace",
+   "note": "Traces are excellent ('bank at 40% · no way ← foes on every side'), but chrome jargon kept me guessing: 'default 16% · chores 84%', a statue shown as '−$1130 · forge', 'watch kill' that first did nothing then read 'not held', two-step buttons ('ok ◆2') with no hint."
+  },
+  {
+   "id": "decisions",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "rule decision gap; dominated-rule rate",
+   "note": "The forecast made thresholds real trade-offs: bank at hp<50% 'death 0% · avg $628/run' vs 40% 'death 75% · avg $6105/run'; the retreat fix 'survives 12/12' yet 'reach D34 11→0% · death 30→59%'. Lapse: forge/legacy purchases are a strictly ordered buy-everything ladder."
+  },
+  {
+   "id": "mastery",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "depth-per-run vs sessions; rules-per-death trend",
+   "note": "Learned boss counters across the hour (strength for the warlord, mirror read for the foundry master, depth-gated silence after it was wasted on the D8 warlord 'silence scroll · silent'). Lapse: the 'TRY'/fixes list hands over most answers, so discovery is mostly reading."
+  },
+  {
+   "id": "tension",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "bloody-clear share; bank-or-push margin",
+   "note": "Watched the D33 king at Normal: 'DRINK HEAL', '−10 hp · king', my own 'HP 31% → bank' at 18/57 hp; deaths cost carry ('kept $0 · $2533 lost'). But most outcomes resolved offline with nothing I carried at stake beyond the run."
+  },
+  {
+   "id": "feel",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "frame time; events per minute at 1x",
+   "note": "Smooth on GPU; boss callouts 'WARLORD BREAKS', 'GOBLIN WARLORD DOWN' land. Normal speed had a ~90 s D13 stretch toggling '1×/4×' with almost no events, and hand control against the warlord was 40 identical 'attack' taps ending 'driven $80'. Audio unassessed."
+  },
+  {
+   "id": "surprise",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "death-cause entropy; distinct situations per run",
+   "note": "Captive cut down ('No one weeps'), starving max-hp loss, thieves 'STOLEN $3', queen paralysis swarm, king mirrors melee — several changed my rows. But every run replays the same boss ladder D8/D13/D18/D23/D28/D33 in the same order."
+  },
+  {
+   "id": "expression",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "rule-set diversity across clears",
+   "note": "My rows are recognisable ('foe: boss · depth ≥ 25 → read silence', bank rows) atop a 'Guarded reader' package, but the report says 'picked 29% · taught 3% · chores 69%' — most of the behaviour is the package's."
+  },
+  {
+   "id": "story",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "chronicle carries setup + turn + end",
+   "note": "'Found heir 5's bones: 7 items' then the next heir downed the Mirror King; eight heirs in one hour make a lineage. The reel is terse and most runs are 'D23 · collected'."
+  },
+  {
+   "id": "pacing",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "run length; check-in length; dead time at 1x",
+   "note": "Check-ins bounded 4–20 min ending on a send; 4h and 8h absences distinct (3 and 6 runs). Lapses: 20-minute absence returned only '1 RUNS · D23'; Normal-speed dead stretches; admin has many two-step confirms and sheets."
+  },
+  {
+   "id": "failure",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "share of deaths with a matched-rule trace",
+   "note": "Each death names cause, hp and rule chain, then offers 'fixes · 12 replays of D28 … survives 9/12 · was 0/12' with per-run cost. Lapse: first death stamped 'LUCK' when the trace showed a 17–19-foe swarm the rows could address."
+  },
+  {
+   "id": "social",
+   "human": 0.0,
+   "bot": "na",
+   "proxy": "n/a",
+   "note": "Heirs inherit names ('Wren Ash', 'Elian Ash') but no relationship develops; weight 0."
+  },
+  {
+   "id": "autonomy",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "route/goal freedom in rules",
+   "note": "I chose hand control, chose the captive experiment, chose which fix to apply; route is fixed ('route D5 burrows') and goals are the single 'Goal D34 · New record'."
+  },
+  {
+   "id": "progression",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "unlock cadence; vocabulary growth",
+   "note": "All three layers seen: depth D5→D34; persistent Legacy ranks, forge 'sword +6', 12 tactics, unlocks; automation porter→scout ('SEND auto')→apprentice ('forge −$8550')→drillmaster. Lapse: upgrades are a flat buy-all ladder with little choice."
+  },
+  {
+   "id": "aesthetic",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "none",
+   "note": "Pixel town at night, torn red 'YOU DIED' banner with candle and broken sword, warlord portrait banners. Lapse: fens floors so dark the hero nearly vanished. Audio unassessed."
+  },
+  {
+   "id": "return",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "offline yield vs active; decisions pending on return",
+   "note": "8h return: '6 RUNS · 3 died · lost $10368 · Boss defeated Mirror King · Pick one', two deaths with fixes, a new tactic, legacy to spend — I acted within seconds. Lapse: the 20-minute return was thin (one run, one pick)."
+  },
+  {
+   "id": "attribution",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "share of deaths attributable to a rule the player wrote",
+   "note": "My rows fire by name in the log: 'D28 · boss → read silence' then 'LURKER QUEEN DOWN'; 'HP 31% → bank' pulled him from the king; 'freed captive'. Lapse: most decisive turns are package rows ('chores 69%'), not mine."
+  }
+ ]
+}
