@@ -1,0 +1,48 @@
+{
+  "candidate": "8cf9050",
+  "applicationCommits": [
+    "8cf9050"
+  ],
+  "status": "accepted for blind cohort 2026-10-09",
+  "frozen": {
+    "dir": "scratchpad/blind-8cf9050-frozen/dist",
+    "url": "http://127.0.0.1:5261/",
+    "files": 252,
+    "manifestSha256": "c2c911b0cef41eb096e6a2a12c4a8678f745cb453fb909b3e906913cf17f436e",
+    "servedHashes": "252/252",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "740 passed",
+    "clippy": "clean (workspace, all targets)",
+    "gates": "routine full on the combined Cut 116 tree: ALL PASS (descent agent)",
+    "deviations": [
+      "affixes rarely change the best answer (1/20)",
+      "D9/D14 forks miss Cut 26's 15-point cross-lane bar (5\u201311)"
+    ]
+  },
+  "browser": {
+    "full": "147/147 (/tmp/riddle-c116b-client.log)"
+  },
+  "machineLoad": {
+    "atRelease": "16.94 20.92 25.07",
+    "source": "another project's simulations (armee)"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-8cf9050-frozen/briefs/a.txt",
+      "scratchpad/blind-8cf9050-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      269,
+      271
+    ],
+    "drivers": [
+      5372,
+      5373
+    ],
+    "toolBudget": 260
+  },
+  "score": "pending"
+}
