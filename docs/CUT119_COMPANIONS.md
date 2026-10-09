@@ -44,3 +44,53 @@ any change; the same table after.
 
 The blind cohort brief adds one free-text prompt: "the companions: what did they do, and did you care?" Scored by
 mentions (pets named among highlights or gripes) across cohorts; not a gate.
+
+## Research amendments (research/PETS_2026-10.md)
+
+- §1 carry home:
+  - **invariant:** a death with a pet never pays better than a return (the fetched share plus the heir purse floor
+    stays below the 60 % return share);
+  - the grudge is capped and cleared when that boss falls;
+  - one reel line names the pet (`Rook brought Ada's pack`).
+  - **A pet goes down, not gone:** a pet killed is lamed for N runs with its level kept; permanent loss is rare,
+    with a named cause.
+  - The old hound's chronicle line names the heirs it served.
+- §2 roles:
+  - the fetcher's late job is `bring back` (death insurance);
+  - strays arrive with a balanced mix of roles;
+  - `revive once` is once per run and never in a boss fight.
+- §3 levels:
+  - L3 and L5 are announced once;
+  - bench pets earn 25 % XP;
+  - the signature by about day 9.
+- §4 breeding:
+  - eggs accumulate while away, up to a capacity (Idleon);
+  - the generation is in the name (`Rook III`);
+  - one report line;
+  - surplus is released automatically;
+  - `keep the best` scores pets by the forecast wall.
+- §5 synergies:
+  - formed from the role and the build alone (no level gates);
+  - named once;
+  - drop any pair forming on < 25 % of PICKED seeds.
+
+**Eval table revisions:**
+- pet value: points of the camp score (past/bank/death as in builds.rs), outside the seed spread;
+- role spread:
+  - "best" needs a margin of ≥ 1 seed SD;
+  - pick-rate cap: no role > 50 % of PICKED party slots, no kind > 35 %;
+- damage share applies to guards only; every role ≥ 3 traced acts per run;
+- recovery: median ≤ 1 day; every pet death names a cause;
+- level curve: the longest-serving pet;
+- carry: death-with-pet < return;
+- no manual breed needed for pedigree.
+
+New rows:
+- tenure (median heirs served; an old hound on ≥ 50 % of seeds by day 14);
+- ≥ 1 report or reel line naming a pet per return;
+- synergy formation rate;
+- bred vs wild in use;
+- IDLE's gain from pets;
+- pets cause no dice death.
+
+**Cohort brief:** ask for an unprompted highlight first, then the pet prompt, plus name recall ("what was your pet called?").
