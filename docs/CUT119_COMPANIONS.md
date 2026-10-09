@@ -94,3 +94,21 @@ New rows:
 - pets cause no dice death.
 
 **Cohort brief:** ask for an unprompted highlight first, then the pet prompt, plus name recall ("what was your pet called?").
+
+## What the baseline changed (probe `examples/pets_eval.rs`, worktree commit 549a833)
+
+- **IDLE and PICKED never own a pet:** 0 tames in 17 533 live runs; no package carries a `tame` row; only the pen
+  writes one. Hence a new item 0:
+
+  **0. Pets come to everyone.** With a leash held and a party slot open, a default `tame` row (below the guard rows,
+  above `explore`) tames a stray or a weakened tameable foe. The kennel's free leash makes the first pet arrive
+  on its own, early. It is announced once, as drills are (`tames strays`), and it can be revoked. Gate: a pet in the
+  party on ≥ 12/16 seeds by day 3, for IDLE and PICKED; the IDLE bars hold.
+- **One kind dominates:** the goblin archer is best at every wall (margin 0.05–0.87 SD), and a single archer is
+  worth +36 points at D13, above the +25 cap. Roles (§2) must rebalance; the ranged pet's damage is capped (the
+  Hades cap).
+- **TUNED's pets die on nearly every send (11.1 falls per 10 runs) and never level (L1 at day 14):** levels only come
+  on a bank exit. §3's XP from every run and "down, not gone" (lamed, level kept) are required, not optional.
+- **D1–D4 pickups take about 59 % of the early ticks** (≈ 997 of 1 700 per send from D1): the fetcher target
+  (≥ 25 % shorter) is meaningful.
+- **Probe cost:** 9 min fresh on a loaded box, 32 s with the fortnights cached.
