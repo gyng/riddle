@@ -13,9 +13,10 @@ try{for(const width of [400,1440]){
   const words=new Set();const t0=performance.now();
   const obs=new MutationObserver(()=>{for(const el of document.querySelectorAll('.watch .callout, .watch .ticker, .watch [class*=callout]')){const t=el.textContent.trim();if(t)words.add(t);}});
   obs.observe(document.body,{subtree:true,childList:true,characterData:true});
-  let keep=null;const poll=()=>{const loss=document.querySelector('.watch .hp-text .hp-max-loss');if(loss)keep={text:loss.textContent.trim(),title:loss.title,hp:loss.parentElement.textContent};
-   if((loss&&[...words].some(w=>/no light/.test(w)))||performance.now()-t0>45000){obs.disconnect();res({loss:keep?.text??null,title:keep?.title??null,hp:keep?.hp??document.querySelector('.watch .hp-text')?.textContent??'',screen:window.__riddle.screen,words:[...words]});return;}
+  let keep=null,over=null;const poll=()=>{const ht=document.querySelector('.watch .hp-text')?.textContent??'',m=/(\d+)\/(\d+) hp/.exec(ht);if(m&&+m[1]>+m[2])over=ht;const loss=document.querySelector('.watch .hp-text .hp-max-loss');if(loss)keep={text:loss.textContent.trim(),title:loss.title,hp:loss.parentElement.textContent};
+   if((loss&&[...words].some(w=>/no light/.test(w)))||performance.now()-t0>45000){obs.disconnect();res({over,loss:keep?.text??null,title:keep?.title??null,hp:keep?.hp??document.querySelector('.watch .hp-text')?.textContent??'',screen:window.__riddle.screen,words:[...words]});return;}
    requestAnimationFrame(poll);};poll();}));
+ check(!r.over,`${width}: blind 3ab97ea (A: \`47/44 hp\`): the hp never reads over its max as the max falls (${r.over})`);
  check(r.loss&&/^starving −\d+$/.test(r.loss),`${width}: HUD names what took the max (${r.loss} in "${r.hp}" · ${r.screen} · ${r.words.slice(0,12).join(' | ')})`);
  check(/max hp −\d+ · starving/.test(r.title??''),`${width}: the loss chip's tip (${r.title})`);
  check(r.words.some(w=>/starving · no light/.test(w)),`${width}: the bite's callout names its cause (${r.words.filter(w=>/starv|hunger/.test(w)).join(' | ')})`);

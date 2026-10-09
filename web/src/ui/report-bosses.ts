@@ -7,7 +7,7 @@ export const bossName = (kind: string): string => kind.replace(/_/g, " ").replac
 
 /** First victories are reported deltas, never today's slain walls or selection. */
 /** `watch`: blind 5331f40 — a boss slain while away offers his kill as a replay (`▶ watch kill`); null where no held run reached him. */
-export function reportBosses(r: Pick<ReturnReport, "bests" | "bloodlines">, lineage?: Lineage, watch?: (boss: string) => (() => void) | null): HTMLElement | null {
+export function reportBosses(r: Pick<ReturnReport, "bests" | "bloodlines">, lineage?: Lineage, watch?: (boss: string) => (() => Promise<boolean>) | null): HTMLElement | null {
   const groups = r.bloodlines?.some(s => s.bests !== undefined)
     ? [...r.bloodlines].sort((a, b) => a.id - b.id).map(s => ({ owner: s.id, name: s.name, bests: s.bests ?? [], knowledge: s.boss_knowledge }))
     : [{ owner: undefined, name: undefined, bests: r.bests, knowledge: undefined }];
@@ -28,7 +28,11 @@ export function reportBosses(r: Pick<ReturnReport, "bests" | "bloodlines">, line
       const go = v.owner === undefined || v.owner === (lineage?.selected_bloodline ?? 1) ? watch?.(v.boss) : null;
       if (!go) return host;
       // the kill's replay beside the row (its own tap: the row's tooltip stays the row's)
-      const btn = h("button", { class: "chip report-boss-watch game-control", "data-boss": v.boss, onclick: (e: Event) => { e.stopPropagation(); go(); } }, "▶ ", /* copy:button */ "watch kill");
+      // blind 3ab97ea (B: tapped twice, nothing): a kill no held run shows says so on the button, never an inert tap
+      const btn: HTMLButtonElement = h("button", { class: "chip report-boss-watch game-control", "data-boss": v.boss, onclick: (e: Event) => {
+        e.stopPropagation(); btn.disabled = true;
+        void go().then((ok) => { if (ok) btn.disabled = false; else { btn.dataset.missing = "1"; btn.textContent = /* copy:button */ "not held"; } });
+      } }, "▶ ", /* copy:button */ "watch kill") as HTMLButtonElement;
       return h("div", { class: "report-boss-line" }, host, btn);
     }));
 }

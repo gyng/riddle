@@ -4999,6 +4999,9 @@ fn boss_deaths_show_the_counter_row_first() {
         let d = g.death(id).unwrap();
         let rec = g.deaths.get(&id).unwrap();
         assert_eq!(rec.boss.as_deref(), Some("goblin_warlord"), "seed {seed}");
+        // blind 3ab97ea (A: the Mirror King's 10-second kill read `bad luck · 1 in 6`): a boss's death is never luck nor dice-leaning
+        assert_eq!(d.boss.as_deref(), Some("goblin_warlord"), "seed {seed}: the death names its boss");
+        assert!(d.luck.is_none() && d.lean.is_none(), "seed {seed}: a boss death read as luck (baseline {})", d.baseline);
         deaths += 1;
         assert!(!d.patches.is_empty(), "seed {seed}: no patch on a boss death");
         let counter = crate::facts::counter_row("goblin_warlord");
@@ -8963,8 +8966,9 @@ fn the_bounty_floor_moves_each_night_and_pays_double() {
 fn a_death_the_replays_all_survive_is_dice_and_its_patches_act_on_the_floor() {
     // (Cut 30 §2: the curious heir no longer drinks on its own, so seed 1615's repro moved — the first
     // first-heir death from 1615 on whose replays all survive is the case)
+    // (blind 3ab97ea: the corridor row's `row_held` guard moved it again, past 1700)
     let mut found = false;
-    for seed in 1615..1700u64 {
+    for seed in 1615..2000u64 {
         let mut g = Game::new_literal(seed);
         let set = RuleSet { name: None, rows: vec![Row::new(vec![Cond::n("hp<", 20)], Verb::new("back_corridor")), Row::new(vec![Cond::n("hp<", 40)], Verb::arg("drink", "heal")), Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "nearest"))], route: Vec::new() };
         g.set_rules(set).unwrap();
@@ -11306,6 +11310,9 @@ fn saves_from_307dbed_send_identically() {
     // drawn, and a still action with no foe in view resets the pacing guard's window (ai.rs/turn.rs alone, with
     // defs.rs and the silence hunk at HEAD: 6c79b06bb0685d55); then the Lurker Queen 100 hp (5–8) and silence loses
     // her called brood. With every b8dd77c hunk reverted the tree hashes to ea30535a6c429390.
+    // Blind 3ab97ea: e9c001509e3a6fc0 → ddd4c46c7dc03d58. A `back corridor` row whose fall-back reached its corridor
+    // and was left again with no blow struck since stands and fights (`Run.row_held`, ai.rs); with that guard alone
+    // disabled the tree hashes to e9c001509e3a6fc0 exactly.
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }
@@ -11951,4 +11958,24 @@ fn a_warlord_without_his_counter_drives_the_hero_off_in_bounded_actions() {
             assert_eq!(stuck, 0, "{stance} seed {seed}: the pacing guard set the Warlord's goblins aside");
         }
     }
+}
+
+/// Blind 3ab97ea (A: the 8h report's `Target the boss · reach D29 +38` at the Queen's stall, applied; the next heir met the
+/// Mirror King with it on top — `attack boss 100% · DEALT 0 dps`): a stall's attack-boss suggestion is every boss's row, so
+/// once a deeper boss that turns blows back is met it is scoped to the stall boss's biome, or not made.
+#[test]
+fn a_stalls_target_the_boss_never_walks_into_the_kings_mirror() {
+    let mut g = Game::new_literal(5);
+    let rules = g.lineage.rules().clone();
+    let any = |_: &str, _: Option<&str>| true;
+    let none_in = |k: &str, _: Option<&str>| k != "in";
+    // the King not met: the plain row
+    assert_eq!(crate::offline::boss_attack_conds(&g, &rules, 28, "lurker_queen", any), Some(vec![Cond::t("foe_tag", "boss")]));
+    g.lineage.facts.insert("foe:mirror_king".into());
+    let scoped = crate::offline::boss_attack_conds(&g, &rules, 28, "lurker_queen", any).expect("scoped");
+    assert_eq!(scoped, vec![Cond::t("foe_tag", "boss"), Cond::t("in", rules.route().biome(28).name())]);
+    assert_ne!(rules.route().biome(28), rules.route().biome(33), "the scope excludes the King's floor");
+    assert_eq!(crate::offline::boss_attack_conds(&g, &rules, 28, "lurker_queen", none_in), None, "no biome condition: no suggestion");
+    // the King's own floor: no deeper boss
+    assert_eq!(crate::offline::boss_attack_conds(&g, &rules, 33, "mirror_king", any), Some(vec![Cond::t("foe_tag", "boss")]));
 }

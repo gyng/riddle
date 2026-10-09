@@ -22,6 +22,12 @@ try{for(const width of [400,1440]){
   check(document.querySelector('.report-details').textContent.includes('Bloat Mother defeated'),'expanded bests use readable victory name');
   check(!rows()[0].dataset.bloodline,'legacy single report has no invented owner');
   check(document.querySelector('[data-k="gold"]').textContent.includes('$0'),'zero actual gold remains unchanged');
+  // blind 3ab97ea (A: a 20 min return `1 RUNS · D23 · $0 GOLD EARNED`, the heir's death and his carry unsaid): the tiles say both
+  check(document.querySelector('.report-basics .report-died')?.textContent==='12 died','the runs tile names its deaths');
+  check(!document.querySelector('.report-basics .report-lost'),'no carry lost, no loss line');
+  show({...win,runs:1,deaths:[{cause:'foundry_master',n:1}],gold:{home:0,salvage:0,wake:0,spent:0,lost:2157}});
+  check(document.querySelector('.report-basics .report-died')?.textContent==='1 died'&&document.querySelector('.report-basics .report-lost')?.textContent==='lost $2157','a lone death\'s carry reads under $0');
+  show(win);
   check(document.documentElement.scrollWidth<=innerWidth,'single victory fits viewport');
   const image=rows()[0].querySelector('img');await image.decode();check(image.naturalWidth>0&&image.getBoundingClientRect().width===44,'existing artwork decodes at44px');
   const multi={...win,bloodlines:[slot(2,'Thorn',['boss: bloat_mother']),slot(1,'Ash',['boss: goblin_warlord','boss: goblin_warlord'])]};show(multi);

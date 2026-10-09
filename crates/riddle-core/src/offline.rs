@@ -681,9 +681,12 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
         let known = crate::facts::boss_counter_known(facts, kind) || facts.contains(&format!("foe:{kind}"));
         if known && has_cond("foe_tag", Some("boss")) {
             let boss = Cond::t("foe_tag", "boss");
-            let attack = Row::new(vec![boss.clone()], Verb::arg("attack", "tag:boss"));
-            if has_verb(&attack.verb) && !present(&attack) {
-                cands.push(patch(attack, 0, false, false));
+            let conds = boss_attack_conds(game, rules, depth, kind, has_cond);
+            if let Some(conds) = conds {
+                let attack = Row::new(conds, Verb::arg("attack", "tag:boss"));
+                if has_verb(&attack.verb) && !present(&attack) {
+                    cands.push(patch(attack, 0, false, false));
+                }
             }
             if let Some(k) = vocab.verbs.iter().filter(|v| v.v == "throw").filter_map(|v| v.a.as_deref()).find(|a| *a != "unknown") {
                 let throw = Row::new(vec![boss], Verb::arg("throw", &format!("{k},tag:boss")));
@@ -730,6 +733,27 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     cands.sort_by(|a, b| b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap());
     cands.truncate(STALL_SHOWN);
     cands
+}
+
+/// Blind 3ab97ea (A: `Target the boss · reach D29 +38` at the Queen's stall, applied — then the Mirror King:
+/// `attack boss 100% · DEALT 0 dps`): a stall's `foe: boss → attack boss` is every boss's row. When a boss
+/// deeper on the route that the lineage has met turns blows back (the King's mirror, the Master's
+/// reflection), the suggestion is scoped to this boss's biome (`foe: boss · in: deep`); without that
+/// condition it is not made (None).
+pub(crate) fn boss_attack_conds(game: &Game, rules: &RuleSet, depth: u32, kind: &str, has_cond: impl Fn(&str, Option<&str>) -> bool) -> Option<Vec<Cond>> {
+    let facts = &game.lineage.facts;
+    let boss = Cond::t("foe_tag", "boss");
+    let biome = rules.route().biome(depth).name();
+    let turns_blows = |k: &str| crate::defs::MONSTERS.iter().find(|m| m.kind == k).is_some_and(|m| m.tags.iter().any(|t| matches!(*t, "mirror" | "reflect_melee")));
+    let met = |k: &str| crate::facts::boss_counter_known(facts, k) || facts.contains(&format!("foe:{k}"));
+    let deeper = crate::descent::BOSS_DEPTHS.iter().any(|&(k, d)| d > depth && k != kind && turns_blows(k) && met(k));
+    if !deeper {
+        Some(vec![boss])
+    } else if has_cond("in", Some(biome)) {
+        Some(vec![boss, Cond::t("in", biome)])
+    } else {
+        None
+    }
 }
 
 /// RUNS_UI: the open app's clock on the lineage — `elapsed_ms` of rest, then the next run, unwatched,

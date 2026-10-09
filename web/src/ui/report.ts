@@ -265,6 +265,11 @@ function newsBlock(r: ReturnReport, name?: (label: string) => string, counters: 
 const sameRowShape = (a: Row, b: Row): boolean => a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
   a.conds.every((c, i) => c.k === b.conds[i].k && (c.n ?? "") === (b.conds[i].n ?? "") && (c.t ?? "") === (b.conds[i].t ?? ""));
 
+/** blind 3ab97ea (A: `$0 GOLD EARNED` beside `1 RUNS`, the heir's death unsaid): the runs tile names its deaths (`1 died`). */
+function withDied(el: HTMLElement, deaths: number): HTMLElement {
+  if (deaths > 0) el.appendChild(h("small", { class: "num report-died down", "data-died": deaths }, /* copy:callout */ `${deaths} died`));
+  return el;
+}
 /** QA 912e135: `♟2–17` (one heir `♟5`) under the runs tile — the heirs who ran, the core's `ReturnReport.heirs`. */
 function withHeirs(el: HTMLElement, heirs: number[] | undefined): HTMLElement {
   if (heirs?.length === 2) el.appendChild(h("span", { class: "num heirs-ran dim" }, heirs[0] === heirs[1] ? /* copy:label */ `heir ${heirs[0]}` : /* copy:callout */ `by heirs ${heirs[0]}–${heirs[1]}`));
@@ -273,14 +278,14 @@ function withHeirs(el: HTMLElement, heirs: number[] | undefined): HTMLElement {
 
 /** blind 5331f40 (both Mirror King kills off-view): after an absence a boss slain while away offers `watch kill` — the absence's held runs
  *  that reached his floor (`Lineage.walls` gives it), replayed to his fall. Null for a boss no held run reached. */
-function killWatch(app: App): (boss: string) => (() => void) | null {
+function killWatch(app: App): (boss: string) => (() => Promise<boolean>) | null {
   const away = (app.lineage.runs ?? []).filter((x) => x.via === "away" && x.absence !== undefined);
   const absence = away.length ? Math.max(...away.map((x) => x.absence!)) : undefined;
   return (boss) => {
     if (!app.engine.replay || absence === undefined) return null;
     const depth = (app.lineage.walls ?? []).find((w) => w.boss === boss)?.depth;
     if (!killRuns(app.lineage, depth, absence).length) return null;
-    return () => { void watchKill(app, boss, depth, absence); };
+    return () => watchKill(app, boss, depth, absence);
   };
 }
 /** Cut 115 §1: the rule fires by who chose the row, as the report reads them — `picked 61% · taught 9% · chores 30%` (the core's
@@ -638,7 +643,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", onclick: () => openGoldSheet(app) },
     icon("gold"), h("b", { class: "num" }, `$${runGold + lootGold + passageGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned"),
     net !== undefined && net !== runGold + lootGold + passageGold ? h("small", { class: "report-net num" }, /* copy:callout */ `purse ${signed(net)}`) : "",
-    boughtGold > 0 ? h("small", { class: "report-bought num" }, /* copy:callout */ `forge −$${boughtGold}`) : ""), () => [
+    boughtGold > 0 ? h("small", { class: "report-bought num" }, /* copy:callout */ `forge −$${boughtGold}`) : "",
+    // blind 3ab97ea (A: a 20 min return read `1 RUNS · D23 · $0 GOLD EARNED` — "thin", the death and its carry nowhere on the tiles):
+    // what the deaths left on the floor reads under the gold (`lost $2157`)
+    deathsN > 0 && (r.gold?.lost ?? 0) > 0 ? h("small", { class: "report-lost num down" }, /* copy:callout */ `lost $${r.gold!.lost}`) : ""), () => [
       h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
       h("div", { class: "num" }, /* copy:label */ "Run gold", ` · $${runGold}`),
       h("div", { class: "num" }, /* copy:label */ "Loot sold", ` · $${lootGold}`),
@@ -654,7 +662,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended"),
     buildHead(L, r.deepest ?? L.best_depth, deathsN === 0, meterOf),
     h("div", { class: `tiles report-basics${absence ? " fade-in" : ""}` },
-      toLog(tile(String(r.runs), /* copy:label */ "runs")),
+      // (… and the runs tile says how many of them died: `1 died`)
+      withDied(toLog(tile(String(r.runs), /* copy:label */ "runs")), deathsN),
       tile(`D${r.deepest ?? L.best_depth}`, r.deepest !== undefined ? /* copy:label */ "deepest" : /* copy:label */ "record"),
       earnedGold));
   const repeatedDeath = [...r.deaths].sort((a, b) => b.n - a.n).find(d => d.n >= 2);

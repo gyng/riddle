@@ -155,7 +155,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 26 §6 (AO: `GAP` beside `unpatched 10/12` — "my fault or luck?"): the stamp and its counts agree — a gap, row or order most of
   // whose unpatched replays survive (the core's `lean`, else > half the replays) carries `dice-leaning` beside the stamp; the stamp stays
   const leanCounts = (d.verdict === "gap" || d.verdict === "row" || d.verdict === "order") && (d.replays ? Math.round((d.baseline ?? 0) * d.replays) * 2 > d.replays : (d.baseline ?? 0) > 0.5);
-  const lean = !prePen && !drove && (d.lean === "dice" || leanCounts);
+  // blind 3ab97ea (A: 48→0 in 10 s to the Mirror King, `bad luck · 1 in 6`): a death under a boss (`Death.boss`) is his wall — never luck
+  const lean = !prePen && !drove && !d.boss && (d.lean === "dice" || leanCounts);
   const word = d.verdict;
   // docs/COPY.md §2: the stamp blames the right thing in a plain word — `dice` is luck, `row` the player's own rule
   // passes 2–3: `gap` alone read "no idea" 4/4; `unanswered` did not fit the seal and `unmet` read "a goal not met" 6/6 — the seal keeps
@@ -166,7 +167,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // Cut 28 §2 (AU: `8/12 live unpatched` deaths "felt like the dungeon's decision"; AV: `10/12 live unpatched` under GAP read as blame): a
   // death most of whose replays live — or a `dice` — leads with the event that killed him and its odds (`goblin −6 at 6 hp · 1 in 6`), over
   // the stamp, which steps back (the patches still answer it)
-  const luck = !prePen && !drove && d.verdict !== "stall" && d.verdict !== "route" && (lean || word === "dice") ? luckOf(d) : null;
+  const luck = !prePen && !drove && !d.boss && d.verdict !== "stall" && d.verdict !== "route" && (lean || word === "dice") ? luckOf(d) : null;
   const luckLead = luck ? h("div", { class: "luck-lead num" }, h("span", { class: "luck-event" }, luck.event), h("span", { class: "luck-odds" }, /* copy:callout */ ` · 1 in ${luck.oneIn}`)) : null;
   const explainOutcome = (): void => {
     const term = VERDICT_TERM[word];

@@ -1897,6 +1897,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, mut dmg: i32, src:
     // pacing (runs to the 120 000-tick cap, 3 000 blades killed).
     if matches!(src, Src::Hero { .. }) && dmg > 0 && !run.monsters[mi].summoned {
         run.last_damage_action = run.actions;
+        run.last_blow_action = run.actions;
         run.stuck_until = 0;
         run.row_suppressed = (-9, 0);
     }
@@ -2556,6 +2557,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.freeing = None;
     run.card_fell = None;
     run.row_fell = None;
+    run.row_held = None;
     run.trait_floor = 0;
     run.items_until = 0;
     run.pickup_streak = 0;

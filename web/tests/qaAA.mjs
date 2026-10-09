@@ -76,8 +76,8 @@ try {
     const after = await tablets();
     const lead = after[0], last = after[after.length - 1];
     check(/rest/.test(lead?.row ?? "") && lead.top && lead.rank === "1.", `the landing: the harming tablet leaves the lead; the first that does not harm is lit (${after.map((t) => `${t.rank} ${t.row}${t.top ? "*" : ""}`).join(" | ")})`);
-    check(/drink/.test(last?.row ?? "") && last.harms && /^death \+12 ±5 · risk fire$/.test(last.whole), `the harming tablet goes last, reading its whole-run move ("${last?.whole}")`);
-    check(/^death −8 ±5$/.test(lead.whole), `a tablet reads its death move beside the count ("${lead.whole}")`);
+    check(/drink/.test(last?.row ?? "") && last.harms && /^per run · death \+12 ±5 · risk fire$/.test(last.whole), `the harming tablet goes last, reading its whole-run move ("${last?.whole}")`);
+    check(/^per run · death −8 ±5$/.test(lead.whole), `a tablet reads its death move beside the count ("${lead.whole}")`);
   }
 
   // ---- every patch harms: the gem reads `Town` and returns without applying a patch

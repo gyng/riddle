@@ -44,6 +44,26 @@ try{
    check(document.querySelector('.pkg-estimate')?.textContent==='8 paired runs','summary names what was compared');
    check(/better 7 · worse 0 of 8/.test(document.querySelector(`.pkg.alt[data-pkg="${ids[2]}"] .pkg-price`).title),'price tooltip carries the split');
    check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow');
+   check(!document.querySelector('.pkg-more'),'a called compare offers no second look');
+   // blind 3ab97ea (B: every option `close`, three compares): inside the noise the wall whose sends split most is named, and the compare
+   // offers its runs tripled — the second look asks the engine for MORE_SIMS paired sends
+   const {wallLine,MORE_SIMS}=await import('/src/ui/packages.ts');
+   check(wallLine({walls:[{depth:23,boss:'Master',n:8,better:1,worse:0},{depth:28,boss:'Queen',n:8,better:2,worse:2}]})==='turns on D28 Queen','noise names the wall that would separate them');
+   check(wallLine({walls:[{depth:28,boss:'Queen',n:8,better:0,worse:0}]})==='','no split, no wall');
+   closeAllSheets();
+   const asked=[];const noisy=[[1,1],[2,1],[1,2]];
+   app.engine={packageOptions:async(n)=>{asked.push(n);return ids.map((id,i)=>({...base,id,n,better:n>8&&i===2?18:noisy[i][0],worse:noisy[i][1],walls:[{depth:28,boss:'Queen',n,better:noisy[i][0],worse:noisy[i][1]}]}));},equipPackage:async()=>app.lineage};
+   openPackages(app);document.querySelector('.pkg-compare').click();
+   if(document.querySelector('[data-change-kind="stance"]')?.getAttribute('aria-expanded')==='false')document.querySelector('[data-change-kind="stance"]').click();
+   await tick();await tick();
+   check(document.querySelector('.pkg-estimate')?.textContent==='noise · 8 runs','the noisy compare says so');
+   check(/turns on D28 Queen/.test(document.querySelector(`.pkg.alt[data-pkg="${ids[0]}"] .pkg-walls`)?.textContent??''),'each close option names its deciding wall');
+   const more=document.querySelector('.pkg-more');
+   check(more&&more.textContent===`${MORE_SIMS} runs`,`a second look offered (${more?.textContent})`);
+   more?.click();await tick();await tick();
+   check(asked.at(-1)===MORE_SIMS,`the second look asks ${MORE_SIMS} runs (${asked.join(',')})`);
+   check(document.querySelector('.pkg-estimate')?.textContent===`${MORE_SIMS} paired runs`&&priceText(ids[2])===`better 18/${MORE_SIMS}`,'and calls what it can');
+   check(!document.querySelector('.pkg-more'),'no third look');
    closeAllSheets();return checks;
   });
   total+=checks;console.log(`package-paired ${width}: ${checks} checks PASS`);await page.close();

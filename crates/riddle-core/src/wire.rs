@@ -1261,6 +1261,11 @@ pub struct Death {
     /// survive (`baseline` over `trace::STAMP_BASE`), the rare event that killed him and its odds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub luck: Option<DeathLuck>,
+    /// Blind 3ab97ea (A: 48→0 in 10 s to the Mirror King's mirrored blows read `bad luck · 1 in 6`): the
+    /// boss this death was fought under. A boss's fall is his wall — never luck, nor dice-leaning: his
+    /// counter, his floor's fixes answer it, however many reseeded replays live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boss: Option<String>,
     /// Cut 29 §3: the fight he died in, metered (`meters::MeterWire`: dps dealt and taken by side,
     /// hps by source, hits taken, the rows that fired); absent for a stall or a sim.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -50,7 +50,8 @@ pub fn set_capsules(on: bool) {
 }
 
 /// RUNS_UI: a player's input inside a live run, replayed at its tick (`Game::replay`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "k", content = "v", rename_all = "snake_case")]
 pub enum Input {
     Choose(u32),
     Bail,
@@ -71,19 +72,44 @@ pub enum Manual {
 }
 /// RUNS_UI: a real run's send, kept to re-simulate it — the game as `start_run` left it, the events
 /// it left pending, and the inputs the run took.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Capsule {
     pub id: u32,
     pub game: Box<Game>,
     pub pre: Vec<Ev>,
     pub inputs: Vec<(u32, Input)>,
 }
-/// The capsules (newest last). Never saved and never compared: a loaded game equals the one saved.
+/// The capsules (newest last), and whether the newest is the run in flight's. Never compared: a
+/// loaded game equals the one saved. Memory only, except the run in flight's capsule (blind 3ab97ea,
+/// B: `▶ watch kill` inert — the Mirror King fell in the run under way when the app closed; the reload
+/// lost its capsule, so the absence's report offered a kill no held run could show): the save carries
+/// that one, and a load holds it again.
 #[derive(Clone, Debug, Default)]
-pub struct Capsules(pub VecDeque<Capsule>);
+pub struct Capsules(pub VecDeque<Capsule>, pub bool);
 impl PartialEq for Capsules {
     fn eq(&self, _: &Self) -> bool {
         true
+    }
+}
+impl Capsules {
+    /// The run in flight's capsule (the newest, while its run is under way).
+    pub fn live(&self) -> Option<&Capsule> {
+        self.0.back().filter(|_| self.1)
+    }
+    pub fn no_live(&self) -> bool {
+        self.live().is_none()
+    }
+}
+impl Serialize for Capsules {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.live().serialize(s)
+    }
+}
+impl<'de> Deserialize<'de> for Capsules {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let c: Option<Capsule> = Option::deserialize(d)?;
+        let live = c.is_some();
+        Ok(Capsules(c.into_iter().collect(), live))
     }
 }
 
@@ -483,6 +509,14 @@ pub struct Run {
     /// that tile again with no blood drawn since (the pack did not follow), the row stands and fights.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub row_fell: Option<(Pos, u32)>,
+    /// Blind 3ab97ea (B: `foes 4+ → corridor ×8`, a D23 slog of 3+ minutes): the action a `back corridor`
+    /// row's fall-back reached its corridor. Out of it again with no blow struck since (smiths at two tiles
+    /// and range chip him: blood drawn, but the pack never came), the row stands and fights (`ai::ROW_FELL`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_held: Option<u32>,
+    /// The action of the hero's last blow on a foe (not a summoned one).
+    #[serde(default)]
+    pub last_blow_action: u32,
     /// Cut 27 §4 (AS: `R5 free ↔ descend` stalled a D9 send): the captive a `free captive` row
     /// set out for (its id) — the row's `on see: captive` holds on the way while it lives
     /// chained, though a corner hides it (the step toward it broke the sight line, the `descend`
@@ -3093,8 +3127,9 @@ pub struct Game {
     /// (`forecast::forecast_move`). Saved (a mirror lane loads the save); never on a sim clone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sent_state: Option<Box<SentState>>,
-    /// RUNS_UI: the last `CAPSULES` real sends, to replay (`replay`); memory only.
-    #[serde(skip)]
+    /// RUNS_UI: the last `CAPSULES` real sends, to replay (`replay`); memory only but the run in
+    /// flight's (`Capsules::live`), which the save carries as `live_capsule`.
+    #[serde(default, rename = "live_capsule", skip_serializing_if = "Capsules::no_live")]
     pub capsules: Capsules,
     /// RUNS_UI (tests): every real run's events by run id (its send's pending events, then each tick's).
     #[serde(skip)]
@@ -4109,6 +4144,8 @@ impl Game {
             chase: None,
             recent_pos: Vec::new(),
             last_damage_action: 0,
+            row_held: None,
+            last_blow_action: 0,
             stuck_fires: 0,
             stuck_until: 0,
             stuck_first_t: None,
@@ -4293,6 +4330,7 @@ impl Game {
                 g.row_tally = self.row_tally.clone();
                 g.facts_at_run_start = self.facts_at_run_start;
                 self.capsules.0.push_back(Capsule { id, game: Box::new(g), pre, inputs: Vec::new() });
+                self.capsules.1 = true;
                 while self.capsules.0.len() > CAPSULES {
                     self.capsules.0.pop_front();
                 }
@@ -4878,6 +4916,7 @@ impl Game {
     /// class XP and renown; a dead heir's kit stays on the floor as bones.
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
+        self.capsules.1 = false;   // (its capsule stays held in memory; the save carries none)
         let tier = run.over.unwrap_or(ExitTier::Return);
         let legacy_earned = if !self.sim {
             crate::legacy::ensure(&mut self.lineage);

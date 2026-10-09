@@ -287,7 +287,11 @@ function wholeSpan(p: Patch): HTMLElement {
   const deathText = from !== undefined ? `${from}→${Math.max(0, Math.min(100, Math.round((w.death_from! + w.death) * 100)))}%` : `${d > 0 ? "+" : "−"}${Math.abs(d)}`;
   if (moved) parts.push(h("span", { class: `dlt ${d > 0 ? "down" : "up"}` }, /* copy:callout */ `death ${deathText}`, from !== undefined ? "" : h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`)));
   if (w.risk) parts.push(h("span", { class: "dlt down risk" }, /* copy:callout */ `risk ${w.risk}`));
-  return h("span", { class: `num whole${w.harms ? " harms" : ""}` }, ...parts.flatMap((x, i) => (i ? [" · ", x] : [x])));
+  // blind 3ab97ea (A: `survives 11/12 · was 6/12 … death 56→89%` — "survives more, yet dies more?"): the count is this death's fight
+  // replayed, the death move whole runs from the send — the move names its horizon (`per run`), and its tip says which is which
+  const el = h("span", { class: `num whole${w.harms ? " harms" : ""}` }, ...(parts.length ? [h("small", { class: "dim horizon" }, /* copy:label */ "per run"), " · "] : []), ...parts.flatMap((x, i) => (i ? [" · ", x] : [x])));
+  if (parts.length) el.title = /* copy:tooltip */ "whole runs from the send · the count is this fight";
+  return el;
 }
 
 /** QA 23ed91f: the camp's reach for a death's patches landed (`deathDeltas`, same order): each patch takes its numbers, and each

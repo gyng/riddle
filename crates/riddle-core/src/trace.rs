@@ -124,6 +124,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         route_cause: None,
         lean: None,
         luck: None,
+        boss: None,
         // Cut 29 §3: the fight he died in, metered (the death screen's breakdown).
         fight: (!run.meters.is_empty() && run.meters.fight.ticks > 0).then(|| crate::meters::wire_for(&run.meters.fight, Some(&game.lineage.pkg))),
     };
@@ -1865,12 +1866,15 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
     // Cut 26 §6 (AO: `GAP` beside `unpatched 10/12` — fault or luck?): a gap most of whose
     // unpatched replays survive leans to the dice — the stamp says so (`Death.lean`), so it never
     // contradicts its counts; a patch still beats the base by the margin, so it stays a gap.
-    if matches!(rec.death.verdict.as_str(), "gap" | "row" | "order") && rec.death.baseline > STAMP_BASE + 1e-9 {
+    // Blind 3ab97ea (A: full hp to the Mirror King's mirrored blows in 10 s, `bad luck · 1 in 6`): a death
+    // under a boss is his wall, never the dice — no lean, no luck line (`Death.boss`).
+    rec.death.boss = rec.boss.clone();
+    if rec.boss.is_none() && matches!(rec.death.verdict.as_str(), "gap" | "row" | "order") && rec.death.baseline > STAMP_BASE + 1e-9 {
         rec.death.lean = Some("dice".into());
     }
     route_verdict(game, rec);
     // Cut 28 §2: a death most replays survive leads with the rare event that killed him.
-    rec.death.luck = if rec.stall || rec.death.verdict == "route" { None } else { luck_of(&rec.death) };
+    rec.death.luck = if rec.stall || rec.boss.is_some() || rec.death.verdict == "route" { None } else { luck_of(&rec.death) };
     margin_lines(rec, heal_saves, unknown_saves);
 }
 

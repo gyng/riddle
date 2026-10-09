@@ -86,8 +86,13 @@ export function pairedOf(o: Pick<PkgOption, "n" | "better" | "worse">): { text: 
 /** Cut 115 §3: which wall a move is for — each wall the compare read where the paired split is clear (sign test ≤ 10 %):
  *  `better at D8 Warlord · worse at D28 Queen`; empty when no wall's split is clear. */
 export function wallLine(o: Pick<PkgOption, "walls">): string {
-  return (o.walls ?? []).filter((w) => w.n > 0 && w.better !== w.worse && signP(w.better, w.worse) <= 0.1)
+  const clear = (o.walls ?? []).filter((w) => w.n > 0 && w.better !== w.worse && signP(w.better, w.worse) <= 0.1)
     .map((w) => /* copy:tooltip */ `${w.better > w.worse ? "better" : "worse"} at D${w.depth} ${w.boss}`).join(" · ");
+  if (clear) return clear;
+  // blind 3ab97ea (B: `close` for every option, three times — "the comparison can't tell me anything"): inside the noise, the wall
+  // whose sends split most is what would separate them — `turns on D28 Queen`
+  const split = (o.walls ?? []).filter((w) => w.n > 0 && w.better + w.worse > 0).sort((a, b) => (b.better + b.worse) - (a.better + a.worse) || a.depth - b.depth)[0];
+  return split ? /* copy:tooltip */ `turns on D${split.depth} ${split.boss}` : "";
 }
 /** The compare's one summary: what was compared (`8 paired runs`), or that it all fell inside the noise (`noise · 8 runs`) or played
  *  alike (`identical · 8 runs`); the older core's band reads `rough estimate` / `all similar`. */
@@ -104,6 +109,8 @@ export function compareSummary(opts: PkgOption[]): string {
 }
 /** Small first estimate: actual runs remain unchanged. */
 export const PRICE_SIMS = 8;
+/** blind 3ab97ea: a noisy compare's second look (tripled, on request). */
+export const MORE_SIMS = 24;
 /** The forecast's one headline: the reach of the next floor (`reach D9 72%`); null before a forecast. */
 export function headline(app: App): string | null {
   const f = app.lastForecast; if (!f) return null;
@@ -114,18 +121,18 @@ export function headline(app: App): string | null {
 
 /** Cache replies and in-flight requests per app snapshot. A new lineage invalidates
  * every hero/simulation input, without reproducing Rust's input key in the client. */
-type OptionsRead = { engine: App["engine"]; lineage: Lineage; inputs: string; selection: string; opts: PkgOption[] | null; promise: Promise<PkgOption[]> };
+type OptionsRead = { engine: App["engine"]; lineage: Lineage; inputs: string; selection: string; sims: number; opts: PkgOption[] | null; promise: Promise<PkgOption[]> };
 const optionReads = new WeakMap<App, OptionsRead>();
 const optionInputs = (app: App): string => JSON.stringify([app.rules, app.loadout]);
 const selectionKey = (app: App, choices: [string, number][]): string => app.engine.packageOptionsFor ? JSON.stringify(choices) : "all";
-const currentRead = (app: App, read: OptionsRead, choices: [string, number][]): boolean => read.engine === app.engine && read.lineage === app.lineage && read.inputs === optionInputs(app) && read.selection === selectionKey(app, choices);
-function measure(app: App, choices: [string, number][]): OptionsRead | null {
+const currentRead = (app: App, read: OptionsRead, choices: [string, number][], sims = PRICE_SIMS): boolean => read.engine === app.engine && read.lineage === app.lineage && read.inputs === optionInputs(app) && read.selection === selectionKey(app, choices) && read.sims === sims;
+function measure(app: App, choices: [string, number][], sims = PRICE_SIMS): OptionsRead | null {
   if (!app.engine.packageOptions && !app.engine.packageOptionsFor) return null;
   const cached = optionReads.get(app);
-  if (cached && currentRead(app, cached, choices)) return cached;
+  if (cached && currentRead(app, cached, choices, sims)) return cached;
   const engine = app.engine;
   let read: OptionsRead;
-  const promise = Promise.resolve().then(() => engine.packageOptionsFor ? engine.packageOptionsFor(PRICE_SIMS, choices) : engine.packageOptions!(PRICE_SIMS)).then((opts) => {
+  const promise = Promise.resolve().then(() => engine.packageOptionsFor ? engine.packageOptionsFor(sims, choices) : engine.packageOptions!(sims)).then((opts) => {
     read.opts = opts;
     return opts;
   }).catch((error: unknown) => {
@@ -133,7 +140,7 @@ function measure(app: App, choices: [string, number][]): OptionsRead | null {
     if (optionReads.get(app) === read) optionReads.delete(app);
     throw error;
   });
-  read = { engine, lineage: app.lineage, inputs: optionInputs(app), selection: selectionKey(app, choices), opts: null, promise };
+  read = { engine, lineage: app.lineage, inputs: optionInputs(app), selection: selectionKey(app, choices), sims, opts: null, promise };
   optionReads.set(app, read);
   return read;
 }
@@ -147,7 +154,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
   openSheet((close) => {
     const body = h("div", { class: "sheet-body pkg-panel" });
     let reading: OptionsRead | null = null;
-    let compare = false, details = false, tacticSlot: number | null = null;
+    let compare = false, details = false, tacticSlot: number | null = null, sims = PRICE_SIMS;
     const choosing = new Set<string>(initialKind ? [initialKind] : []);
     const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then((ok) => { if (ok) { choosing.delete(p.kind); if (p.kind === "tactic") tacticSlot = null; } paint(); }); };
     const paint = (): void => {
@@ -156,14 +163,14 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       const selected: [string, number][] = P.all.filter((p) => p.owned && ((choosing.has("stance") && p.kind === "stance" && p.id !== P.stance) || (choosing.has("tactic") && p.kind === "tactic" && !(P.tactics ?? []).includes(p.id)))).map((p) => [p.id, p.kind === "tactic" ? freeSlot : 0]);
       // Cut 115 §3: a compare also prices each worn tactic's other variant (`id#v`, the core's `variant` move)
       if (compare) for (const id of P.tactics ?? []) { const p = P.all.find((x) => x.id === id); if (p?.variants?.length === 2 && p.variant !== undefined) selected.push([`${id}#${1 - p.variant}`, 1 - p.variant]); }
-      const next = !compare ? null : reading && currentRead(app, reading, selected) ? reading : measure(app, selected);
+      const next = !compare ? null : reading && currentRead(app, reading, selected, sims) ? reading : measure(app, selected, sims);
       if (next !== reading) {
         reading = next;
         const settle = (): void => {
           if (!body.isConnected || reading !== next) return;
           // The town clock may advance repeatedly while this query runs. A stale
           // result must not start an endless series of replacement simulations.
-          if (next && !currentRead(app, next, selected)) { compare = false; reading = null; }
+          if (next && !currentRead(app, next, selected, sims)) { compare = false; reading = null; }
           paint();
         };
         if (next) void next.promise.then(settle).catch(settle);
@@ -286,12 +293,16 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       // blind ad71e72 (A: "inert" on three taps): nothing to compare (no other style or tactic owned) — the button stands disabled;
       // a comparison whose every move sits in the noise says so (`all similar`) rather than painting nothing
       const comparable = stanceAlts.length > 0 || owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id) || p.variants?.length === 2);
-      const compareButton = h("button", { class: "chip pkg-compare", disabled: !comparable || (compare && !!reading && !opts), onclick: () => { if (stanceAlts.length) choosing.add("stance"); if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); compare = true; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
+      const compareButton = h("button", { class: "chip pkg-compare", disabled: !comparable || (compare && !!reading && !opts), onclick: () => { if (stanceAlts.length) choosing.add("stance"); if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); compare = true; sims = PRICE_SIMS; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
+      // blind 3ab97ea (B: every option `close`, three compares running): a compare inside the noise offers its runs tripled — the
+      // paired split that 8 sends cannot call, 24 often can
+      const noisy = !!opts && sims < MORE_SIMS && opts.some((o) => o.n) && compareSummary(opts).startsWith("noise");
+      const deeper = noisy ? h("button", { class: "chip mini pkg-more", onclick: () => { sims = MORE_SIMS; reading = null; paint(); } }, /* copy:button */ `${MORE_SIMS} runs`) : "";
       const head = headline(app);
       // Cut 115 §1: the build the picks make — its name, and a pair's synergy and effect
       const build = P.build ? h("div", { class: "pkg-build", "data-build": P.build.name, "data-synergy": P.build.synergy ?? "" }, h("b", { class: "build-name" }, P.build.name),
         P.build.effect ? h("small", { class: "build-effect dim" }, ` · ${P.build.effect}`) : "") : "";
-      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), build, ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: opts.some((o) => o.n) ? /* copy:tooltip */ "same seeds both sides · a send better or worse" : /* copy:tooltip */ "Small sample · minor differences unclear" }, compareSummary(opts)) : "", more);
+      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), build, ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: opts.some((o) => o.n) ? /* copy:tooltip */ "same seeds both sides · a send better or worse" : /* copy:tooltip */ "Small sample · minor differences unclear" }, compareSummary(opts)) : "", deeper, more);
     };
     const changed = (): void => { compare = false; reading = null; paint(); };
     const offChange = app.onChange?.(changed), offRules = app.onRules?.(changed);

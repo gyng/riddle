@@ -494,7 +494,7 @@ export class ReplayState {
         break;
       }
       case "max_hp": {   // QA 1a2a4a9: hunger bites the max — the hero's bar reads the new ceiling
-        const e = this.ents.get(ev.id); if (e) e.maxHp = ev.max;
+        const e = this.ents.get(ev.id); if (e) { e.maxHp = ev.max; e.hp = Math.min(e.hp, ev.max); }   // (the core clamps the hp with no hp event)
         break;
       }
       case "hatch":

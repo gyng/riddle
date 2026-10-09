@@ -97,6 +97,37 @@ try {
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "no horizontal scroll");
     await page.close();
   }
+  // ---- reload: blind 3ab97ea (B: `watch kill` tapped twice, nothing) — the boss fell in the run under way when the app closed; the
+  //      reload must keep that run's replay (the save carries its capsule), so the absence's `watch kill` opens on his fall
+  {
+    const page = await browser.newPage({ viewport: { width: 400, height: 860 } });
+    await fresh(page);
+    const at = await page.evaluate(async () => {
+      const a = window.__riddle; let s = await a.engine.send();
+      for (let i = 0; i < 4000; i++) { const x = await a.engine.step(50); s = x.snapshot; if (x.run_over || s.depth >= 12) break; }
+      a.lineage = await a.engine.lineage(); await a.flush(); return s.depth;
+    });
+    check(at >= 12 && at < 23, `a run in flight short of the Foundry Master at the close (D${at})`);
+    await page.goto(`${url}?dev=1&absent=4h`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => window.__riddle?.booted && window.__riddle.screen === "report", null, { timeout: 180_000 });
+    const rec = await page.evaluate(() => { const a = window.__riddle, L = a.lineage, held = new Set(L.replays ?? []);
+      const away = (L.runs ?? []).filter((r) => r.via === "away" && !r.sampled), last = Math.max(...away.map((r) => r.absence ?? 0));
+      const first = away.filter((r) => r.absence === last).sort((x, y) => x.id - y.id)[0];
+      const r = a.view.report; a.go({ kind: "report", report: { ...r, bests: [...r.bests, "boss:foundry_master"] }, absence: true });
+      return first ? { id: first.id, depth: first.depth, held: held.has(first.id) } : null; });
+    check(!!rec && rec.depth >= 23, `the run in flight finished away past the Master (${JSON.stringify(rec)})`);
+    check(!!rec?.held, "the reloaded run in flight is held for replay");
+    const btn = page.locator(".report-boss-watch[data-boss=foundry_master]").first();
+    check(await btn.count() > 0, "watch kill offered after the reload");
+    if (await btn.count()) {
+      await btn.scrollIntoViewIfNeeded(); await btn.click();
+      const opened = await page.waitForSelector(".run-replay[data-kill]", { timeout: 60_000 }).then(() => true, () => false);
+      check(opened, "the kill's replay opens after a reload");
+      const r = await page.evaluate(() => window.__runReplay);
+      check(r?.run === rec?.id, `it is the run that was in flight (${r?.run} vs ${rec?.id})`);
+    }
+    await page.close();
+  }
 } catch (e) { errors.push(String(e?.stack ?? e)); } finally { await browser.close(); }
 console.log(out.join("\n")); if (errors.length) console.log(errors.join("\n"));
 console.log(failed || errors.length ? `boss-kill-beat: FAIL (${failed} assertion(s), ${errors.length} error(s))` : `boss-kill-beat: ok (${out.length} checks)`);

@@ -283,3 +283,41 @@ fn silence_loses_the_queens_called_brood() {
     assert!(called.iter().all(|&id| !alive(id)), "the called brood faded");
     assert!(alive(wild) && alive(q), "the wild lurker and the Queen stay");
 }
+
+/// Blind 3ab97ea (B: `foes 4+ → corridor ×8` for 3+ real minutes at D23 with his written `foes ≥ 4 → to corridor`;
+/// `eval/cards/3ab97ea.blind-b.rules.json`): smiths at two tiles and range chip the hero, so blood is drawn and the
+/// tile guard (`row_fell`) lifted; he stepped out at them, the row walked him back — 37–44 fall-backs with no blow
+/// struck (seeds 2 and 8, D21/D23). A corridor reached and left again with no blow since is no better tile: he fights.
+#[test]
+fn a_written_corridor_row_does_not_shuffle_before_a_pack_that_never_comes() {
+    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../eval/cards/3ab97ea.blind-b.rules.json")).expect("B's set");
+    let set = RuleSet::parse(&text).expect("parses");
+    for (seed, depth) in [(2u64, 21u32), (2, 23), (8, 21)] {
+        let mut g = Game::new_literal(seed);
+        for u in crate::meta::UNLOCKS {
+            g.lineage.unlocks.insert(u.id.into());
+        }
+        crate::probes::learn_everything(&mut g);
+        g.lineage.classes.insert("fighter".into(), ClassProg { level: 10, xp: 0, next: 0 });
+        crate::kit::buy_all(&mut g.lineage);
+        g.set_rules_raw(set.clone()).unwrap();
+        g.send();
+        g.descend_to(depth);
+        let hero = g.snapshot().hero.entity.id;
+        let (mut since, mut worst) = (0u32, 0u32);
+        let mut n = 0;
+        while g.run.as_ref().is_some_and(|r| r.over.is_none()) && n < 6000 {
+            g.tick();
+            n += 1;
+            for e in std::mem::take(&mut g.events) {
+                match e {
+                    Ev::Rule { verb, .. } if verb.v == "back_corridor" => { since += 1; worst = worst.max(since); }
+                    Ev::Attack { src, .. } | Ev::Projectile { src, .. } if src == hero => since = 0,
+                    Ev::Descend { .. } => since = 0,
+                    _ => {}
+                }
+            }
+        }
+        assert!(worst <= 12, "seed {seed} D{depth}: {worst} corridor fall-backs with no blow struck");
+    }
+}

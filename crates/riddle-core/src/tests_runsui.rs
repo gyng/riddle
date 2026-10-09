@@ -234,3 +234,35 @@ fn live_presence_is_read_only_and_follows_run_state() {
     let old: crate::wire::LiveRun = serde_json::from_value(wire).unwrap();
     assert!(old.activity.is_empty(), "old live-run wire data stays readable");
 }
+
+/// Blind 3ab97ea (B: `▶ watch kill` inert after an 8h absence — the Mirror King fell in the run under way when the app closed; the
+/// reload lost its capsule): the save carries the run in flight's capsule, so the run a reload finishes replays as it was played,
+/// its inputs before and after the reload kept; a run over carries none.
+#[test]
+fn the_run_in_flight_replays_across_a_reload() {
+    let mut tried = 0;
+    for seed in [11u64, 13] {
+        let mut g = with_scout(seed);
+        g.tap = Some(BTreeMap::new());
+        let id = g.send().run.id;
+        for _ in 0..6 {
+            if g.step(25).run_over { break; }
+        }
+        if g.run.as_ref().is_none_or(|r| r.over.is_some()) { continue; }
+        let text = g.save();
+        assert!(text.contains("\"live_capsule\""), "seed {seed}: the save carries the run in flight's capsule");
+        let mut h = Game::load(&text).unwrap();
+        h.tap = Some(BTreeMap::new());
+        assert!(h.lineage().replays.contains(&id), "seed {seed}: the loaded run in flight is held");
+        // both finish the run the same way, offline (the absence after the reload)
+        run_offline_quick(&mut g, 600);
+        run_offline_quick(&mut h, 600);
+        let (a, b) = (g.replay(id).unwrap(), h.replay(id).unwrap());
+        assert_eq!(a.hash, b.hash, "seed {seed}: the reloaded run replays as the unbroken one");
+        assert_eq!(a.floors.len(), b.floors.len());
+        assert!(!h.save().contains("\"live_capsule\""), "seed {seed}: no run in flight, no capsule saved");
+        assert!(Game::load(&h.save()).unwrap().capsules.0.is_empty());
+        tried += 1;
+    }
+    assert!(tried > 0, "a run stayed in flight at the save");
+}

@@ -792,9 +792,18 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
             if run.row_fell.is_some_and(|(p, t)| p == hp && run.last_damage_action <= t && run.actions < t + ROW_FELL) {
                 return false;
             }
+            // Blind 3ab97ea (B: `foes 4+ → corridor ×8`, 3+ minutes at D23): smiths at two tiles and range chip
+            // the hero (blood drawn, the tile guard above lifted), he steps out at them, the row walks him back —
+            // a corridor reached and left again with no blow struck since is no better tile: he fights from here.
+            if run.row_held.is_some_and(|t| run.last_blow_action <= t && run.actions < t + ROW_FELL) {
+                return false;
+            }
             let ok = verb_back_corridor(run, cx, v);
             if ok {
                 run.row_fell = Some((hp, run.actions));
+                if run.floor.map.is_corridor(run.hero.pos) {
+                    run.row_held = Some(run.actions);
+                }
             }
             ok
         }

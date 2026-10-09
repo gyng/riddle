@@ -710,11 +710,12 @@ export function renderWatch(app: App): Mounted {
     paintKeepOut(true);
   }
   function paintHud(): void {
-    const p = hud.maxHp ? hud.hp / hud.maxHp : 0;
+    const p = hud.maxHp ? Math.min(1, hud.hp / hud.maxHp) : 0;
     face.set(p);
     stake.classList.toggle("warn", p < 0.4);
     const lost = [...maxLoss].filter(([, n]) => n > 0);
-    replace(hpText, /* copy:callout */ `${Math.max(0, hud.hp)}/${hud.maxHp} hp`, ...lost.map(([w, n]) => h("small", { class: "hp-max-loss", "data-cause": w, title: /* copy:tooltip */ `max hp −${n} · ${w}` }, /* copy:callout */ ` ${w} −${n}`)));   // docs/COPY.md pass 5: `28/36` read as XP or rooms
+    // blind 3ab97ea (A: `47/44 hp`): a max that fell under the hp (hunger, a drain — the core clamps the hp with no hp event) reads full
+    replace(hpText, /* copy:callout */ `${Math.max(0, Math.min(hud.hp, hud.maxHp))}/${hud.maxHp} hp`, ...lost.map(([w, n]) => h("small", { class: "hp-max-loss", "data-cause": w, title: /* copy:tooltip */ `max hp −${n} · ${w}` }, /* copy:callout */ ` ${w} −${n}`)));   // docs/COPY.md pass 5: `28/36` read as XP or rooms
     replace(depth, `D${hud.depth}`);
     depth.dataset.floor = String(hud.depth); wide.paintDepth?.();
     paintWatchStatus();
@@ -1134,7 +1135,7 @@ export function renderWatch(app: App): Mounted {
           // QA 308f045 (qaAC: `36/36` → `22/22` → `12/24` with no cause): the shrine's price names itself (`shrine −7 max`)
           const priced = ev.cause === "shrine" && ev.delta < 0 ? /* copy:callout */ `shrine −${-ev.delta} max` : null;
           const said = dw ? drainSaid(dw, ev.cause) : dw, bite = -ev.delta;   // blind c4705f9 (B): `starving · no light`
-          at(ev.t, () => { hud.maxHp = m; if (dw) maxLoss.set(dw, (maxLoss.get(dw) ?? 0) + bite); paintHud(); if (priced) callout(priced, "hurt", HURT_MS * 2); else if (said && !drainsShown.has(key)) { drainsShown.add(key); callout(said, "hurt", HURT_MS * 2); } });
+          at(ev.t, () => { hud.maxHp = m; hud.hp = Math.min(hud.hp, m); if (dw) maxLoss.set(dw, (maxLoss.get(dw) ?? 0) + bite); paintHud(); if (priced) callout(priced, "hurt", HURT_MS * 2); else if (said && !drainsShown.has(key)) { drainsShown.add(key); callout(said, "hurt", HURT_MS * 2); } });
         } break;
         case "steal": lastStealT = ev.t; if (ev.amount !== undefined && ev.amount > 0) { const n = ev.amount; stolenGold += n; at(ev.t, () => callout(/* copy:callout */ `stolen $${n}`, "hurt", FELL_MS)); } break;
         case "descend": {
@@ -1486,7 +1487,7 @@ export function renderWatch(app: App): Mounted {
     noteCalm(r.calm);
     snap = s;
     // Cut 14 §6: the stake and the max hp land at the viewer's clock like the rest of the HUD (the picture may be behind the world)
-    at(s.turn, () => { hud.maxHp = s.hero.max_hp; paintHud(); paintStake(s); bossFrom(s); }); bossSighted(s);
+    at(s.turn, () => { hud.maxHp = s.hero.max_hp; hud.hp = Math.min(hud.hp, hud.maxHp); paintHud(); paintStake(s); bossFrom(s); }); bossSighted(s);
     // Cut 14 §6: the frontier's dot beats per batch (the animation retriggered by a reflow — at most every PULSE_MS: the travel
     // chain lands a batch a millisecond, and a reflow each would starve the page)
     pulses++; el.dataset.pulses = String(pulses);
