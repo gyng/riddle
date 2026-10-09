@@ -6,14 +6,15 @@
 //            its package.
 //   taps   — the quest swap and a breed say what happened (a toast, the card / the egg lit).
 //   checkin — the routine buys of a return (an unbranched forge step, a lit hire) are one chip, two taps; branches stay out.
-//   gold   — the report's gold head reconciles: earned − spent = purse.
-//   node web/tests/cut117.mjs [--part=try,focus,taps,checkin,gold]
+//   gold   — the report's gold head reconciles: earned − spent = purse (the core's `gold.ledger`; an old save derived).
+//   wire   — the core's Cut 117 fields: `Death.moment_hp`, `PkgOption.even/noise`, `Forecast.hold`, `supply_budget` / `WorkerAct.reason`.
+//   node web/tests/cut117.mjs [--part=try,focus,taps,checkin,gold,wire]
 import { execFileSync } from "node:child_process";
 import { launchBrowser } from "../../tools/browser.mjs";
 
 const root = new URL("../../", import.meta.url);
 const url = execFileSync("bash", ["tools/dev.sh"], { cwd: root, encoding: "utf8" }).trim();
-const parts = (process.argv.find((a) => a.startsWith("--part="))?.slice(7) ?? "try,focus,taps,checkin,gold").split(",");
+const parts = (process.argv.find((a) => a.startsWith("--part="))?.slice(7) ?? "try,focus,taps,checkin,gold,wire").split(",");
 const out = [], errors = [];
 let failed = 0;
 const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
@@ -185,7 +186,60 @@ try {
       return { text: led?.textContent ?? null, e: +led?.dataset.earned, s: +led?.dataset.spent, n: +led?.dataset.net, head: document.querySelector(".report-gold b")?.textContent, lost: document.querySelector(".report-lost")?.textContent ?? null };
     });
     check(r.e - r.s === r.n && r.n === -6789 && r.head === `$${r.e}`, `earned − spent = purse, the head the earned term (${r.text} · head ${r.head})`);
-    check(/earned \$39 − spent \$6828 \(forge \$6750\) = purse −\$6789/.test(r.text ?? ""), `each term named, the forge inside the spent (${r.text})`);
+    check(/earned \$39 − spent \$6828 \(forge \$6750\) = purse −\$6789/.test(r.text ?? ""), `an old save derives the terms, the forge inside the spent (${r.text})`);
+    // the core's ledger (`gold.ledger`): its sums read as sent, each signed term named in the tip, inflows first
+    const c = await page.evaluate(async () => {
+      const a = window.__riddle;
+      const terms = [{ label: "carried", amount: 2620 }, { label: "heir", amount: 39 }, { label: "lost", amount: -2620 }, { label: "apprentice", amount: -6750 }, { label: "supplies", amount: -78 }];
+      const ledger = { earned: 2659, spent: 9448, net: -6789, terms };
+      const gold = { home: 0, salvage: 0, wake: 39, spent: 78, lost: 2620, net: -6789, ledger };
+      const rep = { elapsed_s: 3600, runs: 3, sampled: false, learned: [], bests: [], found: [], deaths: [{ cause: "mirror_king", depth: 34, n: 1 }], pending: [], marks_earned: 0, tamed: [], hatched: [], lost: [], reel: [], deepest: 34, gold,
+        workers: [{ id: "apprentice", n: 2, what: "+2 steps", spent: 6750 }] };
+      a.go({ kind: "report", report: rep, absence: true });
+      await new Promise((res) => setTimeout(res, 600));
+      const led = document.querySelector(".report-ledger");
+      return { text: led?.textContent ?? null, e: +led?.dataset.earned, s: +led?.dataset.spent, n: +led?.dataset.net, terms: +led?.dataset.terms, head: document.querySelector(".report-gold b")?.textContent };
+    });
+    await page.hover(".report-gold");
+    await page.waitForFunction(() => document.querySelectorAll("#kw-tip .ledger-term").length > 0, null, { timeout: 5000 }).catch(() => {});
+    c.tip = await page.evaluate(() => [...document.querySelectorAll("#kw-tip .ledger-term")].map((x) => x.textContent));
+    check(c.e === 2659 && c.s === 9448 && c.n === -6789 && c.e - c.s === c.n && c.head === "$2659" && c.terms === 5, `the core's ledger reads as sent (${c.text} · head ${c.head})`);
+    check(/earned \$2659 − spent \$9448 \(forge \$6750\) = purse −\$6789/.test(c.text ?? ""), `the forge part from the apprentice term (${c.text})`);
+    check(c.tip.join("|") === "carried · +$2620|heir · +$39|lost · −$2620|apprentice · −$6750|supplies · −$78", `each term named in the tip, inflows first (${c.tip.join(" | ")})`);
+    await page.close();
+  }
+  if (parts.includes("wire")) {
+    const page = await fresh("wire");
+    const r = await page.evaluate(async () => {
+      const { momentHp } = await import("/src/ui/death.ts");
+      const { priceOf } = await import("/src/ui/packages.ts");
+      const { holdLine, endsOf } = await import("/src/ui/forecast.ts");
+      const { supplyReason, supplyLimit } = await import("/src/ui/report-supplies.ts");
+      const { workersBlock } = await import("/src/ui/works.ts");
+      const app = window.__riddle;
+      const blow = { hp: 0, dmg: 18 };
+      const hp = { core: momentHp({ trace: { blows: [blow] }, moment_hp: 5, moment_max_hp: 50 }), old: momentHp({ trace: { blows: [blow] } }) };
+      const base = { d_past: 0.6, d_death: 0, d_bank: 0, past: 0.7, death: 0.2, bank: 0.3 };
+      const price = { even: priceOf({ ...base, n: 8, better: 6, worse: 0, even: true }).text, wide: priceOf({ ...base, noise: 0.7 }, 400).text, tight: priceOf({ ...base, noise: 0.01 }, 400).text };
+      const ends = { bank: 0.4, return: 0.3, death: 0.3, gold: 100 };
+      const held = { ...ends, bank: 0.85, death: 0.1, return: 0.05 };
+      const f = { depths: [{ depth: 33, reach: 0.88 }], causes: [], known_to: 33, ends, sims: 100, hold: { depth: 33, stop: 32, order: "bank", share: 0.88, ends: held } };
+      const line = holdLine(f);
+      const carry = holdLine({ ...f, hold: { ...f.hold, order: "carry" } })?.textContent;
+      const sb = { gold: { home: 0, salvage: 0, wake: 0, spent: 0 }, supply_budget: { income: 0, spent: 0, left: 0, reason: "no_income" } };
+      const lim = supplyLimit(app, sb, true);
+      const L = app.lineage;
+      const w = workersBlock(L, { workers: [{ id: "apprentice", n: 1, what: "+1 step", first: false, reason: "purse_short" }] });
+      return { hp, price, hold: line?.textContent, holdTitle: line?.title, carry, none: holdLine({ ...f, hold: undefined }), ends: endsOf(f).bank, old: endsOf({ ...f, hold: undefined }).bank,
+        reasons: ["no_income", "income_spent", "purse_short", "x"].map((c) => supplyReason(c)?.text ?? null), lim: lim.textContent, limReason: lim.dataset.reason,
+        worker: w?.querySelector(".work-reason")?.textContent, workerTip: w?.querySelector(".work-reason")?.title };
+    });
+    check(r.hp.core === 5 && r.hp.old === 18, `the header hp is the core's moment, an old save the blow's (${JSON.stringify(r.hp)})`);
+    check(r.price.even === "same" && r.price.wide === "—" && r.price.tight !== "—", `an even move reads same; the core's noise is the band (${JSON.stringify(r.price)})`);
+    check(r.hold === "reach D33 88% · banks D32" && /banks at D32/.test(r.holdTitle) && r.carry === "reach D33 88% · secures D32" && r.none === null, `the forecast names the scout's order (${r.hold} · ${r.carry})`);
+    check(r.ends === 0.85 && r.old === 0.4, `the ends are what the send will do (${r.ends}, ${r.old})`);
+    check(r.reasons.join() === "no income,income spent,purse short," && /Supplies limited · \$0 budget · no income$/.test(r.lim), `the $0 budget says why (${r.lim} · ${r.reasons})`);
+    check(r.limReason === "no_income" && r.worker === " · purse short" && /Purse could not pay/.test(r.workerTip ?? ""), `the apprentice's line says why, its gloss on hover (${r.worker} · ${r.workerTip})`);
     await page.close();
   }
 } catch (e) {

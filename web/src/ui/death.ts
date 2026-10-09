@@ -142,7 +142,8 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // death screen v2 (owner, 2026-10-01: "too wordy and incomprehensible"): the headline answers what killed him — the killer, the floor and (`hero at`: blind check read a bare `at 1 hp` as the foe's)
   // the hp he had before the blow (`gas · D7 · at 3 hp`); a stall keeps its loop (its moment is the rules'); the rule, the margin and
   // causal evidence moves to the why line and the details
-  const hpAt = drove?.hp ?? momentHp(d);
+  // Cut 117 §1 (King: header `18 hp` over a trace `0/50`): the deciding moment's hp, read as the trace reads it (`5/50`) when the core says
+  const hpAt = drove?.hp ?? (() => { const hp = momentHp(d); return hp !== undefined && typeof d.moment_hp === "number" && d.moment_max_hp ? `${hp}/${d.moment_max_hp}` : hp; })();
   const causeText = d.verdict === "stall" ? /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}`
     : /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${hpAt !== undefined ? ` · hero at ${hpAt} hp` : ""}`;
   const marginText_ = d.verdict === "stall" ? "" : [causeRow, seg].filter(Boolean).join(" · ");
@@ -653,8 +654,10 @@ export function forecastSaidText(f: { depths: { depth: number; reach: number }[]
  *  (the heir rests, the floor's odds rise) — its words (`+ heal potion`) and its effect (`survives more`). Shape provisional: the core's. */
 export type Lever = { kind: "spend" | "package" | "wait" | "tactic" | string; text: string; id?: string; variant?: number };   // Cut 115 §4: a `tactic` lever names its package and variant
 
-/** The hp the hero had before the blow that killed him (the last blow's hp plus its damage); none without a blow. */
+/** The hp the hero had before the blow that killed him. Cut 117 §1: the core's `Death.moment_hp` (the trace's row before the blow);
+ *  an older save falls back to the last blow's hp plus its damage (which counts an overkill); none without a blow. */
 export function momentHp(d: Death): number | undefined {
+  if (typeof d.moment_hp === "number") return d.moment_hp;
   const blow = d.trace.blows?.length ? d.trace.blows[d.trace.blows.length - 1] : d.trace.blow;
   return blow ? Math.max(1, blow.hp + blow.dmg) : undefined;
 }

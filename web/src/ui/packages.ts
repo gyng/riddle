@@ -56,7 +56,11 @@ export function fixReplaces(P: Packages | undefined, id: string, variant = 0): s
  *  `good`: whether the move helps (a death share that falls helps). */
 /** A rough noise filter, not calibrated confidence. Panels can stop after five sends;
  *  the wire omits actual counts, so never assume more than five for this filter. */
-export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank" | "n" | "better" | "worse">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
+export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank" | "n" | "better" | "worse" | "noise" | "even">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
+  // Cut 117 §1 (core): an even move (the paired split within chance, `d_past` inside its noise) shows no delta — a sign a re-read could
+  // flip is no call
+  /* copy:label */
+  if (o.even) return { text: "same", good: null, score: 0 };
   // blind c4705f9 (A, B: `all similar` on nearly every compare): the two panels play the same seeds, so a move is judged send by send
   // (`better 7/8`) — the independent-draw band below needed a ~60-point move to call anything at eight sends
   const pr = pairedOf(o);
@@ -74,7 +78,8 @@ export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "pa
   if (!clear.length) return { text: "—", good: null, score: 0 };
   const [label, d, worse] = clear.reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
   const pts = Math.round(d * 20) * 5;
-  if (Math.abs(pts) < NOISE_PTS) return { text: "—", good: null, score: 0 };   // Cut 117 §1: a move that rounds under the band is no call
+  // Cut 117 §1: a move that rounds under the band is no call — the core's own `noise` (95 % half-width of `d_past`) when it sends one
+  if (Math.abs(pts) < (typeof o.noise === "number" ? o.noise * 100 : NOISE_PTS)) return { text: "—", good: null, score: 0 };
   const good = (pts > 0) !== worse;
   return { text: `${label} ≈${pts > 0 ? "+" : "−"}${Math.abs(pts)}%`, good, score: good ? Math.abs(pts) : -Math.abs(pts) };
 }

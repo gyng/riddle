@@ -12,6 +12,7 @@ import { icon } from "./skin";
 import { audio } from "../audio";
 import { heroFace, trackIcon, trackName, TRACK_IDS } from "./tracks";
 import { kw, kwHost } from "./tips";
+import { supplyReason } from "./report-supplies";
 
 export const hasWorks = (L: Pick<Lineage, "tree"> | undefined): boolean => !!L?.tree;
 export const workerNodes = (W: Works): WorkNode[] => W.nodes.filter((n) => n.kind === "worker");
@@ -203,7 +204,9 @@ export function workersBlock(L: Lineage, r: Pick<ReturnReport, "workers" | "ches
   const acts = (r.workers ?? []).filter((a) => a.n > 0 || a.what);
   if (!acts.length && !r.chest) return null;
   return h("div", { class: "works-acts" },
-    ...acts.slice(0, limit).map((a) => h("span", { class: `chip work-act${a.first ? " first" : ""}`, "data-worker": a.id }, h("span", { class: "wa-ico" }, nodeIcon(a.id, nameOf(L, a.id))), h("b", null, nameOf(L, a.id)), h("span", { class: "num" }, ` · ${a.what}`), boughtText(a) ? h("span", { class: "num work-bought" }, boughtText(a)) : "")),
+    ...acts.slice(0, limit).map((a) => h("span", { class: `chip work-act${a.first ? " first" : ""}`, "data-worker": a.id }, h("span", { class: "wa-ico" }, nodeIcon(a.id, nameOf(L, a.id))), h("b", null, nameOf(L, a.id)), h("span", { class: "num" }, ` · ${a.what}`), boughtText(a) ? h("span", { class: "num work-bought" }, boughtText(a)) : "",
+      // Cut 117 §4: why the absence's supplies were limited (`WorkerAct.reason`), its gloss on hover
+      ((w) => w ? h("small", { class: "work-reason warn", "data-reason": a.reason, title: w.tip }, ` · ${w.text}`) : "")(supplyReason(a.reason)))),
     acts.length > limit ? h("small", { class: "dim" }, /* copy:callout */ `+${acts.length - limit} more`) : "",
     r.chest ? h("span", { class: "chip work-act chest", "data-worker": "chest" }, h("span", { class: "num gold" }, /* copy:callout */ `chest +$${r.chest}`)) : "");
 }

@@ -387,7 +387,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const rested = r.rested_s ? h("div", { class: "rest-line dim num" }, /* copy:label */ "Rest assigned", " ", spanOf(r.rested_s), h("small", null, /* copy:label */ " · Includes pending")) : null;
   // Cut 13 §3: the gold line — what the exits brought (banked / returned, off the exit lines), the salvage, the automations' spending
   const goldLine = (): HTMLElement | null => {
-    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped && !r.repeat_short) return null;
+    if (!r.spent && !r.salvaged && !r.gold && !r.restock_capped && !r.supply_budget && !r.repeat_short) return null;
     const ex = r.exits ?? [];
     const bankedG = ex.filter((x) => x.keep_pct >= 100).reduce((a, x) => a + x.kept, 0), returnedG = ex.filter((x) => x.keep_pct > 0 && x.keep_pct < 100).reduce((a, x) => a + x.kept, 0);
     const salvageG = (r.salvaged ?? []).reduce((a, x) => a + x.gold, 0), spentG = (r.spent ?? []).reduce((a, x) => a + x.gold, 0);
@@ -431,7 +431,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     // are already out of the carry the exits brought home — never a term of the headline; each run's line names its own (`−$5 left axe`)
     // QA 0c6e126 (qaY: `restock ≤ income` unexplained): the cap with its number — what the absence brought in (the core's `Batch::income`:
     // the exits, the salvage, the heir purses), `restock ≤ $0 earned`
-    if (r.restock_capped) pieces.push(supplyLimit(app, r));
+    if (r.restock_capped || r.supply_budget) pieces.push(supplyLimit(app, r));   // Cut 117 §4: the core's budget says why
     // QA 1a2a4a9 (P: "the restock was skipped with no word"): a re-pack the purse could not pay
     if (r.repeat_short) pieces.push(h("button", { class: "capped warn ledger-link", onclick: () => openGoldSheet(app) }, /* copy:callout */ "repeat short"));
     if (!pieces.length) return null;
@@ -646,24 +646,35 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // equation, each term named — `earned $E − spent $S = purse ±$N` — with the forge a part of the spent, and the carry the deaths
   // lost apart (it never reached the purse). E is every inflow (runs, loot, passage, heir grants, any other gain); S the rest of
   // the purse's move, so E − S = Δpurse to the dollar.
-  // TODO(Cut 117 core): read the core's reconciled ledger (expected `ReturnReport.gold.ledger: { earned, spent, net, terms[] }`)
-  // once it lands in engine/types.ts; until then the terms derive from `gold.{home,salvage,passage,wake,spent,net}` and the workers.
-  const ledger = net !== undefined && r.gold ? (() => {
-    const earned = runGold + lootGold + passageGold + r.gold.wake + Math.max(0, otherGold);
-    return { earned, spent: earned - net, net };
-  })() : undefined;
+  // Cut 117 §1 (core): the absence's reconciled ledger (`gold.ledger`, its signed terms summing to `net` exactly) when the core sends it;
+  // an older save derives the two sums from `gold.{home,salvage,passage,wake,spent,net}` and the workers
+  const core = r.gold?.ledger;
+  const ledger = core ? { earned: core.earned, spent: core.spent, net: core.net, terms: core.terms }
+    : net !== undefined && r.gold ? (() => {
+      const earned = runGold + lootGold + passageGold + r.gold.wake + Math.max(0, otherGold);
+      return { earned, spent: earned - net, net, terms: undefined };
+    })() : undefined;
+  // the forge's part of the spent: the core's `apprentice` and `forge` terms, else the workers' purchases
+  const forgeGold = ledger?.terms ? -ledger.terms.filter((t) => t.label === "apprentice" || t.label === "forge").reduce((n, t) => n + Math.min(0, t.amount), 0) : boughtGold;
   const headGold = ledger ? ledger.earned : runGold + lootGold + passageGold;
-  const ledgerLine = ledger && (ledger.spent !== 0 || ledger.earned !== runGold + lootGold + passageGold) ? h("small", { class: "report-ledger num", "data-earned": ledger.earned, "data-spent": ledger.spent, "data-net": ledger.net },
+  const ledgerLine = ledger && (ledger.spent !== 0 || ledger.earned !== runGold + lootGold + passageGold) ? h("small", { class: "report-ledger num", "data-earned": ledger.earned, "data-spent": ledger.spent, "data-net": ledger.net, "data-terms": ledger.terms ? ledger.terms.length : "" },
     h("span", { class: "report-earned" }, /* copy:callout */ `earned $${ledger.earned}`), " − ",
     h("span", { class: "report-spent" }, /* copy:callout */ `spent $${ledger.spent}`,
-      boughtGold > 0 ? h("small", { class: "report-bought dim" }, /* copy:callout */ ` (forge $${boughtGold})`) : ""), " = ",
-    h("span", { class: "report-net" }, /* copy:callout */ `purse ${signed(net!)}`)) : "";
+      forgeGold > 0 ? h("small", { class: "report-bought dim" }, /* copy:callout */ ` (forge $${forgeGold})`) : ""), " = ",
+    h("span", { class: "report-net" }, /* copy:callout */ `purse ${signed(ledger.net)}`)) : "";
+  const termRows = ledger?.terms ? [...ledger.terms.filter((t) => t.amount > 0), ...ledger.terms.filter((t) => t.amount < 0)]
+    .map((t) => h("div", { class: "num ledger-term", "data-term": t.label }, t.label, ` · ${signed(t.amount)}`)) : null;
   const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", onclick: () => openGoldSheet(app) },
     icon("gold"), h("b", { class: "num" }, `$${headGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned"),
     ledgerLine,
     // blind 3ab97ea (A: a 20 min return read `1 RUNS · D23 · $0 GOLD EARNED` — "thin", the death and its carry nowhere on the tiles):
     // what the deaths left on the floor reads under the gold (`lost $2157`)
-    deathsN > 0 && (r.gold?.lost ?? 0) > 0 ? h("small", { class: "report-lost num down", title: /* copy:tooltip */ "carry lost on deaths · never in the purse" }, /* copy:callout */ `lost $${r.gold!.lost}`) : ""), () => [
+    deathsN > 0 && (r.gold?.lost ?? 0) > 0 ? h("small", { class: "report-lost num down", title: /* copy:tooltip */ "carry lost on deaths · never in the purse" }, /* copy:callout */ `lost $${r.gold!.lost}`) : ""), () => termRows ? [
+      // Cut 117 §1: the core's named terms, inflows first — earned − spent = purse change, to the dollar
+      h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
+      ...termRows,
+      h("div", { class: "num" }, h("b", null, /* copy:label */ "Purse change"), ` · ${signed(ledger!.net)}`),
+      h("div", { class: "kw-tip-gloss" }, /* copy:tooltip */ "Earned before spending; purse change counts everything")] : [
       h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
       h("div", { class: "num" }, /* copy:label */ "Run gold", ` · $${runGold}`),
       h("div", { class: "num" }, /* copy:label */ "Loot sold", ` · $${lootGold}`),
@@ -707,7 +718,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const prompts = [pick.el, newChoices.el, upgradeHost].map((p) => ({ p, slot: document.createComment("decision") }));
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, finds, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), go.el, prompts[0].slot, pick.el, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, classXpBlock(r), legacyEarnedBlock(r), prompts[1].slot, newChoices.el, prompts[2].slot, upgradeHost, reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a, beat) => openPackages(app, a, undefined, trainingFocus(beat)) : undefined), firstWorkers,
+    summary, finds, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), go.el, prompts[0].slot, pick.el, goal ? progressGoalRow(goal, "report-progress-goal") : null, (r.restock_capped || r.supply_budget) && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, classXpBlock(r), legacyEarnedBlock(r), prompts[1].slot, newChoices.el, prompts[2].slot, upgradeHost, reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a, beat) => openPackages(app, a, undefined, trainingFocus(beat)) : undefined), firstWorkers,
     detailsBtn, details);
   /** At most one decision prompt in the card: the first one showing stays at its place, the rest move under `details`. */
   const oneDecision = (): void => {
