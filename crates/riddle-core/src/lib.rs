@@ -25,6 +25,7 @@ pub mod meta;
 pub mod monster;
 pub mod oath;
 pub mod packages;
+pub mod petstats;
 pub mod offline;
 pub mod probes;
 pub mod provenance;

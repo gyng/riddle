@@ -179,6 +179,9 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
     run.awaiting = false;
     run.turn += 1;
     run.floor_turn += 1;
+    if run.depth <= 4 {
+        crate::petstats::bump(crate::petstats::Stat::EarlyTicks, 1);
+    }
     crate::firearm::tick(run, cx);
     // Cut 5 §4: an opened vault waits `VAULT_GRACE` ticks for `choose` (the client's sheet),
     // then the preference picks — watched or not, so a verdict replay stays faithful.
@@ -2031,6 +2034,16 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, mut dmg: i32, src:
     // Cut 20 §2: a companion already fallen back (≤ 30 % hp) dies only cornered; the blow
     // that would kill it from above that is still a kill.
     let dmg = if dmg >= run.monsters[mi].hp && crate::ai::pet_wounded(&run.monsters[mi]) && !crate::ai::pet_cornered(run, mi) { run.monsters[mi].hp - 1 } else { dmg };
+    // (Cut 119's eval counters: write-only)
+    if dmg > 0 && run.monsters[mi].hostile() {
+        let landed = dmg.min(run.monsters[mi].hp).max(0) as u64;
+        match src {
+            Src::Hero { .. } => crate::petstats::bump(crate::petstats::Stat::HeroDealt, landed),
+            Src::Mon(j) if run.monsters[*j].is_companion() => crate::petstats::bump(crate::petstats::Stat::PetDealt, landed),
+            Src::Mon(j) if run.monsters[*j].ally => crate::petstats::bump(crate::petstats::Stat::AllyDealt, landed),
+            _ => {}
+        }
+    }
     run.monsters[mi].hp -= dmg;
     // Cut 24 §1: a real foe's HP moved (a summon's does not: reserves are endless), by any
     // hand but another foe's.

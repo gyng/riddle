@@ -190,7 +190,13 @@ fn nearest_item_step(run: &mut Run, cx: &mut Ctx, chore: bool) -> bool {
         return false;
     }
     if let Some((goal, parent)) = nearest_tile(run, &|p| cands.contains(&p)) {
-        return step_towards(run, cx, goal, &parent);
+        let stepped = step_towards(run, cx, goal, &parent);
+        // (Cut 119's eval counters: write-only — the D1–D4 pickup walk)
+        if stepped && run.depth <= 4 {
+            crate::petstats::bump(crate::petstats::Stat::PickupSteps, 1);
+            crate::petstats::bump(crate::petstats::Stat::PickupMilliTicks, (crate::engine::ACT_ENERGY as u64 * 1000) / run.hero.speed().max(1) as u64);
+        }
+        return stepped;
     }
     false
 }
@@ -3048,6 +3054,9 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
     let hero_in_reach = mp.adjacent(run.hero.pos) && !run.hero.untargetable();
     if !hero_in_reach || (verb == "shoot" && !can_see_hero(run, mi)) {
         if let Some(ai) = adjacent_ally(run, mi) {
+            if run.monsters[mi].hostile() {
+                crate::petstats::bump(if run.monsters[ai].is_companion() { crate::petstats::Stat::BlowsPet } else { crate::petstats::Stat::BlowsAlly }, 1);
+            }
             let m = &run.monsters[mi];
             let a = m.effective_atk();
             let atk = (a.0 * mult, a.1 * mult);
@@ -3063,6 +3072,9 @@ fn monster_attack(run: &mut Run, cx: &mut Ctx, mi: usize, mult: i32, verb: &str)
         if verb != "shoot" {
             return;
         }
+    }
+    if run.monsters[mi].hostile() {
+        crate::petstats::bump(crate::petstats::Stat::BlowsHero, 1);
     }
     let m = &run.monsters[mi];
     let a = m.effective_atk();
@@ -4313,6 +4325,7 @@ fn companion_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
             run.monsters[mi].sent = false;
         } else if try_companion_verb(run, cx, mi, &Verb::new("attack"), &v) {
             run.monsters[mi].hurt_since_action = false;
+            crate::petstats::bump(crate::petstats::Stat::PetActs, 1);
             return;
         }
     }
@@ -4323,12 +4336,16 @@ fn companion_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
         if try_companion_verb(run, cx, mi, &row.verb, &v) {
             run.monsters[mi].hurt_since_action = false;
             companion_callout(run, cx, mi, &row.verb.v);
+            // (Cut 119's eval counters: write-only — a pet's row acted, called out)
+            crate::petstats::bump(crate::petstats::Stat::PetActs, 1);
+            crate::petstats::bump(crate::petstats::Stat::PetRowActs, 1);
             return;
         }
     }
     run.monsters[mi].hurt_since_action = false;
     let mp = run.monsters[mi].pos;
     if let Some(ti) = v.foes.iter().copied().find(|&i| run.monsters[i].pos.adjacent(mp)) {
+        crate::petstats::bump(crate::petstats::Stat::PetActs, 1);
         companion_melee(run, cx, mi, ti, "attack", 2);
         return;
     }

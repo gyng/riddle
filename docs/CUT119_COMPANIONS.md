@@ -112,3 +112,54 @@ New rows:
 - **D1–D4 pickups take about 59 % of the early ticks** (≈ 997 of 1 700 per send from D1): the fetcher target
   (≥ 25 % shorter) is meaningful.
 - **Probe cost:** 9 min fresh on a loaded box, 32 s with the fortnights cached.
+## Baseline (pre-Cut 119)
+
+*2026-10-10, tree 0b1c62e + the probe's counters. `cargo run -q --profile fast -p riddle-core --example pets_eval -- --seeds 16`
+(`--seeds N`, `--sims 24`, `--kind-sims 12`, `--days 14`, `--bots idle,picked[,tuned]`): 16 seeds × 14 days of the
+dayplayer's IDLE and PICKED (`dayplayer::walk`, 3 check-ins), paired panels from each bot's wall snapshots (the first
+check-in under D8/13/18/23/28; sends from the wall's stone, drills revoked, as `builds.rs`), score = builds.rs's camp
+score in points (`past + 0.3·reach + 0.2·bank − 0.2·death + 0.1·mean depth`). Counters: `riddle_core::petstats`
+(per-thread, write-only; the 307dbed hash and the suite hold). Deterministic (sequential and parallel-sims runs print
+the same table). 9 min fresh on a shared 32-core box (189 CPU-min; the fortnights are the cost), 32 s with the
+fortnights kept (`RIDDLE_SRC_KEY=<any>`, `jobcache_lib`).*
+
+**The headline: IDLE and PICKED never own a pet.** 0 tames in 17 533 live runs (IDLE 6 220, PICKED 11 313): no package
+holds a `tame` row, the stray's row is TUNED's pen alone, and the kennel's free leash is never used. Every fortnight
+row reads zero for them; the paired "party worn vs removed" panels are identical (0 snapshots with a party of 160).
+
+| metric | IDLE | PICKED |
+|---|---|---|
+| walls reached (seeds) D8/13/18/23/28 | 15/13/1/11/16 | 9/8/4/6/15 |
+| pet value: worn − removed, Δscore ± seed SD, every wall | +0.0 ± 0.0 (no party) | +0.0 ± 0.0 (no party) |
+| pet share of damage dealt / blows drawn (worn) | — (no pet) | — (no pet) |
+| acts per run per pet | — | — |
+| pet deaths per 10 runs · named cause · recovered by day 14 · median days to recovery | 0 · — · — · — | 0 · — · — · — |
+| level curve, all pets / longest-serving, days 3 · 7 · 14 | none owned (0/16 seeds) | none owned (0/16 seeds) |
+| tenure (median heirs served) · old hound by day 14 | — · 0/16 | — · 0/16 |
+| pets owned / in party, days 1 · 3 · 7 · 14 | 0 / 0 throughout | 0 / 0 throughout |
+| pick rate per kind (party slots) | — | — |
+| D1–D4 pickup walk, per send from D1 (D8 snapshot) | 997 of 1 701 ticks (58.6 %), 88.9 steps | 996 of 1 678 ticks (59.4 %), 87.8 steps |
+| carry fetched on deaths | 0 % | 0 % |
+
+**A pet given** (the best-kind panels: each kind alone in the party at the lineage's best pet level — L1 here — on both
+bots' wall snapshots, 12 sims; Δscore vs no pet; margin = (best − 2nd) / SD of their paired difference):
+
+| wall (snaps) | best kind (tags) | Δ vs none | margin | the rest |
+|---|---|---|---|---|
+| D8 (24) | goblin_archer (ranged) | +9.6 | 0.42 SD | pink_jelly +3.9 · skeleton +3.8 · monkey +2.3 · ogre +2.3 · jackal +2.2 · rat +1.7 · bloat +1.2 |
+| D13 (21) | goblin_archer | +36.1 | 0.87 SD | pink_jelly +9.5 · jackal +6.9 · skeleton +6.1 · bloat +4.8 · rat +3.4 · monkey +2.4 · ogre +2.3 |
+| D18 (5) | goblin_archer | +8.0 | 0.05 SD | pink_jelly +6.8 · skeleton +5.5 · ogre −2.5 · jackal −6.0 · bloat −10.8 · monkey −11.2 · rat −17.2 |
+| D23 (17) | goblin_archer | +8.9 | 0.33 SD | pink_jelly +2.3 · monkey +0.5 · ogre −1.5 · skeleton −2.9 · rat −2.9 · jackal −3.1 · bloat −5.4 |
+| D28 (31) | goblin_archer | +7.3 | 0.36 SD | skeleton +4.0 · pink_jelly +3.7 · bloat +1.9 · ogre +1.6 · jackal +1.5 · monkey +1.2 · rat +0.6 |
+
+One kind is best at every wall (the ranged archer's `shoot` row), never by ≥ 1 seed SD; a pet's worth already reaches
++36 at D13 (the "never > +25" bar). Pet share, all walls pooled (damage dealt · blows drawn · acts per run): archer
+22.4 % · 4.9 % · 220; jackal 3.3 % · 7.1 % · 160 (`flank`); skeleton 5.8 % · 11.2 % · 36; ogre 3.5 % · 12.8 % · 21;
+monkey 1.8 % · 8.4 % · 20; pink_jelly 1.0 % · 5.2 % · 18; rat 0.9 % · 6.7 % · 10; bloat 0.0 % · 7.8 % · 8.5. No kind
+draws more than 13 % of blows (no guard exists); only the archer reaches the 10–35 % damage band.
+
+**Reference, TUNED (4 seeds, `--bots tuned`; the only bot that tames: the pen's stray row):** 36 tames in 2 831 runs;
+pets fell 3 146 times = 11.1 per 10 runs (a fielded pet dies on nearly every send), 100 % named, 100 % recovered as
+loss-eggs (3 123) or strays (33), median 0 days (inside the check-in); every pet stays L1 (median level 1.0 on days
+3/7/14; the longest-serving L1.0–1.5); median tenure 1 heir, no old hound; owned 1.0/1.8/3.2 on days 3/7/14; party
+slots jackal 80 % · mirror_shade 7 % · echo 7 % · sentinel 5 %. Its wall snapshots still held no party (0/11).

@@ -5272,6 +5272,12 @@ impl Game {
         for name in &run.strays_tamed {
             self.lineage.lost.retain(|l| l.name != *name);
         }
+        // (Cut 119's eval counters: write-only, live games only)
+        if !self.sim {
+            crate::petstats::bump(crate::petstats::Stat::Runs, 1);
+            crate::petstats::bump(crate::petstats::Stat::StraysRetamed, run.strays_tamed.len() as u64);
+            crate::petstats::bump(crate::petstats::Stat::Tamed, run.tamed.len() as u64);
+        }
         if let Some((_, k)) = run.tamed.first() {
             self.lineage.heir_deed(format!("tamed a {}", kind_title(k)));
         }
@@ -5446,6 +5452,9 @@ impl Game {
                     }
                 }
             } else {
+                if !self.sim {
+                    crate::petstats::bump(crate::petstats::Stat::PetsFell, 1);
+                }
                 if let Some(i) = in_party {
                     self.lineage.party.remove(i);
                 }
@@ -5456,6 +5465,9 @@ impl Game {
                 let heir = run.heir;
                 self.lineage.lost.retain(|l| l.name != rec.name);
                 let why = run.fell_why.iter().rev().find(|(n, _)| *n == rec.name).map(|(_, w)| w.clone()).unwrap_or_default();
+                if !self.sim && !why.is_empty() {
+                    crate::petstats::bump(crate::petstats::Stat::PetsFellNamed, 1);
+                }
                 // Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): the fall is
                 // named on the report (`Fallen`) and in the chronicle's deeds.
                 if !self.sim {
@@ -6358,6 +6370,9 @@ impl Game {
     // ---- Companions (Addendum A)
 
     fn hatch_egg(&mut self, e: Egg) {
+        if e.from_loss && !self.sim {
+            crate::petstats::bump(crate::petstats::Stat::LossHatched, 1);
+        }
         let id = self.lineage.new_comp_id();
         let name = crate::descent::grudge_name(&mut self.lineage.rng);
         let def = crate::defs::monster_def(&e.kind);

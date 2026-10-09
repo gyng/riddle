@@ -1801,6 +1801,20 @@ fn main() {
     let _ = RuleSet::default();
 }
 
+/// Cut 119 (`examples/pets_eval.rs`, which includes this file as a module): `bot`'s fortnight (`idle` or `picked`),
+/// `each(day, check-in, game)` after every check-in (its absence and the bot's taps). (After `main`: the gate
+/// cache's source key reads the file above it.)
+#[allow(dead_code)]
+pub(crate) fn walk(seed: u64, days: usize, bot: &str, mut each: impl FnMut(usize, u64, &Game)) {
+    let cfg = Cfg { bot: match bot { "picked" => Bot::Picked, "tuned" => Bot::Tuned, _ => Bot::Idle }, without: None };
+    let mut p = Play::new(seed, days, 3, false, &Ask::new(&cfg));
+    while !p.done() {
+        let (day, ci) = (p.day, p.ci);
+        p.step(&Ask::new(&cfg));
+        each(day, ci, &p.g);
+    }
+}
+
 #[cfg(test)]
 mod counter_order_tests {
     use super::*;
