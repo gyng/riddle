@@ -81,3 +81,22 @@ punishing / less upsetting for the player". Measured basis: the scout's wall ord
    round beside the new heir (a callout `Ada's echo`). Cut if it moves a bar.
 
 Every death still names its cause, trace and cheapest lever (AGENTS.md).
+
+### Owner amendment 2 (2026-10-10): death feeds the line, with no added micromanagement
+
+Echo (item 5) is **dropped**. Added, under a no-new-taps rule ("also consider reduction of micromanagement /
+automation ladder; heir choice should be in a way that's automatable"):
+
+6. **Heir choice as a standing order.** On each death the core offers 3 heirs (trait draws from the lineage
+   seed). One of them always leans toward answering the killer (a gift that answers the killer's tags: Guard vs a
+   boss, Quick vs swift, Mend vs poison). Which heir succeeds is set by a **standing order, set once**:
+   `answer the killer` (default) · `strongest` · `surprise me`. Nobody is prompted on death: the order picks, both
+   offline and online. The report names the choice (`Bram · Guard on bosses · answers the Queen`). The player may
+   change the order (one chip) or, on the death screen, swap to another offered heir before the next send (an
+   optional fold, never a prompt). The order is a rung of the control ladder (`heirs` · retires `picking heirs` ·
+   lit by the first death). IDLE takes the default. Gate: the IDLE bars hold; no new required tap (cut118 taps test).
+7. **Deeds → Legacy.** A death pays Legacy for what that heir did (firsts, the depth past the line's record, siege
+   tries), within the current Legacy economy (redistributed, not inflated: total Legacy by day 14 within ±10 %).
+   The death screen leads with it: `+3 Legacy · Queen try 4`.
+8. **Bloodline titles.** A siege won names the line (`Queensbane`), with a small lasting perk against that boss's
+   kind (≤ 3 %; no wall-deciding), shown on the hero card, the graveyard and the chronicle. One title per boss.
