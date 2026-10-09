@@ -1,0 +1,65 @@
+{
+  "$comment": "Raw blind card, rater A, immutable once written. Criterion + probes archived before axes in scratchpad/8cf9050-blind-a/evidence.md; ledger in scratchpad/8cf9050-blind-a/ledger.txt.",
+  "game": "Riddle",
+  "build": "8cf9050",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (agent rater, seed 269, headed GPU D3D12 RTX 3080, 400x800 @3x)",
+  "horizon": {
+    "activeMinutes": 70.9,
+    "activeIntervalsUTC": [
+      { "phase": "cold", "start": "2026-10-09T15:25:35Z", "end": "2026-10-09T16:08:00Z", "excludedMin": 3.0, "creditedMin": 39.5 },
+      { "phase": "return-20m", "start": "2026-10-09T16:08:00Z", "end": "2026-10-09T16:13:05Z", "excludedMin": 0.0, "creditedMin": 5.1 },
+      { "phase": "return-4h", "start": "2026-10-09T16:13:20Z", "end": "2026-10-09T16:18:55Z", "excludedMin": 0.5, "creditedMin": 5.1 },
+      { "phase": "return-8h", "start": "2026-10-09T16:19:10Z", "end": "2026-10-09T16:41:50Z", "excludedMin": 1.5, "creditedMin": 21.2 }
+    ],
+    "exclusions": "driver/selector errors and retries (one 30 s locator timeout), page reloads for absences, ledger writing; card writing after 16:41:50 excluded",
+    "absences": ["20m (simulated, ?absent=20m)", "4h (simulated, ?absent=4h)", "8h (simulated, ?absent=8h)"],
+    "runsWatched": 12,
+    "runsWatchedNote": "12 runs sent while present, all observed at least partly; about 22 min at 1x normal across runs 4, 5, 6, 7 and the D1-4 start of run 10; the rest at fights-only",
+    "runsOffline": 10,
+    "ruleEditsAttempted": 7,
+    "ruleEdits": 6,
+    "ruleEditsNote": "pen unlocked after the first death; kept: hp<50 drink unknown (later hp<20 read unknown), foe: undead -> throw fire, has: leash -> tame nearest, foe: boss -> read silence (+ depth>=28); dropped: foe: gas -> attack gas/retreat",
+    "deathsRead": 6,
+    "deepest": "D33 (Mirror King wall)",
+    "blindnessViolations": "read only the idle-hybrid weights block of eval/presets.json to zero a weight-0 axis as the brief instructs; saw the other rater's card filename in a directory listing but did not open it"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "After my first heir died to Bloat Mother gas at D13, I wrote my first rule: drink unknown potions under half health. Una Ash took that rule down, drank a strength potion when hurt, and found her father's bones ('Found heir 1's bones: 10 items') on the floor where he fell. She went on through the bloat mother and the lich and starved down to 36 max hp, and still banked $10177 at a record D21.",
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "The forecast ('FLOOR CHANCE D9 88% · killer: gas · death 38%') and the per-edit 'VS LAST RUN · full haul 25→63%' preview kept the goal and the effect of a choice visible. But the 'Warlord tactic' button opened a sheet with no warlord tactic, the King death said 'hero at 18 hp' over a trace ending '0/50', and quest/breed taps gave no visible result." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Real trade-offs existed, and some bit me: my 'foe: boss → read silence' spent the only scroll on the D8 warlord ('D8 · silence scroll · silent'), so I added 'depth ≥ 28'. But many picks were just taking the option labeled 'better 8/8' / 'better 6/8', and at the King the TRY advice flipped between boss focus and Mirror rhythm." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned to read counter lines ('QUEEN · REGENERATING · COUNTER: READ SILENCE') and answer them with a supply and a rule, then saw 'first: Queen slain'. The King wall ('none beats 0/12 as is') offered no next thing I could learn inside the horizon." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Carry at risk is visible and real ('Carried $668 · Secured past D13 · Heading home' at 10/32 hp, then '$668 lost'). Most of the stakes resolved offline, though, and read as tallies ('4 RUNS · 4 died · lost $5512')." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Hand control answers instantly ('attack' → 'Dara Ash → jackal · −14 hp · jackal · fell'), and boss callouts land ('BLOAT MOTHER DOWN'). At 1x a fresh run spends about a minute on D1–D4 pickups. Audio unassessed (agent cannot listen)." },
+    { "id": "surprise", "human": 0.8, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Each of these changed what I configured: the hero fighting his own tamed golem ('Dara Ash → Skak · −16 hp'), my unknown-potion rule killing an heir ('Gambled: poison potion'), 'Found heir 1's bones', and hunger shrinking max hp ('starving −43'). Lapse: the D8 warlord / D13 mother opening repeated every run." },
+    { "id": "expression", "human": 0.6, "bot": "na", "proxy": "rule-set diversity across clears", "note": "The hero's title tracked my picks ('Guarded slayer' → 'Bulwark' → 'Guarded prowler'), and four of my own rows sat above the packages ('has: leash → tame nearest'). But the report said my rules were 'taught 1–3%' against 'chores 64–74%', so the build is mostly offered packages." },
+    { "id": "story", "human": 0.8, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "The reel and grudges make turns: 'grudge: Ashog the lurker', 'avenged Morix', 'Queen cornered him to 9 HP; held the corridor; banked $2510.', 'Found heir 1's bones'. Lapse: offline deaths arrive as one-line reels, not experienced turns." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "Check-ins of 5 to 20 minutes always ended on a send. Fights-only watching and 'D9–12 · 100% · +$334' skips moved well. But each check-in needed 5 to 10 sheet taps (forge, legacy, tactics, workers, supplies, unlocks), and fresh 1x runs drag on D1–D4." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "One screen gives cause, margin and rule: 'gas · D13 · hero at 3 hp · 9/12 replays survive · fixes: hp < 40% → drink unknown survives 12/12', and 'own poison · drink unknown at 50%'. Lapse: the King header hp contradicts the trace, and its TRY suggestion ping-pongs." },
+    { "id": "social", "human": 0, "bot": "na", "proxy": "n/a", "note": "Weight 0 in idle-hybrid. Named heirs and pets only; no relationship develops." },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Route forks ('fens → D13 or crypt · untried'), optional hand control ('Hand control · awaits order') and self-chosen taming were mine to take. Goals were otherwise the fixed next record ('Goal D34')." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "All three layers were observed. Within a run: depth and carry. Persistent: 'best D6 → D13 → D21 → D28 → D33', forge, legacy ranks, new tactics each report. Automation: scout 'SEND auto', porter, apprentice, drillmaster ('boss focus L5'). Lapse: hunger never got a visible answer, and the apprentice's '−$10000 forge' was a surprise drain." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "A torch-lit pixel village around a campfire, banner death screens with boss portraits, and dungeon palettes that change by lane (fens blue, foundry red). Lapse: yellow-on-parchment 'Bulwark held D20' is barely legible, and 'best D6' / 'reputation' and damage numbers over chips overlap. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Every return had things to read and choose: 'While away · 4 RUNS · 4 died · D28 · Foundry Master defeated', a 'Pick one' (drill / legacy / forge −30%), 'New choices', deaths with verdicts and 'Queen weakness learned · read silence'. It scaled with absence. Lapse: the 20m return was thin (1 run, one pick)." },
+    { "id": "attribution", "human": 0.8, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "I can name which of my rows did what: 'own poison · drink unknown at 50%' killed heir 6, 'D12 · throw fire wraith' and 'Krak · pet' came from my rows, and my silence row wasted a scroll at D8. Lapse: in the first 15 minutes and in offline deaths, the decisive rows were packages ('taught 1%')." }
+  ]
+}

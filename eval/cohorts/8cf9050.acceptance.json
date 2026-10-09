@@ -3,7 +3,7 @@
   "applicationCommits": [
     "8cf9050"
   ],
-  "status": "accepted for blind cohort 2026-10-09",
+  "status": "cohort complete 2026-10-10: 70.2 / 67.6, alpha .866 reliable",
   "frozen": {
     "dir": "scratchpad/blind-8cf9050-frozen/dist",
     "url": "http://127.0.0.1:5261/",
@@ -19,7 +19,7 @@
     "gates": "routine full on the combined Cut 116 tree: ALL PASS (descent agent)",
     "deviations": [
       "affixes rarely change the best answer (1/20)",
-      "D9/D14 forks miss Cut 26's 15-point cross-lane bar (5\u201311)"
+      "D9/D14 forks miss Cut 26's 15-point cross-lane bar (5–11)"
     ]
   },
   "browser": {
@@ -44,5 +44,31 @@
     ],
     "toolBudget": 260
   },
-  "score": "pending"
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/8cf9050.blind-a.json",
+      "total": 70.2,
+      "activeMinutes": 70.9,
+      "note": "best single card; surprise .8 and return .8"
+    },
+    "blind-b": {
+      "card": "eval/cards/8cf9050.blind-b.json",
+      "total": 67.6,
+      "activeMinutes": 70
+    },
+    "alpha": 0.866,
+    "reliability": "reliable",
+    "mean": 68.9,
+    "trend": "56.7 → 64.7 → 67.4 → 63.8 → 65.9 → 68.6 → 63.7 → 65.8 → 67.3 → 68.9",
+    "shared": [
+      "the same boss ladder in the same order (B), though affixes vary each boss",
+      "numbers that disagree: King death header '18 hp' vs trace 0/50 (A); 8-sample previews swing (A); '$0 GOLD EARNED · purse −$6789 · forge −$6750 · lost $2620' (B); forecast 'D33 88%' then banks at D30/D32 (B)",
+      "'TRY' advice flips and silently swaps a tactic (A, B)",
+      "'Warlord tactic' opens a sheet without it; quest/breed taps show nothing (A)",
+      "hunger shrinks max hp with no visible answer (A)",
+      "gold piles after 'Kit complete' with only $750 ornaments (B); 'Supplies limited · $0 budget' after the apprentice spent (B)",
+      "D1–D4 pickups ~1 min at 1×; 5–10 sheet taps per check-in (A)"
+    ],
+    "verdict": "reliable 68.9 (best mean); 80 not met"
+  }
 }

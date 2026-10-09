@@ -1,0 +1,191 @@
+{
+ "$comment": "Blind raw card, rater b, frozen cohort contract (briefs/b.txt). Immutable once written. Evidence: scratchpad/8cf9050-blind-b/evidence.md, ledger.txt, shots/.",
+ "game": "Riddle",
+ "build": "8cf9050",
+ "genre": "idle-hybrid",
+ "presets": "../riddle/eval/presets.json",
+ "profile": null,
+ "tier": 1,
+ "evaluator": "blind-b (Claude agent, headed GPU D3D12 RTX 3080, phone 400x800 @3x, seed 271)",
+ "horizon": {
+  "activeMinutes": 70,
+  "activeIntervalsUTC": [
+   {
+    "phase": "cold",
+    "start": "2026-10-09T15:25:30Z",
+    "end": "2026-10-09T16:06:47Z",
+    "credited": 40.0,
+    "excluded": "~1.3 min driver selector/label retries and tool errors"
+   },
+   {
+    "phase": "absent=20m return",
+    "start": "2026-10-09T16:06:57Z",
+    "end": "2026-10-09T16:12:44Z",
+    "credited": 5.0,
+    "excluded": "~0.8 min driver retries"
+   },
+   {
+    "phase": "absent=4h return",
+    "start": "2026-10-09T16:12:51Z",
+    "end": "2026-10-09T16:17:55Z",
+    "credited": 4.8,
+    "excluded": "~0.3 min"
+   },
+   {
+    "phase": "absent=8h return",
+    "start": "2026-10-09T16:17:54Z",
+    "end": "2026-10-09T16:39:02Z",
+    "credited": 20.1,
+    "excluded": "~1.0 min (one watch command overran the tool timeout and ran in background; driver errors)"
+   }
+  ],
+  "absences": [
+   "20m (simulated, ?absent=20m)",
+   "4h (simulated)",
+   "8h (simulated)"
+  ],
+  "runsWatched": 15,
+  "runsWatchedNote": "all at the game's normal speed (Fights only auto-speed), several minutes each; no fast/skip used",
+  "runsOffline": 7,
+  "deathsRead": 6,
+  "deathsReadNote": "wraith D12, own fire D13, Lurker Queen D28, Mirror King D33 (watched); lurker D28 (away 20m report) and Mirror King D33 (away 8h verdict)",
+  "ruleEdits": 9,
+  "ruleEditsAttempted": 11,
+  "ruleEditsNote": "pen unlocked after Bloat Mother (~15:40). Completed: +'hp<50% → read unknown'; +'hp<50% · depth≥20 → bank'; depth 20→25; hp 50→75%; scope silence 'in: deep'; depth 25→29; hp 75→40%; 40→30%; 30→40%. Plus 1 applied death-screen fix ('foe: boss → read silence'). Failed attempt: moving my bank rule below 'drink heal' — ▼ disabled 'packages below'. Pen slots 3/4 used; '+1 rule slot' locked '⊘ fill rules'.",
+  "kingSlain": false,
+  "bestDepth": "D33"
+ },
+ "killCriteria": {
+  "crashOrDataLoss": false,
+  "feltInputLatencyInCoreAct": false,
+  "firstSessionWithoutCoreAct": false,
+  "darkPatternInLoop": false,
+  "defaultRulesBeatEveryEdit": false,
+  "unfairDeathShareAbove10pct": false,
+  "returnWithNothingToDecide": false
+ },
+ "criterion": {
+  "fun_1to7": 5,
+  "playAgainTomorrow_1to7": 5,
+  "recommend_0to10": 7,
+  "checkInTomorrowUnprompted_1to7": 4,
+  "delayedRecall": ""
+ },
+ "sameDayRetelling": "Jora Ash, the third heir, gambled an unknown scroll at half health on D14 because of the rule I'd just written, and it was a recall that carried $1397 home. Next run he went deeper than anyone: D21, killing the Lich and the Foundry Master and banking $8713. Then I pushed my bank rule deeper, he cleared to D28 where the Lurker Queen and seventeen of her brood held him at 2 hp until he fell — and the next heir found his bones there and killed her.",
+ "axes": [
+  {
+   "id": "clarity",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "time-to-first-rule-edit; misread rate on the trace",
+   "note": "Goal tile ('Goal D34 New record') and floor-chance column always told me what I was chasing, but several numbers I could not reconcile: '$0 GOLD EARNED · purse −$6789 · forge −$6750 · lost $2620', 'default 40% · chores 60%', 'lost thread $0', and the King verdict 'boss focus · always → boss focus · attack nearest never fired'. Tapping 'TRY Mirror rhythm' silently swapped my mirror read tactic."
+  },
+  {
+   "id": "decisions",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "rule decision gap; dominated-rule rate",
+   "note": "Bank depth/threshold was a real, defensible trade shown live: depth≥25 'death 0→50%' for 'avg $2402→$5623/run', then hp<75% 'death 50→13%'; stance swap on 'Guarded better 5/8 at D23 Master'. Lapse: forge/legacy purchases were near-strictly ordered and gold became meaningless ($30086 with 'Kit complete' and only $750 town ornaments to buy)."
+  },
+  {
+   "id": "mastery",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "depth-per-run vs sessions; rules-per-death trend",
+   "note": "Learned that a broad 'foe: boss → read silence' wastes the scroll ('read silence vs boss at 53/53 hp' vs the King) and scoped it 'in: deep'; learned bank vs 'return at 25%' (60%) ordering. But most lessons were handed over by the fixes list, forecasts swung ±35 on 8 samples, and the King stayed unsolved."
+  },
+  {
+   "id": "tension",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "bloody-clear share; bank-or-push margin",
+   "note": "Chosen stakes resolved visibly: pushed bank depth and lost '$2710 lost · bones: 10 items on D28'; away report 'The King took him to 8 HP; attacked him; banked $3794'. Undercut by repetition: the first 28 floors play out nearly identically each run and outcome mostly hinges on the last boss."
+  },
+  {
+   "id": "feel",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "frame time; events per minute at 1x",
+   "note": "Headed D3D12; auto speed ('2×'…'48×') skips travel and slows for fights; callouts ('WARLORD BREAKS', 'SPLITS!', 'POPS!') land. Combat is mostly reading a dense hit log over small sprites; audio unassessed (agent cannot listen)."
+  },
+  {
+   "id": "surprise",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "death-cause entropy; distinct situations per run",
+   "note": "Own fire potion killed heir 2 ('own fire · D13 · hero at 5 hp'); gambled scroll was a recall; captives, nests, bounty '2× gold'. But bosses repeat in fixed order every run (warlord D8, mother D13, lich D18, master D23, queen D28, king D33)."
+  },
+  {
+   "id": "expression",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "rule-set diversity across clears",
+   "note": "Three rows above the packages are recognisably mine ('foe: boss · in: deep → read silence', 'hp < 40% · depth ≥ 29 → bank', 'hp < 50% → read unknown'), but they sit over 13 package rows that do most of the work ('chores 70%'), slots capped at 3/4, and they can't be ordered below packages."
+  },
+  {
+   "id": "story",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "chronicle carries setup + turn + end",
+   "note": "Lineage gives turns: 'Found heir 3's bones: 10 items', 'Thul the wraith is avenged', 'grudge: Skog the lurker', reel 'Queen cornered him to 1 HP; aimed; died to a lurker.' Lapse: reels are formulaic ('Untouched by a rat; attacked; reached D28') and repeat."
+  },
+  {
+   "id": "pacing",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "run length; check-in length; dead time at 1x",
+   "note": "In-run: known floors collapse ('D1–7 · 100% · +$171'), watch ~4–6 min per run with few dead stretches. Admin: check-ins bounded (~5 min) but buried in 10+ tiles/sheets. Cadence: 4h and 8h both returned '3 RUNS' (rest 30–80m), so the long absence was not distinct; every run re-clears the same 28 floors."
+  },
+  {
+   "id": "failure",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "share of deaths with a matched-rule trace",
+   "note": "Best part: cause + hp + replayed fixes on one screen ('own fire · D13 · hero at 5 hp', trace 'tactic boss focus 7/34 → fire −5 2/34', 'hp < 50% → read unknown · survives 12/12 · was 0/12'), one-tap apply, next heir auto-sent. Lapse: headline 'never used unknown' vs cause 'own fire' read as contradictory, and away-death verdicts were cryptic."
+  },
+  {
+   "id": "social",
+   "human": 0.0,
+   "bot": "na",
+   "proxy": "n/a",
+   "note": "Weight 0 in idle-hybrid. Only named foes/grudges ('avenged Skog'); no relationship."
+  },
+  {
+   "id": "autonomy",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "route/goal freedom in rules",
+   "note": "Self-set goal (beat the King), free order of spending/rules; routes shown ('or crypt · untried', 'or foundry · untried') but I never found where to choose one."
+  },
+  {
+   "id": "progression",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "unlock cadence; vocabulary growth",
+   "note": "Three layers observed: in-run kit/floors; persistent legacy ranks, forge, ◆ tactic levels, unlocks ('action: throw'); automation every few minutes (porter, scout 'sends him · each rest', apprentice, drillmaster, armourer). Lapse: by ~50 min 'Kit complete' and gold piled to $30086 with nothing meaningful to buy."
+  },
+  {
+   "id": "aesthetic",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "none",
+   "note": "Town at night with lit windows and campfire is a place I'd sit in; red tattered YOU DIED banner is striking. Dungeon tiles muddy at phone size and the run screen is half D-pad. Audio unassessed."
+  },
+  {
+   "id": "return",
+   "human": 0.6,
+   "bot": "na",
+   "proxy": "offline yield vs active; decisions pending on return",
+   "note": "Each return had a report, a 'Pick one' (drill/legacy/marks), PENDING rule stats ('fired in 0 of 3 runs · shadowed by bank at 75%') and a death to act on — I edited rules after every return. But 4h ≈ 8h (3 runs each), the 20m return showed a loss with the apprentice spending '−$6750' and 'Supplies limited · $0 budget', and the pick-one choices were tiny ('Legacy +2')."
+  },
+  {
+   "id": "attribution",
+   "human": 0.8,
+   "bot": "na",
+   "proxy": "share of deaths attributable to a rule the player wrote",
+   "note": "I could name whose decision each outcome was: 'Gambled: recall scroll' and 'D32 · HP 38% → bank' were my rows; the Queen death followed my depth push; own-fire came from the boss focus tactic I picked. Lapse: the summary credits mostly packages ('picked 29% · chores 70%') and the King deaths traced to package rows I could not reorder."
+  }
+ ],
+ "blindnessViolations": "None of the forbidden docs read. Read tools/driver.mjs header + tools/drive.sh (harness usage only, not game source) and eval/presets.json weights (scoring data). Used driver js/eval only to read the WebGL renderer string and the visible innerText of open sheets; no game state APIs, no mutating debug calls.",
+ "auditNotes": "Forecast vs outcome diverged several times (e.g. 'D33 88%' then banked D30 'no heals'; 'D33 88%' then banked D32). I accidentally spent $7500 on one weapon branch early (my misclick-level mistake, not the game's)."
+}
