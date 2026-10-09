@@ -4,7 +4,7 @@
     "92dc3f5",
     "3ab97ea"
   ],
-  "status": "accepted for blind cohort 2026-10-09",
+  "status": "cohort complete 2026-10-09: 68.3 / 63.3, alpha .726",
   "frozen": {
     "dir": "scratchpad/blind-3ab97ea-frozen/dist",
     "url": "http://127.0.0.1:5259/",
@@ -20,7 +20,7 @@
     "gates": "fresh full on the combined Cut 115 tree: ALL PASS, including 'Workers pay the away player' (the Cut 110 deviation)"
   },
   "browser": {
-    "full": "146/147 at 92dc3f5 (/tmp/riddle-c115-client.log); watch-normal-news's opening crawl under load fixed 3ab97ea (Normal keeps LEAD_FAST ahead in a dead stretch), rechecked \u00d73 with watch-live-edge, watch-speed-rate, fights, take-control, cut115"
+    "full": "146/147 at 92dc3f5 (/tmp/riddle-c115-client.log); watch-normal-news's opening crawl under load fixed 3ab97ea (Normal keeps LEAD_FAST ahead in a dead stretch), rechecked ×3 with watch-live-edge, watch-speed-rate, fights, take-control, cut115"
   },
   "machineLoad": {
     "atRelease": "23.56 20.98 19.01",
@@ -41,5 +41,33 @@
     ],
     "toolBudget": 260
   },
-  "score": "pending"
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/3ab97ea.blind-a.json",
+      "total": 68.3,
+      "activeMinutes": 72,
+      "note": "cold 1.3 min short, made up in the 8h phase"
+    },
+    "blind-b": {
+      "card": "eval/cards/3ab97ea.blind-b.json",
+      "total": 63.3,
+      "activeMinutes": 69.4,
+      "note": "cleared D34 offline in the 8h absence; tension .3"
+    },
+    "alpha": 0.726,
+    "reliability": "tentative",
+    "mean": 65.8,
+    "trend": "56.7 → 64.7 → 67.4 → 63.8 → 65.9 → 68.6 → 63.7 → 65.8",
+    "cut115": "expression no longer gates: 0.6 on both (was 0.3 on both); A: 15/15 edits, 'I owned the outcomes'; B: chronicle 'the chokepoint fighter' after the player's corridor rule",
+    "shared": [
+      "'▶ watch kill' did nothing when tapped (B)",
+      "corridor shuffle 'foes 4+ → corridor ×8' >3 min at D23 (B)",
+      "numbers that contradict: 'survives 11/12 · death 56→89%', '47/44 hp', a 10 s death from full 'bad luck · 1 in 6', 'Target the boss' into the mirror King (A)",
+      "compare 'close' for every option; forecast ±34 swings (B)",
+      "the dungeon cleared in ~50 active min (B) after the Queen eased; Ascension 1 in ~7 min",
+      "20m return '$0 GOLD EARNED' + a dead heir (A); 25–56 s quiet stretches at fights speed (A)",
+      "gold piles to $64 833 with 'Kit complete' (B)"
+    ],
+    "verdict": "tentative 65.8; expression gate removed by Cut 115; 80 not met"
+  }
 }

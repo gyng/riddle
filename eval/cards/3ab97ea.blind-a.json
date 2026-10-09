@@ -1,0 +1,172 @@
+{
+  "$comment": "Raw blind card, rater a. Evidence: scratchpad/3ab97ea-blind-a/evidence.md, notes.md, ledger.txt.",
+  "game": "Riddle",
+  "build": "3ab97ea",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "preset": "idle-hybrid",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (agent rater, seed 241, headed GPU 400x800@3x)",
+  "horizon": {
+    "activeMinutes": 72,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "06:31:36",
+        "end": "07:11:16",
+        "netMinutes": 38.7,
+        "excluded": "~1 min driver hidden-duplicate click debugging"
+      },
+      {
+        "phase": "after 20m",
+        "start": "07:11:18",
+        "end": "07:16:12",
+        "netMinutes": 4.9
+      },
+      {
+        "phase": "after 4h",
+        "start": "07:16:14",
+        "end": "07:21:41",
+        "netMinutes": 5.4
+      },
+      {
+        "phase": "after 8h",
+        "start": "07:21:43",
+        "end": "07:45:58",
+        "netMinutes": 23.3,
+        "excluded": "~1 min editor-click debugging"
+      }
+    ],
+    "deviation": "Cold phase net ≈38.7 min, about 1.3 min under the 40-min budget. Total ≥70 met by extending the 8h-return phase.",
+    "absences": [
+      "20m (simulated)",
+      "4h (simulated)",
+      "8h (simulated)"
+    ],
+    "runsWatched": 18,
+    "runsOffline": 8,
+    "deathsRead": 6,
+    "ruleEditsAttempted": 15,
+    "ruleEdits": 15,
+    "watchSpeed": "default 'Speed · Fights only' (1.5–2x, quiet stretches skipped); several multi-minute watches; hand control tried once",
+    "penUnlockedAt": "~06:55 (after meeting the Bloat Mother)"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "Heir 2 Fenn Ash ran with the retreat rule I'd taken from heir 1's death screen. He finally beat the Foundry Master ('HP 37% → retreat ×15', then a heal), broke into the Deep and pushed past his father's record to D28. There my retreat rule had 'no path ← foes on every side' against a ring of lurkers, and Thar the lurker killed him at 1 hp, so the next heir went out with a grudge to settle.",
+  "audio": "unassessed (agent cannot listen)",
+  "blindness": "No violations of content. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK §1–3, template, presets idle-hybrid weights, and the driver/drive.sh usage header (infrastructure). An `ls eval/cards/3ab97ea*` showed the filename of another rater's card; its contents were not opened.",
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "note": "Death screens name cause, trace and fixes ('drink heal at 45% under retreat at 50%'), and the forecast shows deltas ('death 13→50%'). But several numbers didn't reconcile: 'bad luck · 1 in 6' on a 48→0-in-10s King death, 'survives 11/12 … death 56→89%', '47/44 hp', and a report face that said only 'hurt · went home' when the cause was 'return at 25% · 14/57'."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "note": "Real forecast trade-offs: return hp<30%→10% gave 'D32 25→63% · death 13→50%', and I took the King gamble and would again. Lapse: 'compare outcomes' read 'close' for almost every tactic, and forge/legacy buys were mostly strictly ordered."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "note": "Within the hour I learned to read shadowing ('0/390 fires', 'under retreat at 50%') and that the D28 wall was heal supply, not rules. Heir resets and repeated early floors kept the curve flat after that."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "note": "The King push was a stake I chose ('King 50%±35 · death 50%') and watched resolve live. But most of every watched run is a foregone D1–D23 replay ('WARLORD BREAKS … BLOAT MOTHER DOWN')."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "note": "Hand control answered each 'attack' tap with a hit line within ~1 s, and boss plaques ('MIRROR KING · COUNTER: MIRROR RHYTHM') land well. Dead stretches of 25–56 s at default speed under summary chips ('travel 78%') work against it. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "note": "Each band changed my play (Foundry 'REFLECTED!', Queen 'READ SILENCE', King mirrors), as did grudges and 'Freed the captive. It followed.'. Once seen, the same openings repeat every run."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "note": "'Guarded slayer' plus my own 'on see captive → free captive' felt mine, and the chip changed to 'freed captive'. Most of the build is pre-written packages, and the report said 'picked 27% · chores 72%'."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "note": "Grudges carried across heirs: 'grudge: Thar the lurker' → 'Hale Ash → Thar … fell' → 'avenged Thar'. A freed captive fought for my hero. Lapse: the reel lines repeat ('Cut the captive down. No one weeps.' many times)."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "note": "Check-ins took 2–5 min and ended on a send. Absences felt distinct (20m: 1 run; 8h: 4 runs and a named stall). In-run there are 25–56 s idle stretches, and D1–D23 replays every run."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "note": "Every death gave cause, trace, last-fight dps and replayed fixes ('hp < 50% · foes ≥ 2 → retreat · survives 12/12 · was 2/12'). Next run is one tap. Lapse: the 'bad luck 1 in 6' framing and a contradictory 'all harm' fix list."
+    },
+    {
+      "id": "social",
+      "human": 0.0,
+      "bot": "na",
+      "note": "Weight 0 in idle-hybrid. Named heirs and grudges only."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "note": "I chose goals the game didn't ask for (free captives, flee the King). Route and order are fixed by the dungeon."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "note": "$0→$12604, D3→D33, a town that fills in, workers taking over chores ('porter · hauled $6467', 'scout · sent 4'), rule slots 4→5, tactics to L5. Lapse: the legacy tree completed in about an hour, and each heir resets XP so the forecast dips ('D29 25%→<15%')."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "note": "Torch-lit cave over a growing village, an orange Foundry, the tattered 'YOU DIED' banner. Lapse: dark dungeon floors read muddy at phone size. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.6,
+      "bot": "na",
+      "note": "The 8h return named a stall ('none beyond floor 28') with a pick-one and a suggestion. The 20m return was '1 RUNS · $0 GOLD EARNED' and a death, and the suggestion I took led into the King's mirror ('DEALT 0 dps')."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "note": "I could say whose rule did it: 'retreat at 50% 89%' killed heir 3 (my applied fix), and my 10% return saved the last King run ('RETURN', 'returned $2542'). Lapse: the report credits 'chores 68–73%' to most decisions, and package rows I never wrote ('return at 25%') ended several runs."
+    }
+  ]
+}

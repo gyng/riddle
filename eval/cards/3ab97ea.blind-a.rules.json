@@ -1,0 +1,228 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 10
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 45
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "patch"
+    },
+    {
+      "conds": [
+        {
+          "k": "on_see",
+          "t": "captive"
+        }
+      ],
+      "verb": {
+        "v": "free_captive"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 50
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "unknown"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "mirror"
+        },
+        {
+          "k": "hp>",
+          "n": 45
+        }
+      ],
+      "verb": {
+        "v": "tactic",
+        "a": "cadence"
+      },
+      "origin": "tactic:cadence"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        },
+        {
+          "k": "hp>",
+          "n": 45
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "drill:goblin_warlord"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        },
+        {
+          "k": "depth>=",
+          "n": 34
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 100
+        }
+      ],
+      "verb": {
+        "v": "rest"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "lacks",
+          "t": "heal"
+        },
+        {
+          "k": "hp<",
+          "n": 44
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "telegraph"
+        },
+        {
+          "k": "hp<",
+          "n": 60
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 3
+        },
+        {
+          "k": "hp<",
+          "n": 60
+        }
+      ],
+      "verb": {
+        "v": "back_corridor"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "boss_focus"
+      },
+      "origin": "tactic:boss_focus"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "summoned"
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:summoned"
+      },
+      "origin": "tactic:boss_focus"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 35
+        },
+        {
+          "k": "adj>=",
+          "n": 2
+        }
+      ],
+      "verb": {
+        "v": "retreat"
+      },
+      "origin": "temper:skittish"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "stance:guarded"
+    }
+  ],
+  "name": "fighter"
+}

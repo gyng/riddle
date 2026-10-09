@@ -1,0 +1,212 @@
+{
+  "$comment": "Raw blind card, rater b, cohort 3ab97ea. Criterion answered before axes (archived scratchpad/3ab97ea-blind-b/evidence.md). Audio unassessed (agent cannot listen). bot fields na; coordinator applies caps.",
+  "game": "Riddle",
+  "build": "3ab97ea",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-b (Claude agent, independent blind rater)",
+  "seed": 251,
+  "url": "http://127.0.0.1:5259/?dev=1&runs=1&seed=251&fresh=1",
+  "input": "phone 400x800 at 3x, headed private-X Chromium, ANGLE D3D12 (NVIDIA GeForce RTX 3080)",
+  "horizon": {
+    "activeMinutes": 69.4,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-09T06:31:30Z",
+        "end": "2026-10-09T07:11:30Z",
+        "minutes": 40.0
+      },
+      {
+        "phase": "after absent=20m",
+        "start": "2026-10-09T07:11:30Z",
+        "end": "2026-10-09T07:16:38Z",
+        "minutes": 5.1
+      },
+      {
+        "phase": "after absent=4h",
+        "start": "2026-10-09T07:16:44Z",
+        "end": "2026-10-09T07:21:49Z",
+        "minutes": 5.1
+      },
+      {
+        "phase": "after absent=8h",
+        "start": "2026-10-09T07:21:55Z",
+        "end": "2026-10-09T07:41:55Z",
+        "minutes": 19.2,
+        "exclusions": [
+          "07:39:56-07:40:46 unattended sleep in a command (~0.8 min)"
+        ]
+      }
+    ],
+    "absences": [
+      "20m (simulated, ?absent=20m)",
+      "4h (simulated, ?absent=4h)",
+      "8h (simulated, ?absent=8h)"
+    ],
+    "runsWatched": 13,
+    "runsWatchedNote": "13 live sends observed at the default watch speed (Fights only auto 1.5-2x fights / 16x travel); 4 watched for several continuous minutes (D18-D28 runs, the D23 slog, a full Ascension 1 run incl. the Mirror King kill).",
+    "runsOffline": 10,
+    "deathsRead": 3,
+    "deathsNote": "3 death screens read in full with traces and fix replays (skeleton D18, lurker D28, mirror shade D28) + 1 repelled (Warlord D8); 2 further offline deaths (King in 20m absence, lurker in 8h) read only as report summaries. Ending screen: 21 runs, 5 deaths.",
+    "ruleEdits": 5,
+    "ruleEditsAttempted": 8,
+    "ruleEditsNote": "Pen ('edit', custom rules 0/4) unlocked after first death (~16 min). Kept: foes>=4 -> to corridor; foe: boss + in: deep -> read silence; foe: mirror -> attack mirror (later removed by me after return when it shadowed Mirror rhythm: death 63->25%); foe: boss -> drink strength (Ascension 1). Reverted: foe: summoner -> attack summoner (D19 -75), depth>=20 -> bank (safe but $1259 vs $17160/run), reflect read card placement (death 50-75%).",
+    "dungeonCleared": "Mirror King slain offline during the 8h absence (~50 active min + 12h20 simulated); then played Ascension 1 (cleared live) and Ascension 2 (D23).",
+    "protocolLapses": [
+      "Notes began ~7 actual minutes in rather than 10.",
+      "No other blindness violation: read only eval/RATING.md, docs/FUN_EVAL_IDLE.md, FRAMEWORK §1-3, the template, plus tools/drive.sh and the driver header for op syntax."
+    ]
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 4,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "Wren Ash went down after his grandfather Vale was killed by Skusk the skeleton at D18, and I had written him one rule, \"foes ≥ 4 → to corridor\". He broke the Warlord, avenged Skusk at the Lich, swapped into mirror read for the Foundry Master and reached D28 with $18k in his pack. There the lurker queen \"listens\", twelve lurkers held every side, and my corridor rule failed \"no path\"; he died at 1 hp, and the death screen told me a silence scroll would have saved him 4 times out of 12.",
+  "humanProbes": {
+    "clarity": "Mostly yes - the forecast said \"VS LAST RUN · D19 −37 · full haul 50→13% · death 50→88%\" the instant I added a rule - but \"default 36% · chores 64%\" was never explained, the \"Warlord tactic\" button opened a generic tactics sheet, \"close\" sat next to real close buttons meaning a close outcome, and \"▶ watch kill\" did nothing.",
+    "decisions": "I added \"depth ≥ 20 → bank\" (death <13%, avg $1259/run) and removed it to push on (death >87%, avg $17160/run), and I'd make that call again; but tactics \"compare outcomes\" came back \"close\" for every option three times out of three.",
+    "mastery": "An hour ago I didn't know a condition could save a scroll; now I narrow rules (\"foe: boss\" + \"in: deep\" → read silence took death from 50% to 25%) and read traces like \"to corridor vs 4+ · no path ← foes on every side\".",
+    "tension": "I sweated the D28 lurker floor (\"death 67→7%\" on the fix list) and the 87%-death push, but D1-D18 later one-shot everything (\"−22 hp\"), the King died while I was away, and Ascension 1 was a seven-minute walkover.",
+    "feel": "Callouts landed - \"OGRE WINDS UP\", \"REFLECTED!\", \"CORRIDOR ✗ NO PATH\" - and the drill-in/out of sheets was snappy, but the phone-size board is small and murky and the log floods; audio unassessed.",
+    "surprise": "\"The monkey stole the violet potion?\", \"Skusk the skeleton is avenged.\", being paralysed to death by a mirror shade at 3/51, and the lurker queen \"listens\" all changed what I configured; the same Warlord/Mother/Lich order repeated every run.",
+    "expression": "The chronicle titled two heirs \"the chokepoint fighter\" after my corridor rule; my set was 3 hand rules over Guarded + boss focus + Mirror rhythm.",
+    "story": "Vale fell to Skusk at D18; Wren \"found ♟1's bones\" and avenged Skusk, then fell to Krak the lurker; Yara \"avenged Krak\", took the Queen and fell to Morusk the mirror shade.",
+    "pacing": "Check-ins were 1-5 minutes and early floors fold into \"D9–12 · 100% · +$292\" cards, but at D23 \"alert 8/8\" smiths kept my hero shuffling \"foes 4+ → corridor ×8\" for over three real minutes.",
+    "failure": "\"lurker · D28 · hero at 1 hp · YOU DIED\" with \"fixes · 12 replays of D28 ... hp < 50% → read unknown · survives 12/12\" is the clearest loss screen I've used; my blame went to my own corridor rule's \"no path\".",
+    "social": "Nobody else; the closest was the named nemesis line - \"grudge: Krak the lurker\" then \"Krak the lurker is avenged.\" - and named workers like the apprentice who spent \"−$3600\" for me.",
+    "autonomy": "I chose to push into an 87% death forecast, to begin \"Ascension 1 · Harder dungeon · same bloodline\", and once took \"Hand control · awaits order\" mid-run though nothing asked me to.",
+    "progression": "Within runs gold climbed to \"Carried $43602\"; between runs forge tiers, Legacy ranks and tactic levels (\"Guarded L5\"); automation came as scout, porter, apprentice, drillmaster - but by Ascension 2 I had \"$64833\" and the forge said \"Kit complete\".",
+    "aesthetic": "The pixel town at night with a campfire and the torn red death banner (\"YOU DIED\" wax seal) are places I'd sit in; the ending art of the hero facing ruined arches was lovely.",
+    "return": "I came back to \"While away · D33 · $15301 · Pick one\" and chose the forge discount; after 8h it was \"Boss defeated · Mirror King · ▶ watch kill\" - which did nothing - and I would rather have stayed for that.",
+    "attribution": "\"D28 · boss → read silence\" fired at the Queen because I wrote it, and \"D13 · foes 4+ → corridor\" was my rule; my Wren died where my corridor rule said \"no path\" - but reports say \"taught 1–4%\", so the packages did most of the playing."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Forecast deltas and traces are clear (\"VS LAST RUN · D19 −37\"); repeated lapses: unexplained \"default 36% · chores 64%\", \"Warlord tactic\" opened a generic sheet, \"close\" outcome label beside close buttons, stale \"reach D15\" quest at D33, inert \"▶ watch kill\"."
+    },
+    {
+      "id": "decisions",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Real foreseeable trade-off: \"depth ≥ 20 → bank\" gave death <13% but avg $1259/run vs push at $17160/run. Undercut by tactics compare returning \"close\" for all 8-10 options three times and forecasts at \"±34\" that flipped the same config from death <13% to 38-50%."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Learned to narrow conditions: adding \"in: deep\" to the silence rule moved \"full haul 0→63% · death 100→25%\". Later depth came mostly from forge/legacy, and the ascensions taught nothing new."
+    },
+    {
+      "id": "tension",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Chosen stakes existed (pushing into \"death >87%\"; D28 deaths at 1 hp) but the climax (King) resolved offline unseen, early floors became \"−22 hp\" one-shots, and Ascension 1 was cleared live with no doubt at all."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Strong callouts (\"OGRE WINDS UP\", \"REFLECTED!\", \"CORRIDOR ✗ NO PATH\") and quick sheets; lapse: the board is small and murky at phone size and the log floods; audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Thief monkey, grudges avenged, paralysis death by a mirror shade, the queen that \"listens\" changed my rules; but the floor/boss order repeats identically each run and ascensions replay the same openings (\"Ashak the jackal, gone wild.\")."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My rule earned the epithet \"the chokepoint fighter\" in the chronicle; but my build was 3 hand rules atop a package stack the report credits with ~97% of decisions."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Chronicle with turns: \"found ♟1's bones\", \"Skusk the skeleton is avenged.\", \"avenged Krak\". Lapse: the biggest beat, the King's death, happened offline and \"▶ watch kill\" would not play."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-play: collapsed early floors are good but the D23 alert-8/8 smith loop ran 3+ real minutes of \"foes 4+ → corridor ×8\". Admin: check-ins 1-5 min. Cadence: 20m/4h/8h distinct (bottom reached / plateau / King + ending)."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Death screens name cause, margin and replay-tested fixes (\"survives 12/12 · was 0/12\", trace row \"to corridor vs 4+ · no path\"). Lapse: the D18 swarm death was stamped \"LUCK · bad luck · 1 in 1\" while ten skeletons held every exit and \"none beats 0/12\" - reads contradictory."
+    },
+    {
+      "id": "social",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "No people; named nemeses persisting across heirs (\"grudge: Krak the lurker\" -> \"Krak the lurker is avenged.\") and named workers are the only relationships."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I set my own goals (push vs bank, which boss to prepare for, \"Begin descent\" into Ascension, optional \"Hand control\"), but route/order is fixed and the dungeon is linear."
+    },
+    {
+      "id": "progression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "All three layers observed: in-run carry, persistent forge/Legacy/tactic levels, automation (scout, porter, apprentice auto-forging \"−$3600\", drillmaster). Lapse: the whole arc closed in ~70 active min and gold then piled to \"$64833\" with \"Kit complete\"."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Night town with campfire and lit forge, red death banner with wax \"YOU DIED\" seal, ending art. Lapse: in-run board reads as muddy pixels at phone size. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Every return had something to read and a \"Pick one\" (drill / legacy / forge −10%/−30%) plus a PENDING list of rules that never fired. Lapses: the 4h return moved nothing (\"held D33\"), and the 8h return's climax could not be watched, so I'd rather have stayed."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "My rules are named when they fire (\"D28 · boss → read silence\", \"D13 · foes 4+ → corridor\") and in traces; I retell runs in the first person. Lapse: reports credit hand rules with only \"taught 1–4%\", and the decisive King win belonged to a picked tactic while I was away."
+    }
+  ]
+}
