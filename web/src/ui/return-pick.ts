@@ -13,7 +13,14 @@ import "../return-pick.css";
 const WORD: Record<string, string> = { drill: "drill", legacy: "legacy", legacy2: "legacy", forge: "forge", marks: "marks" };
 const ICON: Record<string, [string, string]> = { drill: ["node_drillmaster", "✦"], legacy: ["legacy", "❖"], legacy2: ["legacy", "❖"], forge: ["forge", "⚒"], marks: ["mark", "◆"] };
 
-function offerTile(app: App, o: ReturnOffer, busy: { on: boolean }, done?: () => void): HTMLElement {
+/** Cut 118 round 2 §6: the pick's default — what `collect & send` takes when no tile is tapped: Legacy (never a shop, never gold), else
+ *  the drill, else the first free offer, else the first available. */
+export function defaultOffer(offers: ReturnOffer[] | undefined): ReturnOffer | undefined {
+  const ok = (offers ?? []).filter((o) => o.available);
+  return ok.find((o) => o.id === "legacy") ?? ok.find((o) => o.id === "legacy2") ?? ok.find((o) => o.id === "drill") ?? ok.find((o) => !o.price) ?? ok[0];
+}
+
+function offerTile(app: App, o: ReturnOffer, busy: { on: boolean }, done?: () => void, isDefault = false): HTMLElement {
   const [ico, glyph] = ICON[o.id] ?? ["mark", "◆"];
   const t = tile({ id: `pick-${o.id}`, label: WORD[o.id] ?? o.id, icon: ico, glyph, disabled: !o.available || !app.engine.takeReturnPick, onclick: () => {
     if (busy.on || !app.engine.takeReturnPick) return;
@@ -23,6 +30,7 @@ function offerTile(app: App, o: ReturnOffer, busy: { on: boolean }, done?: () =>
   t.dataset.offer = o.id;
   t.title = `${o.title} ${o.line}`;
   t.append(h("small", { class: "pick-what" }, o.title), h("small", { class: "pick-line num" }, o.line, o.price ? ` · $${o.price}` : ""));
+  if (isDefault) { t.classList.add("pick-default"); t.dataset.default = "1"; t.append(h("small", { class: "pick-default-tag" }, /* copy:label */ "default")); }
   return t;
 }
 
@@ -31,7 +39,7 @@ function offerTile(app: App, o: ReturnOffer, busy: { on: boolean }, done?: () =>
 export function returnPick(app: App, where: "report" | "camp"): { el: HTMLElement; dispose: () => void } {
   const el = h("section", { class: `return-pick at-${where}`, "data-return-pick": where });
   const busy = { on: false };
-  const three = (done?: () => void): HTMLElement => h("div", { class: "cmd pick-tiles" }, ...(app.lineage.return_pick?.offers ?? []).map((o) => offerTile(app, o, busy, done)));
+  const three = (done?: () => void): HTMLElement => { const os = app.lineage.return_pick?.offers ?? [], d = defaultOffer(os); return h("div", { class: "cmd pick-tiles" }, ...os.map((o) => offerTile(app, o, busy, done, o === d))); };
   const head = (size: number): HTMLElement => h("div", { class: "pick-head" }, h("b", { class: "row-label" }, /* copy:label */ "Pick one"), h("small", { class: "dim num" }, "◇".repeat(size)));
   const paint = (): void => {
     const p = app.lineage.return_pick;

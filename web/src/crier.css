@@ -1,0 +1,19 @@
+/* Cut 118 §8: the town crier — top right of the scene, opposite the `next` pill; a chunky pixel herald and his cry */
+.town-crier { position: absolute; z-index: 3; top: 8px; right: 8px; display: inline-flex; align-items: center; gap: 6px; max-width: 56%;
+  min-height: 44px; padding: 4px 10px 4px 6px; border: 2px solid #34415b; border-radius: 2px; background: rgba(13, 12, 20, .78); color: var(--bone, #eadfc5);
+  font-size: 13px; cursor: pointer; }
+.town-crier[hidden] { display: none; }
+.town-crier .crier-fig { width: 24px; height: 32px; flex: 0 0 auto; }
+.town-crier .crier-fig svg { width: 100%; height: 100%; display: block; image-rendering: pixelated; overflow: visible; }
+.town-crier .crier-cry { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.town-crier .crier-more { color: var(--acc, #dbba7c); }
+.town-crier .crier-bell { transform-box: fill-box; transform-origin: 50% 0; }
+.town-crier.ringing .crier-bell { animation: crier-ring .5s steps(2, jump-none) 4; }
+.town-crier.ringing .crier-fig { animation: crier-hop .5s steps(2, jump-none) 2; }
+@keyframes crier-ring { 0% { transform: rotate(-25deg); } 100% { transform: rotate(25deg); } }
+@keyframes crier-hop { 0% { transform: translateY(0); } 50% { transform: translateY(-2px); } 100% { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .town-crier.ringing .crier-bell, .town-crier.ringing .crier-fig { animation: none; } }
+.crier-scroll .crier-lines { margin: 0; padding-left: 18px; }
+.crier-scroll .crier-line { margin: 4px 0; }
+.crier-scroll .crier-line.new { color: var(--acc, #dbba7c); }
+.crier-scroll .crier-day { margin-right: 4px; }

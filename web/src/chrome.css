@@ -296,3 +296,5 @@ html.skin-button .camp-run-details > summary.btn { border: solid transparent; bo
 .game-window .watch-options .game-control .tl { font: inherit; text-align: center; overflow-wrap: anywhere; }
 .game-window .watch-options .game-control.on { color: #f2d6a0; }
 .game-window .watch-options .game-control.bail { color: #ffd5cc; }
+/* Cut 117 §2: the panel opened on a plaque's own tactic (a drill, a levelled package) rings it */
+.pkg-panel .pkg-focus { outline: 3px solid #d9b45a; outline-offset: 2px; box-shadow: 0 0 12px rgba(217, 180, 90, .6); }

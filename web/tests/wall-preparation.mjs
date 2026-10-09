@@ -54,7 +54,9 @@ try {
    a.lineage = { ...a.lineage, selected_bloodline: 3, bloodline: { points: 8, spent: 0, upgrades: {} } }; await a.afterLineage();
    check(action('report-upgrade').textContent.includes('Bloodline 3 · 8 Legacy'), 'selected slot updates preparation');
    await document.fonts.ready; await new Promise(r => setTimeout(r, 100));
-   for (const b of document.querySelectorAll('.preparation-action')) { const r = b.getBoundingClientRect(); check(r.width >= 44 && r.height >= 44, 'touch bounds'); }
+   // Cut 118 round 2 §6: on the report the shop rows (`Forge gear`) wait under the folded `details`, never the card's decision — the rendered ones keep their bounds
+   check(!document.querySelector('.report') || !document.querySelector('.report .preparation-forge') || !!document.querySelector('.report .preparation-forge').closest('.report-details'), 'report shop row folded');
+   for (const b of document.querySelectorAll('.preparation-action')) { if (!b.getClientRects().length) continue; const r = b.getBoundingClientRect(); check(r.width >= 44 && r.height >= 44, 'touch bounds'); }
    check(document.documentElement.scrollWidth <= innerWidth, 'no horizontal overflow');
    for (const patch of [{ live: { depth: 8 } }, { live: null, ended: true }, { ended: false, town: { ...town, home: false } }]) {
     a.lineage = { ...a.lineage, ...patch }; await a.afterLineage(); check(document.querySelector('.preparation-host').hidden, 'away/ended/empty preparation hidden');

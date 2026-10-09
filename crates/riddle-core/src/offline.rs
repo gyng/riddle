@@ -26,6 +26,10 @@ pub struct Absence {
     /// start, so the report states the purse's actual change (`GoldSummary.net`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gold_before: Option<i32>,
+    /// Cut 117 §1: the lineage's gold tally at the absence's start (`LineageState::gold_tally`), so the
+    /// report's ledger terms (`GoldSummary.ledger`) are the absence's movements alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tally_before: Option<BTreeMap<String, i64>>,
     /// Current guide quote, refreshed at transport boundaries for exact reloads.
     pub passage: Option<(u32, i32)>,
     pub bounty_seen: Option<u32>,
@@ -62,6 +66,7 @@ pub(crate) fn begin_absence(game: &mut Game) -> Absence {
         facts_before: game.lineage.facts.clone(), grew_before: crate::town::snap(&game.lineage),
         class: game.lineage.class.name().into(), rank_before: game.lineage.rank,
         acts_before: game.lineage.tree.acts.clone(), chest_before: game.lineage.tree.chest, gold_before: Some(game.lineage.gold),
+        tally_before: Some(game.lineage.gold_tally.clone()),
         passage: game.passage, bounty_seen: game.bounty_seen, resting: false,
     }
 }
@@ -304,8 +309,10 @@ fn run_offline_partition(game: &mut Game, elapsed_s: u64, full: bool, with_stall
     let mut r = report_with(game, elapsed_s, &absence.facts_before, &absence.class, absence.rank_before, sampled, full, with_stall);
     r.grew = crate::town::grew(&absence.grew_before, &crate::town::snap(&game.lineage));
     r.workers = crate::tree::report_acts(&game.lineage, &absence.acts_before, &game.lineage.tree.acts);
+    supply_reason(&mut r);
     r.chest = (game.lineage.tree.chest - absence.chest_before).max(0);
     set_net(&mut r, absence.gold_before, game.lineage.gold);
+    set_terms(&mut r, &game.lineage, absence.tally_before.as_ref(), &absence.acts_before);
     // Cut 113 §3: the return carries a pick (or grows the one waiting)
     crate::returns::on_return(&mut game.lineage, elapsed_s);
     r.pick = crate::returns::wire(&game.lineage);
@@ -322,6 +329,51 @@ pub(crate) fn set_net(r: &mut ReturnReport, before: Option<i32>, after: i32) {
     if let (Some(g), Some(b)) = (r.gold.as_mut(), before) {
         g.net = Some(after - b);
     }
+}
+
+/// Cut 117 §4 (blind 8cf9050 B: `Supplies limited · $0 budget` after the apprentice's `−$6750`): the
+/// apprentice's line says why the supplies were limited (`WorkerAct.reason`, the report's
+/// `SupplyBudget.reason`) — the repeat spends only the absence's income, never his forge purse.
+pub(crate) fn supply_reason(r: &mut ReturnReport) {
+    let Some(why) = r.supply_budget.as_ref().map(|b| b.reason.clone()) else { return };
+    if let Some(a) = r.workers.iter_mut().find(|w| w.id == "apprentice") {
+        a.reason = Some(why);
+    }
+}
+
+/// Cut 117 §1: the absence's ledger (`GoldSummary.ledger`) — the lineage's tally since `before`, by term, with
+/// the exits' unkept carry split out (`carried` + `lost`) and the apprentice's forge steps named apart from
+/// the hand's. The terms sum to `net` exactly: any movement that bypassed `gold_move` lands in `other`.
+pub(crate) fn set_terms(r: &mut ReturnReport, l: &crate::engine::LineageState, before: Option<&BTreeMap<String, i64>>, acts_before: &BTreeMap<String, u32>) {
+    let (Some(g), Some(before)) = (r.gold.as_mut(), before) else { return };
+    let Some(net) = g.net else { return };
+    let d = |k: &str| -> i64 { l.gold_tally.get(k).copied().unwrap_or(0) - before.get(k).copied().unwrap_or(0) };
+    let key = crate::tree::APPRENTICE_SPENT;
+    let appr = i64::from(l.tree.acts.get(key).copied().unwrap_or(0).saturating_sub(acts_before.get(key).copied().unwrap_or(0)));
+    let forge = d("forge");
+    let appr = appr.min((-forge).max(0));
+    let lost = i64::from(g.lost.max(0));
+    let mut terms: Vec<(&str, i64)> = vec![
+        ("carried", d("earned") + lost),
+        ("lost", -lost),
+        ("heir", d("heir")),
+        ("apprentice", -appr),
+        ("forge", forge + appr),
+        ("works", d("works")),
+        ("supplies", d("supplies")),
+        ("tolls", d("tolls")),
+        ("hires", d("hires")),
+        ("bank", d("bank")),
+        ("other", d("other")),
+    ];
+    let sum: i64 = terms.iter().map(|t| t.1).sum();
+    if sum != i64::from(net) {
+        terms.last_mut().unwrap().1 += i64::from(net) - sum;
+    }
+    let terms: Vec<crate::wire::GoldTerm> = terms.into_iter().filter(|t| t.1 != 0).map(|(k, v)| crate::wire::GoldTerm { label: k.into(), amount: v.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32 }).collect();
+    let earned: i32 = terms.iter().filter(|t| t.amount > 0).map(|t| t.amount).sum();
+    let spent: i32 = -terms.iter().filter(|t| t.amount < 0).map(|t| t.amount).sum::<i32>();
+    g.ledger = Some(crate::wire::GoldLedger { earned, spent, net: earned - spent, terms });
 }
 
 fn settle_completed_run(game: &mut Game, consumed: u64, stall: &mut u32) {
@@ -484,7 +536,7 @@ pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::c
         stalled: b.stalls,
         driven: b.driven_off,
         spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
-        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost, unkept: b.gold_unkept, passage: b.passage, net: None }),
+        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost, unkept: b.gold_unkept, passage: b.passage, net: None, ledger: None }),
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,
@@ -495,6 +547,11 @@ pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::c
             game.lineage.rules().route().lanes().into_iter().filter(|(a, _, _)| deepest >= *a).map(|(a, z, biome)| format!("D{a}–{z} · {}", biome.title())).collect()
         },
         repeat_short: b.repeat_short,
+        supply_budget: (b.restock_capped || b.repeat_short).then(|| {
+            let (income, spent) = (b.income(), b.spent_total());
+            let reason = if b.repeat_short { "purse_short" } else if income <= 0 { "no_income" } else { "income_spent" };
+            crate::wire::SupplyBudget { income, spent, left: (income - spent).max(0), reason: reason.into() }
+        }),
         shelved: b.shelved.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).collect(),
         heirs: b.heirs.map(|(lo, hi)| vec![lo, hi]).unwrap_or_default(),
     };

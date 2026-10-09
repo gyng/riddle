@@ -74,6 +74,14 @@ export function grewBlock(r: Pick<ReturnReport, "grew" | "packages">, hero?: str
 export const trainingBeats = (beats: string[] | undefined): string[] => (beats ?? []).filter((b) => /^DRILLED\b/.test(b) || / L\d+$/.test(b));
 // Reverse the core's sifter::boss_short labels, not the selected hero's knowledge.
 const TRAINING_BOSSES: Record<string, string> = { Warlord: "goblin_warlord", Mother: "bloat_mother", Lich: "lich", Master: "foundry_master", Queen: "lurker_queen", King: "mirror_king" };
+/** Cut 117 §2 (blind 8cf9050 A: "the 'Warlord tactic' button opened a sheet with no warlord tactic"): what a training plaque points
+ *  at in the tactics panel — a drill's boss (`DRILLED · Warlord` → `goblin_warlord`), else a levelled package (`Corridor fighting L3`). */
+export function trainingFocus(beat: string): { boss?: string; pkg?: string } {
+  const drill = /^DRILLED · (.+)$/.exec(beat);
+  if (drill) return { boss: TRAINING_BOSSES[drill[1]] ?? drill[1].toLowerCase().replace(/ /g, "_") };
+  const level = /^(.*) L\d+$/.exec(beat);
+  return level ? { pkg: level[1].toLowerCase().replace(/ /g, "_") } : {};
+}
 /** Blind 77030eb (B: "tapping 'Training · Warlord tactic' did nothing"): with `open` a badge is a button onto the tactics panel, where
  *  the drill (On / Off) and the level stand. */
 type OpenTraining = (anchor: HTMLElement, beat: string) => void;

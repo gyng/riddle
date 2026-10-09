@@ -12,7 +12,7 @@ import type { App } from "../app";
 import type { Lineage, Package, Packages, PkgOption } from "../engine/types";
 import { h, replace, twoTap } from "./dom";
 import { openWindow as openSheet } from "./sheet";
-import { lowOf, share } from "./forecast";
+import { lowOf, NOISE_PTS, share } from "./forecast";
 import { rowLabel, verbLabel } from "./tokens";
 import { packageIcon, foeSrc, icon, verbIcon } from "./skin";
 import { itemIcon } from "./items";
@@ -37,6 +37,21 @@ export const levelFill = (p: Pick<Package, "runs" | "next_at" | "level">): numbe
 /** A beat's text as the report and the watch show it: the core's (`STEADY L3`, `DRILLED · Warlord`, `+Guarded`, `QUEST DONE · …`). */
 export const beatText = (b: string): string => b;
 
+/** Cut 117 §2 (blind 8cf9050 B: "tapping `TRY Mirror rhythm` silently swapped my mirror read tactic"): what a death's tactic fix
+ *  (`takeFix`) takes off — the core wears it in the first open slot, else the last (`packages::take_fix`); a worn tactic only changes
+ *  its variant. The name the tablet shows after `←`; null when it fills an open slot or changes nothing. */
+export function fixReplaces(P: Packages | undefined, id: string, variant = 0): string | null {
+  if (!P) return null;
+  const worn = P.tactics ?? [], byId = (x: string): Package | undefined => P.all.find((p) => p.id === x);
+  if (worn.includes(id)) {
+    const p = byId(id);
+    return p?.variants?.length && p.variant !== undefined && p.variant !== variant ? p.variants[p.variant] ?? null : null;
+  }
+  const slots = P.tactic_slots ?? 0;
+  if (slots <= 0 || worn.length < slots) return null;
+  const out = worn[slots - 1];
+  return out ? byId(out)?.name ?? out.replace(/_/g, " ") : null;
+}
 /** The one-line price of a move on the paired panel: the term that moves most — `death −8`, `past +5`, `bank +3` — else `same`.
  *  `good`: whether the move helps (a death share that falls helps). */
 /** A rough noise filter, not calibrated confidence. Panels can stop after five sends;
@@ -59,6 +74,7 @@ export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "pa
   if (!clear.length) return { text: "—", good: null, score: 0 };
   const [label, d, worse] = clear.reduce((a, b) => (Math.abs(b[1]) > Math.abs(a[1]) ? b : a));
   const pts = Math.round(d * 20) * 5;
+  if (Math.abs(pts) < NOISE_PTS) return { text: "—", good: null, score: 0 };   // Cut 117 §1: a move that rounds under the band is no call
   const good = (pts > 0) !== worse;
   return { text: `${label} ≈${pts > 0 ? "+" : "−"}${Math.abs(pts)}%`, good, score: good ? Math.abs(pts) : -Math.abs(pts) };
 }
@@ -149,13 +165,19 @@ function measure(app: App, choices: [string, number][], sims = PRICE_SIMS): Opti
 const levelBar = (p: Package): HTMLElement => h("span", { class: "lvl-bar", "aria-hidden": "true" }, h("span", { class: "fill", style: `width:${Math.round(levelFill(p) * 100)}%` }));
 
 /** Opens the packages panel (a sheet anchored to `anchor`, the tile that opened it). */
-export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?: string): void {
+/** Cut 117 §2: `focus` opens the panel on one thing — a drill's boss (the `details` fold opened) or a package (its slot, or its
+ *  chooser) — scrolled to and lit (`.pkg-focus`). */
+export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?: string, focus?: { boss?: string; pkg?: string }): void {
   let dispose = (): void => {};
   openSheet((close) => {
     const body = h("div", { class: "sheet-body pkg-panel" });
     let reading: OptionsRead | null = null;
-    let compare = false, details = false, tacticSlot: number | null = null, sims = PRICE_SIMS;
+    let compare = false, details = !!focus?.boss, tacticSlot: number | null = null, sims = PRICE_SIMS;
     const choosing = new Set<string>(initialKind ? [initialKind] : []);
+    // a focused package not worn opens its kind's chooser (where its chip stands); a focused drill opens the fold that holds it
+    const focusPkg = focus?.pkg ? app.lineage.packages?.all.find((p) => p.id === focus.pkg || p.name.toLowerCase().replace(/ /g, "_") === focus.pkg) : undefined;
+    const P0 = app.lineage.packages;
+    if (focusPkg && P0 && focusPkg.id !== P0.stance && !(P0.tactics ?? []).includes(focusPkg.id) && focusPkg.id !== P0.temperament) choosing.add(focusPkg.kind);
     const equip = (p: Package, slot: number): void => { void app.mutate(() => app.engine.equipPackage!(p.id, slot), /* copy:callout */ p.name, true).then((ok) => { if (ok) { choosing.delete(p.kind); if (p.kind === "tactic") tacticSlot = null; } paint(); }); };
     const paint = (): void => {
       const L = app.lineage, P = L.packages; if (!P) { close(); return; }
@@ -308,7 +330,14 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
     const offChange = app.onChange?.(changed), offRules = app.onRules?.(changed);
     dispose = () => { offChange?.(); offRules?.(); };
     paint();
-    if (initialKind) requestAnimationFrame(() => body.querySelector<HTMLElement>(`.pkg-sec[data-kind="${initialKind}"]`)?.scrollIntoView({ block: "nearest" }));
+    if (initialKind && !focus) requestAnimationFrame(() => body.querySelector<HTMLElement>(`.pkg-sec[data-kind="${initialKind}"]`)?.scrollIntoView({ block: "nearest" }));
+    if (focus?.boss || focusPkg) requestAnimationFrame(() => {
+      const at = focus?.boss ? body.querySelector<HTMLElement>(`.pkg-drill[data-boss="${focus.boss}"]`)
+        : body.querySelector<HTMLElement>(`.pkg-slot .chip.pkg.on[data-pkg="${focusPkg!.id}"]`) ?? body.querySelector<HTMLElement>(`.chip.pkg[data-pkg="${focusPkg!.id}"]`);
+      if (!at) return;
+      at.classList.add("pkg-focus"); body.dataset.focus = focus?.boss ?? focusPkg!.id;
+      at.scrollIntoView({ block: "center" });
+    });
     return body;
   }, { anchor, onClose: () => dispose() });
 }

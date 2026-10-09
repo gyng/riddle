@@ -36,7 +36,7 @@ import { icon } from "./skin";
 import { revealed } from "./reveal";
 import { openLedger } from "./party";
 import { oathProgress } from "./oaths";
-import { grewBlock, heroFace, reportTrainingBlock, trainingBeats } from "./tracks";
+import { grewBlock, heroFace, reportTrainingBlock, trainingBeats, trainingFocus } from "./tracks";
 import { reportChoices } from "./report-choices";
 import { bossName, reportBosses } from "./report-bosses";
 import { workersBlock, workersSpent } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
@@ -50,6 +50,8 @@ import { itemIcon, itemName, itemChip } from "./items";
 import { enemyTraitName } from "./enemy-tips";
 import { labelOf as unlockLabel } from "./unlocks";
 import { returnPick } from "./return-pick";   // Cut 113 §3: each return carries a decision
+import { collectSend } from "./collect-send";   // Cut 118 §6: one tap on return
+import { kingLine } from "./king-eta";   // Cut 118 §9: the ending in sight
 
 
 /** Persisted unlock IDs belong to the wire; report text uses catalogue words. */
@@ -640,13 +642,28 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // blind c4705f9 (A, B: `purse −$12562` from a 20 min absence, unexplained): the workers' purchases are named under the purse
   // (`forge −$12562`), and the rest of the other movements apart
   const boughtGold = net === undefined ? 0 : workersSpent(r.workers);
+  // Cut 117 §1 (blind 8cf9050 B: `$0 GOLD EARNED · purse −$6789 · forge −$6750 · lost $2620` would not reconcile): the head is one
+  // equation, each term named — `earned $E − spent $S = purse ±$N` — with the forge a part of the spent, and the carry the deaths
+  // lost apart (it never reached the purse). E is every inflow (runs, loot, passage, heir grants, any other gain); S the rest of
+  // the purse's move, so E − S = Δpurse to the dollar.
+  // TODO(Cut 117 core): read the core's reconciled ledger (expected `ReturnReport.gold.ledger: { earned, spent, net, terms[] }`)
+  // once it lands in engine/types.ts; until then the terms derive from `gold.{home,salvage,passage,wake,spent,net}` and the workers.
+  const ledger = net !== undefined && r.gold ? (() => {
+    const earned = runGold + lootGold + passageGold + r.gold.wake + Math.max(0, otherGold);
+    return { earned, spent: earned - net, net };
+  })() : undefined;
+  const headGold = ledger ? ledger.earned : runGold + lootGold + passageGold;
+  const ledgerLine = ledger && (ledger.spent !== 0 || ledger.earned !== runGold + lootGold + passageGold) ? h("small", { class: "report-ledger num", "data-earned": ledger.earned, "data-spent": ledger.spent, "data-net": ledger.net },
+    h("span", { class: "report-earned" }, /* copy:callout */ `earned $${ledger.earned}`), " − ",
+    h("span", { class: "report-spent" }, /* copy:callout */ `spent $${ledger.spent}`,
+      boughtGold > 0 ? h("small", { class: "report-bought dim" }, /* copy:callout */ ` (forge $${boughtGold})`) : ""), " = ",
+    h("span", { class: "report-net" }, /* copy:callout */ `purse ${signed(net!)}`)) : "";
   const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", onclick: () => openGoldSheet(app) },
-    icon("gold"), h("b", { class: "num" }, `$${runGold + lootGold + passageGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned"),
-    net !== undefined && net !== runGold + lootGold + passageGold ? h("small", { class: "report-net num" }, /* copy:callout */ `purse ${signed(net)}`) : "",
-    boughtGold > 0 ? h("small", { class: "report-bought num" }, /* copy:callout */ `forge −$${boughtGold}`) : "",
+    icon("gold"), h("b", { class: "num" }, `$${headGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned"),
+    ledgerLine,
     // blind 3ab97ea (A: a 20 min return read `1 RUNS · D23 · $0 GOLD EARNED` — "thin", the death and its carry nowhere on the tiles):
     // what the deaths left on the floor reads under the gold (`lost $2157`)
-    deathsN > 0 && (r.gold?.lost ?? 0) > 0 ? h("small", { class: "report-lost num down" }, /* copy:callout */ `lost $${r.gold!.lost}`) : ""), () => [
+    deathsN > 0 && (r.gold?.lost ?? 0) > 0 ? h("small", { class: "report-lost num down", title: /* copy:tooltip */ "carry lost on deaths · never in the purse" }, /* copy:callout */ `lost $${r.gold!.lost}`) : ""), () => [
       h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
       h("div", { class: "num" }, /* copy:label */ "Run gold", ` · $${runGold}`),
       h("div", { class: "num" }, /* copy:label */ "Loot sold", ` · $${lootGold}`),
@@ -659,8 +676,11 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       h("div", { class: "kw-tip-gloss" }, net !== undefined ? /* copy:tooltip */ "Earned before spending; purse change counts everything" : /* copy:tooltip */ "Before spending; excludes heir grants")]);
   const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
   const summary = h("div", { class: "report-summary" },
-    h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended"),
+    h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended",
+      // Cut 118 §9: an absence after the scout ran every send it had time for — `uncapped` stays its headline
+      absence && L.tree?.auto_send ? h("small", { class: "report-uncapped num" }, /* copy:label */ "uncapped") : ""),
     buildHead(L, r.deepest ?? L.best_depth, deathsN === 0, meterOf),
+    kingLine(L, "report-king"),
     h("div", { class: `tiles report-basics${absence ? " fade-in" : ""}` },
       // (… and the runs tile says how many of them died: `1 died`)
       withDied(toLog(tile(String(r.runs), /* copy:label */ "runs")), deathsN),
@@ -677,10 +697,30 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const firstWorkers = firstActs.length ? h("section", { class: "report-first-workers" },
     h("b", { class: "row-label" }, /* copy:label */ "Workers started"),
     workersBlock(L, { workers: firstActs }, firstActs.length)) : null;
+  // Cut 118 §6: the highlights (the tiles: runs and deaths, the deepest, the gold sum; the finds; the bosses), then the one action
+  // (`collect & send`), then at most one decision — the pick first, else the new choices, else the preparation; the others wait under
+  // `details` (moved back when the first is taken)
+  const go = collectSend(app);
+  const finds = r.new_finds?.length ? h("div", { class: "report-finds num", "data-finds": r.new_finds.length },
+    h("b", null, /* copy:label */ "New finds"), " ", r.new_finds.slice(0, 3).map((x) => named(x).replace(/_/g, " ")).join(", "), r.new_finds.length > 3 ? ` +${r.new_finds.length - 3}` : "") : null;
+  const later = h("div", { class: "report-later" });
+  const prompts = [pick.el, newChoices.el, upgradeHost].map((p) => ({ p, slot: document.createComment("decision") }));
   const sheet = h("div", { class: "parchment report-sheet" },
     // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, pick.el, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), classXpBlock(r), legacyEarnedBlock(r), newChoices.el, upgradeHost, reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a) => openPackages(app, a) : undefined), firstWorkers,
+    summary, finds, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), go.el, prompts[0].slot, pick.el, goal ? progressGoalRow(goal, "report-progress-goal") : null, r.restock_capped && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, classXpBlock(r), legacyEarnedBlock(r), prompts[1].slot, newChoices.el, prompts[2].slot, upgradeHost, reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a, beat) => openPackages(app, a, undefined, trainingFocus(beat)) : undefined), firstWorkers,
     detailsBtn, details);
+  /** At most one decision prompt in the card: the first one showing stays at its place, the rest move under `details`. */
+  const oneDecision = (): void => {
+    let shown = false;
+    for (const { p, slot } of prompts) {
+      const up = !p.hidden && !shown;
+      if (!p.hidden) shown = true;
+      if (up && p.parentNode !== slot.parentNode) slot.after(p);
+      else if (!up && p.parentNode !== later) later.append(p);
+    }
+    later.hidden = !later.querySelector(":scope > :not([hidden])");
+    detailsBtn.hidden = ![...details.children].some((c) => c !== later || !later.hidden);
+  };
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
   const meterTitle = /* copy:label */ "Completed runs";
@@ -724,7 +764,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       typeof L.renown === "number" ? h("small", { class: "dim next-rank" }, ` · ${L.renown}/${100 * ((L.rank ?? r.renown.rank) + 1) ** 2}`) : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
     section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: readableUnlock(noteText(x.text)), n: x.n })))),
   ].filter((x): x is HTMLElement => !!x));
-  detailsBtn.hidden = !details.childElementCount;
+  if (preparation.shops) later.append(preparation.shops);   // round 2 §6: the shop rows wait in the fold, never the card's decision
+  details.prepend(later);
+  oneDecision();
+  const offDecision = app.onChange(oneDecision);
   const wide = wideCols(app, meterOf ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null);   // desktop: the rules left, the shaft right (wide.css)
   const reportWell = h("div", { class: "well report-well" }, sheet);
   const el = h("main", { class: "report frame" }, bar.el, reportWell, cons.el, ...wide.els);
@@ -735,7 +778,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
   if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
   const restore = requestAnimationFrame(() => { if (reportWell.isConnected) reportWell.scrollTop = reading.scroll; });
-  return { el, dispose: () => { cancelAnimationFrame(restore); reading.scroll = reportWell.scrollTop; pick.dispose(); preparation.dispose(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
+  return { el, dispose: () => { cancelAnimationFrame(restore); reading.scroll = reportWell.scrollTop; pick.dispose(); preparation.dispose(); go.dispose(); offDecision(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
 }
 
 /** Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): each companion that fell, by name — `Greth · ogre L5 · fell D12

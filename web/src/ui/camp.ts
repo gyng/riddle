@@ -52,6 +52,8 @@ import { sendMark } from "./works";
 import { itemIcon, itemName, itemChip } from "./items";   // run-clear: items in their rarity rims
 import { kwHost } from "./tips";
 import { returnPick } from "./return-pick";   // Cut 113 §3: the return's pick waits on the camp
+import { checkinBatch } from "./checkin";   // Cut 117 §5: the routine buys of a return in one chip
+import { controlLadder } from "./ladder";   // Cut 118 §7: the automation earned, one rail
 
 const SET_NAME_MAX = 12;
 /** QA 524827b (qaAA): a supply whose name does not say its use — its use under the shop chip (≤ 3 words). */
@@ -151,7 +153,7 @@ export function simKey(app: Pick<App, "lineage" | "loadout">): string {
 /** QA 0c6e126 (qaY: the shelf read `invisibility pot…`): a shelf line too long for its half-width chip drops its class word
  *  (`invisibility`); the shop's chip keeps the full name. */
 export const shelfLabel = (label: string): string => label.length > 14 ? label.replace(/ (potion|scroll)$/, "") : label;
-export function renderCamp(app: App, highlight?: number): Mounted {
+export function renderCamp(app: App, highlight?: number, sendNow = false): Mounted {
   setRefRows(() => app.rules.rows);
   // Cut 17: the frame — the bar (the strip: heir, `$`, `◆`, `★`, best, the stud; the wake's offers under it), the well (the
   // tablets and the depth shaft; the set tabs from the 5th heir; the panels over it), the console (the portrait, the command
@@ -248,7 +250,9 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const focusHome=():void=>{town.el.scrollIntoView({block:"nearest"});town.view.focusHero();};
   window.addEventListener("riddle:focus-hero",focusHome);
   const pick = returnPick(app, "camp");
-  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
+  const batch = checkinBatch(app);
+  const ladder = controlLadder(app);
+  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, batch.el, ladder.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
@@ -965,6 +969,8 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   }
   function paintAll(): void { keepScroll(() => { town.paint(); paintPen(); paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintWall(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
+  // Cut 118 §6: the report's `collect & send` lands here and sends (the hero walks to the mouth as from the gem)
+  if (sendNow) requestAnimationFrame(() => { if (el.isConnected) doSend(); });
   // Cut 12 §6: `+1 row ⊘ fill rows` is the engine's read of its own set — refetched once an edit crossed `max_rows`
   const off = app.onChange(paintAll), offRules = app.onRules(paintSend), offShelf = app.onShelf(paintUnlocks);
   const offShadow = app.onForecast(() => { editor.paintShadow(); paintOath(); });
@@ -975,5 +981,5 @@ export function renderCamp(app: App, highlight?: number): Mounted {
   const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
   const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
   const offLive = app.onLive(() => { paintRest(); if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
-  return { el, dispose: () => { pick.dispose(); window.removeEventListener("riddle:focus-hero",focusHome); offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  return { el, dispose: () => { pick.dispose(); batch.dispose(); ladder.dispose(); window.removeEventListener("riddle:focus-hero",focusHome); offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }

@@ -74,7 +74,7 @@ export function traceTable(trace: Trace, ctx: ChainCtx = {}, rows = TRACE_ROWS):
     healed > 0 ? h("span", { class: "hp-by healed" }, /* copy:callout */ ` · healed `, h("b", { class: "up" }, `+${healed}`)) : "") : null;
   // Cut 28 §2: the run's max-hp arc over the table (`max hp 44→29 · hunger −12 · drain −3`)
   const maxLine = mx && mx.from !== mx.to ? h("div", { class: "hp-max num dim" }, /* copy:callout */ `max hp ${mx.from}→${mx.to}`,
-    ...mx.causes.map((c) => h("span", { class: "hp-by" }, ` · ${c.cause.replace(/_/g, " ")} `, h("b", { class: c.delta < 0 ? "down" : "up" }, `${c.delta > 0 ? "+" : "−"}${Math.abs(c.delta)}`)))) : null;
+    ...mx.causes.map((c) => h("span", { class: "hp-by", ...(/^(hunger|starv)/.test(c.cause) ? { "data-answer": "light", title: /* copy:tooltip */ "unlit floor · shrine or lantern stops it" } : {}) }, ` · ${c.cause.replace(/_/g, " ")} `, h("b", { class: c.delta < 0 ? "down" : "up" }, `${c.delta > 0 ? "+" : "−"}${Math.abs(c.delta)}`)))) : null;
   const heads: HTMLElement[] = [];
   if (maxLine) heads.push(maxLine);
   if (lostLine) heads.push(lostLine);

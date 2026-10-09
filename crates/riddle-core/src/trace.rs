@@ -127,6 +127,9 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         boss: None,
         // Cut 29 §3: the fight he died in, metered (the death screen's breakdown).
         fight: (!run.meters.is_empty() && run.meters.fight.ticks > 0).then(|| crate::meters::wire_for(&run.meters.fight, Some(&game.lineage.pkg))),
+        // Cut 117 §1: the hp the killing blow landed on (its damage less the overkill: `death_short` = 1 − hp after)
+        moment_hp: (!stall && run.death_cause.is_some()).then(|| (run.death_blow + 1 - run.death_short.max(1)).max(1)),
+        moment_max_hp: if stall { 0 } else { run.hero.max_hp },
     };
     let n = game.history.len();
     let pick = if stall {

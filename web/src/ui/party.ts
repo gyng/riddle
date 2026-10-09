@@ -7,7 +7,7 @@ import { enemyHost } from "./enemy-tips";
 import { unitLabel } from "./unit-icon";
 import type { App } from "../app";
 import type { Companion, Row, RuleSet } from "../engine/types";
-import { h, clear, twoTap } from "./dom";
+import { h, clear, flash, toast, twoTap } from "./dom";
 import { renderEditor } from "./editor";
 import { closeAllSheets, openWindow as openSheet } from "./sheet";
 import { cloneSet } from "../app";
@@ -30,10 +30,10 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     if (!all.length && !L.eggs.length) { head.append(/* copy:label */ "companions", " ", h("span", { class: "num dim" }, `0/${slots}`)); return; }
     const canBreed = L.kennel.filter((c) => c.level >= 2).length >= 2;
     head.append(/* copy:label */ "companions", " ", h("span", { class: "num dim" }, `${L.party.length}/${slots}`),
-      canBreed ? h("button", { class: `mini game-control${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); } }, /* copy:button */ "breed") : "");
+      canBreed ? h("button", { class: `mini game-control${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); if (breeding) toast(/* copy:callout */ "pick two"); } }, /* copy:button */ "breed") : "");
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
-      eggs.appendChild(h("span", { class: "chip egg" }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
+      eggs.appendChild(h("span", { class: "chip egg", "data-egg": e.id }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
         // QA e75ec29 (R: "the $50 chip drawn dim charged $50 on one tap … stayed PARTY 0/1"): `hatch $50`, a second tap pays, and the
         // hatchling joins the party when a slot is free
         e.from_loss ? twoTap(/* copy:button */ "hatch $50", /* copy:button */ "ok $50", () => void hatch(e.id), { class: "mini hatch game-control", disabled: L.gold < 50 }) : h("b", { class: "num" }, ` ${e.hatch_in}`)));
@@ -46,13 +46,26 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
     const L = app.lineage, born = L.kennel.find((c) => !before.has(c.id));
     if (born && L.party.length < (L.party_slots || 1)) await app.mutate(() => app.engine.setParty([...L.party.map((p) => p.id), born.id]));
   }
+  /** Cut 117 §2: a breed lands as an egg — the toast names it and the new egg chip glints; a refusal says so. */
+  async function breed(a: number, b: number): Promise<void> {
+    const before = new Set(app.lineage.eggs.map((e) => e.id));
+    const ok = await app.mutate(() => app.engine.breed(a, b));
+    refresh();
+    const born = app.lineage.eggs.find((e) => !before.has(e.id));
+    toast(ok ? /* copy:callout */ "egg laid" : /* copy:callout */ "breed refused");
+    if (!ok || !born) return;
+    const chip = eggs.querySelector<HTMLElement>(`.chip.egg[data-egg="${born.id}"]`);
+    if (chip) flash(chip, "hl", 1600);
+  }
   function card(c: Companion, inParty: boolean): HTMLElement {
     const picked = breeding?.includes(c.id);
     const onTap = (): void => {
       if (breeding) {
         if (c.level < 2 || inParty) return;
         breeding = picked ? breeding.filter((x) => x !== c.id) : [...breeding, c.id];
-        if (breeding.length === 2) { const [a, b] = breeding; breeding = null; void app.mutate(() => app.engine.breed(a, b)); return; }
+        if (breeding.length === 2) { const [a, b] = breeding; breeding = null; void breed(a, b); return; }
+        // Cut 117 §2 (blind 8cf9050 A: "breed taps gave no visible result"): the first pick says what the next tap does
+        if (breeding.length === 1) toast(/* copy:callout */ "pick a mate");
         refresh(); return;
       }
       // Cut 20 §2 (AD: "tapping a pet twice toggles it off"): a tap selects; a second tap never dismisses — the card's `×` does

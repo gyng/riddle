@@ -11351,6 +11351,10 @@ fn saves_from_307dbed_send_identically() {
     // (`affix_pin: Some([])`, `guest_pin: Some(false)`) the combined tree (the D9/D14 forks open, and the Cut 116
     // fixes' engine/turn/trace edits) hashes to ddd4c46c7dc03d58 exactly — those move nothing here; affixes alone
     // 04a5a0aa711474c7, guests alone a806e92dae1e490a.
+    // Cut 117 §3: 9cfbd23b2027a263 → aa808dca72425139. An affixed boss is warded and furious while his affix stands
+    // unbroken and breaks under its answers (`descent::affix_breakers`, `turn::affix_dealt`/`affix_taken`), the brood
+    // costs 15 % of his hp; with affixes and guests pinned off as above the tree still hashes to ddd4c46c7dc03d58 exactly
+    // (the death's moment hp, the gold tally and ledger, the forecast's hold and the previews' noise move nothing here).
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }
@@ -12017,4 +12021,5 @@ fn a_stalls_target_the_boss_never_walks_into_the_kings_mirror() {
     // the King's own floor: no deeper boss
     assert_eq!(crate::offline::boss_attack_conds(&g, &rules, 33, "mirror_king", any), Some(vec![Cond::t("foe_tag", "boss")]));
 }
+
 

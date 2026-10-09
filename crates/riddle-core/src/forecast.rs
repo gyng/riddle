@@ -745,6 +745,8 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     // passage, paid at the send, the exit line does not): the passage's share of `gold`, its own.
     let passage = ended.iter().map(|r| r.passage as f64).sum::<f64>() / n;
     let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()), passage });
+    // Cut 117 §1: the scout's wall order, on the same sims
+    let hold = crate::tree::wall_hold(&game.lineage).filter(|(w, _)| *w > start && !ended.is_empty()).map(|(w, bank)| held_ends(&ended, w, bank));
     let n_sims = ended.len() as u32;
     let mut depths: Vec<ForecastDepth> = depths;
     for d in depths.iter_mut().filter(|d| d.depth >= start) {
@@ -752,7 +754,47 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     }
     let fold_to = fold_to(game, &ended, start);
     let oath = crate::oath::share(&game.lineage, &ended);
-    Forecast { oath, depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims), fold_to }
+    Forecast { hold, oath, depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims), fold_to }
+}
+
+/// Cut 117 §1: the panel's ends under the scout's order at the wall on `wall` (`Forecast.hold`): a sim that got
+/// to the wall's stairs (it arrived on `wall`) banks there with what it carried on arriving (`bank`), or keeps at
+/// least that carry, secured (`carry`); every other sim ends as it did.
+pub fn held_ends(ended: &[SimResult], wall: u32, bank: bool) -> crate::wire::ForecastHold {
+    let n = ended.len().max(1) as f64;
+    let at = |r: &SimResult| -> Option<i32> { (r.max_depth >= wall).then(|| r.arrive.iter().find(|a| a.0 >= wall).map_or(r.loot, |a| a.2)) };
+    let mut tiers = [0f64; 3];
+    let (mut stall, mut gold, mut passage) = (0f64, 0f64, 0f64);
+    let mut reached = 0f64;
+    for r in ended {
+        passage += r.passage as f64;
+        let carry = at(r);
+        if carry.is_some() {
+            reached += 1.0;
+        }
+        match carry {
+            Some(c) if bank => {
+                tiers[0] += 1.0;
+                gold += (c.max(0) * ExitTier::Bank.pct() / 100 + r.passage) as f64;
+            }
+            _ => {
+                if r.timed_out {
+                    stall += 1.0;
+                } else {
+                    tiers[match r.tier { ExitTier::Bank => 0, ExitTier::Return => 1, ExitTier::Death => 2 }] += 1.0;
+                }
+                gold += carry.map_or(r.loot_kept, |c| r.loot_kept.max(c.max(0) + r.passage)) as f64;
+            }
+        }
+    }
+    let death = tiers[2] / n;
+    crate::wire::ForecastHold {
+        depth: wall,
+        stop: wall - 1,
+        order: if bank { "bank" } else { "carry" }.into(),
+        share: reached / n,
+        ends: ForecastEnds { bank: tiers[0] / n, return_: tiers[1] / n, death, stall: stall / n, gold: gold / n, pm: half_width(death, ended.len()), passage: passage / n },
+    }
 }
 
 /// Cut 27 §1: a floor the watch folds — the share of the sims on it that got through it is at

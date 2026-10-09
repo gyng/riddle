@@ -23,7 +23,7 @@ import { mergeMeters } from "./ui/meters";
 import { basesOf, linSum, readSnap, rulesKey, sharesOf, stateLabel, stateTerms, writeSnap, type StateMove, type StateSnap } from "./ui/attrib";
 
 export type Screen =
-  | { kind: "camp"; highlight?: number; afterClear?: boolean }
+  | { kind: "camp"; highlight?: number; afterClear?: boolean; send?: boolean }   // send: Cut 118 §6 — the report's `collect & send` lands on the camp and sends
   | { kind: "watch" }
   | { kind: "death"; death: Death; lost?: string[]; kept?: boolean; from?: { report: ReturnReport; absence?: boolean } }   // from: QA 308f045 (qaAD) — a verdict opened from a report leads back to it   // kept: an old death opened from the chronicle (Cut 9 §7); Escape leads back to the camp
   | { kind: "report"; report: ReturnReport; absence?: boolean }   // absence: Cut 10 §3, the tiles fade in (the merged report is complete)
@@ -1021,7 +1021,7 @@ export class App {
     }   // Cut 22 §3: the set that runs is the next edit's base
     let m: Mounted;
     switch (screen.kind) {
-      case "camp": m = renderCamp(this, screen.highlight); break;
+      case "camp": m = renderCamp(this, screen.highlight, screen.send); break;
       case "ending": m = renderEnding(this); break;
       case "watch": m = renderWatch(this); break;
       case "death": m = renderDeath(this, screen.death, screen.lost ?? [], !!screen.kept, screen.from); break;

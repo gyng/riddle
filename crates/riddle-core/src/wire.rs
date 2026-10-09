@@ -750,6 +750,12 @@ pub struct ForecastCause {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Forecast {
+    /// Cut 117 §1 (blind 8cf9050 B: `D33 88%`, then the scout banked the sends at D30/D32): the scout's order
+    /// at a wall rides with the next send — the floor it stops before, and the send's ends under it. The
+    /// depths' `reach` stays the reach *if pushed* (what the rules can do); `hold.ends` is what the next
+    /// send will do. Absent with no scout, no wall or the order `push`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hold: Option<ForecastHold>,
     pub depths: Vec<ForecastDepth>,
     pub causes: Vec<ForecastCause>,
     pub known_to: u32,
@@ -901,6 +907,19 @@ pub struct StartOption {
 /// Cut 12 §3: how a send ends — `bank` / `return` / `death` as shares of a panel of sends run
 /// to their exit (the bars' own panel — QA on 3d71c33; a run at the cap is a stall) and
 /// `gold`, the mean loot kept per send by the exit's own share (bank 100% · return 60% · death 0%).
+/// Cut 117 §1: the scout's wall order on the forecast (`Forecast.hold`): the wall's floor `depth`, the order
+/// (`bank`: the send banks at D`stop`'s stairs, `stop` = `depth − 1`; `carry`: its haul is carried home from
+/// there and it goes on), `share` the sends that get to those stairs, and the panel's ends with the order
+/// applied (a `bank` send that reached the stairs banks there, its carry then; a `carry` keeps at least it).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ForecastHold {
+    pub depth: u32,
+    pub stop: u32,
+    pub order: String,
+    pub share: f64,
+    pub ends: ForecastEnds,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ForecastEnds {
     pub bank: f64,
@@ -1287,6 +1306,15 @@ pub struct Death {
     /// hps by source, hits taken, the rows that fired); absent for a stall or a sim.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fight: Option<crate::meters::MeterWire>,
+    /// Cut 117 §1 (blind 8cf9050 A: a King death's header `hero at 18 hp` over a trace ending `0/50`):
+    /// the hp the hero stood at when the killing blow landed — the trace's row before that blow (the
+    /// previous blow's hp, else the last action's). The client read `blow.hp + blow.dmg`, which counts
+    /// an overkill (an 18 blow on 5 hp read `at 18 hp`). Absent on a stall.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub moment_hp: Option<i32>,
+    /// Cut 117 §1: the hero's max hp at that moment (the trace's `hp/max`).
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub moment_max_hp: i32,
 }
 
 /// Cut 28 §2: a luck-leaning death's event (`Death.luck`): `text` ≤ 6 words (`two blows at 6 hp`,
@@ -1496,6 +1524,13 @@ pub struct ReturnReport {
     /// (`repeat short`).
     #[serde(default, skip_serializing_if = "is_false")]
     pub repeat_short: bool,
+    /// Cut 117 §4 (blind 8cf9050 B: `Supplies limited · $0 budget` after the apprentice spent): the absence's
+    /// supply budget when the repeat was limited — `income` (what the absence brought home: exits, salvage, the
+    /// heir purse), `spent` (what the repeat and the drills bought), `left`, and `reason`: `no_income` (nothing
+    /// came home: the repeat spends only away income, never the purse), `income_spent` (the repeat used it up),
+    /// `purse_short` (the purse itself could not pay — a forge order or a purchase took it). Absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supply_budget: Option<SupplyBudget>,
     /// Cut 20 §5: the absence's bounty floor and whether a run brought it home (`bounty D12 ·
     /// missed` / `taken $412`); absent when the lineage had no bounty during the absence.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1881,6 +1916,40 @@ pub struct GoldSummary {
     /// and every other movement: forge steps the apprentice bought, hires, bank moves).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub net: Option<i32>,
+    /// Cut 117 §1 (blind 8cf9050 B: `$0 GOLD EARNED · purse −$6789 · forge −$6750 · lost $2620`): the absence's
+    /// ledger (`GoldLedger`), its terms summing exactly to `net`. Absent for an absence saved before it existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ledger: Option<GoldLedger>,
+}
+
+/// Cut 117 §4: an absence's supply budget when the repeat was limited (`ReturnReport.supply_budget`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct SupplyBudget {
+    pub income: i32,
+    pub spent: i32,
+    pub left: i32,
+    pub reason: String,
+}
+
+/// Cut 117 §1: one term of an absence's gold ledger (`GoldLedger.terms`): its label and signed amount.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct GoldTerm {
+    pub label: String,
+    pub amount: i32,
+}
+
+/// Cut 117 §1: an absence's gold ledger (`GoldSummary.ledger`): `earned` the sum of its positive terms, `spent` the
+/// sum of its negative ones (a positive number), `net` = `earned − spent` = the purse's change. `terms`, each signed
+/// and named, zero terms left out: `carried` (what the exits, salvage and passages brought to the door) and `lost`
+/// (−, the carry the exits did not keep: `carried + lost` is the income kept), `heir` (the heir purse's top-ups),
+/// `apprentice` (−, his forge steps), `forge` (−, steps bought by hand), `works`, `supplies`, `tolls`, `hires`,
+/// `bank` (deposits −, withdrawals +), `other` (unlocks, oaths, hatching…).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct GoldLedger {
+    pub earned: i32,
+    pub spent: i32,
+    pub net: i32,
+    pub terms: Vec<GoldTerm>,
 }
 
 /// QA on e75ec29: a kind thieves took and kept (`ReturnReport.stolen`): the label, how many.

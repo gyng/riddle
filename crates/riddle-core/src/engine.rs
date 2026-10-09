@@ -1474,6 +1474,10 @@ pub struct LineageState {
     /// §1: the last `GOLD_LEDGER_CAP` gold movements, oldest first.
     #[serde(default)]
     pub gold_ledger: Vec<GoldLine>,
+    /// Cut 117 §1: every gold movement ever, summed by its ledger term (`gold_term`): an absence's
+    /// report diffs it against the absence's start, so its terms add up to the purse's change.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub gold_tally: BTreeMap<String, i64>,
     // Cut 9
     /// §6: the (threat, resolution) pairs of the last `REEL_ABSENCES` reels, oldest first —
     /// the next reel skips them.
@@ -1904,6 +1908,7 @@ impl LineageState {
             lost: Vec::new(),
             vault_pref: default_vault_pref(),
             gold_ledger: Vec::new(),
+            gold_tally: BTreeMap::new(),
             reel_pairs: Vec::new(),
             trait_offer: offer.to_vec(),
             heirs: crate::traits::fresh(),
@@ -2040,6 +2045,16 @@ impl LineageState {
     /// (`GoldLine.n`; QA on 778fa1b: `repeat heal ×1 · −$104` for four heals).
     pub fn gold_move_n(&mut self, delta: i32, why: &str, n: u32) {
         self.gold += delta;
+        // Cut 117 §1: the absence ledger's term
+        if delta != 0 {
+            let k = gold_term(why);
+            match self.gold_tally.get_mut(k) {
+                Some(v) => *v += i64::from(delta),
+                None => {
+                    self.gold_tally.insert(k.to_string(), i64::from(delta));
+                }
+            }
+        }
         // Cut 30.5: the haul chest and the gold ledger
         crate::tree::on_gold(self, delta, why);
         // Cut 23 §1: the night's net is income less upkeep — the player's own purchases are not in it.
@@ -6954,6 +6969,35 @@ pub fn exit_reason(run: &Run, tier: ExitTier, best0: u32, rules: &RuleSet) -> St
 
 /// A ledger line an exit wrote (`returned D5`, `banked D8`, `died D3`, `lost thread D3`,
 /// `stalled D2`, `driven D8`): the word it leads with.
+/// Cut 117 §1: the absence ledger's term a gold movement belongs to (`GoldSummary.ledger`): `earned` (an exit's
+/// pay, salvage, passage coins, a porter's bonus), `heir` (the heir purse's top-up), `forge` (forge steps, the
+/// apprentice's or the player's), `works` (a commission), `supplies` (packs, drills, refunds, insurance),
+/// `tolls` (a waystone), `hires` (workers and their ranks), `bank` (deposits and withdrawals), else `other`
+/// (unlocks, oaths, hatching, ascension, a bloodline's slot).
+pub fn gold_term(why: &str) -> &'static str {
+    if crate::tree::is_haul(why) || why.starts_with("porter") {
+        "earned"
+    } else if why.starts_with("wake pay") {
+        "heir"
+    } else if why.starts_with("forge commission") {
+        "works"
+    } else if why.starts_with("forge ") {
+        "forge"
+    } else if why.starts_with("waystone") {
+        "tolls"
+    } else if why.starts_with("hire ") {
+        "hires"
+    } else if why.starts_with("bank ") {
+        "bank"
+    } else if ["pack ", "drill ", "refund ", "insure ", "repeat ", "bought ", "restock", "supply "].iter().any(|p| why.starts_with(p))
+        || crate::defs::ITEMS.iter().any(|d| d.kind.replace('_', " ") == why)
+    {
+        "supplies"
+    } else {
+        "other"
+    }
+}
+
 pub fn is_exit_why(why: &str) -> bool {
     ["returned", "banked", "died", "lost", "stalled", "driven"].iter().any(|w| why.starts_with(w))
 }

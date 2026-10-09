@@ -221,6 +221,7 @@ export type ForecastDepth = { depth: number; reach: number; cause?: string; pm?:
                               affix?: string;    // Cut 116 §1 (core): beside `boss`, the live heir's affix on him (`armoured`)
                               boss?: string };   // Cut 24 §5 (core): on the floor a boss stands on (met there: the Warlord D8), his kind — name him on this row; the next row's `try` / `wall` are his
 export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share: number }[];
+                         hold?: ForecastHold;                            // Cut 117 §1 (core): the scout's wall order on the next send — depths' reach is the reach if pushed; `hold.ends` is what the send will do
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number;
                                   passage?: number };                     // Cut 29 §6 (core; AX: `$81` banked under `~$260`): of `gold`, the waystone passage paid at the send — the exit's `BANKED $N` is `gold − passage` (show `~$125/run +$135 passage`)
@@ -346,7 +347,9 @@ export type Death = { difficulty?:number; modifier_catalogue?:ModifierInfo[]; mo
                       notes?: string[];                                                      // Cut 13 §4: the run's last two chronicle notes, under the headline (never a `saved him` — QA 92eb880)
                       luck?: DeathLuck;                                                      // Cut 28 §2 (core): on a death most replays survive (a `dice`, or `lean: "dice"`) — the rare event that killed him and its odds; lead with it (`goblin −6 at 6 hp · 1 in 6`)
                       boss?: string;                                                         // blind 3ab97ea (core): the boss this death was fought under — his wall, never luck nor dice-leaning
-                      nothing_beats_base?: boolean };                                        // QA 92eb880: a `dice` death none of whose patches survives more than `baseline` (a 100 % base: the replays win the fight he lost) — say `nothing beats base · base N%`, not `below bar`. Cut 26 §6 (control rater AQ: `nothing beats unpatched 12/12` over a patch reading `survives 12/12`): the patches of such a death are what was TRIED, never help — do not print their `survives N/12` as a headline (e.g. `tried · same as base`)
+                      nothing_beats_base?: boolean;
+                      moment_hp?: number; moment_max_hp?: number;                            // Cut 117 §1 (core): the hp the killing blow landed on — the trace's row before the blow (the header's `hero at N hp`; `blow.hp + blow.dmg` counted an overkill) — and his max then
+                    };                                        // QA 92eb880: a `dice` death none of whose patches survives more than `baseline` (a 100 % base: the replays win the fight he lost) — say `nothing beats base · base N%`, not `below bar`. Cut 26 §6 (control rater AQ: `nothing beats unpatched 12/12` over a patch reading `survives 12/12`): the patches of such a death are what was TRIED, never help — do not print their `survives N/12` as a headline (e.g. `tried · same as base`)
 /** Cut 26 (core) — a `route` verdict: at the fork `fork` the set's route took `taken`; the near/other stair's replays survive `survive`
  *  (≥ 50 %, beating `baseline` by ≥ 15 pts) — `D5 fens · route`, the fix `take burrows` = `setRules({...set, route})`. */
 export type RouteCause = { fork: number; taken: string; other: string; route: number[]; survive: number; base?: number };   // base: the route taken, past the floor (paired)
@@ -404,7 +407,24 @@ export type Packages = { all: Package[]; stance: string; tactics?: string[]; tac
   offer?: string[]; drills?: Drill[]; scars?: [string, number][]; pen_open: boolean; pen_needs?: string[]; rows?: RowSource[]; literal?: boolean; build?: BuildWire };
 /** Cut 30 §2 (core) — a package move priced on the paired panel (`packageOptions(sims)`, best first): `action` equip · level, the shares
  *  of the sends that pass the record / reach it / bank / die, and each move against the set as it stands (`Guarded · death −8`). */
+/** Cut 117 §1 (core) — the scout's wall order priced on the forecast's sims: the wall's floor `depth`, `order` bank (the send banks at
+ *  D`stop`'s stairs, `stop` = depth − 1) or carry (its haul secured there, it goes on), `share` the sends that reach those stairs, `ends`
+ *  the panel's ends with the order applied. The depths' reach stays the reach if pushed (`reach D33 88%` vs `banks at D32`). */
+export type ForecastHold = { depth: number; stop: number; order: "bank" | "carry" | string; share: number;
+  ends: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number; passage?: number } };
+/** Cut 117 §1 (core) — an absence's gold ledger (`gold.ledger`): `earned` Σ positive terms, `spent` Σ negative terms (positive), `net` =
+ *  earned − spent = the purse's change (= `gold.net`). Terms, signed, zero ones left out: `carried` (+, what the exits/salvage/passages
+ *  brought to the door), `lost` (−, the carry the exits did not keep; carried + lost = income kept), `heir` (+, heir purse top-ups),
+ *  `apprentice` (−, his forge steps), `forge` (−, steps by hand), `works`, `supplies`, `tolls`, `hires`, `bank`, `other`. */
+export type GoldTerm = { label: string; amount: number };
+export type GoldLedger = { earned: number; spent: number; net: number; terms: GoldTerm[] };
+/** Cut 117 §4 (core) — the absence's supply budget when the repeat was limited: `reason` `no_income` (nothing came home; the repeat spends
+ *  only away income, never the purse) · `income_spent` (the repeat used it up) · `purse_short` (the purse itself could not pay). */
+export type SupplyBudget = { income: number; spent: number; left: number; reason: "no_income" | "income_spent" | "purse_short" | string };
 export type PkgOption = { id: string; action: string; slot?: number; price?: number; past: number; bank: number; death: number; reach?: number;
+  /** Cut 117 §1 (core): the paired read's noise — `noise` the 95 % half-width of `d_past`; `even` the better/worse sends are within chance
+   *  (sign test) and `d_past` within `noise`: show no delta (`even`), never a sign a re-read could flip. Absent on an older core. */
+  noise?: number; even?: boolean;
   d_past: number; d_bank: number; d_death: number; d_reach?: number;
   /** Blind c4705f9: the paired read — the sends both panels ran on the same seeds, and of them those the move ended better / worse
    *  (deeper, or as deep with a better exit). Absent on an older core. */
@@ -449,7 +469,8 @@ export type WorkerPost = { id: string; post: string; lit?: boolean; price?: numb
 /** Cut 30.5 (core) — what a worker did over an absence (`ReturnReport.workers`): `apprentice` · `+2 steps` (n 2); `first` the first time it
  *  ever acted (name it once: `apprentice · +1 step`; later fold into the report's lines). */
 /** blind c4705f9 (A, B: `purse −$12562` unexplained): `items` the steps a buying worker reached (`sword +3`), `spent` the purse it paid. */
-export type WorkerAct = { id: string; what: string; n: number; first: boolean; items?: string[]; spent?: number };
+export type WorkerAct = { id: string; what: string; n: number; first: boolean; items?: string[]; spent?: number;
+  reason?: string };   // Cut 117 §4 (core): on the apprentice's line, why the absence's supplies were limited (`SupplyBudget.reason`)
 /** RUNS_UI (core; docs/RUNS_UI.md) — one run in the runs log (`Lineage.runs`, oldest first, cap 60). `via`: how it ran — `away` (an absence's
  *  batch, `runOffline*`), `town` (unwatched while the app was open: `advance`), `watched` (live in the watch). `absence`: the absence an `away`
  *  run belongs to (the log folds by it). `clock_s`: the lineage clock at its end (the stamp: `Lineage.clock_s` − it). `gold` what came home,
@@ -497,7 +518,7 @@ export type ReturnReport = {
   stalled?: number;                                                            // Cut 13 §1: sends that stalled (among `returned`, keeping nothing); the tiles count them apart
   spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
   heirs?: number[];                                                                           // QA 912e135 (core): the first and last heir who ran these runs (`♟2–17` under RUNS)
-  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number; unkept?: number; passage?: number; net?: number };   // blind ad71e72 (core): `passage` the waystone passages paid at the sends; `net` the purse's actual change over the absence (forge steps, hires and bank moves included)
+  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number; unkept?: number; passage?: number; net?: number; ledger?: GoldLedger };   // Cut 117 §1 (core): `ledger` the absence's ledger, its terms summing exactly to `net`. blind ad71e72 (core): `passage` the waystone passages paid at the sends; `net` the purse's actual change over the absence (forge steps, hires and bank moves included)
     // QA 912e135 (core): `lost` — the carry the exits did not keep; QA 524827b (qaAA): `unkept` — the part of it exits that kept something left (a return's 40 %: `not kept`)
         // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
@@ -518,6 +539,7 @@ export type ReturnReport = {
   exits?: ExitLine[];                                                         // Cut 6 §1: one ledger line per exit in the batch
   picked?: number[];                                                          // Cut 16 §1: depths picked clean (≥ 3 banks/returns, shallower than the best), ascending — `D3 · picked clean`
   restock_capped?: boolean;                                                   // Cut 19 §3: the repeat skipped a supply once the absence's spending reached what it brought home — `restock capped`
+  supply_budget?: SupplyBudget;                                               // Cut 117 §4 (core): when the repeat was limited — income, spent, left and why (`no_income` · `income_spent` · `purse_short`)
   repeat_short?: boolean;                                                     // QA 1a2a4a9: a re-pack ran short of gold and bought what it could — `repeat short` (a `$0 repeat short` ledger line at that exit)
   shelved?: { kind: string; n: number; gold?: number }[];                     // (core: `gold` = their price on the shelf) Cut 21 §2: found supplies the exits put on the shelf this absence (the next send packs them free) — `heal ×3 → shelf`
   bounty?: { depth: number; taken: boolean; gold: number };                  // Cut 20 §5: the night's bounty floor — `bounty D12 · taken $412` / `bounty D12 · missed`

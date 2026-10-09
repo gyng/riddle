@@ -1696,6 +1696,39 @@ fn build_dealt(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Src) -> i
     dmg
 }
 
+/// Cut 117 §3: a band boss whose affix the worn set breaks (`descent::affix_breakers`) — the boss's affix, when broken.
+fn broken_affix(run: &Run, cx: &Ctx, mi: usize) -> Option<crate::descent::Affix> {
+    let m = run.monsters.get(mi)?;
+    let a = m.modifiers?.affix?;
+    crate::descent::affix_breakers(&m.kind, a).iter().any(|b| crate::packages::wears(cx.rules, b)).then_some(a)
+}
+
+/// Cut 117 §3: the hero's blow on a boss whose affix his set breaks (+`AFFIX_BREAK_DEALT` %, at least +1).
+fn affix_dealt(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Src) -> i32 {
+    if dmg <= 0 || !matches!(src, Src::Hero { .. }) || run.monsters[mi].modifiers.and_then(|m| m.affix).is_none() {
+        return dmg;
+    }
+    if broken_affix(run, cx, mi).is_some() {
+        dmg + (dmg * crate::descent::AFFIX_BREAK_DEALT / 100).max(1)
+    } else {
+        (dmg - dmg * crate::descent::AFFIX_WARD / 100).max(1)
+    }
+}
+
+/// Cut 117 §3: the blow of a boss whose affix the hero's set breaks (−`AFFIX_BREAK_TAKEN` %).
+fn affix_taken(run: &Run, cx: &Ctx, dmg: i32, src: &Src) -> i32 {
+    match src {
+        Src::Mon(i) if dmg > 0 && run.monsters[*i].modifiers.and_then(|m| m.affix).is_some() => {
+            if broken_affix(run, cx, *i).is_some() {
+                dmg - dmg * crate::descent::AFFIX_BREAK_TAKEN / 100
+            } else {
+                dmg + dmg * crate::descent::AFFIX_FURY / 100
+            }
+        }
+        _ => dmg,
+    }
+}
+
 pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     if dmg <= 0 || run.over.is_some() {
         return;
@@ -1704,6 +1737,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     let cause = cause.as_str();
     let dmg=match src {Src::Mon(i) if run.monsters[*i].hostile()&&run.monsters[*i].hex_t>0=>(dmg-crate::specialization::HEX_REDUCTION).max(0),_=>dmg};
     let dmg = build_taken(run, cx, dmg, src);
+    let dmg = affix_taken(run, cx, dmg, src);
     let (dmg, counter) = counter_damage(run, src, dmg, None, run.hero.pos, false);
     if let Some((a, b)) = counter {
         learn(run, cx, crate::defs::counter_fact(&a, &b));
@@ -1952,7 +1986,8 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, mut dmg: i32, src:
     }
     let cause = src.cause(run);
     let cause = cause.as_str();
-    let mut dmg = build_dealt(run, cx, mi, dmg.max(0), src);
+    let dmg = affix_dealt(run, cx, mi, dmg.max(0), src);
+    let mut dmg = build_dealt(run, cx, mi, dmg, src);
     // Cut 23 §1 (the forge's full kit broke the D28 wall without its counter: FULL−D28 kitted
     // passed on 16 of 30 seeds, the Queen dead to four blows before her second call): while a
     // lurker she called lives, her brood shields her — half of every blow. Silence (no calls)

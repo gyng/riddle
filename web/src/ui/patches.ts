@@ -18,6 +18,7 @@ import { condLabel, verbLabel, isCardRow, isPkgRow, refName, rowLabel, ruleName,
 const ownRow = (r: Row): boolean => !isCardRow(r) && !isPkgRow(r);
 import { icon, verbIcon } from "./skin";
 import { kwHost } from "./tips";
+import { NOISE_PTS } from "./forecast";   // Cut 117 §1 (used at call time; the cycle is safe)
 /** gfx round 2 (raters: "the three fix rows are plain brown slabs — give each an icon, as the target does"): the fix's action plaque. */
 const patchPlaque = (row: Row | undefined): HTMLElement | "" => { const id = row ? verbIcon(row.verb.v) : null; return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
 
@@ -256,7 +257,7 @@ function reachSpan(p: Patch, stallish = false, base?: BaseAt): HTMLElement {
   // QA 524827b: a move's ± is the paired one (`PatchWhole.reach_pm`, the camp's `vs sent` measure) once the whole run is measured
   const pmRaw = p.whole ? p.whole.reach_pm : p.forecast_pm;
   const pm = pmRaw !== undefined ? Math.max(1, Math.round(pmRaw * 100)) : undefined;
-  const flat = delta === 0 || (pm !== undefined && Math.abs(delta) <= pm);
+  const flat = delta === 0 || (pm !== undefined ? Math.abs(delta) <= pm : Math.abs(delta) < NOISE_PTS);   // Cut 117 §1: no ± → the 5-point band
   const word = stallish ? "" : /* copy:label */ "reach ";
   const at = p.forecast_depth !== undefined ? `D${p.forecast_depth} ` : "";
   // docs/COPY.md pass 4 (`reach D6 78→26% ±14` — the ±14 read "no idea" by 4 of 6): the tablet's colour says a move is outside its noise

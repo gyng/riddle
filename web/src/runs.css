@@ -381,3 +381,6 @@ html body .ctl .cmd .tile.ctl-verb .tl, html body .ctl .cmd .tile.ctl-toggle .tl
 .ctl .ctl-note:empty { display: none; }
 .ctl .ctl-note[data-refused="1"] { color: #e8923a; }
 .ctl .ctl-note[data-pending="1"] { opacity: .6; }
+/* Cut 117 §1: the gold head's equation — each term whole on its line when the tile is narrow */
+.report .report-gold .report-ledger { display: block; font-size: 11px; line-height: 1.25; }
+.report .report-gold .report-ledger > span { white-space: nowrap; }

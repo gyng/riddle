@@ -1,0 +1,25 @@
+/* Cut 118 §6: the report's one action and its fold; §9: `uncapped` and `King · ~day N` in the head */
+.report-summary h2 .report-uncapped { margin-left: 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--acc, #dbba7c); vertical-align: middle; }
+.king-eta { display: inline-block; font-size: 12px; color: var(--ink-dim, #455e87); }
+.king-eta b { font-weight: 600; }
+.report-summary .report-king { display: block; margin: 2px 0 4px; }
+.fc-king { margin: 2px 0; font-size: 12px; }
+.fc-king .king-eta { color: inherit; }
+.report-finds { margin: 6px 0; font-size: 13px; }
+.report-finds b { margin-right: 4px; }
+.collect-send { margin: 10px 0; }
+.collect-send[hidden] { display: none; }
+.collect-send .collect-go { width: 100%; min-height: 48px; font-size: 16px; }
+.collect-send .collect-fold { margin-top: 4px; font-size: 12px; }
+.collect-send .collect-fold > summary { cursor: pointer; list-style: none; }
+.collect-send .collect-fold > summary::before { content: "▸ "; }
+.collect-send .collect-fold[open] > summary::before { content: "▾ "; }
+.collect-send .collect-lines { margin: 4px 0 0; padding-left: 16px; }
+.report-later[hidden] { display: none; }
+.king-eta .king-bar { display: inline-block; vertical-align: middle; width: 56px; height: 5px; margin: 0 4px 0 8px; border: 1px solid currentColor; opacity: .8; }
+.king-eta .king-bar .fill { display: block; height: 100%; background: var(--acc, #dbba7c); }
+.king-eta .king-pct { font-size: 11px; }
+/* Cut 118 round 2: the next wall's roster on the chart */
+.wall-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 4px 0; font-size: 12px; }
+.wall-preview .wall-label { margin: 0; }
+.wall-preview .wall-counter[data-known="1"] { color: var(--acc, #dbba7c); }

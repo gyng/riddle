@@ -13,7 +13,9 @@ try{for(const width of [400,1440]){
   a.go({kind:'report',report:{...r,workers:[app]},absence:true});
   const chip=document.querySelector('.report-first-workers [data-worker=apprentice]');
   check(chip?.textContent.includes('sword +3')&&chip.textContent.includes('mail +2')&&chip.textContent.includes('−$12562'),'chip itemises purchases: '+chip?.textContent);
-  check(document.querySelector('.report-bought')?.textContent==='forge −$12562','purse names the forge spend');
+  check(document.querySelector('.report-bought')?.textContent.trim()==='(forge $12562)','purse names the forge spend: '+document.querySelector('.report-bought')?.textContent);
+  // Cut 117 §1: the head reconciles — earned − spent = purse
+  const led=document.querySelector('.report-ledger');check(led&&+led.dataset.earned - +led.dataset.spent === +led.dataset.net&&/earned \$290 − spent \$12562 \(forge \$12562\) = purse −\$12272/.test(led.textContent),'ledger reconciles: '+led?.textContent);
   const {boughtText,mergeWorkers}=await import('/src/ui/works.ts');
   check(boughtText({})==='','a worker that bought nothing adds no words');
   const m=mergeWorkers([app],[{...app,n:1,what:'+1 step',first:false,items:['sword +4'],spent:3000}])[0];

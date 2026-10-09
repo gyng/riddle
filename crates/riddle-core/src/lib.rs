@@ -308,3 +308,5 @@ mod tests_runclear;
 mod tests_cut113;
 #[cfg(test)]
 mod tests_cut116;
+#[cfg(test)]
+mod tests_cut117;

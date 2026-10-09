@@ -13,6 +13,8 @@
 // The first paint (`Forecast.refined` false) has rough state and an explicit quality label.
 // Uncertainty remains a numeric band on both passes; refine clears the rough state and label.
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
+import { kingLine } from "./king-eta";   // Cut 118 §9
+import { wallPreview } from "./wall-preview";   // Cut 118 round 2: the next wall's roster
 import { counterName } from "./counter-name";
 import { openDropSheet } from "./patches";
 import { enemyHost } from "./enemy-tips";
@@ -122,6 +124,9 @@ export function endShare(x: number, low: number | undefined): string {
 export const lowOf = (f: { low?: number; sims?: number } | null | undefined): number | undefined => f?.low ?? (f?.sims ? Math.ceil(100 / f.sims) : undefined);
 
 /** Cut 22 §4: a move in whole points, signed (`+6`, `−3`), never a `%` — a delta must not read as a chance. */
+/** Cut 117 §1 (blind 8cf9050: the 8-sample previews swing; advice flipped between two reads of one camp): a move with no ± of its own
+ *  reads `same` under this many points — a sign two reads of one camp could flip is no call. */
+export const NOISE_PTS = 5;
 export const signedPts = (pts: number): string => `${pts < 0 ? "−" : "+"}${Math.abs(pts)}`;
 /** Cut 22 §3: a paired move as it reads — `+6` / `−3`, `≈` inside its own ± (or rounding to 0): no call. Cut 24 §4 (AK: "the live
  *  forecast solves most edits"; AL: own rows `≈`): inside a ± it reads `≈ ±4` — a small real move is unresolved, not "no change";
@@ -133,7 +138,7 @@ export function moveOf(m: VsMove | number | undefined): { pts: number; text: str
   // QA 912e135 (qaW: `▲` against the bars' own numbers): with the sent set's share (`base`) the points are the two shown shares'
   // difference (`29% → 61%` is `▲32`, never `▲31` by rounding the delta alone)
   const pts = typeof mv.base === "number" ? Math.round((mv.base + mv.delta) * 100) - Math.round(mv.base * 100) : Math.round(mv.delta * 100);
-  const flat = pts === 0 || (mv.pm !== undefined && Math.abs(mv.delta) <= mv.pm);
+  const flat = pts === 0 || (mv.pm !== undefined ? Math.abs(mv.delta) <= mv.pm : Math.abs(pts) < NOISE_PTS);
   // docs/COPY.md pass 2: a move inside its ± reads `same` (the `≈ ±N` of a no-call read as a value and a spread)
   return flat ? { pts, text: /* copy:callout */ "same", dir: "flat" } : { pts, text: signedPts(pts), dir: pts > 0 ? "up" : "down" };
 }
@@ -276,10 +281,14 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
   // is the right column's meters)
   const runs = app.lineage.meters?.runs ?? [];
   const cmp = runs.length >= 2 && !isWide() ? meterCompare(runs[runs.length - 2], runs[runs.length - 1]) : null;
-  const el = h("section", { class: "forecast" }, h("div", { class: "fc-heading" }, h("span", { class: "label" }, /* copy:label */ "forecast"), quality, sampleCount, refineButton), h("div", { class: "label reach-label dim" }, kw("reach")), bars, ends, vsHost, picked, yours, causes, cmp);
+  // Cut 118 §9: the ending in sight — `King · ~day 23` at the current pace (crude: ui/king-eta.ts), under the run outcomes
+  const king = h("div", { class: "fc-king dim", hidden: true });
+  const paintKing = (): void => { const k = kingLine(app.lineage), w = wallPreview(app.lineage); king.hidden = !k && !w; replace(king, k ?? "", w ?? ""); };
+  const el = h("section", { class: "forecast" }, h("div", { class: "fc-heading" }, h("span", { class: "label" }, /* copy:label */ "forecast"), quality, sampleCount, refineButton), h("div", { class: "label reach-label dim" }, kw("reach")), bars, ends, king, vsHost, picked, yours, causes, cmp);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
+    paintKing();
     const n = app.playerRows(), m = app.ownRows(), combos = app.combos();
     replace(yours, h("span", { class: n ? "" : "dim" }, /* copy:callout */ `written: ${n} of ${m} rule${m === 1 ? "" : "s"}`),
       combos.length ? h("span", { class: "combos" }, ` · ${combos.map((c) => c.name).join(" · ")}`) : "");

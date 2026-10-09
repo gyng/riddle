@@ -5,7 +5,7 @@
 import "../cut30.css";
 import type { App } from "../app";
 import type { Lineage, Quest } from "../engine/types";
-import { h, replace } from "./dom";
+import { flash, h, replace, toast } from "./dom";
 import { openWindow as openSheet } from "./sheet";
 import { sysOpen } from "./systems";
 import skin from "./skin.json";
@@ -36,7 +36,11 @@ export function openQuest(app: App, anchor?: HTMLElement | null): void {
     const paint = (): void => {
       const q = app.lineage.town?.quest; if (!q) { close(); return; }
       const swap = app.engine.swapQuest && !q.done
-        ? h("button", { class: "chip mini quest-swap", disabled: !q.swap, onclick: () => void app.mutate(() => app.engine.swapQuest!(), undefined).then(() => paint()) }, q.swap ? /* copy:button */ "new quest" : /* copy:button */ "swapped today")
+        ? h("button", { class: "chip mini quest-swap", disabled: !q.swap, onclick: () => void app.mutate(() => app.engine.swapQuest!(), undefined).then((ok) => {
+          // Cut 117 §2 (blind 8cf9050 A: "quest taps gave no visible result"): the swap says so and the new card glints
+          paint(); toast(ok ? /* copy:callout */ "new quest" : /* copy:callout */ "swap refused");
+          const card = body.querySelector<HTMLElement>(".quest-card"); if (ok && card) { card.dataset.swapped = "1"; flash(card, "hl", 1600); }
+        }) }, q.swap ? /* copy:button */ "new quest" : /* copy:button */ "swapped today")
         : "";
       replace(body, h("div", { class: "label row-label" }, kw("quest")),
         h("div", { class: `quest-card${q.done ? " done" : ""}` },

@@ -89,6 +89,8 @@ fn pinned(g: &Game, pin: Vec<(String, Affix)>) -> Game {
 fn affixes(snaps: &[Vec<(u32, String)>], sims: u32) -> bool {
     println!("affix answerability (from the wall's stone, {sims} paired sends, {} IDLE lineages)", snaps.len());
     let mut ok_all = true;
+    // Cut 117 §3: the boss × affix pairs whose best arrived answer differs from the plain wall's
+    let (mut changed, mut pairs) = (0u32, 0u32);
     for wall in idle::WALLS {
         let Some(boss) = Route::BASE.boss(wall) else { continue };
         // (the lineage that has met him and gone on: IDLE's snapshot under the next wall, else its last —
@@ -98,7 +100,7 @@ fn affixes(snaps: &[Vec<(u32, String)>], sims: u32) -> bool {
             continue;
         }
         // every arrived answer on every lineage, under `pin`: (worn, best answer, best read)
-        let read = |pin: Vec<(String, Affix)>| -> (f64, String, f64) {
+        let read = |pin: Vec<(String, Affix)>| -> (f64, String, f64, String) {
             let jobs: Vec<(&String, String)> = games.iter().flat_map(|g| answer_names(&load(g)).into_iter().map(move |n| (*g, n))).collect();
             let reads: Vec<Option<f64>> = pool(&jobs, |(g, n)| wear(&pinned(&load(g), pin.clone()), n).map(|c| past(&c, wall, sims)));
             let mut by: std::collections::BTreeMap<String, (f64, usize)> = Default::default();
@@ -111,21 +113,28 @@ fn affixes(snaps: &[Vec<(u32, String)>], sims: u32) -> bool {
             // (an answer is read over the lineages that have it)
             let worn = by.get("worn").map(|(s, n)| s / *n as f64).unwrap_or(0.0);
             let (best, bv) = by.iter().map(|(k, (s, n))| (k.clone(), s / *n as f64)).fold(("worn".to_string(), worn), |b, x| if x.1 > b.1 + 1e-9 { x } else { b });
-            (worn, best, bv)
+            let mut all: Vec<(String, f64)> = by.iter().map(|(k, (s, n))| (k.clone(), s / *n as f64)).collect();
+            all.sort_by(|a, b| b.1.total_cmp(&a.1));
+            let top = all.iter().take(4).map(|(k, v)| format!("{k} {:.0}", 100.0 * v)).collect::<Vec<_>>().join(" · ");
+            (worn, best, bv, top)
         };
-        let (base, pbest, pbv) = read(Vec::new());
-        println!("  D{wall} {boss}: plain — worn {:.0}% · best {pbest} {:.0}%", 100.0 * base, 100.0 * pbv);
+        let (base, pbest, pbv, ptop) = read(Vec::new());
+        println!("  D{wall} {boss}: plain — worn {:.0}% · best {pbest} {:.0}%   [{ptop}]", 100.0 * base, 100.0 * pbv);
         if pbv <= 0.0 {
             println!("    (no arrived answer passes him plain on these lineages: no signal, n/a)");
         }
         for a in affix_pool(boss) {
-            let (worn, best, bv) = read(vec![(boss.to_string(), *a)]);
+            let (worn, best, bv, top) = read(vec![(boss.to_string(), *a)]);
             // the bar: the best arrived answer passes the affixed wall at least as often as the worn set passes the plain one
             let ok = bv + 1e-9 >= base;
             ok_all &= ok;
+            pairs += 1;
+            changed += u32::from(best != pbest);
             println!("    {:<13} worn {:>3.0}% · best {:<18} {:>3.0}% (vs plain best {:+.0}){}  {}", a.word(), 100.0 * worn, best, 100.0 * bv, 100.0 * (bv - pbv), if best != pbest { " · answer changes" } else { "" }, if ok { "PASS" } else { "FAIL" });
+            println!("        [{top}]");
         }
     }
+    println!("  answer changes: {changed} of {pairs} boss × affix pairs (Cut 117 bar: ≥ 8 of 20)");
     ok_all
 }
 

@@ -17,7 +17,8 @@ import { openWindow as openSheet } from "./sheet";
 import { tile, paintFace } from "./frame";
 import { audio } from "../audio";
 import { questShown } from "./quest";
-import { nextPill, openWorks } from "./works";   // Cut 30.5: the `next` pill, the works sheet
+import { nextPill, openWorks } from "./works";
+import { townCrier } from "./crier";   // Cut 118 §8: the town crier   // Cut 30.5: the `next` pill, the works sheet
 import { openChronicle } from "./chronicle";
 import { openRuns } from "./runs";
 import { openLooks } from "./look";
@@ -99,7 +100,9 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
   // c30-legible (the owner, a new player: "I didn't understand why there were new buildings"): a building's arrival names what raised
   // it (`first gold home → blacksmith`, the core's trigger), once, over the town while it stands up; its target glows the while
   const arrival = h("div", { class: "town-arrival num", "aria-live": "polite" });
-  el.append(hits, foundation, tag, arrival, pill.el);
+  // Cut 118 §8: the crier, top right (the pill's opposite), crying the last absence's notable acts
+  const crier = townCrier(app);
+  el.append(hits, foundation, tag, arrival, pill.el, crier.el);
   let arrivalTimer = 0;
   const view = createTownView(el);
   let chestOpenUntil = 0, chestTimer = 0;
@@ -135,6 +138,7 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     targets();
     pill.paint();
     pill.el.hidden = !state.home || !L.tree;
+    crier.paint(!!state.home);
     if (fresh.length) arrive(fresh);
   }
   /** c30-legible: the arrival's beat — `first gold home → blacksmith` (≤ 4 words + the arrow) — and the eye drawn to the building */

@@ -1402,6 +1402,11 @@ pub const SCAVENGER_EDGE: i32 = 2;
 pub const IRON_LUNGS: i32 = 2;
 pub const WARDEN_GUARD: i32 = 2;
 
+/// Cut 117 §3: the compiled set wears package `id` (a stance's or a tactic's rows are in it — `descent::affix_breakers`' read).
+pub fn wears(rules: &RuleSet, id: &str) -> bool {
+    rules.rows.iter().filter_map(|r| r.origin.as_deref()).any(|o| o.split_once(':').is_some_and(|(k, x)| matches!(k, "stance" | "tactic") && x == id))
+}
+
 /// A synergy's bit in `build_mask`.
 pub fn synergy_bit(id: &str) -> u8 {
     SYNERGIES.iter().position(|s| s.id == id).map_or(0, |i| 1 << i)
@@ -1583,13 +1588,22 @@ pub fn fix_pick(l: &LineageState, cause: &str) -> Option<(String, u8, String)> {
     };
     // (a boss's own counter first — the mirror, the reflection, the brood — then what any of his kind answers)
     let order = ["reflect_melee", "mirror", "blind", "summoner", "ranged", "gas", "thief", "pack", "boss"];
+    // Cut 117 §2 (client QA: the King's TRY alternated cadence ↔ boss focus in one slot): the tactic `take_fix` would
+    // take off (the last slot, all slots full) — a pick that would replace another answer to this same killer is no fix
+    let answers: Vec<&str> = order.iter().filter(|t| tags.contains(t)).filter_map(|t| answer(t).map(|a| a.0)).collect();
+    let slots = tactic_slots(l);
+    let replaced = (l.pkg.tactics.len() >= slots).then(|| l.pkg.tactics.get(slots - 1)).flatten();
     for t in order.iter().filter(|t| tags.contains(t)) {
         let Some((id, v)) = answer(t) else { continue };
         if !available(l, id) {
             continue;
         }
-        let worn = l.pkg.tactics.iter().any(|x| x == id) && l.pkg.variants.get(id).copied().unwrap_or(0) == v;
+        let on = l.pkg.tactics.iter().any(|x| x == id);
+        let worn = on && l.pkg.variants.get(id).copied().unwrap_or(0) == v;
         if worn {
+            continue;
+        }
+        if !on && replaced.is_some_and(|r| r != id && answers.contains(&r.as_str())) {
             continue;
         }
         let text = match variants(id) {
@@ -1709,6 +1723,32 @@ pub struct PkgOption {
     /// `better at D8 Warlord · worse at D28 Queen`. The client's chooser only (`options_for`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub walls: Vec<WallRead>,
+    /// Cut 117 §1 (blind 8cf9050 A: the 8-sample previews swing between reads): the paired read's own noise —
+    /// the 95 % half-width of `d_past` over the paired sends (1.96 · sd of the per-send differences / √n) —
+    /// and `even`: the move's better and worse sends are within chance of each other (a sign test,
+    /// |better − worse| ≤ 1.96 · √(better + worse)) and `d_past` within its band. An even move shows no
+    /// delta (`even`), never a sign that a re-read could flip.
+    #[serde(default)]
+    pub noise: f64,
+    #[serde(default)]
+    pub even: bool,
+}
+
+/// Cut 117 §1: (noise, even) of a paired read — `PkgOption.noise` / `even` — from the two panels' outcome
+/// ranks (`outcome_rank`) and the record they are past.
+pub fn paired_noise(base: &[u32], with: &[u32], best: u32) -> (f64, bool) {
+    let n = base.len().min(with.len());
+    if n == 0 {
+        return (0.0, true);
+    }
+    let past = |r: u32| -> f64 { if r / 4 > best { 1.0 } else { 0.0 } };
+    let d: Vec<f64> = (0..n).map(|i| past(with[i]) - past(base[i])).collect();
+    let mean = d.iter().sum::<f64>() / n as f64;
+    let var = if n > 1 { d.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64 } else { 0.0 };
+    let noise = 1.96 * var.sqrt() / (n as f64).sqrt();
+    let (_, better, worse) = paired(base, with);
+    let sign = (better as f64 - worse as f64).abs() <= 1.96 * ((better + worse) as f64).sqrt();
+    (noise, sign && mean.abs() <= noise.max(1e-9))
 }
 
 /// Cut 115 §3: a move at one wall — the sends from the waystone under it, paired against the worn set's on the
@@ -1993,7 +2033,8 @@ fn options_from(g: &crate::engine::Game, sims: u32, moves: Vec<(String, String, 
         let d_wall = match (wall_base, wall) { (Some(a), Some(b)) => b - a, _ => 0.0 };
         let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
         let (n, better, worse) = paired(&base_ranks, &ranks);
-        Some(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall, n, better, worse, walls: Vec::new() })
+        let (noise, even) = paired_noise(&base_ranks, &ranks, best);
+        Some(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall, n, better, worse, walls: Vec::new(), noise, even })
     }).collect();
     out.sort_by(|a, b| score(b).total_cmp(&score(a)));
     out

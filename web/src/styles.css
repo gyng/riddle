@@ -24,6 +24,9 @@
   --mono: var(--sans);   /* Cut 17: monospace goes from the chrome; the old name reads the condensed face */
   /* parchment text: INK on BONE paper (was --ink; the palette's INK took the name) */
   --ink-text: var(--ink); --ink-dim: #455e87; --ink-line: rgba(43, 51, 80, .35);
+  /* Cut 117 §5 (blind 8cf9050 A: yellow `Bulwark held D20` "barely legible" on parchment): the gold and the warning in ink on BONE paper
+     (≥ 4.5:1 on the paper's darkest wash); the stone objects inside keep --acc / --warn */
+  --ink-gold: #5e4510; --ink-warn: #6e3006;
   --console-h: 156px;
   color-scheme: dark;
 }
@@ -642,7 +645,11 @@ button.portrait:active .face { filter: brightness(.8); }
 .skin-panel :is(.sheet, .panel, .parchment) { border: 14px solid transparent; border-image: url(/ui/frames/panel.png) 28 fill / 14px stretch; background: none; box-shadow: 0 8px 24px rgba(13, 12, 20, .8); }
 :is(.sheet, .panel, .parchment) :is(.chip, .btn, .card, .row, .drop-row, .patch, .ta, .name-input, .badge, button.bar.try, .tile, .interstitial) {
   --fg: var(--bone); --dim: #a2987f; --line: #313d5d; color: var(--fg); }
-:is(.sheet, .panel, .parchment) .gold { color: #7a5c1e; }
+:is(.sheet, .panel, .parchment) .gold { color: var(--ink-gold); }
+/* Cut 117 §5: text in the gold or warning hues that sits on the paper itself (not on a chip, card or tablet) takes the ink pair */
+:is(.sheet, .panel, .parchment) :is(.report-build .build-name, .hero-build, .exit-lines button.ledger-more, .ascension-gold, .route-picker .fork-at, .hero-notice, .lines b.acc) { color: var(--ink-gold); }
+:is(.sheet, .panel, .parchment) :is(.gold-line .capped, .gold-line .ledger-link, .trace .tele) { color: var(--ink-warn); }
+:is(.sheet, .panel, .parchment) .report-build .build-name { font-weight: 700; }
 :is(.sheet, .panel, .parchment) :is(.chip, .card, .btn, .tile) .gold, :is(.sheet, .panel, .parchment) .chip .gold { color: #e3c183; }
 :is(.sheet, .panel, .parchment) .delta.up, :is(.sheet, .panel, .parchment) .up { color: #576e86; }
 :is(.sheet, .panel, .parchment) .delta.down, :is(.sheet, .panel, .parchment) .down { color: var(--blood); }
@@ -1838,3 +1845,10 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 /* blind 5331f40 (B: the purse fell $5054 with no word): the fall since last shown and what spent it, under the `$` */
 .topbar .stat.gold { position: relative; }
 .topbar .stat.gold .gold-drop { position: absolute; left: 0; top: calc(100% - 6px); font-size: 11px; line-height: 1; white-space: nowrap; color: #d99a8a; pointer-events: none; }
+
+/* Cut 117 §2: a tap's brief result (`ui/dom.ts toast`) — a dark plaque over the console, never under a finger */
+.toast { position: fixed; z-index: 60; left: 50%; bottom: calc(var(--console-h) + 18px); transform: translateX(-50%); pointer-events: none;
+  padding: 8px 16px; border-radius: 4px; border: 2px solid #ab893d; background: linear-gradient(#282e48, #171622); color: #fdda9a;
+  font: 600 15px/1.2 var(--sans); letter-spacing: .04em; box-shadow: 0 4px 14px rgba(13, 12, 20, .8); white-space: nowrap; animation: toast-in 1.8s ease-out both; }
+@keyframes toast-in { 0% { opacity: 0; transform: translate(-50%, 8px); } 10%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }

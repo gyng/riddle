@@ -868,6 +868,10 @@ pub struct WorkerAct {
     pub items: Vec<String>,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub spent: i32,
+    /// Cut 117 §4: on the apprentice's line, why the absence's supplies were limited (the report's
+    /// `SupplyBudget.reason`: `no_income` · `income_spent` · `purse_short`); absent when they were not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 fn is_zero(n: &i32) -> bool {
@@ -1049,7 +1053,7 @@ pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTr
                 };
                 // (his order's first act at a wall is announced as a hire's first act is)
                 let first = acts_before.get(n.id).copied().unwrap_or(0) == 0 || (held > 0 && acts_before.get(SCOUT_HELD).copied().unwrap_or(0) == 0) || (carried > 0 && acts_before.get(SCOUT_CARRIED).copied().unwrap_or(0) == 0);
-                WorkerAct { id: n.id.into(), what, n: k, first, items, spent }
+                WorkerAct { id: n.id.into(), what, n: k, first, items, spent, reason: None }
             })
         })
         .collect()

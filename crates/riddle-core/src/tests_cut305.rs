@@ -852,7 +852,7 @@ fn absence_gold_counts_passage_and_states_the_purse_change() {
     assert_eq!(gold.net, Some(g.lineage.gold - before), "net is the purse's change");
     assert!(gold.passage > 0, "waystone sends were paid passage: {gold:?}");
     assert_eq!(gold.home + gold.salvage + gold.passage + gold.wake - gold.spent, g.lineage.gold - before, "with nothing else bought, the parts reconcile: {gold:?}");
-    let saved = crate::wire::GoldSummary { net: None, passage: 0, ..gold.clone() };
+    let saved = crate::wire::GoldSummary { net: None, passage: 0, ledger: None, ..gold.clone() };
     let text = serde_json::to_string(&saved).unwrap();
     assert!(!text.contains("passage") && !text.contains("net"), "old wire unchanged when absent: {text}");
 }

@@ -10,7 +10,7 @@
 // §5: a `dice` death names what the forecast said for that depth — the camp's own reach line, verbatim (`forecast said D4 100%`)
 // when the last forecast knows the floor (QA on 50bb162: "`forecast said 36%` while the camp forecast read `D4 100% ±1`").
 import { counterName } from "./counter-name";
-import { trainingBlock } from "./tracks";
+import { trainingBlock, trainingFocus } from "./tracks";
 import { meterPanel } from "./meters";
 import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
@@ -32,7 +32,7 @@ import { foeSrc, packageIcon } from "./skin";
 import { enemyHost } from "./enemy-tips";
 import { unitLabel, unitPortrait } from "./unit-icon";
 import { itemIcon } from "./items";
-import { openPackages, penOpen } from "./packages";
+import { fixReplaces, openPackages, penOpen } from "./packages";
 import { openPreparationForge, preparationActions } from "./preparation";
 import { kwHost } from "./tips";
 import { TIP, type Term } from "./concepts";
@@ -312,7 +312,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       lever.kind === "spend" ? itemIcon({ kind: lever.text, label: lever.text }) : lever.kind === "tactic" && lever.id ? packageIcon(lever.id) : lever.kind === "package" ? (() => {
         const p = app.lineage.packages?.all.find((x) => x.name === lever.text || x.id === lever.text.toLowerCase());
         return p ? packageIcon(p.id) : "";
-      })() : waitPkg && waitText !== "again" ? packageIcon(waitPkg.p.id) : "", lever.kind === "wait" ? waitText : lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
+      })() : waitPkg && waitText !== "again" ? packageIcon(waitPkg.p.id) : "", lever.kind === "wait" ? waitText : lever.text, lever.kind === "tactic" && lever.id ? replacesTag(app, lever) : ""), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
   if (leverBtn) kwHost(leverBtn, "lever");
   function leverGem(): HTMLButtonElement { return gem({ label: levelNow ? /* copy:button */ "level" : lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "town" : /* copy:button */ "town", cls: "lever-gem", pulse: true, onclick: leverAct }); }
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
@@ -395,7 +395,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     if (open) details.scrollIntoView({ block: "nearest", behavior: "smooth" });
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details", foldHint(patches));
   // blind 77030eb (B): a training plaque opens the tactics panel (the drill's On / Off, the level)
-  const training = app.lineage.packages && app.engine.equipPackage ? (a: HTMLElement): void => openPackages(app, a) : undefined;
+  const training = app.lineage.packages && app.engine.equipPackage ? (a: HTMLElement, beat: string): void => openPackages(app, a, undefined, trainingFocus(beat)) : undefined;   // Cut 117 §2: on the plaque's own tactic
   const well = h("div", { class: "well death-well" },
     d.hero?.name ? unitLabel(d.hero.class, h("span", null, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`), { hero: true, art: unitPortrait(d.hero.class, 64, true), className: "death-hero num dim" }) : null,
     h("div", { class: "defeat" }, h("div", { class: `banner-cloth${luck ? " luck" : ""}${killerPortrait ? " has-killer" : ""}` },
@@ -723,9 +723,15 @@ function foldHint(patches: HTMLElement): HTMLElement {
 }
 
 /** Cut 115 §4: the death's tactic fix as a tablet above the patches — `try · gas step · burn`; a tap wears it (credited taught). */
-function pickTablet(app: App, pick: Lever): HTMLElement {
+export function pickTablet(app: App, pick: Lever): HTMLElement {
   const btn = h("button", { class: "death-pick tablet", "data-pick": pick.id ?? "", "data-variant": String(pick.variant ?? 0),
     onclick: () => { if (pick.id && app.engine.takeFix) void app.mutate(() => app.engine.takeFix!(pick.id!, pick.variant ?? 0), /* copy:callout */ pick.text, true).then(() => app.go({ kind: "camp" })); } },
-    h("span", { class: "lever-kind" }, /* copy:button */ "try"), h("b", { class: "lever-name" }, pick.id ? packageIcon(pick.id) : "", pick.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›"));
+    h("span", { class: "lever-kind" }, /* copy:button */ "try"), h("b", { class: "lever-name" }, pick.id ? packageIcon(pick.id) : "", pick.text, replacesTag(app, pick)), h("span", { class: "lever-go", "aria-hidden": "true" }, "›"));
   return btn;
+}
+/** Cut 117 §2 (blind 8cf9050 B: `TRY Mirror rhythm` silently swapped a worn tactic): a tactic fix names what it takes off —
+ *  `try · boss focus ← Kite archers` — so the one tap that applies it is a choice seen; nothing when it fills an open slot. */
+function replacesTag(app: App, l: Lever): HTMLElement | "" {
+  const out = l.id ? fixReplaces(app.lineage.packages, l.id, l.variant ?? 0) : null;
+  return out ? h("small", { class: "lever-replaces", "data-replaces": out }, /* copy:callout */ ` ← ${out}`) : "";
 }

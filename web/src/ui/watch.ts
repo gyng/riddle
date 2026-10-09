@@ -231,6 +231,9 @@ const DRAIN_WORDS: Record<string, string> = { hunger: "starving", starving: "sta
 const drainWord = (cause: string): string => DRAIN_WORDS[cause] ?? cause.replace(/_/g, " ");
 /** blind c4705f9 (B: "hunger I never understood"): the hunger's word names its cause where it shows (`starving · no light`: an unlit hunger
  *  floor bites the max; a lit shrine or a lantern stops it) — other drains say their word alone. */
+/** Cut 117 §5 (blind 8cf9050: hunger's max-hp loss named no answer): the loss chip's tip names what stops it — on a hunger floor a lit
+ *  shrine or a lantern in the pack (`situations::lit`); other drains their word alone. */
+export const hungerTip = (word: string, n: number): string => word === "starving" ? /* copy:tooltip */ `max hp −${n} · starving · shrine or lantern stops it` : /* copy:tooltip */ `max hp −${n} · ${word}`;
 export const drainSaid = (word: string, cause: string): string => /^(hunger|starv)/.test(cause) ? /* copy:callout */ `${word} · no light` : word;
 const DRAIN_CALLOUT = /^(hunger|poison|curse|drain(ed)?|bleed) [−-]\d+( max)?$/;
 export function drainOf(e: Ev): string | null {
@@ -715,7 +718,7 @@ export function renderWatch(app: App): Mounted {
     stake.classList.toggle("warn", p < 0.4);
     const lost = [...maxLoss].filter(([, n]) => n > 0);
     // blind 3ab97ea (A: `47/44 hp`): a max that fell under the hp (hunger, a drain — the core clamps the hp with no hp event) reads full
-    replace(hpText, /* copy:callout */ `${Math.max(0, Math.min(hud.hp, hud.maxHp))}/${hud.maxHp} hp`, ...lost.map(([w, n]) => h("small", { class: "hp-max-loss", "data-cause": w, title: /* copy:tooltip */ `max hp −${n} · ${w}` }, /* copy:callout */ ` ${w} −${n}`)));   // docs/COPY.md pass 5: `28/36` read as XP or rooms
+    replace(hpText, /* copy:callout */ `${Math.max(0, Math.min(hud.hp, hud.maxHp))}/${hud.maxHp} hp`, ...lost.map(([w, n]) => h("small", { class: "hp-max-loss", "data-cause": w, title: hungerTip(w, n) }, /* copy:callout */ ` ${w} −${n}`)));   // docs/COPY.md pass 5: `28/36` read as XP or rooms
     replace(depth, `D${hud.depth}`);
     depth.dataset.floor = String(hud.depth); wide.paintDepth?.();
     paintWatchStatus();

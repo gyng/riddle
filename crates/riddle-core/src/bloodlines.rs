@@ -22,6 +22,7 @@ impl DerefMut for Session { fn deref_mut(&mut self)->&mut Game { &mut self.activ
 /// are deliberately not copied when changing bloodlines.
 fn town_from(source: &LineageState, dest: &mut LineageState) {
     dest.gold=source.gold;
+    dest.gold_tally.clone_from(&source.gold_tally);
     if dest.gold_ledger.len()!=source.gold_ledger.len()||dest.gold_ledger.last()!=source.gold_ledger.last(){dest.gold_ledger=source.gold_ledger.clone();}
     dest.town.clone_from(&source.town);
     dest.tree.hired.clone_from(&source.tree.hired);
@@ -184,9 +185,11 @@ impl Session {
             let mut r=crate::offline::report_with(g,before.elapsed_s,&before.facts_before,&before.class,before.rank_before,false,full,with_stall);
             r.grew=crate::town::grew(&before.grew_before,&crate::town::snap(&g.lineage));
             r.workers=crate::tree::report_acts(&g.lineage,&before.acts_before,&g.lineage.tree.acts);
+            crate::offline::supply_reason(&mut r);
             r.chest=(g.lineage.tree.chest-before.chest_before).max(0);
             // (the purse is the town's: every slot's sees the whole session's change)
             crate::offline::set_net(&mut r,before.gold_before,g.lineage.gold);
+            crate::offline::set_terms(&mut r,&g.lineage,before.tally_before.as_ref(),&before.acts_before);
             r
         };
         let away=self.active.offline_absence.as_ref().map_or(0,|a|a.elapsed_s);

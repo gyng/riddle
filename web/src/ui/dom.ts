@@ -27,6 +27,18 @@ export function clear(el: Element): void { while (el.firstChild) el.removeChild(
 export function replace(el: Element, ...children: Child[]): void { clear(el); append(el, children); }
 export const pct = (x: number): string => `${Math.round(x * 100)}%`;
 export function flash(el: HTMLElement, cls = "hl", ms = 1600): void { el.classList.add(cls); setTimeout(() => el.classList.remove(cls), ms); }
+/** Cut 117 §2 (blind 8cf9050 A: "quest/breed taps gave no visible result"): a tap's result as a brief toast over the screen —
+ *  ≤ 3 words (tagged at the call site), `role=status`, gone after ~1.8 s; a newer toast replaces the last. `data-toast` keeps the
+ *  words for tests after it fades. */
+export function toast(text: string, ms = 1800): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  for (const old of document.querySelectorAll(".toast")) old.remove();
+  const t = h("div", { class: "toast", role: "status", "aria-live": "polite" }, text);
+  document.body.appendChild(t);
+  document.body.dataset.toast = text;
+  setTimeout(() => t.remove(), ms);
+  return t;
+}
 export async function copyText(text: string): Promise<boolean> {
   try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
 }

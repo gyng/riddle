@@ -189,14 +189,15 @@ impl Affix {
         }
     }
     /// What answers it (a tooltip; the tactics and items that arrive by its wall).
+    /// (Cut 117 §3: the packages that break it — `affix_breakers`; the Warlord's are stances)
     pub fn counter(self) -> &'static str {
         match self {
-            Affix::Armoured => "poison or fire",
-            Affix::Swift => "kite or slow",
-            Affix::Regenerating => "poison or boss focus",
-            Affix::Brood => "corridor or pack break",
-            Affix::Enraged => "boss focus or heal early",
-            Affix::Vampiric => "poison or range",
+            Affix::Armoured => "boss focus · Hunter",
+            Affix::Swift => "corridor fighting · kite archers",
+            Affix::Regenerating => "Hunter · gas step",
+            Affix::Brood => "pack break · corridor fighting",
+            Affix::Enraged => "kite archers · Hunter",
+            Affix::Vampiric => "kite archers · gas step",
         }
     }
     /// The share of his max hp the affix leaves (its price).
@@ -212,8 +213,42 @@ impl Affix {
     }
 }
 
+/// Cut 117 §3 (Cut 116's gap: the affix changed the best answer on 1 of 20 boss × affix pairs): each affix is
+/// broken by its own answers — never the plain walls' usual best (Guarded, Bold) past the Warlord — and a boss whose
+/// affix stands unbroken is warded (`AFFIX_WARD`: the hero's blows do less) and furious (`AFFIX_FURY`: his land
+/// harder); broken, he takes `AFFIX_BREAK_DEALT` % more and deals `AFFIX_BREAK_TAKEN` % less (`turn::affix_dealt`,
+/// `turn::affix_taken`). The first answer is the affix's own, the second the one that arrives when it has not:
+/// armoured → boss focus · Hunter (the blows find the seams), swift → corridor fighting · kite archers (no room to
+/// circle), brood → pack break · corridor fighting (the escort split), vampiric → kite archers · gas step (range or
+/// poison through the drain), regenerating → Hunter · gas step (marked, burned, he cannot knit), enraged → kite
+/// archers · Hunter (kept at range through his frenzy). At the Warlord no tactic has arrived yet (they come with his
+/// fall): a stance breaks his — Hunter (armoured, enraged), Guarded (swift), Bold (brood); never Steady, the default.
+pub fn affix_breakers(boss: &str, a: Affix) -> &'static [&'static str] {
+    if boss == "goblin_warlord" {
+        return match a {
+            Affix::Armoured | Affix::Enraged => &["hunter"],
+            Affix::Swift => &["guarded"],
+            _ => &["bold"],
+        };
+    }
+    match a {
+        Affix::Armoured => &["boss_focus", "hunter"],
+        Affix::Swift => &["corridor_fighting", "kite_archers"],
+        Affix::Brood => &["pack_break", "corridor_fighting"],
+        Affix::Vampiric => &["kite_archers", "gas_step"],
+        Affix::Regenerating => &["hunter", "gas_step"],
+        Affix::Enraged => &["kite_archers", "hunter"],
+    }
+}
+pub const AFFIX_BREAK_DEALT: i32 = 250;
+pub const AFFIX_BREAK_TAKEN: i32 = 65;
+/// Cut 117 §3: an affixed boss's ward while his affix stands unbroken — the hero's blows on him do this % less.
+pub const AFFIX_WARD: i32 = 20;
+/// Cut 117 §3: and his blows land this % harder while it stands.
+pub const AFFIX_FURY: i32 = 20;
+
 /// Cut 116 §1: each affix's hp price (percent of max hp kept), in `Affix::ALL` order.
-pub const AFFIX_HP: [i32; 6] = [95, 95, 95, 95, 95, 95];
+pub const AFFIX_HP: [i32; 6] = [95, 95, 95, 85, 95, 95];
 /// Cut 116 §1: the brood's escort chance per tile round the boss (a boss's own guard is 40 %).
 pub const BROOD_GUARD: u32 = 75;
 
