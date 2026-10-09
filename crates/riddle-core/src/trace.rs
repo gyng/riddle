@@ -86,6 +86,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let rules = game.lineage.rules().clone();
     let vocab = context_vocab(game, run);
     let death = Death {
+        memorial: None,
         difficulty: run.difficulty,
         modifier_catalogue: crate::endgame::catalogue(run.difficulty),
         modifiers: if run.death_cause.as_deref() == Some(cause.as_str()) { run.death_modifiers } else { None },

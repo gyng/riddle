@@ -19,7 +19,10 @@ fn die_at(g: &mut Game, depth: u32) {
     tree::note_wall(g, &run, ExitTier::Death);
 }
 
+// Cut 118, owner amendment ("heroes yolo"): the scout's wall order is retired — every send pushes and the forecast
+// holds nothing (`tests_cut118::the_wall_order_is_retired`); this test of the order is kept, ignored.
 #[test]
+#[ignore = "Cut 118: the wall order is retired"]
 fn deaths_at_one_floor_near_the_record_make_a_wall_and_a_send_past_it_forgets_it() {
     let mut g = walled(3, 28);
     die_at(&mut g, 20);
@@ -46,7 +49,10 @@ fn deaths_at_one_floor_near_the_record_make_a_wall_and_a_send_past_it_forgets_it
     assert!(g.lineage.tree.wall.is_none());
 }
 
+// Cut 118, owner amendment ("heroes yolo"): the scout's wall order is retired — every send pushes and the forecast
+// holds nothing (`tests_cut118::the_wall_order_is_retired`); this test of the order is kept, ignored.
 #[test]
+#[ignore = "Cut 118: the wall order is retired"]
 fn the_bank_order_tries_the_wall_again_after_retries_or_a_stronger_hero() {
     let mut g = walled(4, 28);
     let s = tree::strength(&g.lineage);
@@ -101,7 +107,10 @@ fn a_carried_send_secures_the_haul_at_the_stairs_and_goes_on() {
     assert_eq!(run.wall_carried, 55);
 }
 
+// Cut 118, owner amendment ("heroes yolo"): the scout's wall order is retired — every send pushes and the forecast
+// holds nothing (`tests_cut118::the_wall_order_is_retired`); this test of the order is kept, ignored.
 #[test]
+#[ignore = "Cut 118: the wall order is retired"]
 fn the_scouts_send_carries_his_order_and_a_send_by_hand_does_not() {
     let mut g = walled(7, 28);
     g.finish_run();

@@ -8,6 +8,7 @@ pub mod descent;
 pub mod engine;
 pub mod endgame;
 pub mod facts;
+pub mod feats;
 pub mod fold;
 pub mod divergence;
 pub mod forecast;
@@ -91,7 +92,9 @@ impl Game {
         offline::run_offline(self, elapsed_s)
     }
     pub fn death(&mut self, run_id: u32) -> Option<Death> {
-        trace::death(self, run_id)
+        let mut d = trace::death(self, run_id)?;
+        d.memorial = feats::memorial(&self.lineage, run_id);
+        Some(d)
     }
     /// QA on 23ed91f: the death's shown patches with the camp's reach deltas (`trace::death_deltas`).
     pub fn death_deltas(&mut self, run_id: u32) -> Option<Vec<Patch>> {
@@ -179,6 +182,18 @@ impl Game {
             }
             self.lineage.orders.wall = w.clone();
         }
+        if let Some(k) = &o.sink {
+            if !crate::feats::SINK_ORDERS.contains(&k.as_str()) {
+                return Err("unknown sink order".into());
+            }
+            self.lineage.orders.sink = k.clone();
+        }
+        if let Some(k) = &o.heir {
+            if !crate::feats::HEIR_ORDERS.contains(&k.as_str()) {
+                return Err("unknown heir order".into());
+            }
+            self.lineage.orders.heir = k.clone();
+        }
         Ok(())
     }
     /// Cut 28 §2: the camp's move against the set sent, attributed to state and rows
@@ -207,6 +222,30 @@ impl Game {
     /// Cut 113 §3: take one offer of the return's pick waiting at camp (`returns::take`).
     pub fn take_return_pick(&mut self, id: &str) -> Result<String, String> {
         returns::take(self, id)
+    }
+    /// Cut 118 §1: the next send seeks `boss` (a token spent at the send); `""` sends in order (the default).
+    pub fn seek_boss(&mut self, boss: &str) -> Result<(), String> {
+        feats::set_seek(&mut self.lineage, boss)
+    }
+    /// Cut 118 §1: each boss a token is banked for, priced from his stone (one camp panel each).
+    pub fn seek_forecast(&self) -> Vec<feats::SeekOption> {
+        feats::seek_forecast(self)
+    }
+    /// Cut 118 §2: opt into week `week`'s trial (`None` opts out); the next send while away plays it.
+    pub fn set_trial(&mut self, week: Option<u32>) -> Result<(), String> {
+        feats::set_trial(&mut self.lineage, week)
+    }
+    /// Cut 118 §4: tithe `n` Legacy points at the falling rate (Kit complete); the points bought.
+    pub fn tithe(&mut self, n: u32) -> Result<u32, String> {
+        feats::tithe(&mut self.lineage, n)
+    }
+    /// Cut 118 §4: commission the survey (the deep forks open early).
+    pub fn buy_survey(&mut self) -> Result<(), String> {
+        feats::buy_survey(&mut self.lineage)
+    }
+    /// Cut 118 §7: grant the hero's waiting wish.
+    pub fn grant_wish(&mut self) -> Result<String, String> {
+        feats::grant_wish(&mut self.lineage)
     }
     /// Cut 111: pick a tactic's L3 row (0 the first variant, 1 the second).
     pub fn set_tactic_variant(&mut self, id: &str, variant: u32) -> Result<(), String> {
@@ -310,3 +349,5 @@ mod tests_cut113;
 mod tests_cut116;
 #[cfg(test)]
 mod tests_cut117;
+#[cfg(test)]
+mod tests_cut118;

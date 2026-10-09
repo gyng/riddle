@@ -100,3 +100,118 @@ automation ladder; heir choice should be in a way that's automatable"):
    The death screen leads with it: `+3 Legacy · Queen try 4`.
 8. **Bloodline titles.** A siege won names the line (`Queensbane`), with a small lasting perk against that boss's
    kind (≤ 3 %; no wall-deciding), shown on the hero card, the graveyard and the chronicle. One title per boss.
+
+## Core: built and measured (2026-10-10, uncommitted)
+
+All truth in `crates/riddle-core/src/feats.rs` (one `LineageState.feats`, serde-default, empty on an old save) with
+hooks in `engine.rs` (send, run end, snapshot, xp, rest, news days), `tree.rs` (the apprentice's sinks, the retired
+wall order), `traits.rs` (the heir order), `systems.rs` (feats light rungs, `lit_by`), `oath.rs` (the roster
+preview), `returns.rs` (the pick's default), `offline.rs`/`bloodlines.rs` (the report). Every draw is a pure hash of
+the lineage seed and the run/week/heir — no game dice. `feats.off` pins every Cut 118 system off (probes, tests).
+
+**Owner amendment (heroes yolo; death is progress).**
+- *No wall order.* `tree::wall_hold` is always `None` (`tree::WALL_ORDER_RETIRED`); every send pushes;
+  `Forecast.hold` is never set (the field stays on the wire, absent). The scout's wall ledger (`note_wall`) is still
+  kept (old saves, reads). Record checkpoints unchanged. The four Cut 114/117 tests of the order are kept `#[ignore]`.
+- *Siege.* A death on a band boss's floor (boss not slain that run) adds a try to `feats.siege[boss]` (tries, the
+  lowest hp % he was left on, the heirs' names). The next heirs' blows on him alone take +`SIEGE_PCT` 2 % a try, cap
+  `SIEGE_CAP` 10 % — **deviation: cut from the owner's 4 %/20 %**, which moved `tuned-picked` (TUNED vs PICKED at D33
+  1.08 < 1.15, 16 seeds: the siege does for PICKED what the pen's counter rows do for TUNED); at 2/10 it is 1.17–1.18 PASS (`Run.siege`, `turn.rs` after the affix's ward). Slain: the siege clears, the heirs are named
+  (`feats.worn`), a report line `siege_won`.
+- *Graves.* A death's lost carry (`ExitLine.carried − kept`) lies at its floor (`feats.graves`, one a floor — the
+  newest keeps the older's gold). A later run that reaches the floor brings it home at its end: `gold_move(+gold,
+  "recovered Ada's pack")`, a ledger term `recovered` (the ledger also gains `sinks`). No gold is made: the graves
+  and the recovered tally sum exactly to the carry lost (test). The death's exit share stays 0 %, the heir purse as is.
+- *Memorial.* `feats.stones` (cap 40): heir, name, depth, cause, epitaph (`fell to the Mother, D13`), day, try,
+  edge, grave gold, Legacy. `Death.memorial` (filled by `Game::death`): `lead` `+3 Legacy · Mother try 4 · +16%`.
+- *Echo:* not built (owner).
+
+**Owner amendment 2.**
+- *Heir order* (`StandingSwitches.heir`: `answer` default · `strongest` · `surprise`). At the wake one card always
+  answers the last killer (`traits::answer_gift`: a boss → Guard on bosses, gas/poison/drain → Mend, fast → Quick,
+  else Guard): when none of the three does, the last fresh card gives way (never a twist or a marked card). The order
+  picks the worn card; nobody is prompted. The swap is the existing `setTrait(chip)` before the next send. The rung:
+  system `heirs` (trigger `first death`, opens in the death screen's unit — no extra reveal). The report: a `heir`
+  line (`Bram · guard on bosses · answers the Mother`). **Deviation:** `traits.json` ships no shape today (`shipped`
+  is empty), so in the current game the offer is empty and the order has nothing to pick; it acts as soon as shapes
+  ship (tested on the generator's table). IDLE's games are unchanged by it.
+- *Deeds → Legacy.* A siege try pays `DEED_LEGACY` 1 more to the heir who made it (the run's own Legacy is the
+  rest of the lead line). Probe `deeds_stay_within_ten_percent_of_legacy` (IDLE fortnight, 4 seeds): deeds are
+  1.7–2.1 % of all Legacy (1 505–2 092) — within ±10 %.
+- *Titles.* A siege won names the line (`Motherbane`, into `Lineage.titles` too), +`TITLE_PCT` 3 % on that boss
+  (his kind alone), one a boss.
+
+**Cut 118 items.**
+1. *Boss tokens:* `feats.tokens` (+1 per band boss slain, cap 3, kept across heirs). `seekBoss(boss)` sets the order;
+   the next send spends one and starts at the deepest lit stone at or above him, with no wall hold. `seekForecast()`
+   prices each (reach, past, death from his stone, one camp panel each). A sought boss slain is a feat.
+2. *Trials:* `trial_of(week, seed)` — a band boss (not the King) and a rule: `no boss focus · kite archers ·
+   corridor fighting`, or two of his affixes (both worn: `populate_floor` applies every affix on him). Weeks open:
+   this and the three before. `setTrial(week)` opts in; the next send while away plays it (from his stone, pushing).
+   A clear (boss slain, the bar unbroken by the set sent) pays `TRIAL_LEGACY` 10 (≤ the pick's largest, 12; a day's
+   runs pay ≫ that) and a mark. Probe: every boss × rule answered by packages (stances answer every bar; every affix
+   has a breaker) — `trials_are_weekly_answerable_and_pay_capped`.
+3. *Away finds:* one sealed per run ending away (table 2 after 6 h), opened on the return: `ReturnReport.finds`
+   (`sealed`, `best`, `finds` best first, `legacy` from shards, `sets` completed). Sets (3 × 3 pieces): Sleeper's rest
+   −2 %, Scholar's class xp +2 %, Hearth +1 Legacy a return. Gate (test `away_finds_scale_with_time`, 5 seeds): 8 h / 4 h finds 1.78 · 1.89 · 1.89 · 2.00 · 2.00 — median **1.89 ≥ 1.8** PASS.
+4. *Sinks after Kit complete* (`StandingSwitches.sink`: `both` default · `ration` · `tithe` · `off`, the
+   apprentice's): a ration a send (1 unit, +10 % max hp for that run), the tithe on the hour (≤ 3 points, the price
+   rising a unit per 6 points bought; reads purse + bank above 20 units), the survey work (`buySurvey`, 20 units:
+   the D19/D24 forks open). Each takes gold and returns none (test). Hand: `tithe(n)`.
+5. *Swift floors:* a band boss cleared 3× (`kill_counts`) makes the floors above him swift — `Snapshot.swift`,
+   `feats.swift_to`, a news line `D1–7 swift` once. Presentation only: the sim is untouched.
+6. *Feats light the ladder:* a trial clear or a sought boss slain lights the next unit whose trigger has come but
+   whose age has not (outside the one-a-report budget); `SystemInfo.lit_by` names trigger / `time` / `feat: …`.
+7. *The hero's wish:* one at a time from the first return, never decaying; `grantWish()` pays half a unit for 2–3
+   Legacy; the next comes a day on.
+8. *Wire:* `Lineage.feats` (`FeatsWire`), `Lineage.king_eta_h`, `Lineage.king_pct`, `ReturnReport.finds`,
+   `ReturnReport.feats[]` (`k · text · day`), `News.day`, `BossWall.affix · affix_counter · guard · guard_counter`,
+   `ReturnPick.default` (`legacy`), `SystemInfo.lit_by` (`trigger` already existed), `Snapshot.swift`,
+   `StandingOrders.sink · heir`, `Death.memorial`. Inputs (wasm): `seekBoss(boss)`, `seekForecast()`,
+   `setTrial(week)` (negative opts out), `tithe(n)`, `buySurvey()`, `grantWish()`; the heir and sink orders through
+   `setOrders`; the heir swap is `setTrait(chip)`. `web/src/engine/types.ts` carries every field; the native bridge
+   is regenerated.
+
+**307dbed hash.** aa808dca72425139 → **2f3eb706b3d24c7c**: the graves (a later send brings a dead heir's carry home,
+so the purse hashed after each send moves). With the graves alone off the tree hashes to aa808dca72425139 exactly;
+with every Cut 118 system pinned off (`feats.off`) too (test `the_307dbed_hash_holds_with_the_systems_pinned_off`).
+News days are stripped from the hash as a new read of the same run. The siege, the heir order and the retired wall
+order move nothing in these ten sends.
+
+**Gates.** `cargo test --workspace --profile fast`: 759 pass, 0 fail, 6 ignored (the four retired wall-order tests,
+the deeds probe, one older); 17 new in `tests_cut118.rs`. Clippy `--all-targets -D warnings` clean; wasm rebuilt;
+`tsc` clean; copy-lint 0. Metrics `--cut30` (8 rows) all PASS (stance walls bold 3 · guarded 1 · hunter 2; Steady
+the safest). Dayplayer rows, 16 seeds (`--full --rows`), siege at 4/20 for the whole table, then 2/10 re-run:
+
+| row | at siege 4/20 (whole table) | final (siege 2/10) |
+|---|---|---|
+| IDLE D8 day 1 · D13 median day · D23 by day 12 | 16/16 · 1.7 · 16/16 (4.3) | 16/16 · 1.7 · 16/16 (4.3) PASS |
+| IDLE stall · gold every day · King in a fortnight | 3 d · 14/14 · 0/16 | 3 d · 14/14 · 0/16 PASS |
+| stance L3 / L5 (IDLE median day) | 1 · 6 | 1 · 6 PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 2.50 · 3.00 · 3.75 | 2.50 · 3.00 · 3.75 PASS |
+| IDLE never out-paces PICKED | 98 % | 98 % PASS |
+| TUNED beats PICKED at D33 (≥ 1.15) | **1.08 FAIL** | **1.17–1.18 PASS** (fail-fast, 2 seeds left) |
+| RANDOM slower than PICKED | 16/16 · 16/16 | 16/16 · 16/16 PASS |
+| workers-daily (mean best ≥ by hand − 1) | 31.16 vs 30.82 | 31.15 vs 30.77 PASS |
+| automation-pays (D18 sooner or deeper mean best) | D18 48 vs 48 h · 29.09 vs 28.42 | D18 48 vs 48 h · 29.13 vs 28.56 PASS |
+| hands-idle · idle-delta · conserved | −4 · +0 · −32 · +8 h · 0 off | same PASS |
+| return-pick · grew · idle/picked stages · reach · stalls · porter · scout · nodes lit/bought/required | PASS (672/672, 10.0, 12.0, 16/16, ≤ 0.15 %, 9.6 min, 8.9 min, 0 · 0) | not re-run (no input to them moved) |
+| each-system | PASS (packages 24/68 h→D23 · pen 33.1/32.8 · forge 33.1/28.7 · pets 32.5/33.4 % · bank · quests) | not re-run |
+| nothing-required | **FAIL** (seed 14 forge +64 h) | **FAIL** (same) — deviation below |
+
+Dice deaths (`metrics --quick`, final tree): **4.3 % ≤ 5 % PASS** (n = 303, death-weighted, ±2.5). That legacy quick
+table also lists five cohort-set rows failing (lanes D5 EDITED, thief guard 25 %, card↔chore loops worst 1.8 %,
+return row 36/40, waystone $/h 37/48) — legacy cohorts outside the routine gate, not compared against HEAD here.
+
+**Deviation — `nothing-required` (TUNED − forge, seed 14).** With the amendment's required pieces on, one seed's
+TUNED − forge reaches D29 64–80 h after IDLE from day 5 (cap 48 h); every other clause (43) holds. HEAD passes; with
+every Cut 118 knob off the row passes; and it still fails with each one alone off — graves off (+64 h), the wall
+order restored (fails on seed 4, +80 h), finds' bonuses off (+80 h), the siege at 0 (+64 h), finds and siege off
+(+80 h). It is the combination of the owner's yolo + graves on one fragile seed (the row was already noted fragile in
+Cut 117), not one system; no threshold was lowered. Next: measure the wall's push vs the forge-less build on seed 14
+(the Queen, D28) — a lighter siege edge for a heir without a forge would be the first lever.
+
+**PICKED's purse (item 4's gate).** With the sinks the wealth (purse + bank) of PICKED stops climbing once the kit is
+complete: seed 1 hovers $16–27 k from day 2 to day 14 (before the bank-reading tithe it climbed every day to $430 k), falling
+on 4 of 13 days. The dayplayer prints the row as an info (`Cut 118: PICKED wealth no longer monotone by day 14`).
+

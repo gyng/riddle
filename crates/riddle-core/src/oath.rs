@@ -721,7 +721,18 @@ pub fn counter_name(row: &crate::rules::Row) -> String {
 /// The band bosses as walls: every one up to the best depth, and the first unslain past it.
 pub fn walls(l: &LineageState) -> Vec<BossWall> {
     let mut out = Vec::new();
+    // Cut 118 (the roster preview): the heir's affixes and the band's wandering champions
+    let affixes = l.affixes();
+    let route = l.rules().route();
+    let guests = l.guests(route);
     for (kind, depth) in crate::descent::BOSS_DEPTHS {
+        let affix = affixes.iter().find(|(k, _)| k == kind).map(|(_, a)| *a);
+        let band = route.boss_depth(kind).and_then(crate::descent::Route::band_of);
+        let guest = band.and_then(|b| guests.iter().find(|g| crate::descent::Route::band_of(g.depth) == Some(b)));
+        let guard = match guest {
+            Some(g) => format!("{} the {}", g.name, g.kind.replace('_', " ")),
+            None => crate::engine::boss_escort(kind).replace('_', " "),
+        };
         let past = depth > l.best_depth;
         let slain = l.kills.contains(kind);
         let known = crate::facts::boss_counter_known(&l.facts, kind);
@@ -736,6 +747,10 @@ pub fn walls(l: &LineageState) -> Vec<BossWall> {
             learn: (!known).then(|| if kind == "bloat_mother" || kind == "lurker_queen" { "meet her" } else { "meet him" }.into()),
             counter: row.as_ref().map(counter_name),
             row,
+            affix: affix.map(|a| a.word().to_string()),
+            affix_counter: affix.map(|a| a.counter().to_string()),
+            guard: Some(guard),
+            guard_counter: Some(if guest.is_some() { "boss focus · Guarded" } else { crate::descent::Affix::Brood.counter() }.to_string()),
         });
         if past && !slain {
             break;

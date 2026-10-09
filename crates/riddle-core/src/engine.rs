@@ -516,6 +516,9 @@ pub struct Run {
     pub bosses_met: crate::shared::Shared<Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scars: Vec<(String, u32)>,
+    /// Cut 118 (the amendment's siege): the lineage's edge against each band boss heirs died at (percent of the hero's blows).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub siege: Vec<(String, u32)>,
     /// Cut 116 §1: the heir's band-boss affixes (boss → affix), drawn at the send
     /// (`LineageState::affixes`); every boss this run meets carries his.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1741,6 +1744,9 @@ pub struct LineageState {
     pub absences: u32,
     #[serde(default)]
     pub in_absence: bool,
+    /// Cut 118: boss tokens, trials, finds, sinks, swift floors, feats, the hero's wish (`feats::Feats`).
+    #[serde(default, skip_serializing_if = "crate::feats::Feats::is_empty")]
+    pub feats: crate::feats::Feats,
 }
 
 /// Cut 29 §1: a day of the lineage's clock.
@@ -1984,6 +1990,7 @@ impl LineageState {
             run_log: Vec::new(),
             absences: 0,
             in_absence: false,
+            feats: Default::default(),
         };
         // Cut 8B §3: `tame` is owned from the start and the kennel's leash is on the shelf (its
         // fact with it), so the first stray is a companion in the first hour.
@@ -2061,7 +2068,7 @@ impl LineageState {
         // QA on 912e135 (qaW: `sword +1 · $300 · 7 nights` after a night of deaths — the purse held at $40 by the heir purse): the
         // heir purse's top-up refills to a floor and is no income; a night of deaths nets nothing toward a step.
         // (Cut 28 §1: an oath's price and a forswearing's refund are the player's purchase too)
-        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay", "oath ", "forswear ", "bank ", "hire "].iter().any(|p| why.starts_with(p)) {
+        if !["unlock ", "forge ", "insure ", "hatch", "egg", "ascended", "wake pay", "oath ", "forswear ", "bank ", "hire ", "tithe", "works ", "supply wish"].iter().any(|p| why.starts_with(p)) {
             self.night_net += delta;
             self.day_net += delta;
         }
@@ -2233,7 +2240,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { class_styles:Some(crate::specialization::offers(self,false)), legacy_respec:None, return_pick:None, selected_loadout:vec![], hero_slots:vec![], selected_bloodline:1, bloodline_price:crate::bloodlines::SLOT_PRICE, bloodline_cap:crate::bloodlines::SLOT_CAP as u32, bloodline: self.bloodline.clone().unwrap_or_default(), legacy_upgrades: crate::legacy::offers(self, false), hero_legacy: self.hero_legacy.iter().cloned().map(|mut h| { if h.name.is_empty() { h.name = crate::legacy::hero_identity(self.seed, h.heir, self.bloodline_id); } h }).collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(|m| crate::meters::wire_for(m, Some(&self.pkg))).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire_for(&self.night_meter, Some(&self.pkg))), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire_for(&self.last_night_meter, Some(&self.pkg))) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { feats: Some(crate::feats::wire(self)), king_eta_h: crate::feats::king_eta_h(self), king_pct: crate::feats::king_pct(self), class_styles:Some(crate::specialization::offers(self,false)), legacy_respec:None, return_pick:None, selected_loadout:vec![], hero_slots:vec![], selected_bloodline:1, bloodline_price:crate::bloodlines::SLOT_PRICE, bloodline_cap:crate::bloodlines::SLOT_CAP as u32, bloodline: self.bloodline.clone().unwrap_or_default(), legacy_upgrades: crate::legacy::offers(self, false), hero_legacy: self.hero_legacy.iter().cloned().map(|mut h| { if h.name.is_empty() { h.name = crate::legacy::hero_identity(self.seed, h.heir, self.bloodline_id); } h }).collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(|m| crate::meters::wire_for(m, Some(&self.pkg))).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire_for(&self.night_meter, Some(&self.pkg))), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire_for(&self.last_night_meter, Some(&self.pkg))) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -2425,7 +2432,7 @@ impl LineageState {
     }
     /// Cut 29 §4: the standing orders, read off the lineage.
     pub fn standing_orders(&self) -> crate::wire::StandingOrders {
-        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone(), wall: Some(self.orders.wall.clone()) }
+        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone(), wall: Some(self.orders.wall.clone()), sink: Some(self.orders.sink.clone()), heir: Some(self.orders.heir.clone()) }
     }
     /// The categories an unwatched exit keeps, in order (`Game::auto_keep`).
     pub fn keep_auto(&self) -> Vec<String> {
@@ -2537,6 +2544,13 @@ impl LineageState {
         }
         // Cut 30 §3: the wake offers trait cards and passes the blood (`traits::wake`).
         crate::traits::wake(self);
+        // Cut 118 (owner amendment 2): the heir the order chose, named in the report
+        if !self.feats.off {
+            if let Some(t) = crate::feats::heir_line(self) {
+                let day = crate::feats::day_of(self.clock_s);
+                crate::feats::news(self, "heir", t, day);
+            }
+        }
         // Cut 30 §2: from heir 3 the wake deals three temperament cards (card 1 worn until a pick).
         crate::packages::wake(self);
     }
@@ -3934,6 +3948,8 @@ impl Game {
     /// Cut 3: camp rest after a run (`no_rest` halves it).
     pub fn rest_after(&self, turns: u32, tier: ExitTier) -> u32 {
         let r = crate::tree::rest_scaled(&self.lineage, crate::offline::rest_after(turns, tier));
+        // Cut 118 §3: the Sleeper's set
+        let r = r - r * crate::feats::bonus_pct(&self.lineage, "rest") / 100;
         if self.lineage.variant_is("no_rest") {
             r / 2
         } else {
@@ -4048,7 +4064,12 @@ impl Game {
         // Cut 21 §1: the send starts on the lineage's chosen floor — a lit waystone pays its
         // toll here (`waystone D9 −$90`); a toll the purse cannot pay (or a start no longer
         // lit) starts on D1 and says so.
-        let (start, start_note, toll) = self.pay_start();
+        // Cut 118 §1–2: a trial opted into (away) or a sought boss (a token spent) starts from his stone
+        let goal = crate::feats::at_send(self, id);
+        let (start, start_note, toll) = match goal {
+            Some(stone) => self.pay_start_at(stone),
+            None => self.pay_start(),
+        };
         // Cut 27 §5: the set this send plays, remembered while it is one of the last few sent.
         if !self.sim {
             let played = crate::forecast::rules_key(self.lineage.rules());
@@ -4060,13 +4081,15 @@ impl Game {
                 }
             }
         }
-        let wanted = self.lineage.start.max(1);
+        let wanted = goal.unwrap_or(self.lineage.start.max(1));
         let mut rng = Rng::new(seed);
         let route = self.lineage.rules().route();
         let floor = generate(&mut rng, route.biome(start), start);
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
         hero.apply_level(self.lineage.class_level());
         crate::legacy::apply(&self.lineage, &mut hero);
+        // Cut 118 §4: the apprentice's ration for this send
+        crate::feats::eat_ration(&mut self.lineage, &mut hero);
         hero.specialization=crate::specialization::current(&self.lineage);
         // Starting arms by class, at the forge's steps (Cut 23 §1; the kit's ids are never loot).
         crate::kit::equip(&self.lineage, &mut hero);
@@ -4237,6 +4260,7 @@ impl Game {
             bosses_met: Vec::new().into(),
             scars: crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| (k.to_string(), self.lineage.pkg.scar(k, &self.lineage.kills))).filter(|(_, p)| *p > 0).collect(),
             affixes: self.lineage.affixes(),
+            siege: crate::feats::siege_edges(&self.lineage),
             guests: self.lineage.guests(route),
             guests_slain: Vec::new(),
             hurt_since_boss: false,
@@ -4390,6 +4414,8 @@ impl Game {
             packed: Vec::new().into(),
             bought_leashes: Vec::new(),
         };
+        // Cut 118 §2: a trial's two affixes on its boss
+        crate::feats::goal_affixes(&self.lineage, id, &mut run.affixes);
         // Cut 30 §1: the heir's traits go on the run (`frail` takes its max hp here).
         crate::traits::wear(&mut run, &self.lineage);
         for s in std::mem::take(&mut self.lineage.supplies) {
@@ -4484,7 +4510,12 @@ impl Game {
     /// night's runs from D1 without asking again (`night_short`; the report's `start_short`).
     /// Returns (start, note, toll paid).
     fn pay_start(&mut self) -> (u32, Option<String>, i32) {
-        let want = self.lineage.start.max(1);
+        self.pay_start_at(self.lineage.start.max(1))
+    }
+
+    /// `pay_start` for the floor `want` (Cut 118: a goal's stone).
+    fn pay_start_at(&mut self, want: u32) -> (u32, Option<String>, i32) {
+        let want = want.max(1);
         if want == 1 {
             return (1, None, 0);
         }
@@ -4909,6 +4940,7 @@ impl Game {
             run.secured + run.loot.max(0) * tier.pct() / 100
         });
         Snapshot {
+            swift: run.depth < crate::feats::swift_to(l, run.route),
             depth: run.depth,
             difficulty: run.difficulty,
             modifier_catalogue: crate::endgame::catalogue(run.difficulty),
@@ -4951,7 +4983,7 @@ impl Game {
     pub fn run_news(&self, run: &Run, tier: ExitTier, _pct: i32) -> Vec<crate::wire::News> {
         let l = &self.lineage;
         let mut out: Vec<crate::wire::News> = Vec::new();
-        let push = |out: &mut Vec<crate::wire::News>, k: &str, text: String| out.push(crate::wire::News { k: k.into(), text });
+        let push = |out: &mut Vec<crate::wire::News>, k: &str, text: String| out.push(crate::wire::News { k: k.into(), text, day: None });
         for e in &run.episodes {
             if let crate::sifter::Resolution::FirstBoss { kind } = &e.resolution {
                 push(&mut out, "first", format!("first: {} slain", crate::sifter::boss_short(kind)));
@@ -4997,7 +5029,7 @@ impl Game {
         }
         // Nothing new: the one thing that differed from the last run.
         let kept = run.kept(tier);
-        let Some(last) = &l.last_run else { return vec![crate::wire::News { k: "differ".into(), text: format!("D{} · {}", run.max_depth, tier.name()) }] };
+        let Some(last) = &l.last_run else { return vec![crate::wire::News { k: "differ".into(), text: format!("D{} · {}", run.max_depth, tier.name()), day: None }] };
         let twists: Vec<String> = run.situations.iter().map(|(_, s)| s.clone()).filter(|s| crate::situations::TWISTS.contains(&s.as_str()) && !last.twists.contains(s)).collect();
         let text = if run.max_depth > last.depth {
             format!("deeper: D{}, last D{}", run.max_depth, last.depth)
@@ -5018,7 +5050,7 @@ impl Game {
         } else {
             "slower than last".into()
         };
-        vec![crate::wire::News { k: "differ".into(), text }]
+        vec![crate::wire::News { k: "differ".into(), text, day: None }]
     }
 
     /// Cut 24 §2: the lineage takes in what `run` met — the named foes it placed, the floor
@@ -5359,6 +5391,8 @@ impl Game {
         if self.watched && !self.sim && tier == ExitTier::Bank {
             xp += xp / 2;
         }
+        // Cut 118 §3: the Scholar's set
+        xp += xp * crate::feats::bonus_pct(&self.lineage, "xp") / 100;
         let class = self.lineage.class;
         let prog = self.lineage.classes.entry(class.name().into()).or_insert(ClassProg { level: 1, xp: 0, next: 0 });
         prog.xp += xp;
@@ -5875,12 +5909,19 @@ impl Game {
         }
         line.news = news;
         if let Some(t) = oath_news {
-            line.news.insert(0, crate::wire::News { k: "oath".into(), text: t });
+            line.news.insert(0, crate::wire::News { k: "oath".into(), text: t, day: None });
             line.news.truncate(3);
         }
         if let Some(g) = new_grudge.filter(|_| !self.sim) {
-            line.news.insert(0, crate::wire::News { k: "named".into(), text: g });
+            line.news.insert(0, crate::wire::News { k: "named".into(), text: g, day: None });
             line.news.truncate(3);
+        }
+        // Cut 118 §8: each notable line carries its lineage day
+        if !self.sim {
+            let day = crate::feats::day_of(self.clock_at.unwrap_or(self.lineage.clock_s));
+            for n in &mut line.news {
+                n.day = Some(day);
+            }
         }
         // Cut 24 §1: a boss that could not be hurt drove him off — `no counter` with its defence
         // and the counter row to write (`ExitLine.driven`); the text ends `· no counter`.
@@ -6051,6 +6092,9 @@ impl Game {
             if let Some(line) = crate::town::on_run(&mut self.lineage, run.max_depth, tier, run.home_return, run.depth, &slew) {
                 self.batch.pkg_lines.push(line);
             }
+            // Cut 118: tokens, the goal's outcome, a find sealed while away, the swift floors (before the systems read: a
+            // feat may light one)
+            crate::feats::on_run_end(self, &run, tier, legacy_earned);
             // blind 77030eb (A, B: the Mother slain, the pen's `edit` a run later): the systems read again once this run's
             // kills and meetings are on the lineage (the update above ran before them) — same one-a-report budget
             let opened = crate::systems::update(&mut self.lineage, false);
@@ -6979,12 +7023,16 @@ pub fn gold_term(why: &str) -> &'static str {
         "earned"
     } else if why.starts_with("wake pay") {
         "heir"
-    } else if why.starts_with("forge commission") {
+    } else if why.starts_with("forge commission") || why.starts_with("works ") {
         "works"
     } else if why.starts_with("forge ") {
         "forge"
     } else if why.starts_with("waystone") {
         "tolls"
+    } else if why.starts_with("recovered") {
+        "recovered"
+    } else if why.starts_with("tithe") {
+        "sinks"
     } else if why.starts_with("hire ") {
         "hires"
     } else if why.starts_with("bank ") {
@@ -7235,10 +7283,12 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             m.hp = m.max_hp;
         }
         // Cut 116 §1: the heir's affix on him (shown on the floor chart and his bar before the fight).
-        let affix = run.affixes.iter().find(|(k, _)| k == boss).map(|(_, a)| *a);
-        if let Some(a) = affix {
-            crate::endgame::apply_affix(&mut m, a);
+        // (Cut 118 §2: a trial's boss wears two)
+        let worn: Vec<crate::descent::Affix> = run.affixes.iter().filter(|(k, _)| k == boss).map(|(_, a)| *a).collect();
+        for a in &worn {
+            crate::endgame::apply_affix(&mut m, *a);
         }
+        let affix = if worn.contains(&crate::descent::Affix::Brood) { Some(crate::descent::Affix::Brood) } else { worn.first().copied() };
         run.monsters.push(m);
         let escort = boss_escort(boss);
         // The Captain keeps a thinner guard than a boss; a brood boss a full one.

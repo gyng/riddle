@@ -46,6 +46,7 @@ export type GunSnap = { item:number; kind:string; loaded:number; capacity:number
 export type ManualAct = { k: "step"; dx: number; dy: number } | { k: "verb"; verb: Verb } | { k: "wait" }
   | { k: "attack_until"; hp: number };   // blind b58b431: one order — the nearest foe, then the same foe, until it falls or hp < `hp` %
 export type Snapshot = {
+  swift?: boolean;   // Cut 118 §5 (core): this floor is swift (its band boss cleared 3×) — the watch plays it as one beat
   difficulty?:number; modifier_catalogue?:ModifierInfo[];
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
   overlays: Overlay[]; hero: Entity & { inv: InvItem[]; weapon?: string; armour?: string; class: string; trait: string; specialization?: "sentinel" | "hexbinder"; gun?: GunSnap };
@@ -145,7 +146,7 @@ export type ExitLine = { legacy_earned?:number; packages?:string[]; bloodline_id
  *  (`no counter`), the defence that shrugged every blow (`shield wall`, ≤ 3 words), the counter in words (`attack boss`) and as a row
  *  the editor can insert (like a patch's). Render `Warlord · no counter · shield wall · try: attack boss`. */
 /** Cut 24 §2 (core) — one line of `ExitLine.news`: `k` first | record | named | find | situation | driven | learned | differ; `text` ≤ 6 words, lower case. */
-export type News = { k: "first" | "record" | "named" | "find" | "situation" | "driven" | "learned" | "differ" | "oath"; text: string };   // Cut 28 §1 (core): `oath` — `oath kept: D10 · no drink`
+export type News = { k: "first" | "record" | "named" | "find" | "situation" | "driven" | "learned" | "differ" | "oath"; text: string; day?: number };   // Cut 118 §8 (core): `day` the lineage day (1-based)   // Cut 28 §1 (core): `oath` — `oath kept: D10 · no drink`
 export type DrivenOff = { boss: string; title: string; depth: number; verdict: string; defence: string; counter: string; row: Row;
                           held?: number; over?: number;   // Cut 27 §5 (core): `verdict: "order"` — the counter row is in the set at `held` (0-based) under `over`, which acted first: show `R{held+1} under R{over+1}`; the fix is a move (row `held` above `over`), not a new row
                           run_id?: number; hp?: number; max_hp?: number; lost?: number };   // Cut 26 §6 (core; AP: a drive-off at 25/36 hp, no verdict screen): the run (open its verdict from the report), the hero's hp at the drive-off, the carry it lost
@@ -330,7 +331,8 @@ export type BuildWire = { name: string; synergy?: string; effect?: string; picks
 export type CreditShare = { credit: "picked" | "taught" | "default" | "chores" | string; fires: number; share: number };
 /** Cut 115 §3 (core): a move read at one wall (paired sends from its waystone). */
 export type WallRead = { depth: number; boss: string; n: number; better: number; worse: number };
-export type Death = { difficulty?:number; modifier_catalogue?:ModifierInfo[]; modifiers?:EncounterModifiers; hero?: { name:string; bloodline_id:number; heir:number; class:string }; package?: string; lever?: Lever; pick?: Lever; credit?: string;   // Cut 115: `pick` the tactic fix (`try: gas step · burn`), `credit` who chose the deciding row; Cut 30 §2 (core): the package row that acted last (`Steady · HP<20% → return`); the cheapest lever (absent once the pen is open)
+export type Death = { memorial?: Memorial; difficulty?:number;   // Cut 118 owner amendment (core): `memorial` the lead line (`+3 Legacy · Queen try 4 · +16%`), epitaph, grave
+  modifier_catalogue?:ModifierInfo[]; modifiers?:EncounterModifiers; hero?: { name:string; bloodline_id:number; heir:number; class:string }; package?: string; lever?: Lever; pick?: Lever; credit?: string;   // Cut 115: `pick` the tactic fix (`try: gas step · burn`), `credit` who chose the deciding row; Cut 30 §2 (core): the package row that acted last (`Steady · HP<20% → return`); the cheapest lever (absent once the pen is open)
   run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order"|"route";   // route: Cut 26 (core) — the far stair the set's route took killed him (`route_cause`)
                       fight?: MeterWire;                                                    // Cut 29 §3 (core): the fight he died in, metered — the death screen's breakdown; absent for a stall
                       lean?: "dice" | "gap";                                                // blind b58b431 (core): "gap" — a `dice` most of whose unpatched replays die too (≤ 6/12): stamp it a gap, never luck. Cut 26 §6 (core; AO: `GAP` beside `unpatched 10/12`): a gap/row/order most of whose unpatched replays survive (> 6/12) — stamp it beside the counts (`GAP · dice-leaning`)
@@ -503,6 +505,8 @@ export type HeroSlot = { specialization?:ClassStyleId; look?:string; hero_name?:
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
+  finds?: FindsReveal;                                                         // Cut 118 §3 (core): the finds sealed this absence, opened now — one reveal (`best`), every find best first, the count
+  feats?: FeatNews[];                                                          // Cut 118 §8 (core): notable acts since the last report — trial · trial_failed · set · swift · seek · wish — each with its lineage day
   pick?: ReturnPick;                                                           // Cut 113 §3 (core): the return's pick as it waits at camp (`Lineage.return_pick`)
   legacy_earned?: number;
   slice_pending?: boolean; // acknowledgement only; final slice reports the whole absence once
@@ -552,6 +556,9 @@ export type ReturnReport = {
   fallen?: Fallen[];                                                          // Cut 29 §6 (core; AX: Greth gone with only `party −1 ogre`): each companion that fell, named — `Greth · ogre L5 · fell D12 to lurker`
 };
 export type Lineage = { bloodline?: BloodlineLegacy;
+  feats?: FeatsWire;                     // Cut 118 (core): boss tokens, trials, the find log, swift floors, the sinks, the hero's wish
+  king_eta_h?: number;                   // Cut 118 §8 (core): hours until the King may fall at the current pace (0: slain; absent: no pace yet)
+  king_pct?: number;                     // Cut 118 §8 (core): the record's share of the way to the King (percent)
   guns?:{kind:string;selected:boolean;owned:boolean;price:number;available:boolean;blocked:string|null;
     capacity:number;range:number;damage:[number,number];armour_piercing:number;reload_ticks:number}[];
                         selected_loadout?: number[];
@@ -643,7 +650,7 @@ export type KitBranch = { id: string; label: string; default: boolean; lean?: bo
 /** Cut 113 §3 (core): the return's pick — one of three offers, sized by the absence (`size` 1–5), waiting at camp until taken
  *  (`takeReturnPick(id)`); `drill` (runs on a worn package, `title` its name) · `legacy` · `forge` (a discounted step, `price`) · `marks`. */
 export type ReturnOffer = { id: string; title: string; line: string; price?: number; available: boolean; target?: string };
-export type ReturnPick = { minutes: number; size: number; offers: ReturnOffer[] };   // run-clear (core): the piece the step forges and its rarity
+export type ReturnPick = { minutes: number; size: number; offers: ReturnOffer[]; default?: string };   // Cut 118 §6 (core): `default` the offer id `collect & send` takes   // run-clear (core): the piece the step forges and its rarity
 export type KitLadder = { slot: "weapon" | "armour" | "pack" | "gun_sidearm"; selected?: boolean; owned: number; steps: KitStep[]; branches?: KitBranch[];
                           next?: { label: string; price: number; affordable: boolean; nights?: number; per_night?: number;   // QA 912e135 (core): the night's net `nights` divides by
                                    depth?: number; delta?: number; pm?: number; bank?: number; death?: number } };
@@ -684,7 +691,8 @@ export type OathShare = { id: string; text: string; share: number; pm: number; n
   steps?: { k: string; share: number }[] };   // Cut 28b (core): the steps toward it (`D13` reached · `met` · `burned`), each the share of sends that got that far
 /** Cut 28 §1 (core) — a band boss as the wall ahead: `fact` its counter as the lineage knows it (`mother: fire`; `mother: ?` unknown — `learn` says how:
  *  `meet her`); `row` the counter row (known only); `slain` once killed. */
-export type BossWall = { boss: string; title: string; depth: number; slain: boolean; known: boolean; fact: string; learn?: string; counter?: string; row?: Row };
+export type BossWall = { boss: string; title: string; depth: number; slain: boolean; known: boolean; fact: string; learn?: string; counter?: string; row?: Row;
+  affix?: string; affix_counter?: string; guard?: string; guard_counter?: string };   // Cut 118 (core): the roster preview — the heir's affix on him and its answers, his guard (the band's champion, else his escort) and its answer
 /** Cut 28 §2 (core) — one part of a forecast move (`forecastMove(sent)`): a state change since the send (`party` a pet died or joined, `kit` the vault /
  *  forge / shelf / loadout, `purse` the gold, `start` the start floor / waystones, `facts` facts learned, `heir` a new heir / trait / class / level /
  *  the floors' freshness) or the set's own edit (`route`, `rows`). `text` ≤ 3 words (`party −2 jackals`, `learned 3`, `new heir`, `rows`); `move` the
@@ -697,14 +705,14 @@ export type MovePart = { kind: "party" | "kit" | "purse" | "start" | "facts" | "
 export type ForecastMove = { whole: ForecastVs; parts: MovePart[]; lead: string; rows: boolean; state: boolean; sims: number; refined: boolean };
 /** Cut 29 §2 (core) — one system of the curriculum. ids: send · dial · headline · edit · death · exits · loadout · unlocks · reorder · vs ·
  *  tags · party · cage · walls · divergence · forge · start · route · oaths · automations · route2 · heir_pick · class. */
-export type SystemInfo = { id: string; open: boolean; trigger?: string; new?: boolean };
+export type SystemInfo = { id: string; open: boolean; trigger?: string; new?: boolean; lit_by?: string };   // Cut 118 §6 (core): `lit_by` what lit it — its trigger, `time`, or `feat: …`
 /** Cut 29 §1 (core) — the oath draw: ◆`cost`, `available`, or the gate while shut (`meet Warlord`, `◆1 more`). */
 export type OathDraw = { cost: number; available: boolean; needs?: string };
 /** Cut 29 §5 (core) — the next commission: its price, the work it builds, the purse covers it. */
 export type Commission = { price: number; label: string; available: boolean };
 /** Cut 29 §4 (core) — the standing orders: exit keep (`best_weapon|best_armour|none`), an unwatched cage's pick (`weapon|armour|potion|scroll`),
  *  the start floor, the repeat, insuring the brought items when the purse covers it (on by default). */
-export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string; wall?: string };   // Cut 114 §3 (core): `wall` the scout's order at a wall — bank (default) · carry · push   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
+export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string; wall?: string; sink?: string; heir?: string };   // owner amendment 2 (core): `heir` the heir order — answer (default) · strongest · surprise   // Cut 118 §4 (core): `sink` the apprentice's sinks after Kit complete — both (default) · ration · tithe · off   // Cut 114 §3 (core): `wall` the scout's order at a wall — bank (default) · carry · push   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
 /** Cut 29 §4 (core) — a kind the next send adds to the repeat, and the row's verb that wants it (`throw fire`). */
 export type RepeatAdd = { kind: string; row: string };
 /** Cut 29 §1 (core; E1) — a wall's edit: the floor, the edit labels (`drop R6`, `R1 → hp < 90% → rest`), the whole set with them, the share of
@@ -843,7 +851,13 @@ export interface Engine {
   forkForecast?(fork: number, refined?: boolean): ForkOption[];   // QA 308f045 (qaAC: `fens D8 12%`, picked: `D8 16%`): `refined` — measured on the pass the camp shows, like `cageForecast`
     // §2: both stairs of a seen fork for the active set (one extra camp panel, memoised; seconds in wasm — call when the fork chip's sheet opens)
   // Cut 23
-  takeReturnPick?(id: string): Lineage;   // Cut 113 §3: take one offer of the return's pick (`drill · legacy · forge · marks`)
+  takeReturnPick?(id: string): Lineage;
+  seekBoss?(boss: string): Lineage;      // Cut 118 §1: the next send seeks `boss` (a token spent at the send); "" in order
+  seekForecast?(): SeekOption[];         // Cut 118 §1: each banked token's seek priced from his stone
+  setTrial?(week: number): Lineage;      // Cut 118 §2: opt into week `week`'s trial (negative: out); the next send while away plays it
+  tithe?(n: number): Lineage;            // Cut 118 §4: tithe n Legacy points at the falling rate (Kit complete)
+  buySurvey?(): Lineage;                 // Cut 118 §4: the survey work — the deep forks open early
+  grantWish?(): Lineage;                 // Cut 118 §7: grant the hero's waiting wish   // Cut 113 §3: take one offer of the return's pick (`drill · legacy · forge · marks`)
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
   kitDeltas?(): KitLadder[];            // full paired forecast, retained for detailed callers
   kitEstimates?(): KitLadder[];         // small depth/exit preview, with its actual uncertainty
@@ -874,3 +888,23 @@ export type AsyncEngine = { [K in keyof Engine]: NonNullable<Engine[K]> extends 
 export type NextUnlock = { id: string; cost: number; gold: number; gold_after_gold: number };
 export type SupplyEntry = { kind: string; price: number; label: string;
                             needs?: string };                                                                         // Addendum B; needs: Cut 10 §3, why a supply is greyed (`◆ identify`), optional
+
+// ---- Cut 118 (core): docs/CUT118_IDLE_LESSONS.md
+export type Find = { id: string; kind: "cosmetic" | "shard" | "piece"; name: string; rank: number; set?: string; table: number };
+export type FindsReveal = { sealed: number; best?: Find; finds: Find[]; legacy?: number; sets?: string[] };
+export type FeatNews = { k: "trial" | "trial_failed" | "set" | "swift" | "seek" | "wish" | string; text: string; day: number };
+export type BossToken = { boss: string; title: string; depth: number; n: number; cap: number; stone: number };
+export type TrialWire = { week: number; boss: string; title: string; depth: number; rule: "barred" | "affixes"; label: string; barred?: string; affixes?: string[];
+  answers: string[]; owned: string[]; open: boolean; cleared: boolean; opted: boolean; weeks_left: number; legacy: number; needs?: string };
+export type FindSet = { id: string; title: string; pieces: string[]; have: boolean[]; done: boolean; bonus: string };
+export type Sink = { id: "tithe" | "ration" | "survey" | string; price: number; line: string; available: boolean; n?: number };
+export type WishWire = { id: string; text: string; price: number; legacy: number; available: boolean };
+export type FeatsWire = { tokens: BossToken[]; seek?: string; trials: TrialWire[]; trial?: number; trial_marks: number; sealed: number; sets: FindSet[];
+  swift_to: number; sinks: Sink[]; sink_order: string; wish?: WishWire; feats: number;
+  siege: SiegeWire[]; graves: GraveWire[]; graveyard: Stone[]; worn: Record<string, string[]>;   // owner amendment: the siege per band boss, graves on their floors, the graveyard's stones, the heirs who wore down each fallen boss
+  heir_order: "answer" | "strongest" | "surprise" | string; titles: string[]; deed_legacy: number };   // owner amendment 2: the heir order, the line's titles (`Queensbane`), the Legacy deeds paid
+export type SiegeWire = { boss: string; title: string; depth: number; tries: number; best_pct: number; edge_pct: number; heirs: string[] };
+export type GraveWire = { depth: number; heir: number; name: string; gold: number; day: number };
+export type Stone = { heir: number; name: string; depth: number; cause: string; epitaph: string; day: number; run: number; boss?: string; try_n?: number; edge_pct?: number; grave_gold?: number; legacy?: number };
+export type Memorial = { lead: string; epitaph: string; name: string; siege?: SiegeWire; grave_gold?: number; legacy?: number };
+export type SeekOption = { boss: string; title: string; depth: number; stone: number; tokens: number; reach: number; past: number; death: number; sims: number; current: boolean };

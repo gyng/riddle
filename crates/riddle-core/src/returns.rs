@@ -90,7 +90,10 @@ pub fn offers(l: &LineageState, p: &Pending) -> Vec<ReturnOffer> {
 /// The waiting pick as the camp and the report show it.
 pub fn wire(l: &LineageState) -> Option<ReturnPick> {
     let p = l.return_pick.as_ref()?;
-    Some(ReturnPick { minutes: p.minutes, size: size(p.minutes) as u32, offers: offers(l, p) })
+    let offers = offers(l, p);
+    // Cut 118 §6: the default — the free Legacy (what `collect & send` takes), else the first free offer
+    let default = offers.iter().find(|o| o.id == "legacy").or_else(|| offers.iter().find(|o| o.price == 0 && o.available)).map(|o| o.id.clone());
+    Some(ReturnPick { minutes: p.minutes, size: size(p.minutes) as u32, offers, default })
 }
 
 /// Take offer `id` of the waiting pick; the pick closes. Returns the taken offer's tile line.

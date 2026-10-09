@@ -88,6 +88,9 @@ fn is_zero_i32(n: &i32) -> bool {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Snapshot {
+    /// Cut 118 §5: this floor is swift (its band boss cleared `feats::SWIFT_CLEARS` times): the watch plays it as one beat.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub swift: bool,
     #[serde(default, skip_serializing_if = "is_zero_u32")]
     pub difficulty: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -397,6 +400,9 @@ pub const FINDS_SHOWN: usize = 6;
 pub struct News {
     pub k: String,
     pub text: String,
+    /// Cut 118 §8: the lineage day (1-based) it happened on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub day: Option<u32>,
 }
 
 /// Cut 24 §1: the `no counter` exit — the boss (`goblin_warlord`, `Warlord`), the floor, the
@@ -1205,6 +1211,10 @@ pub struct DeathHero {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Death {
+    /// Cut 118 (owner amendment): the death screen's lead — the siege's progress (`the Queen · try 4 · +16%`), the
+    /// epitaph, the grave's gold, the Legacy his deeds paid (`feats::memorial`; filled by `Game::death`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memorial: Option<crate::feats::Memorial>,
     #[serde(default, skip_serializing_if = "is_zero_u32")]
     pub difficulty: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1574,6 +1584,13 @@ pub struct ReturnReport {
     /// Cut 30.5: the haul gold this absence left in the chest (before the porter).
     #[serde(default, skip_serializing_if = "is_zero_i32")]
     pub chest: i32,
+    /// Cut 118 §3: the finds sealed this absence, opened now (one reveal, best first, and the count).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finds: Option<crate::feats::FindsReveal>,
+    /// Cut 118 §8: the notable acts since the last report — `trial` cleared, a find `set` completed, `swift`
+    /// floors, a `seek`, a `wish` granted — each with its lineage day.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub feats: Vec<crate::feats::FeatNews>,
 }
 
 /// Cut 30 §2: a death's cheapest lever (`kind` spend · package · wait; `text` ≤ 3 words).
@@ -2177,6 +2194,15 @@ pub struct Replay {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Lineage {
+    /// Cut 118: boss tokens, trials, the find log, swift floors, the sinks, the hero's wish (`feats::wire`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feats: Option<crate::feats::FeatsWire>,
+    /// Cut 118 §8: the hours until the King may fall at the current pace (`feats::king_eta_h`; 0 slain, none
+    /// before a pace), and the record's share of the way to him (percent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub king_eta_h: Option<u32>,
+    #[serde(default)]
+    pub king_pct: u32,
     #[serde(default,skip_serializing_if="Option::is_none")]
     pub class_styles:Option<crate::specialization::Choice>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2573,6 +2599,16 @@ pub struct BossWall {
     pub counter: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub row: Option<Row>,
+    /// Cut 118 (the roster preview): the live heir's affix on him, its answers; his guard (the band's wandering
+    /// champion, else his escort) and its answer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affix: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affix_counter: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guard: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guard_counter: Option<String>,
 }
 
 /// Cut 28 §2: one part of an attributed forecast move (`ForecastMove.parts`): `kind` party · kit ·
@@ -2834,6 +2870,9 @@ pub struct ReturnPick {
     pub minutes: u64,
     pub size: u32,
     pub offers: Vec<ReturnOffer>,
+    /// Cut 118 §6: the offer `collect & send` takes when the player does not choose (its id).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
 }
 
 /// Cut 113 §2: one of the next tier's two steps (`buyKit("weapon:edge")`), priced as the tier:
@@ -3110,6 +3149,22 @@ pub struct StandingSwitches {
     /// `push` nothing.
     #[serde(default = "wall_bank")]
     pub wall: String,
+    /// Cut 118 §4: the apprentice's sinks after Kit complete (`feats::SINK_ORDERS`: `both` a ration a send and
+    /// the tithe on the hour, `ration`, `tithe`, `off`). Adds only, never upkeep.
+    #[serde(default = "sink_both")]
+    pub sink: String,
+    /// Cut 118 (owner amendment 2): the heir order — which offered heir succeeds a death (`feats::HEIR_ORDERS`:
+    /// `answer` the killer, `strongest`, `surprise`). Set once; nobody is prompted.
+    #[serde(default = "heir_answer")]
+    pub heir: String,
+}
+
+fn heir_answer() -> String {
+    crate::feats::HEIR_ORDERS[0].into()
+}
+
+fn sink_both() -> String {
+    crate::feats::SINK_ORDERS[0].into()
 }
 
 /// The apprentice's orders (`StandingSwitches::forge`), the default first.
@@ -3127,7 +3182,7 @@ fn forge_half() -> String {
 
 impl Default for StandingSwitches {
     fn default() -> Self {
-        StandingSwitches { insure: true, forge: forge_half(), wall: wall_bank() }
+        StandingSwitches { insure: true, forge: forge_half(), wall: wall_bank(), sink: sink_both(), heir: heir_answer() }
     }
 }
 
@@ -3141,6 +3196,10 @@ pub struct SystemInfo {
     pub trigger: String,
     #[serde(default, skip_serializing_if = "is_false")]
     pub new: bool,
+    /// Cut 118 §6: what lit it — its trigger (`slay Warlord`), `time` (the age fallback) or a feat (`feat: trial:
+    /// Mother`) that lit it before its age.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lit_by: Option<String>,
 }
 
 /// Cut 29 §1: the oath draw (`drawOath()`): ◆`cost` for a fresh standing oath, repeatable;
@@ -3181,11 +3240,17 @@ pub struct StandingOrders {
     /// that does not know it (the order stands).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wall: Option<String>,
+    /// Cut 118 §4: the apprentice's sink order (`both · ration · tithe · off`; `feats::SINK_ORDERS`); absent: it stands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sink: Option<String>,
+    /// Cut 118 (owner amendment 2): the heir order (`answer · strongest · surprise`); absent: it stands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub heir: Option<String>,
 }
 
 impl Default for StandingOrders {
     fn default() -> Self {
-        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half(), wall: Some(wall_bank()) }
+        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half(), wall: Some(wall_bank()), sink: Some(sink_both()), heir: Some(heir_answer()) }
     }
 }
 

@@ -171,7 +171,15 @@ pub fn wall_name(route: crate::descent::Route, depth: u32) -> String {
 /// banked at its stairs). `carry`: the haul carried home from the stairs, every send. `bank`: the heir banked
 /// there while he is no stronger than at the last death and fewer than `WALL_RETRY` sends were banked before it
 /// since — the next tries it again, its haul carried. `push`: none.
+/// Cut 118, owner amendment: the scout's wall order is retired (`wall_hold` is always `None`).
+pub const WALL_ORDER_RETIRED: bool = true;
+
 pub fn wall_hold(l: &LineageState) -> Option<(u32, bool)> {
+    // Cut 118, owner amendment ("heroes yolo"): the wall order is retired — every send pushes (the record's
+    // checkpoints still secure the carry). The ledger below stays for the siege's reads and old saves.
+    if WALL_ORDER_RETIRED {
+        return None;
+    }
     if l.pkg.literal || !on(l, "scout") || l.orders.wall == "push" {
         return None;
     }
@@ -589,6 +597,8 @@ pub(crate) fn scout_sent(game: &mut Game) {
         act(game, "scout", 1);
         // Cut 114 §3: his order at a wall rides with the send
         let hold = wall_hold(&game.lineage);
+        // (Cut 118: a sought boss or a trial pushes to its floor)
+        let hold = hold.filter(|_| game.run.as_ref().is_none_or(|r| crate::feats::goal_of(&game.lineage, r.id).is_none()));
         if let Some(run) = game.run.as_mut().filter(|r| r.turn == 0) {
             run.wall_hold = hold;
         }
@@ -693,6 +703,8 @@ fn workers_act(game: &mut Game, send: bool) {
             *acts.entry(format!("{APPRENTICE_SLOT}{slot}")).or_insert(0) += 1;
             n += 1;
         }
+        // Cut 118 §4: after Kit complete, his sinks under their order — a ration a send, the tithe on the hour
+        n += crate::feats::apprentice_sinks(game, send);
         act(game, "apprentice", n);
     }
     // the clerk: the purse above the next forge step and the reserve into the bank

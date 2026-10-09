@@ -500,6 +500,49 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 118 §1: the next send seeks `boss` (a band boss with a token banked; the token is spent at the send);
+    /// `""` sends in order (the default). Returns the Lineage (`feats.seek`, `feats.tokens`).
+    #[wasm_bindgen(js_name = seekBoss)]
+    pub fn seek_boss(&mut self, boss: &str) -> Result<String, JsError> {
+        self.inner.seek_boss(boss).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 118 §1: each banked token's seek priced from his stone — `SeekOption[]` (`boss`, `depth`, `stone`,
+    /// `tokens`, `reach`, `past`, `death`, `sims`, `current`). One camp panel per token boss: call it off the foreground.
+    #[wasm_bindgen(js_name = seekForecast)]
+    pub fn seek_forecast(&self) -> String {
+        js(&self.inner.seek_forecast())
+    }
+
+    /// Cut 118 §2: opt into week `week`'s trial (`Lineage.feats.trials[].week`; a negative week opts out); the next
+    /// send while away plays it. Returns the Lineage.
+    #[wasm_bindgen(js_name = setTrial)]
+    pub fn set_trial(&mut self, week: i32) -> Result<String, JsError> {
+        self.inner.set_trial(u32::try_from(week).ok()).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 118 §4: tithe `n` Legacy points at the falling rate (Kit complete); returns the Lineage.
+    pub fn tithe(&mut self, n: u32) -> Result<String, JsError> {
+        self.inner.tithe(n).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 118 §4: commission the survey (the deep forks open early); returns the Lineage.
+    #[wasm_bindgen(js_name = buySurvey)]
+    pub fn buy_survey(&mut self) -> Result<String, JsError> {
+        self.inner.buy_survey().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
+    /// Cut 118 §7: grant the hero's waiting wish (`Lineage.feats.wish`); returns the Lineage.
+    #[wasm_bindgen(js_name = grantWish)]
+    pub fn grant_wish(&mut self) -> Result<String, JsError> {
+        self.inner.grant_wish().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 30 §2: spend marks on a package's next level; returns the Lineage.
     #[wasm_bindgen(js_name = spendLevel)]
     pub fn spend_level(&mut self, id: &str) -> Result<String, JsError> {

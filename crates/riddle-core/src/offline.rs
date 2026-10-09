@@ -316,6 +316,8 @@ fn run_offline_partition(game: &mut Game, elapsed_s: u64, full: bool, with_stall
     // Cut 113 §3: the return carries a pick (or grows the one waiting)
     crate::returns::on_return(&mut game.lineage, elapsed_s);
     r.pick = crate::returns::wire(&game.lineage);
+    // Cut 118: the finds opened, the notable acts since the last report
+    crate::feats::on_report(&mut game.lineage, &mut r);
     // (a system's reveal is a beat of the five)
     if !r.systems_opened.is_empty() {
         r.packages = crate::packages::beats_n(&game.batch.pkg_lines, crate::packages::BEATS - 1);
@@ -364,6 +366,8 @@ pub(crate) fn set_terms(r: &mut ReturnReport, l: &crate::engine::LineageState, b
         ("tolls", d("tolls")),
         ("hires", d("hires")),
         ("bank", d("bank")),
+        ("sinks", d("sinks")),
+        ("recovered", d("recovered")),
         ("other", d("other")),
     ];
     let sum: i64 = terms.iter().map(|t| t.1).sum();
@@ -479,7 +483,7 @@ pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::c
     }
     let oath = b.oath.as_ref().map(|(o, runs, kept, done)| crate::wire::OathReport { id: o.id.clone(), chips: crate::oath::chips(o), text: crate::oath::text(o), runs: *runs, kept: *kept, done: *done, reward: Some(o.reward.clone()), price: o.price,
         broken: b.oath_breaks.values().sum(), cause: b.oath_breaks.iter().max_by_key(|(c, n)| (**n, std::cmp::Reverse(c.len()))).map(|(c, _)| c.clone()) });
-    let mut r = ReturnReport { pick: None, legacy_earned:b.legacy_earned,slice_pending:false,bloodlines:vec![],lead: Vec::new(), oath, grew: Vec::new(), workers: Vec::new(), chest: 0, packages: crate::packages::beats(&b.pkg_lines),
+    let mut r = ReturnReport { finds: None, feats: Vec::new(), pick: None, legacy_earned:b.legacy_earned,slice_pending:false,bloodlines:vec![],lead: Vec::new(), oath, grew: Vec::new(), workers: Vec::new(), chest: 0, packages: crate::packages::beats(&b.pkg_lines),
         elapsed_s,
         runs: b.runs,
         sampled,

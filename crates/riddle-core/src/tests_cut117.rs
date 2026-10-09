@@ -225,7 +225,10 @@ fn consecutive_king_deaths_do_not_alternate_the_fix() {
 
 /// §1 (blind 8cf9050 B: `D33 88%`, then the scout banked the sends at D30/D32): the forecast carries the scout's
 /// wall order — the floor it stops before and the send's ends under it — and prices the order on its own sims.
+// Cut 118, owner amendment ("heroes yolo"): the scout's wall order is retired — every send pushes and the forecast
+// holds nothing (`tests_cut118::the_wall_order_is_retired`); this test of the order is kept, ignored.
 #[test]
+#[ignore = "Cut 118: the wall order is retired"]
 fn the_forecast_names_the_scouts_wall_order() {
     use crate::engine::ExitTier;
     use crate::forecast::{held_ends, SimResult};

@@ -38,6 +38,8 @@ pub const SYSTEMS: &[SystemDef] = &[
     sys("send", ""),
     sys("headline", ""),
     sys("death", "first death"),
+    // Cut 118 (owner amendment 2): the heir order — a rung that retires picking heirs, lit with the first death
+    sys("heirs", "first death"),
     sys("exits", "first gold home"),
     sys("forge", "first gold home"),
     sys("loadout", "first gold home"),
@@ -88,7 +90,7 @@ fn triggered(l: &LineageState, id: &str, plateau: bool) -> bool {
     let pen = l.pkg.pen_open || l.pkg.literal;
     match id {
         "send" | "headline" => true,
-        "death" => !l.graveyard.is_empty() || l.heir > 1,
+        "death" | "heirs" => !l.graveyard.is_empty() || l.heir > 1,
         "exits" | "loadout" | "forge" => l.gold_ledger.iter().any(|x| x.delta > 0 && crate::engine::is_exit_why(&x.why)) || !l.banked_depths.is_empty() || crate::town::built(l, "blacksmith"),
         "storehouse" => crate::town::built(l, "storehouse"),
         "party" => l.facts.contains("stray") || l.all_companions().next().is_some(),
@@ -179,7 +181,14 @@ pub fn update_with(l: &mut LineageState, plateau: bool, gate: bool) -> Vec<Strin
         while j < SYSTEMS.len() && !s.trigger.is_empty() && SYSTEMS[j].trigger == s.trigger && SYSTEMS[j].min_age_h == s.min_age_h {
             j += 1;
         }
-        let unit: Vec<&SystemDef> = SYSTEMS[i..j].iter().filter(|u| !l.systems.contains(u.id) && ready(l, u, plateau, gate)).collect();
+        let mut unit: Vec<&SystemDef> = SYSTEMS[i..j].iter().filter(|u| !l.systems.contains(u.id) && ready(l, u, plateau, gate)).collect();
+        // Cut 118 §6: a feat (a trial cleared, a sought boss slain) lights a unit whose trigger has come before its
+        // age — the time fallback stands for everyone else
+        let mut by_feat = false;
+        if unit.is_empty() && gate && !l.feats.off && l.feats.feats > l.feats.feats_used {
+            unit = SYSTEMS[i..j].iter().filter(|u| !l.systems.contains(u.id) && triggered(l, u.id, plateau)).collect();
+            by_feat = !unit.is_empty();
+        }
         i = j;
         if unit.is_empty() {
             continue;
@@ -187,14 +196,28 @@ pub fn update_with(l: &mut LineageState, plateau: bool, gate: bool) -> Vec<Strin
         // (blind 1fb7786, A: the Mother slain, the pen `locked · Upcoming reports` for the session's last 20 min —
         // owner: the pen opens at the Mother met; its group never waits in the one-a-report queue)
         let free = unit.iter().all(|u| DAY0.contains(&u.id) || pen_due(l, u.id));
-        if gate && !free && l.reveal_left == 0 {
+        if gate && !free && !by_feat && l.reveal_left == 0 {
             queue.push(unit[0].id.to_string());
             continue;
         }
-        if gate && !free {
+        if gate && !free && !by_feat {
             l.reveal_left -= 1;
         }
+        if by_feat {
+            l.feats.feats_used += 1;
+        }
         for u in unit {
+            // (Cut 118 §6: what lit it)
+            let lit = if by_feat {
+                format!("feat: {}", l.feats.last_feat)
+            } else if !gate || (triggered(l, u.id, plateau) && l.age_h() >= u.min_age_h) {
+                u.trigger.to_string()
+            } else {
+                "time".to_string()
+            };
+            if !lit.is_empty() && !l.feats.off {
+                l.feats.lit_by.insert(u.id.to_string(), lit);
+            }
             l.systems.insert(u.id.to_string());
             out.push(u.id.to_string());
         }
@@ -243,5 +266,5 @@ pub fn is_open(l: &LineageState, id: &str) -> bool {
 /// The curriculum on the wire: every system in order, open or not, with its trigger; `new` the
 /// ones opened since the camp last looked.
 pub fn wire(l: &LineageState) -> Vec<SystemInfo> {
-    SYSTEMS.iter().map(|s| SystemInfo { id: s.id.into(), open: l.systems.contains(s.id), trigger: s.trigger.into(), new: l.systems_new.iter().any(|x| x == s.id) }).collect()
+    SYSTEMS.iter().map(|s| SystemInfo { id: s.id.into(), open: l.systems.contains(s.id), trigger: s.trigger.into(), new: l.systems_new.iter().any(|x| x == s.id), lit_by: l.feats.lit_by.get(s.id).cloned() }).collect()
 }

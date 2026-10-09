@@ -626,10 +626,50 @@ pub fn wake_from(l: &mut LineageState, pool: &[(Shape, bool)]) {
     }
     // the fresh draws lead: card 1 (the default) is always a fresh draw
     cards.sort_by_key(|c| c.source != "fresh");
+    // Cut 118 (owner amendment 2): one card always answers the killer — the last card gives way when none does
+    let killer = l.graveyard.last().map(|g| g.cause.clone());
+    let want = killer.as_deref().and_then(answer_gift).filter(|_| !l.feats.off);
+    if let Some((gift, when)) = want {
+        if !cards.iter().any(|c| c.shape.gift == gift) {
+            // (the last fresh draw gives way — never a twist nor a marked card; a short offer gains a card)
+            let at = if cards.len() >= 3 { cards.iter().rposition(|c| c.source == "fresh") } else { Some(cards.len()) };
+            if let Some(i) = at {
+                let avoid: Vec<When> = cards.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, c)| c.shape.when).collect();
+                let n: Vec<Shape> = pool.iter().map(|(s, _)| *s).filter(|s| !s.is_twist() && s.gift == gift && !avoid.contains(&s.when)).collect();
+                let pref: Vec<Shape> = n.iter().copied().filter(|s| Some(s.when) == when).collect();
+                let pick = if pref.is_empty() { n } else { pref };
+                if !pick.is_empty() {
+                    let card = Card { shape: *rng.pick(&pick), source: "answer".into() };
+                    if i < cards.len() {
+                        cards[i] = card;
+                    } else {
+                        cards.push(card);
+                    }
+                }
+            }
+        }
+    }
+    // the heir order (a standing order, set once): which card succeeds — nobody is prompted
+    let chosen = if l.feats.off { 0 } else { crate::feats::heir_choice(l, &cards, want.map(|w| w.0)) };
     let h = &mut l.heirs;
     h.kin = if cards.iter().any(|c| c.shape.when == When::Kin) { last_kill } else { h.kin.take().filter(|_| h.blood.is_some_and(|b| b.when == When::Kin)) };
-    h.born = cards.first().map(|c| c.shape);
+    h.born = cards.get(chosen).or(cards.first()).map(|c| c.shape);
     h.offer = cards;
+}
+
+/// Cut 118 (owner amendment 2): the gift that answers a killer's tags, and the `when` it is best worn under —
+/// a boss: Guard on bosses; poison, gas or a drain: Mend; a fast or swift foe: Quick; else Guard.
+pub fn answer_gift(killer: &str) -> Option<(Gift, Option<When>)> {
+    let d = crate::defs::MONSTERS.iter().find(|m| m.kind == killer)?;
+    Some(if d.boss {
+        (Gift::Guard, Some(When::Boss))
+    } else if d.tags.iter().any(|t| matches!(*t, "gas" | "poison" | "drain" | "paralyse")) {
+        (Gift::Mend, Some(When::Hurt))
+    } else if d.tags.contains(&"fast") || d.speed > 10 {
+        (Gift::Quick, None)
+    } else {
+        (Gift::Guard, Some(When::Crowded))
+    })
 }
 
 /// The camp's pick of a card (by chip or head); refused when it is not on offer.

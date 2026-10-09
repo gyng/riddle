@@ -1987,6 +1987,11 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, mut dmg: i32, src:
     let cause = src.cause(run);
     let cause = cause.as_str();
     let dmg = affix_dealt(run, cx, mi, dmg.max(0), src);
+    // Cut 118 (the amendment's siege): the heirs who died at this boss left the next an edge on him
+    let dmg = match run.siege.iter().find(|(k, _)| *k == run.monsters[mi].kind) {
+        Some((_, pct)) if dmg > 0 && matches!(src, Src::Hero { .. }) => dmg + dmg * *pct as i32 / 100,
+        _ => dmg,
+    };
     let mut dmg = build_dealt(run, cx, mi, dmg, src);
     // Cut 23 §1 (the forge's full kit broke the D28 wall without its counter: FULL−D28 kitted
     // passed on 16 of 30 seeds, the Queen dead to four blows before her second call): while a

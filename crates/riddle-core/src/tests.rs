@@ -4686,9 +4686,11 @@ fn ledger_line_reconciles_on_every_exit() {
             assert!(word_count(&exit_line.why) <= 3, "{}", exit_line.why);
             let salvage: i32 = since.iter().filter(|l| l.why == "salvage").map(|l| l.delta).sum();
             let wake: i32 = since.iter().filter(|l| l.why == "wake pay").map(|l| l.delta).sum();
+            // (Cut 118, owner amendment: a grave reached comes home — a ledger line of its own, `recovered`)
+            let recovered: i32 = since.iter().filter(|l| l.why.starts_with("recovered")).map(|l| l.delta).sum();
             let spent: i32 = since.iter().filter(|l| l.delta < 0).map(|l| -l.delta).sum();
             assert_eq!(line.spent, spent, "seed {seed}: {since:?}");
-            assert_eq!(after - before, line.kept + salvage + wake - line.spent, "seed {seed}: gold delta vs ledger {since:?}");
+            assert_eq!(after - before, line.kept + salvage + wake + recovered - line.spent, "seed {seed}: gold delta vs ledger {since:?}");
             assert_eq!(after - before, since.iter().map(|l| l.delta).sum::<i32>(), "seed {seed}: the ledger sums to the delta");
             if line.spent > 0 {
                 spent_any = true;
@@ -11241,7 +11243,7 @@ fn strip_tail_key(json: &str, key: &str) -> String {
     out
 }
 
-fn sends_hash(g: &mut Game, n: u32) -> u64 {
+pub(crate) fn sends_hash(g: &mut Game, n: u32) -> u64 {
     let mut h = 0xcbf29ce484222325u64;
     let fnv = |h: &mut u64, s: &str| {
         for b in s.bytes() {
@@ -11282,6 +11284,8 @@ fn sends_hash(g: &mut Game, n: u32) -> u64 {
                 let j = strip_array(&j, "packages");
                 // Cut52 reports already-awarded inherited points; preserve the original gameplay digest.
                 let j = strip_key(&j, "legacy_earned");
+                // Cut 118 §8: a news line's lineage day is a new read of the same run
+                let j = strip_key(&j, "day");
                 // (run-clear: an exit line's card — its end, floor, record and finds — and every item's rarity are new reads of the same run)
                 let j = strip_tail_key(&strip_key(&strip_array(&strip_str(&strip_str(&j, "rarity"), "end"), "finds"), "reached"), "reached").replace(",\"new_best\":true", "");
                 fnv(&mut h, &j);
@@ -11355,6 +11359,11 @@ fn saves_from_307dbed_send_identically() {
     // unbroken and breaks under its answers (`descent::affix_breakers`, `turn::affix_dealt`/`affix_taken`), the brood
     // costs 15 % of his hp; with affixes and guests pinned off as above the tree still hashes to ddd4c46c7dc03d58 exactly
     // (the death's moment hp, the gold tally and ledger, the forecast's hold and the previews' noise move nothing here).
+    // Cut 118: aa808dca72425139 → 2f3eb706b3d24c7c. The owner amendment's graves: a dead heir's lost carry lies where he
+    // fell and a later send that reaches the floor brings it home (`recovered`), so the purse — hashed after each send —
+    // moves; with the graves alone switched off the tree hashes to aa808dca72425139 exactly, and with every Cut 118
+    // system pinned off (`feats.off`) too (`tests_cut118::the_307dbed_hash_holds_with_the_systems_pinned_off`). A news
+    // line's lineage day is stripped below as a new read of the same run.
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }

@@ -272,7 +272,7 @@ fn traces_carry_max_hp_and_its_steps() {
 #[test]
 fn luck_deaths_name_the_event() {
     let blow = |t, by: &str, dmg, hp| TraceBlow { t, by: by.into(), dmg, hp };
-    let mut d = Death { difficulty: 0, modifier_catalogue: Vec::new(), modifiers: None, hero: None, package: None, lever: None, pick: None, credit: None, run_id: 1, depth: 6, cause: "goblin".into(), margin: "2 hp short".into(), verdict: "dice".into(), baseline: 10.0 / 12.0, replays: 12, trace: Trace::default(), patches: Vec::new(), morgue: String::new(), line: None, chain: None, rules: None, notes: Vec::new(), nothing_beats_base: false, cause_row: None, order_over: None, route_cause: None, lean: None, luck: None, boss: None, fight: None, moment_hp: None, moment_max_hp: 0 };
+    let mut d = Death { memorial: None, difficulty: 0, modifier_catalogue: Vec::new(), modifiers: None, hero: None, package: None, lever: None, pick: None, credit: None, run_id: 1, depth: 6, cause: "goblin".into(), margin: "2 hp short".into(), verdict: "dice".into(), baseline: 10.0 / 12.0, replays: 12, trace: Trace::default(), patches: Vec::new(), morgue: String::new(), line: None, chain: None, rules: None, notes: Vec::new(), nothing_beats_base: false, cause_row: None, order_over: None, route_cause: None, lean: None, luck: None, boss: None, fight: None, moment_hp: None, moment_max_hp: 0 };
     d.trace.turns.push(TraceTurn { max_hp: 36, t: 100, row: 0, verb: Verb::new("attack"), hp: 6, foes: 2, rule_foes: 2, telegraphs: Vec::new(), blocked: None, rows: None, blows: Vec::new(), gift: None });
     d.trace.blow = Some(blow(105, "goblin", 6, 0));
     let l = crate::trace::luck_of(&d).expect("most replays live");

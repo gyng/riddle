@@ -1529,6 +1529,13 @@ fn main() {
         let n = picked.len();
         let d14 = picked.iter().filter(|o| o.best_day.get(1).is_some_and(|b| *b >= 14)).count();
         bars.push(("Content reach: PICKED ≥ D14 by day 2 (≥ 50 %)".into(), format!("{d14}/{n}"), d14 * 2 >= n));
+        // Cut 118 §4: the purse has a use after Kit complete — PICKED's wealth (purse + bank) falls on some day by
+        // day 14 (the sinks), on the median seed; and the days it falls, median
+        let falls: Vec<usize> = picked.iter().map(|o| o.gold_day.iter().filter(|g| **g < 0).count()).collect();
+        let seeds_falling = falls.iter().filter(|f| **f > 0).count();
+        let mut sorted = falls.clone();
+        sorted.sort_unstable();
+        infos.push(("Cut 118: PICKED wealth no longer monotone by day 14 (seeds; median falling days)".into(), format!("{seeds_falling}/{n} · {}", sorted[n / 2])));
     }
     for (label, v) in [("IDLE", &idle), ("PICKED", &picked), ("TUNED", &tuned)] {
         if v.is_empty() {

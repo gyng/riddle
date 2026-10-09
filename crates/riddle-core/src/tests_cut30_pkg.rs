@@ -111,7 +111,8 @@ fn one_system_a_report_and_five_beats() {
     g.lineage.facts.insert("foe:goblin_warlord".into());
     g.lineage.reveal_left = 1;
     let opened = crate::systems::update(&mut g.lineage, false);
-    assert_eq!(opened, vec!["death"]);
+    // (Cut 118 amendment 2: the heir order's rung opens with the death screen, one unit)
+    assert_eq!(opened, vec!["death", "heirs"]);
     assert!(g.lineage.reveal_queue.len() >= 2, "{:?}", g.lineage.reveal_queue);
     assert_eq!(g.lineage().reveal_next.map(|n| n.id), g.lineage.reveal_queue.first().cloned());
     let lines: Vec<String> = ["STEADY L2", "STEADY L3", "+Guarded", "DRILLED · Warlord", "built bank", "the pen", "QUEST DONE · reach D9"].iter().map(|s| s.to_string()).collect();
