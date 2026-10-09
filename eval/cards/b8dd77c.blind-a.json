@@ -1,0 +1,193 @@
+{
+  "$comment": "Raw blind card, rater blind-a. Criterion + probes archived before axes in scratchpad/b8dd77c-blind-a/evidence.txt. Ledger: scratchpad/b8dd77c-blind-a/ledger.txt. Audio unassessed (agent cannot listen).",
+  "game": "Riddle",
+  "build": "b8dd77c",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (Claude agent, independent blind rater)",
+  "seed": 233,
+  "url": "http://127.0.0.1:5258/?dev=1&runs=1&seed=233&fresh=1",
+  "input": "headed Chromium, private X display, ANGLE D3D12 (NVIDIA GeForce RTX 3080), 400x800 @3x, tools/driver.mjs port 5366",
+  "horizon": {
+    "activeMinutes": 68,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-08T23:04:00Z",
+        "end": "2026-10-08T23:26:58Z",
+        "minutes": 23.0
+      },
+      {
+        "phase": "after absent=20m (5 + 17 make-up)",
+        "start": "2026-10-08T23:27:09Z",
+        "end": "2026-10-08T23:49:30Z",
+        "minutes": 22.4
+      },
+      {
+        "phase": "after absent=4h",
+        "start": "2026-10-08T23:49:50Z",
+        "end": "2026-10-08T23:52:55Z",
+        "minutes": 3.1
+      },
+      {
+        "phase": "after absent=8h",
+        "start": "2026-10-08T23:52:55Z",
+        "end": "2026-10-09T00:14:20Z",
+        "minutes": 21.4
+      }
+    ],
+    "exclusions": "driver launch, three page loads (~10 s each), ~1 min note-writing during phases, all card/evidence writing after 00:14:20Z; ~1.5-2 min excluded from 69.9 wall min",
+    "deviations": [
+      "Cold phase was 23 min, not 40: I misjudged elapsed time and took the 20m absence early; compensated with 17 extra active minutes after the 20m return, before the 4h absence.",
+      "Post-4h phase was 3.1 min, not 5 (same misjudgement); compensated ~1.9 min in the post-8h phase.",
+      "Most watching was at 'fights only' speed; normal-speed watches: 23:09:30-23:13:30, 23:15:34-23:20:30, 00:04:31-00:10:30."
+    ],
+    "absences": [
+      "20m (simulated, ?absent=20m)",
+      "4h (simulated, ?absent=4h)",
+      "8h (simulated, ?absent=8h)"
+    ],
+    "runsWatched": 15,
+    "runsOffline": 10,
+    "deathsRead": 5,
+    "ruleEditsAttempted": 8,
+    "ruleEdits": 7,
+    "ruleEditNotes": "pen unlocked after Bloat Mother (~19 min in). Completed: hp<30%→return; applied death fix hp<50%→read unknown (later dropped); added/dropped pack break card on forecast; dropped read unknown; applied fix hp<50%·foes≥2→retreat; wrote foe: boss→read silence; WRITE fix reflects melee→reflect read. Attempted-and-reverted: return threshold 50%/40%.",
+    "bestDepth": "D28 (reached ~23:39Z; unchanged across 4h and 8h absences)"
+  },
+  "blindnessViolations": "none known. Read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK §0-3, template; glanced at tools/drive.sh and the header comment of tools/driver.mjs for op usage (harness, not game source). Used page.evaluate on visible DOM text/classes only; no engine APIs.",
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "killCriteriaNotes": "unfairDeath not flagged but close: at D28 the death screen offered fixes all 'replayed 0-1/12 below bar' and said 'none beats 0/12 as is'; 5 heirs died there.",
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "Iris Ash, my second heir, had been starving out around D13 with only unidentified potions until I spent $26 each on two identified heal potions. That run she cut through the Bloat Mother, the Lich and the Foundry Master and went from my D17 best to D28 carrying $20,922. Then the Lurker Queen's brood surrounded her, my return-at-30% rule found 'no way', and a lurker named Thix killed her at 1 hp (a later heir 'avenged Thix').",
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Death trace is precise ('return at 30% · no way ← bloat holds the way'), but several things stayed opaque: the hero hacking down chained captives ('NO FRIENDS ... captive · fell'), 'compare outcomes' never scoring extra tactics, the × that only arms a hidden 'drop', and 'bad luck · 1 in 1' at a wall."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Return threshold showed a real trade-off on the forecast ('death 38→0% · avg $1461→$270' at 40%, 'death 13% · $441' at 30%); buying identified heal potions was decisive. Lapse: at the D28 Queen no option I could find beat the wall ('none beats 0/12 as is'), and slot-2 tactics all forecast worse with no compare."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Learned that heals were 'unknown' and to buy them, then silence scrolls for the Queen; but the curve flattened at D28 for the last ~35 min and both long absences."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Watching 'LURKER QUEEN · OH NO · LURKERS!' with $20922 carried was tense, and carry-at-risk was a chosen stake; most outcomes resolved at fights-only speed or offline, and warlord/mother/lich were never in doubt after the first hour."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Callouts 'SHIELDS UP', 'WARLORD BREAKS', 'SLAIN' land; taps respond instantly. Fights-only auto-speed lurching 1.5x→48x and a ~30 s quiet stretch at fights-only; audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "New biomes changed my rules (Foundry 'iron golem · REFLECTED!' → reflect read; Queen → read silence) and the named grudge 'Thix' returned; but every heir replays the same D8/D13/D18/D23 bosses."
+    },
+    {
+      "id": "expression",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My setup is 'fighter · 3 rules' over shared packages (Guarded, boss focus, deep march); I could not describe it as distinctly mine."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Iris: heal potions → D28, Lich and Master slain, killed by 'Thix' at 1 hp; next report: 'avenged Thix'. Lapse: most other runs had no turn, just the same gauntlet."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "Check-ins short (pick one, upgrade, send). In-run at 1x an event every ~2 s. Drag: identical D1-D23 boss sequence every heir, and many sheets (forge, hero, tactics, supplies, unlocks) each check-in."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "'fixes · 12 replays of D13 · hp < 50% → read unknown survives 12/12 · was 10/12' with one-tap apply, rule-by-rule why-not trace. Lapse: at D28 it labels the death 'bad luck · 1 in 1' while all fixes are 'below bar'."
+    },
+    {
+      "id": "social",
+      "human": 0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "Named heirs with traits ('skittish', 'light hands') but no relationship developed."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Chose my own goal (beat the Queen) and tried silence, corridor, pack break, deep march, retreat; large vocabulary ('on see captive', 'tame boss', 'pray for row')."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Automation cadence clear: porter, scout, apprentice ('pack 6 · −$2750' while away), keeper, armourer; best D7→D8→D13→D17→D28. Lapse: no depth gain across the 4h and 8h absences ('D28 DEEPEST' both)."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Night town with lit windows, the torn 'REPELLED' banner over the warlord, the 'While away' scroll. Lapse: dungeon view at phone size is dark and mostly log text. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Each return had something to read and decide ('While away · 3 RUNS · D28 · $5350 · Pick one: drill / legacy +6 / forge'), plus verdicts; but 4h and 8h felt the same: deaths at the same Queen."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "'D17 · HP 28% → return ×2' and 'read silence vs boss · fired' were my rules on screen; my heal-potion buy made the best run. Lapse: offline Queen deaths felt like the game's wall, not my config."
+    }
+  ]
+}

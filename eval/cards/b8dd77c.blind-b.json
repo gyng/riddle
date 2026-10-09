@@ -1,0 +1,65 @@
+{
+  "$comment": "Raw blind card, rater b, seed 239, build b8dd77c served at 127.0.0.1:5258. Criterion and probes archived before axes in scratchpad/b8dd77c-blind-b/evidence.md. Audio unassessed (agent cannot listen). Bot fields na; coordinator applies caps.",
+  "game": "Riddle",
+  "build": "b8dd77c",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-b (agent rater, headed D3D12 RTX 3080, 400x800 @3x)",
+  "horizon": {
+    "activeMinutes": 69,
+    "activeIntervalsUtc": [
+      { "phase": "cold", "start": "2026-10-08T23:03:51Z", "end": "2026-10-08T23:45:40Z", "grossMin": 41.8, "excludedMin": 1.5, "netMin": 40.3, "exclusions": "driver click timeouts (~45 s), ~50 s waiting on a static report screen" },
+      { "phase": "absent=20m return", "start": "2026-10-08T23:45:50Z", "end": "2026-10-08T23:49:42Z", "grossMin": 3.9, "excludedMin": 1.0, "netMin": 2.9, "exclusions": "driver timeouts; PHASE SHORT of the 5 min budget (noticed after moving on; cannot be redone without a fresh save)" },
+      { "phase": "absent=4h return", "start": "2026-10-08T23:49:56Z", "end": "2026-10-08T23:55:33Z", "grossMin": 5.6, "excludedMin": 0.5, "netMin": 5.1, "exclusions": "driver timeout" },
+      { "phase": "absent=8h return", "start": "2026-10-08T23:55:44Z", "end": "2026-10-09T00:18:42Z", "grossMin": 23.0, "excludedMin": 2.0, "netMin": 21.0, "exclusions": "~1.5 min watching a static report screen, driver overhead" }
+    ],
+    "absences": ["20m (simulated, ?absent=20m)", "4h (simulated, ?absent=4h)", "8h (simulated, ?absent=8h)"],
+    "runsWatched": 15,
+    "runsWatchedNote": "Normal (1x) speed for several minutes on 3 runs (D5-D6 ~3 min, D8-D17 ~9 min, D18-D21 ~6 min); the rest on fights-only or fast",
+    "runsOffline": 11,
+    "deathsRead": 5,
+    "ruleEdits": 5,
+    "ruleEditsAttempted": 7,
+    "ruleEditNote": "Attempt 1 at ~23:15: Custom rules locked ('after Bloat Mother'), zero completed. After unlock: wrote 'foe: drain · hp < 50% → return' and 'foe: thief → attack thief'; applied death fixes 'hp < 20% → read unknown' and 'foe: boss → read silence'; dropped the drain row. One failed attempt to add a third row (UI). Also non-rule configuration: tactics (Guarded, boss focus, corridor fighting → deep march), personality, AT WALLS push on, route fork → fens.",
+    "complete": false,
+    "incompleteReason": "The 20m-return active phase got ~2.9 net min against a 5 min budget; the total is ~69 net active minutes, not 70. Every other requirement was met (3+ deaths read, 2+ edit attempts, 2+ normal-speed watches)."
+  },
+  "blindnessViolations": "None intended. I read tools/driver.mjs header usage comments (harness, not game source) and eval/presets.json genres.idle-hybrid weights. I saw a directory listing that names eval/cards/b8dd77c.blind-a.json and did not open it.",
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "After two heirs, I gave the fifth his deep-march drill and a 'read silence' row against the Lurker Queen, who had already killed two of my heirs at D28. He walked down with barely any starving, read the scroll and dropped her ('LURKER QUEEN DOWN'), then pushed through the Sanctum carrying $4310. At D33 the Mirror King caught him at 11 HP, and the banner called it bad luck, 1 in 12, but it was a new best.",
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Forecasts are explicit ('FLOOR CHANCE D9 <13% · behind warlord'). Lapses: enemies logged as 'Foe' ('Yara Ash → Foe · −12 hp'); 'Training · Warlord tactic' opened a generic tactics sheet; the 8h report said 'none beyond floor 23' with no reason, and only the decision log showed 'stuck · paced 12 turns, foes ignored'." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Real trade-offs with shown odds: route fork to fens 'D29 <13% → 25%' vs 'death 13→50%'; AT WALLS bank/carry/push. But most tactic picks compared only as 'close' over '8 paired runs', and Guarded vs Steady was a one-sided 'better 7/8'." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned that starving drains max HP on long walks and that corridor fighting got the hero stuck; deep march L5 moved 'floor 32 <13% → 38%' and starving at D23 from −29 to −11. Much of the progress, though, was gear and levels bought in order." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Carry at risk mattered ('Carried $6568 · Secured $5550', 'starving −27', then '$1219 lost'; banked at '8/21 hp starving −43'). Most offline runs resolved without my stakes ('5/7 RUNS RETURNED')." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Callouts land ('OGRE WINDS UP', 'POPS!', 'LURKER QUEEN DOWN'), damage numbers and sprites are crisp on the GPU. At 1× there are long 'rest +5 hp' and travel stretches. Audio unassessed." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Distinct walls changed my setup: the Warlord 'REPELLED' twice, the Lich drain, the Queen paralysing ('· paralysed 2/50'), the Mirror King, the hero striking a captive. Between walls, floors repeat (skeletons, ghouls, ogres)." },
+    { "id": "expression", "human": 0.3, "bot": "na", "proxy": "rule-set diversity across clears", "note": "My own rows were small and reactive ('foe: thief → attack thief'); the build is the game's packages (Guarded L5, boss focus L5, deep march L5). The report said my rows 'fired in 0 of 7 runs', so I could not describe a build that was recognisably mine." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "Grudges and heirs make anecdotes: 'grudge: Thar the skeleton' then 'avenged Thar'; reel 'Queen cornered him to 1 HP; aimed; died to the Queen.' Offline reels are terse lists more often than stories." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In-play: fights-only is brisk, 1× drags on walking and resting. Admin: check-ins are short ('Pick one'), but the menus nest (tactics → details → rules → custom), and a few screens sat static. Cadence: 20m/4h/8h each felt different (windfall / losses / stagnation)." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Every death named its cause and margin and offered replayed fixes ('foe: boss → read silence · survives 7/12 · was 0/12'; 'never used silence'; 'bad luck · 1 in 12'), with a rule trace. Lapse: a non-death 'stuck' bail at D21 was invisible on the report and only readable in the decision log." },
+    { "id": "social", "human": 0.0, "bot": "na", "proxy": "n/a", "note": "Weight 0 in idle-hybrid. Named heirs (Vale, Wren, Yara, Bryn, Corin Ash), but no relationship that changed play." },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "Route fork, AT WALLS, keep-for-heirs, personality and loot preference are all mine to set; I chose a self-set goal (beat the Queen) the game hinted at with 'counter: read silence'." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Three layers seen: in-run carry and level, persistent forge/legacy/tactics, and automation ('PORTER HIRED', 'SCOUT HIRED', apprentice forged 'mail +2 · pack 7', drillmaster levelled tactics). Best went D4 → D33. Lapse: after the 4h/8h absences progress regressed ('purse −$11784', 'Recent best · floor 23' against a record of D31)." },
+    { "id": "aesthetic", "human": 0.8, "bot": "na", "proxy": "none", "note": "The torn red death banner with the boss portrait and 'LUCK' wax seal, the lantern-lit town and the pixel dungeon tiles are striking. Lapse: the dense small log text over the dungeon view and the menu-heavy parchment sheets. Audio unassessed." },
+    { "id": "return", "human": 0.6, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Every return had a decision ('Pick one: drill / legacy / forge') and something to read. The 20m return was a windfall ('D31 · $23033 · Foundry Master, Lurker Queen'), but the 4h return brought two deaths and 'purse −$11784', and the 8h one was '7 runs, none beyond floor 23'. Payoff did not scale predictably with absence." },
+    { "id": "attribution", "human": 0.6, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "I credit the Queen kill to my applied 'foe: boss → read silence' ('LURKER QUEEN DOWN'), and the trace showed my corridor tactic causing the stuck bail. But my hand-written rows mostly 'fired in 0 of 7 runs'; the agent ran on packages ('chores 67% · tactic corridor fighting 25%')." }
+  ]
+}
