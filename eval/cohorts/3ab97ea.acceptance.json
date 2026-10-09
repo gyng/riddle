@@ -1,0 +1,45 @@
+{
+  "candidate": "3ab97ea",
+  "applicationCommits": [
+    "92dc3f5",
+    "3ab97ea"
+  ],
+  "status": "accepted for blind cohort 2026-10-09",
+  "frozen": {
+    "dir": "scratchpad/blind-3ab97ea-frozen/dist",
+    "url": "http://127.0.0.1:5259/",
+    "files": 252,
+    "manifestSha256": "9bae42b36e617d2e732d46d36cf08d913c8a0a49394732a5e692664160914234",
+    "servedHashes": "252/252",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "727 passed",
+    "clippy": "clean (-D warnings)",
+    "gates": "fresh full on the combined Cut 115 tree: ALL PASS, including 'Workers pay the away player' (the Cut 110 deviation)"
+  },
+  "browser": {
+    "full": "146/147 at 92dc3f5 (/tmp/riddle-c115-client.log); watch-normal-news's opening crawl under load fixed 3ab97ea (Normal keeps LEAD_FAST ahead in a dead stretch), rechecked \u00d73 with watch-live-edge, watch-speed-rate, fights, take-control, cut115"
+  },
+  "machineLoad": {
+    "atRelease": "23.56 20.98 19.01",
+    "source": "another project's simulations (armee)"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-3ab97ea-frozen/briefs/a.txt",
+      "scratchpad/blind-3ab97ea-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      241,
+      251
+    ],
+    "drivers": [
+      5368,
+      5369
+    ],
+    "toolBudget": 260
+  },
+  "score": "pending"
+}
