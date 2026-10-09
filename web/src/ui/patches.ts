@@ -17,6 +17,7 @@ import { condLabel, verbLabel, isCardRow, isPkgRow, refName, rowLabel, ruleName,
  *  a dropped package row straight back). */
 const ownRow = (r: Row): boolean => !isCardRow(r) && !isPkgRow(r);
 import { icon, verbIcon } from "./skin";
+import { kwHost } from "./tips";
 /** gfx round 2 (raters: "the three fix rows are plain brown slabs — give each an icon, as the target does"): the fix's action plaque. */
 const patchPlaque = (row: Row | undefined): HTMLElement | "" => { const id = row ? verbIcon(row.verb.v) : null; return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
 
@@ -182,7 +183,10 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
       h("b", { class: "rank num", "aria-hidden": "true" }), patchPlaque(p.row), h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
         // Cut 17 §4: `survives N %` as a gauge on the patch tablet (the number stays beside it)
-        unlock || held >= 0 ? "" : h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` })),
+        // blind b58b431 (A: `survives 9/12` beside `death 29→90%` — "which is it?"): the count names its horizon over the gauge (`this
+        // fight`), as the whole run's move names its own (`per run`)
+        unlock || held >= 0 ? "" : h("span", { class: "gauge-row" }, baseline !== undefined && !opts.stall ? kwHost(h("small", { class: "dim horizon h-fight" }, /* copy:label */ "this fight"), "h_fight") : "",
+          h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` }))),
         h("span", { class: "num surv" }, line),
         reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish, campBaseAt(app)),
         stallish ? "" : wholeSpan(p)));   // Cut 27 §4: a stall's patches carry their whole-run move too (the gem's guard reads it)
@@ -289,7 +293,7 @@ function wholeSpan(p: Patch): HTMLElement {
   if (w.risk) parts.push(h("span", { class: "dlt down risk" }, /* copy:callout */ `risk ${w.risk}`));
   // blind 3ab97ea (A: `survives 11/12 · was 6/12 … death 56→89%` — "survives more, yet dies more?"): the count is this death's fight
   // replayed, the death move whole runs from the send — the move names its horizon (`per run`), and its tip says which is which
-  const el = h("span", { class: `num whole${w.harms ? " harms" : ""}` }, ...(parts.length ? [h("small", { class: "dim horizon" }, /* copy:label */ "per run"), " · "] : []), ...parts.flatMap((x, i) => (i ? [" · ", x] : [x])));
+  const el = h("span", { class: `num whole${w.harms ? " harms" : ""}` }, ...(parts.length ? [kwHost(h("small", { class: "dim horizon" }, /* copy:label */ "per run"), "h_run"), " · "] : []), ...parts.flatMap((x, i) => (i ? [" · ", x] : [x])));
   if (parts.length) el.title = /* copy:tooltip */ "whole runs from the send · the count is this fight";
   return el;
 }

@@ -5,6 +5,7 @@
 // blow on a foe out of sight, and the hero hurt again and again to the same hp (a see-saw, no new low):
 //   · at Normal (`one`) no stretch of more than 10 s with no news (a move, a jump, a floor);
 //   · the noise never counts as a move: the stretch is jumped (`data-jumps` ≥ 1) and every jump says `skipped ahead`.
+//   · blind b58b431: the same with a boss in view whose hp see-saws (the Bloat Mother healing in her gas) — no move either.
 //   node web/tests/watch-normal-news.mjs
 import { execFileSync } from "node:child_process";
 import { launchBrowser } from "../../tools/browser.mjs";
@@ -15,13 +16,16 @@ let failed = 0;
 const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
 const browser = await launchBrowser();
 try {
+  // blind b58b431 (A ~170 s, B ~90 s at D13 toggling 1×/4×): the Bloat Mother heals in her gas — a boss in view whose hp see-saws
+  // (hit, healed back, hit again to the same hp) is a stalemate too, never news
+  for (const boss of [false, true]) {
   const page = await browser.newPage({ viewport: { width: 400, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&early=0&fake_god=1&fake_depth=5&fake_shrug=3000`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__riddle?.screen === "watch" && document.querySelector(".watch")?.dataset.tick, null, { timeout: 30_000 });
   await page.locator("[data-tile=speed]").click(); await page.locator(".sheet [data-tile=one]").click();
   await page.waitForFunction(() => document.querySelector(".watch")?.dataset.mode === "one", null, { timeout: 5000 });
-  const r = await page.evaluate(async () => {
+  const r = await page.evaluate(async (boss) => {
     const app = window.__riddle, step = app.engine.step.bind(app.engine);
     app.engine.step = async (n) => {
       await new Promise((z) => setTimeout(z, 15));
@@ -30,6 +34,13 @@ try {
       if (hero && !res.run_over) res.events = [...(res.events ?? []),
         { t, k: "hurt", id: 987654, dmg: 2, hp: 50 - (t % 7), cause: "hero" },   // a foe never in sight
         { t, k: "hurt", id: hero.id, dmg: 1, hp: Math.max(1, hero.max_hp - 3), cause: "rat" }];   // the hero's see-saw: the same hp
+      if (boss && hero && !res.run_over) {
+        const s = res.snapshot, x = hero.x, y = hero.y;
+        // a boss beside him, in sight; each batch a blow takes him to the same hp (he heals back between)
+        s.entities = [...s.entities.filter((e) => e.id !== 424242), { id: 424242, kind: "bloat_mother", x, y, hp: 40, max_hp: 60, tags: ["boss"] }];
+        if (s.visible) s.visible[y * s.w + x] = true;
+        res.events.push({ t, k: "hurt", id: 424242, dmg: 3, hp: 40, cause: "hero" });
+      }
       return res;
     };
     const t0 = performance.now(); let news = "", newsAt = t0, worst = 0, worstAt = null;
@@ -45,10 +56,13 @@ try {
     }
     const d = document.querySelector(".watch")?.dataset ?? {};
     return { worst: Math.round(worst), worstAt, jumps: Number(d.jumps ?? 0), said: Number(d.jumpsSaid ?? 0), wall: Math.round((performance.now() - t0) / 100) / 10 };
-  });
-  check(r.worst <= 10_000, `Normal: no stretch over 10 s without news (worst ${r.worst} ms at ${JSON.stringify(r.worstAt)}; ${r.wall} s watched)`);
-  check(r.jumps >= 1, `Normal: unseen blows and a see-saw are no moves — the stalemate is jumped (${r.jumps} jumps)`);
-  check(r.said >= 1, `Normal: a jump says "skipped ahead" (${r.said} said)`);
+  }, boss);
+  const tag = boss ? "a boss see-saw" : "unseen blows";
+  check(r.worst <= 10_000, `Normal (${tag}): no stretch over 10 s without news (worst ${r.worst} ms at ${JSON.stringify(r.worstAt)}; ${r.wall} s watched)`);
+  check(r.jumps >= 1, `Normal (${tag}): unseen blows and a see-saw are no moves — the stalemate is jumped (${r.jumps} jumps)`);
+  check(r.said >= 1, `Normal (${tag}): a jump says "skipped ahead" (${r.said} said)`);
+  await page.close();
+  }
 } catch (e) {
   errors.push(`walk aborted: ${e.message}`);
 } finally {

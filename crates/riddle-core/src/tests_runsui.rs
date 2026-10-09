@@ -266,3 +266,50 @@ fn the_run_in_flight_replays_across_a_reload() {
     }
     assert!(tried > 0, "a run stayed in flight at the save");
 }
+
+/// Whether the replay of `id` shows a boss falling: a `die` of an entity on its floor's snapshot (web/src/ui/runs.ts `killIn`).
+fn replay_kills_boss(g: &Game, id: u32) -> Option<String> {
+    let rep = g.replay(id)?;
+    rep.floors.iter().find_map(|f| {
+        f.events.iter().find_map(|e| match e {
+            Ev::Die { id, .. } => f.snapshot.entities.iter().find(|x| x.id == *id && crate::defs::monster_def(&x.kind).boss).map(|x| x.kind.clone()),
+            _ => None,
+        })
+    })
+}
+
+/// Blind b58b431 (B: `▶ watch kill` read `not held` for a Lurker Queen slain in an earlier run of a 4h absence): every absence run
+/// that slew a band boss shows his fall in its replay (a foe first seen between the folds is on the floor's snapshot), and the
+/// last `KILL_CAPSULES` such runs stay held across a reload — the kill replays as it was played; older saves still load.
+#[test]
+fn a_band_boss_kill_replays_across_a_reload() {
+    let mut g = Game::load(include_str!("fixtures/save_307dbed.json")).unwrap();
+    g.tap = Some(BTreeMap::new());
+    run_offline_quick(&mut g, 4 * 3600);
+    let tap = g.tap.take().unwrap();
+    let slew = |id: u32| tap[&id].iter().any(|e| matches!(e, Ev::Die { .. })) && g.lineage.run_log.iter().any(|r| r.id == id);
+    let kills: Vec<u32> = g.lineage.run_log.iter().filter(|r| r.sampled.is_none() && r.absence.is_some()).map(|r| r.id).filter(|id| slew(*id) && replay_kills_boss(&g, *id).is_some()).collect();
+    assert!(!kills.is_empty(), "the absence slew a band boss");
+    assert!(g.run.is_none() || g.capsules.live().is_some());
+    let kept: Vec<u32> = g.capsules.kills().iter().map(|c| c.id).collect();
+    assert!(!kept.is_empty() && kept.len() <= crate::engine::KILL_CAPSULES, "kept {kept:?}");
+    assert_eq!(kept.last(), kills.last(), "the newest kill is kept");
+    let text = g.save();
+    assert!(text.contains("\"live_capsule\""), "the save carries the kills' capsules");
+    let h = Game::load(&text).unwrap();
+    for id in &kept {
+        assert!(h.lineage().replays.contains(id), "run {id} held after the reload");
+        let (a, b) = (g.replay(*id).unwrap(), h.replay(*id).unwrap());
+        assert_eq!(a.hash, b.hash, "run {id} replays as played");
+        assert_eq!(a.hash, events_hash(&tap[id]), "run {id} replays its tapped events");
+        assert!(replay_kills_boss(&h, *id).is_some(), "run {id}'s replay shows the boss fall");
+    }
+    // a reload of a reload keeps them; a run sent later does not drop them
+    let mut k = Game::load(&h.save()).unwrap();
+    assert_eq!(k.capsules.kills().iter().map(|c| c.id).collect::<Vec<_>>(), kept);
+    k.send();
+    assert!(k.capsules.live().is_some());
+    let k2 = Game::load(&k.save()).unwrap();
+    assert_eq!(k2.capsules.kills().iter().map(|c| c.id).collect::<Vec<_>>(), kept, "a run in flight beside the kept kills");
+    assert!(k2.capsules.live().is_some());
+}

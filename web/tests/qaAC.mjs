@@ -92,6 +92,31 @@ try {
     check(r?.top && /12\/12\s*apply/i.test(await gemText()), `the lit tablet is the one that does not harm; the gem applies it ("${await gemText()}")`);
     await page.locator(".patches button.patch", { hasText: "gas" }).first().click(); await sleep(150);
     check(/risky/.test(await gemText()), `a lit tablet that harms says so on the stone ("${await gemText()}")`);
+    // blind b58b431 (A: the gem's `risky` / `measuring` / `WRITE` unexplained; a `risky` fix applied with no warning): each state has
+    // its tip, a risky fix asks a second press, and each count names its horizon (`this fight` · `per run`)
+    const tip = await page.evaluate(() => document.querySelector(".patch-gem")?.dataset.kwh);
+    check(tip === "g_risky", `the risky gem carries its tip (${tip})`);
+    const one = await page.evaluate(async () => { const r = window.__riddle, n = r.rules.rows.length; document.querySelector(".patch-gem")?.click(); await new Promise((z) => setTimeout(z, 150)); return { same: r.rules.rows.length === n && r.screen === "death", gem: document.querySelector(".patch-gem")?.textContent ?? "" }; });
+    check(one.same && /confirm/.test(one.gem), `one press on a risky fix applies nothing and asks to confirm ("${one.gem}")`);
+    const two = await page.evaluate(async () => { document.querySelector(".patch-gem")?.click(); await new Promise((z) => setTimeout(z, 300)); return window.__riddle.screen; });
+    check(two === "camp", `the second press applies it (${two})`);
+  }
+  // blind b58b431 (B: LUCK over a swarm): a dice the unpatched replays reproduce (`lean: "gap"`) stamps as a gap, never luck
+  {
+    await deathWith([], [], 100, { verdict: "dice", lean: "gap", baseline: 0 }); await sleep(300);
+    const st = await page.evaluate(() => ({ seal: document.querySelector(".death-line .verdict")?.textContent, luck: !!document.querySelector(".luck-lead"), tip: document.querySelector(".death-line .verdict")?.dataset.kwh }));
+    check(st.seal === "you died" && !st.luck && st.tip === "v_gap", `a reproduced dice reads no luck (${JSON.stringify(st)})`);
+    await deathWith([], [], 100, { verdict: "dice", baseline: 10 / 12 }); await sleep(300);
+    const lk = await page.evaluate(() => document.querySelector(".death-line .verdict")?.textContent);
+    check(lk === "luck", `a rare one stays luck (${lk})`);
+  }
+  // blind b58b431: both horizons on a tablet, each with its tip
+  {
+    const ps = [{ row: ret, insert_at: 0, survive: 1, forecast_delta: 0, camp_pending: true }];
+    const filled = [{ ...ps[0], camp_pending: false, forecast_delta: -0.6, forecast_depth: 5, whole: { reach: -0.6, reach_pm: 0.02, death: -1, death_pm: 0.02, death_from: 1 } }];
+    await deathWith(ps, filled, 100); await sleep(500);
+    const hz = await page.evaluate(() => { const b = document.querySelector(".patches button.patch"); return { fight: b?.querySelector(".h-fight")?.textContent, fightTip: b?.querySelector(".h-fight")?.dataset.kwh, run: b?.querySelector(".whole .horizon")?.textContent, runTip: b?.querySelector(".whole .horizon")?.dataset.kwh }; });
+    check(hz.fight === "this fight" && hz.fightTip === "h_fight" && hz.run === "per run" && hz.runTip === "h_run", `the count and the move name their horizons (${JSON.stringify(hz)})`);
   }
 
   // ---- the chain: an older row's reason under its row; a reason the row outlived is off

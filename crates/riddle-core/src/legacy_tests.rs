@@ -271,3 +271,29 @@ fn a_resting_hero_buys_legacy_and_the_readied_run_carries_it() {
     let hero=&g.run.as_ref().unwrap().hero;assert_eq!((hero.max_hp,hero.atk(),hero.legacy_armour),(base.max_hp,base.atk(),base.legacy_armour),"a respec refits too");
     g.send();assert!(away(&g),"a send skips the rest: away");let before=g.save();assert!(buy(&mut g,"health").is_err());assert_eq!(before,g.save());
 }
+
+/// Blind b58b431 (A: Legacy 146 unspendable — the scout kept the hero away, and a purchase waited for a rest the player never saw):
+/// away, an upgrade the points buy is offered for the next run; `buy` still refuses, `buy_next` takes it — the run under way keeps
+/// the hero it sent, the next send carries it.
+#[test]
+fn away_a_legacy_upgrade_is_bought_for_the_next_run() {
+    let mut g=rich();g.send();assert!(away(&g));
+    let health=offers(&g.lineage,true).into_iter().find(|u|u.id=="health").unwrap();
+    assert!(health.next_run&&!health.affordable&&health.blocked.as_deref()==Some("Hero away"),"{health:?}");
+    assert!(offers(&g.lineage,true).iter().all(|u|!u.next_run||u.rank<u.cap),"a complete upgrade is never offered");
+    assert!(offers(&g.lineage,false).iter().all(|u|!u.next_run),"home, nothing waits for a next run");
+    let before=g.save();assert!(buy(&mut g,"health").is_err());assert_eq!(before,g.save());
+    let hero=g.run.as_ref().unwrap().hero.clone();let sent=g.sent_state.as_ref().map(|s|s.lineage.bloodline.clone());
+    let points=current(&g.lineage).unwrap().points;
+    buy_next(&mut g,"health").unwrap();
+    assert_eq!(current(&g.lineage).unwrap().points,points-3);assert_eq!(current(&g.lineage).unwrap().upgrades["health"],1);
+    let now=&g.run.as_ref().unwrap().hero;
+    assert_eq!((now.max_hp,now.hp,now.str_bonus),(hero.max_hp,hero.hp,hero.str_bonus),"the run under way keeps the hero it sent");
+    assert_eq!(g.sent_state.as_ref().map(|s|s.lineage.bloodline.clone()),sent,"its replays keep the camp it left");
+    // a refusal (an unbuyable fork) keeps the save whole
+    let before=g.save();assert!(buy_next(&mut g,"mending").is_err());assert_eq!(before,g.save());
+    // the next send carries it
+    g.run.as_mut().unwrap().over=Some(crate::engine::ExitTier::Bank);g.finish_run();
+    let base={let mut f=rich();f.send();f.run.as_ref().unwrap().hero.max_hp_base};
+    g.send();assert_eq!(g.run.as_ref().unwrap().hero.max_hp_base,base+3,"the next heir's send carries the upgrade");
+}

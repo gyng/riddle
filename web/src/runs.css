@@ -374,3 +374,10 @@ html body .ctl .cmd .tile.ctl-verb .tl, html body .ctl .cmd .tile.ctl-toggle .tl
 .ctl .ctl-pad .tile .ico { transform: rotate(var(--rot, 0deg)); width: 26px; height: 26px; image-rendering: pixelated; }
 .ctl .ctl-verb .ico { width: 20px; height: 20px; }
 .ctl[data-on="1"][data-awaiting="1"] .ctl-pad .tile:not(.ctl-wait) { box-shadow: 0 0 0 1px var(--acc), 0 0 8px rgba(232, 146, 58, .35); }
+/* blind b58b431: the last hand order's outcome over the slab (`moved`, `can't · wall`, `paralysed · 3`, `foe down`) */
+.ctl .ctl-note { position: absolute; left: 50%; bottom: 100%; transform: translate(-50%, -4px); max-width: calc(100% - 16px); padding: 1px 8px;
+  border-radius: 9px; background: rgba(12, 11, 18, .86); box-shadow: 0 0 0 1px var(--ink); color: var(--fg); font-size: 12px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.ctl .ctl-note:empty { display: none; }
+.ctl .ctl-note[data-refused="1"] { color: #e8923a; }
+.ctl .ctl-note[data-pending="1"] { opacity: .6; }

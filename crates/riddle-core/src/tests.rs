@@ -1449,6 +1449,35 @@ fn hopeless_death_is_dice() {
     assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.below_bar && p.survive <= 1.0), "{:?}", d.patches);
 }
 
+/// Blind b58b431 (B: the first death stamped LUCK over a swarm): luck needs a margin — a `dice` death whose unpatched replays
+/// mostly die too reproduces, so its stamp leans `gap` and it carries no luck line.
+#[test]
+fn a_dice_death_the_replays_reproduce_is_not_luck() {
+    let mut g = arena_seed(3);
+    g.run.as_mut().unwrap().hero.hp = 1;
+    g.run.as_mut().unwrap().hero.max_hp = 1;
+    for (x, y) in [(3, 4), (4, 4), (5, 4), (3, 5), (5, 5), (3, 6), (4, 6), (5, 6)] {
+        add_monster(&mut g, "ogre", x, y);
+    }
+    hold_rules(&mut g);
+    g.run.as_mut().unwrap().hero.hp = 1;
+    g.run.as_mut().unwrap().hero.paralysed = 400;
+    let mut id = None;
+    for _ in 0..400 {
+        g.tick();
+        g.events.clear();
+        if g.run.as_ref().is_none_or(|r| r.over.is_some()) {
+            id = Some(g.run.as_ref().unwrap().id);
+            g.finish_run();
+            break;
+        }
+    }
+    let d = g.death(id.expect("died")).unwrap();
+    assert_eq!((d.verdict.as_str(), d.baseline), ("dice", 0.0));
+    assert_eq!(d.lean.as_deref(), Some("gap"), "0/12 unpatched is no rare roll");
+    assert!(d.luck.is_none());
+}
+
 // ---------------------------------------------------------------- sifter (Cut 5 §1 episodes)
 
 /// A low point (two jackals, 3 HP), the row that answered it, a recovery that seals the
@@ -2306,6 +2335,10 @@ fn death_deltas_are_the_camp_forecasts_move() {
     // short, 49 vs 50): 1031's.
     // Blind b8dd77c (the corridor hold's clock: 1031's rest patch now moves D5 by +0.20, under the bar): 1035's.
     let mut g = Game::new_literal(1035);
+    // (Cut 116: the patch arithmetic on the descent this seed was chosen for — no heir affix, no guest; with
+    // them the rest patch moves D7 by +0.10, under the bar)
+    g.lineage.affix_pin = Some(Vec::new());
+    g.lineage.guest_pin = Some(false);
     g.send();
     let mut died = None;
     for _ in 0..4000 {
@@ -7905,7 +7938,7 @@ fn a_boss_wall_names_the_boss_until_the_set_passes_him() {
     assert_eq!(wall_at(9, 0.2, 0.8), None, "passable");
     assert_eq!(wall_at(9, 0.0, 0.03), None, "the fall came before the boss");
     assert_eq!(wall_at(8, 0.0, 0.8), None, "no boss above D8");
-    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None, bounty: false, boss: None, biome: None, clear: None }).unwrap().get("wall").is_none());
+    assert!(serde_json::to_value(ForecastDepth { depth: 4, reach: 0.5, pm: None, try_: None, wall: None, bounty: false, boss: None, affix: None, biome: None, clear: None }).unwrap().get("wall").is_none());
 }
 
 // ---------------------------------------------------------------- QA on 92eb880 (qaM, seed 1215)
@@ -11313,6 +11346,11 @@ fn saves_from_307dbed_send_identically() {
     // Blind 3ab97ea: e9c001509e3a6fc0 → ddd4c46c7dc03d58. A `back corridor` row whose fall-back reached its corridor
     // and was left again with no blow struck since stands and fights (`Run.row_held`, ai.rs); with that guard alone
     // disabled the tree hashes to e9c001509e3a6fc0 exactly.
+    // Cut 116: ddd4c46c7dc03d58 → 9cfbd23b2027a263. Each heir's band bosses carry an affix (`descent::boss_affix`) and a
+    // wandering champion may walk a non-boss floor (`descent::guest_for`); with both pinned off on the save
+    // (`affix_pin: Some([])`, `guest_pin: Some(false)`) the combined tree (the D9/D14 forks open, and the Cut 116
+    // fixes' engine/turn/trace edits) hashes to ddd4c46c7dc03d58 exactly — those move nothing here; affixes alone
+    // 04a5a0aa711474c7, guests alone a806e92dae1e490a.
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }
@@ -11979,3 +12017,4 @@ fn a_stalls_target_the_boss_never_walks_into_the_kings_mirror() {
     // the King's own floor: no deeper boss
     assert_eq!(crate::offline::boss_attack_conds(&g, &rules, 33, "mirror_king", any), Some(vec![Cond::t("foe_tag", "boss")]));
 }
+

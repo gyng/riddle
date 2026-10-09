@@ -161,8 +161,20 @@ pub fn tick(run: &mut Run, cx: &mut Ctx) {
     // Take control: at the hero's turn with no action queued, the world waits (nothing moves, no tick passes);
     // paralysed, he passes his turn as ever
     if run.manual && run.manual_act.is_none() && run.hero.paralysed == 0 && run.hero.energy + run.hero.speed() >= ACT_ENERGY {
-        run.awaiting = true;
-        return;
+        // blind b58b431: a standing `attack until` acts again — on its foe while it stands and his hp holds
+        if let Some((id, floor)) = run.manual_until {
+            let alive = run.monsters.iter().any(|m| m.id == id && m.hp > 0 && m.hostile());
+            if alive && run.hero.hp_pct() >= floor {
+                run.manual_act = Some(crate::engine::Manual::AttackUntil { hp: floor });
+            } else {
+                run.manual_until = None;
+                run.manual_note = Some(if alive { format!("hp under {floor}%") } else { "foe down".into() });
+            }
+        }
+        if run.manual_act.is_none() {
+            run.awaiting = true;
+            return;
+        }
     }
     run.awaiting = false;
     run.turn += 1;
@@ -503,6 +515,8 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
 /// cannot be done (a wall, nothing to drink) costs the turn and says so.
 fn manual_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
     let act = run.manual_act.take().unwrap_or(crate::engine::Manual::Wait);
+    // blind b58b431 (A: arrows and `descend` inert in gas): every order resolves visibly — what it did, or why not
+    let mut why: &str = "";
     let (verb, ok) = match act {
         crate::engine::Manual::Wait => (Verb::new("wait"), true),
         crate::engine::Manual::Step { dx, dy } => {
@@ -514,20 +528,84 @@ fn manual_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 ai::move_hero(run, cx, q);
                 (Verb::new("step"), true)
             } else {
+                why = if !run.floor.map.in_bounds(q) || !run.floor.map.can_step(hp, q) { "wall" } else { "blocked" };
                 (Verb::new("step"), false)
             }
         }
         crate::engine::Manual::Verb { verb } => {
             let ok = ai::try_verb(run, cx, &verb, v);
+            if !ok {
+                why = refusal(run, &verb, v);
+            }
             (verb, ok)
         }
+        crate::engine::Manual::AttackUntil { hp: floor } => {
+            let verb = Verb::arg("attack", "nearest");
+            let held = run.manual_until.map(|(id, _)| id).filter(|id| run.monsters.iter().any(|m| m.id == *id && m.hp > 0 && m.hostile()));
+            let hero = run.hero.pos;
+            let target = held.or_else(|| {
+                run.monsters.iter().filter(|m| m.hp > 0 && m.hostile() && !m.ally && (run.floor.map.is_visible(m.pos) || m.pos.adjacent(hero))).min_by_key(|m| (m.pos.cheb(hero), m.id)).map(|m| m.id)
+            });
+            match target {
+                None => {
+                    run.manual_until = None;
+                    why = "no foe";
+                    (verb, false)
+                }
+                Some(_) if run.hero.hp_pct() < floor => {
+                    run.manual_until = None;
+                    why = "hp low";
+                    (verb, false)
+                }
+                Some(id) => {
+                    run.manual_until = Some((id, floor));
+                    let mi = run.monsters.iter().position(|m| m.id == id).expect("the foe");
+                    let at = run.monsters[mi].pos;
+                    let ok = if at.adjacent(hero) {
+                        ai::hero_attack(run, cx, mi, "attack", false)
+                    } else if let Some(q) = ai::path_step_to(run, at).filter(|q| !run.occupied(*q)) {
+                        ai::move_hero(run, cx, q);
+                        true
+                    } else {
+                        why = "no way";
+                        run.manual_until = None;
+                        false
+                    };
+                    (verb, ok)
+                }
+            }
+        }
     };
+    run.manual_note = Some(if ok {
+        match verb.v.as_str() {
+            "step" => "moved".to_string(),
+            "wait" => "waited".to_string(),
+            _ if run.manual_until.is_some() => "attack until".to_string(),
+            v => format!("{} ✓", v.replace('_', " ")),
+        }
+    } else if why.is_empty() {
+        "can't".to_string()
+    } else {
+        format!("can't · {why}")
+    });
     if !ok {
-        callout(run, cx, "can't");
+        callout(run, cx, if why.is_empty() { "can't" } else { why });
     }
     emit_rule(run, cx, -3, &verb, "you");
     all_rows_why(run, cx, "you", None);
     (-3, verb)
+}
+
+/// Blind b58b431: why a hand-given verb could not be done — the stairs, the item, the foe it needs.
+fn refusal(run: &Run, verb: &Verb, v: &View) -> &'static str {
+    let a = verb.a.as_deref().unwrap_or("");
+    let holds = |kind: &str| run.hero.inv.iter().any(|i| i.kind == kind || (kind == "unknown" && !i.known));
+    match verb.v.as_str() {
+        "descend" => "no stairs",
+        "drink" | "read" | "throw" | "eat" if !a.is_empty() && !holds(a) => "no item",
+        "attack" if v.foes.is_empty() => "no foe",
+        _ => "",
+    }
 }
 
 fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
@@ -2053,6 +2131,13 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, mut dmg: i32, src:
                 note(run, cx, format!("{} is avenged.", m.title()));
                 run.avenged.push(name);
             }
+        } else if m.guest {
+            // Cut 116 §3: a wandering champion slain — a beat of its own (the reel, the chronicle).
+            let name = m.name.clone().unwrap_or_default();
+            note(run, cx, format!("Slew {name}, the wandering {}.", m.def().title));
+            callout(run, cx, "champion slain");
+            run.guests_slain.push(name.clone());
+            sifter::resolve(run, Resolution::Champion { kind: kind.clone(), name });
         }
     }
     if let Some(it) = m.stolen.clone() {
@@ -2197,7 +2282,7 @@ fn tick_poison(run: &mut Run, cx: &mut Ctx) {
 
 /// Cut 3, every 10 ticks: `regen` monsters heal 2 unless poisoned; the hero's regen potion
 /// heals 2; a siren's aura (2 tiles) confuses the hero unless clarity holds.
-fn tick_regen_and_auras(run: &mut Run, cx: &mut Ctx) {
+pub(crate) fn tick_regen_and_auras(run: &mut Run, cx: &mut Ctx) {
     if run.hero.regen_t > 0 && run.hero.hp < run.hero.max_hp {
         run.hero.hp = (run.hero.hp + 2).min(run.hero.max_hp);
     }
@@ -2224,8 +2309,9 @@ fn tick_regen_and_auras(run: &mut Run, cx: &mut Ctx) {
                 learn_tag(run, cx, &kind, "regen");
             }
         }
-        // Dungeon regeneration is instance metadata, not a permanent kind fact.
-        if run.difficulty > 0 {
+        // Dungeon regeneration is instance metadata, not a permanent kind fact (a numbered tier's,
+        // or Cut 116's heir affix on a band boss at any tier).
+        if run.difficulty > 0 || run.monsters[mi].modifiers.is_some_and(|mods| mods.affix.is_some()) {
             let m = &mut run.monsters[mi];
             if m.modifiers.is_some_and(|mods| mods.has(crate::endgame::REGENERATING))
                 && !m.has_tag("regen") && m.awake && m.hostile() && m.poison.1 == 0 && m.hp < m.max_hp {

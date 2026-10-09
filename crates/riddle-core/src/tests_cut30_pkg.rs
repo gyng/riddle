@@ -155,6 +155,8 @@ fn a_drill_comes_at_the_second_meeting_and_stays_revoked() {
 #[test]
 fn scars_are_capped_cleared_and_carried() {
     let mut g = Game::new_resident(11);
+    // (Cut 116: the scars alone — no heir affix on him)
+    g.lineage.affix_pin = Some(Vec::new());
     for day in 0..9u32 {
         g.lineage.day = day;
         let set = g.lineage.rules().clone();
@@ -1364,7 +1366,7 @@ fn mirror_rhythm_executes_above_old_boss_drills_but_yields_to_healing() {
         let heal=packages::heal_pct("steady",g.lineage.pkg.level("steady"));
         let r=g.run.as_mut().unwrap();r.hero.level=10;r.hero.max_hp=100;r.hero.max_hp_base=100;r.hero.hp=if hurt{heal-1}else{100};r.hero.energy=100;
         r.verb_ring=vec!["attack".into()];r.monsters[0].hp=1000;r.monsters[0].max_hp=1000;
-        if kind=="mirror_king" {r.monsters[0].modifiers=Some(crate::endgame::Modifiers{tier:1,affixes:1,elite:None,tight_mirror:true});}
+        if kind=="mirror_king" {r.monsters[0].modifiers=Some(crate::endgame::Modifiers{tier:1,affixes:1,elite:None,tight_mirror:true,affix:None});}
         let events=crate::tests::ticks(&mut g,1);
         let fired=events.iter().find_map(|e|if let crate::wire::Ev::Rule{row,..}=e{Some(*row)}else{None}).expect("an actual rule fires");
         let picked=&g.lineage.rules().rows[fired as usize];

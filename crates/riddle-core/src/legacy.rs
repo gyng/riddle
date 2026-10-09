@@ -76,7 +76,6 @@ pub fn offers(l: &LineageState, away: bool) -> Vec<LegacyUpgrade> {
         let rank=rank_of(node.id);let cap=if node.mask==0 {CAP}else{1};
         let price=if node.mask==0 {node.price.saturating_mul(rank.saturating_add(1))}else{node.price};
         let blocked=if rank>=cap {Some("Complete".into())}
-            else if away {Some("Hero away".into())}
             else if !l.town.home.unwrap_or(true) {Some("Build a house".into())}
             else if depth<node.depth {Some(format!("Reach D{}",node.depth))}
             else if let Some(parent)=node.parent.filter(|id|rank_of(id)==0) {
@@ -85,7 +84,10 @@ pub fn offers(l: &LineageState, away: bool) -> Vec<LegacyUpgrade> {
                 Some(format!("Chosen {}",NODES.iter().find(|n|n.id==other).expect("fork").name))
             } else if h.is_none_or(|h|h.points<price) {Some("More Legacy needed".into())}
             else {None};
-        LegacyUpgrade {id:node.id.into(),rank,cap,price,effect:node.effect.into(),affordable:blocked.is_none(),
+        // blind b58b431: away, an upgrade the points buy is for the next run (`buy_next`)
+        let next_run=away&&blocked.is_none();
+        let blocked=if next_run {Some("Hero away".into())} else {blocked};
+        LegacyUpgrade {id:node.id.into(),rank,cap,price,effect:node.effect.into(),affordable:blocked.is_none(),next_run,
             name:Some(node.name.into()),branch:Some(node.branch.into()),parent:node.parent.map(str::to_owned),
             min_depth:(node.depth>0).then_some(node.depth),blocked,
             owned_effect:(node.mask==0&&rank>0).then(||match node.id {
@@ -119,6 +121,18 @@ fn refit(g: &mut Game, before: &BloodlineLegacy) {
 }
 pub fn buy(g: &mut Game, id: &str) -> Result<(), String> {
     if away(g) || !g.lineage.town.home.unwrap_or(true) { return Err("hero away".into()); }
+    purchase(g, id)
+}
+/// Blind b58b431 (A: Legacy 146 unspendable — with the scout sending him, the hero is nearly always
+/// away, and a purchase waited for a rest the player never saw): while he is away a purchase is
+/// for the next run — the bloodline takes it now, the run under way keeps the hero it sent
+/// (`refit` leaves an away run alone; `apply` gives the next heir it at his send).
+pub fn buy_next(g: &mut Game, id: &str) -> Result<(), String> {
+    if !away(g) { return buy(g, id); }
+    if !g.lineage.town.home.unwrap_or(true) { return Err("build a house".into()); }
+    purchase(g, id)
+}
+fn purchase(g: &mut Game, id: &str) -> Result<(), String> {
     let before = g.lineage.bloodline.clone().unwrap_or_default();
     let offer = offers(&g.lineage, false).into_iter().find(|u| u.id == id).ok_or("unknown upgrade")?;
     if offer.rank >= offer.cap { return Err("upgrade complete".into()); }

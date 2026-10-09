@@ -139,6 +139,11 @@ pub enum Resolution {
         kind: String,
         name: String,
     },
+    /// Cut 116 §3: a wandering champion slain (`Slew Grak, the wandering skeleton.`).
+    Champion {
+        kind: String,
+        name: String,
+    },
     /// Cut 14 (QA on 56f2a1d): a sealed low point the hero walked away from, in a run that
     /// later died — `An ogre took him to 1 HP; R3 attacked; lived.` The death is its own
     /// episode's; two `died to` lines for one death made the reel disagree with the tally.
@@ -149,7 +154,7 @@ impl Resolution {
     /// Boss kills and a companion's fall close the live episode only; floors and exits
     /// resolve the sealed ones too.
     pub fn live_only(&self) -> bool {
-        matches!(self, Resolution::FirstBoss { .. } | Resolution::BossSlain { .. } | Resolution::Fell { .. })
+        matches!(self, Resolution::FirstBoss { .. } | Resolution::BossSlain { .. } | Resolution::Fell { .. } | Resolution::Champion { .. })
     }
     pub fn is_exit(&self) -> bool {
         matches!(self, Resolution::Banked { .. } | Resolution::Returned { .. } | Resolution::Lost { .. } | Resolution::Stalled { .. } | Resolution::Died { .. } | Resolution::DrivenOff { .. })
@@ -452,13 +457,13 @@ pub fn resolve(run: &mut Run, res: Resolution) {
             out.push(e);
         }
     }
-    let always = matches!(res, Resolution::Died { .. } | Resolution::Fell { .. } | Resolution::FirstBoss { .. } | Resolution::BossSlain { .. });
+    let always = matches!(res, Resolution::Died { .. } | Resolution::Fell { .. } | Resolution::FirstBoss { .. } | Resolution::BossSlain { .. } | Resolution::Champion { .. });
     if run.arc.has_low() || always || (res.is_exit() && out.is_empty()) {
         let mut e = run.arc.to_episode(run, res.clone());
         // A boss or a killer names the threat when nothing has drawn blood yet.
         if e.threat.is_empty() {
             e.threat = match &res {
-                Resolution::FirstBoss { kind } | Resolution::BossSlain { kind } => vec![(kind.clone(), 1)],
+                Resolution::FirstBoss { kind } | Resolution::BossSlain { kind } | Resolution::Champion { kind, .. } => vec![(kind.clone(), 1)],
                 Resolution::Died { cause } => vec![(cause.clone(), 1)],
                 _ => threat_now(run),
             };
@@ -895,6 +900,11 @@ fn resolution_form(res: &Resolution, level: u8) -> String {
                 format!("{} {name} fell", kind_title(kind))
             }
         }
+        Resolution::Champion { kind, name } => match level {
+            0 => format!("slew {name} the {}", kind_title(kind)),
+            1 => format!("{name} slain"),
+            _ => "champion slain".into(),
+        },
         Resolution::Survived => "lived".into(),
     }
 }
@@ -1056,7 +1066,9 @@ pub fn story_ok(text: &str) -> bool {
         head_ok && forms.contains(&rest)
     };
     let end = beats[2];
-    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died", "lived"].iter().any(|k| end.starts_with(k)) || stalled_ok(end) || driven_ok(end) || end.ends_with(" fell");
+    let end_ok = ["banked $", "reached D", "first boss", "boss slain", "returned", "lost the thread", "died", "lived"].iter().any(|k| end.starts_with(k)) || stalled_ok(end) || driven_ok(end) || end.ends_with(" fell")
+        // Cut 116 §3: a wandering champion slain (`slew Grak the skeleton` · `Grak slain` · `champion slain`)
+        || end.starts_with("slew ") || end.ends_with(" slain");
     setup_ok && turn_ok && end_ok
 }
 
@@ -1103,6 +1115,7 @@ fn weight(res: &Resolution, named: bool) -> i32 {
             }
         }
         Resolution::Fell { .. } => 3,
+        Resolution::Champion { .. } => 4,
     }
 }
 

@@ -251,6 +251,8 @@ impl Game {
     }
     /// Cut 30.5: hire the lit node's worker (its price from the purse, then the chest).
     pub fn upgrade_hero(&mut self, id: &str) -> Result<(), String> { legacy::buy(self, id) }
+    /// Blind b58b431: a Legacy purchase while the hero is away, for the next run (`legacy::buy_next`).
+    pub fn upgrade_hero_next(&mut self, id: &str) -> Result<(), String> { legacy::buy_next(self, id) }
     pub fn respec_legacy(&mut self) -> Result<(), String> { legacy::respec(self) }
     pub fn build_town(&mut self, id: &str) -> Result<(), String> {
         town::construct(&mut self.lineage, id)
@@ -304,3 +306,5 @@ mod tests_runsui;
 mod tests_runclear;
 #[cfg(test)]
 mod tests_cut113;
+#[cfg(test)]
+mod tests_cut116;

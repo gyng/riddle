@@ -10,7 +10,7 @@ fn near(r: &Run) -> Pos {
     r.hero.pos.neighbours8().into_iter().find(|p| r.floor.map.passable(*p)).unwrap()
 }
 fn mods(tier:u32,elite:Option<Elite>) -> Modifiers {
-    Modifiers{tier,affixes:affixes(tier),elite,tight_mirror:false}
+    Modifiers{tier,affixes:affixes(tier),elite,tight_mirror:false,affix:None}
 }
 #[test]
 fn affixes_rotate_with_two_max_and_stats_are_bounded_at_extreme_tiers() {

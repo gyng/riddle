@@ -15,6 +15,9 @@ const KEYS: Record<string, [number, number]> = {
   Numpad8: [0, -1], Numpad2: [0, 1], Numpad4: [-1, 0], Numpad6: [1, 0], Numpad7: [-1, -1], Numpad9: [1, -1], Numpad1: [-1, 1], Numpad3: [1, 1],
 };
 
+/** `attack until`'s hp line (%): the order ends when his hp drops under it. */
+export const UNTIL_HP = 30;
+
 /** The watch's take-control panel; `kick` asks the watch to step the world once an action is queued. */
 export function controlPanel(engine: ControlEngine, kick: () => void): Control {
   let mine = false, snap: Snapshot | null = null, busy = false;
@@ -22,11 +25,14 @@ export function controlPanel(engine: ControlEngine, kick: () => void): Control {
   const toggleSlot = h("div", { class: "cmd ctl-toggle-slot" });
   const pad = h("div", { class: "cmd ctl-pad", role: "group", "aria-label": "move" });
   const verbs = h("div", { class: "cmd ctl-verbs", role: "group", "aria-label": "act" });
-  const el = h("div", { class: "ctl ctl-slab", "data-on": "0" }, toggleSlot, pad, verbs);
+  // blind b58b431 (A: arrows and `descend` inert in gas — no response at all): the last order's outcome, the core's words
+  const note = h("div", { class: "ctl-note num", role: "status", "aria-live": "polite" });
+  const el = h("div", { class: "ctl ctl-slab", "data-on": "0" }, toggleSlot, pad, verbs, note);
   const send = async (a: ManualAct): Promise<void> => {
     if (!mine || busy || !engine.act) return;
     busy = true;
-    try { await engine.act(a); } catch { /* not his turn: the next paint says so */ } finally { busy = false; }
+    note.dataset.pending = "1";
+    try { await engine.act(a); } catch (e) { note.textContent = /* copy:callout */ "refused"; note.title = e instanceof Error ? e.message : ""; } finally { busy = false; }
     kick();
   };
   const ROT: Record<string, number> = { "0,-1": 0, "1,-1": 45, "1,0": 90, "1,1": 135, "0,1": 180, "-1,1": 225, "-1,0": 270, "-1,-1": 315 };
@@ -70,6 +76,9 @@ export function controlPanel(engine: ControlEngine, kick: () => void): Control {
     el.dataset.on = mine ? "1" : "0";
     el.dataset.awaiting = s?.awaiting ? "1" : "0";
     pad.hidden = verbs.hidden = !mine;
+    note.hidden = !mine;
+    if (s?.order !== undefined && s.order !== note.textContent) { note.textContent = s.order; note.dataset.refused = s.order.startsWith("can't") ? "1" : "0"; }
+    if (s && (s.awaiting || s.order)) delete note.dataset.pending;
     // the turn's actions: what he holds decides what shows (repainted only when that changes)
     const inv = s?.hero.inv ?? [];
     const heal = inv.some((i) => i.kind === "heal" && i.known), fire = inv.some((i) => i.kind === "fire" && i.known);
@@ -79,6 +88,10 @@ export function controlPanel(engine: ControlEngine, kick: () => void): Control {
     paintToggle();
     if (!mine) return;
     const kids: HTMLElement[] = [verb(/* copy:button */ "attack", "v_attack", "attack", "nearest")];
+    // blind b58b431 (B: 40 identical `attack` taps on the Warlord): one order fights on — the same foe until it falls or hp < 30%
+    const until = tile({ id: "ctl-until", label: /* copy:button */ "attack until", icon: "v_attack", cls: "ctl-verb ctl-until", onclick: () => void send({ k: "attack_until", hp: UNTIL_HP }) });
+    until.dataset.verb = "attack until"; until.title = /* copy:tooltip */ `same foe until it falls or hp < ${UNTIL_HP}%`;
+    kids.push(until);
     if (heal) kids.push(verb(/* copy:button */ "drink", "v_drink", "drink", "heal"));
     if (fire) kids.push(verb(/* copy:button */ "throw", "v_throw", "throw", "fire"));
     kids.push(verb(/* copy:button */ "descend", "v_descend", "descend"), verb(/* copy:button */ "return", "bail", "return"));

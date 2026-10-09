@@ -69,6 +69,9 @@ pub enum Manual {
     Step { dx: i32, dy: i32 },
     Verb { verb: crate::rules::Verb },
     Wait,
+    /// Blind b58b431 (B: 40 identical `attack` taps on the Warlord): one order — attack the nearest foe in view, then the
+    /// same foe each turn, until it falls or his hp drops under `hp` % (`Run::manual_until`).
+    AttackUntil { hp: i32 },
 }
 /// RUNS_UI: a real run's send, kept to re-simulate it — the game as `start_run` left it, the events
 /// it left pending, and the inputs the run took.
@@ -79,13 +82,16 @@ pub struct Capsule {
     pub pre: Vec<Ev>,
     pub inputs: Vec<(u32, Input)>,
 }
-/// The capsules (newest last), and whether the newest is the run in flight's. Never compared: a
-/// loaded game equals the one saved. Memory only, except the run in flight's capsule (blind 3ab97ea,
-/// B: `▶ watch kill` inert — the Mirror King fell in the run under way when the app closed; the reload
-/// lost its capsule, so the absence's report offered a kill no held run could show): the save carries
-/// that one, and a load holds it again.
+/// The capsules (newest last), whether the newest is the run in flight's, and the ids of the runs
+/// that slew a band boss (newest last, at most `KILL_CAPSULES`). Never compared: a loaded game equals
+/// the one saved. Memory only, except the run in flight's capsule (blind 3ab97ea, B: `▶ watch kill`
+/// inert — the Mirror King fell in the run under way when the app closed; the reload lost its capsule)
+/// and those of the last band-boss kills (blind b58b431, B: a Lurker Queen slain in an earlier run of
+/// a 4h absence read `not held`): the save carries them, and a load holds them again.
 #[derive(Clone, Debug, Default)]
-pub struct Capsules(pub VecDeque<Capsule>, pub bool);
+pub struct Capsules(pub VecDeque<Capsule>, pub bool, pub Vec<u32>);
+/// Blind b58b431: the band-boss kills whose capsules the save keeps (each about a save's size).
+pub const KILL_CAPSULES: usize = 2;
 impl PartialEq for Capsules {
     fn eq(&self, _: &Self) -> bool {
         true
@@ -96,20 +102,72 @@ impl Capsules {
     pub fn live(&self) -> Option<&Capsule> {
         self.0.back().filter(|_| self.1)
     }
+    /// The held capsules of the last band-boss kills (oldest first), the run in flight's left out.
+    pub fn kills(&self) -> Vec<&Capsule> {
+        let live = self.live().map(|c| c.id);
+        self.2.iter().filter(|id| Some(**id) != live).filter_map(|id| self.0.iter().find(|c| c.id == *id)).collect()
+    }
+    /// Mark the run `id` (held) as a band-boss kill: its capsule is saved, the oldest such past
+    /// `KILL_CAPSULES` drops back to memory only.
+    pub fn keep_kill(&mut self, id: u32) {
+        if !self.0.iter().any(|c| c.id == id) || self.2.contains(&id) {
+            return;
+        }
+        self.2.push(id);
+        let held: Vec<u32> = self.0.iter().map(|c| c.id).collect();
+        self.2.retain(|k| held.contains(k));
+        while self.2.len() > KILL_CAPSULES {
+            self.2.remove(0);
+        }
+    }
     pub fn no_live(&self) -> bool {
         self.live().is_none()
     }
+    /// Nothing for the save to carry: no run in flight, no held kill.
+    pub fn nothing_saved(&self) -> bool {
+        self.no_live() && self.kills().is_empty()
+    }
+}
+#[derive(Serialize)]
+struct SavedCapsulesRef<'a> {
+    live: Option<&'a Capsule>,
+    kills: Vec<&'a Capsule>,
+}
+/// Either save shape, read in one pass (an untagged enum would buffer a whole game): blind b58b431's
+/// `{live, kills}`, or blind 3ab97ea's bare run-in-flight capsule.
+#[derive(Deserialize)]
+struct SavedCapsules {
+    id: Option<u32>,
+    game: Option<Box<Game>>,
+    #[serde(default)]
+    pre: Vec<Ev>,
+    #[serde(default)]
+    inputs: Vec<(u32, Input)>,
+    live: Option<Capsule>,
+    #[serde(default)]
+    kills: Vec<Capsule>,
 }
 impl Serialize for Capsules {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        self.live().serialize(s)
+        let kills = self.kills();
+        if kills.is_empty() {
+            // the old shape while no kill is kept: a save older builds still read
+            self.live().serialize(s)
+        } else {
+            SavedCapsulesRef { live: self.live(), kills }.serialize(s)
+        }
     }
 }
 impl<'de> Deserialize<'de> for Capsules {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let c: Option<Capsule> = Option::deserialize(d)?;
-        let live = c.is_some();
-        Ok(Capsules(c.into_iter().collect(), live))
+        let (live, kills) = match Option::<SavedCapsules>::deserialize(d)? {
+            None => (None, Vec::new()),
+            Some(SavedCapsules { id: Some(id), game: Some(game), pre, inputs, .. }) => (Some(Capsule { id, game, pre, inputs }), Vec::new()),
+            Some(c) => (c.live, c.kills),
+        };
+        let ids: Vec<u32> = kills.iter().map(|c| c.id).collect();
+        let on = live.is_some();
+        Ok(Capsules(kills.into_iter().chain(live).collect(), on, ids))
     }
 }
 
@@ -458,6 +516,16 @@ pub struct Run {
     pub bosses_met: crate::shared::Shared<Vec<String>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scars: Vec<(String, u32)>,
+    /// Cut 116 §1: the heir's band-boss affixes (boss → affix), drawn at the send
+    /// (`LineageState::affixes`); every boss this run meets carries his.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub affixes: Vec<(String, crate::descent::Affix)>,
+    /// Cut 116 §3: the wandering champions this heir may meet (one band each at most), and the
+    /// names slain this run.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guests: Vec<crate::descent::Guest>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guests_slain: Vec<String>,
     pub hurt_since_boss: bool,
     pub row_fired: Vec<u32>,
     pub renderable_events: u32,
@@ -832,6 +900,13 @@ pub struct Run {
     pub manual_act: Option<Manual>,
     #[serde(default)]
     pub awaiting: bool,
+    /// Blind b58b431: a standing `attack until` order — the foe's id and the hp % that ends it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual_until: Option<(u32, i32)>,
+    /// Blind b58b431 (A: arrows and `descend` gave no visible response in gas): how the last order resolved — done, refused
+    /// and why, or waiting (`Snapshot.order`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual_note: Option<String>,
     /// §4: sleeping dens the hero has seen (the chores keep two tiles clear of them, and
     /// their gold is not the chores' to fetch) — unless greed has been tempted this floor.
     #[serde(skip)]
@@ -1603,6 +1678,12 @@ pub struct LineageState {
     /// §2: the times each fork has been seen (the D5 route opens at the second).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub forks_seen: BTreeMap<u32, u32>,
+    /// Cut 116 §1: a probe's or a test's pinned band-boss affixes (`None` in play: the heir's draw).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affix_pin: Option<Vec<(String, crate::descent::Affix)>>,
+    /// Cut 116 §3: a probe's or a test's switch for the wandering champions (`None` in play: drawn).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guest_pin: Option<bool>,
     /// §1 (E1): the day of the clock the best depth last rose on, the day the wall's edit was last
     /// searched, and the edit on offer (`wall::search`) — cleared by a new best.
     #[serde(default, skip_serializing_if = "is_zero_u32")]
@@ -1877,6 +1958,8 @@ impl LineageState {
             systems: BTreeSet::new(),
             systems_new: Vec::new(),
             forks_seen: BTreeMap::new(),
+            affix_pin: None,
+            guest_pin: None,
             orders: Default::default(),
             pkg: Default::default(),
             pkg_v: 1,
@@ -1984,6 +2067,20 @@ impl LineageState {
         while self.gold_ledger.len() > GOLD_LEDGER_CAP {
             self.gold_ledger.remove(0);
         }
+    }
+    /// Cut 116 §1: the live heir's band-boss affixes (a probe's pin, else the heir's draw).
+    pub fn affixes(&self) -> Vec<(String, crate::descent::Affix)> {
+        match &self.affix_pin {
+            Some(p) => p.clone(),
+            None => crate::descent::heir_affixes(self.seed, self.heir),
+        }
+    }
+    /// Cut 116 §3: the wandering champions the live heir may meet on `route`.
+    pub fn guests(&self, route: Route) -> Vec<crate::descent::Guest> {
+        if self.guest_pin == Some(false) {
+            return Vec::new();
+        }
+        (0..crate::descent::BANDS.len()).filter_map(|b| crate::descent::guest_for(self.seed, self.heir, route, b)).collect()
     }
     /// Cut 6 §5: bosses whose counter is known, each with its counter row and text.
     pub fn counters(&self) -> Vec<Counter> {
@@ -2194,6 +2291,10 @@ impl LineageState {
             guns:Vec::new(),
             row_why: self.row_why(),
             forks: self.fork_chips(),
+            affixes: {
+                let route = self.rules().route();
+                self.affixes().into_iter().filter_map(|(k, a)| route.boss_depth(&k).map(|d| crate::wire::BossAffix { boss: k, depth: d, affix: a.word().into(), effect: a.effect().into(), counter: a.counter().into() })).collect()
+            },
             lanes: self.lane_list(),
             locked_rows: self.locked_rows(self.rules()),
         }
@@ -3129,7 +3230,7 @@ pub struct Game {
     pub sent_state: Option<Box<SentState>>,
     /// RUNS_UI: the last `CAPSULES` real sends, to replay (`replay`); memory only but the run in
     /// flight's (`Capsules::live`), which the save carries as `live_capsule`.
-    #[serde(default, rename = "live_capsule", skip_serializing_if = "Capsules::no_live")]
+    #[serde(default, rename = "live_capsule", skip_serializing_if = "Capsules::nothing_saved")]
     pub capsules: Capsules,
     /// RUNS_UI (tests): every real run's events by run id (its send's pending events, then each tick's).
     #[serde(skip)]
@@ -3341,6 +3442,12 @@ impl Game {
                         Input::Act(a) => { let _ = g.act(a.clone()); }
                         Input::Bail => g.bail(),
                     }
+                }
+                // blind b58b431 (B: a Lurker Queen kill read `not held`): a foe seen and slain between the
+                // folds was never on the floor's snapshot, so the viewer had no one to fell — fold him in
+                // the tick he is first seen
+                if g.run.as_ref().is_some_and(|r| r.monsters.iter().any(|m| m.hp > 0 && (r.floor.map.is_visible(m.pos) || m.ally) && !cur.snapshot.entities.iter().any(|e| e.id == m.id))) {
+                    fold_into(&mut cur.snapshot, &g.snapshot());
                 }
                 g.tick();
                 n += 1;
@@ -3635,8 +3742,10 @@ impl Game {
     pub fn take_control(&mut self, on: bool) -> Result<(), String> {
         let run = self.run.as_mut().filter(|r| r.over.is_none()).ok_or("no run")?;
         run.manual = on;
+        run.manual_note = None;
         if !on {
             run.manual_act = None;
+            run.manual_until = None;
             run.awaiting = false;
         }
         let (id, t) = (run.id, run.turn);
@@ -3652,6 +3761,12 @@ impl Game {
                 return Err("one step".into());
             }
         }
+        // another order ends a standing `attack until`; a second `attack until` keeps its foe
+        if !matches!(a, Manual::AttackUntil { .. }) {
+            run.manual_until = None;
+        }
+        // blind b58b431 (A: orders inert in gas): an order he cannot take yet says why it waits
+        run.manual_note = if run.hero.paralysed > 0 { Some(format!("paralysed · {}", run.hero.paralysed)) } else { None };
         run.manual_act = Some(a.clone());
         let (id, t) = (run.id, run.turn);
         self.input(id, t, Input::Act(a));
@@ -4106,6 +4221,9 @@ impl Game {
             boss_seen_t: None,
             bosses_met: Vec::new().into(),
             scars: crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| (k.to_string(), self.lineage.pkg.scar(k, &self.lineage.kills))).filter(|(_, p)| *p > 0).collect(),
+            affixes: self.lineage.affixes(),
+            guests: self.lineage.guests(route),
+            guests_slain: Vec::new(),
             hurt_since_boss: false,
             row_fired: vec![0; ROWS_TOTAL],
             renderable_events: 0,
@@ -4222,6 +4340,8 @@ impl Game {
             manual: false,
             manual_act: None,
             awaiting: false,
+            manual_until: None,
+            manual_note: None,
             dens: Vec::new(),
             tempted: false,
             rows_why: Vec::new(),
@@ -4522,6 +4642,7 @@ impl Game {
             let r = self.run.as_mut().unwrap();
             r.manual = false;
             r.manual_act = None;
+            r.manual_until = None;
             r.awaiting = false;
         }
         if !self.sim && self.run.as_ref().unwrap().turn.is_multiple_of(HISTORY_STRIDE) && !NO_HISTORY.with(|c| c.get()) {
@@ -4795,6 +4916,7 @@ impl Game {
             vision: run.vision(&l.unlocks),
             manual: run.manual,
             awaiting: run.awaiting,
+            order: run.manual_note.clone().filter(|_| run.manual),
             vault_choice: run.vault_choice.as_ref().map(|(t0, items)| VaultChoice {
                 items: items.iter().map(|i| to_inv(i, &l.facts, &l.flavours)).collect(),
                 left: (t0 + VAULT_GRACE).saturating_sub(run.turn),
@@ -4825,6 +4947,9 @@ impl Game {
         }
         for name in &run.avenged {
             push(&mut out, "named", format!("avenged {name}"));
+        }
+        for name in &run.guests_slain {
+            push(&mut out, "named", format!("slew {name}"));
         }
         if let Some(kind) = &run.driven_off {
             push(&mut out, "driven", format!("driven off: {}", crate::sifter::boss_short(kind)));
@@ -4916,7 +5041,10 @@ impl Game {
     /// class XP and renown; a dead heir's kit stays on the floor as bones.
     pub fn finish_run(&mut self) -> Option<RunOutcome> {
         let run = self.run.take()?;
-        self.capsules.1 = false;   // (its capsule stays held in memory; the save carries none)
+        self.capsules.1 = false;   // (its capsule stays held in memory; the save carries none but a band boss's kill)
+        if !self.sim && run.kills.iter().any(|(_, k, _)| !k.starts_with("spectral_") && crate::defs::monster_def(k).boss) {
+            self.capsules.keep_kill(run.id);
+        }
         let tier = run.over.unwrap_or(ExitTier::Return);
         let legacy_earned = if !self.sim {
             crate::legacy::ensure(&mut self.lineage);
@@ -5014,6 +5142,10 @@ impl Game {
             for g in self.lineage.grudges.iter_mut().filter(|g| g.name == *name) {
                 g.avenged = true;
             }
+        }
+        // Cut 116 §3: a wandering champion slain is the heir's deed (the chronicle names him).
+        for g in run.guests.iter().filter(|g| run.guests_slain.contains(&g.name)) {
+            self.lineage.heir_deed(format!("slew {}, the wandering {}", g.name, kind_title(&g.kind).to_lowercase()));
         }
         // Cut 29 §6: a grudge tamed closes as tamed (the report's `tamed Greth`, never `avenged`).
         for name in &run.tamed_grudges {
@@ -5608,6 +5740,12 @@ impl Game {
                         break;
                     }
                     name = crate::descent::grudge_name(&mut self.lineage.rng);
+                }
+                // Cut 116 §3: a wandering champion that kills keeps its own name as the grudge.
+                let guest = run.guests.iter().find(|g| g.kind == cause && g.depth == run.depth && !run.guests_slain.contains(&g.name) && !taken(&self.lineage, &g.name));
+                if let Some(g) = guest {
+                    name = g.name.clone();
+                    self.lineage.heir_deed(format!("fell to {}, the wandering {}", g.name, kind_title(&g.kind).to_lowercase()));
                 }
                 new_grudge = Some(format!("grudge: {name} the {}", kind_title(&cause).to_lowercase()));
                 self.lineage.grudges.push(Grudge { kind: cause.clone(), name, depth: run.depth, heir: run.heir, avenged: false, tamed: false, biome: Some(run.biome()) });
@@ -7052,10 +7190,15 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             m.max_hp = (m.max_hp * (100 - *pct as i32) / 100).max(1);
             m.hp = m.max_hp;
         }
+        // Cut 116 §1: the heir's affix on him (shown on the floor chart and his bar before the fight).
+        let affix = run.affixes.iter().find(|(k, _)| k == boss).map(|(_, a)| *a);
+        if let Some(a) = affix {
+            crate::endgame::apply_affix(&mut m, a);
+        }
         run.monsters.push(m);
         let escort = boss_escort(boss);
-        // The Captain keeps a thinner guard than a boss.
-        let guard = if crate::defs::monster_def(boss).boss { 40 } else { 15 };
+        // The Captain keeps a thinner guard than a boss; a brood boss a full one.
+        let guard = if affix == Some(crate::descent::Affix::Brood) { crate::descent::BROOD_GUARD } else if crate::defs::monster_def(boss).boss { 40 } else { 15 };
         for q in pos.neighbours8() {
             if run.floor.map.passable(q) && !run.occupied(q) && run.rng.chance(guard) {
                 let id = run.new_id();
@@ -7081,6 +7224,20 @@ pub fn populate_floor(run: &mut Run, grudges: &[Grudge], forge: &BTreeMap<String
             m.last_seen = Some(hero);
         }
         run.monsters.push(m);
+    }
+    // Cut 116 §3: a wandering champion on its floor (not a boss's: `descent::guest_for`), named, a
+    // little tougher than its kind — never on a floor whose grudge already holds the name.
+    if let Some(g) = run.guests.iter().find(|g| g.depth == depth && !run.guests_slain.contains(&g.name)).cloned() {
+        let pos = take(&mut run.rng, &open, &mut cursor);
+        if !run.occupied(pos) && run.route.boss(depth).is_none() {
+            let id = run.new_id();
+            let mut m = crate::endgame::spawn(run, id, &g.kind, pos, depth, false);
+            m.name = Some(g.name.clone());
+            m.guest = true;
+            m.max_hp = (m.max_hp * 12 + 9) / 10;
+            m.hp = m.max_hp;
+            run.monsters.push(m);
+        }
     }
     // Cut 16 §1: a picked floor keeps each gold pile and each budget item at its freshness,
     // drawn on the floor's own rng so the rest of the floor (monsters, twists, stock) is the
@@ -7211,6 +7368,9 @@ pub fn monster_entity(mo: &Monster, facts: &BTreeSet<String>) -> Entity {
     }
     if mo.grudge {
         tags.push("grudge".into());
+    }
+    if mo.guest {
+        tags.push("guest".into());
     }
     Entity {
         id: mo.id,

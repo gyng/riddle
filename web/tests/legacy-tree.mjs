@@ -53,6 +53,12 @@ try {for(const width of [320,400,1440]) {
  await page.locator('.sheet-wrap:not([hidden]) .legacy-respec-cancel').click();
  await page.evaluate(async()=>{const a=window.__riddle;a.lineage={...a.lineage,live:{depth:1,turn:1},legacy_respec:{...a.lineage.legacy_respec,available:false,blocked:'hero away'},legacy_upgrades:a.lineage.legacy_upgrades.map(u=>({...u,affordable:false}))};await a.afterLineage();});
  assert.ok(await page.locator('.legacy-respec').isDisabled());for(const button of await page.locator('.legacy-buy').all())assert.ok(await button.isDisabled());
+ // blind b58b431 (A: Legacy 146 unspendable while the scout kept him away): away, an upgrade the points buy is bought for the next run
+ await page.evaluate(async()=>{const a=window.__riddle;window.legacyCalls.next=[];a.engine.upgradeHeroNext=async id=>{window.legacyCalls.next.push(id);return a.lineage;};
+  a.lineage={...a.lineage,legacy_upgrades:a.lineage.legacy_upgrades.map(u=>u.id==='damage'?{...u,next_run:true,blocked:'Hero away'}:u)};await a.afterLineage();});
+ const next=buy('damage');assert.ok(!(await next.isDisabled()),'away, the next-run upgrade is offered');assert.match(await next.textContent(),/next run/);
+ assert.ok(await buy('armour').isDisabled());const bought=await page.evaluate(()=>window.legacyCalls.buy);await next.click();await page.waitForFunction(()=>window.legacyCalls.next.length===1);
+ assert.deepEqual(await page.evaluate(()=>window.legacyCalls.next),['damage']);assert.equal(await page.evaluate(()=>window.legacyCalls.buy),bought,'the away purchase is the next-run call');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
  console.log(width,'12 nodes/icons, mobile fold, purchase/fork/tooltips, cancel/refusal/one-call/stale/away/refund PASS');await page.close();
 }} finally {await browser.close();}

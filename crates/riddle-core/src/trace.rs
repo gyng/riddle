@@ -1873,6 +1873,13 @@ pub fn compute_verdict(game: &Game, rec: &mut DeathRec) {
         rec.death.lean = Some("dice".into());
     }
     route_verdict(game, rec);
+    // Blind b58b431 (B: the first death stamped LUCK over a 17–19-foe swarm his rules could answer): luck
+    // needs a margin — a `dice` death whose unpatched replays mostly die too (`baseline` at or under
+    // `STAMP_BASE`) was no rare roll: the moment reproduces, so the stamp leans `gap` (no rule answered
+    // it), never luck; the patches stay the dice's (what was tried).
+    if rec.death.verdict == "dice" && !rec.stall && rec.death.baseline <= STAMP_BASE + 1e-9 {
+        rec.death.lean = Some("gap".into());
+    }
     // Cut 28 §2: a death most replays survive leads with the rare event that killed him.
     rec.death.luck = if rec.stall || rec.boss.is_some() || rec.death.verdict == "route" { None } else { luck_of(&rec.death) };
     margin_lines(rec, heal_saves, unknown_saves);

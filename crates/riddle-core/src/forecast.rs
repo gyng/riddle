@@ -712,12 +712,14 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     let start = sim_start(game);
     // Cut 26 §2: the forecast prices the set's route (its bosses where the route puts them).
     let route = rules.route();
+    // Cut 116 §1: the heir's boss affixes, on their floors (`D8 · warlord · armoured`).
+    let affixes = game.lineage.affixes();
     let depths = (1..=last)
         .map(|d| {
             let reach = reach_at(d);
             let wall = wall_on(route, d, reach, reach_at(d.saturating_sub(1)));
             let try_ = if d > start { try_row(game, rules, d) } else { None };
-            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d), boss: route.boss(d).map(str::to_string), biome: (!route.is_base()).then(|| route.biome(d).name().to_string()), clear: None }
+            ForecastDepth { depth: d, reach, pm: Some(half_width(reach, ended.len())), try_, wall, bounty: game.lineage.bounty == Some(d), boss: route.boss(d).map(str::to_string), affix: route.boss(d).and_then(|k| affixes.iter().find(|(b, _)| b == k)).map(|(_, a)| a.word().to_string()), biome: (!route.is_base()).then(|| route.biome(d).name().to_string()), clear: None }
         })
         .collect();
     let mut causes: BTreeMap<String, u32> = BTreeMap::new();
@@ -1551,6 +1553,8 @@ pub fn lineage_key(game: &Game) -> u64 {
     feed(&l.vault_pref);
     feed(&serde_json::to_string(&l.lost).unwrap_or_default());
     feed(&l.variant);
+    // Cut 116: a probe's pinned affixes or guests (the heir's own draw is the seed and heir above)
+    if l.affix_pin.is_some() || l.guest_pin.is_some() { feed(&format!("pin {:?} {:?}", l.affix_pin, l.guest_pin)); }
     if let Some(p) = &l.endgame { if p.tier > 0 { feed(&format!("difficulty {}", p.tier)); } }
     feed(&serde_json::to_string(&l.hunter).unwrap_or_default());
     feed(&format!("{:?}", l.kill_counts));

@@ -95,6 +95,11 @@ fn hero_path_home(run: &Run, goal: Pos) -> Vec<i32> {
     run.floor.map.bfs_parent_to(run.hero.pos, true, &|q| avoid(q) || foes.contains(&q), goal)
 }
 
+/// Blind b58b431: hand control's `attack until` closes on its foe by the hero's own path.
+pub fn path_step_to(run: &Run, goal: Pos) -> Option<Pos> {
+    path_step(run, goal)
+}
+
 /// A path step toward `goal`, avoiding water when possible.
 fn path_step(run: &Run, goal: Pos) -> Option<Pos> {
     let map = &run.floor.map;

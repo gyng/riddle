@@ -122,6 +122,10 @@ pub struct Snapshot {
     pub manual: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub awaiting: bool,
+    /// Blind b58b431: in hand control, how the last order resolved (`moved`, `hit`, `can't · wall`, `paralysed · 3`,
+    /// `foe down`, `hp under 30%`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<String>,
     /// Cut 7 §4: the room the hero stands in (`id` 0 = a corridor or a cave; rooms are
     /// numbered from 1 in the floor's room list) and the awake hostiles in it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -702,6 +706,9 @@ pub struct ForecastDepth {
     /// on this row (`D8 · warlord`) and reads the next row's `try` / `wall` as his.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boss: Option<String>,
+    /// Cut 116 §1: the boss's affix for the live heir (`armoured`), beside `boss` (`D8 · warlord · armoured`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affix: Option<String>,
     /// Cut 26 §2: on a set that writes a route, the biome this floor sits in on it (`fens` at D5
     /// for `route: [5]`); absent on the base order.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -711,6 +718,16 @@ pub struct ForecastDepth {
     /// watch (`Forecast.fold_to`). Absent where no sim stood on the floor.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clear: Option<f64>,
+}
+
+/// Cut 116 §1: a band boss's affix for the live heir.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BossAffix {
+    pub boss: String,
+    pub depth: u32,
+    pub affix: String,
+    pub effect: String,
+    pub counter: String,
 }
 
 /// Cut 10 §2: a forecast row's `try` — the known-but-absent counter of the boss whose floor
@@ -1666,6 +1683,9 @@ pub struct LegacyUpgrade {
     pub price: u32,
     pub effect: String,
     pub affordable: bool,
+    /// Blind b58b431: the hero is away and the points buy it — `upgradeHeroNext` buys it for the next run.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub next_run: bool,
     #[serde(default,skip_serializing_if="Option::is_none")]
     pub name:Option<String>,
     #[serde(default,skip_serializing_if="Option::is_none")]
@@ -2322,6 +2342,10 @@ pub struct Lineage {
     /// route chip line above the rows (`⑂ D5 fens · D14 crypt`); empty until D4's two stairs.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub forks: Vec<ForkChip>,
+    /// Cut 116 §1: the live heir's band-boss affixes (`Warlord · armoured`), descent order, each with
+    /// what it does and what answers it — the camp names them before a send.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub affixes: Vec<BossAffix>,
     /// Cut 26 §2: every lit waystone as a (lane, depth) pair, ascending by depth — the start
     /// sheet lists them; `current` marks the ones lit for the active set's route (the ones a send
     /// can start on: `waystones`).

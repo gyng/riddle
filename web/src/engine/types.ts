@@ -34,7 +34,7 @@ export type Tile = "floor"|"wall"|"door"|"stairs_down"|"stairs_up"|"water"|"chas
 export type Overlay = { x: number; y: number; k: "gas"|"fire"; ttl: number };
 /** Cut31 B: immutable birth modifiers; saved separately from learned kind facts. */
 export type ModifierInfo = { id:string; mask:number; name:string; effect:string; counter:string };
-export type EncounterModifiers = { tier:number; affixes:number; elite?:"shielded"|"frenzied"|"leeching"; tight_mirror?:boolean };
+export type EncounterModifiers = { tier:number; affixes:number; elite?:"shielded"|"frenzied"|"leeching"; tight_mirror?:boolean; affix?:string };   // Cut 116 §1 (core): `affix` — the heir's band-boss affix (`armoured`), at any tier
 export type Entity = { modifiers?:EncounterModifiers; id: number; kind: string; name?: string; x: number; y: number;
                        hp: number; max_hp: number; tags: string[]; ally?: boolean; telegraph?: string;
                        cid?: number;                                    // Addendum A: companions carry their companion id
@@ -43,7 +43,8 @@ export type FloorItem = { id: number; x: number; y: number; kind: string; known:
 export type GunSnap = { item:number; kind:string; loaded:number; capacity:number; range:number;
   damage:[number,number]; armour_piercing:number; reload_ticks:number; reload_left:number; reload_until?:number; aiming?:boolean };
 /** Take control: one hand-chosen action — a step (a foe on the tile is attacked), a verb as rows write it, or a wait. */
-export type ManualAct = { k: "step"; dx: number; dy: number } | { k: "verb"; verb: Verb } | { k: "wait" };
+export type ManualAct = { k: "step"; dx: number; dy: number } | { k: "verb"; verb: Verb } | { k: "wait" }
+  | { k: "attack_until"; hp: number };   // blind b58b431: one order — the nearest foe, then the same foe, until it falls or hp < `hp` %
 export type Snapshot = {
   difficulty?:number; modifier_catalogue?:ModifierInfo[];
   depth: number; biome: string; w: number; h: number; tiles: Tile[]; seen: boolean[]; visible: boolean[];
@@ -59,7 +60,8 @@ export type Snapshot = {
   floor_twist?: string;                                                   // Cut 12 §4: the floor's one situation, one word (`nest`), for `D4 · 9 rooms · a nest` (optional; absent on D1–D2)
   fork?: SnapFork;                                                        // Cut 26 §2 (core): this floor's down stairs are a fork's (D4 on the base order) — draw a second stair at (x, y); the real stairs are `taken`'s
   meters?: SnapMeters;
-  manual?: boolean; awaiting?: boolean;                                   // take control: the player has the hero · the world waits for his action                                                    // Cut 29 §3 (core): the watch's compact meter — the run so far, the fight in progress (or the last), `fighting` while one is; absent before the first tick
+  manual?: boolean; awaiting?: boolean; order?: string;   // order (blind b58b431, core): how the last hand order resolved — `moved` · `can't · wall` · `paralysed · 3` · `foe down`
+                                    // take control: the player has the hero · the world waits for his action                                                    // Cut 29 §3 (core): the watch's compact meter — the run so far, the fight in progress (or the last), `fighting` while one is; absent before the first tick
 };
 /** Cut 26 §2 (core) — the fork at this floor's down stairs: `depth` the band's first floor (5 · 9 · 14 · 19 · 24), `taken` the biome the
  *  run's route takes (the floor's own `stairs_down`), `other` the stair not taken, drawn at (`x`, `y`) beside it. The hero never takes
@@ -216,6 +218,7 @@ export type StepResult = { events: Ev[]; snapshot: Snapshot; run_over: boolean;
 export type ForecastDepth = { depth: number; reach: number; cause?: string; pm?: number; try?: ForecastTry; wall?: string; bounty?: boolean | number;
                               biome?: string;    // Cut 26 §2 (core): on a set with a route, the biome this floor sits in on it (`fens` at D5 for route [5]); absent on the base order
                               clear?: number;    // Cut 27 §1 (core): the share of the sims on this floor that got through it (0..1); absent where no sim stood on it
+                              affix?: string;    // Cut 116 §1 (core): beside `boss`, the live heir's affix on him (`armoured`)
                               boss?: string };   // Cut 24 §5 (core): on the floor a boss stands on (met there: the Warlord D8), his kind — name him on this row; the next row's `try` / `wall` are his
 export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share: number }[];
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
@@ -329,7 +332,7 @@ export type WallRead = { depth: number; boss: string; n: number; better: number;
 export type Death = { difficulty?:number; modifier_catalogue?:ModifierInfo[]; modifiers?:EncounterModifiers; hero?: { name:string; bloodline_id:number; heir:number; class:string }; package?: string; lever?: Lever; pick?: Lever; credit?: string;   // Cut 115: `pick` the tactic fix (`try: gas step · burn`), `credit` who chose the deciding row; Cut 30 §2 (core): the package row that acted last (`Steady · HP<20% → return`); the cheapest lever (absent once the pen is open)
   run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order"|"route";   // route: Cut 26 (core) — the far stair the set's route took killed him (`route_cause`)
                       fight?: MeterWire;                                                    // Cut 29 §3 (core): the fight he died in, metered — the death screen's breakdown; absent for a stall
-                      lean?: "dice";                                                        // Cut 26 §6 (core; AO: `GAP` beside `unpatched 10/12`): a gap/row/order most of whose unpatched replays survive (> 6/12) — stamp it beside the counts (`GAP · dice-leaning`)
+                      lean?: "dice" | "gap";                                                // blind b58b431 (core): "gap" — a `dice` most of whose unpatched replays die too (≤ 6/12): stamp it a gap, never luck. Cut 26 §6 (core; AO: `GAP` beside `unpatched 10/12`): a gap/row/order most of whose unpatched replays survive (> 6/12) — stamp it beside the counts (`GAP · dice-leaning`)
                       route_cause?: RouteCause;                                             // Cut 26 risks (core): on `route`, the fork, the stair taken and the other; its lead patch is a route edit (`route_cause.route`)   // stall: Cut 13 §1, a stalled run's verdict; row: Cut 19 §4, a row the player wrote was the dying action and cutting it survives (the Rust side is a String)
                       order_over?: number;                                                  // Cut 25 §2 (core): on `order`, the row (0-based) that won every tick `cause_row` would have acted on — `R5 under R2`; the lead patch moves R5 above it
                       cause_row?: number;                                                   // Cut 19 §4: on `row`, the set's row (0-based) that killed him (`R2`); patches[0] cuts it (`remove`, or `replace` narrowed)
@@ -532,7 +535,7 @@ export type Lineage = { bloodline?: BloodlineLegacy;
                         selected_loadout?: number[];
   hero_slots?: HeroSlot[]; selected_bloodline?:number; bloodline_price?:number; bloodline_cap?:number;
                         hero_legacy?: {name?:string; heir: number; points: number; runs: number; best_depth: number; class: string; spent?: number; upgrades?: Record<string, number> }[];
-                        legacy_upgrades?: { id: string; rank: number; cap: number; price: number; effect: string; affordable: boolean; name?:string; branch?:string; parent?:string; min_depth?:number; blocked?:string; owned_effect?:string }[];
+                        legacy_upgrades?: { id: string; rank: number; cap: number; price: number; effect: string; affordable: boolean; next_run?: boolean; name?:string; branch?:string; parent?:string; min_depth?:number; blocked?:string; owned_effect?:string }[];   // next_run (blind b58b431, core): away, the points buy it — `upgradeHeroNext` buys it for the next run
                         class_styles?:ClassStyles;
                         legacy_respec?: {refund:number;available:boolean;points_after:number|null;blocked:string|null};
                         return_pick?: ReturnPick;                                                                     // Cut 113 §3 (core): the return's pick waiting at camp
@@ -591,7 +594,8 @@ export type Lineage = { bloodline?: BloodlineLegacy;
                         renamed?: { [label: string]: string };
                         kit?: KitLadder[];                                                                            // Cut 23 §1 (core): the forge — the heir's starting kit, a ladder per slot (weapon · armour · pack); `buyKit(slot)` buys the ladder's next step
                         row_why?: (RowWhy | null)[];
-                        forks?: ForkChip[];                                                                          // Cut 26 §2 (core): the forks the hero has seen (fact `fork:<d>`), shallowest first — the chip line above the rows; absent until D4's two stairs are seen
+                        affixes?: { boss: string; depth: number; affix: string; effect: string; counter: string }[];   // Cut 116 §1 (core): the live heir's band-boss affixes, descent order
+                        forks?: ForkChip[];                                                                       // Cut 26 §2 (core): the forks the hero has seen (fact `fork:<d>`), shallowest first — the chip line above the rows; absent until D4's two stairs are seen
                         lanes?: LaneStone[];                                                                         // Cut 26 §2 (core): every lit (lane, depth) waystone; `waystones` is now the active route's lit ones (the start sheet lists `lanes`)
                         oaths?: Oath[];                                                                              // Cut 28 §1 (core): the oath board — three standing oaths of the lineage (the sworn one flagged `sworn`)
                         oath?: string | null;                                                                        // Cut 28 §1 (core): the sworn oath's id (null: none)
@@ -705,6 +709,7 @@ export interface Engine {
   selectBloodline?(id:number):Lineage;
   addBloodline?():Lineage;
   upgradeHero?(id: string): Lineage;
+  upgradeHeroNext?(id: string): Lineage;   // blind b58b431: away, a Legacy upgrade for the next run
   respecLegacy?():Lineage;
   setSpecialization?(id:string):Lineage;
   buildTown?(id: string): Lineage;

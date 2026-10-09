@@ -130,13 +130,168 @@ pub const FORKS: [u32; 5] = [5, 9, 14, 19, 24];
 
 /// Cut 26 §3 (the contract's fallback: "if no tuning holds at D9 in the budget, ship the D5 fork
 /// only and record it"): the forks a hero can see and a set can take. The descent's routes are
-/// all playable (the sims, the gate table's samples); the D9 fork and below stay closed until
-/// their lanes want different sets (`examples/lanes.rs`).
-pub const OPEN_FORKS: [u32; 1] = [5];
+/// all playable (the sims, the gate table's samples).
+/// Cut 116 §2 (the owner: vary the descent): the D9 and D14 forks open beside D5, so heirs take
+/// different biome orders (`examples/varied_descent.rs` measures each new fork's lanes).
+pub const OPEN_FORKS: [u32; 3] = [5, 9, 14];
 
 /// Cut 29 §1: the forks a lineage sees — `OPEN_FORKS`, and the D9 fork once an oath gave `route2`.
 pub fn fork_open_for(route2: bool, fork: u32) -> bool {
     OPEN_FORKS.contains(&fork) || (route2 && fork == 9)
+}
+
+/// Cut 116 §1: a band boss's affix — drawn per heir from the lineage seed, shown on the floor chart
+/// and the boss bar before the fight (`Warlord · armoured`). Each changes which answer beats the wall
+/// and pays for itself in the boss's hp, so an answered affix is no harder than the plain boss and an
+/// unanswered one is a wall the scars and drills still wear down.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum Affix {
+    /// +1 armour: poison and fire go round it.
+    Armoured,
+    /// +2 speed: slowed, or kept at range.
+    Swift,
+    /// +1 hp a second while awake and unpoisoned: poison stops it, focus outpaces it.
+    Regenerating,
+    /// A full guard of escorts: a corridor or a pack break thins it.
+    Brood,
+    /// +2 damage, +3 speed under half hp: burst him through it, or heal early.
+    Enraged,
+    /// Melee hits heal him: poison or range.
+    Vampiric,
+}
+
+impl Affix {
+    pub const ALL: [Affix; 6] = [Affix::Armoured, Affix::Swift, Affix::Regenerating, Affix::Brood, Affix::Enraged, Affix::Vampiric];
+    /// The label word (`Warlord · armoured`).
+    pub fn word(self) -> &'static str {
+        match self {
+            Affix::Armoured => "armoured",
+            Affix::Swift => "swift",
+            Affix::Regenerating => "regenerating",
+            Affix::Brood => "brood",
+            Affix::Enraged => "enraged",
+            Affix::Vampiric => "vampiric",
+        }
+    }
+    pub fn from_word(w: &str) -> Option<Affix> {
+        Affix::ALL.into_iter().find(|a| a.word() == w)
+    }
+    /// What it does (a tooltip).
+    pub fn effect(self) -> &'static str {
+        match self {
+            Affix::Armoured => "+1 armour · less hp",
+            Affix::Swift => "+2 speed · less hp",
+            Affix::Regenerating => "heals while unpoisoned · less hp",
+            Affix::Brood => "full escort · less hp",
+            Affix::Enraged => "hits harder under half hp · less hp",
+            Affix::Vampiric => "melee hits heal him · less hp",
+        }
+    }
+    /// What answers it (a tooltip; the tactics and items that arrive by its wall).
+    pub fn counter(self) -> &'static str {
+        match self {
+            Affix::Armoured => "poison or fire",
+            Affix::Swift => "kite or slow",
+            Affix::Regenerating => "poison or boss focus",
+            Affix::Brood => "corridor or pack break",
+            Affix::Enraged => "boss focus or heal early",
+            Affix::Vampiric => "poison or range",
+        }
+    }
+    /// The share of his max hp the affix leaves (its price).
+    pub fn hp_pct(self) -> i32 {
+        match self {
+            Affix::Armoured => AFFIX_HP[0],
+            Affix::Swift => AFFIX_HP[1],
+            Affix::Regenerating => AFFIX_HP[2],
+            Affix::Brood => AFFIX_HP[3],
+            Affix::Enraged => AFFIX_HP[4],
+            Affix::Vampiric => AFFIX_HP[5],
+        }
+    }
+}
+
+/// Cut 116 §1: each affix's hp price (percent of max hp kept), in `Affix::ALL` order.
+pub const AFFIX_HP: [i32; 6] = [95, 95, 95, 95, 95, 95];
+/// Cut 116 §1: the brood's escort chance per tile round the boss (a boss's own guard is 40 %).
+pub const BROOD_GUARD: u32 = 75;
+
+/// Cut 116 §1: the affixes a band boss can draw (each boss's own ground: the Mother is slow and
+/// gassy, the Lich reflects arrows, the Master reflects blades, the Queen already broods). The Mirror
+/// King draws none: the bottom stays the bottom.
+pub fn affix_pool(boss: &str) -> &'static [Affix] {
+    match boss {
+        "goblin_warlord" => &[Affix::Armoured, Affix::Swift, Affix::Brood, Affix::Enraged],
+        "bloat_mother" => &[Affix::Armoured, Affix::Swift, Affix::Regenerating, Affix::Brood],
+        "lich" => &[Affix::Regenerating, Affix::Enraged, Affix::Vampiric, Affix::Swift],
+        "foundry_master" => &[Affix::Armoured, Affix::Regenerating, Affix::Enraged, Affix::Brood],
+        "lurker_queen" => &[Affix::Vampiric, Affix::Swift, Affix::Regenerating, Affix::Enraged],
+        _ => &[],
+    }
+}
+
+/// Cut 116 §1: the affix heir `heir` of the lineage seeded `seed` meets on `boss` — a pure draw (no
+/// rng stream advances): the same heir always meets the same descent, the next heir another.
+pub fn boss_affix(seed: u64, heir: u32, boss: &str) -> Option<Affix> {
+    let pool = affix_pool(boss);
+    if pool.is_empty() {
+        return None;
+    }
+    let i = BOSS_DEPTHS.iter().position(|(k, _)| *k == boss).unwrap_or(0) as u64;
+    let h = crate::rng::splitmix(seed ^ (u64::from(heir) << 24) ^ (i << 56) ^ 0xA77_1C5E5);
+    Some(pool[(h % pool.len() as u64) as usize])
+}
+
+/// Cut 116 §1: every band boss's affix for this heir (descent order of the base route).
+pub fn heir_affixes(seed: u64, heir: u32) -> Vec<(String, Affix)> {
+    BOSS_DEPTHS.iter().filter_map(|(k, _)| boss_affix(seed, heir, k).map(|a| (k.to_string(), a))).collect()
+}
+
+/// Cut 116 §3: a wandering champion — once per band at most, on a non-boss floor, a named foe from
+/// another band's roster (the band above's, a foe the heir has beaten the like of): a story beat, a
+/// grudge if it kills, never a wall.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Guest {
+    pub kind: String,
+    pub name: String,
+    pub depth: u32,
+}
+
+/// Cut 116 §3: the share of heirs × bands that meet a guest.
+pub const GUEST_PCT: u64 = 50;
+
+/// The guest roster of the band whose biome is `b`: kinds from another band (no captives, no water
+/// kinds, none native to `b`).
+pub fn guest_roster(b: Biome) -> &'static [&'static str] {
+    match b {
+        Biome::Burrows => &["skeleton", "pink_jelly"],
+        Biome::Fens => &["monkey", "goblin_conjurer", "skeleton"],
+        Biome::Crypt => &["goblin_archer", "pink_jelly", "jackal"],
+        Biome::Foundry => &["wraith", "ghoul", "ogre"],
+        Biome::Deep => &["smith", "bell_sentinel", "wraith"],
+        Biome::Sanctum => &["cave_troll", "siren", "smith"],
+        Biome::Warrens => &[],
+    }
+}
+
+/// Cut 116 §3: the guest heir `heir` meets in the band at `band` (0..6) on `route`, if any: a floor
+/// strictly inside the band (not its first, not the boss's), a kind from another band's roster, a
+/// name — a pure draw like the affixes.
+pub fn guest_for(seed: u64, heir: u32, route: Route, band: usize) -> Option<Guest> {
+    let (first, last) = *BANDS.get(band)?;
+    let h = crate::rng::splitmix(seed ^ (u64::from(heir) << 24) ^ ((band as u64) << 48) ^ 0x6E57_C4A3);
+    if h % 100 >= GUEST_PCT {
+        return None;
+    }
+    let roster = guest_roster(route.order()[band]);
+    if roster.is_empty() || last <= first + 1 {
+        return None;
+    }
+    let depth = first + 1 + ((h >> 8) % u64::from(last - first - 1)) as u32;
+    let kind = roster[((h >> 16) % roster.len() as u64) as usize];
+    let mut rng = crate::rng::Rng::new(h >> 24);
+    Some(Guest { kind: kind.into(), name: grudge_name(&mut rng), depth })
 }
 
 /// A biome's boss (on the last floor of the band it sits in).

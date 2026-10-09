@@ -77,6 +77,9 @@ pub struct Monster {
     /// Cut 19 §5: this grudge was avenged by an earlier heir (its kill reads `slain`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub avenged: bool,
+    /// Cut 116 §3: a wandering champion (`descent::Guest`), named.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub guest: bool,
     pub summoned: bool,
     /// Cut 24 §1: a Warlord's shield-wall reserve (stepped in to take an unaimed blow): its
     /// blood is the boss shrugging the blow, not the fight moving (`Run.boss_still`).
@@ -181,6 +184,7 @@ impl Monster {
             fleeing: false,
             grudge: false,
             avenged: false,
+            guest: false,
             summoned: d.tags.contains(&"summoned"),
             reserve: false,
             cid: None,

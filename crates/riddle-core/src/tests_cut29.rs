@@ -169,7 +169,8 @@ fn the_oath_pool_is_its_own() {
     assert_eq!(crate::oath::price(&g.lineage), 10_000);
     // route 2 opens the D9 fork: a run sees it
     crate::oath::grant(&mut g.lineage, &bold);
-    assert!(crate::descent::fork_open_for(true, 9) && !crate::descent::fork_open_for(false, 9));
+    // (Cut 116 §2: the D9 fork is open to every lineage; `route2` still opens it)
+    assert!(crate::descent::fork_open_for(true, 9) && crate::descent::fork_open_for(false, 9));
 }
 
 /// §4: the keep sheet is a decision only when a find beats something in the full vault; else it

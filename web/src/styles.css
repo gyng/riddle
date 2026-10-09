@@ -338,6 +338,7 @@ main { display: flex; flex-direction: column; gap: 4px; padding-bottom: 96px; }
 /* death: patch numbers + baseline */
 .patch-nums { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 13px; }
 .patch-nums .surv { color: var(--fg); }
+.patch-nums .gauge-row { display: flex; align-items: center; gap: 6px; }   /* blind b58b431: `this fight` over the count */
 .baseline { font-size: 12px; margin: 6px 2px 0; text-align: right; }
 .chips-inline { flex: 1; }
 

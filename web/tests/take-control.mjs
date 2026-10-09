@@ -33,6 +33,18 @@ try {
   let moved = 0;
   for (const k of ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "."]) { const s0 = await st(); await page.keyboard.press(k); await sleep(900); const s1 = await st(); if (s1.eng > s0.eng) moved++; check(s1.tick <= s1.eng, `the picture stays at the frontier after ${k} (${s1.tick} ≤ ${s1.eng})`); }
   check(moved === 5, `each key is one action (${moved}/5 advanced the world)`);
+  // blind b58b431 (A: arrows and `descend` inert in gas): every order resolves on the panel — done, or refused and why
+  const note = (await page.locator(".ctl-note").textContent()) ?? "";
+  check(/^(moved|waited|can't · .+|paralysed · \d+)$/.test(note), `the last order reads its outcome ("${note}")`);
+  await page.click('.ctl-verb[data-verb="drink heal"]').catch(() => {});
+  await page.click('.ctl-verb[data-verb="descend"]'); await sleep(900);
+  const n2 = (await page.locator(".ctl-note").textContent()) ?? "";
+  check(/^(descend ✓|can't · no stairs)$/.test(n2), `descend resolves visibly ("${n2}")`);
+  // blind b58b431 (B: 40 identical attack taps): `attack until` is one order
+  check(await page.locator('.ctl-verb[data-verb="attack until"]').isVisible(), "the panel offers attack until");
+  await page.click('.ctl-verb[data-verb="attack until"]'); await sleep(900);
+  const n3 = (await page.locator(".ctl-note").textContent()) ?? "";
+  check(/^(attack until|foe down|hp under \d+%|can't · (no foe|hp low|no way)|paralysed · \d+)$/.test(n3), `attack until resolves visibly ("${n3}")`);
   await page.click(".ctl-toggle");
   await sleep(3000);
   const c = await st();

@@ -603,6 +603,12 @@ impl Game {
         self.inner.upgrade_hero(id).map_err(err)?;
         Ok(js(&self.inner.lineage()))
     }
+    /// Blind b58b431: a Legacy upgrade bought while the hero is away, for the next run.
+    #[wasm_bindgen(js_name = upgradeHeroNext)]
+    pub fn upgrade_hero_next(&mut self, id: &str) -> Result<String, JsError> {
+        self.inner.upgrade_hero_next(id).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
     #[wasm_bindgen(js_name = respecLegacy)]
     pub fn respec_legacy(&mut self) -> Result<String, JsError> {
         self.inner.respec_legacy().map_err(err)?;

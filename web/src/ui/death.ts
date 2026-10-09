@@ -157,7 +157,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const leanCounts = (d.verdict === "gap" || d.verdict === "row" || d.verdict === "order") && (d.replays ? Math.round((d.baseline ?? 0) * d.replays) * 2 > d.replays : (d.baseline ?? 0) > 0.5);
   // blind 3ab97ea (A: 48→0 in 10 s to the Mirror King, `bad luck · 1 in 6`): a death under a boss (`Death.boss`) is his wall — never luck
   const lean = !prePen && !drove && !d.boss && (d.lean === "dice" || leanCounts);
-  const word = d.verdict;
+  // blind b58b431 (B: LUCK over a swarm his rules could answer): a `dice` the unpatched replays reproduce (the core's `lean: "gap"`) is no rare
+  // roll — it stamps as a gap (no rule answered it), never luck
+  const word = d.verdict === "dice" && d.lean === "gap" ? "gap" : d.verdict;
   // docs/COPY.md §2: the stamp blames the right thing in a plain word — `dice` is luck, `row` the player's own rule
   // passes 2–3: `gap` alone read "no idea" 4/4; `unanswered` did not fit the seal and `unmet` read "a goal not met" 6/6 — the seal keeps
   // the plain death stamp; specific causal evidence is shown separately
@@ -314,11 +316,35 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   if (leverBtn) kwHost(leverBtn, "lever");
   function leverGem(): HTMLButtonElement { return gem({ label: levelNow ? /* copy:button */ "level" : lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "town" : /* copy:button */ "town", cls: "lever-gem", pulse: true, onclick: leverAct }); }
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
-  const makeGem = (): HTMLButtonElement => prePen ? leverGem() : top && measuring && isPatchTop()
+  // blind b58b431 (A: the gem cycled `risky` / `measuring` / `WRITE` unexplained; a `risky` fix applied dropped the forecast with no warning):
+  // each state carries its tip, and a risky fix asks a second press (`confirm`) before it applies
+  const gemState = (word: string): Term | undefined => ({ measuring: "g_measuring", risky: "g_risky", apply: "g_apply", write: "g_write" } as Record<string, Term>)[word];
+  const makeGem = (): HTMLButtonElement => {
+    const g = makeGem_();
+    const word = g.querySelector(".gem-w")?.textContent ?? (top?.label === "write" ? "write" : ""), term = gemState(word);
+    if (term) kwHost(g, term);
+    return g;
+  };
+  const makeGem_ = (): HTMLButtonElement => prePen ? leverGem() : top && measuring && isPatchTop()
     ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, "…"), h("small", { class: "gem-w" }, /* copy:label */ "measuring")), cls: "patch-gem pending", onclick: () => undefined })
     : top
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
-    ? gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" ? h("small", { class: "gem-w" }, top.btn.classList.contains("harms") ? /* copy:label */ "risky" : /* copy:label */ "apply") : ""), cls: `patch-gem${top.btn.classList.contains("harms") ? " harms" : ""}`, pulse: !top.btn.classList.contains("harms"), onclick: () => { if (top) void applyOf.get(top.btn)?.(); } })
+    ? (() => {
+      const harms = top.btn.classList.contains("harms");
+      const word = top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" ? h("small", { class: "gem-w" }, harms ? /* copy:label */ "risky" : /* copy:label */ "apply") : null;
+      let armed = 0;
+      const g: HTMLButtonElement = gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), word ?? ""), cls: `patch-gem${harms ? " harms" : ""}`, pulse: !harms, onclick: () => {
+        if (!top) return;
+        if (harms && !armed) {
+          if (word) word.textContent = /* copy:label */ "confirm";
+          g.dataset.confirm = "1";
+          armed = window.setTimeout(() => { armed = 0; delete g.dataset.confirm; if (word) word.textContent = /* copy:label */ "risky"; }, 4000);
+          return;
+        }
+        clearTimeout(armed); void applyOf.get(top.btn)?.();
+      } });
+      return g;
+    })()
     : gem({ label: /* copy:button */ "town", pulse: true, onclick: () => app.go({ kind: "camp" }) });
   let gemBtn = makeGem();
   const cons = renderConsole({ portrait: face.el, gem: gemBtn, compact: true, tiles: [

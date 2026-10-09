@@ -735,7 +735,8 @@ export function renderWatch(app: App): Mounted {
   function paintBoss(): void {
     bossBar.hidden = !bossHud; el.dataset.boss = bossHud ? `${bossHud.hp}/${bossHud.max}` : "";
     if (!bossHud) return;
-    replace(bossName, oneWord(bossHud.kind));
+    // Cut 116 §1: the heir's affix on him (`Warlord · armoured`)
+    replace(bossName, bossHud.modifiers?.affix ? /* copy:callout */ `${oneWord(bossHud.kind)} · ${bossHud.modifiers.affix}` : oneWord(bossHud.kind));
     if (bossFaceKind !== bossHud.kind) {
       if (bossFaceKind) { bossCounter.hidden = true; clear(bossCounter); }   // another boss: his own counter line, when sighted
       bossFaceKind = bossHud.kind;
@@ -1822,14 +1823,24 @@ export function renderWatch(app: App): Mounted {
     const seen = (id: number): boolean => id === heroId || sighted.has(id);
     for (const e of evs) {
       let moved: boolean;
-      if (boss) moved = e.k === "descend" || e.k === "exit" || ((e.k === "hurt" || e.k === "die") && bossIds.has(e.id)) || (e.k === "attack" && e.hit && e.dmg > 0 && bossIds.has(e.dst));
+      // blind b58b431 (A ~170 s, B ~90 s at D13, the badge toggling 1×/4×): the Bloat Mother heals in her gas — every blow on her read as a
+      // move, so the see-saw never went dead and the news watchdog never jumped it; a blow on a boss moves the fight only at a new low
+      // (his `hurt` carries the blow: the attack itself is no move)
+      if (boss) {
+        if (e.k === "hurt" && bossIds.has(e.id)) {
+          const low = lows.get(e.id) ?? Infinity;
+          moved = e.dmg > 0 && e.hp < low;
+          if (e.hp < low) lows.set(e.id, e.hp);
+        } else moved = e.k === "descend" || e.k === "exit" || (e.k === "die" && bossIds.has(e.id));
+      }
       else if (e.k === "die") moved = seen(e.id);
       else if (e.k === "hurt") {
         const low = lows.get(e.id) ?? Infinity;
         moved = !isDrain(e) && e.dmg > 0 && seen(e.id) && e.hp < low;
         if (e.hp < low) lows.set(e.id, e.hp);
       } else moved = (e.k === "pickup" && pickupOfNote(e)) || e.k === "descend" || e.k === "use" || e.k === "exit";
-      if (!boss && (e.k === "die" || e.k === "descend" || e.k === "use" || (e.k === "pickup" && moved))) lows.clear();   // a decisive move: the lows start over
+      if (!boss && (e.k === "die" || e.k === "descend" || e.k === "use" || (e.k === "pickup" && moved))) lows.clear();
+      else if (boss && (e.k === "descend" || (e.k === "die" && bossIds.has(e.id)))) lows.clear();   // a decisive move: the lows start over
       if (moved && (!progress.length || e.t > progress[progress.length - 1])) progress.push(e.t);
     }
     while (progress.length > 64 && progress[1] < viewerTick() - 4000) progress.shift();   // the playhead never seeks back that far

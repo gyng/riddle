@@ -56,7 +56,8 @@ export type Term = Concept | "bloodline" | "heir" | "gold" | "best" | "reach" | 
   | "price" | "v_gap" | "v_luck" | "v_rule" | "v_order" | "v_stall" | "v_route" | "v_repelled"
   | "works" | "worker" | "chest" | "scout" | "next" | "rank"   // Cut 30.5: the works tree
   | "rarity"   // run-clear: an item's rim colour
-  | "lane" | "live" | "log" | "replay" | "away";   // RUNS_UI: the run lanes, the runs log
+  | "lane" | "live" | "log" | "replay" | "away"   // RUNS_UI: the run lanes, the runs log
+  | "h_fight" | "h_run" | "g_apply" | "g_risky" | "g_measuring" | "g_write";   // blind b58b431: a fix's two horizons, the death gem's states
 /** Cut 30.5: the works tree's terms — fragments of ≤ 4 words (eval/copy-budgets.json `node_tip`). */
 const WORKS_TIP = /* copy:node_tip */ { works: "workers take chores over", worker: "hand for one chore", chest: "the haul waits here", scout: "sends him each rest", next: "the one next goal", rank: "worker's grade · from service" };
 /** The tooltip's gloss: a fragment, ≤ 10 words with its live value (`tips.mjs` renders every one). A word that is another keyword is
@@ -81,6 +82,10 @@ export const TIP: Record<Term, string> = /* copy:tooltip */ {
   bloodline: "a persistent hero slot · keeps Legacy and upgrades",
   lane: "a hero's runs · live, resting or waiting", live: "the run going on now · watch or not",
   log: "every run · by absence · replays", replay: "the run again · same rolls", away: "runs while the game was shut",
+  // blind b58b431 (A: `survives 9/12` beside `death 29→90%`; the gem's `risky` / `measuring` / `WRITE` unexplained)
+  h_fight: "the fatal moment replayed · 12 tries", h_run: "whole runs from the send · every floor",
+  g_apply: "puts the lit fix in the rules", g_risky: "the fix loses whole runs · asks to confirm", g_measuring: "whole runs still being measured",
+  g_write: "no ready fix · write the row by hand",
 
 };
 /** The words that mark a term in a line (whole words, any case; the longest first). A term without aliases is marked only where a
@@ -97,7 +102,7 @@ export const ALIASES: Partial<Record<Term, string[]>> = /* copy:none */ {
 export const TITLE: Partial<Record<Term, string>> = /* copy:label */ {
   price: "if equipped", gold: "gold", best: "best depth", death: "death",
   v_gap: "no rule", v_luck: "luck", v_rule: "rule", v_order: "order", v_stall: "stall", v_route: "route", v_repelled: "repelled",
-  next: "next goal", log: "runs log",
+  next: "next goal", log: "runs log", h_fight: "this fight", h_run: "per run", g_apply: "apply", g_risky: "risky", g_measuring: "measuring", g_write: "write",
   package: "tactics", stance: "combat style", tactic: "extra tactics", temperament: "personality", drill: "boss counters",
   marks: "upgrade tokens", renown: "reputation", cage: "loot choice", vault: "stored gear", oaths: "challenges", pen: "custom rules", ends: "run outcomes", reach: "floor chance", pack: "supplies",
   works: "workers", kennel: "companions",

@@ -35,6 +35,11 @@ import { kw } from "./tips";
 const sameRow = (a: Row, b: Row): boolean =>
   a.verb.v === b.verb.v && (a.verb.a ?? "") === (b.verb.a ?? "") && a.conds.length === b.conds.length &&
   a.conds.every((c, i) => c.k === b.conds[i].k && (c.n ?? "") === (b.conds[i].n ?? "") && (c.t ?? "") === (b.conds[i].t ?? ""));
+/** Cut 116 §1: a boss affix's tooltip — what it does, what answers it (`Lineage.affixes`). */
+export function affixTip(app: Pick<App, "lineage">, boss: string | undefined, affix: string): string {
+  const a = (app.lineage.affixes ?? []).find((x) => x.affix === affix && (!boss || x.boss === boss));
+  return a ? /* copy:tooltip */ `${a.effect} · answer: ${a.counter}` : affix;
+}
 /** Cut 10 §2: the known-but-absent counter for a boss cause, from `Lineage.counters` (a client fallback for the wire's `try`). */
 /** The wall's words under a floor the boss above seals: `behind mother`; once the lineage has slain him, `mother returns` — blind
  *  ad71e72 (B: `behind mother` "after the Bloat Mother was beaten"): every send meets him again, and the sims still stop there. */
@@ -345,6 +350,8 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
         // wall says what it does (the boss above seals the stairs)
         cause ? enemyHost(h("small", { class: "dim" }, foeSrc(cause) ? unitLabel(cause, /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`, { px: 22 }) : /* copy:callout */ ` · killer: ${cause.replace(/_/g, " ")}`), cause, app.lineage) : "",
         boss ? enemyHost(h("small", { class: "boss-here" }, unitLabel(d.boss!, ` · ${boss}`, { px: 22 })), d.boss!, app.lineage) : "",
+        // Cut 116 §1: the heir's affix on him (`D8 · warlord · armoured`), its answer on hover
+        d.affix ? h("small", { class: "boss-affix", title: affixTip(app, d.boss, d.affix) }, /* copy:callout */ ` · ${d.affix}`) : "",
         wall ? enemyHost(h("small", { class: "wall" }, unitLabel(d.wall!, ` · ${wallWords(app, d.wall!, wall)}`, { px: 22 })), d.wall!, app.lineage) : "",
         wall && sysOpen(app.lineage, "walls") ? h("small", { class: "wall-counter" }, ` · ${wallCounter(app, d.wall!, d as { counter?: string; counter_hint?: string })}`) : "",   // Cut 28 §1: the wall's path
         // Cut 20 §5: the bounty floor; Cut 28 §1: what it pays and needs (`bounty · $×2 · item · reach`)

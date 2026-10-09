@@ -24,9 +24,38 @@ pub struct Modifiers {
     pub elite: Option<Elite>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub tight_mirror: bool,
+    /// Cut 116 §1: the heir's band-boss affix (`Warlord · armoured`), at any tier.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub affix: Option<crate::descent::Affix>,
 }
 impl Modifiers {
     pub fn has(self, affix: u8) -> bool { self.affixes & affix != 0 }
+}
+
+/// Cut 116 §1: a band boss's heir affix, on top of whatever the numbered tier gave him — the
+/// tier's own mechanics carry it (armour, speed, regeneration, the frenzied and leeching elites),
+/// and the affix's hp price comes off his max. A brood's guard is placed by `populate_floor`.
+pub fn apply_affix(m: &mut crate::monster::Monster, a: crate::descent::Affix) {
+    use crate::descent::Affix;
+    let mut mods = m.modifiers.unwrap_or(Modifiers { tier: 0, affixes: 0, elite: None, tight_mirror: false, affix: None });
+    mods.affix = Some(a);
+    match a {
+        Affix::Armoured if !mods.has(ARMOURED) => {
+            mods.affixes |= ARMOURED;
+            m.def = m.def.saturating_add(1);
+        }
+        Affix::Swift if !mods.has(SWIFT) => {
+            mods.affixes |= SWIFT;
+            m.speed = m.speed.saturating_add(2);
+        }
+        Affix::Regenerating => mods.affixes |= REGENERATING,
+        Affix::Enraged => mods.elite = Some(Elite::Frenzied),
+        Affix::Vampiric => mods.elite = Some(Elite::Leeching),
+        _ => {}
+    }
+    m.max_hp = (m.max_hp * a.hp_pct() / 100).max(1);
+    m.hp = m.max_hp;
+    m.modifiers = Some(mods);
 }
 
 /// Shared tooltip vocabulary, emitted once per snapshot rather than per foe.
@@ -80,7 +109,7 @@ pub fn spawn(run: &crate::engine::Run, id: u32, kind: &str, pos: crate::geom::Po
         Some(if run.difficulty>=6 {match (hash>>8)%3 {0=>Elite::Shielded,1=>Elite::Frenzied,_=>Elite::Leeching}}
             else if hash & 256 == 0 { Elite::Shielded } else { Elite::Frenzied })
     } else { None };
-    apply(&mut m, Modifiers { tier:run.difficulty, affixes:affixes(run.difficulty), elite, tight_mirror:kind == "mirror_king" });
+    apply(&mut m, Modifiers { tier:run.difficulty, affixes:affixes(run.difficulty), elite, tight_mirror:kind == "mirror_king", affix: None });
     m
 }
 /// Called only after a direct strike's actual hero HP loss is known. No RNG,

@@ -42,15 +42,18 @@ export function renderLegacy(app:App,onChange:()=>void,opened?:Set<string>):HTML
   const L=app.lineage,upgrades=L.legacy_upgrades??[],feedback=h('div',{class:'legacy-feedback',role:'status'});
   const card=(u:Upgrade):HTMLElement=>{
     const name=u.name??u.id,chosen=u.cap===1&&u.rank>0;
-    const buy=h('button',{class:'chip legacy-buy',disabled:!u.affordable||!app.engine.upgradeHero,'data-upgrade':u.id,
+    // blind b58b431 (A: Legacy 146 unspendable — the scout keeps him away): away, an upgrade the points buy is bought for the next run
+    const next=!u.affordable&&!!u.next_run&&!!app.engine.upgradeHeroNext,can=u.affordable&&!!app.engine.upgradeHero;
+    const buy=h('button',{class:`chip legacy-buy${next?' legacy-next':''}`,disabled:!can&&!next,'data-upgrade':u.id,
       'aria-label':u.rank>=u.cap?/* copy:label */`${u.id} complete`:/* copy:label */`Upgrade ${u.id}`,
-      'aria-description':u.blocked??`${u.price} Legacy`,onclick:(event:Event)=>{
+      'aria-description':next?/* copy:callout */`${u.price} Legacy · next run`:u.blocked??`${u.price} Legacy`,onclick:(event:Event)=>{
         const button=event.currentTarget as HTMLButtonElement;button.disabled=true;feedback.textContent='';
-        if(app.engine.upgradeHero)void app.mutate(()=>app.engine.upgradeHero!(u.id),/* copy:callout */'Upgraded').then(ok=>{
-          if(ok)onChange();else{button.disabled=!u.affordable;feedback.textContent=/* copy:callout */'Upgrade refused';}
+        const call=next?()=>app.engine.upgradeHeroNext!(u.id):can?()=>app.engine.upgradeHero!(u.id):null;
+        if(call)void app.mutate(call,next?/* copy:callout */'Next run':/* copy:callout */'Upgraded').then(ok=>{
+          if(ok)onChange();else{button.disabled=!can&&!next;feedback.textContent=/* copy:callout */'Upgrade refused';}
         });
       }},u.rank>=u.cap?(chosen?/* copy:button */'Chosen':/* copy:button */'Complete'):/* copy:button */`Upgrade ${u.price}`,
-      u.rank<u.cap?h('small',null,/* copy:label */'Legacy'):null);
+      u.rank<u.cap?h('small',null,next?/* copy:label */'next run':/* copy:label */'Legacy'):null);
     const title=detailHost(h('span',{class:'legacy-node-name'},h('b',null,name)),()=>[
       h('div',{class:'kw-tip-head'},icon(ICONS[u.id]??'unlocks','✦'),h('b',null,name)),
       h('div',null,u.effect),
@@ -65,7 +68,7 @@ export function renderLegacy(app:App,onChange:()=>void,opened?:Set<string>):HTML
         u.owned_effect?h('small',{class:'upgrade-owned num'},u.owned_effect):null,
         u.rank<u.cap?h('small',{class:'upgrade-next num'},u.cap>1?/* copy:label */'Next':'',u.cap>1?' ':'',u.effect):
           u.cap===1?h('small',{class:'upgrade-owned num'},u.effect):null,
-        u.blocked&&u.rank<u.cap?h('small',{class:'legacy-blocked dim'},u.blocked):null),buy);
+        u.blocked&&u.rank<u.cap&&!next?h('small',{class:'legacy-blocked dim'},u.blocked):null),buy);
   };
   const branches=[...new Set(upgrades.map(u=>u.branch??ROOT_BRANCH[u.id]??''))];
   const tree=h('div',{class:'legacy-tree legacy-upgrades'});
@@ -74,7 +77,7 @@ export function renderLegacy(app:App,onChange:()=>void,opened?:Set<string>):HTML
     const leaves=children.filter(u=>u.min_depth===18),follow=children.filter(u=>u.min_depth!==18);
     // blind ad71e72 (B: Legacy piled to 80 with "no obvious way to spend it" — the deeper tree folded under `More upgrades`): a branch
     // with an upgrade the points buy now stands open, its fold says how many
-    const ready=children.filter(u=>u.affordable).length;
+    const ready=children.filter(u=>u.affordable||u.next_run).length;
     const open=ready>0||(opened?opened.has(branch):matchMedia('(min-width:900px)').matches||children.some(u=>u.rank>0));
     tree.append(h('section',{class:'legacy-branch','data-legacy-branch':branch},h('h3',null,branch),root?card(root):null,
       children.length?h('details',{class:'legacy-path',open,'data-branch':branch},h('summary',null,/* copy:button */'More upgrades',
