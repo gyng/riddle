@@ -1673,7 +1673,11 @@ export function renderWatch(app: App): Mounted {
     // Cut 14 §6: the engine's target — the world clock, or the playing viewer's lead, whichever is further; a world far behind its
     // clock (a paused or hidden picture) is caught up in CATCHUP_MAX-tick steps
     // Cut 18 §1: the ramp's lead (0.2 s of picture); `fast` keeps LEAD_PROBE ahead so a fight is costed before the picture meets it
-    const lead = Math.max(speed >= AUTO_FAST ? Math.max(LEAD_FAST, Math.ceil(speed * 2)) : LEAD, mode === "fast" && app.slowdowns && !overridden ? LEAD_PROBE : 0);
+    // watch-normal-news (Normal stood ~10.7 s from its first frame on a loaded machine): `one`'s dead stretch travels at up to ONE_MAX,
+    // but at LEAD the engine fed it only BATCH ticks a pump — at a few frames a second the picture crawled at ~1.4× behind the frontier
+    // (the landing never outruns `engineTick`) and the jump came late; a dead stretch keeps LEAD_FAST ahead so the travel is the picture's
+    const lead = Math.max(speed >= AUTO_FAST ? Math.max(LEAD_FAST, Math.ceil(speed * 2)) : LEAD, mode === "fast" && app.slowdowns && !overridden ? LEAD_PROBE : 0,
+      mode === "one" && el.dataset.dead === "1" ? LEAD_FAST : 0);
     const want = Math.max(worldT, playing ? now + lead : -Infinity);
     if (engineTick >= want) return;
     const gap = worldT - engineTick;
