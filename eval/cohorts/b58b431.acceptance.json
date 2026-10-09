@@ -1,0 +1,44 @@
+{
+  "candidate": "b58b431",
+  "applicationCommits": [
+    "b58b431"
+  ],
+  "status": "accepted for blind cohort 2026-10-09",
+  "frozen": {
+    "dir": "scratchpad/blind-b58b431-frozen/dist",
+    "url": "http://127.0.0.1:5260/",
+    "files": 252,
+    "manifestSha256": "7c34c50fa6d4a410f030c8095dca2112ea29bc93844484fba2cd70bd4b7bc1d5",
+    "servedHashes": "252/252",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "730 passed",
+    "clippy": "clean",
+    "gates": "fresh full: ALL PASS (no FAIL lines), per the fix agent on this tree"
+  },
+  "browser": {
+    "full": "147/147 (/tmp/riddle-c116-client.log) \u2014 first fully green suite this session"
+  },
+  "machineLoad": {
+    "atRelease": "20.77 18.29 16.10",
+    "source": "another project's simulations (armee)"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-b58b431-frozen/briefs/a.txt",
+      "scratchpad/blind-b58b431-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      257,
+      263
+    ],
+    "drivers": [
+      5370,
+      5371
+    ],
+    "toolBudget": 260
+  },
+  "score": "pending"
+}
