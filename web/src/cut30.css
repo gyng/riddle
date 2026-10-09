@@ -97,11 +97,12 @@
 .quest-card.done .quest-reward { box-shadow: 0 0 0 2px var(--blood), 0 0 0 4px var(--ink), 0 0 18px rgba(192, 21, 48, .5); }
 
 /* --- the pre-pen death screen: the cause and one lever --- */
-.death .death-lever { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 16px; text-align: left;
+.death .death-lever, .death .death-pick { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 16px; text-align: left;
   border: 2px solid #46618b; border-radius: 6px; background: linear-gradient(rgba(68, 93, 134, .35), rgba(23, 22, 34, .7)); box-shadow: 0 0 14px rgba(164, 188, 214, .2); }
 .skin-tablet .death .death-lever { border: 2px solid transparent; border-image: url(/ui/frames/tablet.png) 24 fill / 12px stretch; background: linear-gradient(rgba(68, 93, 134, .3), rgba(23, 22, 34, .2)); background-clip: padding-box; }
-.death .death-lever .lever-kind { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
-.death .death-lever b { color: var(--acc); font-size: 17px; }
+.death .death-pick { border: 1px solid var(--acc); margin-bottom: 8px; background: transparent; color: inherit; cursor: pointer; }
+.death .death-pick .lever-kind, .death .death-lever .lever-kind { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+.death .death-pick b, .death .death-lever b { color: var(--acc); font-size: 17px; }
 .death .death-lever .lever-go { color: var(--mist); font-size: 20px; }
 .cmd .tile[data-tile="packages"] .tl { font-size: 10.5px; letter-spacing: -.03em; }
 .death.prepen .death-why { color: var(--mist); }
@@ -158,3 +159,12 @@ body:has(> .sheet-wrap:not(.modeless)) .cmd .tile .repeat-badge { visibility: hi
 .run-training .training-open { all: unset; cursor: pointer; display: inline-flex; border-radius: 4px; }
 .run-training .training-open:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 .run-training .training-open:hover .beat-plaque { filter: brightness(1.15); }
+
+/* Cut 115: the build — its name in the tactics panel, the report's head, the hero row; a variant's price and its walls */
+.pkg-build { margin: 2px 0 8px; font: 600 14px/1.3 var(--control-font); }
+.pkg-build .build-effect { font-weight: 400; }
+.report-build { margin: -4px 0 8px; font-size: 13px; }
+.report-build .build-name { color: var(--acc); }
+.hero-build { display: block; font-size: 12px; color: var(--acc); }
+.pkg-walls { display: block; font-size: 11px; }
+.pkg-variant .pkg-price, .pkg-variant .pkg-walls { font-size: 10px; }

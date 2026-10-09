@@ -996,6 +996,8 @@ pub fn posts(l: &LineageState) -> Vec<WorkerPost> {
 pub const APPRENTICE_SPENT: &str = "apprentice$";
 /// The apprentice's steps bought per forge slot (`apprentice:weapon`; an `acts` key, never a node's).
 pub const APPRENTICE_SLOT: &str = "apprentice:";
+/// The apprentice's report item under the `half` order (his gold: half of each haul since his hire).
+pub const APPRENTICE_HALF: &str = "half of hauls";
 
 /// The report's worker lines: what each did between two looks at its acts (`before`, `after`); `l` the
 /// lineage after (the forge steps the apprentice reached, by name: `sword +3`).
@@ -1021,8 +1023,14 @@ pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTr
                 let moved = |key: &str| after.get(key).copied().unwrap_or(0).saturating_sub(acts_before.get(key).copied().unwrap_or(0));
                 let (held, carried) = if n.id == "scout" { (moved(SCOUT_HELD), moved(SCOUT_CARRIED)) } else { (0, 0) };
                 let (items, spent) = if n.id == "apprentice" {
-                    let items = crate::kit::KIT_SLOTS.iter().filter(|s| moved(&format!("{APPRENTICE_SLOT}{s}")) > 0)
+                    let mut items: Vec<String> = crate::kit::KIT_SLOTS.iter().filter(|s| moved(&format!("{APPRENTICE_SLOT}{s}")) > 0)
                         .filter_map(|s| crate::kit::owned(l, s).checked_sub(1).map(|i| crate::kit::step_label(l, s, i as usize))).collect();
+                    // Blind b8dd77c (B: `purse −$11784` over a 4 h of two deaths): under `half` he forges with
+                    // his half of every haul since his hire — hauls of earlier absences he saved toward a dear
+                    // step included — and the line says whose gold it was
+                    if forge_share(l) == Some(50) && moved(APPRENTICE_SPENT) > 0 {
+                        items.push(APPRENTICE_HALF.into());
+                    }
                     (items, moved(APPRENTICE_SPENT) as i32)
                 } else if held + carried > 0 {
                     // Cut 114 §3: the sends he banked before the wall (`banked before Queen ×4`), the haul he carried

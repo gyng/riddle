@@ -1187,6 +1187,13 @@ pub struct Death {
     /// (the drill or the scars will come: `Warlord · scarred ×3`). Absent once the pen is open.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lever: Option<Lever>,
+    /// Cut 115 §4: the tactic (and variant) that answers this death, when one has arrived — offered before a
+    /// raw row (`try: gas step · burn`); taken, its rows are credited `taught`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pick: Option<Lever>,
+    /// Cut 115 §1: who chose the deciding row (`picked` · `taught` · `default` · `chores`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credit: Option<String>,
     pub run_id: u32,
     pub depth: u32,
     pub cause: String,
@@ -1517,7 +1524,35 @@ pub struct ReturnReport {
 pub struct Lever {
     pub kind: String,
     pub text: String,
+    /// Cut 115 §4: a `tactic` lever's package id and variant (`take_fix`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variant: Option<u32>,
 }
+
+/// Cut 115 §1: the build the player wore (`Packages.build`): its name (`Bulwark`, `Guarded skirmisher`), the synergy
+/// its pair forms and that synergy's effect (≤ 6 words), and the picks it is made of (`corridor fighting · at two`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct BuildWire {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub synergy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect: Option<String>,
+    #[serde(default)]
+    pub picks: Vec<String>,
+}
+
+/// Cut 115 §1: a meter's rule fires by who chose the row (`picked` · `taught` · `default` · `chores`), and their
+/// share of all fires (0..1).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct CreditShare {
+    pub credit: String,
+    pub fires: u32,
+    pub share: f64,
+}
+impl Eq for CreditShare {}
 
 /// Cut 30 §4: one thing that grew on a track (`character` · `L7`, `scale` · `best D14`).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -1609,6 +1644,9 @@ pub struct HeroSlot {
     pub look: String,
     #[serde(default)]
     pub hero_name: String,
+    /// Cut 115 §1: the build the bloodline's picks make (`Bulwark`, `Guarded skirmisher`).
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub build: Option<String>,
     pub id:u32, pub name:String, pub heir:u32, pub class:String,
     pub level:u32, pub xp:u32, pub next:Option<u32>,
     pub state:String, pub live:Option<LiveRun>, pub rest_s:f64,
@@ -1730,6 +1768,9 @@ pub struct PackagesWire {
     /// Literal: a harness's lineage (no packages).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub literal: bool,
+    /// Cut 115 §1: the build the picks make (absent while nothing is the player's).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build: Option<BuildWire>,
 }
 
 /// Cut 30 §2: where a compiled row came from and whether a same-role row above always wins.

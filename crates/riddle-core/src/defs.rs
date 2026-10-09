@@ -59,7 +59,7 @@ pub const MONSTERS: &[MonsterDef] = &[
     // 220 hp and 3–6 → 13–19 — a learned counter *and* the forge's upper steps (and scars, by the day);
     // the Sanctum's wardens 30 → 34, echoes 16 → 18, sentinels 26 → 30 (`examples/descent_check`).
     MonsterDef { kind: "foundry_master", title: "Foundry Master", hp: 52, atk: (3, 6), def: 1, speed: 8, tags: &["boss", "reflect_melee", "buffer", "telegraph"], boss: true },
-    MonsterDef { kind: "lurker_queen", title: "Lurker Queen", hp: 120, atk: (7, 11), def: 0, speed: 10, tags: &["boss", "blind", "brood", "summoner", "telegraph"], boss: true },
+    MonsterDef { kind: "lurker_queen", title: "Lurker Queen", hp: 100, atk: (5, 8), def: 0, speed: 10, tags: &["boss", "blind", "brood", "summoner", "telegraph"], boss: true },
     MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 220, atk: (13, 19), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
 ];
 

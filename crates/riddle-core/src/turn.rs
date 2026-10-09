@@ -336,6 +336,7 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
     }
     let seen_before = seen_foes(run, None);
     let hp_before = run.hero.hp;
+    let pos_before = run.hero.pos;
     // QA on 524827b (qaAB): the blows before this action (the trace row's own); those its tick deals after roll on
     let blows_before = run.blows.len();
     // (the events before this action: a hero `Ev::Pickup` after them is something taken — `pickup_dry`)
@@ -461,7 +462,15 @@ fn hero_action(run: &mut Run, cx: &mut Ctx) {
             run.items_until = u32::MAX;
         }
     }
-    run.recent_pos.push(run.hero.pos);
+    // Blind b8dd77c: an action standing still with no foe in view (a rest, a wait) is no pacing
+    // before foes — nine rests in a corridor and a smith in view three actions later read as
+    // `paced 12 turns` and gave the floor's foes up. A step counts in or out of sight (a corridor
+    // mouth's pacing loses its pack from view every other step).
+    if v.foes.is_empty() && run.hero.pos == pos_before {
+        run.recent_pos.clear();
+    } else {
+        run.recent_pos.push(run.hero.pos);
+    }
     if run.recent_pos.len() > 12 {
         run.recent_pos.remove(0);
     }
@@ -1105,6 +1114,9 @@ fn outpaced_guard(run: &mut Run, cx: &mut Ctx, row: i32, verb: &Verb) {
         run.retreats = (0, 0);
         run.bloodless.0 = 0;
         run.bloodless.1 = 0;
+        // (and the corridor hold's clock: the next pack is held from its own nearest)
+        run.hold_dist = -1;
+        run.hold_streak = 0;
         return;
     };
     if run.hurt_last || run.hurt_since_action {
@@ -1530,6 +1542,82 @@ pub fn counter_damage(run: &Run, src: &Src, dmg: i32, target: Option<usize>, tar
 }
 
 /// Hero takes damage from `src`.
+/// Cut 115 §1: a synergy's effect played (`packages::SYNERGIES`) — called out by name the first time a run sees it.
+fn build_said(run: &mut Run, cx: &mut Ctx, bit: u8, name: &str) {
+    if run.build_said & bit == 0 {
+        run.build_said |= bit;
+        callout(run, cx, name);
+    }
+}
+
+/// Cut 115 §1: the blow the hero takes after the build's guard (Bulwark: melee in a corridor; Ghost: blows from
+/// afar, and every blow when hurt; Iron lungs: gas and poison; Warden: a telegraphed blow).
+fn build_taken(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) -> i32 {
+    use crate::packages as p;
+    if dmg <= 0 {
+        return dmg;
+    }
+    let mask = p::build_mask(cx.rules);
+    if mask == 0 {
+        return dmg;
+    }
+    let mut dmg = dmg;
+    if let Src::Mon(i) = src {
+        let near = run.monsters[*i].pos.cheb(run.hero.pos) <= 1;
+        let b = p::synergy_bit("bulwark");
+        if mask & b != 0 && near && run.floor.map.is_corridor(run.hero.pos) {
+            dmg -= p::BULWARK_ARMOUR;
+            build_said(run, cx, b, "Bulwark");
+        }
+        let b = p::synergy_bit("ghost");
+        if mask & b != 0 && (!near || run.hero.hp_pct() < p::GHOST_HURT) {
+            dmg -= if near { 1 } else { p::GHOST_COVER };
+            build_said(run, cx, b, "Ghost");
+        }
+        let b = p::synergy_bit("warden");
+        if mask & b != 0 && run.monsters[*i].has_tag("telegraph") {
+            dmg -= p::WARDEN_GUARD;
+            build_said(run, cx, b, "Warden");
+        }
+    }
+    let b = p::synergy_bit("iron_lungs");
+    if mask & b != 0 && (src.has_tag(run, "gas") || src.has_tag(run, "poison")) {
+        dmg -= p::IRON_LUNGS;
+        build_said(run, cx, b, "Iron lungs");
+    }
+    dmg.max(0)
+}
+
+/// Cut 115 §1: the hero's blow after the build's edge (Duelist: one on one; Marksman: a fresh foe; Scavenger: packs).
+fn build_dealt(run: &mut Run, cx: &mut Ctx, mi: usize, dmg: i32, src: &Src) -> i32 {
+    use crate::packages as p;
+    if dmg <= 0 || !matches!(src, Src::Hero { .. }) || !run.monsters[mi].hostile() {
+        return dmg;
+    }
+    let mask = p::build_mask(cx.rules);
+    if mask == 0 {
+        return dmg;
+    }
+    let mut dmg = dmg;
+    let hero = run.hero.pos;
+    let b = p::synergy_bit("duelist");
+    if mask & b != 0 && !run.monsters.iter().enumerate().any(|(j, m)| j != mi && m.hp > 0 && m.hostile() && m.pos.cheb(hero) <= 2) {
+        dmg += p::DUELIST_EDGE;
+        build_said(run, cx, b, "Duelist");
+    }
+    let b = p::synergy_bit("marksman");
+    if mask & b != 0 && run.monsters[mi].hp >= run.monsters[mi].max_hp {
+        dmg += p::MARKSMAN_EDGE;
+        build_said(run, cx, b, "Marksman");
+    }
+    let b = p::synergy_bit("scavenger");
+    if mask & b != 0 && run.monsters[mi].has_tag("pack") {
+        dmg += p::SCAVENGER_EDGE;
+        build_said(run, cx, b, "Scavenger");
+    }
+    dmg
+}
+
 pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     if dmg <= 0 || run.over.is_some() {
         return;
@@ -1537,6 +1625,7 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     let cause = src.cause(run);
     let cause = cause.as_str();
     let dmg=match src {Src::Mon(i) if run.monsters[*i].hostile()&&run.monsters[*i].hex_t>0=>(dmg-crate::specialization::HEX_REDUCTION).max(0),_=>dmg};
+    let dmg = build_taken(run, cx, dmg, src);
     let (dmg, counter) = counter_damage(run, src, dmg, None, run.hero.pos, false);
     if let Some((a, b)) = counter {
         learn(run, cx, crate::defs::counter_fact(&a, &b));
@@ -1785,7 +1874,7 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, mut dmg: i32, src:
     }
     let cause = src.cause(run);
     let cause = cause.as_str();
-    let mut dmg = dmg.max(0);
+    let mut dmg = build_dealt(run, cx, mi, dmg.max(0), src);
     // Cut 23 §1 (the forge's full kit broke the D28 wall without its counter: FULL−D28 kitted
     // passed on 16 of 30 seeds, the Queen dead to four blows before her second call): while a
     // lurker she called lives, her brood shields her — half of every blow. Silence (no calls)
@@ -2466,6 +2555,7 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
     run.stuck_row = None;
     run.freeing = None;
     run.card_fell = None;
+    run.row_fell = None;
     run.trait_floor = 0;
     run.items_until = 0;
     run.pickup_streak = 0;

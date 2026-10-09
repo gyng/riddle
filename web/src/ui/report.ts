@@ -21,7 +21,7 @@ import { systemIcon, systemLabel } from "./systems";
 import { openPreparationForge, preparationActions } from "./preparation";
 import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
-import type { Counter, ExitLine, InvItem, Lineage, News, Patch, ReturnReport, Row } from "../engine/types";
+import type { Counter, ExitLine, InvItem, Lineage, MeterWire, News, Patch, ReturnReport, Row } from "../engine/types";
 import { h, replace, items, spanOf } from "./dom";
 import { openDropSheet, patchRows } from "./patches";
 import { BANDS, laneTitle, lanes, routeForks, seenForks } from "./route";
@@ -283,6 +283,21 @@ function killWatch(app: App): (boss: string) => (() => void) | null {
     return () => { void watchKill(app, boss, depth, absence); };
   };
 }
+/** Cut 115 §1: the rule fires by who chose the row, as the report reads them — `picked 61% · taught 9% · chores 30%` (the core's
+ *  `MeterWire.credit`, from the rows' origins); empty without fires. */
+export function creditLine(m: Pick<MeterWire, "credit"> | undefined): string {
+  const c = (m?.credit ?? []).filter((x) => Math.round(x.share * 100) > 0);
+  return c.map((x) => `${x.credit} ${Math.round(x.share * 100)}%`).join(" · ");
+}
+/** Cut 115 §1: the report's head names the build (`Bulwark held D23`, `Guarded skirmisher · D14`) and who chose the rows that fired. */
+export function buildHead(L: Lineage, deepest: number, clean: boolean, m: MeterWire | undefined): HTMLElement | null {
+  const b = L.packages?.build, credit = creditLine(m);
+  if (!b && !credit) return null;
+  return h("div", { class: "report-build num", "data-build": b?.name ?? "" },
+    b ? h("b", { class: "build-name", title: b.effect ? `${b.picks.join(" + ")} · ${b.effect}` : b.picks.join(" + ") }, clean ? /* copy:callout */ `${b.name} held D${deepest}` : `${b.name} · D${deepest}`) : "",
+    b && credit ? " · " : "", credit ? h("small", { class: "report-credit dim", "data-credit": credit }, credit) : "");
+}
+
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
   setRefRows(() => app.rules.rows);
   const reading = readingPosition(app, r);
@@ -634,8 +649,10 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       ...(otherGold + boughtGold ? [h("div", { class: "num" }, /* copy:label */ "Workers, other", ` · ${signed(otherGold + boughtGold)}`)] : []),
       ...(net !== undefined ? [h("div", { class: "num" }, h("b", null, /* copy:label */ "Purse change"), ` · ${signed(net)}`)] : []),
       h("div", { class: "kw-tip-gloss" }, net !== undefined ? /* copy:tooltip */ "Earned before spending; purse change counts everything" : /* copy:tooltip */ "Before spending; excludes heir grants")]);
+  const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
   const summary = h("div", { class: "report-summary" },
     h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended"),
+    buildHead(L, r.deepest ?? L.best_depth, deathsN === 0, meterOf),
     h("div", { class: `tiles report-basics${absence ? " fade-in" : ""}` },
       toLog(tile(String(r.runs), /* copy:label */ "runs")),
       tile(`D${r.deepest ?? L.best_depth}`, r.deepest !== undefined ? /* copy:label */ "deepest" : /* copy:label */ "record"),
@@ -657,7 +674,6 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     detailsBtn, details);
   // Cut 29 §3: the night's meters (an absence: its real runs summed), a watched run's own — under `details` on the phone, beside the
   // shaft on the desktop
-  const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
   const meterTitle = /* copy:label */ "Completed runs";
   const meterScope = (): HTMLElement => h("span", null, h("span", null, absence ? /* copy:callout */ "Includes before away" : /* copy:label */ "Whole runs"), " · ", h("span", null, /* copy:callout */ "Camp rest separate"));
   details.append(...[pendingSec, tiles, grewBlock(r, heroFace(L), trainingBeats(r.packages)), workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest }), newsBlock(r, named, namedCounters(L), shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, namedCounters(L))) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null, goldLine(), picked, exitLines, rested,

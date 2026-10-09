@@ -2304,7 +2304,8 @@ fn death_deltas_are_the_camp_forecasts_move() {
     // Cut 24 (the floors' arrival events, named foes resting): 1047's.
     // Cut 109 (floors on their own stream; 1047's drink patch ran out of panel budget a sim
     // short, 49 vs 50): 1031's.
-    let mut g = Game::new_literal(1031);
+    // Blind b8dd77c (the corridor hold's clock: 1031's rest patch now moves D5 by +0.20, under the bar): 1035's.
+    let mut g = Game::new_literal(1035);
     g.send();
     let mut died = None;
     for _ in 0..4000 {
@@ -2314,7 +2315,7 @@ fn death_deltas_are_the_camp_forecasts_move() {
             break;
         }
     }
-    let id = died.expect("seed 1031's first heir dies");
+    let id = died.expect("seed 1035's first heir dies");
     g.keep(vec![]).unwrap();
     let d = g.death(id).unwrap();
     assert!(!d.patches.is_empty() && d.patches.iter().all(|p| p.camp_pending && p.forecast_depth == 0), "{:?}", d.patches);
@@ -11300,6 +11301,11 @@ fn saves_from_307dbed_send_identically() {
     // Blind 77030eb: a new heir keeps a temperament the PLAYER picked (`packages::wake`, `temperament_chosen`);
     // this save never picked, so its wakes draw as before — the hash stays ea30535a6c429390 (an unconditional keep
     // moved it to 584fbd1f31722aa8 and walled IDLE; the second `systems::update` at the run's end leaves it unchanged).
+    // Blind b8dd77c: ea30535a6c429390 → e9c001509e3a6fc0. The corridor hold waits only while the foe comes nearer
+    // (`HOLD_MAX` 8 actions at most), a `back corridor` row does not fall back twice from one tile with no blood
+    // drawn, and a still action with no foe in view resets the pacing guard's window (ai.rs/turn.rs alone, with
+    // defs.rs and the silence hunk at HEAD: 6c79b06bb0685d55); then the Lurker Queen 100 hp (5–8) and silence loses
+    // her called brood. With every b8dd77c hunk reverted the tree hashes to ea30535a6c429390.
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }
@@ -11838,7 +11844,7 @@ fn quiet_meter_batch_matches_empty_tick_fight_transition() {
                 batch.run.fights = fights;
                 let mut reference = batch.clone();
                 batch.quiet_ticks(ticks);
-                for _ in 0..ticks { reference.tick(&[], std::iter::empty()); }
+                for _ in 0..ticks { reference.tick(&[], std::iter::empty(), None); }
                 assert_eq!(batch, reference);
             }
         }

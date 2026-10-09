@@ -83,10 +83,16 @@ export function pairedOf(o: Pick<PkgOption, "n" | "better" | "worse">): { text: 
   /* copy:label */
   return b > w ? { text: `better ${b}/${n}`, good: true, score } : { text: `worse ${w}/${n}`, good: false, score };
 }
+/** Cut 115 §3: which wall a move is for — each wall the compare read where the paired split is clear (sign test ≤ 10 %):
+ *  `better at D8 Warlord · worse at D28 Queen`; empty when no wall's split is clear. */
+export function wallLine(o: Pick<PkgOption, "walls">): string {
+  return (o.walls ?? []).filter((w) => w.n > 0 && w.better !== w.worse && signP(w.better, w.worse) <= 0.1)
+    .map((w) => /* copy:tooltip */ `${w.better > w.worse ? "better" : "worse"} at D${w.depth} ${w.boss}`).join(" · ");
+}
 /** The compare's one summary: what was compared (`8 paired runs`), or that it all fell inside the noise (`noise · 8 runs`) or played
  *  alike (`identical · 8 runs`); the older core's band reads `rough estimate` / `all similar`. */
 export function compareSummary(opts: PkgOption[]): string {
-  const eq = opts.filter((o) => o.action === "equip");
+  const eq = opts.filter((o) => o.action === "equip" || o.action === "variant");
   const n = Math.min(...eq.map((o) => o.n ?? 0));
   const anyClear = eq.some((o) => priceOf(o).good !== null);
   /* copy:label */
@@ -148,6 +154,8 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       const L = app.lineage, P = L.packages; if (!P) { close(); return; }
       const freeSlot = Math.min(tacticSlot ?? Math.max(0, (P.tactics ?? []).length), Math.max(0, (P.tactic_slots ?? 0) - 1));
       const selected: [string, number][] = P.all.filter((p) => p.owned && ((choosing.has("stance") && p.kind === "stance" && p.id !== P.stance) || (choosing.has("tactic") && p.kind === "tactic" && !(P.tactics ?? []).includes(p.id)))).map((p) => [p.id, p.kind === "tactic" ? freeSlot : 0]);
+      // Cut 115 §3: a compare also prices each worn tactic's other variant (`id#v`, the core's `variant` move)
+      if (compare) for (const id of P.tactics ?? []) { const p = P.all.find((x) => x.id === id); if (p?.variants?.length === 2 && p.variant !== undefined) selected.push([`${id}#${1 - p.variant}`, 1 - p.variant]); }
       const next = !compare ? null : reading && currentRead(app, reading, selected) ? reading : measure(app, selected);
       if (next !== reading) {
         reading = next;
@@ -171,7 +179,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
         const pr = o ? priceOf(o) : null;
         const pending = !!reading && !opts && selected.some(([id, at]) => id === p.id && at === slot);
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : pending ? " pending" : " flat"}`, title: o?.n ? /* copy:tooltip */ `same seeds · better ${o.better ?? 0} · worse ${o.worse ?? 0} of ${o.n}` : undefined }, pr && (pr.good !== null || o?.n) ? pr.text : ""), "price")));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
+          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : pending ? " pending" : " flat"}`, title: o?.n ? /* copy:tooltip */ `same seeds · better ${o.better ?? 0} · worse ${o.worse ?? 0} of ${o.n}` : undefined }, pr && (pr.good !== null || o?.n) ? pr.text : ""), "price"), o && wallLine(o) ? h("small", { class: "pkg-walls num dim", "data-walls": wallLine(o) }, wallLine(o)) : ""));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {
@@ -196,9 +204,17 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
           ? twoTap(/* copy:button */ `◆${p.level_price} L${p.level + 1}`, /* copy:button */ `ok ◆${p.level_price}`, () => void app.mutate(() => app.engine.spendLevel!(p.id), /* copy:callout */ `L${p.level + 1}`, true).then(() => paint()), { class: "chip mini pkg-level", key: `lvl:${p.id}` })
           : "";
         // Cut 111: from L3 a tactic's extra row is the player's pick of two (`variants`) — the worn one pressed
+        // Cut 115 §2: from L1, each a different main row; a compare prices the other one (`better 6/8`) and names its walls
         const vary = kind === "tactic" && p.variants?.length === 2 && p.variant !== undefined && app.engine.setTacticVariant
-          ? h("div", { class: "pkg-variants", role: "group", "aria-label": "variant" }, ...p.variants.map((name, i) => h("button", { class: `chip mini pkg-variant${p.variant === i ? " on" : ""}`, "aria-pressed": String(p.variant === i), "data-variant": i,
-              onclick: () => { if (p.variant !== i) void app.mutate(() => app.engine.setTacticVariant!(p.id, i), /* copy:callout */ name, true).then(() => paint()); } }, name)))
+          ? h("div", { class: "pkg-variants", role: "group", "aria-label": "variant" }, ...p.variants.map((name, i) => {
+              const o = p.variant !== i ? (opts ?? []).find((x) => x.action === "variant" && x.id === p.id && (x.slot ?? 0) === i) : undefined;
+              const pr = o ? priceOf(o) : null;
+              const walls = o ? wallLine(o) : "";
+              return h("button", { class: `chip mini pkg-variant${p.variant === i ? " on" : ""}`, "aria-pressed": String(p.variant === i), "data-variant": i,
+                onclick: () => { if (p.variant !== i) void app.mutate(() => app.engine.setTacticVariant!(p.id, i), /* copy:callout */ name, true).then(() => paint()); } }, name,
+                pr && (pr.good !== null || o?.n) ? h("small", { class: `pkg-price num${pr.good === null ? " flat" : pr.good ? " up" : " down"}` }, ` ${pr.text}`) : "",
+                walls ? h("small", { class: "pkg-walls num dim", "data-walls": walls }, ` · ${walls}`) : "");
+            }))
           : "";
         const off = kind === "tactic" && app.engine.unequipPackage ? h("button", { class: "chip mini pkg-off", "aria-label": "remove", onclick: () => void app.mutate(() => app.engine.unequipPackage!(p.id), undefined, true).then(() => paint()) }, "×") : "";
         // blind 77030eb (B: "levelling corridor fighting L1→L5 dropped D33 75%→25% with no reason"): beside a buyable level, the rows it
@@ -269,10 +285,13 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       const more = h("details", { class: "pkg-advanced", open: details, ontoggle: (e: Event) => { details = (e.currentTarget as HTMLDetailsElement).open; } }, h("summary", null, /* copy:button */ "details"), ...extra, h("div", { class: "chips pkg-unlocks" }, locked("stance"), locked("tactic")));
       // blind ad71e72 (A: "inert" on three taps): nothing to compare (no other style or tactic owned) — the button stands disabled;
       // a comparison whose every move sits in the noise says so (`all similar`) rather than painting nothing
-      const comparable = stanceAlts.length > 0 || owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id));
+      const comparable = stanceAlts.length > 0 || owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id) || p.variants?.length === 2);
       const compareButton = h("button", { class: "chip pkg-compare", disabled: !comparable || (compare && !!reading && !opts), onclick: () => { if (stanceAlts.length) choosing.add("stance"); if (owned("tactic").some((p) => !(P.tactics ?? []).includes(p.id))) choosing.add("tactic"); compare = true; reading = null; paint(); } }, compare && reading && !opts ? /* copy:button */ "comparing…" : /* copy:button */ "compare outcomes");
       const head = headline(app);
-      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: opts.some((o) => o.n) ? /* copy:tooltip */ "same seeds both sides · a send better or worse" : /* copy:tooltip */ "Small sample · minor differences unclear" }, compareSummary(opts)) : "", more);
+      // Cut 115 §1: the build the picks make — its name, and a pair's synergy and effect
+      const build = P.build ? h("div", { class: "pkg-build", "data-build": P.build.name, "data-synergy": P.build.synergy ?? "" }, h("b", { class: "build-name" }, P.build.name),
+        P.build.effect ? h("small", { class: "build-effect dim" }, ` · ${P.build.effect}`) : "") : "";
+      replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), build, ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: opts.some((o) => o.n) ? /* copy:tooltip */ "same seeds both sides · a send better or worse" : /* copy:tooltip */ "Small sample · minor differences unclear" }, compareSummary(opts)) : "", more);
     };
     const changed = (): void => { compare = false; reading = null; paint(); };
     const offChange = app.onChange?.(changed), offRules = app.onRules?.(changed);

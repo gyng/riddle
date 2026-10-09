@@ -527,6 +527,14 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 115 §4: take a death's tactic fix (`Death.pick`: the tactic worn in its variant, credited
+    /// `taught`); returns the Lineage.
+    #[wasm_bindgen(js_name = takeFix)]
+    pub fn take_fix(&mut self, id: &str, variant: u32) -> Result<String, JsError> {
+        self.inner.take_fix(id, variant).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 30 §1: revoke (or restore) a drill — one tap; returns the Lineage.
     #[wasm_bindgen(js_name = revokeDrill)]
     pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<String, JsError> {

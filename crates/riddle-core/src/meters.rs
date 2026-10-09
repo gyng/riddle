@@ -67,6 +67,10 @@ pub struct Meter {
     pub hits_pets: u32,
     /// Fights begun (a run's, a night's).
     pub fights: u32,
+    /// Cut 115 §1: fires by the firing row's origin (`tactic:boss_focus`, `stance:steady`, `chores` for −2,
+    /// `trait` for −1, empty for a row without one) — the credit (`packages::credit`) is read off it.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub origins: BTreeMap<String, u32>,
 }
 
 impl Meter {
@@ -95,6 +99,9 @@ impl Meter {
         self.hits_hero += o.hits_hero;
         self.hits_pets += o.hits_pets;
         self.fights += o.fights;
+        for (k, v) in &o.origins {
+            *self.origins.entry(k.clone()).or_insert(0) += v;
+        }
     }
 }
 
@@ -136,7 +143,7 @@ fn put(s: &mut Sides, side: Side, v: i64) {
 
 /// One tick's events into a meter: (a blow passed between the hero's side and a foe, the hero did
 /// a chore — picked something up).
-fn fold_into(m: &mut Meter, pets: &BTreeSet<u32>, evs: &[Ev]) -> (bool, bool) {
+fn fold_into(m: &mut Meter, pets: &BTreeSet<u32>, evs: &[Ev], rules: Option<&crate::rules::RuleSet>) -> (bool, bool) {
     m.ticks += 1;
     let mut blow = false;
     let mut acted = false;
@@ -172,6 +179,17 @@ fn fold_into(m: &mut Meter, pets: &BTreeSet<u32>, evs: &[Ev]) -> (bool, bool) {
             Ev::Rule { row, .. } => {
                 *m.rows.entry(*row).or_insert(0) += 1;
                 acted = true;
+                if let Some(rules) = rules {
+                    let key = match *row {
+                        -2 => "chores",
+                        r if r < 0 => "trait",
+                        r => rules.rows.get(r as usize).and_then(|x| x.origin.as_deref()).unwrap_or(""),
+                    };
+                    match m.origins.get_mut(key) {
+                        Some(n) => *n += 1,
+                        None => { m.origins.insert(key.to_string(), 1); }
+                    }
+                }
             }
             Ev::Use { item, .. } => {
                 *m.supplies.entry(item.clone()).or_insert(0) += 1;
@@ -191,9 +209,9 @@ impl RunMeters {
     /// Fold one tick's events (`Game::tick`, after the tick): the run's meter always, the fight's
     /// while a blow passed between the hero's side and a foe within `FIGHT_GAP` ticks. `allies`:
     /// the pets alive now (added to `pets`).
-    pub fn tick(&mut self, evs: &[Ev], allies: impl Iterator<Item = u32>) {
+    pub fn tick(&mut self, evs: &[Ev], allies: impl Iterator<Item = u32>, rules: Option<&crate::rules::RuleSet>) {
         self.pets.extend(allies);
-        let (blow, chore) = fold_into(&mut self.run, &self.pets, evs);
+        let (blow, chore) = fold_into(&mut self.run, &self.pets, evs, rules);
         let rest = evs.iter().any(|e| matches!(e, Ev::Rule { verb, .. } if verb.v == "rest") || matches!(e, Ev::Hurt { id, cause, .. } if *id == HERO_ID && cause == "rest"));
         let chores = !rest && chore;
         if blow {
@@ -208,7 +226,7 @@ impl RunMeters {
         }
         let fighting = self.quiet < FIGHT_GAP && self.run.fights > 0;
         if fighting {
-            fold_into(&mut self.fight, &self.pets, evs);
+            fold_into(&mut self.fight, &self.pets, evs, rules);
             self.fight.time.fight += 1;
             self.run.time.fight += 1;
         } else if rest {
@@ -311,6 +329,9 @@ pub struct MeterWire {
     pub hits_hero: u32,
     pub hits_pets: u32,
     pub fights: u32,
+    /// Cut 115 §1: the rule fires by who chose the row (`picked 61 % · taught 9 % · chores 30 %`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub credit: Vec<crate::wire::CreditShare>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -331,6 +352,14 @@ fn r3(x: f64) -> f64 {
 }
 
 pub fn wire(m: &Meter) -> MeterWire {
+    wire_for(m, None)
+}
+
+/// A meter on the wire with its credit read against the lineage's packages (`packages::credit_shares`; the
+/// school defaults without them).
+pub fn wire_for(m: &Meter, pkg: Option<&crate::packages::PkgState>) -> MeterWire {
+    let default = crate::packages::PkgState::default();
+    let credit = crate::packages::credit_shares(&m.origins, pkg.unwrap_or(&default));
     let s = secs(m.ticks).max(0.1);
     let rate = |x: &Sides| Rates { hero: r3(x.hero as f64 / s), pets: r3(x.pets as f64 / s), foes: r3(x.foes as f64 / s) };
     let healed: Vec<HealRate> = m.healed.iter().map(|(k, v)| HealRate { src: k.clone(), total: *v, per_s: r3(*v as f64 / s) }).collect();
@@ -353,6 +382,7 @@ pub fn wire(m: &Meter) -> MeterWire {
         hits_hero: m.hits_hero,
         hits_pets: m.hits_pets,
         fights: m.fights,
+        credit,
     }
 }
 
@@ -384,7 +414,7 @@ mod tests {
     fn rule_shares_use_activations_when_one_action_emits_multiple_rules() {
         let mut m=RunMeters::default();
         let rule=|row|Ev::Rule{t:10,row,verb:crate::rules::Verb::new("explore"),text:"chore".into()};
-        m.tick(&[rule(-2),rule(-2),rule(0)],std::iter::empty());
+        m.tick(&[rule(-2),rule(-2),rule(0)],std::iter::empty(),None);
         assert_eq!(m.run.actions,1);assert_eq!(m.run.rows.get(&-2),Some(&2));
         let w=wire(&m.run);
         assert_eq!(w.rows[0].share,0.667);assert_eq!(w.rows[1].share,0.333);

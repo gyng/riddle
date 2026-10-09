@@ -297,7 +297,15 @@ fn workers_keep_their_standing_orders() {
     // the armourer: the best vault weapon/armour goes with each send
     let mut w = g.clone();
     tree::grant(&mut w.lineage, &["armourer"]);
-    if !w.lineage.vault.is_empty() {
+    // (the premise: a find in the vault that beats the forged kit — blind b8dd77c's seed-29 lineage kept a
+    // dragging mail alone, which the armourer rightly leaves; a +3 sword beats the bare kit)
+    let id = w.lineage.next_vault_id;
+    w.lineage.next_vault_id += 1;
+    let mut sword = crate::item::Item::new(id, "sword");
+    sword.enchant = 3;
+    sword.known = true;
+    w.lineage.vault.push(sword);
+    {
         let n = w.lineage.tree.acts.get("armourer").copied().unwrap_or(0);
         run_offline_counts(&mut w, 3600);
         assert!(w.lineage.tree.acts.get("armourer").copied().unwrap_or(0) > n, "the armourer brought the vault");
@@ -927,4 +935,35 @@ fn apprentice_forges_under_its_standing_order() {
     // an old save (no order written) reads `half`
     let sw: crate::wire::StandingSwitches = serde_json::from_str(r#"{"insure":true}"#).unwrap();
     assert_eq!(sw.forge, "half");
+}
+
+/// Blind b8dd77c (B: `purse −$11784` across a 4 h absence under the default `half` order): the apprentice
+/// never spends past half of the hauls home since his hire — over real absences, each one's spend is at
+/// most the budget it began with and half its own hauls — and his report line names the order.
+#[test]
+fn apprentice_half_order_spends_half_the_hauls_since_hire() {
+    let mut g = Game::new_resident(41);
+    tree::grant(&mut g.lineage, &["porter", "scout", "apprentice"]);
+    assert_eq!(g.lineage.orders.forge, "half");
+    let (mut checked, mut reported) = (0, false);
+    for _ in 0..12 {
+        let budget0 = g.lineage.tree.forge_budget as i64;
+        let spent0 = g.lineage.tree.acts.get(tree::APPRENTICE_SPENT).copied().unwrap_or(0) as i64;
+        let t0 = g.lineage.total_turns;
+        let r = g.run_offline(3600);
+        let spent = g.lineage.tree.acts.get(tree::APPRENTICE_SPENT).copied().unwrap_or(0) as i64 - spent0;
+        if let Some(a) = r.workers.iter().find(|w| w.id == "apprentice" && w.spent > 0) {
+            assert!(a.items.iter().any(|i| i == tree::APPRENTICE_HALF), "the order is named: {a:?}");
+            reported = true;
+        }
+        // (the ledger keeps its last lines: an absence it no longer holds whole is not reconciled)
+        if g.lineage.gold_ledger.first().is_none_or(|x| x.t >= t0) {
+            continue;
+        }
+        let half: i64 = g.lineage.gold_ledger.iter().filter(|x| x.t >= t0 && x.delta > 0 && tree::is_haul(&x.why)).map(|x| x.delta as i64 * 50 / 100).sum();
+        // (a merged salvage line halves once where the budget halved each coin: a coin a line)
+        assert!(spent <= budget0 + half + 16, "spent {spent} > budget {budget0} + half the hauls {half}");
+        checked += 1;
+    }
+    assert!(checked >= 3 && reported, "checked {checked} absences, reported {reported}");
 }

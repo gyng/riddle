@@ -403,7 +403,8 @@ fn the_fold_stops_before_a_bosss_floor() {
         let _ = a.send();
         a.fold_plan = Some((12, (1..=12).map(|d| (d, 1.0)).collect()));
         let line = a.fold();
-        let route = a.run.as_ref().unwrap().route;
+        // (a run the fold ended is gone: the send's route is the set's)
+        let route = a.run.as_ref().map_or_else(|| a.lineage.rules().route(), |r| r.route);
         assert!(line.floors.iter().all(|f| route.boss(f.depth).is_none()), "a boss's floor folded: {:?}", line.floors.iter().map(|f| f.depth).collect::<Vec<_>>());
         assert!(line.to < 8, "the fold ran past the Warlord's floor (D{})", line.to);
         if !line.step.run_over {

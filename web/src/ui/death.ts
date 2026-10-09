@@ -55,7 +55,9 @@ export function deathAction(d: Death): string {
   const rows = d.rules?.rows;
   const turn = index === undefined ? undefined : [...d.trace.turns].reverse().find((t) => t.row === index);
   const action = index !== undefined && rows?.[index] ? ruleName(rows, index) : turn ? verbLabel(turn.verb) : "";
-  return action ? `${source} · ${action}` : source;
+  // Cut 115 §1: whether the deciding row was the player's pick (`picked`), a drill's or a fix's (`taught`), the school's (`default`)
+  const who = d.credit ? ` · ${d.credit}` : "";
+  return action ? `${source} · ${action}${who}` : `${source}${who}`;
 }
 
 /** QA 23ed91f (K: "`died $0` and `keeps 0%` say the same thing twice"): a death's line drops its `keeps 0%` (the lead says it). */
@@ -233,6 +235,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const patches = drove ? drivenBlock(app, drove, select, d.trace)
     : d.verdict === "route" && d.route_cause ? routeBlock(app, d, select)
     : patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select, moment: d.depth, replays: d.replays });   // Cut 14 §4: the trace names the least-fired row on a full set
+  // Cut 115 §4: a tactic (or variant) that answers the death leads the fixes, before a raw row (`try · gas step · burn`); taken, it is
+  // worn and credited taught. Before the pen it is the lever itself.
+  if (!prePen && !drove && d.pick?.id && app.engine.takeFix) patches.prepend(pickTablet(app, d.pick));
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const openMorgue = (): void => {
     // QA a946e04 (S: `slain by goblin_archer`): ids read as words (`goblin archer`), in the sheet and the copy alike
@@ -284,6 +289,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     if (!lever) { app.go({ kind: "camp" }); return; }
     if (levelNow && waitPkg) { void app.mutate(() => app.engine.spendLevel!(waitPkg.p.id), /* copy:callout */ `L${waitPkg.p.level + 1}`, true).then(() => app.go({ kind: "camp" })); return; }
     if (lever.kind === "spend") { openPreparationForge(app); return; }
+    if (lever.kind === "tactic" && lever.id && app.engine.takeFix) { void app.mutate(() => app.engine.takeFix!(lever.id!, lever.variant ?? 0), /* copy:callout */ lever.text, true).then(() => app.go({ kind: "camp" })); return; }
     if (lever.kind === "package") {
       const p = app.lineage.packages?.all.find((x) => x.name === lever.text || x.id === lever.text.toLowerCase());
       if (p && p.owned && app.engine.equipPackage) void app.mutate(() => app.engine.equipPackage!(p.id, 0), /* copy:callout */ p.name, true).then(() => app.go({ kind: "camp" }));
@@ -293,14 +299,14 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     if (canSend) app.go({ kind: "watch" }); else app.go({ kind: "camp" });
   };
   /* copy:label */
-  const LEVER_WORD: Record<string, string> = { spend: "buy", package: "wear", wait: "wait" };
+  const LEVER_WORD: Record<string, string> = { spend: "buy", package: "wear", wait: "wait", tactic: "try" };
   /* copy:button */
-  const LEVER_GEM: Record<string, string> = { spend: "forge", package: "wear", wait: "send" };
+  const LEVER_GEM: Record<string, string> = { spend: "forge", package: "wear", wait: "send", tactic: "try" };
   /** The lever in words, as its tablet reads (`train · Guarded L5`, `buy · sword +2`). */
   function leverLine(l: Lever): string { return l === lever && l.kind === "wait" ? `${waitWord} · ${waitText}` : `${LEVER_WORD[l.kind] ?? l.kind} · ${l.text}`; }
   const leverBtn = lever ? h("button", { class: "death-lever tablet", "data-kind": lever.kind, onclick: leverAct },
     h("span", { class: "lever-kind" }, waitWord ?? LEVER_WORD[lever.kind] ?? lever.kind), h("b", { class: "lever-name" },
-      lever.kind === "spend" ? itemIcon({ kind: lever.text, label: lever.text }) : lever.kind === "package" ? (() => {
+      lever.kind === "spend" ? itemIcon({ kind: lever.text, label: lever.text }) : lever.kind === "tactic" && lever.id ? packageIcon(lever.id) : lever.kind === "package" ? (() => {
         const p = app.lineage.packages?.all.find((x) => x.name === lever.text || x.id === lever.text.toLowerCase());
         return p ? packageIcon(p.id) : "";
       })() : waitPkg && waitText !== "again" ? packageIcon(waitPkg.p.id) : "", lever.kind === "wait" ? waitText : lever.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
@@ -618,7 +624,7 @@ export function forecastSaidText(f: { depths: { depth: number; reach: number }[]
 
 /** Cut 30 (core, `Death.lever`, before the pen opens): the one cheapest lever — `spend` (buy the counter item), `package` (a swap), `wait`
  *  (the heir rests, the floor's odds rise) — its words (`+ heal potion`) and its effect (`survives more`). Shape provisional: the core's. */
-export type Lever = { kind: "spend" | "package" | "wait" | string; text: string };
+export type Lever = { kind: "spend" | "package" | "wait" | "tactic" | string; text: string; id?: string; variant?: number };   // Cut 115 §4: a `tactic` lever names its package and variant
 
 /** The hp the hero had before the blow that killed him (the last blow's hp plus its damage); none without a blow. */
 export function momentHp(d: Death): number | undefined {
@@ -687,4 +693,12 @@ export function restLayout(box: HTMLElement, max: number, measuring = false): nu
 function foldHint(patches: HTMLElement): HTMLElement {
   const n = patches.querySelectorAll("button.patch").length;
   return h("small", { class: "fold-hint num" }, n ? /* copy:callout */ ` · ${n} ${n === 1 ? "fix" : "fixes"} · trace` : /* copy:callout */ " · trace");
+}
+
+/** Cut 115 §4: the death's tactic fix as a tablet above the patches — `try · gas step · burn`; a tap wears it (credited taught). */
+function pickTablet(app: App, pick: Lever): HTMLElement {
+  const btn = h("button", { class: "death-pick tablet", "data-pick": pick.id ?? "", "data-variant": String(pick.variant ?? 0),
+    onclick: () => { if (pick.id && app.engine.takeFix) void app.mutate(() => app.engine.takeFix!(pick.id!, pick.variant ?? 0), /* copy:callout */ pick.text, true).then(() => app.go({ kind: "camp" })); } },
+    h("span", { class: "lever-kind" }, /* copy:button */ "try"), h("b", { class: "lever-name" }, pick.id ? packageIcon(pick.id) : "", pick.text), h("span", { class: "lever-go", "aria-hidden": "true" }, "›"));
+  return btn;
 }

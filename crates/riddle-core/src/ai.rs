@@ -784,7 +784,20 @@ pub fn try_verb_scoped(run: &mut Run, cx: &mut Ctx, verb: &Verb, v: &View, scope
             run.monsters[mi].hex_t=crate::specialization::HEX_DURATION;run.hero.special_cd=crate::specialization::COOLDOWN;callout(run,cx,"hexed");true
         }
         "retreat" => verb_retreat(run, cx, v),
-        "back_corridor" => verb_back_corridor(run, cx, v),
+        "back_corridor" => {
+            // Blind b8dd77c (B: `R11 corridor ↔ R14 corridor`, smiths at two tiles): a fall-back
+            // the pack did not follow — back on the tile it left, no blood drawn since — is not
+            // made again within `ROW_FELL` actions; the next row fights from here.
+            let hp = run.hero.pos;
+            if run.row_fell.is_some_and(|(p, t)| p == hp && run.last_damage_action <= t && run.actions < t + ROW_FELL) {
+                return false;
+            }
+            let ok = verb_back_corridor(run, cx, v);
+            if ok {
+                run.row_fell = Some((hp, run.actions));
+            }
+            ok
+        }
         "drink" => verb_drink(run, cx, &a),
         "read" => verb_read(run, cx, &a, v),
         "throw" => (class_has_verb(run.hero.class, run.hero.level, "throw") || cx.unlocks.contains("throw")) && verb_throw(run, cx, &a, v),
@@ -1372,20 +1385,11 @@ fn verb_attack(run: &mut Run, cx: &mut Ctx, a: &str, v: &View, bash: bool) -> bo
     // Hold a corridor while an awake foe keeps closing in, rather than stepping out to meet it.
     // Once the foe stops moving for three actions (a lurking pack), go and get it.
     let d = mp.cheb(hp);
-    if run.floor.map.is_corridor(hp) && run.monsters[mi].awake && d <= 5 && !run.monsters[mi].has_tag("ranged") {
-        if d == run.hold_dist {
-            run.hold_streak += 1;
-        } else {
-            run.hold_dist = d;
-            run.hold_streak = 0;
-        }
-        if run.hold_streak < 3 {
-            return true;
-        }
-    } else {
-        run.hold_dist = -1;
-        run.hold_streak = 0;
+    if run.floor.map.is_corridor(hp) && run.monsters[mi].awake && d <= 5 && !run.monsters[mi].has_tag("ranged") && hold_closing(run, d) {
+        return true;
     }
+    // (the hold's clock runs on through a step out of the corridor and back — it restarts when no
+    // foe is in view, `turn::outpaced_guard` — so a hold and a step out cannot take turns for ever)
     // Approach: path to a tile adjacent to the target, around other monsters (Cut 7: and
     // round lingering gas or fire) if there is a way, otherwise straight through whoever
     // stands in the way.
@@ -2057,6 +2061,13 @@ fn verb_read(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
             // 200 ticks: twenty quiet actions, a boss fight's worth (the contract's 100 left
             // the Lurker Queen calling again before a fighter could close and finish her).
             run.hero.silence_t = 200;
+            // Blind b8dd77c (A: five heirs to the Queen at D28, every fix 0/12): her brood hunts by
+            // sound — she had called it before she came in view, and the counter read then left eight
+            // lurkers at the hero and her mending behind them. Silence loses them: the called brood
+            // fades (`faded`), and the Queen is fought alone for the scroll's twenty actions.
+            for m in run.monsters.iter_mut().filter(|m| m.hp > 0 && m.hostile() && m.summoned && m.kind == "lurker") {
+                m.ttl = Some(0);
+            }
             callout(run, cx, "silence");
             "silent".into()
         }
@@ -2479,16 +2490,14 @@ fn verb_tactic(run: &mut Run, cx: &mut Ctx, card: &str, v: &View) -> bool {
                 // same distance is a pack that will not come — held forever it was the guard's
                 // pacing (qaL run 5: a jackal and a goblin at 4–7 tiles). The corridor hold's own
                 // clock (`hold_dist`), so the approach below goes on from it.
-                let d = run.monsters[pack[0]].pos.cheb(run.hero.pos);
-                if d == run.hold_dist {
-                    run.hold_streak += 1;
-                } else {
-                    run.hold_dist = d;
-                    run.hold_streak = 0;
-                }
-                if run.hold_streak < 3 {
+                let d = pack.iter().map(|&i| run.monsters[i].pos.cheb(hp)).min().unwrap_or(0);
+                if hold_closing(run, d) {
                     return true;
                 }
+            }
+            if foes == 0 {
+                run.hold_dist = -1;
+                run.hold_streak = 0;
             }
             if foes >= 1 && verb_attack(run, cx, "nearest", v, false) {
                 // Going for it: the next action does not fall back to the corridor the step left
@@ -4363,6 +4372,37 @@ fn verb_backstab(run: &mut Run, cx: &mut Ctx, v: &View, mult: i32) -> bool {
     }
     true
 }
+
+/// The corridor hold's clock (`Run.hold_dist` · `hold_streak`): true while the pack still closes. The
+/// clock counts the actions since the nearest foe last came nearer than it has been this hold — blind
+/// b8dd77c (B: `stuck · paced 12 turns, foes ignored`, corridor fighting on D19–D23): a bell sentinel
+/// stepping away at two tiles and back at three, a smith hanging at two or three, reset a clock that
+/// counted the same distance three times, and the card held its corridor before them until the guard
+/// gave the floor up. A foe that comes no nearer for three actions is fought from here.
+/// And a hold lasts `HOLD_MAX` actions in all: a smith creeping a tile every other action, or a
+/// pack gathering at four, held the hero still for the guard's twelve with no blow struck.
+fn hold_closing(run: &mut Run, d: i32) -> bool {
+    if run.hold_dist < 0 {
+        run.hold_total = 0;
+    }
+    if run.hold_dist < 0 || d < run.hold_dist {
+        run.hold_dist = d;
+        run.hold_streak = 0;
+    } else {
+        run.hold_streak += 1;
+    }
+    run.hold_total += 1;
+    run.hold_streak < 3 && run.hold_total <= HOLD_MAX
+}
+
+/// The corridor hold's longest wait in one engagement (actions): a foe at the corridor's reach
+/// (five tiles) at the hero's pace arrives in four; a slower one in eight (blind b8dd77c: 6 also
+/// answered the stall, but moved the routine gate's two-seed rows — HANDS at D18, qa's bank sample).
+pub const HOLD_MAX: u32 = 8;
+
+/// A `back corridor` row's fall-back from one tile is not repeated within this many actions while
+/// no blood is drawn (`Run.row_fell`).
+pub const ROW_FELL: u32 = 30;
 
 /// Rogue: blink to the tile behind the nearest foe within 3.
 fn verb_shadowstep(run: &mut Run, cx: &mut Ctx, v: &View) -> bool {

@@ -319,8 +319,14 @@ export type PatchWhole = { reach: number; reach_pm: number; death: number; death
                            depth?: number;        // QA 308f045 (core; qaAC: `reach D9 ≈ ±1`, then the camp's `vs sent · D6 −21`): the floor the reach is read at — the camp's `vs sent` head (the frontier when it moves, else the floor that moves most); `Patch.forecast_depth` is the same
                            death_from?: number };  // QA 308f045 (core; qaAC: `death −100 ±1`): the death share before the patch (0..1) — print `death 100→0%`   // Cut 26 §6 (core; AP: `reach D5 −76`): the bar's reach before/after the patch (0..1) — print the move as from→to (`reach D5 90→14%`), never a signed delta                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 /** Cut 30 §2 (core) — a death's one cheapest lever before the pen opens: `kind` spend · package · wait, `text` ≤ 3 words (`sword +2`, `Hunter`, `scarred ×3`). */
-export type Lever = { kind: string; text: string };
-export type Death = { difficulty?:number; modifier_catalogue?:ModifierInfo[]; modifiers?:EncounterModifiers; hero?: { name:string; bloodline_id:number; heir:number; class:string }; package?: string; lever?: Lever;   // Cut 30 §2 (core): the package row that acted last (`Steady · HP<20% → return`); the cheapest lever (absent once the pen is open)
+export type Lever = { kind: string; text: string; id?: string; variant?: number };   // Cut 115 §4: a `tactic` lever's package and variant (`takeFix`)
+/** Cut 115 §1 (core): the build the picks make — its name (`Bulwark`, `Guarded skirmisher`), the synergy its pair forms and the effect, the picks. */
+export type BuildWire = { name: string; synergy?: string; effect?: string; picks: string[] };
+/** Cut 115 §1 (core): rule fires by who chose the row. */
+export type CreditShare = { credit: "picked" | "taught" | "default" | "chores" | string; fires: number; share: number };
+/** Cut 115 §3 (core): a move read at one wall (paired sends from its waystone). */
+export type WallRead = { depth: number; boss: string; n: number; better: number; worse: number };
+export type Death = { difficulty?:number; modifier_catalogue?:ModifierInfo[]; modifiers?:EncounterModifiers; hero?: { name:string; bloodline_id:number; heir:number; class:string }; package?: string; lever?: Lever; pick?: Lever; credit?: string;   // Cut 115: `pick` the tactic fix (`try: gas step · burn`), `credit` who chose the deciding row; Cut 30 §2 (core): the package row that acted last (`Steady · HP<20% → return`); the cheapest lever (absent once the pen is open)
   run_id: number; depth: number; cause: string; margin: string; verdict: "gap"|"dice"|"stall"|"row"|"order"|"route";   // route: Cut 26 (core) — the far stair the set's route took killed him (`route_cause`)
                       fight?: MeterWire;                                                    // Cut 29 §3 (core): the fight he died in, metered — the death screen's breakdown; absent for a stall
                       lean?: "dice";                                                        // Cut 26 §6 (core; AO: `GAP` beside `unpatched 10/12`): a gap/row/order most of whose unpatched replays survive (> 6/12) — stamp it beside the counts (`GAP · dice-leaning`)
@@ -391,14 +397,14 @@ export type RowSource = { label: string; shadowed_by?: number };
  *  the scars (boss → %), the pen (open at the Mother met or a 3-day stall; the editor's rows sit above the packages), and per compiled
  *  row its source. `literal` a harness's lineage (no packages). */
 export type Packages = { all: Package[]; stance: string; tactics?: string[]; tactic_slots?: number; temperament?: string; temperament_open?: boolean;
-  offer?: string[]; drills?: Drill[]; scars?: [string, number][]; pen_open: boolean; pen_needs?: string[]; rows?: RowSource[]; literal?: boolean };
+  offer?: string[]; drills?: Drill[]; scars?: [string, number][]; pen_open: boolean; pen_needs?: string[]; rows?: RowSource[]; literal?: boolean; build?: BuildWire };
 /** Cut 30 §2 (core) — a package move priced on the paired panel (`packageOptions(sims)`, best first): `action` equip · level, the shares
  *  of the sends that pass the record / reach it / bank / die, and each move against the set as it stands (`Guarded · death −8`). */
 export type PkgOption = { id: string; action: string; slot?: number; price?: number; past: number; bank: number; death: number; reach?: number;
   d_past: number; d_bank: number; d_death: number; d_reach?: number;
   /** Blind c4705f9: the paired read — the sends both panels ran on the same seeds, and of them those the move ended better / worse
    *  (deeper, or as deep with a better exit). Absent on an older core. */
-  n?: number; better?: number; worse?: number };
+  n?: number; better?: number; worse?: number; walls?: WallRead[] };
 /** Cut 30.5 (core; docs/CUT30_5.md, docs/AUTOMATION_TREE.md §2) — a node of the works tree. A **worker** retires a chore done by hand a few
  *  times (`count`/`need`, or `fallback_h` of lineage age once its chore exists); a **stage** is one of the four tracks' stages (the tracks
  *  panel's rows, now the tree's branches). ids — workers: quartermaster · porter · scout · armourer · apprentice · keeper · clerk · drillmaster ·
@@ -468,7 +474,7 @@ export type DescentOffer = { tier:number; hp_bonus_percent:number; attack_bonus_
 export type ClassStyleId = "sentinel" | "hexbinder";
 export type ClassStyleOffer = {id:ClassStyleId;name:string;parent:string;level:number;xp:number;next:number;required_level:number;required_depth:number;deepest:number;selected:boolean;available:boolean;blocked:string|null;cooldown_ticks:number;duration_ticks:number;effect:string;tactic:Row};
 export type ClassStyles = {selected:ClassStyleId|null;offers:ClassStyleOffer[];remove_available:boolean;remove_blocked:string|null;automatic_row:boolean;player_overrides:boolean};
-export type HeroSlot = { specialization?:ClassStyleId; look?:string; hero_name?:string; id:number; name:string; heir:number; class:string; level:number; xp:number; next?:number; state:"live"|"rests"|"waits"; live?:Lineage["live"]; rest_s:number; legacy:BloodlineLegacy; notice:boolean; chronicle?:string[] };
+export type HeroSlot = { specialization?:ClassStyleId; look?:string; hero_name?:string; build?:string; id:number; name:string; heir:number; class:string; level:number; xp:number; next?:number; state:"live"|"rests"|"waits"; live?:Lineage["live"]; rest_s:number; legacy:BloodlineLegacy; notice:boolean; chronicle?:string[] };
 export type HeroLane = { id: string; name: string; state: "live" | "rests" | "waits"; depth?: number; hp?: number; max_hp?: number;
   rest_s?: number; run_id?: number; auto: boolean; need?: number; have?: number; kind?: "hero" | "expedition" };
 export type ReturnReport = {
@@ -689,7 +695,7 @@ export type MeterWire = { seconds: number; dealt: MeterSides; taken: MeterSides;
                           time: { fight: number; travel: number; chores: number; rest: number }; time_s: { fight: number; travel: number; chores: number; rest: number };
                           rows: { row: number; fires: number; share: number }[]; // share of rule activations; several can belong to one action
                           actions: number; supplies: { [kind: string]: number };
-                          gold: number; gold_per_min: number; hits_hero: number; hits_pets: number; fights: number };
+                          gold: number; gold_per_min: number; hits_hero: number; hits_pets: number; fights: number; credit?: CreditShare[] };
 export type SnapMeters = { run: MeterWire; fight?: MeterWire; fighting?: boolean };
 export interface Engine {
   // Cut 30.5 (core): the works tree — each returns the Lineage (throws with a ≤ 3-word reason). The chores by hand are the existing calls:
@@ -714,6 +720,7 @@ export interface Engine {
   pickTemperament?(id: string): Lineage;                // §2: take a wake card (`packages.offer`)
   spendLevel?(id: string): Lineage;
   setTacticVariant?(id: string, variant: number): Lineage;
+  takeFix?(id: string, variant: number): Lineage;       // Cut 115 §4: a death's tactic fix (`Death.pick`), credited taught
   takeControl?(on: boolean): void;                            // take control (a secondary mode): the watched run's hero is the player's
   act?(action: ManualAct): void;                              // take control: his next action (the world waits for it — `Snapshot.awaiting`)   // Cut 111: a tactic's L3 row, `Package.variants[variant]`                     // §2: marks for a package's next level (`Package.level_price`)
   revokeDrill?(boss: string, revoked: boolean): Lineage;   // §1: revoke (or restore) a drill — one tap, it stays

@@ -1548,23 +1548,24 @@ fn the_drillmaster_wears_a_wall_tactic_once() {
     assert!(!g.lineage.pkg.tactics.iter().any(|t| t == "reflect_read"), "taken off, it stays off");
 }
 
-/// Cut 111: from L3 a tactic's extra row is the player's pick of two; before L3 the pick is refused.
+/// Cut 111 / Cut 115 §2: a tactic's variant is the player's pick from L1, and the second leads with its own main row.
 #[test]
-fn a_tactic_variant_is_the_players_pick_from_l3() {
+fn a_tactic_variant_is_the_players_pick_from_l1() {
     let mut g = Game::new_resident(11);
     g.lineage.kills.insert("goblin_warlord".into());
     g.lineage.pkg.owned.insert("boss_focus".into());
     packages::equip(&mut g.lineage, "boss_focus", 0).unwrap();
-    assert!(packages::set_variant(&mut g.lineage, "boss_focus", 1).is_err(), "before L3 the row is fixed");
-    g.lineage.pkg.runs.insert("boss_focus".into(), 1000);
-    packages::recompile(&mut g.lineage);
-    let has = |g: &Game, a: &str| g.lineage.rules().rows.iter().any(|r| r.verb.v == "attack" && r.verb.a.as_deref() == Some(a));
-    assert!(has(&g, "tag:summoned"), "L3's first variant: summons first");
+    assert_eq!(g.lineage.pkg.level("boss_focus"), 1);
+    let has = |g: &Game, a: &str| g.lineage.rules().rows.iter().any(|r| r.verb.v == "attack" && r.verb.a.as_deref() == Some(a) && r.origin.as_deref() == Some("tactic:boss_focus"));
+    assert!(!has(&g, "tag:boss"), "L1's first variant: the card alone");
     packages::set_variant(&mut g.lineage, "boss_focus", 1).unwrap();
-    assert!(has(&g, "tag:boss"), "the second: boss first");
+    assert!(has(&g, "tag:boss"), "the second from L1: boss first");
     let w = packages::wire(&g.lineage);
     let p = w.all.iter().find(|p| p.id == "boss_focus").unwrap();
     assert_eq!((p.variants.len(), p.variant), (2, Some(1)));
+    g.lineage.pkg.runs.insert("boss_focus".into(), 1000);
+    packages::set_variant(&mut g.lineage, "boss_focus", 0).unwrap();
+    assert!(has(&g, "tag:summoned"), "L3's first variant: summons first");
 }
 
 /// Blind 1fb7786 (A: the Mother slain, the pen `locked · Upcoming reports` for the session's last 20 min; owner:

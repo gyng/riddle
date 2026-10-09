@@ -80,6 +80,29 @@ mean best 27.71 vs 28.04 (was 28.25 vs 28.36). Rows that moved: TUNED/PICKED at 
 `cargo test --profile fast`: 703, the 307dbed send hash re-recorded (f22db4c57141f4d0 → ea30535a6c429390;
 the tree with only defs.rs at HEAD hashes to f22db4c57141f4d0).
 
+### §4b — the Queen had no answer below a full kit (blind b8dd77c, 2026-10-09)
+
+Evidence: rater A lost five heirs to the Lurker Queen at D28; every offered fix replayed 0/12. Her brood hunts by
+sound and she calls it before she comes in view, so `foe: boss → read silence` fired with up to eight called lurkers
+already on the hero, her blows halved and her mending running behind them.
+
+Measured (temp harness: A's exported set, fighter L10, every fact, a fresh hero on D28 with heal ×2 + silence,
+30 seeds × 12 sends; *won* = Queen slain / Queen engaged): at 120 hp (7–11) kit weapon 1 · armour 3 (A's) 1/50 (2 %),
+weapon 3 · armour 4 1/56 (2 %), full kit 30/127 (24 %) — a wall with no answer below the full forge. Hp/damage alone
+barely moved it (median Queen untouched at the end: the brood kills first).
+
+**Changed.** Reading silence loses her called brood (it fades; the floor's wild lurkers stay — `ai.rs`); Lurker Queen
+hp 120 → 100, atk 7–11 → 5–8 (`defs.rs`). Same harness: A's kit 10 %, weapon 3 · armour 4 17 %, full kit 57 % of
+engaged fights won — the counter answers, the kit still buys it (×5).
+
+**Pacing** (`dayplayer --routine --bots idle,picked,tuned --seeds 8 --tuned-seeds 8`, final tree incl. the b8dd77c
+corridor-hold fix and Cut 115; King-kill day per seed): PICKED 7 · 7 · 6 · 7 · 8 · 5 · 8 · 4 → median 7 (before Cut 113: 6;
+Cut 113: 9); TUNED 3 · 2 · 3 · 3 · 3 · 3 · 3 · 3 → median 3 (before: 2; Cut 113: 4); IDLE King 0/8. Rejected: 90 hp (5–8) —
+PICKED median 5 < 6; 100 hp (6–9) A's kit 4 %; 110 hp (6–10) mid kit 9 %. All dayplayer bars PASS.
+
+**Gate** (`node tools/gates.mjs --full --fresh`, combined tree with Cut 115): metrics, qa (10 seeds) and dayplayer all PASS.
+`cargo test --profile fast`: 727 pass; the 307dbed hash re-recorded ea30535a6c429390 → e9c001509e3a6fc0 (reason in the test).
+
 ## §2 measured — forge choices, not a ladder (core + client, 2026-10-09)
 
 **Changed.** Each weapon and armour tier offers two steps priced alike (`kit::BRANCHES`): weapon `aim` (to-hit:

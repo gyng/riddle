@@ -195,6 +195,10 @@ pub struct PkgState {
     /// Cut 111: tactic id → the variant of its L3 row the player chose (0 the first, 1 the second).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub variants: BTreeMap<String, u8>,
+    /// Cut 115 §4: tactics a death's fix put on (`take_fix`) — their rows are credited `taught` until the
+    /// player equips the tactic or sets its variant himself.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub taught: BTreeSet<String>,
     /// Packages that have arrived (stances, tactics, temperaments offered and taken).
     #[serde(default)]
     pub owned: BTreeSet<String>,
@@ -237,6 +241,7 @@ impl Default for PkgState {
             temperament: None,
             runs: BTreeMap::new(),
             variants: BTreeMap::new(),
+            taught: BTreeSet::new(),
             temperament_chosen: false,
             owned: ["steady".to_string()].into_iter().collect(),
             drills: Vec::new(),
@@ -434,14 +439,17 @@ fn wall_met(l: &LineageState, id: &str) -> bool {
 }
 
 /// Cut 111 (owner: tactics, not the pen, are the player's tuning; cohort c4705f9: "Steady + boss focus — little
-/// felt mine"): from L3 a tactic's extra row is the player's pick of two, each a different trade.
+/// felt mine"): a tactic is worn one of two ways, each a different trade. Cut 115 §2: the pick is open from L1
+/// and the two differ in the tactic's **main** row — its first: the first variant leads with the card itself (the
+/// card's own read of the situation), the second with its own row ahead of the card (`boss first`: the boss before
+/// anything the card would do); the first variant's L3 row follows the card.
 pub fn variants(id: &str) -> Option<[&'static str; 2]> {
     Some(match id {
         "boss_focus" => ["summons first", "boss first"],
-        "kite_archers" => ["hunt archers", "keep cover"],
-        "thief_guard" => ["chase thieves", "swat close"],
-        "gas_step" => ["step away", "burn them"],
-        "pack_break" => ["to corridor", "pick the weak"],
+        "kite_archers" => ["hunt", "fall back"],
+        "thief_guard" => ["chase", "head home"],
+        "gas_step" => ["step away", "wade in"],
+        "pack_break" => ["to corridor", "stand"],
         "corridor_fighting" => ["at three", "at two"],
         _ => return None,
     })
@@ -453,7 +461,35 @@ pub fn tactic_rows(id: &str, level: u32) -> Vec<Row> {
     tactic_rows_v(id, level, 0)
 }
 
-/// A tactic's rows at a level with its L3 row's variant.
+/// Cut 115 §2: the second variant's main rows, ahead of the card from L1 — each marked whether it leads the set (before
+/// the stance's guard rows: `boss first` swings at the boss before the heal, down to 20 %).
+fn variant_main(id: &str) -> Option<Vec<(Row, bool)>> {
+    Some(match id {
+        // the boss before anything: he walks rested (a rest under 70 % between fights) and swings at him before the heal
+        "boss_focus" => vec![(r(vec![tag("boss"), n("hp>", 20)], Verb::arg("attack", "tag:boss")), true), (r(vec![n("hp<", 70)], Verb::new("rest")), false)],
+        // archers wearing him down are the sign to go home
+        "kite_archers" => vec![(r(vec![tag("ranged"), n("hp<", 50)], Verb::new("return")), false)],
+        // a thief in reach of a hurt hero is the sign to go home with what he carries
+        "thief_guard" => vec![(r(vec![tag("thief"), n("hp<", 70)], Verb::new("return")), false)],
+        // burn them when fire is packed, else pop them in reach, before the step back
+        "gas_step" => vec![(r(vec![tag("gas")], Verb::arg("throw", "fire,tag:gas")), true), (r(vec![tag("gas"), n("hp>", 25)], Verb::arg("attack", "tag:gas")), true)],
+        // stand in any crowd and break it, the weakest first, before the heal — down to 20 %
+        "pack_break" => vec![(r(vec![n("foes>=", 2), n("adj>=", 1), n("hp>", 20)], Verb::arg("attack", "lowest")), true)],
+        // into a corridor from two foes, not three; outnumbered three to one and under half, home
+        "corridor_fighting" => vec![(r(vec![n("foes>=", 3), n("hp<", 50)], Verb::new("return")), false), (r(vec![n("foes>=", 2)], Verb::new("back_corridor")), false)],
+        _ => return None,
+    })
+}
+
+/// The rows a worn tactic's variant puts ahead of the stance's guard rows (`variant_main`'s leading rows).
+pub fn tactic_lead_rows(id: &str, variant: u8) -> Vec<Row> {
+    match variant_main(id) {
+        Some(rows) if variant >= 1 => rows.into_iter().filter(|x| x.1).map(|x| x.0).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// A tactic's rows at a level with its variant (the second leads with its own row from L1).
 pub fn tactic_rows_v(id: &str, level: u32, variant: u8) -> Vec<Row> {
     if id == "cadence" { return vec![r(vec![tag("mirror")], Verb::arg("tactic", id))]; }
     if WALL_TACTICS.contains(&id) {
@@ -464,21 +500,24 @@ pub fn tactic_rows_v(id: &str, level: u32, variant: u8) -> Vec<Row> {
         };
         return vec![r(when, Verb::arg("tactic", id))];
     }
-    let mut v = vec![r(vec![], Verb::arg("tactic", id))];
+    let card = r(vec![], Verb::arg("tactic", id));
+    if variant >= 1 {
+        if let Some(main) = variant_main(id) {
+            // (a leading row is compiled ahead of the guard rows: `tactic_lead_rows`)
+            let mut v: Vec<Row> = main.into_iter().filter(|x| !x.1).map(|x| x.0).collect();
+            v.push(card);
+            return v;
+        }
+    }
+    let mut v = vec![card];
     if level >= 3 {
-        let extra = match (id, variant) {
-            ("boss_focus", 0) => Some(r(vec![tag("summoned")], Verb::arg("attack", "tag:summoned"))),
-            ("boss_focus", _) => Some(r(vec![tag("boss")], Verb::arg("attack", "tag:boss"))),
-            ("kite_archers", 0) => Some(r(vec![tag("ranged"), n("adj>=", 1)], Verb::arg("attack", "tag:ranged"))),
-            ("kite_archers", _) => Some(r(vec![tag("ranged"), n("adj>=", 1)], Verb::new("back_corridor"))),
-            ("thief_guard", 0) => Some(r(vec![tag("thief")], Verb::arg("attack", "tag:thief"))),
-            ("thief_guard", _) => Some(r(vec![tag("thief"), n("adj>=", 1)], Verb::arg("attack", "tag:thief"))),
-            ("gas_step", 0) => Some(r(vec![tag("gas"), n("adj>=", 1)], Verb::new("retreat"))),
-            ("gas_step", _) => Some(r(vec![tag("gas")], Verb::arg("throw", "fire,tag:gas"))),
-            ("pack_break", 0) => Some(r(vec![tag("pack"), n("adj>=", 2)], Verb::new("back_corridor"))),
-            ("pack_break", _) => Some(r(vec![tag("pack"), n("adj>=", 2)], Verb::arg("attack", "lowest"))),
-            ("corridor_fighting", 0) => Some(r(vec![n("foes>=", 3)], Verb::new("back_corridor"))),
-            ("corridor_fighting", _) => Some(r(vec![n("foes>=", 2)], Verb::new("back_corridor"))),
+        let extra = match id {
+            "boss_focus" => Some(r(vec![tag("summoned")], Verb::arg("attack", "tag:summoned"))),
+            "kite_archers" => Some(r(vec![tag("ranged"), n("adj>=", 1)], Verb::arg("attack", "tag:ranged"))),
+            "thief_guard" => Some(r(vec![tag("thief")], Verb::arg("attack", "tag:thief"))),
+            "gas_step" => Some(r(vec![tag("gas"), n("adj>=", 1)], Verb::new("retreat"))),
+            "pack_break" => Some(r(vec![tag("pack"), n("adj>=", 2)], Verb::new("back_corridor"))),
+            "corridor_fighting" => Some(r(vec![n("foes>=", 3)], Verb::new("back_corridor"))),
             _ => None,
         };
         v.extend(extra);
@@ -606,6 +645,10 @@ pub fn compile(l: &LineageState) -> RuleSet {
     for d in p.drills.iter().rev().filter(|d| !d.revoked) {
         let origin = format!("drill:{}", d.boss);
         rows.extend(effective_drill_rows(d, heal).into_iter().map(|row| row.from(&origin)));
+    }
+    // Cut 115 §2: a variant that commits leads the stance's guard rows
+    for t in &p.tactics {
+        rows.extend(tagged(tactic_lead_rows(t, p.variants.get(t).copied().unwrap_or(0)), &format!("tactic:{t}")));
     }
     let origin = format!("stance:{}", p.stance);
     let (guard, fallback) = if p.stance == CUSTOM { (p.custom.clone(), Vec::new()) } else { stance_rows(&p.stance, level, best) };
@@ -851,7 +894,7 @@ pub fn counter_offer(l: &LineageState, boss: &str, row: &Row) -> (String, bool) 
         let lv = l.pkg.level(id).max(1);
         let v = l.pkg.variants.get(id).copied().unwrap_or(0);
         row.verb == Verb::arg("tactic", id)
-            || tactic_rows_v(id, lv, v).iter().any(|r| r.verb == row.verb)
+            || tactic_rows_v(id, lv, v).iter().chain(tactic_lead_rows(id, v).iter()).any(|r| r.verb == row.verb)
             || crate::meta::unlock_rows(card).is_some_and(|rows| rows.iter().any(|r| r.verb == row.verb))
     };
     if let Some(d) = PACKAGES.iter().find(|d| d.kind == Kind::Tactic && available(l, d.id) && tactic_slots(l) > 0 && carries(d.id)) {
@@ -889,6 +932,7 @@ pub fn equip(l: &mut LineageState, id: &str, slot: usize) -> Result<(), String> 
                 return Err("slot closed".into());
             }
             if id == "cadence" { l.pkg.owned.insert(id.into()); }
+            l.pkg.taught.remove(id);
             l.pkg.tactics.retain(|t| t != id);
             if slot < l.pkg.tactics.len() {
                 l.pkg.tactics[slot] = id.into();
@@ -916,7 +960,10 @@ pub fn unequip(l: &mut LineageState, id: &str) -> Result<(), String> {
     let d = def(id).ok_or("unknown package")?;
     match d.kind {
         Kind::Stance => return Err("stance never empty".into()),
-        Kind::Tactic => l.pkg.tactics.retain(|t| t != id),
+        Kind::Tactic => {
+            l.pkg.tactics.retain(|t| t != id);
+            l.pkg.taught.remove(id);
+        }
         Kind::Temperament => wear(l, None),
     }
     recompile(l);
@@ -1007,8 +1054,8 @@ pub fn level_adds(l: &LineageState, id: &str) -> Vec<Row> {
     rows(lv + 1).into_iter().filter(|r| !now.contains(r)).collect()
 }
 
-/// Spend marks on a package's next level (its runs set to the level's count).
-/// Cut 111: pick a tactic's L3 row (`variants`): owned, at L3 or above. Free, instant, revocable.
+/// Cut 111 / Cut 115 §2: pick a tactic's variant (`variants`): owned, from L1. Free, instant, revocable; the
+/// player's own pick (a fix's `taught` credit ends).
 pub fn set_variant(l: &mut LineageState, id: &str, v: u8) -> Result<(), String> {
     if variants(id).is_none() || v > 1 {
         return Err("no such variant".into());
@@ -1016,11 +1063,27 @@ pub fn set_variant(l: &mut LineageState, id: &str, v: u8) -> Result<(), String> 
     if !l.pkg.owned.contains(id) {
         return Err("not yet".into());
     }
-    if l.pkg.level(id) < 3 {
-        return Err("from L3".into());
-    }
     if v == 0 { l.pkg.variants.remove(id); } else { l.pkg.variants.insert(id.into(), v); }
+    l.pkg.taught.remove(id);
     recompile(l);
+    Ok(())
+}
+
+/// Cut 115 §4: a death's fix taken (`Death.pick`): the tactic worn — the first open slot, else the last — in the
+/// variant that answers the death, credited `taught` (the fix did the learning) until the player re-picks it.
+pub fn take_fix(l: &mut LineageState, id: &str, v: u8) -> Result<(), String> {
+    let slots = tactic_slots(l);
+    if slots == 0 {
+        return Err("slot closed".into());
+    }
+    if !l.pkg.tactics.iter().any(|t| t == id) {
+        let slot = l.pkg.tactics.len().min(slots - 1);
+        equip(l, id, slot)?;
+    }
+    if variants(id).is_some() {
+        set_variant(l, id, v)?;
+    }
+    l.pkg.taught.insert(id.to_string());
     Ok(())
 }
 
@@ -1265,20 +1328,29 @@ pub fn lever(l: &LineageState, cause: &str) -> Option<crate::wire::Lever> {
     if l.pkg.pen_open || l.pkg.literal {
         return None;
     }
+    // Cut 115 §4: a tactic (or a variant) that answers the death is the fix, before a purchase
+    if let Some(pick) = pick_lever(l, cause) {
+        return Some(pick);
+    }
     let step = crate::kit::ladders(l).into_iter().filter_map(|lad| lad.next.map(|n| (n.price, n.label))).min_by_key(|x| x.0);
     if let Some((price, label)) = step.filter(|(p, _)| *p as i32 <= l.gold) {
         let _ = price;
-        return Some(crate::wire::Lever { kind: "spend".into(), text: label });
+        return Some(crate::wire::Lever { kind: "spend".into(), text: label, ..Default::default() });
     }
     let boss = crate::descent::BOSS_DEPTHS.iter().map(|(k, _)| *k).find(|k| *k == cause);
     if let Some(b) = boss {
         if !l.pkg.drills.iter().any(|d| d.boss == b) && l.pkg.owned.contains("hunter") && l.pkg.stance != "hunter" {
-            return Some(crate::wire::Lever { kind: "package".into(), text: "Hunter".into() });
+            return Some(crate::wire::Lever { kind: "package".into(), text: "Hunter".into(), ..Default::default() });
         }
         let scar = l.pkg.scar(b, &l.kills) / crate::balance::get().scar_pct;
-        return Some(crate::wire::Lever { kind: "wait".into(), text: if scar > 0 { format!("scarred ×{scar}") } else { "drill next".into() } });
+        return Some(crate::wire::Lever { kind: "wait".into(), text: if scar > 0 { format!("scarred ×{scar}") } else { "drill next".into() }, ..Default::default() });
     }
-    Some(crate::wire::Lever { kind: "wait".into(), text: format!("{} L{}", name(&l.pkg.stance), (l.pkg.level(&l.pkg.stance) + 1).min(MAX_LEVEL)) })
+    Some(crate::wire::Lever { kind: "wait".into(), text: format!("{} L{}", name(&l.pkg.stance), (l.pkg.level(&l.pkg.stance) + 1).min(MAX_LEVEL)), ..Default::default() })
+}
+
+/// Cut 115 §4: a death's tactic fix as a lever (`kind` `tactic`, `text` `gas step · burn`, the id and variant).
+pub fn pick_lever(l: &LineageState, cause: &str) -> Option<crate::wire::Lever> {
+    fix_pick(l, cause).map(|(id, v, text)| crate::wire::Lever { kind: "tactic".into(), text, id: Some(id), variant: Some(v as u32) })
 }
 
 /// A row's package label for the verdict and the trace (`Steady`, `drill · Warlord`), if it is one.
@@ -1292,6 +1364,241 @@ pub fn row_label(row: &Row) -> Option<String> {
         "class" if id=="gunner" => Some("Gunner".into()),
         _ => None,
     }
+}
+
+// ---------------------------------------------------------------- Cut 115: builds
+
+/// Cut 115 §1 (owner, 2026-10-09: "builds from tactics"): a pair of worn picks that forms a named build, with one
+/// small effect only that pair has. Each holds a tactic (IDLE wears none: its games are unchanged). The effect
+/// plays in the sim (`turn::damage_hero` / `damage_monster`, read off the compiled rows' origins: `build_mask`).
+pub struct Synergy {
+    pub id: &'static str,
+    /// The build's name (≤ 2 words).
+    pub name: &'static str,
+    /// The two picks (package ids: a stance, a tactic, a temperament).
+    pub pair: [&'static str; 2],
+    /// What it does (≤ 6 words).
+    pub effect: &'static str,
+}
+
+pub const SYNERGIES: [Synergy; 7] = [
+    Synergy { id: "bulwark", name: "Bulwark", pair: ["guarded", "corridor_fighting"], effect: "−1 melee taken in corridors" },
+    Synergy { id: "duelist", name: "Duelist", pair: ["bold", "boss_focus"], effect: "+2 damage one on one" },
+    Synergy { id: "marksman", name: "Marksman", pair: ["hunter", "kite_archers"], effect: "+3 on a fresh foe" },
+    Synergy { id: "ghost", name: "Ghost", pair: ["skittish", "kite_archers"], effect: "−2 at range · −1 when hurt" },
+    Synergy { id: "scavenger", name: "Scavenger", pair: ["light_hands", "pack_break"], effect: "+2 damage to packs" },
+    Synergy { id: "iron_lungs", name: "Iron lungs", pair: ["iron_gut", "gas_step"], effect: "−2 gas and poison taken" },
+    Synergy { id: "warden", name: "Warden", pair: ["steady", "thief_guard"], effect: "−2 from telegraphed blows" },
+];
+
+/// The effects' sizes (`turn.rs` reads them).
+pub const BULWARK_ARMOUR: i32 = 1;
+pub const DUELIST_EDGE: i32 = 2;
+pub const MARKSMAN_EDGE: i32 = 3;
+pub const GHOST_COVER: i32 = 2;
+/// Ghost: under this hp % every blow is a point lighter.
+pub const GHOST_HURT: i32 = 35;
+pub const SCAVENGER_EDGE: i32 = 2;
+pub const IRON_LUNGS: i32 = 2;
+pub const WARDEN_GUARD: i32 = 2;
+
+/// A synergy's bit in `build_mask`.
+pub fn synergy_bit(id: &str) -> u8 {
+    SYNERGIES.iter().position(|s| s.id == id).map_or(0, |i| 1 << i)
+}
+
+thread_local! {
+    /// Diagnostics only (`examples/builds.rs`): the synergies' effects switched off, to weigh what each pays.
+    pub static SYNERGIES_OFF: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// The synergies a compiled set plays (a bit each, `synergy_bit`): both picks of a pair have rows in it. A
+/// literal set (the harnesses' bots, the pen's custom stance) carries no package origins and plays none.
+/// (One pass over the rows: it is read on every blow.)
+pub fn build_mask(rules: &RuleSet) -> u8 {
+    if SYNERGIES_OFF.with(|c| c.get()) {
+        return 0;
+    }
+    let mut have: u32 = 0;
+    for o in rules.rows.iter().filter_map(|r| r.origin.as_deref()) {
+        let Some((kind, id)) = o.split_once(':') else { continue };
+        if !matches!(kind, "stance" | "tactic" | "temper") {
+            continue;
+        }
+        for (i, s) in SYNERGIES.iter().enumerate() {
+            for (j, p) in s.pair.iter().enumerate() {
+                if *p == id {
+                    have |= 1 << (2 * i + j);
+                }
+            }
+        }
+    }
+    let mut mask = 0;
+    for i in 0..SYNERGIES.len() {
+        if have >> (2 * i) & 3 == 3 {
+            mask |= 1 << i;
+        }
+    }
+    mask
+}
+
+/// The synergy a lineage's worn picks form (the first of the list).
+pub fn synergy_of(l: &LineageState) -> Option<&'static Synergy> {
+    let p = &l.pkg;
+    if p.literal {
+        return None;
+    }
+    let worn = p.equipped();
+    SYNERGIES.iter().find(|s| s.pair.iter().all(|id| worn.iter().any(|w| w == id)))
+}
+
+/// A tactic's noun in a build's title (`Guarded skirmisher`).
+fn tactic_noun(id: &str) -> &'static str {
+    match id {
+        "boss_focus" => "slayer",
+        "corridor_fighting" => "skirmisher",
+        "kite_archers" => "ranger",
+        "thief_guard" => "keeper",
+        "gas_step" => "dodger",
+        "pack_break" => "breaker",
+        "cadence" => "dancer",
+        "reflect_read" => "reader",
+        "noise_discipline" => "prowler",
+        "deep_march" => "marcher",
+        _ => "fighter",
+    }
+}
+fn temper_noun(id: &str) -> &'static str {
+    match id {
+        "skittish" => "runner",
+        "unbowed" => "stalwart",
+        "light_hands" => "magpie",
+        "iron_gut" => "taster",
+        _ => "hero",
+    }
+}
+
+/// Cut 115 §1: the build's two-word name from what the player wore — the synergy's when a pair forms one, else
+/// the stance and the first tactic (`Guarded skirmisher`), else the stance and a picked temperament (`Bold
+/// runner`); `None` while nothing is the player's (the school stance, no tactic, the wake's draw: IDLE).
+pub fn build_name(l: &LineageState) -> Option<String> {
+    let p = &l.pkg;
+    if p.literal {
+        return None;
+    }
+    if let Some(s) = synergy_of(l) {
+        return Some(s.name.to_string());
+    }
+    let stance = if p.stance == CUSTOM { "Written".to_string() } else { name(&p.stance).to_string() };
+    if let Some(t) = p.tactics.first() {
+        return Some(format!("{stance} {}", tactic_noun(t)));
+    }
+    match p.temperament.as_deref().filter(|_| p.temperament_chosen) {
+        Some(t) => Some(format!("{stance} {}", temper_noun(t))),
+        None if p.stance != "steady" => Some(format!("{stance} hero")),
+        None => None,
+    }
+}
+
+/// The build on the wire (`Packages.build`).
+pub fn build_wire(l: &LineageState) -> Option<crate::wire::BuildWire> {
+    let title = build_name(l)?;
+    let s = synergy_of(l);
+    let p = &l.pkg;
+    let mut picks = vec![name_of_pick(&p.stance, p)];
+    picks.extend(p.tactics.iter().map(|t| name_of_pick(t, p)));
+    if let Some(t) = p.temperament.as_deref().filter(|_| p.temperament_chosen) {
+        picks.push(name(t).to_string());
+    }
+    Some(crate::wire::BuildWire { name: title, synergy: s.map(|s| s.id.to_string()), effect: s.map(|s| s.effect.to_string()), picks })
+}
+
+/// A worn pick as the build names it (`corridor fighting · at two`).
+fn name_of_pick(id: &str, p: &PkgState) -> String {
+    match variants(id) {
+        Some(v) => format!("{} · {}", name(id), v[p.variants.get(id).copied().unwrap_or(0).min(1) as usize]),
+        None => name(id).to_string(),
+    }
+}
+
+/// Cut 115 §1: who chose a row — `picked` (a package the player equipped, a variant he set, a row he wrote),
+/// `taught` (a drill, a death's fix), `default` (the school stance, the wake's temperament, a trait's own step),
+/// `chores`. `origin` is the meters' key (`Meter.origins`): a row's origin, `chores`, `trait`, or empty (a row
+/// with no origin: a literal set's, the player's).
+pub fn credit(origin: &str, p: &PkgState) -> &'static str {
+    let (kind, id) = origin.split_once(':').unwrap_or((origin, ""));
+    match kind {
+        "chores" => "chores",
+        "trait" | "class" => "default",
+        "patch" | "drill" => "taught",
+        "tactic" if p.taught.contains(id) => "taught",
+        "tactic" | "style" | "player" | "card" | "" => "picked",
+        "stance" if id == "steady" => "default",
+        "stance" => "picked",
+        "temper" if p.temperament_chosen => "picked",
+        _ => "default",
+    }
+}
+
+/// The credit order the report reads.
+pub const CREDITS: [&str; 4] = ["picked", "taught", "default", "chores"];
+
+/// A meter's fires by credit (shares of all fires, 0..1, in `CREDITS` order; empty without fires).
+pub fn credit_shares(origins: &BTreeMap<String, u32>, p: &PkgState) -> Vec<crate::wire::CreditShare> {
+    let total: u32 = origins.values().sum();
+    if total == 0 {
+        return Vec::new();
+    }
+    CREDITS.iter().filter_map(|c| {
+        let fires: u32 = origins.iter().filter(|(o, _)| credit(o, p) == *c).map(|(_, n)| *n).sum();
+        (fires > 0).then(|| crate::wire::CreditShare { credit: c.to_string(), fires, share: (fires as f64 / total as f64 * 1000.0).round() / 1000.0 })
+    }).collect()
+}
+
+/// Cut 115 §4: the tactic (and variant) that answers a death by `cause` (the killer's kind, or a hazard), when one
+/// has arrived and a slot is open, and it is not worn so already: (id, variant, `gas step · burn`).
+pub fn fix_pick(l: &LineageState, cause: &str) -> Option<(String, u8, String)> {
+    if l.pkg.literal || tactic_slots(l) == 0 {
+        return None;
+    }
+    let tags: Vec<&str> = match cause {
+        "gas" | "poison" => vec!["gas"],
+        _ if crate::descent::boss_depth(cause).is_some() || crate::defs::monster_def(cause).kind == cause => crate::defs::monster_def(cause).tags.to_vec(),
+        _ => return None,
+    };
+    let fire = crate::item::is_identified(&l.facts, &l.flavours, "fire");
+    let answer = |t: &str| -> Option<(&'static str, u8)> {
+        Some(match t {
+            "reflect_melee" => ("reflect_read", 0),
+            "mirror" => ("cadence", 0),
+            "blind" => ("noise_discipline", 0),
+            "summoner" => ("boss_focus", 0),
+            "boss" => ("boss_focus", 1),
+            "ranged" => ("kite_archers", 0),
+            "gas" => ("gas_step", u8::from(fire)),
+            "thief" => ("thief_guard", 0),
+            "pack" => ("pack_break", 1),
+            _ => return None,
+        })
+    };
+    // (a boss's own counter first — the mirror, the reflection, the brood — then what any of his kind answers)
+    let order = ["reflect_melee", "mirror", "blind", "summoner", "ranged", "gas", "thief", "pack", "boss"];
+    for t in order.iter().filter(|t| tags.contains(t)) {
+        let Some((id, v)) = answer(t) else { continue };
+        if !available(l, id) {
+            continue;
+        }
+        let worn = l.pkg.tactics.iter().any(|x| x == id) && l.pkg.variants.get(id).copied().unwrap_or(0) == v;
+        if worn {
+            continue;
+        }
+        let text = match variants(id) {
+            Some(names) => format!("{} · {}", name(id), names[v as usize]),
+            None => name(id).to_string(),
+        };
+        return Some((id.to_string(), v, text));
+    }
+    None
 }
 
 // ---------------------------------------------------------------- the wire
@@ -1325,7 +1632,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
                 trigger: if available(l, d.id) { String::new() } else { trigger_now(l, d, &pending) },
                 level_price: p.owned.contains(d.id).then(|| level_price(l, d.id)).flatten(),
                 variants: variants(d.id).map(|v| v.iter().map(|x| x.to_string()).collect()).unwrap_or_default(),
-                variant: (variants(d.id).is_some() && level_of(runs) >= 3).then(|| p.variants.get(d.id).copied().unwrap_or(0) as u32),
+                variant: (variants(d.id).is_some() && available(l, d.id)).then(|| p.variants.get(d.id).copied().unwrap_or(0) as u32),
                 level_adds: if p.owned.contains(d.id) { level_adds(l, d.id) } else { Vec::new() },
             }
         })
@@ -1351,6 +1658,7 @@ pub fn wire(l: &LineageState) -> crate::wire::PackagesWire {
         pen_needs: crate::systems::pen_needs(l),
         rows,
         literal: p.literal,
+        build: build_wire(l),
     }
 }
 
@@ -1397,6 +1705,47 @@ pub struct PkgOption {
     pub better: u32,
     #[serde(default)]
     pub worse: u32,
+    /// Cut 115 §3: the move read at each wall the lineage has met (its waystone's sends, paired), deepest first —
+    /// `better at D8 Warlord · worse at D28 Queen`. The client's chooser only (`options_for`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub walls: Vec<WallRead>,
+}
+
+/// Cut 115 §3: a move at one wall — the sends from the waystone under it, paired against the worn set's on the
+/// same seeds: how many the move ended better (past the wall rather than under it, or as far and a better exit)
+/// and how many worse.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct WallRead {
+    pub depth: u32,
+    /// The wall's boss (`Warlord`).
+    pub boss: String,
+    pub n: u32,
+    pub better: u32,
+    pub worse: u32,
+}
+
+/// Walls read per move at most (the deepest first).
+pub const WALL_READS: usize = 3;
+
+/// The walls a lineage's compare reads: each lit waystone's next band boss at or under the record's next floor,
+/// deepest first — (stone, wall).
+pub fn compare_walls(l: &LineageState) -> Vec<(u32, u32)> {
+    let mut out: Vec<(u32, u32)> = l.stones().into_iter().filter_map(|s| {
+        let wall = crate::descent::BOSS_DEPTHS.iter().map(|(_, d)| *d).find(|d| *d >= s)?;
+        (wall <= l.best_depth + 1).then_some((s, wall))
+    }).collect();
+    out.sort_by_key(|x| std::cmp::Reverse(x.1));
+    out.dedup_by_key(|x| x.1);
+    out.truncate(WALL_READS);
+    out
+}
+
+/// A set's sends from `stone` ranked at `wall` (past it first, then the exit).
+fn wall_ranks(g: &crate::engine::Game, set: &RuleSet, stone: u32, wall: u32, sims: u32) -> Vec<u32> {
+    use crate::engine::ExitTier;
+    let mut w = g.sim_clone();
+    w.lineage.start = stone;
+    crate::forecast::camp_panel_outcomes(&w, set, sims).iter().map(|r| r.max_depth.min(wall + 1) * 4 + match r.tier { ExitTier::Death => 0, ExitTier::Bank => 2, _ => 1 }).collect()
 }
 
 /// Every move the camp offers now: each arrived stance not worn, each arrived tactic into each open
@@ -1436,10 +1785,11 @@ pub fn candidates(l: &LineageState) -> Vec<(String, String, usize)> {
     out
 }
 
-/// Make a move (`equip` / `level`).
+/// Make a move (`equip` / `level` / `variant`: a worn tactic's variant `slot`).
 pub fn apply(l: &mut LineageState, id: &str, action: &str, slot: usize) -> Result<(), String> {
     match action {
         "level" => spend_level(l, id).map(|_| ()),
+        "variant" => set_variant(l, id, slot.min(255) as u8),
         _ if l.pkg.offer.iter().any(|c| c == id) => pick(l, id),
         _ => equip(l, id, slot),
     }
@@ -1543,8 +1893,21 @@ pub fn options_key(g: &crate::engine::Game, sims: u32) -> String {
     options_key_from(g, sims, candidates(&g.lineage))
 }
 
+/// The chooser's moves: equips named `(id, slot)`, and (Cut 115 §3) a worn tactic's other variant named
+/// `(id#v, v)` — `corridor_fighting#1` wears `at two`.
 fn selected_candidates(g: &crate::engine::Game, choices: &[(String, usize)]) -> Vec<(String, String, usize)> {
-    candidates(&g.lineage).into_iter().filter(|(id, action, slot)| action == "equip" && choices.iter().any(|(want, at)| want == id && at == slot)).collect()
+    let mut out: Vec<(String, String, usize)> = candidates(&g.lineage).into_iter().filter(|(id, action, slot)| action == "equip" && choices.iter().any(|(want, at)| want == id && at == slot)).collect();
+    let p = &g.lineage.pkg;
+    for (want, _) in choices {
+        let Some((id, v)) = want.split_once('#') else { continue };
+        let Ok(v) = v.parse::<usize>() else { continue };
+        let worn = p.tactics.iter().any(|t| t == id);
+        let now = p.variants.get(id).copied().unwrap_or(0) as usize;
+        if worn && variants(id).is_some() && v <= 1 && v != now && !out.iter().any(|m| m.0 == id && m.1 == "variant") {
+            out.push((id.to_string(), "variant".to_string(), v));
+        }
+    }
+    out
 }
 
 pub fn options_for_key(g: &crate::engine::Game, sims: u32, choices: &[(String, usize)]) -> String {
@@ -1572,7 +1935,22 @@ pub fn options(g: &crate::engine::Game, sims: u32) -> Vec<PkgOption> {
 pub fn options_for(g: &crate::engine::Game, sims: u32, choices: &[(String, usize)]) -> Vec<PkgOption> {
     let moves = selected_candidates(g, choices);
     if moves.is_empty() { return Vec::new(); }
-    options_from(g, sims, moves)
+    let mut out = options_from(g, sims, moves);
+    // Cut 115 §3: each move read at the walls the lineage has met (the worn set's sends once per wall)
+    let walls = compare_walls(&g.lineage);
+    if !walls.is_empty() {
+        let base: Vec<Vec<u32>> = walls.iter().map(|(s, w)| wall_ranks(g, g.lineage.rules(), *s, *w, sims)).collect();
+        for o in out.iter_mut() {
+            let mut c = g.sim_clone();
+            if apply(&mut c.lineage, &o.id, &o.action, o.slot).is_err() { continue; }
+            let set = compile(&c.lineage);
+            o.walls = walls.iter().zip(&base).map(|((s, w), b)| {
+                let (n, better, worse) = paired(b, &wall_ranks(&c, &set, *s, *w, sims));
+                WallRead { depth: *w, boss: crate::descent::boss_for(*w).map(crate::sifter::boss_short).unwrap_or("boss").into(), n, better, worse }
+            }).collect();
+        }
+    }
+    out
 }
 
 fn options_from(g: &crate::engine::Game, sims: u32, moves: Vec<(String, String, usize)>) -> Vec<PkgOption> {
@@ -1615,7 +1993,7 @@ fn options_from(g: &crate::engine::Game, sims: u32, moves: Vec<(String, String, 
         let d_wall = match (wall_base, wall) { (Some(a), Some(b)) => b - a, _ => 0.0 };
         let price = if action == "level" { level_price(&g.lineage, &id).unwrap_or(0) } else { 0 };
         let (n, better, worse) = paired(&base_ranks, &ranks);
-        Some(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall, n, better, worse })
+        Some(PkgOption { id, action, slot, price, past, bank, death, reach, mean, d_past: past - base.0, d_bank: bank - base.1, d_death: death - base.2, d_reach: reach - base.3, d_mean: mean - base.4, d_wall, n, better, worse, walls: Vec::new() })
     }).collect();
     out.sort_by(|a, b| score(b).total_cmp(&score(a)));
     out

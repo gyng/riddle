@@ -212,6 +212,10 @@ impl Game {
     pub fn set_tactic_variant(&mut self, id: &str, variant: u32) -> Result<(), String> {
         packages::set_variant(&mut self.lineage, id, variant.min(255) as u8)
     }
+    /// Cut 115 §4: take a death's tactic fix (worn in its variant, credited `taught`).
+    pub fn take_fix(&mut self, id: &str, variant: u32) -> Result<(), String> {
+        packages::take_fix(&mut self.lineage, id, variant.min(255) as u8)
+    }
     /// Cut 30 §1: revoke a drill (or restore it) — one tap, it stays.
     pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<(), String> {
         packages::revoke(&mut self.lineage, boss, revoked)
@@ -292,6 +296,8 @@ mod tests_cut30_pkg;
 mod tests_cut305;
 #[cfg(test)]
 mod tests_cut114;
+#[cfg(test)]
+mod tests_cut115;
 #[cfg(test)]
 mod tests_runsui;
 #[cfg(test)]

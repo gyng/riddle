@@ -248,6 +248,10 @@ pub struct FloorItem {
     pub item: Item,
 }
 
+pub fn zero_u8(x: &u8) -> bool {
+    *x == 0
+}
+
 /// Everything about one expedition. Cloned per turn into the history ring (for verdicts).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Run {
@@ -463,6 +467,9 @@ pub struct Run {
     /// the card charges it the second time inside `KITE_WINDOW` (it held its ground).
     #[serde(default)]
     pub kited: Option<(u32, u32)>,
+    /// Cut 115 §1: the synergies whose effect this run has called out (a bit each, `packages::synergy_bit`).
+    #[serde(default, skip_serializing_if = "crate::engine::zero_u8")]
+    pub build_said: u8,
     /// QA on 23ed91f (qaL run 5): the `pack break` card went for a pack that would not come
     /// (it hung back past the hold, or shoots) — until this action the card does not fall back
     /// to a corridor, which would undo the step it just took.
@@ -472,6 +479,10 @@ pub struct Run {
     /// back on it (a chore walked the hero out again), the card does not fall back again.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub card_fell: Option<Pos>,
+    /// Blind b8dd77c: a `back corridor` row's last fall-back — the tile it left and the action. From
+    /// that tile again with no blood drawn since (the pack did not follow), the row stands and fights.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub row_fell: Option<(Pos, u32)>,
     /// Cut 27 §4 (AS: `R5 free ↔ descend` stalled a D9 send): the captive a `free captive` row
     /// set out for (its id) — the row's `on see: captive` holds on the way while it lives
     /// chained, though a corner hides it (the step toward it broke the sight line, the `descend`
@@ -503,6 +514,9 @@ pub struct Run {
     pub hold_dist: i32,
     #[serde(default)]
     pub hold_streak: u32,
+    /// Blind b8dd77c: the corridor hold's actions this engagement (`ai::HOLD_MAX` ends it).
+    #[serde(default)]
+    pub hold_total: u32,
     /// Hero actions taken this run (the clock for the guards below).
     #[serde(default)]
     pub actions: u32,
@@ -1965,6 +1979,10 @@ impl LineageState {
         };
         let best = if at.is_some_and(|d| d < self.heir_best) { format!("best D{}", self.heir_best) } else { format!("D{}", self.heir_best) };
         let mut parts = vec![format!("♟{} the {} {}", self.heir, epithet, self.class.name()), best];
+        // Cut 115 §1: the build the player wore (none while nothing was his: IDLE's lines read as before)
+        if let Some(b) = crate::packages::build_name(self) {
+            parts.push(b);
+        }
         // QA on 0c6e126 (qaY: every heir's line quoted `"fighter" set`): the class's own preset name is no name — a set the player
         // named is quoted
         let class_name = self.class.name();
@@ -2069,7 +2087,7 @@ impl LineageState {
         self.rules().rows.iter().map(|r| self.row_stats.iter().find(|(x, _)| x.conds == r.conds && x.verb == r.verb).map(|(_, t)| crate::turn::row_stat(r, t))).collect()
     }
     pub fn to_wire(&self) -> Lineage {
-        Lineage { class_styles:Some(crate::specialization::offers(self,false)), legacy_respec:None, return_pick:None, selected_loadout:vec![], hero_slots:vec![], selected_bloodline:1, bloodline_price:crate::bloodlines::SLOT_PRICE, bloodline_cap:crate::bloodlines::SLOT_CAP as u32, bloodline: self.bloodline.clone().unwrap_or_default(), legacy_upgrades: crate::legacy::offers(self, false), hero_legacy: self.hero_legacy.iter().cloned().map(|mut h| { if h.name.is_empty() { h.name = crate::legacy::hero_identity(self.seed, h.heir, self.bloodline_id); } h }).collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(crate::meters::wire).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire(&self.night_meter)), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire(&self.last_night_meter)) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
+        Lineage { class_styles:Some(crate::specialization::offers(self,false)), legacy_respec:None, return_pick:None, selected_loadout:vec![], hero_slots:vec![], selected_bloodline:1, bloodline_price:crate::bloodlines::SLOT_PRICE, bloodline_cap:crate::bloodlines::SLOT_CAP as u32, bloodline: self.bloodline.clone().unwrap_or_default(), legacy_upgrades: crate::legacy::offers(self, false), hero_legacy: self.hero_legacy.iter().cloned().map(|mut h| { if h.name.is_empty() { h.name = crate::legacy::hero_identity(self.seed, h.heir, self.bloodline_id); } h }).collect(), runs: self.run_log.clone(), live: None, replays: Vec::new(), clock_s: self.clock_s, absences: self.absences, age_h: self.age_h(), reveal_queue: self.reveal_queue.clone(), reveal_next: crate::systems::next(self), glory: self.glory, expeditions: self.expeditions, era_gate: self.era_gate, packages: crate::packages::wire(self), town: crate::town::wire(self), tracks: crate::town::tracks(self), tree: None, repeat_added: Vec::new(), wall: self.wall_offer.clone(), meters: crate::wire::LineageMeters { runs: self.meters_recent.iter().map(|m| crate::meters::wire_for(m, Some(&self.pkg))).collect(), night: (!self.night_meter.is_empty()).then(|| crate::meters::wire_for(&self.night_meter, Some(&self.pkg))), last_night: (!self.last_night_meter.is_empty()).then(|| crate::meters::wire_for(&self.last_night_meter, Some(&self.pkg))) }, systems: crate::systems::wire(self), oath_slots: crate::oath::slots(self) as u32, sworn: crate::oath::sworn_ids(self), tier: crate::meta::tier(self), oath_draw: crate::oath::draw_wire(self), works: self.works.clone(), commission: crate::kit::commission_wire(self), orders: self.standing_orders(), supply_cap: self.supply_cap() as u32, oaths: crate::oath::wire(self), oath: self.oath_sworn.clone(), titles: self.titles.clone(), walls: crate::oath::walls(self), oath_open: crate::oath::open(self),
             seed: self.seed,
             heir: self.heir,
             trait_: self.trait_.name().into(),
@@ -4071,8 +4089,10 @@ impl Game {
             supplies: Vec::new(),
             taunt_t: 0,
             kited: None,
+            build_said: 0,
             pack_go: 0,
             card_fell: None,
+            row_fell: None,
             freeing: None,
             hero_dist: Vec::new(),
             hero_dist_pos: None,
@@ -4083,6 +4103,7 @@ impl Game {
             cowardly_streak: 0,
             hold_dist: -1,
             hold_streak: 0,
+            hold_total: 0,
             actions: 0,
             ignored: BTreeMap::new(),
             chase: None,
@@ -4491,7 +4512,7 @@ impl Game {
         }
         if !cx.sim {
             crate::meters::heals(run, &mut cx, before, std::iter::once((HERO_ID, hero_hp0)).chain(pets_hp0));
-            run.meters.tick(&cx.events[before..], run.monsters.iter().filter(|m| m.ally).map(|m| m.id));
+            run.meters.tick(&cx.events[before..], run.monsters.iter().filter(|m| m.ally).map(|m| m.id), Some(cx.rules));
         }
         let n = cx.events[before..].iter().filter(|e| e.renderable()).count() as u32;
         run.renderable_events += n;
@@ -5771,7 +5792,7 @@ impl Game {
         line.level_ups = level_ups;
         // Cut 29 §3: the run metered — on its line, the absence's sum, the night's, the last two runs'.
         if !self.sim && !run.meters.is_empty() {
-            line.meters = Some(Box::new(crate::meters::wire(&run.meters.run)));
+            line.meters = Some(Box::new(crate::meters::wire_for(&run.meters.run, Some(&self.lineage.pkg))));
             self.batch.meters.add(&run.meters.run);
             self.lineage.night_meter.add(&run.meters.run);
             self.lineage.meters_recent.push(run.meters.run.clone());

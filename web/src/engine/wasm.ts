@@ -126,6 +126,7 @@ export class WasmEngine implements Engine {
   pickTemperament(id: string): Lineage { return this.call("pickTemperament", id); }
   spendLevel(id: string): Lineage { return this.call("spendLevel", id); }
   setTacticVariant(id: string, variant: number): Lineage { return this.call("setTacticVariant", id, variant); }
+  takeFix(id: string, variant: number): Lineage { return this.call("takeFix", id, variant); }
   takeControl(on: boolean): void { this.game.takeControl(on); }
   act(action: ManualAct): void { this.game.act(JSON.stringify(action)); }
   revokeDrill(boss: string, revoked: boolean): Lineage { return this.call("revokeDrill", boss, revoked); }

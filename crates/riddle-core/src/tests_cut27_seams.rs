@@ -212,3 +212,74 @@ fn corridor_fighting_does_not_retreat_from_a_far_pack() {
     ticks(&mut g,12);
     assert!(g.run.as_ref().unwrap().card_fell.is_none(),"far pack caused corridor retreat");
 }
+
+/// Blind b8dd77c (B: `stuck · paced 12 turns, foes ignored`, corridor fighting on D19–D23; 106 of
+/// 360 sends of B's set stalled over 30 seeds × 12): a bell sentinel steps away at two tiles and
+/// closes again at three, so the hold's clock (the same distance three actions running) restarted
+/// every other action and the card held its corridor's mouth until the guard gave the floor's foes
+/// up. The hold now waits only while the foe comes nearer, `HOLD_MAX` actions at most, then fights.
+#[test]
+fn corridor_fighting_does_not_hold_for_ever_before_a_foe_that_hovers() {
+    use crate::geom::Pos;
+    use crate::tiles::Tile;
+    let mut g = arena();
+    g.lineage.unlocks.insert("corridor_fighting".into());
+    {
+        let run = g.run.as_mut().unwrap();
+        // a corridor (x = 4, y 1–5) opening on a room (y 6–10)
+        for y in 1..11 {
+            for x in 1..15 {
+                let open = if y <= 5 { x == 4 } else { true };
+                run.floor.map.set(Pos::new(x, y), if open { Tile::Floor } else { Tile::Wall });
+            }
+        }
+        run.floor.map.compute_corridors(&[]);
+        run.floor.map.reveal_all();
+        run.floor.map.update_vision(run.hero.pos, crate::tiles::VISION);
+        assert!(run.floor.map.is_corridor(run.hero.pos));
+    }
+    let id = add_monster(&mut g, "bell_sentinel", 4, 8);
+    // (its bell already rung: it hovers, two tiles and three)
+    g.run.as_mut().unwrap().monsters.iter_mut().find(|m| m.id == id).unwrap().cooldown = 10_000;
+    rules(&mut g, vec![Row::new(vec![], Verb::arg("tactic", "corridor_fighting"))]);
+    let full = g.run.as_ref().unwrap().monsters.iter().find(|m| m.id == id).unwrap().hp;
+    let mut struck = false;
+    // (300 ticks: thirty of the hero's actions, the guard's twelve more than twice)
+    for _ in 0..300 {
+        ticks(&mut g, 1);
+        let run = g.run.as_ref().unwrap();
+        assert_eq!(run.stuck_fires, 0, "the card paced before the sentinel: {:?}", run.trace.iter().rev().take(12).map(|t| t.verb.v.clone()).collect::<Vec<_>>());
+        if run.monsters.iter().find(|m| m.id == id).is_none_or(|m| m.hp < full) {
+            struck = true;
+            break;
+        }
+    }
+    let run = g.run.as_ref().unwrap();
+    let m = run.monsters.iter().find(|m| m.id == id).unwrap();
+    assert!(struck, "the corridor fighter never struck the hovering sentinel: hero {:?} sentinel {:?} {:?}", run.hero.pos, m.pos, run.trace.iter().map(|t| format!("{} {:?}", t.verb.v, t.blocked)).collect::<Vec<_>>());
+}
+
+/// Blind b8dd77c (A: five heirs to the Lurker Queen at D28, every offered fix 0/12): her brood hunts by
+/// sound and she calls it before she comes in view, so the counter read on sight left the called lurkers
+/// at the hero and her mending behind them. Reading silence now loses the called brood (it fades) — the
+/// wild lurkers of the floor stay.
+#[test]
+fn silence_loses_the_queens_called_brood() {
+    let mut g = arena();
+    let q = add_monster(&mut g, "lurker_queen", 12, 5);
+    let called: Vec<u32> = [(9, 5), (9, 7)].iter().map(|&(x, y)| add_monster(&mut g, "lurker", x, y)).collect();
+    let wild = add_monster(&mut g, "lurker", 9, 3);
+    for m in g.run.as_mut().unwrap().monsters.iter_mut().filter(|m| called.contains(&m.id)) {
+        m.summoned = true;
+        m.ttl = Some(150);
+    }
+    give(&mut g, "silence");
+    g.lineage.facts.extend(crate::item::ident_fact(&g.lineage.flavours, "silence"));
+    rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("read", "silence"))]);
+    ticks(&mut g, 12);
+    let run = g.run.as_ref().unwrap();
+    assert!(run.hero.silence_t > 0, "the scroll was read: {:?}", run.trace.iter().map(|t| (t.verb.clone(), t.blocked.clone())).collect::<Vec<_>>());
+    let alive = |id: u32| run.monsters.iter().any(|m| m.id == id && m.hp > 0);
+    assert!(called.iter().all(|&id| !alive(id)), "the called brood faded");
+    assert!(alive(wild) && alive(q), "the wild lurker and the Queen stay");
+}

@@ -441,7 +441,7 @@ pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::c
         marks_earned: b.marks,
         night_marks: b.night_marks,
         systems_opened: b.systems_opened.clone(),
-        meters: (!b.meters.is_empty()).then(|| crate::meters::wire(&b.meters)),
+        meters: (!b.meters.is_empty()).then(|| crate::meters::wire_for(&b.meters, Some(&game.lineage.pkg))),
         fallen: b.fallen.clone(),
         oaths_kept: b.oaths_kept.iter().map(|o| crate::wire::OathReward { kind: o.kind.clone(), id: o.id.clone(), label: crate::oath::text(o) }).collect(),
         worst_death,
