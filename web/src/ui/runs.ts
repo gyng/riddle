@@ -1,4 +1,4 @@
-import { goldWords } from "./gold-words";
+import { deathWhy, goldWords } from "./gold-words";
 // RUNS_UI (docs/RUNS_UI.md §3) — the runs log: every run the core keeps (`Lineage.runs`, the last 60), newest first, folded by absence
 // (`away · 17 runs` is one line until opened; the runs played while the app was open fold as `here`). An entry: the run's number, how
 // it ended (the exit's reason, ≤ 3 words) and when, its floor with a `★` for a new best, the gold home, the finds, its length, and `▶`
@@ -108,7 +108,7 @@ function heirLines(app: App, close: () => void): HTMLElement[] {
 /** one run's entry: `#41 · D9★ · $212 · ✦2 · 4m` over `hurt · banked · 12m`, `▶` at its end; a death opens its verdict */
 function entry(app: App, r: RunRec, replay: boolean, fresh: boolean, close: () => void): HTMLElement {
   const L = app.lineage;
-  const why = r.reason ?? (r.tier === "death" ? /* copy:label */ "died" : r.tier === "bank" ? /* copy:label */ "full haul" : /* copy:label */ "returned");
+  const why = r.reason ? deathWhy(r.reason) : (r.tier === "death" ? /* copy:label */ "died" : r.tier === "bank" ? /* copy:label */ "full haul" : /* copy:label */ "returned");
   const top = h("span", { class: "re-top num" },
     h("b", { class: "re-id" }, `#${r.id}`),
     h("span", { class: `re-tier t-${r.tier}`, "aria-hidden": "true" }, TIER_GLYPH[r.tier] ?? ""),

@@ -208,7 +208,7 @@ try {
       return { line: creditLine({ credit }), drink: verbLabel({ v: "drink", a: "fire" }), heal: verbLabel({ v: "drink", a: "heal" }), throw_: verbLabel({ v: "throw", a: "fire" }),
         also: alsoMatches(boss, why), none: alsoMatches(boss, { ...why, fired_on: undefined }), other: alsoMatches({ conds: [{ k: "hp<", n: 50 }], verb: { v: "rest" } }, why) };
     });
-    check(r.line === "own rules 29% · lessons 2% · chores 69%", `who decided, in plain words (${r.line})`);
+    check(r.line === "picked 29% · lessons 2% · chores 69%", `who decided, in plain words (${r.line})`);
     check(r.drink === "fire at feet" && r.throw_ === "throw fire" && r.heal === "drink heal", `one name per action: \`throw fire\` at a foe, the drink by what it does (${r.drink} · ${r.throw_} · ${r.heal})`);
     check(r.also.join() === "siren" && r.none.length === 0 && r.other.length === 0, `a boss row that fired on a siren warns \`also matches: siren\` (${r.also.join()})`);
     await page.close();

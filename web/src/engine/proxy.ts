@@ -24,6 +24,7 @@ const METHODS: (keyof Engine)[] = [
   "buyKit",           // Cut 23 §1: optional likewise (the forge)
   "takeReturnPick",   // Cut 113 §3: optional likewise (no return pick without it)
   "seekBoss", "seekForecast", "setTrial", "tithe", "buySurvey", "grantWish",   // Cut 118: optional likewise (no seek / trial / sink / wish chip without them)
+  "buyRation",        // Cut 122 §5: optional likewise (no ration chip without it)
   "kitDeltas", "kitEstimates",        // Cut 23 §1: optional likewise (the forge steps' measured moves)
   "forkForecast",     // Cut 26 §2: optional likewise (the fork chip's two stairs)
   "fold",             // Cut 27 §1: optional likewise (the watch steps the folded floors itself without it)

@@ -110,6 +110,7 @@ export class WasmEngine implements Engine {
   setTrial(week: number): Lineage { return this.call("setTrial", week); }
   tithe(n: number): Lineage { return this.call("tithe", n); }
   buySurvey(): Lineage { return this.call("buySurvey"); }
+  buyRation(): Lineage { return this.call("buyRation"); }   // Cut 122 §5: throws `wasm: buyRation` on a build without it
   grantWish(): Lineage { return this.call("grantWish"); }
   kitDeltas(): KitLadder[] { return this.call("kitDeltas"); }
   kitEstimates(): KitLadder[] { return this.call(typeof this.game.kitEstimates === "function" ? "kitEstimates" : "kitDeltas"); }

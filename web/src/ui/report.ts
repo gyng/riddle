@@ -311,10 +311,10 @@ function killWatch(app: App): (boss: string) => (() => Promise<boolean>) | null 
 /** Owner IA pass 2026-10-10 (`default 14% · chores 86%` unread): who chose the rows, in plain words — the player's picks, the drilled
  *  fixes, the defaults, the chores. */
 /* copy:label */
-const CREDIT_WORD: Record<string, string> = { picked: "own rules", taught: "lessons", default: "defaults", chores: "chores" };
+const CREDIT_WORD: Record<string, string> = { written: "own rules", picked: "picked", taught: "lessons", default: "defaults", chores: "chores" };   // Cut 122 §4: `written` his own rows; `picked` the packages he wore
 /** Cut 121 §4 (B: "`picks 29% · taught 2% · chores 69%`" read as jargon): each share's plain gloss, on its bar's tip. */
 /* copy:tooltip */
-const CREDIT_TIP: Record<string, string> = { picked: "rows picked or written in the pen", taught: "drills and death fixes he learned", default: "the school's starter rows", chores: "pickups, stairs, rest · no rule needed" };
+const CREDIT_TIP: Record<string, string> = { written: "rows written in the pen", picked: "packages worn · tactics, stance, temperament", taught: "drills and death fixes he learned", default: "the school's starter rows", chores: "pickups, stairs, rest · no rule needed" };
 export function creditLine(m: Pick<MeterWire, "credit"> | undefined): string {
   const c = (m?.credit ?? []).filter((x) => Math.round(x.share * 100) > 0);
   return c.map((x) => `${CREDIT_WORD[x.credit] ?? x.credit} ${Math.round(x.share * 100)}%`).join(" · ");

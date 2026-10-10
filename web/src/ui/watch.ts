@@ -139,6 +139,7 @@ import { vaultSlots } from "./unlocks";
 import { glossOf, noteText, setRefRows, verbLabel } from "./tokens";
 import { EXIT_TRACE_ROWS, traceTable } from "./trace";
 import { drivenDeath, exitExtras } from "./death";
+import { rationChip } from "./feats";   // Cut 122 §5: the hunger's answer beside its loss
 import { laneTitle, seenForks } from "./route";
 import { oathBeat } from "./oaths";
 import { lastRun, markEnd, recordRun } from "./runlog";
@@ -147,7 +148,7 @@ import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
 import { controlPanel } from "./control";   // take control (a secondary mode): the hero by hand
 import { detailHost } from "./tips";   // RUNS_UI: the live badge's tip; the carried / secured icons' tips
-import { goldWords } from "./gold-words";
+import { deathWhy, goldWords } from "./gold-words";
    // RUNS_UI: the town tile's first-watches caption
 
 type Tier = "bank" | "return" | "death";
@@ -218,6 +219,9 @@ const KILL_WAIT_MS = 3000;
 // …and a picture whose clock has not moved for STUCK_MS while the run is live, unfrozen and nothing deliberate holds it (a beat, the
 // cage, the exit flow, a fold) is landed live and the card let go — whatever held it, the watch never freezes
 const STUCK_MS = 4000;
+// Cut 122 §7 (core `Ev::Homeward`): a committed walk home longer than HOME_FOLD_S of watch time at the mode's travel rate is one beat
+// (`heading home · banked $X`) and a jump to the next fight or the exit
+const HOME_FOLD_S = 20;
 const CALM_MIN = 10;                // Cut 28 §3: a core calm stretch this long (ticks, 1 s at 1×) or more plays as travel
 const RISE_FREE = 4, RISE_MS = 150;   // blind 1fb7786 (B): the clock jumps freely up to RISE_FREE; past it, it doubles at most every RISE_MS (Cut 121 §3: was 16 — 2× → 16× in one frame)
 const FALL_MS = 40, EASE_STEP_MS = 50;                 // Cut 121 §3: a fall at most halves every FALL_MS (16× → 2× over ~120 ms), never past a hard hold (HARD_FALL)
@@ -241,7 +245,8 @@ const drainWord = (cause: string): string => DRAIN_WORDS[cause] ?? cause.replace
  *  floor bites the max; a lit shrine or a lantern stops it) — other drains say their word alone. */
 /** Cut 117 §5 (blind 8cf9050: hunger's max-hp loss named no answer): the loss chip's tip names what stops it — on a hunger floor a lit
  *  shrine or a lantern in the pack (`situations::lit`); other drains their word alone. */
-export const hungerTip = (word: string, n: number): string => word === "starving" ? /* copy:tooltip */ `max hp −${n} · starving · shrine or lantern stops it` : /* copy:tooltip */ `max hp −${n} · ${word}`;
+export const hungerTip = (word: string, n: number): string => word === "starving" ? /* copy:tooltip */ `max hp −${n} · starving · ration slows · lantern stops` : /* copy:tooltip */ `max hp −${n} · ${word}`;   // Cut 122 §5: the ration named
+
 export const drainSaid = (word: string, cause: string): string => /^(hunger|starv)/.test(cause) ? /* copy:callout */ `${word} · no light` : word;
 const DRAIN_CALLOUT = /^(hunger|poison|curse|drain(ed)?|bleed) [−-]\d+( max)?$/;
 export function drainOf(e: Ev): string | null {
@@ -378,7 +383,10 @@ export function renderWatch(app: App): Mounted {
   // Cut 17 §1: the hero's hp is the ring around the console's portrait (its numbers on the plate under it)
   const hpText = h("span", { class: "num hp-text" });
   const gun = gunStatus();
-  const face = portrait(app, { hp: 1, label: h("span", { class: "watch-vitals" }, hpText, gun.el) });
+  // Cut 122 §5: beside `starving −N`, what a ration keeps (`ration keeps +172 hp · $40`, two taps for the next send)
+  const rationEl = h("span", { class: "hp-ration", hidden: true });
+  let rationKey = "", rationBought = false;
+  const face = portrait(app, { hp: 1, label: h("span", { class: "watch-vitals" }, hpText, rationEl, gun.el) });
   let playedGun: GunSnap | null = null;
   function paintGun(): void {
     if (viewer?.gun) playedGun = viewer.gun();
@@ -641,6 +649,10 @@ export function renderWatch(app: App): Mounted {
   const descends: number[] = [];      // engine ticks of the run's descends (a held beat stops short of the stairs)
   // Cut 24 §1: the engine ticks where the watch moved — a blow that landed, a hurt, a drink, a kill, a pickup, a descent (ascending)
   const progress: number[] = [];
+  // Cut 122 §7: the ticks of a blow or a kill in sight (a floor with none is quiet: `quiet · 3 floors`), and the folded walk home
+  const combat: number[] = [];
+  let home: { from: number; to: number; bank: boolean; shown: boolean; done: boolean } | null = null;
+  let quietN = 0, quietFrom = -Infinity;
   let newsKey = "", newsAt = performance.now();   // blind 77030eb: Normal's news watchdog (NEWS_MAX_MS)
   let jumpsSaid = 0; let deadFrom = -1, lastJumpAt = 0, jumps = 0, stuckTick = -1, stuckAt = 0, unsticks = 0;   // QA ad71e72: the dead stretch's wall start, the jumps, the stuck-picture watchdog
   let keepClose: (() => void) | null = null;   // blind 1fb7786: the open keep sheet's close (it keeps the ticked picks) — the gem's tap goes on through it
@@ -777,6 +789,7 @@ export function renderWatch(app: App): Mounted {
     const lost = [...maxLoss].filter(([, n]) => n > 0);
     // blind 3ab97ea (A: `47/44 hp`): a max that fell under the hp (hunger, a drain — the core clamps the hp with no hp event) reads full
     replace(hpText, /* copy:callout */ `${Math.max(0, Math.min(hud.hp, hud.maxHp))}/${hud.maxHp} hp`, ...lost.map(([w, n]) => h("small", { class: "hp-max-loss", "data-cause": w, title: hungerTip(w, n) }, /* copy:callout */ ` ${w} −${n}`)));   // docs/COPY.md pass 5: `28/36` read as XP or rooms
+    paintRation();
     replace(depth, `D${hud.depth}`);
     depth.dataset.floor = String(hud.depth); wide.paintDepth?.();
     paintWatchStatus();
@@ -791,6 +804,15 @@ export function renderWatch(app: App): Mounted {
     // QA 524827b (qaAA: the final frame `0/36` under `−1 hp · jackal`, the trace's last blow the monkey's): at 0 hp the line names the
     // killing blow — whatever a skip released last, a held beat or a queue kept on the ticker
     if (hud.hp <= 0 && killBlow && !cardUp && lastShown !== killBlow) { tickerQueue.length = 0; showTicker(killBlow, "hurt", KILL_MS); }
+  }
+  /** Cut 122 §5: the ration chip, repainted only when what it says changes (a tap's two-tap state survives the HUD's paints). */
+  function paintRation(): void {
+    const H = app.lastForecast?.hunger, show = !!H && (maxLoss.get("starving") ?? 0) > 0 && Math.round(H.kept) >= 1;
+    const key = show ? `${H!.kept}:${H!.price}:${H!.packed || rationBought}` : "";
+    if (key === rationKey) return;
+    rationKey = key; rationEl.hidden = !show;
+    if (!show) { clear(rationEl); return; }
+    replace(rationEl, " · ", rationChip(app, rationBought ? { ...H!, packed: true } : H!, () => { rationBought = true; rationKey = ""; paintRation(); }));
   }
   /** Cut 16 §4: the boss bar — the name one word, the track its hp share; hidden with no boss in view. */
   function paintBoss(): void {
@@ -1235,7 +1257,13 @@ export function renderWatch(app: App): Mounted {
           // Cut 26 §2: on a forked lineage the stairs into a band name the lane taken (`D5 · fens`)
           const up = floors.get(ev.depth - 1)?.biome ?? (s.depth === ev.depth - 1 ? s.biome : undefined);
           const lane = ev.biome && up && up !== ev.biome && ev.biome !== "warrens" && seenForks(app.lineage).length ? ev.biome : undefined;
-          at(ev.t, () => { hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap); ambient(lane ? /* copy:callout */ `D${ev.depth} · ${lane}` : rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true); });
+          at(ev.t, () => {
+            hideBeat(); hud.depth = ev.depth; paintHud(); if (hudSnap) paintStake(hudSnap);
+            // Cut 122 §7: floors with no blow in sight run together as one line (`quiet · 3 floors · D9`), not a floor's line each
+            const quiet = !combat.some((c) => c > quietFrom && c <= ev.t); quietFrom = ev.t; quietN = quiet ? quietN + 1 : 0;
+            el.dataset.quiet = String(quietN);
+            ambient(quietN >= 2 ? /* copy:callout */ `quiet · ${quietN} floors · D${ev.depth}` : lane ? /* copy:callout */ `D${ev.depth} · ${lane}` : rooms ? /* copy:callout */ `D${ev.depth} · ${rooms} rooms` : `D${ev.depth}`, true);
+          });
           // run-clear (the owner, 2026-10-02: a record no longer ends a run — it is a beat and a checkpoint, and he carries on): the
           // first floor past the lineage's record this run stamps a gilt `NEW BEST D5` over the floor's arrival — the boss stamps' look,
           // but it never holds the frame or takes a fight's beat (he walks on; the card's `new best` badge says it again)
@@ -1293,7 +1321,7 @@ export function renderWatch(app: App): Mounted {
           const oathW = exitOath ? ` · ${exitOath}` : ""; exitOath = "";
           const why = ev.line?.reason;
           // (a death's reason rides its last frame, no beat: the death screen comes as it did)
-          if (tier === "death") { if (why) at(ev.t, () => showWhy(why, SCENE_MS)); }
+          if (tier === "death") { if (why) { const said = deathWhy(why); at(ev.t, () => showWhy(said, SCENE_MS)); } }   // Cut 122 §3: `died to the King`
           else beatAt(ev.t, (tier === "bank" ? /* copy:callout */ `COLLECTED $${ev.loot_kept}` : lead ? /* copy:callout */ `${(lead === "driven" ? /* copy:callout */ "repelled" : lead).toUpperCase()} $${ev.loot_kept}${lostC > 0 && ev.line!.kept <= 0 && !oathW ? ` · −$${lostC}` : ""}` : /* copy:callout */ `RETURNED $${ev.loot_kept}`) + oathW, true, false, false, why);
           break;
         }
@@ -1301,7 +1329,13 @@ export function renderWatch(app: App): Mounted {
         // (the row that used the tool it forbade); a miss (the run ended short of it) is the exit line's, not a beat
         // (decided by the run's end — a depth oath kept by a bank — it rides the exit's own beat: `COLLECTED $120 · OATH KEPT`)
         case "oath": if (ev.kept || ev.cause) { if (evs.some((x) => x.k === "exit" && x.t === ev.t)) exitOath = ev.kept ? /* copy:callout */ "OATH KEPT" : /* copy:callout */ "OATH BROKEN"; else beatAt(ev.t, oathBeat(ev, app.rules.rows), false, true); } break;
-        case "ending": endingCue = ev.t; break;                                                                                       // Cut 7 §4: the core's marker (see `exit`)
+        case "ending": endingCue = ev.t; break;
+        // Cut 122 §7: the walk home committed, its length foreseen — past HOME_FOLD_S of watch time it folds into one beat (homeJump)
+        case "homeward": {
+          const travel = mode === "one" ? ONE_MAX : earlyFloor() ? EARLY_TRAVEL : RATE[mode];
+          if (!home && ev.ticks / (10 * travel) > HOME_FOLD_S) { home = { from: ev.t, to: ev.t + ev.ticks, bank: ev.bank, shown: false, done: false }; el.dataset.homeward = String(ev.ticks); }
+          break;
+        }                                                                                       // Cut 7 §4: the core's marker (see `exit`)
         case "tame": if (ev.ok) { tamedIds.push(ev.id); kinds.set(ev.id, ev.kind); allies.add(ev.id); victims.delete(ev.id); const id = ev.id; at(ev.t, () => petLine(/* copy:callout */ `tamed ${compLabel(id).replace(" · ", " ").replace(/_/g, " ")}`)); } break;
         case "ally": if (ev.state === "lost") lostIds.push(ev.id); else {
           // QA 308f045 (qaAC: the death's `ally hound fell` with no hound anywhere before): a summon (an unnamed ally the scroll called)
@@ -1713,7 +1747,7 @@ export function renderWatch(app: App): Mounted {
       // Cut 7 §4: the clock runs on (8× through dead air) to the ending, then the exit batch plays and the exit flow waits for it
       // Cut 10 §1: under the card the viewer jumps to the ending (the walk-out plays at 1×; the card hides there)
       // blind 5331f40: …short of a boss's kill not yet shown (the climax plays, then the walk-out)
-      { const to = killStop(endingFrom); if (cardUp && now < to) { release(to); seekTo(to); now = to; applyFrame(); applySpeed(); } }
+      { const to = killStop(endingFrom); if ((cardUp || homeDue(now)) && now < to) { if (home && !home.done) { homeLine(); home.done = true; } release(to); seekTo(to); now = to; applyFrame(); applySpeed(); } }
       if (now < endingFrom) return;
       const hb = held; held = null; feed(hb.evs, hb.snap);
       exitTier = hb.tier; exitAt = performance.now() + EXIT_GRACE_MS;
@@ -1750,6 +1784,8 @@ export function renderWatch(app: App): Mounted {
     // waits its minimum the engine is ahead of the picture, and the clock below has nothing to add
     if (mode === "fights" && (cardUp || cardWait) && !paused && !hidden) return;
     if (playing && mode === "fights" && !mapHeld() && !vaultClose && !fightOn && Number.isFinite(fightUntil) && now < fightUntil && !(beat && now < beat.until)) return;   // Cut 13 §4: a beat plays on at 1×
+    // Cut 122 §7: a long walk home is one beat — the picture jumps to the next fight or the exit
+    if (playing && homeDue(viewerTick()) && performance.now() - lastJumpAt > 250) { void homeJump(); return; }
     // blind 77030eb (B: Normal stood ~2.5 min with no new line): Normal never plays NEWS_MAX_MS of wall time without news (a move, a floor,
     // a jump) — the stretch is jumped, and the jump says `skipped ahead`
     if (mode === "one") {
@@ -1818,6 +1854,45 @@ export function renderWatch(app: App): Mounted {
       // blind 5331f40 (A): in `one` the picture never ramps past ONE_MAX — a jump over a dead stretch says so
       if (mode === "one") { jumpsSaid++; el.dataset.jumpsSaid = String(jumpsSaid); callout(/* copy:callout */ "skipped ahead", "beat"); }
     }
+    jumps++; el.dataset.jumps = String(jumps); lastJumpAt = performance.now();
+    applyFrame(); applySpeed();
+  }
+  /** Cut 122 §7: the playhead is on a folded walk home not yet jumped (and nothing the world waits on holds it). */
+  function homeDue(v: number): boolean {
+    return !!home && !home.done && v >= home.from - 1 && !cageWaits() && !vaultClose && !beatHeld() && !(snap && cageNear(snap));
+  }
+  /** Cut 122 §7: the walk home's one beat — `heading home · banked $X` (a return: `heading home · $X`), the carry he walks out with. */
+  function homeLine(): void {
+    if (!home || home.shown) return;
+    home.shown = true;
+    const gold = Math.max(0, Math.round(hudSnap?.stake?.loot ?? snap?.loot ?? 0));
+    const text = home.bank ? /* copy:callout */ `heading home · banked $${gold}` : /* copy:callout */ `heading home · $${gold}`;
+    tickerQueue.length = 0; callout(text, "beat", 2600);
+    el.dataset.homeFold = text;
+    if ("__riddle" in window) ((window as unknown as { __homeLog?: unknown[] }).__homeLog ??= []).push({ text, from: home.from, to: home.to, v: viewerTick(), mode });   // dev
+  }
+  /** Cut 122 §7: the folded walk home — its beat, then the engine steps ahead (≤ DEAD_JUMP_WALL_MS a call) to the next blow in sight or
+   *  the exit, and the picture lands just before it; found neither, it lands on the frontier and the next pump jumps on. */
+  async function homeJump(): Promise<void> {
+    if (!home) return;
+    homeLine();
+    inflight = true; lastJumpAt = performance.now();
+    const v0 = viewerTick(), t0 = performance.now();
+    const ahead = (): number => Math.min(combat.find((t) => t > v0) ?? Infinity, held ? endingFrom : Infinity, beat && !beat.shown && beat.from > v0 ? beat.from : Infinity);
+    try {
+      while (!disposed && !done && !held && !exitTier && ahead() === Infinity && performance.now() - t0 < DEAD_JUMP_WALL_MS) {
+        const r = await app.engine.step(SKIP_END_BATCH);
+        if (disposed || done) break;
+        handle(r);
+        if (r.run_over || r.snapshot.vault_choice || (cage && !cage.done) || cageNear(r.snapshot)) break;
+      }
+    } catch (e) { console.warn("home jump failed", e); }
+    inflight = false;
+    if (disposed || done || !home) return;
+    const found = ahead();
+    if (Number.isFinite(found) || held || exitTier || (cage && !cage.done)) home.done = true;
+    const t = killStop(Math.max(viewerTick(), Math.min(engineTick, Number.isFinite(found) ? found - (held && found === endingFrom ? 0 : JUMP_LAND) : engineTick)));
+    if (t > viewerTick() + 1) { release(t); seekTo(t); letGo(t); }
     jumps++; el.dataset.jumps = String(jumps); lastJumpAt = performance.now();
     applyFrame(); applySpeed();
   }
@@ -1930,8 +2005,10 @@ export function renderWatch(app: App): Mounted {
       if (!boss && (e.k === "die" || e.k === "descend" || e.k === "use" || (e.k === "pickup" && moved))) lows.clear();
       else if (boss && (e.k === "descend" || (e.k === "die" && bossIds.has(e.id)))) lows.clear();   // a decisive move: the lows start over
       if (moved && (!progress.length || e.t > progress[progress.length - 1])) progress.push(e.t);
+      if (((e.k === "hurt" && !isDrain(e) && e.dmg > 0) || e.k === "die") && seen(e.id) && (!combat.length || e.t > combat[combat.length - 1])) combat.push(e.t);
     }
     while (progress.length > 64 && progress[1] < viewerTick() - 4000) progress.shift();   // the playhead never seeks back that far
+    while (combat.length > 64 && combat[1] < viewerTick() - 4000) combat.shift();
   }
   /** Cut 28 §3: a pickup of note — no gold, a kind this run has not picked up before (a `pick up ×N` chain of coins and repeats is a
    *  chore, no move). Judged once per event (the batch may be re-noted). */

@@ -28,7 +28,7 @@ export function kingEta(L: Pick<Lineage, "age_h" | "best_depth" | "walls" | "end
     return { day, today, far: day > 99, bend: 0 };
   }
   if (age === undefined || !(age >= 1) || best < 5 || L.ended) return null;
-  if (L.walls?.some((w) => w.boss === "mirror_king" && w.slain) || (L.trophies ?? []).some((t) => /mirror_king/.test(t))) return null;
+  if (kingSlain(L)) return null;
   // the bend off the log: the oldest record still held against today's best, when they are hours apart and the depth moved
   let bend = BEND;
   const recs = (L.runs ?? []).filter((r) => r.best && r.depth > 0).sort((a, b) => a.clock_s - b.clock_s);
@@ -49,8 +49,13 @@ export function kingEta(L: Pick<Lineage, "age_h" | "best_depth" | "walls" | "end
 
 /** Round 2 §9: how far down to the King, 0..1 (the best floor of his 33). */
 export const kingShare = (L: Pick<Lineage, "best_depth" | "king_pct">): number => Math.max(0, Math.min(1, typeof L.king_pct === "number" ? L.king_pct / 100 : L.best_depth / KING_DEPTH));
-export const kingSlain = (L: Pick<Lineage, "walls" | "ended" | "trophies" | "king_eta_h">): boolean =>
-  !!L.ended || L.king_eta_h === 0 || !!L.walls?.some((w) => w.boss === "mirror_king" && w.slain) || (L.trophies ?? []).some((t) => /mirror_king/.test(t));
+/** Cut 122 §3 (core: `walls[].slain` and `king_eta_h` read this descent): the King is slain only in the descent on screen — the core's
+ *  `king_eta_h` (0 = slain) when it sends one, else its walls; the lineage-wide trophy (any descent) only for an older save without either. */
+export const kingSlain = (L: Pick<Lineage, "walls" | "ended" | "trophies" | "king_eta_h">): boolean => {
+  if (typeof L.king_eta_h === "number") return L.king_eta_h === 0 || !!L.ended;
+  if (L.walls?.length) return !!L.ended || L.walls.some((w) => w.boss === "mirror_king" && w.slain);
+  return !!L.ended || (L.trophies ?? []).some((t) => /mirror_king/.test(t));
+};
 
 /** `King · ~day 23` (`King · far off`), a thin % bar to him and what comes after him in plain words (`next: harder dungeon` — the
  *  ascension; owner review 2026-10-10: `then ascend` read as jargon); its tip names the crudeness. Slain: `King · slain · next: harder

@@ -6,7 +6,7 @@
 // tap. Quiet: short words on the face, the rest on hover (`title` / `detailHost`).
 import "../feats.css";
 import type { App } from "../app";
-import type { FeatNews, FeatsWire, FindsReveal, GraveWire, Lineage, ReturnReport, SeekOption, SiegeWire, StandingOrders, TrialWire } from "../engine/types";
+import type { FeatNews, FeatsWire, FindsReveal, GraveWire, HungerForecast, Lineage, ReturnReport, SeekOption, SiegeWire, StandingOrders, TrialWire } from "../engine/types";
 import { h, replace, toast, twoTap } from "./dom";
 import { openWindow } from "./sheet";
 import { detailHost } from "./tips";
@@ -165,6 +165,26 @@ export function sinkHandChip(app: App, after: () => void): HTMLElement | null {
   const b = twoTap([document.createTextNode(s.id === "survey" ? /* copy:button */ "survey" : /* copy:button */ "tithe"), h("small", { class: "dim" }, ` · ${s.line}`)], /* copy:button */ `ok $${s.price}`, act,
     { class: `chip order sink-hand num`, key: `sink:${s.id}:${s.price}`, disabled: !s.available });
   b.dataset.sink = s.id;
+  return b;
+}
+
+/** Cut 122 §5 (core `feats::buy_ration`): the hunger's answer beside its loss — `ration keeps +172 hp · $40` (`Forecast.hunger`: `kept` the max
+ *  hp a ration keeps per send, `price` its cost), two taps to pack one for the next send; `ration packed · keeps +172 hp` once packed.
+ *  `after` runs once a ration is bought. */
+export function rationChip(app: App, H: HungerForecast, after?: () => void): HTMLElement {
+  const tip = /* copy:tooltip */ "next send · hunger bites a quarter as often";
+  const kept = Math.max(0, Math.round(H.kept));
+  if (H.packed) return h("span", { class: "ration packed num dim", "data-ration": "packed", title: tip }, /* copy:callout */ `ration packed · +${kept} hp`);
+  if (!app.engine.buyRation) return h("span", { class: "ration num dim", title: tip }, /* copy:callout */ `ration keeps +${kept} hp`);
+  const act = (): void => {
+    let why = "";
+    void app.mutate(async () => { try { return await app.engine.buyRation!(); } catch (e) { why = e instanceof Error ? e.message : String(e); throw e; } }, /* copy:callout */ "ration").then((ok) => {
+      if (ok) { audio.cue("unlock"); toast(/* copy:callout */ "ration packed"); after?.(); } else app.refused(why, /* copy:callout */ "ration refused");
+    });
+  };
+  const b = twoTap([document.createTextNode(/* copy:callout */ `ration keeps +${kept} hp`), h("small", { class: "dim" }, ` · $${H.price}`)], /* copy:button */ `ok $${H.price}`, act,
+    { class: "chip mini ration num", key: `ration:${H.price}`, disabled: (app.lineage.gold ?? 0) < H.price });
+  b.dataset.ration = "buy"; b.title = tip;
   return b;
 }
 

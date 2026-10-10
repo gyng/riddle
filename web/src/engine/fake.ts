@@ -2608,6 +2608,7 @@ const week118 = (L: Lineage): number => 40 + Math.floor(day118(L) / 7);
     const R = run as { id: number; heir: number; exit: string; depth: number; cause?: string; loot: number; loot_kept: number; kills: Record<string, number> };
     const r = settle.call(this, run, real, ...a); if (DEV_NO_SYSTEMS) return r;
     const st = st118(this), L = this.s.lineage, day = day118(L);
+    if (real) (st as St118 & { packed?: boolean }).packed = false;   // Cut 122 §5: the ration went with the send
     for (const g of st.graves.filter((x) => R.depth >= x.depth && x.heir !== R.heir)) { this.gold(g.gold, `recovered ${g.name}'s pack`); st.news.push({ k: "recovered", text: `${g.name}'s pack · $${g.gold} · D${g.depth}`, day }); }
     st.graves = st.graves.filter((x) => !(R.depth >= x.depth && x.heir !== R.heir));
     for (const [k, t] of BOSS118) if (R.kills?.[k]) { st.tokens[k] = Math.min(3, (st.tokens[k] ?? 0) + 1); const s = st.siege[k];
@@ -2664,6 +2665,19 @@ const week118 = (L: Lineage): number => 40 + Math.floor(day118(L) / 7);
     const L = this.lineage(), sk = L.feats?.sinks.find((x) => x.id === "survey"); if (!sk) throw new Error("no survey"); if (L.gold < sk.price) throw new Error("not enough gold");
     this.gold(-sk.price, "survey"); st118(this).surveyed = true; return this.lineage();
   };
+  // Cut 122 §5 stand-in: a ration by hand ($40, once a send) — the forecast's `hunger` says what it keeps (with `fake_drain=1`, or after a buy)
+  P.buyRation = function (this: Fk118): Lineage {
+    const st = st118(this) as St118 & { packed?: boolean }; if (st.packed) throw new Error("ration packed");
+    if (this.lineage().gold < 40) throw new Error("not enough gold");
+    this.gold(-40, "ration"); st.packed = true; st.rations++; return this.lineage();
+  };
+  for (const m of ["forecast", "forecastEstimate", "forecastRefine"] as const) {
+    const f0 = P[m] as ((this: Fk118) => Forecast) | undefined; if (!f0) continue;
+    P[m] = function (this: Fk118): Forecast {
+      const f = f0.call(this), st = st118(this) as St118 & { packed?: boolean };
+      return DEV_DRAIN || st.packed ? { ...f, hunger: { lost: st.packed ? 65 : 237, unfed: 237, fed: 65, kept: 172, packed: !!st.packed, price: 40 } } : f;
+    };
+  }
   P.grantWish = function (this: Fk118): Lineage {
     const L = this.lineage(), w = L.feats?.wish; if (!w) throw new Error("no wish"); if (L.gold < w.price) throw new Error("not enough gold");
     const st = st118(this); this.gold(-w.price, `wish ${w.text}`); st.wishes++; st.wishAt = day118(L) + 1;

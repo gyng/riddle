@@ -132,10 +132,18 @@ export function openLedger(app: App): void {
       // Cut 7 §1: the counter row as a chip; lit when the active set already holds it
       const c = r.counter; const held = app.rules.rows.some((x) => sameRow(x, c.row));
       // Cut 122 §6: a counter on a card not owned is never `added` for the core to refuse — it offers the card's unlock instead
-      const card = c.row.verb.v === "tactic" && c.row.verb.a && !app.cardOwned(c.row.verb.a) ? c.row.verb.a : null;
+      // (the core's `owned` · `wear` when it sends them: `wear Mirror rhythm` equips the package that owns the card)
+      const card = c.owned === false && c.row.verb.v === "tactic" && c.row.verb.a ? c.row.verb.a : c.row.verb.v === "tactic" && c.row.verb.a && !app.cardOwned(c.row.verb.a) ? c.row.verb.a : null;
+      const wear = card && !held ? app.wearFor(card, c.wear) : null;
+      if (wear) {
+        const w = h("button", { class: "chip verb counter locked-card", "data-card": card!, "data-wear": wear.id, title: c.refusal ?? /* copy:tooltip */ `card not owned: ${card!.replace(/_/g, " ")}`,
+          onclick: () => { closeAllSheets(); void app.wearPackage(wear.id); } },
+          h("small", { class: "dim" }, /* copy:rule_token */ "[counter]"), " ", c.text, " ", h("b", { class: "counter-wear" }, /* copy:button */ `wear ${wear.name}`));
+        return [row, h("div", { class: "lrow counter" }, w)];
+      }
       if (card && !held) {
         const u = visible(app.unlockCat, L).find((x) => x.id === card);
-        const lock = h("button", { class: "chip verb counter locked-card", "data-card": card, disabled: !u, onclick: () => { if (u) { closeAllSheets(); openUnlockSheet(app, u); } } },
+        const lock = h("button", { class: "chip verb counter locked-card", "data-card": card, disabled: !u, title: c.refusal ?? /* copy:tooltip */ `card not owned: ${card.replace(/_/g, " ")}`, onclick: () => { if (u) { closeAllSheets(); openUnlockSheet(app, u); } } },
           h("small", { class: "dim" }, /* copy:rule_token */ "[counter]"), " ", c.text, " ", h("b", { class: "counter-unlock" }, /* copy:button */ "unlock"));
         return [row, h("div", { class: "lrow counter" }, lock)];
       }

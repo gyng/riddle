@@ -15,6 +15,7 @@ import { renderEnding } from "./ui/ending";
 import { closeAllSheets, onEscapeIdle } from "./ui/sheet";
 import { lastRun, type RunLog } from "./ui/runlog";
 import { showBusy } from "./ui/progress";
+import { toast } from "./ui/dom";
 import { audio } from "./audio";
 import { debugNote } from "./debug";
 import { applySkin } from "./ui/skin";
@@ -711,7 +712,7 @@ export class App {
     for (const fn of this.rulesListeners) fn();
     if (this.overBudget) return;
     const seq = ++this.rulesSeq;
-    void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) { this.shelfCheck(); this.adoptCompiled(seq); } }).catch((e) => console.warn("rules rejected", e));
+    void this.engine.setRules(this.rules).then(() => { if (seq === this.rulesSeq) { this.shelfCheck(); this.adoptCompiled(seq); } }).catch((e) => { console.warn("rules rejected", e); if (seq === this.rulesSeq) this.refused(e); });
     this.fcTimer = window.setTimeout(() => void this.emitForecast(), FC_DEBOUNCE_MS);
   }
   /** Cut 24 §4: the state a forecast measures — the edit and the lineage it was asked on. */
@@ -822,6 +823,8 @@ export class App {
    *  there. Returns the row to highlight in the camp (none after a removal). Replace never overflows; insert may. */
   applyPatch(p: Patch): number | undefined {
     const rows = this.rules.rows;
+    // Cut 122 §6: a row on a card the lineage does not own is never written for the core to refuse — it says why instead
+    if (!p.remove && !(p.moves_from !== undefined && p.moves_from >= 0) && this.refuseUnowned(p.row)) return undefined;
     // Cut 25 §2: a move — the set's own row at `moves_from` goes above the row at `insert_at` (as `offline::apply_patch`)
     // Rater A on c4705f9 (`move bank above return` applied, the list unchanged): on packages a package row keeps the package's
     // place — moving one takes it into the pen as the patch's row (the core keeps the pen above every package), so it lands at the
@@ -867,6 +870,7 @@ export class App {
    *  as itself once the room is made. */
   applyPatchOver(p: Patch, drop: number): number {
     const rows = this.rules.rows;
+    if (!p.remove && !(p.moves_from !== undefined && p.moves_from >= 0) && this.refuseUnowned(p.row)) return -1;   // Cut 122 §6: nothing dropped either
     const shift = (i: number): number => (drop >= 0 && drop < i ? i - 1 : i);
     if (drop >= 0 && drop < rows.length) rows.splice(drop, 1);
     if (p.moves_from !== undefined && p.moves_from >= 0) return this.applyPatch({ ...p, moves_from: shift(p.moves_from), insert_at: shift(p.insert_at) }) ?? 0;
@@ -968,6 +972,36 @@ export class App {
     const L = this.lineage; if (!L) return true;
     return (L.unlocks ?? []).includes(id) || !!L.sets?.[L.active_set ?? 0]?.rows.some((r) => r.verb.v === "tactic" && r.verb.a === id);
   }
+  /** Cut 122 §6: the card a row needs that the lineage does not own (the core's `card not owned: <card>` at `setRules`), else null. */
+  unownedCard(row: Row): string | null { return row.verb.v === "tactic" && row.verb.a && !this.cardOwned(row.verb.a) ? row.verb.a : null; }
+  /** Cut 122 §6: a refusal shown, briefly — a toast, the core's words in its tooltip (`card not owned: cadence`). */
+  refused(e: unknown, label?: string): void {
+    const why = e instanceof Error ? e.message : String(e ?? "");
+    const t = toast(label ?? (/^card not owned\b/.test(why) ? "card not owned" : "rules refused"), 2600);
+    if (t) { t.title = why; t.dataset.reason = why; t.classList.add("refused"); }
+    if (typeof document !== "undefined") document.body.dataset.refused = why;
+  }
+  /** Cut 122 §6: true (and the refusal shown) when `row` needs a card the lineage does not own. */
+  refuseUnowned(row: Row): boolean {
+    const c = this.unownedCard(row); if (!c) return false;
+    this.refused(new Error(`card not owned: ${c.replace(/_/g, " ")}`));
+    return true;
+  }
+  /** Cut 122 §6: the way to own a card — wear the package that carries it (the core's `wear`, else a package of the card's own id), else
+   *  null (its unlock, where the catalogue offers one, is the caller's to open). */
+  wearFor(card: string, wear?: string): { id: string; name: string } | null {
+    const all = this.lineage?.packages?.all ?? [];
+    const p = all.find((x) => x.id === wear) ?? all.find((x) => x.id === card && x.owned);
+    return p && this.engine.equipPackage ? { id: p.id, name: p.name } : null;
+  }
+  /** Cut 122 §6: wear a tactic package — into a free slot when there is one, else the last (as `fixReplaces` names it). */
+  wearPackage(id: string): Promise<boolean> {
+    const P = this.lineage?.packages, worn = P?.tactics ?? [], slots = P?.tactic_slots ?? 1;
+    const slot = worn.includes(id) ? worn.indexOf(id) : worn.length < slots ? worn.length : Math.max(0, slots - 1);
+    const name = P?.all.find((x) => x.id === id)?.name ?? id;
+    return this.equip(id, slot, name);
+  }
+  private equip(id: string, slot: number, name: string): Promise<boolean> { const e = this.engine; return e.equipPackage ? this.mutate(() => e.equipPackage!(id, slot), name, true) : Promise.resolve(false); }
   /** Cut 12 §1: does the active set hold this card's row? */
   holdsCard(id: string): boolean { return this.rules.rows.some((r) => isCardRow(r) && r.verb.a === id); }
   /** A card's row into the active set where it acts: at `at` (the catalogue's `insert_at`, which the core sends only while the

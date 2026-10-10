@@ -15,9 +15,10 @@
 // Cut 16 §1: under the ends line, `D3 · D4 · picked clean` (small, dim) while `Lineage.picked` holds depths.
 import { kingLine } from "./king-eta";   // Cut 118 §9
 import { wallPreview } from "./wall-preview";   // Cut 118 round 2: the next wall's roster
-import { graveMark } from "./feats";   // Cut 118 (owner amendment §3): the graves on their floors
+import { graveMark, rationChip } from "./feats";   // Cut 118 (owner amendment §3): the graves on their floors
 import { counterName } from "./counter-name";
-import { openDropSheet } from "./patches";
+import { isTradeOff, openDropSheet, priceText } from "./patches";
+import { openUnlockSheet, visible } from "./unlocks";
 import { enemyHost } from "./enemy-tips";
 import { unitLabel } from "./unit-icon";
 import { conceptCap, conceptIcon } from "./concepts";
@@ -56,7 +57,7 @@ export function clientTry(app: App, cause: string | undefined): ForecastTry | un
   const key = cause.replace(/ pack$/, "").trim().replace(/ /g, "_");
   const c = (app.lineage.counters ?? []).find((k) => k.boss === key || key.endsWith(k.boss));
   if (!c || !c.row || typeof c.row === "string") return undefined;
-  return app.rules.rows.some((r) => sameRow(r, c.row as Row)) ? undefined : { row: c.row, text: c.text };
+  return app.rules.rows.some((r) => sameRow(r, c.row as Row)) ? undefined : { row: c.row, text: c.text, owned: c.owned, refusal: c.refusal, wear: c.wear };   // Cut 122 §6
 }
 
 /** QA 912e135: a forecast killer by name, `unseen <name>` for a kind the bestiary lists as not seen (a hazard or an unlisted cause as is). */
@@ -314,8 +315,15 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
   const cmp = runs.length >= 2 && !isWide() ? meterCompare(runs[runs.length - 2], runs[runs.length - 1]) : null;
   // Cut 118 §9: the ending in sight — `King · ~day 23` at the current pace (crude: ui/king-eta.ts), under the run outcomes
   const king = h("div", { class: "fc-king dim", hidden: true });
+  // Cut 122 §5: the hunger per send and its answer (`starving −237 · ration keeps +172 hp · $40`)
+  const hunger = h("div", { class: "fc-hunger num", hidden: true });
+  const paintHunger = (f: Forecast): void => {
+    const H = f.hunger, show = !!H && Math.round(H.unfed) >= 1 && Math.round(H.kept) >= 1 && !opts.readOnly;
+    hunger.hidden = !show; if (!show) { clear(hunger); return; }
+    replace(hunger, h("span", { class: "hp-max-loss", "data-cause": "starving", title: /* copy:tooltip */ "max hp per send · unlit floors" }, /* copy:callout */ `starving −${Math.round(H!.packed ? H!.fed : H!.unfed)}`), " · ", rationChip(app, H!));
+  };
   const paintKing = (): void => { const k = kingLine(app.lineage), w = wallPreview(app.lineage); king.hidden = !k && !w; replace(king, k ?? "", w ?? ""); };
-  const el = h("section", { class: "forecast" }, h("div", { class: "fc-heading" }, h("span", { class: "label" }, /* copy:label */ "forecast"), quality, sampleCount, refineButton), h("div", { class: "label reach-label dim" }, kw("reach")), bars, ends, king, vsHost, picked, yours, causes, cmp);
+  const el = h("section", { class: "forecast" }, h("div", { class: "fc-heading" }, h("span", { class: "label" }, /* copy:label */ "forecast"), quality, sampleCount, refineButton), h("div", { class: "label reach-label dim" }, kw("reach")), bars, ends, hunger, king, vsHost, picked, yours, causes, cmp);
   // Cut 8B §4: `· 1 combo` when the set has one (engine data; the count is the client's mirror of `Lineage.combos`)
   // Cut 12 §6: the combo's name (engine data: `Vocabulary.combos[].name`), not `1 combo`
   const paintYours = (): void => {
@@ -349,7 +357,7 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
     return c && counterName(app.lineage, c.text, c.row);
   };
   const paint = (f: Forecast): void => {
-    clear(bars); clear(causes); paintEnds(f); paintPicked(); paintVs();
+    clear(bars); clear(causes); paintEnds(f); paintHunger(f); paintPicked(); paintVs();
     const vsBy = new Map((app.vsShown()?.depths ?? []).map((d) => [d.depth, d]));
     el.dataset.refined = f.refined === undefined ? "" : f.refined ? "1" : "0";   // dev: tools read which pass painted
     // QA 92eb880 (M: "D6 32%±13 → 38%±10 on opening edit"): the first pass paints dim, its ± trailing `…`, until the refine lands
@@ -408,7 +416,7 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
       const inner = [
         // gfx raters (every round: "web bars"): each floor is the shaft's hex gem, lit by its reach; the track under it is a thin rail
         h("span", { class: "d num" }, h("span", { class: "hex", style: `--reach:${d.reach.toFixed(3)}`, "aria-hidden": "true" }), `D${d.depth}`),
-        tr ? h("span", { class: "track-cell" }, track, h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`)) : track,
+        tr ? h("span", { class: "track-cell" }, track, tryHint(app, tr)) : track,
         // a `try` row keeps one line (its hint rides the track; the boss beside the number, as before)
         h("span", { class: "n num" }, share(d.reach, lowOf(f)), dpm !== undefined ? h("small", { class: "dim pm band", style: bandW(dpm), title: `±${dpm}` }, /* copy:none */ ` ±${dpm}${first}`) : "", moveMark(vsBy.get(d.depth)), ...(tr ? why.filter((w) => w instanceof HTMLElement && (w.classList.contains("boss-here") || w.classList.contains("wall"))) : [])),   // gfx round 18 (raters: "the D8 row crams a pill, deltas and tags"): a try row keeps only whose floor it is
         // QA 778fa1b (qaU: a leading `· goblin archer` under the D1 bar): on a line of its own the first cause drops its separator
@@ -416,7 +424,12 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
       ];
       // the `try` bar is a button: the row goes in at the top (position is the point), the camp opens on it
       bars.appendChild(tr && !opts.readOnly
-        ? h("button", { class: `bar next try${wall ? " walled" : ""}`, onclick: () => { const p = { row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }; closeAllSheets(); if (app.rowsFull && app.patchTakesRow(p)) { openDropSheet(app, p); return; } const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); } }, ...inner)
+        ? h("button", { class: `bar next try${wall ? " walled" : ""}${isTradeOff(tr) ? " trade-off" : ""}${tryOwn(app, tr) ? " unowned" : ""}`, onclick: () => {
+          closeAllSheets();
+          // Cut 122 §6: a counter on a card not owned wears the package that owns it, else opens its unlock — never a row the core refuses
+          const own = tryOwn(app, tr);
+          if (own) { if (own.wear) void app.wearPackage(own.wear.id); else if (own.unlock) openUnlockSheet(app, own.unlock); else app.refuseUnowned(tr.row); return; }
+          const p = { row: tr.row, insert_at: 0, survive: 0, forecast_delta: 0 }; if (app.rowsFull && app.patchTakesRow(p)) { openDropSheet(app, p); return; } const i = app.applyPatch(p); app.go({ kind: "camp", highlight: i }); } }, ...inner)
         : h("div", { class: `bar${cause || wall || boss ? " next" : ""}${wall ? " walled" : ""}` }, ...inner));
     }
     bars.appendChild(h("div", { class: "bar unknown" }, h("span", { class: "d num" }, h("span", { class: "hex", "aria-hidden": "true" }), `D${f.known_to + 1}+`), h("span", { class: "track" }), h("span", { class: "n" }, "?")));
@@ -448,6 +461,21 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
   return { el, dispose: () => { off(); offRules(); offChange(); offVs(); } };
 }
 
+/** Cut 122 §6: how a `try` on a card not owned is owned — the package to wear (`ForecastTry.wear`), else the card's unlock; null when owned. */
+export function tryOwn(app: App, tr: ForecastTry): { card: string; wear: { id: string; name: string } | null; unlock?: ReturnType<typeof visible>[number] } | null {
+  const card = tr.owned === false && tr.row.verb.a ? tr.row.verb.a : app.unownedCard(tr.row);
+  if (!card) return null;
+  const wear = app.wearFor(card, tr.wear);
+  return { card, wear, unlock: wear ? undefined : visible(app.unlockCat, app.lineage).find((x) => x.id === card) };
+}
+/** The `try` hint on a boss's bar: `try: kite archers`; a trade-off at its wall shows its numbers, never `try` (Cut 122 §2:
+ *  `trade-off · past D13 50→20% · death 30→45%`); a card not owned says how it is had (`· wear Mirror rhythm`, `· unlock`). */
+function tryHint(app: App, tr: ForecastTry): HTMLElement {
+  const own = tryOwn(app, tr);
+  const ownTag = own ? h("span", { class: "own-tag", title: tr.refusal ?? /* copy:tooltip */ `card not owned: ${own.card.replace(/_/g, " ")}` }, " · ", own.wear ? /* copy:button */ `wear ${own.wear.name}` : /* copy:button */ "unlock") : "";
+  if (isTradeOff(tr)) return h("small", { class: "try trade-off", title: /* copy:tooltip */ "paired sends at the wall · one term worse" }, tr.text, " · ", tr.price ? priceText(tr.price) : /* copy:callout */ "trade-off", ownTag);
+  return h("small", { class: "try" }, /* copy:none */ `try: ${tr.text}`, ownTag);
+}
 /** QA a946e04: where the shown forecast's sims started — `Forecast.start` (1 when the purse cannot pay the toll), else the lineage's. */
 export const forecastStart = (app: App, f: Forecast | null): number => Math.max(1, f?.start ?? app.lineage.start ?? 1);
 

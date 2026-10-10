@@ -9,7 +9,7 @@
 // (`R5 depth ≥ 8 → bank · 0/16`), the least-fired marked when it is the only one at its count; tapping a row drops it and the patch
 // lands where it was measured (`App.applyPatchOver`); dismissing the sheet (`×`, Escape, the backdrop) leaves the set whole and the death screen up.
 import type { App } from "../app";
-import type { Patch, Row, Trace } from "../engine/types";
+import type { Patch, Row, Trace, WallPrice } from "../engine/types";
 import { h, pct } from "./dom";
 import { closeX, openSheet } from "./sheet";
 import { condLabel, verbLabel, isCardRow, isPkgRow, refName, rowLabel, ruleName, sameCond, sameVerb } from "./tokens";
@@ -18,9 +18,26 @@ import { condLabel, verbLabel, isCardRow, isPkgRow, refName, rowLabel, ruleName,
 const ownRow = (r: Row): boolean => !isCardRow(r) && !isPkgRow(r);
 import { icon, verbIcon } from "./skin";
 import { kwHost } from "./tips";
-import { NOISE_PTS } from "./forecast";   // Cut 117 §1 (used at call time; the cycle is safe)
+import { NOISE_PTS } from "./forecast";
+import { openUnlockSheet, visible } from "./unlocks";   // Cut 117 §1 (used at call time; the cycle is safe)
 /** gfx round 2 (raters: "the three fix rows are plain brown slabs — give each an icon, as the target does"): the fix's action plaque. */
 const patchPlaque = (row: Row | undefined): HTMLElement | "" => { const id = row ? verbIcon(row.verb.v) : null; return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
+
+/** Cut 122 §2 (core `trace::wall_price`): a suggestion whose paired sims at its wall come out worse on either term — a trade-off, never a fix. */
+export const isTradeOff = (x?: { price?: WallPrice; trade_off?: boolean }): boolean => !!x && (x.trade_off === true || x.price?.trade_off === true);
+/** A patch that harms whole runs or trades one term for another: it sinks below the fixes and is never the gem. */
+export const harmsOf = (p?: Patch): boolean => !!p?.whole && (!!p.whole.harms || isTradeOff(p.whole));
+/** Cut 122 §2: a price in its numbers — `trade-off · past D33 50→0% · death 20→35%` (each 0..1 on the wire). */
+export function priceText(w: WallPrice, trade = true): string {
+  const r = (x: number): number => Math.round(Math.max(0, Math.min(1, x)) * 100);
+  return /* copy:death_line */ `${trade ? "trade-off · " : ""}past D${w.depth} ${r(w.past_from)}→${r(w.past_to)}% · death ${r(w.death_from)}→${r(w.death_to)}%`;
+}
+/** The trade-off's own line on a tablet (its numbers; its tip says what it weighs). */
+export function tradeOffEl(x?: { price?: WallPrice; trade_off?: boolean }): HTMLElement | "" {
+  if (!isTradeOff(x)) return "";
+  const w = x!.price;
+  return h("span", { class: "num trade-off down", title: /* copy:tooltip */ "paired sends at the wall · one term worse" }, w ? priceText(w) : /* copy:callout */ "trade-off");
+}
 
 const sameRow = (a: Row, b: Row): boolean => a.conds.length === b.conds.length && a.conds.every((c, i) => sameCond(c, b.conds[i]) && c.n === b.conds[i].n) && sameVerb(a.verb, b.verb);
 
@@ -103,6 +120,8 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
   const stallBase = lead ? Math.max(0, Math.round((lead.survive - lead.forecast_delta) * 100)) : undefined;
   // the death screen's rest view (death.ts): each tablet's short name and effect, read by its CSS (`data-short`, `data-eff`) — the
   // rule by its words among the offered fixes and the set (`+ retreat vs gas`), the effect one count (`survives 10/12`)
+  // Cut 122 §2: a trade-off sorts below the real fixes (in place: the death screen's tablets and its `shown` list stay one order)
+  if (patches.some((q) => isTradeOff(q.whole))) { const order = [...patches].sort((a, b) => Number(isTradeOff(a.whole)) - Number(isTradeOff(b.whole))); patches.splice(0, patches.length, ...order); }
   const names = [...patches.map((q) => q.row), ...app.rules.rows];
   const rows = patches.map((p, pi) => {
     const delta = stallBase !== undefined ? Math.round(p.survive * 100) - stallBase : Math.round(p.forecast_delta * 100);
@@ -170,16 +189,26 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
     // QA 0c6e126 (qaY: `drink invisibility` applied and the next heir had none — `blocked · no item · none in pack`): a row whose item the
     // next heir will not carry comes with its purchase (`Patch.buys`, its reach measured with it bought): the tap buys it, then applies;
     // a refused buy (the purse moved since) applies nothing
-    const act = p.buys && !unlock && held < 0
+    // Cut 122 §6: a row on a card not owned is never written for the core to refuse — the tablet wears the package that owns it (`wear
+    // Mirror rhythm`), else opens the card's unlock, else says why
+    const card = !unlock && held < 0 && !p.remove ? app.unownedCard(p.row) : null;
+    const wear = card ? app.wearFor(card) : null;
+    const owning = card ? (): void => {
+      if (wear) { void app.wearPackage(wear.id).then((ok) => { if (ok) app.go({ kind: "camp" }); }); return; }
+      const u = visible(app.unlockCat, app.lineage).find((x) => x.id === card);
+      if (u) openUnlockSheet(app, u); else app.refuseUnowned(p.row);
+    } : null;
+    const act = owning ?? (p.buys && !unlock && held < 0
       ? async (): Promise<void> => { if (!(await app.mutate(() => app.engine.buySupply(p.buys!.kind)))) return; await onclick(); }
-      : onclick;
+      : onclick);
+    const ownTag = card ? h("small", { class: "num own-tag", "data-card": card, title: /* copy:tooltip */ `card not owned: ${card.replace(/_/g, " ")}` }, " · ", wear ? /* copy:button */ `wear ${wear.name}` : /* copy:button */ "unlock") : "";
     const buyTag = p.buys && !unlock && held < 0 ? h("small", { class: "num buy-tag gold" }, /* copy:callout */ ` · + ${p.buys.label} $${p.buys.price}`) : "";
-    const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : opts.plain ? plainPatchRow(p.row) : rowLabel(p.row), dropTag, buyTag);
+    const label = h("span", { class: "chips-inline" }, target, unlock ? h("span", { class: "unlock-label" }, p.root?.text ?? rowLabel(p.row), " · ", h("b", null, /* copy:button */ "buy")) : opts.plain ? plainPatchRow(p.row) : rowLabel(p.row), dropTag, buyTag, ownTag);
     // an unlock's second line is the row it inserts once bought; a root patch's is the chain's root it answers
     const root = unlock ? (p.root ? h("small", { class: "dim" }, rowLabel(p.row)) : "") : p.root ? h("small", { class: "root" }, "← ", p.root.text) : "";
     // QA 1a2a4a9 (O: "tapping a patch card applied it and jumped to camp; I meant to select it"): with `opts.select` (the death screen)
     // a tap lights the tablet and the gem applies the lit one — one model: tablets choose, the gem acts
-    const btn: HTMLButtonElement = h("button", { class: `patch tablet${move ? " move" : ""}${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase || noGain ? " below" : ""}${noGain ? " no-gain" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}`,
+    const btn: HTMLButtonElement = h("button", { class: `patch tablet${move ? " move" : ""}${p.remove ? " remove" : ""}${p.below_bar || held >= 0 || opts.nothingBeatsBase || noGain ? " below" : ""}${noGain ? " no-gain" : ""}${unlock ? " unlock" : ""}${held >= 0 ? " held" : ""}${harmsOf(p) ? " harms" : ""}${isTradeOff(p.whole) ? " trade-off" : ""}${card ? " unowned" : ""}`,
       onclick: opts.select ? () => opts.select!(btn) : act, ...(full ? { "data-full": "1" } : {}), ...(p.buys ? { "data-buys": p.buys.kind } : {}) },
       h("b", { class: "rank num", "aria-hidden": "true" }), patchPlaque(p.row), h("span", { class: "patch-main" }, label, root),
       h("span", { class: "patch-nums" },
@@ -190,10 +219,11 @@ export function patchRows(app: App, patches: Patch[], baseline?: number, trace?:
           h("span", { class: "gauge", "aria-hidden": "true" }, h("i", { style: `width:${Math.round(Math.max(0, Math.min(1, p.survive)) * 100)}%` }))),
         h("span", { class: "num surv" }, line),
         reachSpan(stallish && stallBase !== undefined ? { ...p, forecast_delta: delta / 100, forecast_pm: undefined } : p, stallish, campBaseAt(app)),
-        stallish ? "" : wholeSpan(p)));   // Cut 27 §4: a stall's patches carry their whole-run move too (the gem's guard reads it)
+        stallish ? tradeOffEl(p.whole) : wholeSpan(p)));   // Cut 27 §4: a stall's patches carry their whole-run move too (the gem's guard reads it)
     const nm = ruleName(names, pi);
+    if (card) btn.dataset.gem = wear ? /* copy:button */ "wear" : /* copy:button */ "unlock";
     btn.dataset.short = unlock ? /* copy:button */ `buy ${p.root?.text ?? nm}` : move ? /* copy:button */ `move ${nm} up` : p.remove ? /* copy:button */ `cut ${nm}` : p.restores !== undefined ? /* copy:button */ `restore ${nm}` : p.buys ? `+ ${p.buys.label} · ${nm}` : `+ ${nm}`;
-    btn.dataset.eff = unlock ? "" : held >= 0 ? /* copy:callout */ "already written" : noGain || opts.nothingBeatsBase ? /* copy:callout */ "no gain" : p.below_bar ? /* copy:callout */ "below bar"
+    btn.dataset.eff = unlock ? "" : isTradeOff(p.whole) ? /* copy:callout */ "trade-off" : held >= 0 ? /* copy:callout */ "already written" : noGain || opts.nothingBeatsBase ? /* copy:callout */ "no gain" : p.below_bar ? /* copy:callout */ "below bar"
       : opts.stall ? /* copy:callout */ `unstuck ${rs(p.survive)}` : baseline === undefined ? /* copy:callout */ `reach ${pct(p.survive)}` : /* copy:callout */ `survives ${rs(p.survive)}`;
     patchOf.set(btn, p);
     quietMoves(btn);
@@ -292,9 +322,10 @@ function wholeSpan(p: Patch): HTMLElement {
   const deathText = from !== undefined ? `${from}→${Math.max(0, Math.min(100, Math.round((w.death_from! + w.death) * 100)))}%` : `${d > 0 ? "+" : "−"}${Math.abs(d)}`;
   if (moved) parts.push(h("span", { class: `dlt ${d > 0 ? "down" : "up"}` }, /* copy:callout */ `death ${deathText}`, from !== undefined ? "" : h("small", { class: "dim pm" }, /* copy:none */ ` ±${pm}`)));
   if (w.risk) parts.push(h("span", { class: "dlt down risk" }, /* copy:callout */ `risk ${w.risk}`));
+  const trade = tradeOffEl(w); if (trade) parts.push(trade);   // Cut 122 §2: priced at the wall, worse on one term
   // blind 3ab97ea (A: `survives 11/12 · was 6/12 … death 56→89%` — "survives more, yet dies more?"): the count is this death's fight
   // replayed, the death move whole runs from the send — the move names its horizon (`per run`), and its tip says which is which
-  const el = h("span", { class: `num whole${w.harms ? " harms" : ""}` }, ...(parts.length ? [kwHost(h("small", { class: "dim horizon" }, /* copy:label */ "per run"), "h_run"), " · "] : []), ...parts.flatMap((x, i) => (i ? [" · ", x] : [x])));
+  const el = h("span", { class: `num whole${w.harms || isTradeOff(w) ? " harms" : ""}` }, ...(parts.length ? [kwHost(h("small", { class: "dim horizon" }, /* copy:label */ "per run"), "h_run"), " · "] : []), ...parts.flatMap((x, i) => (i ? [" · ", x] : [x])));
   if (parts.length) el.title = /* copy:tooltip */ "whole runs from the send · the count is this fight";
   return el;
 }
@@ -314,7 +345,9 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
     Object.assign(p, { forecast_delta: f.forecast_delta, forecast_depth: f.forecast_depth, forecast_pm: f.forecast_pm, whole: f.whole, camp_pending: false, gem: f.gem });
     buttons[i]?.querySelector(".delta")?.replaceWith(reachSpan(p, false, baseOf.get(el)));
     buttons[i]?.querySelector(".whole")?.replaceWith(wholeSpan(p));
-    buttons[i]?.classList.toggle("harms", !!p.whole?.harms);
+    buttons[i]?.classList.toggle("harms", harmsOf(p));
+    buttons[i]?.classList.toggle("trade-off", isTradeOff(p.whole));
+    if (buttons[i] && isTradeOff(p.whole)) buttons[i]!.dataset.eff = /* copy:callout */ "trade-off";
     if (buttons[i]) quietMoves(buttons[i]);
   });
   el.dataset.reach = "camp";
@@ -325,14 +358,14 @@ export function fillReach(el: HTMLElement, patches: Patch[], filled: Patch[]): v
   // (an exit's reach is its price, `return early · D6 54→30%` — not a loss that dims it; the core keeps a costly exit off the lead)
   const moveOf = (p: Patch): number => { const d = Math.round(p.forecast_delta * 100); return p.insert_at < 0 || Math.abs(d) <= pmOf(p) || (!p.remove && (p.exits ?? (p.moves_from === undefined && EXIT_VERBS.has(p.row.verb.v)))) ? 0 : d; };
   // QA 524827b: a patch that harms whole runs (`PatchWhole.harms`: death up or reach down beyond its ±) is a loss too
-  patches.forEach((p, i) => { const b = buttons[i]; if (b && !(b.classList.contains("below") && !b.classList.contains("neg"))) b.classList.toggle("neg", moveOf(p) < 0 || !!p.whole?.harms); });
+  patches.forEach((p, i) => { const b = buttons[i]; if (b && !(b.classList.contains("below") && !b.classList.contains("neg"))) b.classList.toggle("neg", moveOf(p) < 0 || harmsOf(p)); });
 }
 
 /** Cut 28 §2 (AU: `survives 0/12 · no gain` beside a green `reach D14 0→24%` — "contradictory at a glance"): a tablet that reads `no gain`
  *  (or below the bar, or under `nothing beats unpatched`) never carries a move in the gain colour — its reach and death moves read neutral
  *  (the numbers stay). */
 export function quietMoves(btn: HTMLElement): void {
-  if (!btn.classList.contains("below")) return;
+  if (!btn.classList.contains("below") && !btn.classList.contains("trade-off")) return;   // Cut 122 §2: a trade-off's gain never reads as a fix
   btn.querySelectorAll<HTMLElement>(".delta.up, .whole .dlt.up").forEach((e) => { e.classList.remove("up"); e.classList.add("quiet"); });
 }
 
@@ -341,7 +374,7 @@ export function quietMoves(btn: HTMLElement): void {
 export function sinkHarms(el: HTMLElement, patches: Patch[]): boolean {
   const host = el.querySelector<HTMLElement>(":scope > .patches-fold") ?? el;
   const buttons = [...host.querySelectorAll<HTMLElement>(":scope > button.patch")];
-  const bad = buttons.filter((_, i) => !!patches[i]?.whole?.harms);
+  const bad = buttons.filter((_, i) => harmsOf(patches[i]));
   if (!bad.length || bad.length === buttons.length || buttons.slice(buttons.length - bad.length).every((b) => bad.includes(b))) return false;
   const good = buttons.filter((b) => !bad.includes(b));
   const order = [...good, ...bad];
@@ -362,7 +395,7 @@ export function leadFirst(el: HTMLElement, patches: Patch[], filled: Patch[], le
   const keyOf = (p: Patch): string => JSON.stringify([p.row.conds.map((c) => [c.k, c.n ?? null, c.t ?? null]), p.row.verb.v, p.row.verb.a ?? null, p.insert_at, !!p.replace, !!p.remove, p.moves_from ?? null]);
   const rank = new Map(filled.map((f, i) => [keyOf(f), i]));
   const idx = patches.map((_, i) => i);
-  const sunk = (i: number): number => (patches[i]?.whole?.harms ? 1 : 0);   // (a tablet that harms whole runs stays after the rest: `sinkHarms`)
+  const sunk = (i: number): number => (isTradeOff(patches[i]?.whole) ? 2 : patches[i]?.whole?.harms ? 1 : 0);   // Cut 122 §2: a trade-off last of all   // (a tablet that harms whole runs stays after the rest: `sinkHarms`)
   idx.sort((a, b) => sunk(a) - sunk(b) || (rank.get(keyOf(patches[a])) ?? 1e6 + a) - (rank.get(keyOf(patches[b])) ?? 1e6 + b));
   const li = lead ? buttons.indexOf(lead) : -1;
   if (li >= 0) { idx.splice(idx.indexOf(li), 1); idx.unshift(li); }

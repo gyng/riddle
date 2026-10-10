@@ -14,7 +14,7 @@ import { trainingBlock, trainingFocus } from "./tracks";
 import { meterPanel } from "./meters";
 import { AUTO, autoDismiss } from "./autodismiss";
 import type { App, Mounted } from "../app";
-import type { Death, DrivenOff, ExitLine, Patch, ReturnReport, Row } from "../engine/types";
+import type { Death, DrivenOff, ExitLine, Patch, ReturnReport, Row, WallPrice } from "../engine/types";
 import { morgueVerbs } from "./chain";
 import { lastRun, replayable } from "./runlog";
 import { siegeText } from "./feats";
@@ -24,7 +24,7 @@ import { h, copyText, items, replace } from "./dom";
 import { clearStrip } from "./runclear";   // run-clear: the death's header strip
 import { lowOf, share } from "./forecast";
 import { openGoldSheet } from "./gold";
-import { applyOf, fillReach, leadFirst, openDropSheet, patchOf, patchRows, sinkHarms } from "./patches";
+import { applyOf, fillReach, isTradeOff, leadFirst, openDropSheet, patchOf, patchRows, priceText, sinkHarms, tradeOffEl } from "./patches";
 import { closeX, openSheet, openWindow } from "./sheet";
 import { gem, portrait, renderBar, renderConsole, tile, wideCols } from "./frame";
 import { lostLabel, noteText, refName, rowLabel, ruleName, setRefRows, verbLabel } from "./tokens";
@@ -44,7 +44,7 @@ const VERDICT_TERM: Record<string, Term> = /* copy:none */ { gap: "v_gap", dice:
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
 /** Cut 121 §4: one deciding row's credit in plain words (the report's credit bar says the same). */
 /* copy:label */
-const CREDIT_ONE: Record<string, string> = { picked: "own rule", taught: "lesson", default: "default", chores: "chore" };
+const CREDIT_ONE: Record<string, string> = { written: "own rule", picked: "picked", taught: "lesson", default: "default", chores: "chore" };   // Cut 122 §4: `written` his own row; `picked` a package he wore (never `own rule`)
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
 
 /** The headline's margin segment: a stall's is the guard's reason (`no path`); an hp margin (`3 over` / `3 hp short`) is left
@@ -261,7 +261,10 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     : patchRows(app, d.patches, d.baseline ?? 0, d.trace, { nothingBeatsBase: d.nothing_beats_base, stall: d.verdict === "stall", select, moment: d.depth, replays: d.replays });   // Cut 14 §4: the trace names the least-fired row on a full set
   // Cut 115 §4: a tactic (or variant) that answers the death leads the fixes, before a raw row (`try · gas step · burn`); taken, it is
   // worn and credited taught. Before the pen it is the lever itself.
-  if (!prePen && !drove && d.pick?.id && app.engine.takeFix) patches.prepend(pickTablet(app, d.pick));
+  // Cut 122 §2: a pick priced as a trade-off at the wall sits below the fixes (never first, never the gem)
+  let pickEl: HTMLElement | null = null;
+  const placePick = (pk: Lever): void => { const t = pickTablet(app, pk); if (pickEl) pickEl.remove(); pickEl = t; if (isTradeOff(pk)) patches.append(t); else patches.prepend(t); };
+  if (!prePen && !drove && d.pick?.id && app.engine.takeFix) placePick(d.pick);
   // The morgue is the shareable text of the run: show it in a sheet (the clipboard is a bonus, not the point).
   const openMorgue = (): void => {
     // QA a946e04 (S: `slain by goblin_archer`): ids read as words (`goblin archer`), in the sheet and the copy alike
@@ -335,7 +338,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
         return p ? packageIcon(p.id) : "";
       })() : waitPkg && waitText !== "again" ? packageIcon(waitPkg.p.id) : "", lever.kind === "wait" ? waitText : lever.text, lever.kind === "tactic" && lever.id ? replacesTag(app, lever) : ""), h("span", { class: "lever-go", "aria-hidden": "true" }, "›")) : null;
   if (leverBtn) kwHost(leverBtn, "lever");
-  function leverGem(): HTMLButtonElement { return gem({ label: levelNow ? /* copy:button */ "level" : lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "town" : /* copy:button */ "town", cls: "lever-gem", pulse: true, onclick: leverAct }); }
+  if (leverBtn && lever) { const pr = priceEl(lever); if (pr) leverBtn.appendChild(pr); leverBtn.classList.toggle("trade-off", isTradeOff(lever)); }
+  function leverGem(): HTMLButtonElement { if (lever && isTradeOff(lever)) return gem({ label: /* copy:button */ "town", pulse: true, onclick: () => app.go({ kind: "camp" }) });   // Cut 122 §2: a trade-off is never the gem
+    return gem({ label: levelNow ? /* copy:button */ "level" : lever ? LEVER_GEM[lever.kind] ?? /* copy:button */ "town" : /* copy:button */ "town", cls: "lever-gem", pulse: true, onclick: leverAct }); }
   const isPatchTop = (): boolean => !!top && !top.btn.classList.contains("unlock") && !top.btn.classList.contains("held") && top.btn.classList.contains("patch") && !top.btn.classList.contains("driven-line");
   // blind b58b431 (A: the gem cycled `risky` / `measuring` / `WRITE` unexplained; a `risky` fix applied dropped the forecast with no warning):
   // each state carries its tip, and a risky fix asks a second press (`confirm`) before it applies
@@ -352,7 +357,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     // QA 23ed91f (K: "the gem reads `100%` with no label … I read it as the run's result"): the number, and the word the tap does under it
     ? (() => {
       const harms = top.btn.classList.contains("harms");
-      const word = top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" ? h("small", { class: "gem-w" }, harms ? /* copy:label */ "risky" : /* copy:label */ "apply") : null;
+      const word = top.label !== "buy" && top.label !== "edit" && top.label !== "write" && top.label !== "move" && top.label !== "wear" && top.label !== "unlock" ? h("small", { class: "gem-w" }, harms ? /* copy:label */ "risky" : /* copy:label */ "apply") : null;
       let armed = 0;
       const g: HTMLButtonElement = gem({ label: h("span", { class: "gem-in" }, h("span", { class: "gem-n" }, top.label), word ?? ""), cls: `patch-gem${harms ? " harms" : ""}`, pulse: !harms, onclick: () => {
         if (!top) return;
@@ -451,6 +456,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // QA 23ed91f: the patches' reach is the camp's own measure, landing after the paint (`deathDeltas`: seconds in wasm) — the
   // screen never waits on it; a reach still pending reads `reach …` until then
   let gone = false;
+  let deltasP: Promise<Patch[]> | null = null;   // Cut 122 §2: the one `deathDeltas` call — the priced pick re-reads `death(id)` after it
   if (measureAll && app.engine.deathDeltas) {
     const shown = d.patches;
     // QA 778fa1b (qaU: the lit tablet and the gem moved 1 → 2 on their own ~5 s after arrival): the landing fills each tablet's reach
@@ -458,7 +464,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
     // QA 912e135 (qaX: the gem's `100% APPLY` stayed on `foe: telegraph → retreat · drops R1` once its reach landed at `D8 −62`): the
     // screen's own lit tablet (not the player's pick) that the landing shows losing 10 points or more yields the light to the first
     // tablet that does not lose — a patch that costs that much never leads
-    setTimeout(() => { if (!gone) void app.engine.deathDeltas!(d.run_id).then((f) => {
+    setTimeout(() => { if (!gone) void (deltasP = app.engine.deathDeltas!(d.run_id)).then((f) => {
       if (gone) return;
       if (!f?.length) { measuring = false; const g1 = makeGem(); gemBtn.replaceWith(g1); gemBtn = g1; return; }
       fillReach(patches, shown, f);
@@ -474,7 +480,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
           leadFirst(patches, shown, f, null);
           const gi = shown.findIndex((p) => p.gem === true), host = patches.querySelector<HTMLElement>(":scope > .patches-fold") ?? patches;
           const gb = gi >= 0 ? host.querySelectorAll<HTMLButtonElement>(":scope > button.patch")[gi] : undefined;
-          if (gb) light(gb); else { top?.btn.classList.remove("top"); top = null; }
+          if (gb && !gb.classList.contains("trade-off")) light(gb); else { top?.btn.classList.remove("top"); top = null; }
           el.dataset.gemFirst = top ? (top.btn === patches.querySelector("button.patch") ? "1" : "0") : "";
         }
         measuring = false; const g3 = makeGem(); gemBtn.replaceWith(g3); gemBtn = g3;
@@ -521,6 +527,23 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       rest();
     }).catch((e) => { console.warn("deathDeltas", e); measuring = false; const g2 = makeGem(); gemBtn.replaceWith(g2); gemBtn = g2; }); }, 0);
   }
+  // Cut 122 §2 (core): the tactic pick (the TRY tablet, or the pre-pen lever) is priced at the wall once `deathDeltas` lands (`pending`
+  // until then): the deltas, then `death(id)` again — the tablet takes its price, a trade-off sinks below the fixes and leaves the gem
+  const pricing = !kept && app.engine.deathDeltas && ((!prePen && !drove && !!d.pick?.pending) || (prePen && !!lever?.pending));
+  if (pricing) setTimeout(() => {
+    if (gone) return;
+    void (deltasP ?? app.engine.deathDeltas!(d.run_id)).then(() => (gone ? null : app.engine.death(d.run_id))).then((d2) => {
+      if (!d2 || gone) return;
+      if (!prePen && d2.pick?.id && pickEl) { placePick(d2.pick); rest(); }
+      else if (prePen && leverBtn && d2.lever && lever) {
+        Object.assign(lever, { price: d2.lever.price, trade_off: d2.lever.trade_off, pending: d2.lever.pending });
+        leverBtn.querySelector(".lever-price")?.remove();
+        const pr = priceEl(lever); if (pr) leverBtn.appendChild(pr);
+        leverBtn.classList.toggle("trade-off", isTradeOff(lever));
+        const g = makeGem(); gemBtn.replaceWith(g); gemBtn = g;
+      }
+    }).catch((e) => console.warn("pick price", e));
+  }, 0);
   return { el, dispose: () => { gone = true; preparation.dispose(); bar.dispose(); wide.dispose(); } };
 }
 
@@ -683,7 +706,15 @@ export function forecastSaidText(f: { depths: { depth: number; reach: number }[]
 
 /** Cut 30 (core, `Death.lever`, before the pen opens): the one cheapest lever — `spend` (buy the counter item), `package` (a swap), `wait`
  *  (the heir rests, the floor's odds rise) — its words (`+ heal potion`) and its effect (`survives more`). Shape provisional: the core's. */
-export type Lever = { kind: "spend" | "package" | "wait" | "tactic" | string; text: string; id?: string; variant?: number };   // Cut 115 §4: a `tactic` lever names its package and variant
+export type Lever = { kind: "spend" | "package" | "wait" | "tactic" | string; text: string; id?: string; variant?: number;
+  price?: WallPrice; trade_off?: boolean; pending?: boolean };   // Cut 122 §2 (core): priced at the wall once `deathDeltas` lands; `pending` until then
+/** Cut 122 §2: a pick's price on its tablet — `measuring` while pending, a trade-off's numbers (`trade-off · past D13 50→20% · death …`),
+ *  else the fix's own (`past D13 40→60% · death 50→30%`). */
+export function priceEl(l: Lever): HTMLElement | null {
+  if (l.pending) return h("small", { class: "lever-price pending num dim" }, /* copy:label */ "measuring");
+  if (isTradeOff(l)) { const t = tradeOffEl(l); if (t) t.classList.add("lever-price"); return t || null; }
+  return l.price ? h("small", { class: "lever-price num dim" }, priceText(l.price, false)) : null;
+}   // Cut 115 §4: a `tactic` lever names its package and variant
 
 /** The hp the hero had before the blow that killed him. Cut 117 §1: the core's `Death.moment_hp` (the trace's row before the blow);
  *  an older save falls back to the last blow's hp plus its damage (which counts an overkill); none without a blow. */
@@ -758,9 +789,9 @@ function foldHint(patches: HTMLElement): HTMLElement {
 
 /** Cut 115 §4: the death's tactic fix as a tablet above the patches — `try · gas step · burn`; a tap wears it (credited taught). */
 export function pickTablet(app: App, pick: Lever): HTMLElement {
-  const btn = h("button", { class: "death-pick tablet", "data-pick": pick.id ?? "", "data-variant": String(pick.variant ?? 0),
+  const btn = h("button", { class: `death-pick tablet${isTradeOff(pick) ? " trade-off" : ""}${pick.pending ? " pending" : ""}`, "data-pick": pick.id ?? "", "data-variant": String(pick.variant ?? 0),
     onclick: () => { if (pick.id && app.engine.takeFix) void app.mutate(() => app.engine.takeFix!(pick.id!, pick.variant ?? 0), /* copy:callout */ pick.text, true).then(() => app.go({ kind: "camp" })); } },
-    h("span", { class: "lever-kind" }, /* copy:button */ "try"), h("b", { class: "lever-name" }, pick.id ? packageIcon(pick.id) : "", pick.text, replacesTag(app, pick)), h("span", { class: "lever-go", "aria-hidden": "true" }, "›"));
+    h("span", { class: "lever-kind" }, /* copy:button */ "try"), h("b", { class: "lever-name" }, pick.id ? packageIcon(pick.id) : "", pick.text, replacesTag(app, pick)), priceEl(pick) ?? "", h("span", { class: "lever-go", "aria-hidden": "true" }, "›"));
   return btn;
 }
 /** Cut 117 §2 (blind 8cf9050 B: `TRY Mirror rhythm` silently swapped a worn tactic): a tactic fix names what it takes off —
