@@ -53,7 +53,7 @@ page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
 
 const state = () => page.evaluate(() => {
   const r = window.__riddle, w = document.querySelector(".watch");
-  return r ? { screen: r.screen, booted: r.booted, busy: r.engineBusy, frame: w?.dataset.frame, mode: w?.dataset.mode, beats: Number(w?.dataset.beats ?? 0), tick: Number(w?.dataset.tick ?? 0), stake: document.querySelector(".stake")?.textContent ?? "", vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
+  return r ? { screen: r.screen, booted: r.booted, busy: r.engineBusy, frame: w?.dataset.frame, mode: w?.dataset.mode, beats: Number(w?.dataset.beats ?? 0), tick: Number(w?.dataset.tick ?? 0), stake: document.querySelector(".stake")?.getAttribute("aria-label") ?? "", vault: !!document.querySelector(".sheet-wrap .vault-choice .chip") } : null;
 });
 async function waitFor(pred, label, timeout = 20_000) {
   const t = Date.now(); let s = null;

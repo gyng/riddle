@@ -28,8 +28,8 @@ try {
   await page.locator('.sheet-wrap button.stud').click();
   await page.locator('button.send').click();
   await page.waitForSelector('main.watch');
-  check(`${width}: explicit live label`,await page.locator('.live-badge').isVisible()&&(await page.locator('.live-badge').innerText()).includes('Live delve'));
-  check(`${width}: explicit carried and secured gold`,/Carried.*Secured/.test(await page.locator('.stake').innerText()));
+  check(`${width}: explicit live label`,await page.locator('.live-badge').isVisible()&&(await page.locator('.live-badge').innerText()).trim()==='Live');
+  check(`${width}: explicit carried and secured gold`,/Carried.*Secured/.test(await page.locator('.stake').getAttribute('aria-label')));
   check(`${width}: two watch menu controls`,await page.locator('.console .cmd button.hud-btn:visible').count()===2);
   await page.waitForFunction(()=>document.querySelectorAll('.combat-lines li').length>0,null,{timeout:30000});
   check(`${width}: bounded ordered log`,await page.evaluate(()=>{const t=[...document.querySelectorAll('.combat-lines li')].map(x=>Number(x.dataset.tick));return t.length<=80&&t.every((x,i)=>!i||x>=t[i-1]);}));

@@ -14,8 +14,8 @@ try{for(const width of [400,1440]){
   };a.go({kind:'watch'});
  });
  let checks=0;// `carry`: the stake's carry at risk; the strip's Carried is the core's carried (secured + at risk)
- const wait=(carry,secured)=>p.waitForFunction(({carry,secured})=>{const t=document.querySelector('.stake')?.textContent;return t?.includes(`Carried $${carry+secured}`)&&t.includes(`Secured $${secured}`);},{carry,secured});
- const check=async(regex,label)=>{const t=await p.locator('.stake').textContent();if(!regex.test(t))throw Error(`${label}: ${t}`);checks++;};
+ const wait=(carry,secured)=>p.waitForFunction(({carry,secured})=>{const t=document.querySelector('.stake')?.getAttribute('aria-label');return t?.includes(`Carried $${carry+secured}`)&&t.includes(`Secured $${secured}`);},{carry,secured});
+ const check=async(regex,label)=>{const t=await p.locator('.stake').getAttribute('aria-label');if(!regex.test(t))throw Error(`${label}: ${t}`);checks++;};
  await wait(30,10);await p.evaluate(()=>window.__stakePhase=1);await wait(0,40);await check(/^Carried \$40 · Secured \$40$/,'omitted zero swap checkpoint');
  await p.evaluate(()=>window.__stakePhase=2);await wait(20,40);
  await p.evaluate(()=>window.__stakePhase=3);await wait(15,40);await check(/−\$5 stolen/,'actual theft');

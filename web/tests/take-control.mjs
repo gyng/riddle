@@ -75,7 +75,7 @@ try {
   await awaiting(page);
   await sleep(500); const a = await st(); await sleep(2000); const b = await st();
   check(a.on === "1" && b.eng === a.eng, `the world waits for an order (engine ${a.eng} → ${b.eng})`);
-  check(/Hand control/.test(await page.locator(".live-badge").textContent()), "the badge reads hand control");
+  check(await page.evaluate(() => { const b = document.querySelector(".live-badge"); return b?.dataset.status === "hand" && b.textContent === "Hand" && /hand control · awaits order/.test(b.getAttribute("aria-label") ?? ""); }), "the badge reads Hand, its tip hand control · awaits order");
   let moved = 0;
   for (const k of ["d", "a", "x", "w", "s", "e", "z", "ArrowRight", "ArrowLeft", "Numpad5", "."]) { const s0 = await st(); await page.keyboard.press(k); await sleep(900); const s1 = await st(); if (s1.eng > s0.eng) moved++; check(s1.tick <= s1.eng, `the picture stays at the frontier after ${k} (${s1.tick} ≤ ${s1.eng})`); }
   check(moved === 11, `each key is one action — the pad grid, arrows, numpad (${moved}/11 advanced the world)`);

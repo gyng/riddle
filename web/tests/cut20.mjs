@@ -48,7 +48,7 @@ try {
   await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
   const stakes = await page.evaluate(() => new Promise((res) => {
     const seen = new Set(), t0 = performance.now();
-    const poll = () => { const s = document.querySelector(".watch .stake"); if (s && !s.hidden && s.textContent) seen.add(s.textContent.replace(/\s+/g, " ").trim());
+    const poll = () => { const s = document.querySelector(".watch .stake"); if (s && !s.hidden && s.getAttribute("aria-label")) seen.add(s.getAttribute("aria-label").replace(/\s+/g, " ").trim());
       if (performance.now() - t0 > 4000 || window.__riddle.screen !== "watch") { res([...seen]); return; } requestAnimationFrame(poll); };
     poll();
   }));

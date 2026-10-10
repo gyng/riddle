@@ -146,7 +146,7 @@ import { FoldTally, carriedOf, foldFloors, stretchShare } from "./fold";
 import { foldFloorsOf, openFoldReplay } from "./replay";
 import { audio, type CueName, type CueOpts } from "../audio";
 import { controlPanel } from "./control";   // take control (a secondary mode): the hero by hand
-import { kwHost } from "./tips";   // RUNS_UI: the live badge's tip
+import { detailHost } from "./tips";   // RUNS_UI: the live badge's tip; the carried / secured icons' tips
 import { goldWords } from "./gold-words";
    // RUNS_UI: the town tile's first-watches caption
 
@@ -362,11 +362,13 @@ export const bossDown = (kind: string): string => /* copy:callout */ `${kind.rep
 export const withArticle = (w: string): string => { const x = oneWord(w); return `${/^[aeiou]/i.test(x) ? "an" : "a"} ${x}`; };
 
 /** Describe the watched picture separately from the core's current floor. */
+/** Owner 2026-10-10 ("live delve continues away can be just live"): the badge's face is its label (≤ 2 words); the detail is its tip
+ *  (and its aria-label), never on the face. */
 export function watchStatus(picture: number, live: number, paused: boolean, ended: boolean): { kind: string; label: string; detail: string } {
-  if (ended) return { kind: "ended", label: /* copy:label */ "Run ended", detail: /* copy:label */ `Watching D${picture}` };
-  if (paused) return { kind: "paused", label: /* copy:label */ "Watch paused", detail: /* copy:label */ "continues away" };
-  if (picture !== live) return { kind: "earlier", label: /* copy:label */ `Watching D${picture}`, detail: /* copy:label */ `Live D${live}` };
-  return { kind: "live", label: /* copy:label */ "Live delve", detail: /* copy:label */ "continues away" };
+  if (ended) return { kind: "ended", label: /* copy:label */ "Run ended", detail: /* copy:tooltip */ `watching D${picture}` };
+  if (paused) return { kind: "paused", label: /* copy:label */ "Paused", detail: /* copy:tooltip */ "watch paused · the delve continues while away" };
+  if (picture !== live) return { kind: "earlier", label: /* copy:label */ "Behind", detail: /* copy:tooltip */ `watching D${picture} · live D${live}` };
+  return { kind: "live", label: /* copy:label */ "Live", detail: /* copy:tooltip */ "the delve continues while away" };
 }
 
 export function renderWatch(app: App): Mounted {
@@ -408,7 +410,18 @@ export function renderWatch(app: App): Mounted {
   const whyTip = h("div", { class: "why-tip num", "aria-live": "polite" });
   const whyOf = new Map<string, string>();
   let lastWhy: { text: string; why: string; at: number } | null = null, whyTimer = 0;
-  const stake = h("div", { class: "stake num" });
+  // Owner 2026-10-10 ("carried 0 secured 0 use icons … $$ next to depth indicator"): the purse on the depth's line as two icons and their
+  // sums (`D1 [coins]$2 [chest]$0`), their meaning in their tips; the line's words stay its aria-label (`Carried $2 · Secured $0`)
+  const carryVal = h("span", { class: "purse-v" }), keptVal = h("span", { class: "purse-v" });
+  let carryTip = "", keptTip = "";
+  const carryEl = detailHost(h("span", { class: "purse carried" }, icon("gold", "$"), carryVal), () => [h("p", null, carryTip)]);
+  const keptEl = detailHost(h("span", { class: "purse kept" }, icon("vault", "▣"), keptVal), () => [h("p", null, keptTip)]);
+  const lootDropEl = h("span", { class: "loot-drop down", hidden: true });
+  const stakeMore = h("span", { class: "stake-more" });
+  const stake = h("div", { class: "stake num", role: "group" }, carryEl, keptEl);
+  // the purse's news (a fall's size and cause, `Heading home`, `Path blocked`) on its own line under it, so the icons never clip
+  const stakeNote = h("div", { class: "stake-note num", hidden: true }, lootDropEl, stakeMore);
+  let keptGainTimer = 0;
   const banner = h("div", { class: "banner num" });
   // Cut 17 §1: `⏸ / ▶` is the console's gem (the glyph stays the button's text; the icon is drawn over it)
   const pause = gem({ label: "", cls: "hud-btn", onclick: () => togglePause() });
@@ -566,15 +579,16 @@ export function renderWatch(app: App): Mounted {
     if (wide.slot) replace(wideMeters, meterPanel(lastMeters.run, app.rules.rows, { title: /* copy:label */ "this run" }));
   }
   // Distinguish the watched picture from the core's ongoing run; leaving town still lets him continue.
-  const watchLabel = h("span", { class: "watch-status-label" }, /* copy:label */ "Live delve");
-  const watchDetail = h("span", { class: "lb-auto" }, " · ", /* copy:label */ "continues away");
-  const liveBadge = kwHost(h("span", { class: "live-badge", "data-live": "1" }, h("i", { class: "lane-beat", "aria-hidden": "true" }), watchLabel, watchDetail), "live");
+  // Owner 2026-10-10: the face is one word (`Live`, `Paused`, `Hand`), what it means is its tip; the badge sits at the stage's top right
+  const watchLabel = h("span", { class: "watch-status-label" }, /* copy:label */ "Live");
+  let badgeTip = /* copy:tooltip */ "the delve continues while away";
+  const liveBadge = detailHost(h("span", { class: "live-badge", "data-live": "1", "data-status": "live", "aria-label": `Live · ${badgeTip}` }, h("i", { class: "lane-beat", "aria-hidden": "true" }), watchLabel), () => [h("p", null, badgeTip)]);
   // take control: the panel (a toggle, the pad, the turn's actions); an action kicks one engine step (the world waits for the next)
   let manualKick = false;
   const ctl = controlPanel(app.engine as unknown as Parameters<typeof controlPanel>[0], () => { manualKick = true; });
   const el = h("main", { class: "watch frame" }, bar.el,
     h("div", { class: "stage" }, canvas, card, foldLine, speedWhy,
-      h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
+      h("div", { class: "hud top" }, h("div", { class: "hud-line" }, depth, stake, alert, liveBadge), stakeNote, bossBar),
       meterBox, banner, h("div", { class: "watch-messages" }, whyTip, ticker, whyLine, tactics.el, combatLog)),
     ctl.el, cons.el, ...wide.els);
 
@@ -743,14 +757,17 @@ export function renderWatch(app: App): Mounted {
 
   let statusKey = "";
   function paintWatchStatus(): void {
-    const state = snap?.manual && !held && !exitTier ? { kind: "live", label: /* copy:label */ "Hand control", detail: snap.awaiting ? /* copy:label */ "awaits order" : /* copy:label */ "acting" } : watchStatus(hud.depth, snap?.depth ?? hud.depth, paused, !!held || !!exitTier);
+    // the hand's state is its dot (awaiting an order: it beats) and its tip
+    const state = snap?.manual && !held && !exitTier ? { kind: "hand", label: /* copy:label */ "Hand", detail: snap.awaiting ? /* copy:tooltip */ "hand control · awaits order" : /* copy:tooltip */ "hand control · acting" } : watchStatus(hud.depth, snap?.depth ?? hud.depth, paused, !!held || !!exitTier);
     const key = `${state.kind}:${state.label}:${state.detail}`;
     if (key === statusKey) return;
     statusKey = key;
     liveBadge.dataset.status = state.kind;
-    liveBadge.dataset.live = state.kind === "live" ? "1" : "0";
+    liveBadge.dataset.live = state.kind === "live" || state.kind === "hand" ? "1" : "0";
+    if (state.kind === "hand") liveBadge.dataset.await = snap?.awaiting ? "1" : "0"; else delete liveBadge.dataset.await;
     watchLabel.textContent = state.label;
-    watchDetail.textContent = ` · ${state.detail}`;
+    badgeTip = state.detail;
+    liveBadge.setAttribute("aria-label", `${state.label} · ${state.detail}`);
     paintKeepOut(true);
   }
   function paintHud(): void {
@@ -815,7 +832,7 @@ export function renderWatch(app: App): Mounted {
     if (cardUp) paintCardText();
     const st = s.stake;
     stake.hidden = !st;
-    if (!st) return;
+    if (!st) { stakeNote.hidden = true; return; }
     // QA 912e135: a `swap` is the core's own counter rising (`Stake.swapped`, the exit line's `swapped` at the end) — one source for the
     // strip and the death line, its size the counter's rise; an older core falls back to the pickup's window
     const swapD = st.swapped !== undefined && s.run.id === lastLootRun ? st.swapped - lastSwapped : 0;
@@ -846,15 +863,31 @@ export function renderWatch(app: App): Mounted {
     // blind 1fb7786 (A: `Carried $0 · Secured $6988`, then `Carried $1329` — "don't reconcile"): `Carried` is the core's own carried
     // (`Run::carried`: the secured gold with the carry since — the exit line's `$N carried`), so a checkpoint never reads as a fall to $0
     // and Secured is always the part of Carried a death keeps; the stake's `loot` is only the carry at risk
-    const parts: (string | HTMLElement)[] = [h("span", { class: "carry-w" }, /* copy:label */ "Carried"), ` $${Math.max(0, st.loot) + secured}`];
-    if (performance.now() < lootDropUntil && lootDrop > 0) parts.push(" ", h("span", { class: "loot-drop down" }, `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? `${lootWhy === "left" ? " " : " → "}${lootItem.replace(/_/g, " ")}` : ""}`));
+    const carried = Math.max(0, st.loot) + secured;
+    carryVal.textContent = `$${carried}`;
+    carryEl.dataset.v = String(carried);
+    carryTip = /* copy:tooltip */ "carried · lost on death, banked on return";
+    const drop = performance.now() < lootDropUntil && lootDrop > 0 ? `−$${lootDrop}${lootWhy ? ` ${lootWhy}` : ""}${lootItem ? `${lootWhy === "left" ? " " : " → "}${lootItem.replace(/_/g, " ")}` : ""}` : "";
+    lootDropEl.hidden = !drop; lootDropEl.textContent = drop;
     // blind 7f7fc2b (A: `Secured $0` every run after heir 1, "nothing ever secured"): carry is secured only past the record (Cut 30.5's
-    // checkpoint) — below it, with nothing yet secured, the line names the floor that secures it (`Secured past D21`)
+    // checkpoint) — below it, with nothing yet secured, the chest names the floor that secures it (`D21`, its tip `secured past D21`)
     const record = app.lineage.best_depth ?? 0;
-    parts.push(" · ", h("span", { class: "kept" }, secured === 0 && s.depth <= record ? /* copy:callout */ `Secured past D${record}` : /* copy:callout */ `Secured $${secured}`));
-    if (st.returning ?? walkingHome) parts.push(" · ", h("span", { class: "returning" }, /* copy:callout */ "Heading home"));
-    if (st.stalling && s.depth >= hud.depth && !overridden) parts.push(" · ", h("span", { class: "stalling" }, /* copy:callout */ "Path blocked"));
-    replace(stake, ...parts);
+    const past = secured === 0 && s.depth <= record;
+    keptEl.dataset.state = past ? "past" : "kept";
+    keptEl.dataset.v = String(secured);
+    keptVal.textContent = past ? `D${record}` : `$${secured}`;
+    keptTip = past ? /* copy:tooltip */ `secured past D${record} · kept even on death` : /* copy:tooltip */ "secured · kept even on death";
+    if (securedD > 0) { keptEl.classList.remove("gain"); void keptEl.offsetWidth; keptEl.classList.add("gain"); clearTimeout(keptGainTimer); keptGainTimer = window.setTimeout(() => keptEl.classList.remove("gain"), 1400); }
+    const more: [string, string][] = [];
+    if (st.returning ?? walkingHome) more.push(["returning", /* copy:callout */ "Heading home"]);
+    if (st.stalling && s.depth >= hud.depth && !overridden) more.push(["stalling", /* copy:callout */ "Path blocked"]);
+    const moreText = more.map(([, m]) => m).join(" · ");
+    if (stakeMore.textContent !== moreText) replace(stakeMore, ...more.flatMap(([cls, m], k) => [k ? " · " : "", h("span", { class: cls }, m)]));
+    stakeMore.hidden = !moreText;
+    stakeNote.hidden = !drop && !moreText;
+    stake.dataset.carried = String(carried); stake.dataset.secured = String(secured);
+    // the line in words, for a screen reader and the gates: `Carried $85 −$5 stolen · Secured $75 · Heading home`
+    stake.setAttribute("aria-label", [`${/* copy:label */ "Carried"} $${carried}${drop ? ` ${drop}` : ""}`, past ? /* copy:callout */ `Secured past D${record}` : /* copy:callout */ `Secured $${secured}`, ...more.map(([, m]) => m)].join(" · "));
   }
   function showBanner(text: string, ms: number, cls = ""): void {
     replace(banner, text); banner.className = `banner num show ${cls}`;

@@ -414,3 +414,39 @@ html body .ctl .cmd .tile.ctl-verb .tl, html body .ctl .cmd .tile.ctl-toggle .tl
   text-shadow: 0 1px 2px #000; white-space: nowrap; transition: opacity .2s; }
 .watch .speed-why[hidden] { display: none; }
 .watch .speed-why[data-why="fight"], .watch .speed-why[data-why="scene"], .watch .speed-why[data-why="near"] { color: #efa19b; box-shadow: inset 0 0 0 1px rgba(239, 161, 155, .35); }
+
+/* Owner 2026-10-10: one HUD line — the depth, the purse as two icons beside it (`D1 [coins]$2 [chest]$0`), the badge at its right end
+   (`Live`, `Paused`, `Hand`; what each means is its tip). Under the swift strip the whole line steps down (`data-strip`). */
+.watch .hud.top .hud-line { display: flex; flex: 1 1 100%; flex-wrap: nowrap; align-items: center; gap: 8px; min-width: 0; }
+.watch .hud-line > .depth, .watch .hud-line > .alert { flex: none; }
+.watch .hud-line > .alert { min-width: 0; }
+.watch .hud-line > .alert:empty { display: none; }
+.watch .hud-line > .stake { flex: 0 1 auto; flex-basis: auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px; overflow: hidden; white-space: nowrap;
+  padding: 1px 7px 1px 4px; line-height: 20px; }
+.watch .hud-line > .stake[hidden] { display: none; }
+.watch .hud-line > .live-badge { flex: none; margin-left: auto; }
+.watch .stake .purse { display: inline-flex; align-items: center; gap: 2px; flex: none; cursor: help; border-radius: 3px; outline-offset: 1px; }
+.watch .stake .purse .ico { width: 24px; height: 24px; margin: -2px 0; image-rendering: pixelated; filter: drop-shadow(0 1px 1px var(--ink)); }
+.watch .stake .purse .ico.glyph::before { font-size: 15px; line-height: 24px; }
+.watch .stake .purse.carried .ico.glyph::before { color: #f3d192; }
+.watch .stake .purse.kept { color: var(--ok); }
+.watch .stake .purse.kept[data-state="past"] { color: var(--dim); }
+.watch .stake .purse.kept[data-state="past"] .ico { opacity: .55; filter: grayscale(.6) drop-shadow(0 1px 1px var(--ink)); }
+.watch .stake .purse-v { white-space: nowrap; }
+/* the purse's news, a line under it: `−$37 swap → leather +1`, `Heading home`, `Path blocked` */
+.watch .hud.top .stake-note { flex: 0 1 auto; display: flex; gap: 8px; min-width: 0; max-width: 100%; margin: -4px 0 0 30px; padding: 1px 7px; border-radius: 3px;
+  background: rgba(13, 12, 20, .62); font-size: 13px; line-height: 18px; color: var(--dim); text-shadow: 0 1px 4px var(--ink); white-space: nowrap; overflow: hidden; }
+.watch .hud.top .stake-note[hidden], .watch .stake-note > [hidden] { display: none; }
+.watch .stake-note > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.watch .stake-note .loot-drop { color: #efa19b; }
+.watch .stake-note .returning { color: #ffc9c3; }
+.watch .stake-note .stalling { color: var(--warn); }
+@keyframes purse-gain { 0% { text-shadow: 0 0 10px var(--ok); transform: scale(1.18); } 100% { text-shadow: none; transform: none; } }
+[data-juice="on"] .watch .stake .purse.kept.gain { animation: purse-gain 1.2s ease-out; }
+.watch .hud .live-badge { cursor: help; }
+.watch .hud .hud-line > .live-badge { margin-left: auto; }
+/* the hand: the dot is his state — beating while he awaits an order, steady while he acts */
+.watch .hud .live-badge[data-status="hand"] { box-shadow: inset 0 0 0 1px rgba(243, 209, 146, .6); color: #f3d192; }
+.watch .hud .live-badge[data-status="hand"] .lane-beat { background: #f3d192; box-shadow: 0 0 6px #f3d192; }
+.watch .hud .live-badge[data-status="hand"][data-await="0"] .lane-beat { animation: none; box-shadow: none; }
+@media (max-width: 420px) { .watch .hud-line { gap: 6px; } .watch .hud-line > .stake { gap: 6px; font-size: 13px; } }

@@ -332,7 +332,7 @@ async function stallSkip() {
       return res;
     };
   });
-  await page.waitForFunction(() => /stalling/.test(document.querySelector("main.watch .stake")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => {});
+  await page.waitForFunction(() => /stalling/.test(document.querySelector("main.watch .stake")?.getAttribute("aria-label") ?? ""), null, { timeout: 20_000 }).catch(() => {});
   const tick = () => page.evaluate(() => Number(document.querySelector("main.watch")?.dataset.tick ?? 0));
   const res = [];
   for (let k = 0; k < 2; k++) {
@@ -507,7 +507,7 @@ await page.evaluate(() => document.querySelector('.death .death-more[aria-expand
     r.watchMode = "fast"; r.go({ kind: "watch" });
   });
   let st = ""; const t1 = Date.now(), seen = [];
-  while (Date.now() - t1 < 15_000) { st = await page.evaluate(() => document.querySelector(".watch .stake")?.textContent ?? ""); if (st && !seen.includes(st)) seen.push(st); if (/returning/.test(st) || !["watch"].includes((await state())?.screen)) break; await sleep(60); }
+  while (Date.now() - t1 < 15_000) { st = await page.evaluate(() => document.querySelector(".watch .stake")?.getAttribute("aria-label") ?? ""); if (st && !seen.includes(st)) seen.push(st); if (/returning/.test(st) || !["watch"].includes((await state())?.screen)) break; await sleep(60); }
   check(seen.some(x => /^Carried \$\d+ · Secured \$\d+ · Heading home$/.test(x)), `the stake names carried and secured gold, then Heading home when the return row fires (${seen.slice(0, 2).join(" | ")} → ${st})`);
 }
 

@@ -353,7 +353,7 @@ try {
       while (Date.now() - t0 < 20_000) {
         const x = await page.evaluate(() => {
           const card = document.querySelector(".interstitial");
-          return { screen: window.__riddle.screen, depth: document.querySelector(".watch .depth")?.textContent ?? "", stake: document.querySelector(".watch .stake")?.textContent ?? "", card: card && !card.hidden ? card.textContent : null };
+          return { screen: window.__riddle.screen, depth: document.querySelector(".watch .depth")?.textContent ?? "", stake: document.querySelector(".watch .stake")?.getAttribute("aria-label") ?? "", card: card && !card.hidden ? card.textContent : null };
         });
         if (x.screen !== "watch") break;
         samples++;
