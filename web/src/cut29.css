@@ -109,3 +109,8 @@
 .cmd .tile .tl.two { font-size: 9.5px; letter-spacing: -.03em; text-overflow: clip; }
 /* blind pass 9: the shaft's `D1` in the display face read `DI` — the floor numbers take the condensed face (its 1 has a flag) */
 .notch .dl { font-family: var(--sans); font-weight: 700; letter-spacing: .01em; }
+/* Cut 120 §3: `same for all` sits at the row's end, quieter than the order's own chips */
+.orders-sheet .olab:has(.share) { display: grid; gap: 4px; justify-items: start; }
+.orders-sheet .chip.share { opacity: .75; font: 500 10px/1.1 var(--sans); letter-spacing: 0; text-transform: none; padding: 3px 6px; min-height: 0; }
+.orders-sheet .chip.share.on { opacity: 1; }
+.orders-sheet .order-row .chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }

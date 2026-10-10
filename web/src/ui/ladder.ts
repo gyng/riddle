@@ -1,6 +1,7 @@
 // Cut 118 §7 (research/IDLE_STEAM_2026-10.md §8, Scapewatch): the control earned, read as progress — one rail of rungs, weights →
 // orders → (heirs, owner amendment 2) → workers → pen (the packages worn, the run setup, the hired hands, the rule pen). A rung is lit once the lineage has it; the
-// first rung still dark names what opens it. Quiet: four words and one condition, no taps (each system has its own door). Hidden on a
+// first rung still dark names what opens it. Quiet: four words and one condition; the lit orders rung is the orders sheet's door (Cut 120
+// §8), the rest no taps (each system has its own door). Hidden on a
 // fresh lineage, on a literal (harness) lineage and once every rung is lit. All truth is the core's: the systems' triggers, the tree.
 import "../ladder.css";
 import type { App } from "../app";
@@ -18,7 +19,7 @@ export type Rung = { id: RungId; label: string; lit: boolean; cond: string; reti
 /* copy:label */
 const LABEL: Record<RungId, string> = { weights: "tactics", orders: "orders", heirs: "heirs", workers: "workers", pen: "pen" };
 /* copy:tooltip */
-const TIP: Record<RungId, string> = { weights: "packages worn · how he fights", orders: "run setup · keep, restock, start", heirs: "heir order · who succeeds", workers: "hired hands · chores while away", pen: "own rules · written by hand" };
+const TIP: Record<RungId, string> = { weights: "packages worn · how he fights", orders: "standing orders · run setup, Legacy, ranks", heirs: "heir order · who succeeds", workers: "hired hands · chores while away", pen: "own rules · written by hand" };
 /* copy:callout */
 const FALLBACK: Record<RungId, string> = { weights: "second stance", orders: "first supplies", heirs: "first death", workers: "first hire", pen: "meet Mother" };
 
@@ -59,7 +60,8 @@ function rungTip(el: HTMLElement, r: Rung): HTMLElement {
     h("div", { class: "kw-tip-gloss" }, TIP[r.id])]);
 }
 
-export function controlLadder(app: App): { el: HTMLElement; dispose: () => void } {
+/** Cut 120 §8: a lit rung with a door opens it (the orders rung: the orders sheet); the others stay words. */
+export function controlLadder(app: App, doors: Partial<Record<RungId, () => void>> = {}): { el: HTMLElement; dispose: () => void } {
   const el = h("div", { class: "control-ladder", "data-ladder": "" });
   let last = "";
   const paint = (): void => {
@@ -74,7 +76,8 @@ export function controlLadder(app: App): { el: HTMLElement; dispose: () => void 
     last = key;
     replace(el, h("div", { class: "ladder-rail", role: "list" },
       ...rungs.flatMap((r, i) => [i ? h("span", { class: "ladder-step", "aria-hidden": "true" }, "›") : "",
-        rungTip(h("span", { class: `ladder-rung${r.lit ? " lit" : ""}${r === next ? " next" : ""}`, role: "listitem", "data-rung": r.id, "data-retires": r.retires, "data-lit-by": r.litBy ?? "" }, h("span", { class: "ladder-pip", "aria-hidden": "true" }), r.label), r)])),
+        rungTip(h("span", { class: `ladder-rung${r.lit ? " lit" : ""}${r === next ? " next" : ""}`, role: "listitem", "data-rung": r.id, "data-retires": r.retires, "data-lit-by": r.litBy ?? "" }, h("span", { class: "ladder-pip", "aria-hidden": "true" }),
+          r.lit && doors[r.id] ? h("button", { class: "ladder-door", "data-door": r.id, onclick: (e: Event) => { e.stopPropagation(); doors[r.id]!(); } }, r.label) : r.label), r)])),
       h("small", { class: "ladder-next num", "data-rung": next!.id }, next!.cond));
   };
   paint();

@@ -14,11 +14,12 @@ import { h, replace } from "./dom";
 import { openWindow } from "./sheet";
 import { bossName } from "./report-bosses";
 import { petCries } from "./pets";
+import { isOrderLine } from "./works";
 
 export type Cry = { k: string; short: string; long: string; day?: number };
 const MOST = 6;
 /** most notable first */
-const RANK = ["boss", "siege_won", "title", "trial", "record", "seek", "avenged", "set", "first", "quest", "oath", "built", "fetched", "old_hound", "pet_synergy", "recovered", "pet_sig", "worker", "wish", "swift", "bounty", "tamed", "bred"];   // Cut 119: the pet cries
+const RANK = ["boss", "siege_won", "title", "trial", "record", "seek", "avenged", "set", "first", "quest", "oath", "built", "fetched", "old_hound", "pet_synergy", "recovered", "pet_sig", "worker", "order", "wish", "swift", "bounty", "tamed", "bred"];   // Cut 119: the pet cries
 /** Cut 118: a core feat in the hero's voice — `short` ≤ 3 words for the chrome, `long` the diary's (≤ 8 words); null for the report's quiet
  *  facts (the heir chosen, a siege try, a trial failed). */
 function featCry(f: FeatNews): Cry | null {
@@ -32,6 +33,8 @@ function featCry(f: FeatNews): Cry | null {
     case "set": return { k: f.k, day: f.day, short: /* copy:callout */ "set complete", long: /* copy:diary_line */ `A set complete · ${head[0]}` };
     case "wish": return { k: f.k, day: f.day, short: /* copy:callout */ "wish granted", long: /* copy:diary_line */ `${f.text.replace(/^granted /, "Granted: ").split(" · ")[0]}` };
     case "swift": return { k: f.k, day: f.day, short: f.text.split(/\s+/).slice(0, 2).join(" "), long: /* copy:diary_line */ `The early floors pass quickly now · ${f.text}` };
+    // Cut 120: a standing order announced once (`legacy balanced`, `ranks auto`, `herald ascends`) — the town's news, in his words
+    case "order": return { k: f.k, day: f.day, short: f.text.split(/\s+/).slice(0, 3).join(" "), long: /* copy:diary_line */ `New order in town · ${f.text}` };
     case "recovered": return { k: f.k, day: f.day, short: /* copy:callout */ "pack recovered", long: /* copy:diary_line */ `I brought home ${head[0]}` };
     default: return null;
   }
@@ -69,7 +72,7 @@ export function cries(r: ReturnReport, L: Pick<Lineage, "walls">): Cry[] {
     if (b) out.push({ k: "built", short: /* copy:callout */ `a new ${b[1].toLowerCase()}`, long: /* copy:diary_line */ `Home again: a new ${b[1].toLowerCase()} stands` });
   }
   if (r.oath?.done) out.push({ k: "oath", short: /* copy:callout */ "oath kept", long: /* copy:diary_line */ `I kept my oath · ${r.oath.text}` });
-  for (const w of (r.workers ?? []).filter((a) => a.first && (a.n > 0 || a.what))) {
+  for (const w of (r.workers ?? []).filter((a) => a.first && !isOrderLine(a.id) && (a.n > 0 || a.what))) {   // (Cut 120: an order line is cried as its order's news)
     const who = w.id.replace(/_/g, " ");
     out.push({ k: "worker", short: /* copy:callout */ `${who} helps now`, long: /* copy:diary_line */ `The ${who} works for me now · ${w.what}` });
   }

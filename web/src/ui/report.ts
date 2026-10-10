@@ -40,7 +40,7 @@ import { oathProgress } from "./oaths";
 import { grewBlock, heroFace, reportTrainingBlock, trainingBeats, trainingFocus } from "./tracks";
 import { reportChoices } from "./report-choices";
 import { bossName, reportBosses } from "./report-bosses";
-import { workersBlock, workersSpent } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
+import { isOrderLine, workersBlock, workersSpent } from "./works";   // Cut 30.5: the workers' acts, one compact line under what grew
 import { onPackages, openPackages, penOpen } from "./packages";
 import { bountyText } from "./forecast";
 import { progressGoal, progressGoalRow } from "./progress-goal";
@@ -734,7 +734,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const obstacle = r.stall ? recentRunText(r.stall.text) : repeatedDeath?.cause.replace(/_/g, " ");
   const preparation = preparationActions(app, { report: true, obstacle, cause: r.stall ? undefined : repeatedDeath?.cause });
   const upgradeHost = preparation.el;
-  const firstActs = (r.workers ?? []).filter((a) => a.first && (a.n > 0 || a.what));
+  const firstActs = (r.workers ?? []).filter((a) => a.first && !isOrderLine(a.id) && (a.n > 0 || a.what));
   const goal = progressGoal(L);
   const newChoices = reportChoices(app, r);
   const pick = returnPick(app, "report");
@@ -799,7 +799,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     group("gold", /* copy:label */ "Gold", [...groups.gold, ledgerLine, termList ? h("div", { class: "ledger-terms" }, ...termList) : null, ledger?.terms?.some((t) => t.label === "lost") ? null : lostLine(), goldLine()]),
     group("finds", /* copy:label */ "Finds", [...groups.finds, finds, feats.rest.finds, setLog(L.feats)]),
     group("heroes", /* copy:label */ "Heroes", [...groups.heroes, classXpBlock(r), legacyEarnedBlock(r), reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a, beat) => openPackages(app, a, undefined, trainingFocus(beat)) : undefined), grewBlock(r, heroFace(L), trainingBeats(r.packages)), feats.rest.pets]),
-    group("workers", /* copy:label */ "Workers", [...groups.workers, workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest })]),
+    group("workers", /* copy:label */ "Workers", [...groups.workers, workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first || isOrderLine(a.id)), chest: r.chest }, Infinity, true)]),
     group("way", /* copy:callout */ "The way down", [...groups.way, kingLine(L, "report-king"), goal ? progressGoalRow(goal, "report-progress-goal") : null, feats.rest.way]),
     group("credit", /* copy:label */ "Who decided", [buildHead(L, deepestN, deathsN === 0, meterOf)]),
     group("runs", /* copy:label */ "Runs", [bloodlineSec, pendingSec, tiles, newsBlock(r, named, namedCounters(L), shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, namedCounters(L))) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null, picked, exitLines, rested,

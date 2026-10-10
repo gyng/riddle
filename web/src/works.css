@@ -99,3 +99,6 @@
 /* blind c4705f9: what a worker bought rides its chip (` · sword +3 · −$12562`) and wraps inside the parchment */
 .work-act:has(.work-bought) { flex-wrap: wrap; max-width: 100%; }
 .work-act .work-bought { color: var(--dim, inherit); }
+/* Cut 120 §9: the While away fold's worker ledger — one line per worker */
+.works-acts.works-ledger { flex-direction: column; align-items: flex-start; }
+.works-acts.works-ledger .work-act { max-width: 100%; flex-wrap: wrap; }

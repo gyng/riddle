@@ -17,7 +17,7 @@ import { openWindow as openSheet } from "./sheet";
 import { tile, paintFace } from "./frame";
 import { audio } from "../audio";
 import { questShown } from "./quest";
-import { nextPill, openWorks } from "./works";
+import { nextPill, nodeIcon, openWorks } from "./works";
 import { townGraveyard } from "./feats";   // Cut 118 (owner amendment §4): the graveyard's stones
 import { townCrier } from "./crier";   // Cut 118 §8: the town crier   // Cut 30.5: the `next` pill, the works sheet
 import { openChronicle } from "./chronicle";
@@ -60,6 +60,16 @@ const KEY = (L: Lineage): string => /* copy:none */ `riddle.town.${L.seed ?? 0}`
 function load(L: Lineage): Store | null { try { const s = localStorage.getItem(KEY(L)); return s ? JSON.parse(s) as Store : null; } catch { return null; } }
 function save(L: Lineage, s: Store): void { try { localStorage.setItem(KEY(L), JSON.stringify(s)); } catch { /* a per-viewer convenience */ } }
 /** a building's panel opened (its `!` rune goes) */
+/** Cut 120 §10: the town target a worker's post stands at (`WorkerPost.post` / `WorkNode.post`). */
+const postTarget = (post?: string): string => post ?? "mouth";
+/** Cut 120 §7/§10: the next worker's mark — his chore's count by hand and the hours to his fallback (`forge 2/3 · or 30h`), from the
+ *  core's `Works.next_worker` node (`progress`, `eta_h`); none once he is lit (his post carries his price) or with no count. */
+export function nextWorkerMark(L: Pick<Lineage, "tree">): { id: string; name: string; post?: string; text: string } | null {
+  const W = L.tree, n = W?.next_worker ? W.nodes.find((x) => x.id === W.next_worker) : undefined;
+  if (!n || n.state === "done" || n.state === "lit" || !n.progress) return null;
+  return { id: n.id, name: n.name, post: n.post, text: /* copy:callout */ `${n.chore ?? ""} ${n.progress}${n.eta_h ? ` · or ${n.eta_h}h` : ""}`.trim() };
+}
+
 export function markOpened(L: Lineage, id: string): void { const s = load(L) ?? { seen: [], opened: [] }; if (!s.opened.includes(id)) { s.opened.push(id); save(L, s); } }
 
 export type TownUi = { el: HTMLElement; view: TownView; paint(): void; send(after: () => void): void; dispose(): void; anchorOf(id: string): HTMLElement | null };
@@ -169,6 +179,10 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
     // the staked plot shows from day 0; it taps (its trigger) once the first building stands — day 0 keeps its four surfaces
     if (s.staked && (s.stage >= 1 || s.staked.ready)) want.push({ id: "staked", plot: "staked" });
     for (const [id, b] of btns) if (!want.some((w) => w.id === id)) { b.remove(); btns.delete(id); }
+    // Cut 120 §10: the next worker's count and fallback on his post (`forge 2/3 · or 30h`) while no hire is lit — one marker, inside the
+    // budget (≤ 3 with the scene's own); a post with no target here (its building not standing) shows it at the mouth
+    const nw = nextWorkerMark(app.lineage), lit0 = s.workers.some((x) => x.lit);
+    const nwAt = nw && !lit0 && s.markers.length < 3 ? (want.some((x) => x.id === postTarget(nw.post)) ? postTarget(nw.post) : want.some((x) => x.id === "mouth") ? "mouth" : undefined) : undefined;
     for (const w of want) {
       let b = btns.get(w.id);
       const label = w.id === "staked" && s.staked?.ready ? /* copy:button */ `Build ${BUILD_NAME[s.staked.id] ?? s.staked.id}` : LABEL[w.id] ?? w.id;
@@ -189,7 +203,8 @@ export function renderTown(app: App, hooks: TownHooks): TownUi {
       const holder = b.querySelector(".town-markers") ?? b.appendChild(h("span", { class: "town-markers" }));
       replace(holder, ...mk.map((m) => h("span", { class: `town-marker mk-${m.kind}`, "data-marker": m.kind },
         icon(m.kind === "sword" ? "v_attack" : m.kind === "coin" ? "gold" : "alert", m.kind === "sword" ? "⚔" : m.kind === "coin" ? "$" : "!"), m.label ? h("b", { class: "num" }, m.label) : "")));
-      b.dataset.markers = mk.map((m) => m.kind).join(" ");
+      if (nw && nwAt === w.id) holder.appendChild(h("span", { class: "town-marker mk-next", "data-marker": "next", "data-node": nw.id, title: nw.name }, nodeIcon(nw.id, nw.name), h("b", { class: "num" }, nw.text)));
+      b.dataset.markers = [...mk.map((m) => m.kind), ...(nw && nwAt === w.id ? ["next"] : [])].join(" ");
       const cnt = w.id === "chest" && s.chest?.need ? `${s.chest.count ?? 0}/${s.chest.need}` : "";
       const ce = b.querySelector(".town-count"); if (cnt) { if (ce) ce.textContent = cnt; else b.appendChild(h("span", { class: "town-count num" }, cnt)); } else ce?.remove();
     }

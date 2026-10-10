@@ -28,7 +28,7 @@ export const nodeIcon = (id: string, name = id): HTMLElement => icon(`node_${id}
 const BLURB: Record<string, string> = {
   quartermaster: "packs heal · drill item", porter: "hauls home · while away", scout: "sends him · each rest", armourer: "wears better finds",
   apprentice: "buys forge steps", keeper: "sorts finds · never asks", clerk: "banks spare gold", drillmaster: "levels the stance",
-  kennel_hand: "fields best pets", herald: "swaps stale quests", guide: "starts deeper",
+  kennel_hand: "fields best pets", herald: "swaps stale quests", guide: "starts deeper", kennel_keeper: "breeds · frees spare pets",
 };
 export const blurb = (id: string): string => BLURB[id] ?? "";
 /** week 2: a worker's rank as a numeral (`II`); none at rank 1 */
@@ -37,7 +37,7 @@ export const rankNum = (r?: number): string => (r && r > 1 ? ["", "I", "II", "II
 const rankAdds = (n: WorkNode): string => { const a = (n as WorkNode & { rank_adds?: string }).rank_adds; return a && a.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 4 ? a : ""; };
 /** the chore's count word (`2/3 chests`) */
 /* copy:label */
-const CHORE: Record<string, string> = { chest: "chests", send: "sends", wear: "worn", forge: "steps", keep: "sorted", deposit: "deposits", level: "levels", field: "fielded", swap: "swaps", start: "starts" };
+const CHORE: Record<string, string> = { chest: "chests", send: "sends", wear: "worn", forge: "steps", keep: "sorted", deposit: "deposits", level: "levels", field: "fielded", swap: "swaps", start: "starts", breed: "bred" };
 export const choreWord = (c?: string): string => (c ? CHORE[c] ?? c : "");
 const price = (n: WorkNode): string => (n.price ? `$${n.price}` : /* copy:label */ "free");
 /** A node's one state line (≤ 3 words + a number): `done`, `2/3 chests`, `$120`, `bank built`. */
@@ -200,20 +200,26 @@ export function sendMark(L: Lineage): HTMLElement | "" {
 /** the worker's name (the node's; the id's words when the tree is not at hand) */
 const nameOf = (L: Lineage, id: string): string => L.tree?.nodes.find((n) => n.id === id)?.name ?? id.replace(/_/g, "-");
 /** An absence's worker lines, compact (`apprentice · +2 steps`), and the haul left in the chest (`chest +$120`); null when none. */
-export function workersBlock(L: Lineage, r: Pick<ReturnReport, "workers" | "chest">, limit = 4): HTMLElement | null {
+export function workersBlock(L: Lineage, r: Pick<ReturnReport, "workers" | "chest">, limit = 4, ledger = false): HTMLElement | null {
   const acts = (r.workers ?? []).filter((a) => a.n > 0 || a.what);
   if (!acts.length && !r.chest) return null;
-  return h("div", { class: "works-acts" },
+  // Cut 120 §9: the While away fold is the worker ledger — one line per worker, none cut (`apprentice · +2 steps · sword +3 · −$X`)
+  return h("div", { class: `works-acts${ledger ? " works-ledger" : ""}` },
     ...acts.slice(0, limit).map((a) => h("span", { class: `chip work-act${a.first ? " first" : ""}`, "data-worker": a.id }, h("span", { class: "wa-ico" }, nodeIcon(a.id, nameOf(L, a.id))), h("b", null, nameOf(L, a.id)), h("span", { class: "num" }, ` · ${a.what}`), boughtText(a) ? h("span", { class: "num work-bought" }, boughtText(a)) : "",
       // Cut 117 §4: why the absence's supplies were limited (`WorkerAct.reason`), its gloss on hover
       ((w) => w ? h("small", { class: "work-reason warn", "data-reason": a.reason, title: w.tip }, ` · ${w.text}`) : "")(supplyReason(a.reason)))),
     acts.length > limit ? h("small", { class: "dim" }, /* copy:callout */ `+${acts.length - limit} more`) : "",
     r.chest ? h("span", { class: "chip work-act chest", "data-worker": "chest" }, h("span", { class: "num gold" }, /* copy:callout */ `chest +$${r.chest}`)) : "");
 }
-/** blind c4705f9 (A, B: `purse −$12562` with only `apprentice · +4 steps`): what a worker bought and paid — ` · sword +3 · mail +2 · −$12562`. */
-export function boughtText(a: Pick<WorkerAct, "items" | "spent">): string {
+/** Cut 120 §6: the order lines beside the workers (`ranks`, `legacy`) — the ledger's, never a worker's first act (the order's own news
+ *  announces it once). */
+export const isOrderLine = (id: string): boolean => id === "ranks" || id === "legacy";
+/** blind c4705f9 (A, B: `purse −$12562` with only `apprentice · +4 steps`): what a worker bought and paid — ` · sword +3 · mail +2 · −$12562`.
+ *  Cut 120 §6: a line with no `spent` names the purse it moved (`WorkerAct.gold`, signed) unless its own words already carry the gold. */
+export function boughtText(a: Pick<WorkerAct, "items" | "spent" | "gold"> & { what?: string }): string {
   const items = (a.items ?? []).map((i) => ` · ${i}`).join("");
-  return /* copy:callout */ `${items}${a.spent ? ` · −$${a.spent}` : ""}`;
+  const moved = !a.spent && a.gold && !/\$/.test(a.what ?? "") ? (a.gold < 0 ? ` · −$${-a.gold}` : ` · +$${a.gold}`) : "";
+  return /* copy:callout */ `${items}${a.spent ? ` · −$${a.spent}` : ""}${moved}`;
 }
 /** The purse the absence's workers spent on what they bought (the apprentice's forge steps). */
 export const workersSpent = (acts: WorkerAct[] | undefined): number => (acts ?? []).reduce((n, a) => n + (a.spent ?? 0), 0);
@@ -229,6 +235,7 @@ export function mergeWorkers(a: WorkerAct[] | undefined, b: WorkerAct[] | undefi
     // (a later slice's step of a slot is the higher: `sword +4` replaces `sword +3`)
     if (x.items?.length || y.items?.length) { const key = (i: string): string => i.replace(/ ?[+\d].*$/, ""); const later = y.items ?? []; x.items = [...(x.items ?? []).filter((i) => !later.some((j) => key(j) === key(i))), ...later]; }
     if (x.spent || y.spent) x.spent = (x.spent ?? 0) + (y.spent ?? 0);
+    if (x.gold || y.gold) x.gold = (x.gold ?? 0) + (y.gold ?? 0);
   }
   return out;
 }

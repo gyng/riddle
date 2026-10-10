@@ -11,6 +11,7 @@ import { h, replace, toast, twoTap } from "./dom";
 import { openWindow } from "./sheet";
 import { detailHost } from "./tips";
 import { audio } from "../audio";
+import { cut120OrderBits } from "./orders";   // Cut 120: the Legacy focus and the ascend order in the summary
 import { KENNEL_WORD, PET_KINDS, petLines, roleGlyph, type PetLine } from "./pets";   // Cut 119: the pet feats, the kennel order
 
 /** `Queen · 4 tries · best 22%` (the siege on a band boss; `best` the lowest hp % he was left on). */
@@ -148,7 +149,7 @@ export const SINK_ORDERS = ["both", "ration", "tithe", "off"] as const;
 export function featOrderBits(o: StandingOrders): string[] {
   return [o.heir && o.heir !== "answer" ? /* copy:callout */ `heirs ${HEIR_WORD[o.heir] ?? o.heir}` : "",
     o.sink && o.sink !== "both" ? /* copy:callout */ `sinks ${SINK_WORD[o.sink] ?? o.sink}` : "",
-    o.kennel && o.kennel !== "breed" ? /* copy:callout */ `kennel ${KENNEL_WORD[o.kennel] ?? o.kennel}` : ""].filter(Boolean);
+    o.kennel && o.kennel !== "breed" ? /* copy:callout */ `kennel ${KENNEL_WORD[o.kennel] ?? o.kennel}` : "", ...cut120OrderBits(o)].filter(Boolean);
 }
 
 /** The heir order is shown once a heir has died (the `heirs` rung lit), or as soon as the core sends a non-default one. */

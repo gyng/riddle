@@ -10,3 +10,6 @@
 .control-ladder .ladder-rung.next { opacity: .95; }
 .control-ladder .ladder-rung.next .ladder-pip { border-style: dashed; }
 .control-ladder .ladder-next { color: var(--dim); }
+/* Cut 120 §8: the lit orders rung is the orders sheet's door — the rung's own look, a button's hit area */
+.control-ladder .ladder-door { all: unset; cursor: pointer; padding: 6px 2px; margin: -6px -2px; text-decoration: underline dotted; text-underline-offset: 3px; }
+.control-ladder .ladder-door:focus-visible { outline: 1px solid var(--acc); outline-offset: 2px; }

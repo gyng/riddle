@@ -54,7 +54,8 @@ import { kwHost } from "./tips";
 import { returnPick } from "./return-pick";   // Cut 113 §3: the return's pick waits on the camp
 import { checkinBatch } from "./checkin";   // Cut 117 §5: the routine buys of a return in one chip
 import { controlLadder } from "./ladder";   // Cut 118 §7: the automation earned, one rail
-import { KENNEL_ORDERS, KENNEL_TIP, KENNEL_WORD, kennelShown } from "./pets";   // Cut 119: the kennel keeper's order
+import { KENNEL_ORDERS, KENNEL_TIP, KENNEL_WORD, kennelShown } from "./pets";
+import { ASCEND_ORDERS, ASCEND_WORD, ascendOrderShown, isShared, LEGACY_ORDERS, LEGACY_TIP, LEGACY_WORD, legacyOrderShown, manyBloodlines, perkNodes, RANKS_ORDERS, RANKS_WORD, ranksOrderShown, toggleShared, type ShareKey } from "./orders";   // Cut 120: one orders sheet   // Cut 119: the kennel keeper's order
 import { campFeats, featOrderBits, heirOrderShown, HEIR_ORDERS, HEIR_WORD, SINK_ORDERS, SINK_WORD, sinkHandChip } from "./feats";   // Cut 118: seek · trial · wish; the heir and sink orders
 
 const SET_NAME_MAX = 12;
@@ -251,7 +252,7 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
   window.addEventListener("riddle:focus-hero",focusHome);
   const pick = returnPick(app, "camp");
   const batch = checkinBatch(app);
-  const ladder = controlLadder(app);
+  const ladder = controlLadder(app, { orders: () => openOrders() });   // Cut 120 §8: the orders rung opens the orders sheet
   const feats = campFeats(app);
   const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, batch.el, ladder.el, feats.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
@@ -648,6 +649,15 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
       const body = h("div", { class: "sheet-body orders-sheet" }, h("div", { class: "label row-label" }, /* copy:label */ "Run setup"));
       const paint = (): void => {
         const row = (label: string, ...chips: HTMLElement[]): HTMLElement => h("div", { class: "order-row" }, h("span", { class: "olab" }, label), " ", h("span", { class: "chips" }, ...chips.flatMap((c, i) => [i ? " " : "", c])));
+        // Cut 120 §3: a shareable order's row, with `same for all` when the town keeps more than one bloodline (`StandingOrders.shared`)
+        const srow = (key: ShareKey, label: string, ...chips: HTMLElement[]): HTMLElement => {
+          const r = row(label, ...chips); r.dataset.order = key;
+          if (!manyBloodlines(app.lineage)) return r;
+          const on = isShared(app.lineage.orders!, key);
+          r.querySelector(".olab")!.append(h("button", { class: `chip order share${on ? " on" : ""}`, "data-share": key, "aria-pressed": String(on), title: /* copy:tooltip */ "every bloodline · later changes follow",
+            onclick: () => act(toggleShared(app.lineage.orders!, key), /* copy:callout */ "same for all")() }, /* copy:callout */ "same for all"));
+          return r;
+        };
         const pick = <T,>(cur: T, v: T, text: string, set: () => void): HTMLElement => h("button", { class: `chip order${cur === v ? " on" : ""}`, "aria-pressed": cur === v ? "true" : "false", onclick: () => { if (cur !== v) set(); } }, text);
         const act = (p: Partial<StandingOrders>, move: string) => (): void => { void setOrder(p, move).then(() => { if (body.isConnected) { replace(rows, ...build()); paintOrders(); } }); };
         const build = (): HTMLElement[] => {
@@ -662,16 +672,23 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
           R.has("cage") ? row(/* copy:label */ "loot preference", h("button", { class: "chip order on", onclick: () => { close(); openCagePicker(ordersTab); } }, o.cage, h("small", { class: "dim" }, " ▸"))) : null,
           R.has("start") ? row(/* copy:label */ "start", h("button", { class: "chip order on", onclick: () => { close(); openStartPicker(); } }, `D${o.start}`, h("small", { class: "dim" }, " ▸"))) : null,
           row(/* copy:label */ "Auto restock", pick(o.repeat, true, /* copy:button */ "on", act({ repeat: true }, /* copy:callout */ "repeat")), repeatOff),
-          row(/* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
+          srow("insure", /* copy:label */ "insure kit", pick(o.insure, true, /* copy:button */ "on", act({ insure: true }, /* copy:callout */ "insure")), pick(o.insure, false, /* copy:button */ "off", act({ insure: false }, /* copy:callout */ "insure"))),
           // blind 1fb7786 (A, B: "the apprentice spent my gold without asking"): what he may forge with — half of each haul (default), all, off
-          apprenticeOn() && o.forge ? row(/* copy:label */ "apprentice forges", ...FORGE_ORDERS.map((f) => pick(o.forge, f, FORGE_WORD[f], act({ forge: f }, /* copy:callout */ "forge")))) : null,
-          // Cut 118 (owner amendment 2): which offered heir succeeds — set once, nobody prompted (`answer the killer` the default)
-          heirOrderShown(app.lineage) ? row(/* copy:label */ "next heir", ...HEIR_ORDERS.map((x) => pick(o.heir, x, HEIR_WORD[x], act({ heir: x }, /* copy:callout */ "heirs")))) : null,
+          apprenticeOn() && o.forge ? srow("forge", /* copy:label */ "apprentice forges", ...FORGE_ORDERS.map((f) => pick(o.forge, f, FORGE_WORD[f], act({ forge: f }, /* copy:callout */ "forge")))) : null,
           // Cut 118 §4: the apprentice's sinks after Kit complete (a ration a send, the tithe on the hour), and one sink by hand
-          apprenticeOn() && o.sink && (app.lineage.feats?.sinks.length ?? 0) > 0 ? row(/* copy:label */ "apprentice sinks", ...SINK_ORDERS.map((x) => pick(o.sink, x, SINK_WORD[x], act({ sink: x }, /* copy:callout */ "sinks")))) : null,
-          // Cut 119 §4: the kennel keeper's order — breed (default) · best · off; set once, nobody prompted
-          kennelShown(app.lineage) ? row(/* copy:label */ "kennel keeper", ...KENNEL_ORDERS.map((x) => { const b = pick(o.kennel, x, KENNEL_WORD[x], act({ kennel: x }, /* copy:callout */ "kennel")); b.title = KENNEL_TIP[x]; b.dataset.kennel = x; return b; })) : null,
+          apprenticeOn() && o.sink && (app.lineage.feats?.sinks.length ?? 0) > 0 ? srow("sink", /* copy:label */ "apprentice sinks", ...SINK_ORDERS.map((x) => pick(o.sink, x, SINK_WORD[x], act({ sink: x }, /* copy:callout */ "sinks")))) : null,
           o.sink ? (() => { const c = sinkHandChip(app, () => { if (body.isConnected) { replace(rows, ...build()); paintOrders(); } }); return c ? row(/* copy:label */ "by hand", c) : null; })() : null,
+          // Cut 118 (owner amendment 2): which offered heir succeeds — set once, nobody prompted (`answer the killer` the default)
+          heirOrderShown(app.lineage) ? srow("heir", /* copy:label */ "next heir", ...HEIR_ORDERS.map((x) => pick(o.heir, x, HEIR_WORD[x], act({ heir: x }, /* copy:callout */ "heirs")))) : null,
+          // Cut 119 §4: the kennel keeper's order — breed (default) · best · off; set once, nobody prompted
+          kennelShown(app.lineage) ? srow("kennel", /* copy:label */ "kennel keeper", ...KENNEL_ORDERS.map((x) => { const b = pick(o.kennel, x, KENNEL_WORD[x], act({ kennel: x }, /* copy:callout */ "kennel")); b.title = KENNEL_TIP[x]; b.dataset.kennel = x; return b; })) : null,
+          // Cut 120 §1: the Legacy order — spent at each send, in turn (balanced) or a focus first; off is by hand
+          legacyOrderShown(app.lineage) ? srow("legacy", /* copy:label */ "Legacy spend", ...LEGACY_ORDERS.map((x) => { const b = pick(o.legacy, x, LEGACY_WORD[x], act({ legacy: x }, /* copy:callout */ "legacy")); b.title = LEGACY_TIP[x]; b.dataset.legacy = x; return b; })) : null,
+          // Cut 120 §2: the workers' ranks bought when due, the reserve kept; and each rank-II perk, a chip on the worker's row
+          ranksOrderShown(app.lineage) ? srow("ranks", /* copy:label */ "worker ranks", ...RANKS_ORDERS.map((x) => { const b = pick(o.ranks, x, RANKS_WORD[x], act({ ranks: x }, /* copy:callout */ "ranks")); b.dataset.ranks = x; return b; })) : null,
+          ...(app.engine.setPerk ? perkNodes(app.lineage).map((n) => { const r = row(`${n.name} II`, ...n.perks!.map((p) => { const b = pick(n.perk ?? n.perks![0], p, p, () => void app.mutate(() => app.engine.setPerk!(n.id, p), /* copy:callout */ "perk").then(() => { if (body.isConnected) replace(rows, ...build()); })); b.dataset.perk = p; return b; })); r.dataset.perkOf = n.id; return r; }) : []),
+          // Cut 120 §4: after the King, the herald carries the scout's sends into the next descent — never without the order
+          ascendOrderShown(app.lineage) ? srow("ascend", /* copy:label */ "herald ascends", ...ASCEND_ORDERS.map((x) => { const b = pick(o.ascend, x, ASCEND_WORD[x], act({ ascend: x }, /* copy:callout */ "ascend")); b.dataset.ascend = x; return b; })) : null,
         ].filter((x): x is HTMLElement => !!x); };
         const rows = h("div", { class: "order-rows" }, ...build());
         body.appendChild(rows);
