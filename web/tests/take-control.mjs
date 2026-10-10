@@ -20,8 +20,9 @@ const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Boot a fresh game, build the house if offered, send, and land on the watch; every engine step's snapshot kept (`__lastSnap`). */
+const booted = new WeakSet();
 async function boot(page) {
-  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  if (!booted.has(page)) { booted.add(page); page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`)); }
   await page.goto(`${url}?dev=1&fresh=1&seed=611`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(() => window.__riddle?.booted, null, { timeout: 90_000 });
   await page.evaluate(() => { const e = window.__riddle.engine, step = e.step.bind(e); e.step = async (...a) => { const r = await step(...a); window.__lastSnap = r.snapshot; return r; }; });
@@ -95,6 +96,18 @@ try {
     check(await acts(page) === n0 + 1 && re.test(n), `key ${k} is one order ("${n}")`);
   }
   // `c` takes and releases him; nothing fires in a field
+  // (the verb keys above spend turns: beside a foe he may be bled low, and the rules, handed a dying hero, can lose the run — a
+  // legitimate death that leaves no watch to release. The checks below need a live run he survives: hurt, a foe in sight, or the
+  // watch gone, they take a fresh run's hero instead)
+  const risky = await page.evaluate(() => { const s = window.__lastSnap, m = document.querySelector(".ctl");
+    if (window.__riddle.screen !== "watch" || !m || m.hidden || !s || s.hero.hp <= 0) return "the watch ended";
+    if (s.hero.hp < s.hero.max_hp) return `hp ${s.hero.hp}/${s.hero.max_hp}`;
+    return s.entities.some((e) => !e.ally && e.hp > 0 && !e.remembered && e.id !== s.hero.id && !["bones", "captive"].includes(e.kind) && !e.tags.includes("captive") && !e.tags.includes("ally") && s.visible[e.y * s.w + e.x]) ? "a foe in sight" : ""; });
+  if (risky) {
+    out.push(`     (a fresh run for the release checks: ${risky})`);
+    await boot(page);
+    await page.click(".ctl-toggle");
+  }
   await awaiting(page);
   await page.keyboard.press("m"); await page.waitForFunction(() => document.querySelector(".ctl")?.dataset.on === "0", null, { timeout: 10_000 }).catch(() => {});
   check(await page.evaluate(() => document.querySelector(".ctl")?.dataset.on) === "0", "`c` releases him");
