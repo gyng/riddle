@@ -50,6 +50,9 @@ pub const NODES: &[NodeDef] = &[
     node("kennel_hand", "kennel-hand", "town", "field", 2, 30, 40, "kennel", "kennel", "AUTO PETS", "fields best pets"),
     node("herald", "herald", "town", "swap", 2, 20, 40, "quests", "board", "AUTO QUEST", "swaps stale quests"),
     node("guide", "guide", "scale", "start", 3, 40, 44, "start", "mouth", "AUTO START", "starts deeper"),
+    // Cut 120 §5: the kennel keeper carries the Cut 119 breeding order (`StandingSwitches.kennel`); before his hire the
+    // breeding is by hand (`Game::breed`), the order waits
+    node("kennel_keeper", "kennel keeper", "town", "breed", 2, 30, 48, "kennel", "kennel", "AUTO BREED", "breeds pets · by order"),
 ];
 
 /// The apprentice and the clerk keep this many forge units in the purse (the shelf's money).
@@ -124,6 +127,9 @@ pub struct Tree {
     /// Cut 114 §3: the floor the scout last banked before (the report's `banked before Queen ×4`).
     #[serde(default, skip_serializing_if = "is_zero_u")]
     pub held_at: u32,
+    /// Cut 120 §2 (Cut 114 §5): each worker's rank-II perk chosen (`PERKS`; absent: the first, the old bonus).
+    #[serde(default, skip_serializing_if = "crate::shared::map_is_empty")]
+    pub perks: crate::shared::Shared<BTreeMap<String, String>>,
 }
 
 fn is_zero_u(n: &u32) -> bool {
@@ -356,10 +362,66 @@ pub const CLERK_BONUS_PERMILLE: i32 = 25;
 /// The scout's shorter rest per rank above I, in percent.
 pub const SCOUT_REST_OFF_PCT: u32 = 5;
 
-/// The rest after a run, the scout's rank taken off (the dayplayer's harnesses: rank I or none, as before).
+/// The rest after a run, the scout's rank taken off (the dayplayer's harnesses: rank I or none, as before) — under
+/// his first perk (`shorter rest`) only.
 pub fn rest_scaled(l: &LineageState, ticks: u32) -> u32 {
-    let r = bonus_rank(l, "scout");
+    let r = if perk(l, "scout") == PERKS[1].1[0] { bonus_rank(l, "scout") } else { 0 };
     ticks - ticks * SCOUT_REST_OFF_PCT * r / 100
+}
+
+/// Cut 120 §2 (Cut 114 §5, "ranks you choose"): the workers whose rank II offers one of two perks, the first the old
+/// fixed bonus (the default): apprentice `cheaper steps` (−5 % steps a rank) or `keeps a reserve` (a forge unit
+/// more kept a rank); scout `shorter rest` (−5 % rest a rank) or `safer start` (+5 % max hp at the send a rank).
+pub const PERKS: [(&str, [&str; 2]); 2] = [("apprentice", ["cheaper steps", "keeps a reserve"]), ("scout", ["shorter rest", "safer start"])];
+/// The scout's `safer start`: max hp at the send per rank above I, in percent.
+pub const SAFER_START_PCT: i32 = 5;
+
+/// A worker's perk (its first when unchosen; `""` for a worker without perks).
+pub fn perk<'a>(l: &'a LineageState, id: &str) -> &'a str {
+    let Some((_, two)) = PERKS.iter().find(|(w, _)| *w == id) else { return "" };
+    l.tree.perks.get(id).map(String::as_str).filter(|p| two.contains(p)).unwrap_or(two[0])
+}
+
+/// Choose a worker's perk (the chip; it takes effect from rank II).
+pub fn set_perk(l: &mut LineageState, id: &str, p: &str) -> Result<(), String> {
+    let (_, two) = PERKS.iter().find(|(w, _)| *w == id).ok_or("no perk for this worker")?;
+    if !two.contains(&p) {
+        return Err("unknown perk".into());
+    }
+    if !hired(l, id) {
+        return Err("not hired".into());
+    }
+    if p == two[0] {
+        l.tree.perks.remove(id);
+    } else {
+        l.tree.perks.insert(id.to_string(), p.to_string());
+    }
+    Ok(())
+}
+
+/// The scout's `safer start` at a send: the hero's max hp (never on a harness's lineage; rank I none).
+pub fn safer_start(l: &LineageState, hero: &mut crate::hero::Hero) {
+    if perk(l, "scout") != PERKS[1].1[1] {
+        return;
+    }
+    let r = bonus_rank(l, "scout") as i32;
+    let add = hero.max_hp * SAFER_START_PCT * r / 100;
+    if add > 0 {
+        hero.max_hp += add;
+        hero.max_hp_base += add;
+        hero.hp += add;
+    }
+}
+
+/// The apprentice's discount on a step, in percent (his rank, under `cheaper steps`).
+pub fn apprentice_off(l: &LineageState) -> u32 {
+    if perk(l, "apprentice") == PERKS[0].1[0] { APPRENTICE_OFF_PCT * bonus_rank(l, "apprentice") } else { 0 }
+}
+
+/// The purse the apprentice and the clerk keep (`RESERVE_UNITS`, a unit more a rank under `keeps a reserve`).
+pub fn reserve(l: &LineageState) -> i32 {
+    let extra = if perk(l, "apprentice") == PERKS[0].1[1] { bonus_rank(l, "apprentice") as i32 } else { 0 };
+    (RESERVE_UNITS + extra) * crate::kit::unit(l.best_depth) as i32
 }
 
 /// A waystone's toll, the guide's rank taken off (II half, III on free).
@@ -635,6 +697,11 @@ fn workers_act(game: &mut Game, send: bool) {
     if game.sim || game.lineage.pkg.literal {
         return;
     }
+    // Cut 120 §4: after the clear, the herald carries the next ascension's dungeon (the scout's sends, the order on)
+    if send {
+        announce_orders(game);
+        ascend_act(game);
+    }
     // the herald: a quest drawn on an earlier day and still unkept gives way (the day's free swap)
     if on(&game.lineage, "herald") && crate::town::quests_open(&game.lineage) {
         let l = &game.lineage;
@@ -684,9 +751,9 @@ fn workers_act(game: &mut Game, send: bool) {
         game.lineage.tree.forge_budget = game.lineage.tree.forge_budget.min(purse(&game.lineage).max(0));
         loop {
             let l = &game.lineage;
-            let reserve = RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32;
+            let reserve = reserve(l);
             let Some((slot, p)) = crate::kit::ladders(l).iter().filter(|x|crate::kit::KIT_SLOTS.contains(&x.slot.as_str())).filter_map(|x| x.next.as_ref().map(|s| (x.slot.clone(), s.price as i32))).min_by_key(|x| x.1) else { break };
-            let off = APPRENTICE_OFF_PCT * bonus_rank(l, "apprentice");
+            let off = apprentice_off(l);
             let before = game.lineage.gold;
             let price = p - p * off as i32 / 100;
             if purse(l) < price + reserve || share.is_some() && l.tree.forge_budget < price || crate::kit::buy_step_off(&mut game.lineage, &slot, off).is_err() {
@@ -711,7 +778,7 @@ fn workers_act(game: &mut Game, send: bool) {
     if on(&game.lineage, "clerk") && crate::town::built(&game.lineage, "bank") {
         let l = &game.lineage;
         let next = crate::kit::ladders(l).iter().filter(|x|crate::kit::KIT_SLOTS.contains(&x.slot.as_str())).filter_map(|x| x.next.as_ref().map(|s| s.price as i32)).min().unwrap_or(0);
-        let spare = purse(l) - next - RESERVE_UNITS * crate::kit::unit(l.best_depth) as i32;
+        let spare = purse(l) - next - reserve(l);
         if spare > 0 {
             if let Ok(d) = crate::town::deposit(&mut game.lineage, spare) {
                 act(game, "clerk", d as u32);
@@ -739,6 +806,13 @@ fn workers_act(game: &mut Game, send: bool) {
                 act(game, "kennel_hand", n);
             }
         }
+    }
+    // Cut 120 §1–2, at a send (the camp step before the run, where the clerk banks; the run takes both): each worker's
+    // rank as it comes, the reserve kept (`ranks: auto`), and the Legacy under its order. (Never on the hour: a sliced
+    // absence settles a run's end and the last hour's pass in another order than a whole one — the purchase would move.)
+    if send {
+        ranks_act(game);
+        legacy_act(game);
     }
     // the guide: the deepest lit stone a band under the record whose sends bring gold home (a stone that stops
     // paying is given up for the next one up; a start picked by hand stands while it pays)
@@ -785,6 +859,165 @@ fn workers_act(game: &mut Game, send: bool) {
     }
 }
 
+// ---------------------------------------------------------------- Cut 120: the orders that fill the automation
+
+/// Cut 120 §1: the Legacy order (`StandingSwitches.legacy`): `balanced` (health → damage → armour in turn, then the
+/// effects in the offer's order) · a focus (`health` · `damage` · `armour`: that one to its cap, then balanced) · `off`.
+/// A save's default is `off`; a new lineage's `NEW_LEGACY`.
+pub const LEGACY_ORDERS: [&str; 5] = ["balanced", "health", "damage", "armour", "off"];
+/// Cut 120 §2: the ranks order (`StandingSwitches.ranks`): `auto` buys each worker's rank when it comes and the purse
+/// pays it with the reserve (and a lit hire's price) kept · `off`. A save's default is `off`; a new lineage's `NEW_RANKS`.
+pub const RANKS_ORDERS: [&str; 2] = ["auto", "off"];
+/// Cut 120 §4: the ascend order (`StandingSwitches.ascend`): `off` (the default) · `on` — after the clear the herald
+/// takes the scout's next send into the next ascension's dungeon (`Game::carry_on`). Never without the order.
+pub const ASCEND_ORDERS: [&str; 2] = ["off", "on"];
+/// The orders a new lineage starts with (announced once at its first worker pass).
+pub const NEW_LEGACY: &str = "balanced";
+pub const NEW_RANKS: &str = "auto";
+/// A player's new lineage (`Session::new`, a new bloodline): the Legacy and ranks orders on. A save keeps `off`, and so
+/// do the harnesses' bare `Game`s (the dayplayer's IDLE: under `balanced` IDLE slew the King on seed 1, day 12).
+pub fn new_lineage_orders(o: &mut crate::wire::StandingSwitches) {
+    o.legacy = NEW_LEGACY.into();
+    o.ranks = NEW_RANKS.into();
+}
+/// The orders `same for all` copies to every bloodline (`StandingSwitches.shared`).
+pub const SHAREABLE: [&str; 9] = ["insure", "forge", "wall", "sink", "heir", "kennel", "legacy", "ranks", "ascend"];
+
+/// The `acts` keys of the order lines (never a node's): the ranks bought (`ranks`, per worker `ranks:scout`, their
+/// gold `ranks$`); the Legacy bought (`legacy`, per upgrade `legacy:health`, the points `legacy◆`); the herald's
+/// ascensions (`herald:ascend`); the kennel keeper's eggs and releases (`kennel_keeper:bred`, `kennel_keeper:freed`);
+/// the bank the apprentice's tithe drew (`apprentice:drew$`).
+pub const RANKS: &str = "ranks";
+pub const RANKS_GOLD: &str = "ranks$";
+pub const LEGACY_ACT: &str = "legacy";
+pub const LEGACY_POINTS: &str = "legacy◆";
+pub const HERALD_ASCEND: &str = "herald:ascend";
+pub const KEEPER_BRED: &str = "kennel_keeper:bred";
+pub const KEEPER_FREED: &str = "kennel_keeper:freed";
+pub const APPRENTICE_DREW: &str = "apprentice:drew$";
+/// The apprentice's sinks' gold (rations, tithes), beside his forge steps' (`APPRENTICE_SPENT`).
+pub const APPRENTICE_SINKS: &str = "apprentice:sinks$";
+
+pub(crate) fn add_act(l: &mut LineageState, key: &str, n: u32) {
+    if n == 0 {
+        return;
+    }
+    let e = l.tree.acts.entry(key.to_string()).or_insert(0);
+    *e = e.saturating_add(n);
+}
+
+/// Each order announced once, as a drill is, at the first worker pass it stands at (`LEGACY BALANCED`): a beat of
+/// the report and a line of the news.
+fn announce_orders(game: &mut Game) {
+    let l = &game.lineage;
+    let mut say: Vec<(String, String)> = Vec::new();
+    if l.orders.legacy != "off" {
+        say.push((format!("legacy:{}", l.orders.legacy), format!("legacy {}", l.orders.legacy)));
+    }
+    if l.orders.ranks == "auto" && NODES.iter().any(|n| hired(l, n.id) && !n.chore.is_empty()) {
+        say.push(("ranks:auto".into(), "ranks auto".into()));
+    }
+    if l.orders.ascend == "on" && l.ended {
+        say.push(("ascend:on".into(), "herald ascends".into()));
+    }
+    let day = crate::feats::day_of(game.lineage.clock_s);
+    for (key, text) in say {
+        if game.lineage.orders.announced.insert(key) {
+            game.batch.pkg_lines.push(text.to_uppercase());
+            crate::feats::news(&mut game.lineage, "order", text, day);
+        }
+    }
+}
+
+/// The ranks order: each hired worker at work whose rank has come (in the tree's order), bought from the purse while
+/// it keeps the reserve and the lit hire's price. The ranks bought.
+fn ranks_act(game: &mut Game) -> u32 {
+    if game.lineage.orders.ranks != "auto" {
+        return 0;
+    }
+    let mut n = 0;
+    for node in NODES {
+        let l = &game.lineage;
+        if !on(l, node.id) || rank_wait(l, node) != Some(0) {
+            continue;
+        }
+        let p = rank_price(l, node);
+        let keep = reserve(l) + lit(l).map_or(0, |h| price(l, h));
+        if p <= 0 || purse(l) < p + keep {
+            continue;
+        }
+        game.lineage.gold_move(-p, &format!("hire {} rank", node.id));
+        let r = rank(&game.lineage, node.id) + 1;
+        game.lineage.tree.ranks.insert(node.id.to_string(), r);
+        let l = &mut game.lineage;
+        add_act(l, RANKS, 1);
+        add_act(l, RANKS_GOLD, p as u32);
+        add_act(l, &format!("{RANKS}:{}", node.id), 1);
+        n += 1;
+    }
+    n
+}
+
+/// The Legacy upgrade the order buys next (`None`: none it waits for is affordable yet).
+pub fn legacy_pick(l: &LineageState) -> Option<String> {
+    let order = l.orders.legacy.as_str();
+    if order == "off" {
+        return None;
+    }
+    let offers = crate::legacy::offers(l, false);
+    let open = |u: &&crate::wire::LegacyUpgrade| u.rank < u.cap;
+    let get = |id: &str| offers.iter().find(|u| u.id == id);
+    // a focus: that upgrade to its cap first
+    if crate::legacy::IDS.contains(&order) {
+        if let Some(u) = get(order).filter(open) {
+            return u.affordable.then(|| u.id.clone());
+        }
+    }
+    // balanced: the three in turn (the lowest rank, in their order), then the effects in the offer's order (a fork's
+    // first branch; one shut by depth, a parent or the other branch is passed)
+    if let Some(u) = crate::legacy::IDS.iter().filter_map(|id| get(id)).filter(open).min_by_key(|u| u.rank) {
+        return u.affordable.then(|| u.id.clone());
+    }
+    let u = offers.iter().filter(|u| !crate::legacy::IDS.contains(&u.id.as_str()) && u.rank < u.cap).find(|u| u.affordable || u.blocked.as_deref() == Some("More Legacy needed"))?;
+    u.affordable.then(|| u.id.clone())
+}
+
+/// The Legacy order at the bank step: every upgrade it buys while the points pay (for the next run while away).
+fn legacy_act(game: &mut Game) -> u32 {
+    let mut n = 0;
+    while let Some(id) = legacy_pick(&game.lineage) {
+        let before = crate::legacy::current(&game.lineage).map_or(0, |b| b.points);
+        if crate::legacy::buy_next(game, &id).is_err() {
+            break;
+        }
+        let after = crate::legacy::current(&game.lineage).map_or(0, |b| b.points);
+        let l = &mut game.lineage;
+        add_act(l, LEGACY_ACT, 1);
+        add_act(l, LEGACY_POINTS, before.saturating_sub(after));
+        add_act(l, &format!("{LEGACY_ACT}:{id}"), 1);
+        n += 1;
+        if n > 64 {
+            break;
+        }
+    }
+    n
+}
+
+/// The ascend order at a send: the King fallen, the scout and the herald at work — the next ascension's dungeon.
+fn ascend_act(game: &mut Game) {
+    let l = &game.lineage;
+    if !l.ended || l.orders.ascend != "on" || !on(l, "scout") || !on(l, "herald") {
+        return;
+    }
+    if let Ok(tier) = game.carry_on() {
+        let l = &mut game.lineage;
+        add_act(l, "herald", 1);
+        add_act(l, HERALD_ASCEND, 1);
+        let day = crate::feats::day_of(l.clock_s);
+        crate::feats::news(l, "ascend", format!("herald · descent {tier}"), day);
+    }
+}
+
 // ---------------------------------------------------------------- the wire
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
@@ -828,6 +1061,17 @@ pub struct WorkNodeWire {
     pub bonus: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rank_adds: Option<String>,
+    /// Cut 120 §7: an unhired worker's chores by hand toward it (`2/3`) and the hours until its fallback lights it
+    /// without them (`eta_h`; absent once lit, or with no fallback) — the post's `forge 2/3 · or 30h`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eta_h: Option<u32>,
+    /// Cut 120 §2: a worker's rank-II perk chip — the two perks (`perks`, the first the default) and the one worn.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub perks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub perk: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
@@ -857,6 +1101,10 @@ pub struct WorksWire {
     pub sent: bool,
     pub auto_send: bool,
     pub ledger: i64,
+    /// Cut 120 §7: the next worker the town works toward — the lit one, else the first whose chore counts (its node
+    /// carries `progress`, `fallback_h`, `eta_h`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_worker: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -872,6 +1120,13 @@ pub struct WorkerPost {
     pub price: Option<i32>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub paused: bool,
+    /// Cut 120 §7: on the lit worker's post, its count (`2/3`), its fallback and the hours to it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_h: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub eta_h: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -890,6 +1145,10 @@ pub struct WorkerAct {
     /// `SupplyBudget.reason`: `no_income` · `income_spent` · `purse_short`); absent when they were not.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    /// Cut 120 §6: the purse this line moved, signed — the porter's hauls in, the clerk's deposits out, the apprentice's
+    /// steps and sinks out (less the bank his tithe drew), the ranks bought out. The ledger's terms reconcile with it.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub gold: i32,
 }
 
 fn is_zero(n: &i32) -> bool {
@@ -947,8 +1206,12 @@ pub fn wire(l: &LineageState, waits: bool) -> WorksWire {
                 rank: done.then(|| rank(l, n.id)).filter(|_| has_chore),
                 rank_price: rank_wait(l, n).map(|_| rank_price(l, n)),
                 rank_wait_d: rank_wait(l, n),
-                bonus: done.then(|| rank_bonus(n.id, rank(l, n.id))).flatten(),
-                rank_adds: rank_wait(l, n).and_then(|_| rank_bonus(n.id, rank(l, n.id) + 1)),
+                bonus: done.then(|| rank_bonus_for(l, n.id, rank(l, n.id))).flatten(),
+                rank_adds: rank_wait(l, n).and_then(|_| rank_bonus_for(l, n.id, rank(l, n.id) + 1)),
+                progress: (!done && has_chore).then(|| format!("{}/{}", count(l, n.id).min(n.need), n.need)),
+                eta_h: eta_h(l, n),
+                perks: if done { PERKS.iter().find(|(w, _)| *w == n.id).map(|(_, two)| two.iter().map(|p| p.to_string()).collect()).unwrap_or_default() } else { Vec::new() },
+                perk: (done && !perk(l, n.id).is_empty()).then(|| perk(l, n.id).to_string()),
             }
         })
         .collect();
@@ -968,7 +1231,32 @@ pub fn wire(l: &LineageState, waits: bool) -> WorksWire {
             nodes.push(WorkNodeWire { id: format!("{t}:{s}"), kind: "stage".into(), branch: t.into(), name: s.to_string(), state: state.into(), trigger: (!trig.is_empty()).then(|| trig.to_string()), ..Default::default() });
         }
     }
-    WorksWire { next: Some(next_pill(l, waits)), nodes, lit: lit_id.map(String::from), lit_rank: lit_rank(l).map(|n| n.id.to_string()), chest: l.tree.chest, waits, sent: l.tree.sent, auto_send: auto_send(l), ledger: l.tree.ledger }
+    WorksWire { next: Some(next_pill(l, waits)), nodes, lit: lit_id.map(String::from), lit_rank: lit_rank(l).map(|n| n.id.to_string()), chest: l.tree.chest, waits, sent: l.tree.sent, auto_send: auto_send(l), ledger: l.tree.ledger, next_worker: next_worker(l).map(|n| n.id.to_string()) }
+}
+
+/// Cut 120 §7: the hours until an unhired worker's fallback lights it (its chore open, its count short; `None` when
+/// it is ready or hired, or has no fallback).
+pub fn eta_h(l: &LineageState, n: &NodeDef) -> Option<u32> {
+    (!hired(l, n.id) && !n.chore.is_empty() && n.fallback_h > 0 && chore_open(l, n) && !ready(l, n)).then(|| n.fallback_h.saturating_sub(l.age_h()))
+}
+
+/// Cut 120 §7: the next worker — the lit one, else the first unhired whose chore is open (`None` on a harness's lineage).
+pub fn next_worker(l: &LineageState) -> Option<&'static NodeDef> {
+    if l.pkg.literal {
+        return None;
+    }
+    lit(l).or_else(|| NODES.iter().find(|n| !hired(l, n.id) && !n.chore.is_empty() && chore_open(l, n)))
+}
+
+/// A rank's edge under the worker's perk (`rank_bonus` for the first perk and the workers without one).
+pub fn rank_bonus_for(l: &LineageState, id: &str, r: u32) -> Option<String> {
+    let k = r.saturating_sub(1);
+    match (id, perk(l, id)) {
+        _ if k == 0 => None,
+        ("apprentice", p) if p == PERKS[0].1[1] => Some(format!("+{k} unit kept")),
+        ("scout", p) if p == PERKS[1].1[1] => Some(format!("+{}% hp", SAFER_START_PCT as u32 * k)),
+        _ => rank_bonus(id, r),
+    }
 }
 
 /// The single next goal (docs/CUT30_5.md §3).
@@ -1009,7 +1297,8 @@ pub fn next_pill(l: &LineageState, waits: bool) -> NextPill {
 pub fn posts(l: &LineageState) -> Vec<WorkerPost> {
     let mut v: Vec<WorkerPost> = NODES.iter().filter(|n| hired(l, n.id)).map(|n| WorkerPost { id: n.id.into(), post: n.post.into(), paused: l.tree.paused.contains(n.id), rank: rank(l, n.id), ..Default::default() }).collect();
     if let Some(n) = lit(l) {
-        v.push(WorkerPost { id: n.id.into(), post: n.post.into(), lit: true, price: Some(price(l, n)), paused: false, rank: 0 });
+        let progress = (!n.chore.is_empty()).then(|| format!("{}/{}", count(l, n.id).min(n.need), n.need));
+        v.push(WorkerPost { id: n.id.into(), post: n.post.into(), lit: true, price: Some(price(l, n)), paused: false, rank: 0, progress, fallback_h: (n.fallback_h > 0).then_some(n.fallback_h), eta_h: eta_h(l, n) });
     }
     v
 }
@@ -1025,11 +1314,15 @@ pub const APPRENTICE_HALF: &str = "half of hauls";
 /// lineage after (the forge steps the apprentice reached, by name: `sword +3`).
 pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTreeMap<String, u32>) -> Vec<WorkerAct> {
     let acts_before = before;
-    NODES
+    let moved = |key: &str| after.get(key).copied().unwrap_or(0).saturating_sub(acts_before.get(key).copied().unwrap_or(0));
+    let was = |key: &str| acts_before.get(key).copied().unwrap_or(0);
+    let plural = |k: u32, w: &str| format!("{k} {w}{}", if k == 1 { "" } else { "s" });
+    let mut out: Vec<WorkerAct> = NODES
         .iter()
         .filter_map(|n| {
-            let k = after.get(n.id).copied().unwrap_or(0) - acts_before.get(n.id).copied().unwrap_or(0);
+            let k = after.get(n.id).copied().unwrap_or(0).saturating_sub(acts_before.get(n.id).copied().unwrap_or(0));
             (k > 0).then(|| {
+                let ascended = if n.id == "herald" { moved(HERALD_ASCEND) } else { 0 };
                 let what = match n.id {
                     "porter" => format!("hauled ${k}"),
                     "scout" => format!("sent {k}"),
@@ -1037,13 +1330,15 @@ pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTr
                     "clerk" => format!("banked ${k}"),
                     "drillmaster" => format!("+{k} level{}", if k == 1 { "" } else { "s" }),
                     "kennel_hand" => format!("fielded {k}"),
+                    "herald" if ascended > 0 => "ascended".to_string(),
                     "herald" => "swapped".to_string(),
                     "guide" => "deeper start".to_string(),
                     "armourer" => format!("wore {k}"),
+                    "kennel_keeper" => format!("sorted {k}"),
                     _ => format!("{k}"),
                 };
-                let moved = |key: &str| after.get(key).copied().unwrap_or(0).saturating_sub(acts_before.get(key).copied().unwrap_or(0));
                 let (held, carried) = if n.id == "scout" { (moved(SCOUT_HELD), moved(SCOUT_CARRIED)) } else { (0, 0) };
+                let mut gold = 0;
                 let (items, spent) = if n.id == "apprentice" {
                     let mut items: Vec<String> = crate::kit::KIT_SLOTS.iter().filter(|s| moved(&format!("{APPRENTICE_SLOT}{s}")) > 0)
                         .filter_map(|s| crate::kit::owned(l, s).checked_sub(1).map(|i| crate::kit::step_label(l, s, i as usize))).collect();
@@ -1053,6 +1348,11 @@ pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTr
                     if forge_share(l) == Some(50) && moved(APPRENTICE_SPENT) > 0 {
                         items.push(APPRENTICE_HALF.into());
                     }
+                    // (Cut 120 §6: his sinks — rations, tithes — and the bank they drew on)
+                    if moved(APPRENTICE_SINKS) > 0 {
+                        items.push(format!("sinks ${}", moved(APPRENTICE_SINKS)));
+                    }
+                    gold = moved(APPRENTICE_DREW) as i32 - moved(APPRENTICE_SPENT) as i32 - moved(APPRENTICE_SINKS) as i32;
                     (items, moved(APPRENTICE_SPENT) as i32)
                 } else if held + carried > 0 {
                     // Cut 114 §3: the sends he banked before the wall (`banked before Queen ×4`), the haul he carried
@@ -1066,13 +1366,49 @@ pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTr
                         v.push(format!("banked before {at} ×{held}"));
                     }
                     (v, 0)
+                } else if ascended > 0 {
+                    let tier = l.endgame.as_ref().map_or(0, |p| p.tier);
+                    (vec![format!("descent {tier}")], 0)
+                } else if n.id == "kennel_keeper" {
+                    let mut v = Vec::new();
+                    if moved(KEEPER_BRED) > 0 {
+                        v.push(format!("bred {}", moved(KEEPER_BRED)));
+                    }
+                    if moved(KEEPER_FREED) > 0 {
+                        v.push(format!("freed {}", moved(KEEPER_FREED)));
+                    }
+                    (v, 0)
                 } else {
                     (Vec::new(), 0)
                 };
-                // (his order's first act at a wall is announced as a hire's first act is)
-                let first = acts_before.get(n.id).copied().unwrap_or(0) == 0 || (held > 0 && acts_before.get(SCOUT_HELD).copied().unwrap_or(0) == 0) || (carried > 0 && acts_before.get(SCOUT_CARRIED).copied().unwrap_or(0) == 0);
-                WorkerAct { id: n.id.into(), what, n: k, first, items, spent, reason: None }
+                if n.id == "porter" {
+                    gold = k as i32;
+                } else if n.id == "clerk" {
+                    gold = -(k as i32);
+                }
+                // (his order's first act at a wall is announced as a hire's first act is; the herald's first ascension too)
+                let first = was(n.id) == 0 || (held > 0 && was(SCOUT_HELD) == 0) || (carried > 0 && was(SCOUT_CARRIED) == 0) || (ascended > 0 && was(HERALD_ASCEND) == 0);
+                WorkerAct { id: n.id.into(), what, n: k, first, items, spent, reason: None, gold }
             })
         })
-        .collect()
+        .collect();
+    // Cut 120 §6: the order lines — the ranks the order bought (`ranks · scout II · −$X`), the Legacy it bought
+    // (`legacy · health 2/3 · damage 1/3`)
+    let k = moved(RANKS);
+    if k > 0 {
+        let items = NODES.iter().filter(|n| moved(&format!("{RANKS}:{}", n.id)) > 0).map(|n| format!("{} {}", n.name, numeral(rank(l, n.id)))).collect();
+        let spent = moved(RANKS_GOLD) as i32;
+        out.push(WorkerAct { id: RANKS.into(), what: format!("+{}", plural(k, "rank")), n: k, first: was(RANKS) == 0, items, spent, reason: None, gold: -spent });
+    }
+    let k = moved(LEGACY_ACT);
+    if k > 0 {
+        let b = crate::legacy::current(l);
+        let items = crate::legacy::offers(l, false).iter().filter(|u| moved(&format!("{LEGACY_ACT}:{}", u.id)) > 0).map(|u| {
+            let r = b.and_then(|b| b.upgrades.get(&u.id)).copied().unwrap_or(0);
+            let name = u.name.clone().unwrap_or_else(|| u.id.clone()).to_lowercase();
+            if u.cap > 1 { format!("{name} {r}/{}", u.cap) } else { name }
+        }).collect();
+        out.push(WorkerAct { id: LEGACY_ACT.into(), what: format!("+{} · ◆{}", plural(k, "upgrade"), moved(LEGACY_POINTS)), n: k, first: was(LEGACY_ACT) == 0, items, spent: 0, reason: None, gold: 0 });
+    }
+    out
 }

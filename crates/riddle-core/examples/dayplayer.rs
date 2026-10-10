@@ -485,7 +485,7 @@ fn camp_taps(g: &mut Game, ask: &Ask, arm: u8, out: &mut SeedOut, h: f64) {
         let off = match n.id {
             "apprentice" => Some("forge"),
             "clerk" => Some("bank"),
-            "kennel_hand" => Some("pets"),
+            "kennel_hand" | "kennel_keeper" => Some("pets"),
             "drillmaster" => Some("packages"),
             "herald" => Some("quests"),
             _ => None,

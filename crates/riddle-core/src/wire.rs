@@ -3,6 +3,7 @@ use crate::item::{FloorItemWire, InvItem};
 use crate::rules::{Row, RuleSet, Verb};
 use crate::tiles::{Overlay, OverlayKind, Tile};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Entity {
@@ -3180,6 +3181,26 @@ pub struct StandingSwitches {
     /// Cut 119 §4: the kennel keeper's order (`pets::KENNEL_ORDERS`: `breed` for the wall, `best`, `off`).
     #[serde(default = "kennel_breed")]
     pub kennel: String,
+    /// Cut 120 §1: the Legacy order (`tree::LEGACY_ORDERS`); a save's `off`, a new lineage's `tree::NEW_LEGACY`.
+    #[serde(default = "order_off")]
+    pub legacy: String,
+    /// Cut 120 §2: the ranks order (`tree::RANKS_ORDERS`: `auto` · `off`); a save's `off`, a new lineage's `tree::NEW_RANKS`.
+    #[serde(default = "order_off")]
+    pub ranks: String,
+    /// Cut 120 §4: the ascend order (`tree::ASCEND_ORDERS`: `off` · `on`), carried by the herald after the clear.
+    #[serde(default = "order_off")]
+    pub ascend: String,
+    /// Cut 120 §3: the orders set `same for all` (`tree::SHAREABLE` keys): a later change to one follows on every
+    /// bloodline (`Session::set_orders`).
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub shared: BTreeSet<String>,
+    /// Cut 120: the orders already announced (`order:value`, once each, as a drill is).
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub announced: BTreeSet<String>,
+}
+
+fn order_off() -> String {
+    "off".into()
 }
 
 fn kennel_breed() -> String {
@@ -3209,7 +3230,7 @@ fn forge_half() -> String {
 
 impl Default for StandingSwitches {
     fn default() -> Self {
-        StandingSwitches { insure: true, forge: forge_half(), wall: wall_bank(), sink: sink_both(), heir: heir_answer(), kennel: kennel_breed() }
+        StandingSwitches { insure: true, forge: forge_half(), wall: wall_bank(), sink: sink_both(), heir: heir_answer(), kennel: kennel_breed(), legacy: order_off(), ranks: order_off(), ascend: order_off(), shared: BTreeSet::new(), announced: BTreeSet::new() }
     }
 }
 
@@ -3276,11 +3297,24 @@ pub struct StandingOrders {
     /// Cut 119 §4: the kennel keeper's order (`breed · best · off`); absent: it stands.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kennel: Option<String>,
+    /// Cut 120 §1: the Legacy order (`balanced · health · damage · armour · off`); absent: it stands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legacy: Option<String>,
+    /// Cut 120 §2: the ranks order (`auto · off`); absent: it stands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ranks: Option<String>,
+    /// Cut 120 §4: the ascend order after the clear (`off · on`); absent: it stands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ascend: Option<String>,
+    /// Cut 120 §3: the orders set `same for all` (keys of `tree::SHAREABLE`); a set copies each named order to every
+    /// bloodline now and on every later change. Absent: it stands; `[]` shares none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shared: Option<Vec<String>>,
 }
 
 impl Default for StandingOrders {
     fn default() -> Self {
-        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half(), wall: Some(wall_bank()), sink: Some(sink_both()), heir: Some(heir_answer()), kennel: Some(kennel_breed()) }
+        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half(), wall: Some(wall_bank()), sink: Some(sink_both()), heir: Some(heir_answer()), kennel: Some(kennel_breed()), legacy: Some(order_off()), ranks: Some(order_off()), ascend: Some(order_off()), shared: None }
     }
 }
 

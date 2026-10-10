@@ -202,7 +202,35 @@ impl Game {
             }
             self.lineage.orders.kennel = k.clone();
         }
+        // Cut 120 §1, §2, §4: the Legacy, ranks and ascend orders
+        for (v, allowed, what) in [(&o.legacy, &tree::LEGACY_ORDERS[..], "legacy"), (&o.ranks, &tree::RANKS_ORDERS[..], "ranks"), (&o.ascend, &tree::ASCEND_ORDERS[..], "ascend")] {
+            if let Some(k) = v {
+                if !allowed.contains(&k.as_str()) {
+                    return Err(format!("unknown {what} order"));
+                }
+            }
+        }
+        if let Some(k) = &o.legacy {
+            self.lineage.orders.legacy = k.clone();
+        }
+        if let Some(k) = &o.ranks {
+            self.lineage.orders.ranks = k.clone();
+        }
+        if let Some(k) = &o.ascend {
+            self.lineage.orders.ascend = k.clone();
+        }
+        // Cut 120 §3: the orders set `same for all` (the Session copies them to the other bloodlines)
+        if let Some(keys) = &o.shared {
+            if let Some(k) = keys.iter().find(|k| !tree::SHAREABLE.contains(&k.as_str())) {
+                return Err(format!("unknown order {k}"));
+            }
+            self.lineage.orders.shared = keys.iter().cloned().collect();
+        }
         Ok(())
+    }
+    /// Cut 120 §2 (Cut 114 §5): a worker's rank-II perk chip (`tree::PERKS`; the first is the default).
+    pub fn set_perk(&mut self, worker: &str, perk: &str) -> Result<(), String> {
+        tree::set_perk(&mut self.lineage, worker, perk)
     }
     /// Cut 119 §0: revoke (or restore) the default tame row — one tap.
     pub fn revoke_tame(&mut self, revoked: bool) -> Result<(), String> {
@@ -373,3 +401,5 @@ mod tests_cut117;
 mod tests_cut118;
 #[cfg(test)]
 mod tests_cut119;
+#[cfg(test)]
+mod tests_cut120;

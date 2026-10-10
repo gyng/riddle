@@ -434,7 +434,7 @@ export type PkgOption = { id: string; action: string; slot?: number; price?: num
 /** Cut 30.5 (core; docs/CUT30_5.md, docs/AUTOMATION_TREE.md §2) — a node of the works tree. A **worker** retires a chore done by hand a few
  *  times (`count`/`need`, or `fallback_h` of lineage age once its chore exists); a **stage** is one of the four tracks' stages (the tracks
  *  panel's rows, now the tree's branches). ids — workers: quartermaster · porter · scout · armourer · apprentice · keeper · clerk · drillmaster ·
- *  kennel_hand · herald · guide (in the tree's order); stages: `<track>:<stage>` (`town:bank`, `character:second stance`).
+ *  kennel_hand · herald · guide · kennel_keeper (Cut 120: chore `breed`, post `kennel`) (in the tree's order); stages: `<track>:<stage>` (`town:bank`, `character:second stance`).
  *  `state` — a worker: `done` (hired) · `lit` (the one node to buy: trigger met, its turn; ≤ 1 at a time) · `ready` (trigger met, waits its
  *  turn behind the lit one) · `open` (its chore exists; counting) · `shut` (its chore not yet: `trigger` names the gate); a stage: `done` ·
  *  `next` (the track's next) · `later`. Draw done dimmed, the lit one full with its price, the next two as silhouettes; never the whole tree. */
@@ -453,6 +453,8 @@ export type WorkNode = {
   paused?: boolean;                                     // worker: hired and switched off (`setWorker(id, false)`): its chore is by hand again
   rank?: number;                                        // week 2 (the owner: later worker upgrades): a hired worker's rank 1–3 — its look (and its post's)
   rank_price?: number; rank_wait_d?: number;            // week 2: the next rank's gold and the days of service it still waits (0: on offer, `Works.lit_rank`); absent at IV
+  progress?: string; eta_h?: number;                    // Cut 120 §7 (core): an unhired worker's count by hand (`2/3`) and the hours until its fallback lights it (absent once ready) — `forge 2/3 · or 30h`
+  perks?: string[]; perk?: string;                      // Cut 120 §2 (core): a hired worker's rank-II perk chip (apprentice: cheaper steps · keeps a reserve; scout: shorter rest · safer start) — the first is the default; `setPerk(id, perk)`
   bonus?: string; rank_adds?: string;                   // week 2: the rank's small real edge now (`bonus`) and what the next rank adds (`rank_adds`), ≤ 4 words (`+4% hauls`, `−10% steps`, `25‰ interest`, `−5% rest`, `half toll`, `levels −◆1`, `insures its finds`); keeper, kennel-hand and herald ranks are looks (none)
 };
 /** Cut 30.5 (core) — the `next` pill: the single next goal. `kind` buy (the lit node, affordable) · chest (a haul waits, before the porter) ·
@@ -465,14 +467,17 @@ export type NextPill = { kind: string; node?: string; text: string; have?: numbe
  *  needs (the restock, insurance, a waystone's toll) draw on it after the purse. `waits` the hero is home and waits for a SEND (before the
  *  scout: a send is one run; the gem/mouth sends him); `sent` a send by hand is under way; `auto_send` the scout is hired (offline uncapped).
  *  `ledger` = purse + chest + bank: every gold movement summed (the conservation audit). */
-export type Works = { nodes: WorkNode[]; lit?: string; lit_rank?: string; next?: NextPill; chest: number; waits: boolean; sent: boolean; auto_send: boolean; ledger: number };
+export type Works = { nodes: WorkNode[]; lit?: string; lit_rank?: string; next?: NextPill; chest: number; waits: boolean; sent: boolean; auto_send: boolean; ledger: number;
+  next_worker?: string };   // Cut 120 §7 (core): the next worker the town works toward (the lit one, else the first counting): its node carries progress · fallback_h · eta_h
 /** Cut 30.5 (core) — a worker at its post on the town scene (`Town.workers`): hired ones, and the lit node's worker greyed (`lit`, `price`). */
-export type WorkerPost = { id: string; post: string; lit?: boolean; price?: number; paused?: boolean; rank?: number };   // rank 1–3 (week 2): the worker's look
+export type WorkerPost = { id: string; post: string; lit?: boolean; price?: number; paused?: boolean; rank?: number;
+  progress?: string; fallback_h?: number; eta_h?: number };   // Cut 120 §7 (core): on the lit worker's post, its count, fallback and hours to it   // rank 1–3 (week 2): the worker's look
 /** Cut 30.5 (core) — what a worker did over an absence (`ReturnReport.workers`): `apprentice` · `+2 steps` (n 2); `first` the first time it
  *  ever acted (name it once: `apprentice · +1 step`; later fold into the report's lines). */
 /** blind c4705f9 (A, B: `purse −$12562` unexplained): `items` the steps a buying worker reached (`sword +3`), `spent` the purse it paid. */
 export type WorkerAct = { id: string; what: string; n: number; first: boolean; items?: string[]; spent?: number;
-  reason?: string };   // Cut 117 §4 (core): on the apprentice's line, why the absence's supplies were limited (`SupplyBudget.reason`)
+  reason?: string;     // Cut 117 §4 (core): on the apprentice's line, why the absence's supplies were limited (`SupplyBudget.reason`)
+  gold?: number };     // Cut 120 §6 (core): the purse this line moved, signed (porter +hauls · clerk −deposits · apprentice −steps −sinks +bank drawn · ranks −price). Order lines beside the workers: id `ranks` (`+2 ranks`, items `scout II`, spent) and `legacy` (`+3 upgrades · ◆12`, items `health 2/3`); the herald's `ascended` (items `descent 1`); `kennel_keeper` `sorted N` (items `bred 1` · `freed 2`)
 /** RUNS_UI (core; docs/RUNS_UI.md) — one run in the runs log (`Lineage.runs`, oldest first, cap 60). `via`: how it ran — `away` (an absence's
  *  batch, `runOffline*`), `town` (unwatched while the app was open: `advance`), `watched` (live in the watch). `absence`: the absence an `away`
  *  run belongs to (the log folds by it). `clock_s`: the lineage clock at its end (the stamp: `Lineage.clock_s` − it). `gold` what came home,
@@ -722,7 +727,8 @@ export type OathDraw = { cost: number; available: boolean; needs?: string };
 export type Commission = { price: number; label: string; available: boolean };
 /** Cut 29 §4 (core) — the standing orders: exit keep (`best_weapon|best_armour|none`), an unwatched cage's pick (`weapon|armour|potion|scroll`),
  *  the start floor, the repeat, insuring the brought items when the purse covers it (on by default). */
-export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string; wall?: string; sink?: string; heir?: string; kennel?: string };   // Cut 119 (core): `kennel` the kennel keeper's order — breed (default) · best · off   // owner amendment 2 (core): `heir` the heir order — answer (default) · strongest · surprise   // Cut 118 §4 (core): `sink` the apprentice's sinks after Kit complete — both (default) · ration · tithe · off   // Cut 114 §3 (core): `wall` the scout's order at a wall — bank (default) · carry · push   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
+export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string; wall?: string; sink?: string; heir?: string; kennel?: string;
+  legacy?: string; ranks?: string; ascend?: string; shared?: string[] };   // Cut 120 (core): `legacy` the Legacy order — balanced · health · damage · armour · off (a save off; a new lineage balanced); `ranks` auto · off (a save off; a new lineage auto); `ascend` off (default) · on (the herald carries the next descent after the clear); `shared` the order keys set `same for all` (insure · forge · wall · sink · heir · kennel · legacy · ranks · ascend) — a set copies each to every bloodline, now and on later changes   // Cut 119 (core): `kennel` the kennel keeper's order — breed (default) · best · off   // owner amendment 2 (core): `heir` the heir order — answer (default) · strongest · surprise   // Cut 118 §4 (core): `sink` the apprentice's sinks after Kit complete — both (default) · ration · tithe · off   // Cut 114 §3 (core): `wall` the scout's order at a wall — bank (default) · carry · push   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
 /** Cut 29 §4 (core) — a kind the next send adds to the repeat, and the row's verb that wants it (`throw fire`). */
 export type RepeatAdd = { kind: string; row: string };
 /** Cut 29 §1 (core; E1) — a wall's edit: the floor, the edit labels (`drop R6`, `R1 → hp < 90% → rest`), the whole set with them, the share of
@@ -756,7 +762,8 @@ export interface Engine {
   hire?(id: string): Lineage;                           // hire the lit node's worker (`Works.lit`; its price from the purse, then the chest)
   openChest?(): Lineage;                                // the haul chest into the purse (`Works.chest` → `gold`); the porter's chore
   setWorker?(id: string, on: boolean): Lineage;         // switch a hired worker off (its chore by hand again) or back on
-  promote?(id: string): Lineage;                        // week 2: the worker rank on offer (`Works.lit_rank`; II 5 days after the hire, III 9; a forge unit × the rank less one)
+  promote?(id: string): Lineage;
+  setPerk?(worker: string, perk: string): Lineage;      // Cut 120 §2: a hired worker's rank-II perk chip (`WorkNode.perks`)                        // week 2: the worker rank on offer (`Works.lit_rank`; II 5 days after the hire, III 9; a forge unit × the rank less one)
   // RUNS_UI (core; docs/RUNS_UI.md): runs go on while the app is open, and any held run replays
   advance?(elapsedMs: number): Advance;                 // the open app's clock: rest, then runs, unwatched; a run in flight stays in flight
   replay?(runId: number): Replay | null;                // a past run re-simulated from its send (null: no capsule held for it)

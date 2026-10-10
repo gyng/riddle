@@ -470,6 +470,14 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 120 §2: a worker's rank-II perk chip (`WorkNode.perks`; `apprentice`: cheaper steps · keeps a reserve,
+    /// `scout`: shorter rest · safer start); returns the Lineage.
+    #[wasm_bindgen(js_name = setPerk)]
+    pub fn set_perk(&mut self, worker: &str, perk: &str) -> Result<String, JsError> {
+        self.inner.set_perk(worker, perk).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     // ---- Cut 30: packages, drills, the bank, the quest board
 
     /// Cut 30 §2: equip a package (`id`: a stance, a tactic in `slot` 0/1, a temperament); returns the Lineage.

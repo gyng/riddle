@@ -619,9 +619,13 @@ fn keeper(g: &mut Game, day: u32) {
     if order == "off" {
         return;
     }
-    l.pets.breed_runs += 1;
+    // Cut 120 §5: the breeding is the kennel keeper's (a hired worker at work); before him it is by hand
+    let hired = crate::tree::on(l, "kennel_keeper");
+    if hired {
+        l.pets.breed_runs += 1;
+    }
     let bred_eggs = l.eggs.iter().filter(|e| !e.from_loss).count();
-    if l.pets.breed_runs >= BREED_EVERY && bred_eggs < EGG_CAP {
+    if hired && l.pets.breed_runs >= BREED_EVERY && bred_eggs < EGG_CAP {
         let best = l.best_depth;
         let mut pets: Vec<Companion> = l.all_companions().filter(|c| c.level >= 2).cloned().collect();
         pets.sort_by_key(|c| (std::cmp::Reverse(score(c, best)), c.id));
@@ -646,9 +650,18 @@ fn keeper(g: &mut Game, day: u32) {
             // (the coordinator: the line names the pup's generation, as its hatched name `bred_name` will — `Ashak egg · II` hatches `Ashak II`)
             crate::feats::news(l, "bred", format!("{} egg · {}", base_name(&sire.name), bred_gen(gen)), day);
             crate::petstats::bump(crate::petstats::Stat::Bred, 1);
+            crate::tree::add_act(l, "kennel_keeper", 1);
+            crate::tree::add_act(l, crate::tree::KEEPER_BRED, 1);
         }
     }
+    let freed = g.lineage.pets.released;
     release(g, day);
+    // (the surplus he releases counts as his act once he is hired)
+    let n = g.lineage.pets.released - freed;
+    if hired && n > 0 {
+        crate::tree::add_act(&mut g.lineage, "kennel_keeper", n);
+        crate::tree::add_act(&mut g.lineage, crate::tree::KEEPER_FREED, n);
+    }
 }
 
 /// Surplus released: past the party's slots and `KENNEL_SPARE`, the kennel's weakest go free (never a party pet).

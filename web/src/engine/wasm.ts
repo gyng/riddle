@@ -160,6 +160,7 @@ export class WasmEngine implements Engine {
   openChest(): Lineage { return this.call("openChest"); }
   setWorker(id: string, on: boolean): Lineage { return this.call("setWorker", id, on); }
   promote(id: string): Lineage { return this.call("promote", id); }
+  setPerk(worker: string, perk: string): Lineage { return this.call("setPerk", worker, perk); }
   // RUNS_UI: throw `wasm: <name>` on a build without them
   advance(elapsedMs: number): Advance { return this.call("advance", elapsedMs); }
   replay(runId: number): Replay | null { return this.call("replay", runId); }

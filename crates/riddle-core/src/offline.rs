@@ -946,7 +946,9 @@ mod slice_tests {
         for seed in [1,3,5] {
             let mut base=camp(seed);run_offline_counts(&mut base,3600);
             let mut whole=base.clone();let expected=run_offline_quick(&mut whole,8*3600);
-            assert_eq!(expected.legacy_earned,crate::legacy::current(&whole.lineage).unwrap().points-crate::legacy::current(&base.lineage).unwrap().points);
+            // (Cut 120 §1: the points the Legacy order spent count as earned)
+            let spent=|g:&Game|g.lineage.tree.acts.get(crate::tree::LEGACY_POINTS).copied().unwrap_or(0);
+            assert_eq!(expected.legacy_earned,crate::legacy::current(&whole.lineage).unwrap().points+spent(&whole)-crate::legacy::current(&base.lineage).unwrap().points-spent(&base));
             assert!(expected.legacy_earned>0);
             for (widths,reload) in [(&[1800][..],false),(&[1,1799,3601,719][..],false),(&[1800][..],true)] {
                 let (actual,report)=partition(&base,8*3600,widths,reload);
@@ -1000,6 +1002,26 @@ mod slice_tests {
         equal(&whole,&sliced,"zero-second final boundary");
         let mut a=Game::new(3);let (b,r)=partition(&a,0,&[1],false);
         assert_eq!(run_offline_quick(&mut a,0),r);equal(&a,&b,"empty zero absence");
+    }
+    /// Cut 120: the new orders (Legacy, ranks) act at the same moments in a sliced absence as in a whole one.
+    #[test]
+    fn the_cut120_orders_are_slice_stable() {
+        // (the interrupted rest of `interrupted_rest_does_not_insert_an_hourly_worker_action`, the orders on)
+        let mut base=camp(3);
+        crate::tree::grant(&mut base.lineage,&["clerk"]);
+        base.lineage.town.built.push(("bank".into(),0));
+        base.lineage.orders.legacy="balanced".into();base.lineage.orders.ranks="auto".into();
+        base.lineage.day=crate::tree::RANK_DAYS[0];
+        crate::legacy::ensure(&mut base.lineage);base.lineage.bloodline.as_mut().unwrap().points=40;
+        base.lineage.gold_move(10000,"fixture income");
+        base.lineage.clock_s=3590;base.lineage.rest_left=6000;
+        let mut whole=base.clone();let expected=run_offline_quick(&mut whole,4000);
+        assert!(whole.lineage.tree.acts.get(crate::tree::LEGACY_ACT).is_some(),"the order bought");
+        for reload in [false,true] {
+            let(actual,report)=partition(&base,4000,&[60,1000],reload);
+            equal(&whole,&actual,"the Cut 120 orders across slices");
+            assert_eq!(report,expected);
+        }
     }
     #[test]
     fn interrupted_rest_does_not_insert_an_hourly_worker_action() {

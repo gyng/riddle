@@ -47,3 +47,92 @@ player gave and reports what it did, and nothing is silent.*
 - PICKED, TUNED, workers-daily, automation-pays (report it either way), nothing-required.
 - No added required tap.
 - The full client suite.
+
+## Core: built and measured
+
+*2026-10-10, core items 1–7 (crates/riddle-core, crates/riddle-wasm; `web/src/engine/types.ts` fields added, none renamed).*
+
+### What landed
+
+1. **Legacy order** (`StandingSwitches.legacy`, `tree::LEGACY_ORDERS` `balanced · health · damage · armour · off`;
+   `tree::legacy_pick`, `legacy_act`). `balanced` buys health → damage → armour in turn (the lowest rank, in that
+   order) and waits for the next in turn; past the base three, the effects in the offer's order (a fork's first branch;
+   one shut by depth, a parent or the other branch is passed). A focus takes its upgrade to the cap, then balanced. It
+   spends at each send (the camp step where the clerk banks; the run takes it), through `legacy::buy_next`.
+   Defaults: a save `off` (serde); a harness's bare `Game` `off`; a **player's new lineage `balanced`**
+   (`Session::new`, a new bloodline; `tree::new_lineage_orders`). Announced once (`LEGACY BALANCED` beat, news `order`).
+2. **Ranks by order** (`StandingSwitches.ranks`, `auto · off`; `tree::ranks_act`): each hired worker at work whose rank
+   has come is bought from the purse while it keeps the reserve (`tree::reserve`) and the lit hire's price; `hire <id>
+   rank` in the ledger's `hires`. Same defaults as Legacy (new lineage `auto`). **Rank-II perk chip** (`Tree.perks`,
+   `tree::PERKS`): apprentice `cheaper steps` (the old −5 % a rank, default) · `keeps a reserve` (a forge unit more
+   kept a rank, no discount); scout `shorter rest` (the old −5 % a rank, default) · `safer start` (+5 % max hp at the
+   send a rank). Input `setPerk(worker, perk)`; hires and perks are the town's (copied across bloodlines).
+3. **Same for all** (`StandingSwitches.shared`; wire `StandingOrders.shared`): `setOrders` with `shared: [keys]`
+   (`tree::SHAREABLE`: insure · forge · wall · sink · heir · kennel · legacy · ranks · ascend) copies each named order
+   to every bloodline (`Session::set_orders`), and every later change follows; a new bloodline takes them. An unknown
+   key is refused.
+4. **Ascend order** (`StandingSwitches.ascend`, `off` default · `on`): the King fallen, the scout and the herald at
+   work, the herald begins the next unlocked descent at a send (`Game::carry_on`: `begin_descent`'s lineage reset,
+   the absence's batch, deaths and reel kept). Never without the order; no bot orders it.
+5. **Kennel keeper** (`kennel_keeper`, chore `breed`, need 2, price 3 units, fallback 48 h, gate `kennel`, post
+   `kennel`, beat `AUTO BREED`; last in the tree's order). The Cut 119 breeding order is his: unhired, no egg is bred
+   (the surplus release stays as before); a breed by hand (`Game::breed`) counts toward him. His acts: eggs and
+   releases (`sorted N` · `bred 1` · `freed 2`). The dayplayer hires him under `pets` like the kennel-hand.
+6. **Worker ledger** (`ReturnReport.workers[]`): every node's line `n` = its `tree.acts` delta; order lines `ranks`
+   (`+2 ranks`, items `scout II`, `spent`) and `legacy` (`+3 upgrades · ◆12`, items `health 2/3`); the herald's
+   `ascended` (`descent 1`); the apprentice's sinks (`sinks $X`). New `WorkerAct.gold`: the purse the line moved,
+   signed. The ration's ledger term is now `sinks` (was `supplies`), so the apprentice reconciles.
+7. **Next worker** (`WorkNode.progress` `2/3`, `WorkNode.eta_h`, `Works.next_worker`; the lit `WorkerPost` carries
+   `progress`, `fallback_h`, `eta_h`).
+
+### Tests (`tests_cut120.rs`, 9; plus `offline::slice_tests::the_cut120_orders_are_slice_stable`)
+
+`the_legacy_order_spends_in_turn` · `the_legacy_order_takes_the_effects_after_the_base` ·
+`the_ranks_order_buys_due_ranks_keeping_the_reserve` · `the_rank_two_perk_is_a_chip` · `same_for_all_copies_and_follows`
+· `the_herald_ascends_only_under_the_order` · `the_kennel_keeper_is_a_worker` ·
+**`the_worker_ledger_matches_the_acts_and_reconciles`** (the gate: 3 seeds × 8 h with nine workers, ranks and Legacy
+on — every node's line count equals its acts delta, the order lines theirs, and Σ apprentice + clerk + ranks
+`gold` = the ledger's apprentice + forge + sinks + hires + bank terms) · `the_next_worker_shows_progress_and_eta`.
+Tests changed for the new defaults: the Legacy fixtures that buy by hand set `legacy: off` (legacy_tests `rich`,
+tests_cut305 ×2, the three-bloodline slice test); `the_keeper_breeds_and_releases` hires the keeper; the 8 h slice
+partition counts the order's spent points as earned.
+
+`cargo test --workspace --profile fast`: 780 passed, 0 failed. Clippy `--all-targets -D warnings` clean.
+The 307dbed send hash did not move (`sends_307dbed.txt`, the pinned-off restores unchanged).
+
+### Gates (targeted rows, 16 seeds, `--full --rows`; the HEAD f9107e3 baseline run beside it with the same binary args)
+
+| row | Cut 120 | baseline |
+|---|---|---|
+| IDLE D8 day 1 · D13 median day · D23 by day 12 | 16/16 · 1.7 · 16/16 (4.7) | same |
+| IDLE stall · gold · King | 3 d · 14/14 · 0/16 | same |
+| stance L3 · L5 | 1 · 6 | same |
+| PICKED ≥ 1.5× IDLE (D13 · D18 · D23) | 2.50 · 2.75 · 3.45 | same |
+| outpace · TUNED vs PICKED D33 · RANDOM | 97 % · 1.17 · 16/16 · 16/16 (+4 · +52 h) | same |
+| nothing-required · nodes-bought | ok · 0 unbought (11 hired by day 14) | ok · 0 (10 hired) |
+| workers-daily | 30.58 vs 30.87 PASS | 30.62 vs 30.87 |
+| automation-pays | 48 vs 48 h · 28.16 vs 28.52 **FAIL** | 48 vs 48 h · 28.23 vs 28.52 FAIL |
+| idle-delta | +8 h PASS | +8 h |
+
+`node tools/gates.mjs --fast`: all PASS — metrics `--cut30` (8 rows), qa 10 seeds (gold header == ledger sum, report
+terms sum to the purse's move, night gold, gold conserved: every invariant PASS), dayplayer IDLE.
+
+### Deviations
+
+- **Legacy and ranks defaults are a player's new lineage's, not the harness's.** Measured with `balanced` + `auto` as
+  every bare `Game`'s default, IDLE slew the Mirror King on seed 1 on day 12 (`idle-king` FAIL). The contract allows
+  `legacy: off` for IDLE's harness: the dayplayer's lineages (`Game::new_resident`) keep `off`, `Session::new` (the
+  client's new lineage) and a new bloodline take `balanced` · `auto`. `ranks: auto` alone (acting hourly, an earlier
+  build) kept every IDLE bar (D13 day ≤ 2.3, D23 16/16, King 0/16, idle-delta +8 h). Finding for the owner: a
+  no-touch *player* under `balanced` is stronger than the IDLE the bars measure.
+- **Legacy and ranks act at sends, not on the hour.** A sliced absence settles a run's end and the last hour's worker
+  pass in a different order from a whole one (pre-existing; the clerk is idempotent enough to hide it); a Legacy buy
+  on the hour moved between the two. At the send the run takes the purchase either way.
+- **Ascend** begins the next unlocked numbered descent (`begin_descent`'s reset, not `ascend(variant)`'s), and needs the
+  herald hired (he carries it) as well as the scout.
+- **The kennel keeper's hire gates the breeding**: IDLE (no hires past the scout) no longer breeds eggs; every IDLE bar
+  is unchanged. automation-pays fails as before (Cut 110 §4's recorded deviation; −0.07 floor on AWAY's mean best,
+  the keeper's price), threshold unchanged.
+- Perks for the apprentice and the scout only (Cut 114 §5's two); Cut 114 §5's "neither perk dominates" bar is not
+  measured (no bot picks the second perk).
+- The 307dbed hash did not move, so nothing was re-recorded.

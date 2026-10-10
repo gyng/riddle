@@ -31,9 +31,37 @@ fn town_from(source: &LineageState, dest: &mut LineageState) {
     dest.tree.chest=source.tree.chest; dest.tree.ledger=source.tree.ledger;
     dest.tree.acts.clone_from(&source.tree.acts);
     dest.tree.ranks.clone_from(&source.tree.ranks);
+    dest.tree.perks.clone_from(&source.tree.perks);
+}
+/// Cut 120 §3: copy one order (a `tree::SHAREABLE` key) between bloodlines' switches.
+pub fn copy_order(from: &crate::wire::StandingSwitches, to: &mut crate::wire::StandingSwitches, key: &str) {
+    match key {
+        "insure" => to.insure = from.insure,
+        "forge" => to.forge.clone_from(&from.forge),
+        "wall" => to.wall.clone_from(&from.wall),
+        "sink" => to.sink.clone_from(&from.sink),
+        "heir" => to.heir.clone_from(&from.heir),
+        "kennel" => to.kennel.clone_from(&from.kennel),
+        "legacy" => to.legacy.clone_from(&from.legacy),
+        "ranks" => to.ranks.clone_from(&from.ranks),
+        "ascend" => to.ascend.clone_from(&from.ascend),
+        _ => {}
+    }
+}
+/// Cut 120 §3: the active bloodline's shared orders onto `dest` (each named order, and the shared set itself).
+fn shared_from(source: &crate::wire::StandingSwitches, dest: &mut crate::wire::StandingSwitches) {
+    for k in &source.shared {
+        copy_order(source, dest, k);
+    }
+    dest.shared.clone_from(&source.shared);
 }
 impl Session {
-    pub fn new(seed:u64)->Self { Self { bloodlines_v:1, selected:1, next_id:2, elapsed_remainder_ms:0, active:Game::new(seed), others:BTreeMap::new() } }
+    pub fn new(seed:u64)->Self {
+        let mut active=Game::new(seed);
+        // Cut 120 §1–2: a player's new lineage starts with the Legacy and ranks orders (announced at its first send)
+        crate::tree::new_lineage_orders(&mut active.lineage.orders);
+        Self { bloodlines_v:1, selected:1, next_id:2, elapsed_remainder_ms:0, active, others:BTreeMap::new() }
+    }
     pub fn load(text:&str)->Result<Self,String> {
         let v:serde_json::Value=serde_json::from_str(text).map_err(|e|e.to_string())?;
         if v.get("bloodlines_v").is_none() { return Ok(Self { active:Game::load(text)?, ..Self::new(0) }); }
@@ -66,7 +94,25 @@ impl Session {
         g.lineage.look=crate::hero::Class::LOOKS.iter().find(|look|!worn.contains(look)).map(|look|(*look).into());
         self.active.lineage.gold_move(-SLOT_PRICE,&format!("bloodline {id}"));
         town_from(&self.active.lineage,&mut g.lineage);
+        // (Cut 120 §3: a new bloodline takes a new lineage's orders, then those set `same for all`)
+        crate::tree::new_lineage_orders(&mut g.lineage.orders);
+        shared_from(&self.active.lineage.orders,&mut g.lineage.orders);
         self.others.insert(id,g); self.next_id+=1;
+        Ok(())
+    }
+    /// Cut 120 §3: the standing orders on the shown bloodline (`Game::set_orders`), then each order set `same for
+    /// all` copied to every other bloodline — so a later change to a shared order follows everywhere.
+    pub fn set_orders(&mut self, o:&crate::wire::StandingOrders)->Result<(),String> {
+        self.active.set_orders(o)?;
+        let src=self.active.lineage.orders.clone();
+        // (an order taken out of `same for all` stays as it is on each bloodline; only the set follows)
+        for g in self.others.values_mut() { shared_from(&src,&mut g.lineage.orders); }
+        Ok(())
+    }
+    /// Cut 120 §2: a worker's perk — the hires are the town's, so every bloodline's tree takes it.
+    pub fn set_perk(&mut self, worker:&str, perk:&str)->Result<(),String> {
+        self.active.set_perk(worker,perk)?;
+        for g in self.others.values_mut() { town_from(&self.active.lineage,&mut g.lineage); }
         Ok(())
     }
     pub fn select_bloodline(&mut self,id:u32)->Result<(),String> {
@@ -294,6 +340,7 @@ mod tests {
     fn offline_slice_multi_preserves_wallet_each_hero_and_complete_report() {
         for automated in [false,true] {
             let mut base=resident();base.add_bloodline().unwrap();base.add_bloodline().unwrap();
+            base.active.lineage.orders.legacy="off".into();for g in base.others.values_mut() {g.lineage.orders.legacy="off".into();}
             if automated {crate::tree::grant(&mut base.active.lineage,&["porter","scout"]);}
             base.active.lineage.clock_s=crate::engine::DAY_S-60;
             for id in 1..=3 {base.select_bloodline(id).unwrap();base.active.lineage.clock_s=crate::engine::DAY_S-60;base.send();}
@@ -303,6 +350,7 @@ mod tests {
             for row in &expected.bloodlines {
                 let prior=if row.id==base.selected {&base.active}else{&base.others[&row.id]};
                 let now=if row.id==whole.selected {&whole.active}else{&whole.others[&row.id]};
+                // (Cut 120 §1: the new lineage's Legacy order spends; the town's acts sum every bloodline's, so it is off here)
                 assert_eq!(row.legacy_earned,crate::legacy::current(&now.lineage).unwrap().points-crate::legacy::current(&prior.lineage).unwrap().points);
                 assert!(row.legacy_earned>0);
             }

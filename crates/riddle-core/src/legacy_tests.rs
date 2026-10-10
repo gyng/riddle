@@ -2,7 +2,8 @@
 use super::*;
 use crate::{monster::Monster,geom::Pos,rules::Verb,turn::Src,hero::Class,rng::Rng};
 fn rich()->Game {
-    let mut g=Game::new_resident(3);ensure(&mut g.lineage);
+    // (Cut 120 §1: purchases by hand — the new lineage's Legacy order off)
+    let mut g=Game::new_resident(3);ensure(&mut g.lineage);g.lineage.orders.legacy="off".into();
     g.lineage.bloodline.as_mut().unwrap().points=814;g.lineage.best_depth=34;
     crate::packages::recompile(&mut g.lineage);crate::oath::refresh(&mut g.lineage);g
 }

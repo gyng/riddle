@@ -1978,6 +1978,8 @@ impl LineageState {
             forks_seen: BTreeMap::new(),
             affix_pin: None,
             guest_pin: None,
+            // (Cut 120 §1–2: the Legacy and ranks orders stay `off` here — the harnesses' and IDLE's; a player's new
+            // lineage takes them at `Session::new`, `tree::new_lineage_orders`)
             orders: Default::default(),
             pkg: Default::default(),
             pkg_v: 1,
@@ -2441,7 +2443,7 @@ impl LineageState {
     }
     /// Cut 29 §4: the standing orders, read off the lineage.
     pub fn standing_orders(&self) -> crate::wire::StandingOrders {
-        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone(), wall: Some(self.orders.wall.clone()), sink: Some(self.orders.sink.clone()), heir: Some(self.orders.heir.clone()), kennel: Some(self.orders.kennel.clone()) }
+        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone(), wall: Some(self.orders.wall.clone()), sink: Some(self.orders.sink.clone()), heir: Some(self.orders.heir.clone()), kennel: Some(self.orders.kennel.clone()), legacy: Some(self.orders.legacy.clone()), ranks: Some(self.orders.ranks.clone()), ascend: Some(self.orders.ascend.clone()), shared: Some(self.orders.shared.iter().cloned().collect()) }
     }
     /// The categories an unwatched exit keeps, in order (`Game::auto_keep`).
     pub fn keep_auto(&self) -> Vec<String> {
@@ -4106,6 +4108,8 @@ impl Game {
         let mut hero = Hero::new(self.lineage.class, floor.stairs_up);
         hero.apply_level(self.lineage.class_level());
         crate::legacy::apply(&self.lineage, &mut hero);
+        // Cut 120 §2: the scout's `safer start` perk (from rank II)
+        crate::tree::safer_start(&self.lineage, &mut hero);
         // Cut 118 §4: the apprentice's ration for this send
         crate::feats::eat_ration(&mut self.lineage, &mut hero);
         hero.specialization=crate::specialization::current(&self.lineage);
@@ -6546,6 +6550,8 @@ impl Game {
         self.lineage.eggs.push(Egg { id: eid, kind: ca.kind.clone(), tags, gen: ca.gen.max(cb.gen) + 1, hatch_in, from_loss: false, sire: String::new() });
         self.lineage.eggs_laid += 1;
         self.lineage.bred.insert(ca.kind);
+        // Cut 120 §5: a breed by hand counts toward the kennel keeper
+        crate::tree::did(&mut self.lineage, "breed");
         Ok(())
     }
 
@@ -7125,7 +7131,8 @@ pub fn gold_term(why: &str) -> &'static str {
         "fetched"
     } else if why.starts_with("recovered") {
         "recovered"
-    } else if why.starts_with("tithe") {
+    } else if why.starts_with("tithe") || why == "supply ration" {
+        // (Cut 120 §6: the apprentice's ration is a sink, as Cut 118 §4 names it — the ledger's apprentice line reconciles)
         "sinks"
     } else if why.starts_with("hire ") {
         "hires"

@@ -171,6 +171,8 @@ fn levels_from_every_run_with_signatures() {
 #[test]
 fn the_keeper_breeds_and_releases() {
     let mut g = camp(8);
+    // (Cut 120 §5: the breeding order is the kennel keeper's, a hired worker)
+    crate::tree::grant(&mut g.lineage, &["kennel_keeper"]);
     g.lineage.party = vec![pet(11, "skeleton", "Rook", 3)];
     g.lineage.kennel = vec![pet(12, "jackal", "Fang", 2)];
     for _ in 0..pets::BREED_EVERY {

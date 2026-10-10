@@ -56,6 +56,7 @@ fn missing_home_and_legacy_fields_preserve_old_residents_and_collect_chests() {
 fn hero_legacy_awards_once_archives_on_death_and_is_not_class_xp() {
     use crate::engine::ExitTier;
     let mut g = Game::new_resident(17);
+    g.lineage.orders.legacy = "off".into(); // (Cut 120 §1: the points kept, not spent by the order)
     for tier in [ExitTier::Bank, ExitTier::Bank, ExitTier::Death] {
         g.start_run(None);
         let r = g.run.as_mut().unwrap();
@@ -558,6 +559,7 @@ fn guide_hourly_start_change_prices_passage_before_the_next_send() {
 fn legacy_purchases_change_real_stats_persist_and_follow_the_bloodline() {
     use crate::engine::ExitTier;
     let mut g = Game::new_resident(19);
+    g.lineage.orders.legacy = "off".into(); // (Cut 120 §1: purchases by hand)
     g.lineage.bloodline.as_mut().unwrap().points = 54;
     let xp = g.lineage.classes.clone(); let gold = g.lineage.gold; let rules = g.lineage.rules().clone();
     let mut baseline = g.clone(); baseline.start_run(Some(991));

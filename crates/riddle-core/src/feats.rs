@@ -736,6 +736,8 @@ pub fn apprentice_sinks(g: &mut Game, send: bool) -> u32 {
         let p = ration_price(&g.lineage);
         if crate::tree::purse(&g.lineage) >= p + reserve {
             g.lineage.gold_move(-p, "supply ration");
+            // (Cut 120 §6: the ledger's apprentice line counts his sinks' gold)
+            crate::tree::add_act(&mut g.lineage, crate::tree::APPRENTICE_SINKS, p as u32);
             g.lineage.feats.ration = true;
             g.lineage.feats.rations += 1;
             n += 1;
@@ -753,13 +755,17 @@ pub fn apprentice_sinks(g: &mut Game, send: bool) -> u32 {
                 break;
             }
             let short = p - (purse - floor).max(0);
-            if short > 0 && crate::town::withdraw(&mut g.lineage, short).is_err() {
-                break;
+            if short > 0 {
+                match crate::town::withdraw(&mut g.lineage, short) {
+                    Ok(d) => crate::tree::add_act(&mut g.lineage, crate::tree::APPRENTICE_DREW, d as u32),
+                    Err(_) => break,
+                }
             }
             if crate::tree::purse(&g.lineage) < p {
                 break;
             }
             g.lineage.gold_move(-p, "tithe");
+            crate::tree::add_act(&mut g.lineage, crate::tree::APPRENTICE_SINKS, p as u32);
             g.lineage.feats.tithed += 1;
             crate::legacy::ensure(&mut g.lineage);
             g.lineage.bloodline.as_mut().expect("bloodline").points += 1;

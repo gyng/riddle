@@ -223,21 +223,7 @@ impl Game {
         p.tier = tier;
         // All validation precedes the first mutation.
         self.lineage.endgame = Some(p);
-        self.lineage.variant.clear();
-        self.lineage.ended = false;
-        self.lineage.best_depth = 0;
-        self.lineage.heir_best = 0;
-        self.lineage.start = 1;
-        self.lineage.banked_depths.clear();
-        self.lineage.waystones.clear();
-        self.lineage.lane_stones.clear();
-        self.lineage.picked.clear();
-        self.lineage.night_passes.clear();
-        self.lineage.night_short = None;
-        self.lineage.bounty = None;
-        self.lineage.wall_day = None;
-        self.lineage.wall_offer = None;
-        self.lineage.gold_carry = 0;
+        descent_lineage(&mut self.lineage);
         self.run = None;
         self.pending_exit = None;
         self.history.clear();
@@ -265,6 +251,54 @@ impl Game {
         // Generated thresholds follow the new record immediately, not only after load.
         crate::packages::recompile(&mut self.lineage);
         Ok(())
+    }
+}
+
+/// A new descent's dungeon on the lineage: the record, the stones and the camp's reads of the old dungeon cleared.
+fn descent_lineage(l: &mut crate::engine::LineageState) {
+    l.variant.clear();
+    l.ended = false;
+    l.best_depth = 0;
+    l.heir_best = 0;
+    l.start = 1;
+    l.banked_depths.clear();
+    l.waystones.clear();
+    l.lane_stones.clear();
+    l.picked.clear();
+    l.night_passes.clear();
+    l.night_short = None;
+    l.bounty = None;
+    l.wall_day = None;
+    l.wall_offer = None;
+    l.gold_carry = 0;
+}
+
+impl Game {
+    /// Cut 120 §4: the herald's ascension at a send under the `ascend` order (`tree::ascend_act`) — the next unlocked
+    /// descent begun mid-absence, as `begin_descent` begins it at camp, but the absence's records (its batch, deaths,
+    /// reel and events: the report) kept. The tier begun.
+    pub(crate) fn carry_on(&mut self) -> Result<u32, String> {
+        if !self.lineage.ended || self.sim {
+            return Err("clear the dungeon first".into());
+        }
+        let mut p = self.descent_progress();
+        p.validate()?;
+        let tier = p.unlocked;
+        p.tier = tier;
+        self.lineage.endgame = Some(p);
+        descent_lineage(&mut self.lineage);
+        self.history.clear();
+        self.floor_start = None;
+        self.bounty_seen = None;
+        self.passage = None;
+        self.fold_plan = None;
+        self.stall_runs = 0;
+        self.stall_cache = None;
+        self.forecast_cache.borrow_mut().clear();
+        self.panel_cache.borrow_mut().clear();
+        self.refined_panels.borrow_mut().clear();
+        crate::packages::recompile(&mut self.lineage);
+        Ok(tier)
     }
 }
 
