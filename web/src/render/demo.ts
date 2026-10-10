@@ -304,6 +304,46 @@ function bossScript(biome: string): Ev[] {
   return ev;
 }
 
+// Combat fx pass (2026-10-10): `?combat=1&biome=burrows` — one of each combat beat in a row, for the fx captures: melee on four
+// families (blood, bone, ichor, sparks), an arrow, a bolt and a fire bolt, a crit, kills, a bloat's burst, the hero to low hp, a boss's fall
+function combatFloor(depth: number, biome: string): Snapshot {
+  const f = makeFloor(depth, biome);
+  f.tiles = f.tiles.map((t) => (t === "water" ? "floor" : t));
+  f.overlays = [];
+  f.seen = f.seen.map(() => false);
+  f.hero = { ...f.hero, x: 16, y: 16, hp: 30, max_hp: 30 };
+  const foe = (id: number, kind: string, x: number, y: number, hp: number) => ({ id, kind, x, y, hp, max_hp: hp, tags: [] as string[] });
+  f.entities = [foe(101, "goblin", 15, 16, 10), foe(102, "skeleton", 17, 16, 10), foe(103, "bloat", 16, 14, 8), foe(104, "iron_golem", 14, 17, 20),
+    foe(105, "goblin_archer", 21, 16, 8), foe(106, "goblin_conjurer", 16, 20, 8), foe(107, "forge_imp", 12, 19, 8)];
+  return f;
+}
+function combatScript(): Ev[] {
+  const ev: Ev[] = [];
+  let hp = 30;
+  const hit = (t: number, src: number, dst: number, dmg: number, left: number, cause = "hero") => ev.push({ t, k: "attack", src, dst, dmg, hit: true, verb: "attack" }, { t, k: "hurt", id: dst, dmg, hp: left, cause });
+  const struck = (t: number, src: number, dmg: number, cause: string) => { hp = Math.max(3, hp - dmg); hit(t, src, 1, dmg, hp, cause); };
+  const shot = (t: number, src: number, from: [number, number], dmg: number, cause: string) => { const path = line(from, [16, 16]); ev.push({ t, k: "projectile", src, dst: 1, path }); hp = Math.max(3, hp - dmg); ev.push({ t: t + path.length, k: "hurt", id: 1, dmg, hp, cause }); };
+  hit(10, 1, 101, 4, 6);
+  struck(14, 101, 4, "goblin");
+  hit(20, 1, 102, 5, 5);
+  shot(24, 105, [21, 16], 3, "arrow");
+  hit(30, 1, 101, 6, 0); ev.push({ t: 30, k: "die", id: 101, cause: "hero" });
+  hit(40, 1, 104, 4, 16); ev.push({ t: 36, k: "move", id: 104, x: 15, y: 17 });
+  shot(44, 106, [16, 20], 4, "bolt");
+  ev.push({ t: 46, k: "move", id: 103, x: 16, y: 15 }); hit(50, 1, 103, 8, 0); ev.push({ t: 50, k: "die", id: 103, cause: "hero" });
+  shot(58, 107, [12, 19], 5, "fire");
+  ev.push({ t: 64, k: "overlay", x: 17, y: 17, ov: "fire", ttl: 60 });
+  struck(66, 102, 6, "skeleton");
+  hit(72, 1, 102, 5, 0); ev.push({ t: 72, k: "die", id: 102, cause: "hero" });
+  ev.push({ t: 80, k: "heal", id: 1, amount: 3, src: "potion" });
+  ev.push({ t: 90, k: "spawn", e: { id: 300, kind: "goblin_warlord", x: 17, y: 16, hp: 60, max_hp: 60, tags: ["boss"] } });
+  let bh = 60;
+  for (let t = 110; t < 150; t += 6) { if ((t / 6) % 2 < 1) { bh -= 8; hit(t, 1, 300, 8, bh); } else { ev.push({ t, k: "attack", src: 300, dst: 1, dmg: 2, hit: true }, { t, k: "hurt", id: 1, dmg: 2, hp: Math.max(3, hp - 1), cause: "goblin_warlord" }); } }
+  hit(156, 1, 300, bh, 0); ev.push({ t: 156, k: "die", id: 300, cause: "hero" });
+  ev.sort((a, b) => a.t - b.t);
+  return ev;
+}
+
 function main(): void {
   const canvas = document.getElementById("view") as HTMLCanvasElement;
   const q = new URLSearchParams(location.search);
@@ -324,6 +364,17 @@ function main(): void {
       (window as unknown as { planReady: boolean }).planReady = true;
     });
     window.addEventListener("resize", () => viewer.resize());
+    return;
+  }
+  if (q.get("combat") === "1") {
+    viewer.load(combatFloor(Number(q.get("depth") ?? 5), q.get("biome") ?? "burrows"));
+    viewer.apply(combatScript());
+    viewer.setSpeed(Number(q.get("speed") ?? 1));
+    if (q.get("fight") !== "0") viewer.setFrame("fight");
+    window.addEventListener("resize", () => viewer.resize());
+    (window as unknown as { viewer: unknown }).viewer = viewer;
+    document.getElementById("bar")!.style.display = "none";
+    document.getElementById("hud")!.hidden = q.get("hud") === "0";
     return;
   }
   if (q.get("boss") === "1") {

@@ -118,6 +118,7 @@ export type ViewerStats = {
   // the last 120 frames; fps over the last second of rAF callbacks.
   cpuMs: number; cpuP95: number; buildMs: number; gpuMs: number; gpuP95: number; gpuTimer: boolean; fps: number;
   fx: string;   // juice (docs/JUICE.md): the effects tier this frame (low · med · high)
+  clock?: number;   // combat fx pass: the replay clock this frame, fractional ticks (a hit-stop holds it; measurement only)
   glLost: boolean;   // cohort 24 (AW): the GL context is gone — the clock runs on, the 2D view (view2d.ts) stands in until it is restored
 };
 
@@ -236,7 +237,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   const juice = new Juice(env, quality, () => atlas.solid("#ffffff"), (ch) => atlas.font(ch), () => atlas.coin());
   const normals = new SpriteNormals(spr);   // juice pass 2: derived sprite normals, drawn by a twin of the entity layer (high)
   normals.add(L.ents.twin(normals.material));
-  scene.add(juice.emit.mesh, juice.matte.mesh, juice.nums.mesh);
+  scene.add(juice.emit.mesh, juice.matte.mesh, juice.nums.mesh, juice.decals.mesh);
   st.onEvent = (ev) => juice.onEvent(ev);
   const fieldLights: FieldLight[] = [];
   const stairsSeen: [number, number][] = [];                                       // Cut 26 §2: this frame's seen down stairs
@@ -937,7 +938,8 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       // replay's pause on its last frame) holds no flash
       // juice pass 3: a falling boss's killing blow flashes lightly — the slow-mo stretched its two-tick flash into a pale silhouette
       // gfx round 3 (raters: "the hero whited out mid-flash reads as a pale smear"): the hero's own hurt flash is lighter (HERO_FLASH)
-      const flash = !st.flashing(e) || st.speed <= 0 ? 0 : e.boss && e.dying ? BOSS_FALL_FLASH : e.hero ? HERO_FLASH : Math.max(FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero));
+      // combat fx pass: the first two frames of a blow are a white flash (fx.ts `hitFlash`), the hero's lighter
+      const flash = !st.flashing(e) || st.speed <= 0 ? 0 : e.boss && e.dying ? BOSS_FALL_FLASH : Math.max(e.hero ? HERO_FLASH : FLASH_MIX, juice.hitFlash(e.id, st.clock, e.hero, now));
       // juice: squash & stretch (a hit, a lunge, a spawn's pop, a death's slump) — the feet stay put; `rects` keep the true size
       const [sqx, sqy] = juice.squash(e.id, st.clock);
       // gfx round 20 (raters: "the hero only slides between tiles"): a walking step bobs one texel on each half of the move (FX > 0)
@@ -946,10 +948,12 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const ghost = fxLevel > 0 && !e.hero && ETHEREAL.has(e.kind);
       if (ghost) ghostAt.push([fx, fy + h / 2]);
       const dw = Math.round(s.w * sqx) / 2, dh = Math.round(s.h * sqy) / 2;
-      const drawY = fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0);
-      const [drawXCss, drawYCss] = toCss(fx - dw / 2, drawY + dh);
+      // combat fx pass: a struck body is knocked 2–3 texels away from the blow and eases back (the shadow and the plates stay put)
+      const [kx, ky] = e.dying ? [0, 0] : juice.nudge(e.id, st.clock), sx = fx + kx;
+      const drawY = fy + ky + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0);
+      const [drawXCss, drawYCss] = toCss(sx - dw / 2, drawY + dh);
       rects[rects.length - 1]!.drawn = { x: drawXCss, y: drawYCss, w: dw * k / dpr, h: dh * k / dpr };
-      (ghost ? L.ghosts : L.ents).push(fx, fy + lift + (ghost ? Math.round(Math.sin(now / 380 + e.id) * 1.5) + 1 : 0), z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.hero ? 1.12 : e.ally ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);   // (round 16: the hero a touch brighter — "muddy on the ochre floor")
+      (ghost ? L.ghosts : L.ents).push(sx, drawY, z, Math.round(s.w * sqx) / 2, Math.round(s.h * sqy) / 2, s.u0, s.v0, s.u1, s.v1, (e.hero ? 1.12 : e.ally ? 1.1 : 1) * fadeDim(e), flash, 0, e.flip ? 1 : 0);   // (round 16: the hero a touch brighter — "muddy on the ochre floor")
       // Cut 8A: in the fight frame the hero and his allies carry an hp bar (BAR_W×1, red under the palette's brightest) 1 texel
       // above the sprite; glyphs sit above the bar. Second art pass: a hostile's bar is on its name tag instead.
       let top = fy + h + 2;
@@ -1035,6 +1039,9 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         ent: (id) => { const e = st.ents.get(id); if (!e) return null; const [x, y] = feet(e); return { x, y, h: atlas.entity(e.kind).h / 2, w: atlas.entity(e.kind).w / 2, kind: e.kind, hero: e.hero, boss: e.boss, maxHp: e.maxHp, ally: e.ally }; },
         heroId: st.heroId, speed: st.speed, fight, quiet, cam: [camSX, camSY], half: [iw / 2, ih / 2], fires, gases, waters, torches: lights, ghosts: ghostAt, fog: st.biome === "fens" ? 1 : 0,
         motes: !!hh && !!roomLit[hh.y * st.w + hh.x], dust: [dustC[0], dustC[1], dustC[2]],
+        // combat fx pass: a splat lands only on open, seen ground; the hero's gas tile tints the edge
+        ground: (wx, wy) => { const tx = Math.floor(wx / TILE), ty = Math.floor(-wy / TILE); if (tx < 0 || ty < 0 || tx >= st.w || ty >= st.h) return false; const t = st.tiles[ty * st.w + tx]; return t === "floor" || t === "door" || t === "stairs_down" || t === "stairs_up"; },
+        heroGas: !!hh && st.overlays.some((o) => o.k === "gas" && o.x === hh.x && o.y === hh.y),
       });
       numCss.length = 0;
       // gfx round 11 (raters Y, Z: "the red '1' sits on top of 'DRAINED'"): a number that would land on the callout plate or a name plate
@@ -1098,7 +1105,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     const t0 = performance.now();
     // snap camera to the env-texel grid; remainder → blit UV offset quantised to device px. Cut 8A: the fight frame's
     // screen shake displaces the snapped centre by whole texels
-    const [shx0, shy0] = mode === "fight" ? st.shakeOffset() : [0, 0];
+    const [shx0, shy0] = mode === "fight" && juice.shakeAllowed() ? st.shakeOffset() : [0, 0];   // combat fx pass: none under reduced motion or effects off
     const [kx, ky] = juice.shake(now);
     const shx = shx0 + kx, shy = shy0 + ky;
     const sx = Math.round(cam.x) + shx, sy = Math.round(cam.y) + shy;
@@ -1182,7 +1189,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     stats.calls = renderer.info.render.calls;
     stats.triangles = renderer.info.render.triangles;
     stats.pending = st.pending(); stats.fade = u.uFade!.value as number;
-    stats.tick = st.tickNow();
+    stats.tick = st.tickNow(); stats.clock = st.clock;
     if (hero) stats.hero = [hero.px, hero.py];
     stats.camera = [cam.tx, cam.ty];
     stats.projectiles = st.projectilePositions().length;
@@ -1195,6 +1202,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
   return {
     load(snap) {
       st.load(snap);
+      juice.clearFloor();   // combat fx pass: the splats belong to the floor they fell on
       bossScale = null; bossScaleDepth = st.depth;
       lastCss = ""; measure();
       updateCamera(0, true);
@@ -1202,7 +1210,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     apply(evs) { st.apply(evs); },
     setSpeed(n) { st.speed = Math.max(0, n); },
     skipToEvent() { st.skipToEvent(); },
-    seek(t) { st.seek(t); },
+    seek(t) { st.seek(t); juice.clearFloor(); },
     sync(snap) { st.sync(snap); },
     setFrame(f, focus) {
       const changed = f !== mode;

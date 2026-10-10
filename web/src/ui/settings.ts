@@ -9,6 +9,7 @@ import { audio } from "../audio";
 import { workerNodes } from "./works";
 import { autoOn, setAutoOn } from "./autodismiss";
 import { captureDebug, debugFilename, downloadDebug, debugNote } from "../debug";
+import { effectsLevel, nextEffectsLevel, setEffectsLevel, type FxLevel } from "../render/fxpref";
 
 export function openSettings(app: App): void {
   closeEverything();   // QA 23ed91f (L: the settings sheet opened over the open UNLOCKS panel — two studs): one at a time
@@ -61,6 +62,11 @@ export function openSettings(app: App): void {
       } }, name, h("small", { class: "dim" }, on ? /* copy:label */ " on" : /* copy:label */ " off"));
       return b;
     };
+    // combat fx pass (2026-10-10): `effects` — full · low · off (render/fxpref.ts: blood, splats, shake, hit-stop); a client pref
+    const fxWord = (l: FxLevel): string => l === "full" ? /* copy:button */ "full" : l === "low" ? /* copy:button */ "low" : /* copy:button */ "off";
+    const effects = h("button", { class: "btn effects-level", "data-level": effectsLevel(), onclick: () => {
+      const l = nextEffectsLevel(); setEffectsLevel(l); effects.dataset.level = l; replace(effects, fxWord(l));
+    } }, fxWord(effectsLevel()));
     // docs/UI.md §7: the report, the death screen and open panels continue on their own (on by default)
     const auto = h("button", { class: `btn auto-continue${autoOn() ? " on" : ""}`, "aria-pressed": String(autoOn()), onclick: () => {
       setAutoOn(!autoOn()); auto.classList.toggle("on", autoOn()); auto.setAttribute("aria-pressed", String(autoOn())); replace(auto, autoOn() ? /* copy:button */ "on" : /* copy:button */ "off");
@@ -71,6 +77,7 @@ export function openSettings(app: App): void {
       hired.length ? h("div", { class: "srow workers-row" }, h("span", { class: "label" }, /* copy:label */ "workers"), h("span", { class: "chips" }, ...hired.map((n) => workerChip(n.id, n.name, !n.paused)))) : "",
       row(/* copy:label */ "sound", mute),
       row(/* copy:label */ "slowdowns", slow),
+      row(/* copy:label */ "effects", effects),
       row(/* copy:label */ "auto continue", auto),
       row(/* copy:label */ "save", saveOut, saveIn),
       row(/* copy:label */ "rules", rulesOut, rulesIn),
