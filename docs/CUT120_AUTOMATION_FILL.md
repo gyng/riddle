@@ -136,3 +136,68 @@ terms sum to the purse's move, night gold, gold conserved: every invariant PASS)
 - Perks for the apprentice and the scout only (Cut 114 §5's two); Cut 114 §5's "neither perk dominates" bar is not
   measured (no bot picks the second perk).
 - The 307dbed hash did not move, so nothing was re-recorded.
+
+## Defaults: option C measured, option B taken (owner 2026-10-10)
+
+*The owner's option C: a real new player's defaults (Legacy `balanced`, ranks `auto`) become the harness IDLE's too,
+re-tuned until every bar holds. It did not converge in the time given, so the coordinator's fallback, **option B**,
+shipped. A new lineage (`Session::new`, a new bloodline) defaults both orders to `off`, the same as a save and the
+harness (`Game::new_resident`). The client offers each order once when its rung lights. Harness and real defaults
+are identical either way, so the bars measure what a new player gets.*
+
+### Option C measured (`Game::new_resident` took `balanced` · `auto`; 16 seeds, `--full --rows`)
+
+| row | HEAD (off) | C, HEAD content | C + King drill 14 | C + Legacy 15/100/300 · 400/800 + King drill 10 | C + Legacy 50/300/800 · 600/1200 |
+|---|---|---|---|---|---|
+| IDLE D8 · D13 day · D23 (day) | 16/16 · 1.7 · 16/16 (4.7) | 16/16 · 0.7 · 16/16 (2.0) | same as C | 16/16 · 1.0 · 16/16 (2.3) | 16/16 · 1.5 · 16/16 (2.7) |
+| IDLE stall · gold | 3 d · 14 | 0 · 14 | 0 · 14 | 2 · 14 | 1 · 14 |
+| IDLE King (slain seeds) | 0/16 | **16/16** (days 12–14) | 0/16 | 0/16 | **1/16** |
+| stance L3 · L5 | 1 · 6 | 1 · **8** | 1 · **8** | 1 · 7 | 1 · 5 |
+| PICKED ≥ 1.5× IDLE | 2.50 · 2.75 · 3.45 | 1.50 · 2.25 · 2.25 | same | 1.50 · 2.25 · 2.33 | 2.25 · 2.58 · 2.33 |
+| outpace | 97 % | 99 % | 99 % | 100 % | 98 % |
+| TUNED vs PICKED D33 | 1.17 | **1.00** | **1.00** | **1.00** | 1.18 |
+| RANDOM (D13 · D23 seeds; medians) | 16/16 · 16/16 (+4 · +52 h) | 15/16 · **13/16** (+0 · +16) | same | 16/16 · 14/16 (+4 · +20) | 16/16 · 16/16 (**+0** · +32) |
+| nothing-required | ok | ok | ok | ok | ok |
+| automation-pays (mean best) | 28.16 vs 28.52 FAIL | 31.13 vs 31.15 FAIL | same | 30.81 vs 30.77 PASS | 30.52 vs 30.47 PASS |
+| workers-daily | 30.58 vs 30.87 | 32.12 vs 31.88 | same | 31.77 vs 31.89 | 31.46 vs 31.58 |
+| idle-delta | +8 h | +0 h | +0 h | −4 h | +8 h |
+
+What drives it:
+- **Legacy is cheap against its income.** IDLE earns about 110 ◆ on day 1 and about 2,300 by day 14. Under
+  `balanced` the whole base (54 ◆) is bought by hour 16 and the whole tree (216 ◆) by hour 56. Rank 1 of each root
+  alone (+3 HP, +1 damage, +1 armour) moves IDLE's D23 from day 4.7 to 2.2 and fails stance L5 (8). The bots never
+  spent Legacy before, so the bars had never measured it.
+- **The King falls to the idle path, not to raw stats.** IDLE meets him from about day 3 instead of day 11, and the
+  deep drill (6 days met) plus scars (30 %) bring him down on days 12–14. With his drill withheld (diagnostic),
+  IDLE never kills him in 18 days: about 80 tries, his least hp left is 18 %. Raising him to 360 hp and 16–23 atk with
+  the drill kept still lost him on 13/16 seeds. Even Legacy priced at about ×40 (20/150/400) lost him on days 14–17.
+- **Legacy compresses the walls.** With Legacy, PICKED crosses the Queen in one check-in (D28→D29 in about 8 h,
+  against 16–24 h without it), even at 180 hp. TUNED's pen counter then gains nothing at D33 (1.00).
+  Only rank-1 prices ≥ 50 ◆ restore 1.18.
+- The nearest candidate (Legacy 50/300/800 · 600/1200) still failed the King on 1/16 seeds, and RANDOM's D13 median
+  was +0. It would also need a King-drill change, with margin, and a rewrite of the Cut 32 Legacy price tests. That
+  did not fit the hour, so option B shipped.
+
+### Option B (shipped)
+
+- `tree::NEW_LEGACY` = `NEW_RANKS` = `off`; `Session::new` and `add_bloodline` no longer turn the orders on (a new
+  bloodline still takes those set `same for all`). `Game::new_resident` is unchanged, so the harness, a new player
+  and a save are identical. The option C tuning was reverted; no content changed.
+- Every bar is as in the "Core: built and measured" table above (the HEAD column): the harness is unchanged.
+  The 307dbed hash did not move.
+- `the_legacy_order_spends_in_turn` asserts that the new-lineage defaults are `off` · `off`.
+
+### The Legacy line reconciles per bloodline (coordinator, the client's 3-bloodline audit: `◆102` vs a spend of 54)
+
+`tree.acts` is the town's and sums every bloodline's buys, but Legacy is a bloodline's own. The order now also
+writes per-bloodline keys (`tree::legacy_key`: `legacy@<id>`, `legacy◆@<id>`, `legacy:<upgrade>@<id>`). The report's
+`legacy` line reads the shown bloodline's keys, so its `◆` equals that bloodline's `spent` delta. The town keys
+remain for the ledger gate. Test: `the_legacy_line_is_the_shown_bloodlines_own` (3 bloodlines, 8 h, all `balanced`).
+It asserts the line's `◆` equals the shown bloodline's spend, its count equals its ranks, and the bloodlines'
+spends sum to the town's `legacy◆`. Without the fix it fails `+27 upgrades · ◆162 vs spent 54`.
+
+### Dayplayer
+
+The per-seed table now prints the King's least hp left and his tries (`king None left 84% ×3`). An info row names
+the closest unslain seed (`IDLE King margin`), which is the bar's margin. `--verbose` day lines print Legacy `◆`
+and `spent`.

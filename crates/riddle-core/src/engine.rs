@@ -1978,8 +1978,8 @@ impl LineageState {
             forks_seen: BTreeMap::new(),
             affix_pin: None,
             guest_pin: None,
-            // (Cut 120 §1–2: the Legacy and ranks orders stay `off` here — the harnesses' and IDLE's; a player's new
-            // lineage takes them at `Session::new`, `tree::new_lineage_orders`)
+            // (Cut 120 §1–2, owner option B: the Legacy and ranks orders start `off` — a player's new lineage, a save,
+            // the harnesses' and IDLE's alike; `tree::NEW_LEGACY`)
             orders: Default::default(),
             pkg: Default::default(),
             pkg_v: 1,

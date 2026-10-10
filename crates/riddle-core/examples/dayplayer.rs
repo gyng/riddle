@@ -81,6 +81,10 @@ struct SeedOut {
     stall: usize,
     /// The day the Mirror King fell (1-based), if he did.
     king_day: Option<usize>,
+    /// The Mirror King's least hp left (%) over every try at him by the fortnight's end, and the tries (the bar's
+    /// margin: owner option C, 2026-10-10).
+    #[serde(default)]
+    king_left: Option<(u32, u32)>,
     stance_level_day: Vec<u32>,
     checkins: u32,
     grew: u32,
@@ -866,6 +870,7 @@ impl Play {
             if out.king_day.is_none() && g.lineage.kills.contains("mirror_king") {
                 out.king_day = Some(day + 1);
             }
+            out.king_left = g.lineage.feats.siege.get("mirror_king").map(|s| (s.best_pct, s.tries));
             if verbose && !rep.packages.is_empty() {
                 eprintln!("  [{}] day {} {}", cfg.label(), day + 1, rep.packages.join(" · "));
             }
@@ -1068,7 +1073,7 @@ impl Play {
         self.reached23 |= best >= 23;
         if verbose {
             let p = &g.lineage.pkg;
-            eprintln!("  [{}] s{} day {} D{} ${} bank {} L{} {} L{} drills {} kit {} pen {}", cfg.label(), seed, day + 1, best, g.lineage.gold, g.lineage.town.bank, g.lineage.class_level(), p.stance, p.level(&p.stance), p.drills.len(), riddle_core::kit::KIT_SLOTS.iter().map(|s| riddle_core::kit::owned(&g.lineage, s)).sum::<u32>(), p.pen_open);
+            eprintln!("  [{}] s{} day {} D{} ${} bank {} L{} {} L{} drills {} kit {} pen {} legacy ◆{} spent {}", cfg.label(), seed, day + 1, best, g.lineage.gold, g.lineage.town.bank, g.lineage.class_level(), p.stance, p.level(&p.stance), p.drills.len(), riddle_core::kit::KIT_SLOTS.iter().map(|s| riddle_core::kit::owned(&g.lineage, s)).sum::<u32>(), p.pen_open, riddle_core::legacy::current(&g.lineage).map_or(0, |b| b.points), riddle_core::legacy::current(&g.lineage).map_or(0, |b| b.spent));
         }
     }
 }
@@ -1445,12 +1450,13 @@ fn main() {
         println!("seed  {}  best by day", MILESTONES.iter().map(|m| format!("{:>6}", format!("h→D{m}"))).collect::<Vec<_>>().join(" "));
         for (_, o) in res.iter().filter(|(c, _)| *c == ci) {
             println!(
-                "{:>4}  {}  {:?}  stall {} king {:?} L{:?}",
+                "{:>4}  {}  {:?}  stall {} king {:?} {} L{:?}",
                 o.seed,
                 o.hours.iter().map(|h| h.map(|x| format!("{x:>6.0}")).unwrap_or_else(|| format!("{:>6}", "-"))).collect::<Vec<_>>().join(" "),
                 o.best_day,
                 o.stall,
                 o.king_day,
+                o.king_left.map_or("untried".to_string(), |(p, n)| format!("left {p}% ×{n}")),
                 o.stance_level_day
             );
             if verbose {
@@ -1491,6 +1497,12 @@ fn main() {
         bars.push((format!("IDLE net gold > 0 every day ({days}/{days}, every seed)"), format!("{gold_days}"), gold_days == days));
         let king = idle.iter().filter(|o| o.king_day.is_some()).count();
         bars.push(("IDLE does not slay the Mirror King within 14 days".into(), format!("{king}/{n}"), king == 0));
+        // (the bar's margin, owner option C: the closest unslain seed — the King's least hp left, its tries)
+        if let Some(o) = idle.iter().filter(|o| o.king_day.is_none() && o.king_left.is_some()).min_by_key(|o| o.king_left.unwrap().0) {
+            let (p, t) = o.king_left.unwrap();
+            let tried = idle.iter().filter(|o| o.king_left.is_some()).count();
+            infos.push(("IDLE King margin: least hp left (seed, tries) · seeds that tried him".into(), format!("{p}% (s{}, ×{t}) · {tried}/{n}", o.seed)));
+        }
         let l3 = median(idle.iter().map(|o| o.stance_level_day.iter().position(|l| *l >= 3).map_or(99.0, |d| d as f64 + 1.0)).collect());
         let l5 = median(idle.iter().map(|o| o.stance_level_day.iter().position(|l| *l >= 5).map_or(99.0, |d| d as f64 + 1.0)).collect());
         bars.push(("Stance L3 by day 2, L5 by day 7 (IDLE median)".into(), format!("{l3:.0} · {l5:.0}"), l3 <= 2.0 && l5 <= 7.0));

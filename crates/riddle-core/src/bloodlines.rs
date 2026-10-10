@@ -57,9 +57,8 @@ fn shared_from(source: &crate::wire::StandingSwitches, dest: &mut crate::wire::S
 }
 impl Session {
     pub fn new(seed:u64)->Self {
-        let mut active=Game::new(seed);
-        // Cut 120 §1–2: a player's new lineage starts with the Legacy and ranks orders (announced at its first send)
-        crate::tree::new_lineage_orders(&mut active.lineage.orders);
+        // (Cut 120, owner option B: a new lineage's Legacy and ranks orders are `off`, as the harness's — `tree::NEW_LEGACY`)
+        let active=Game::new(seed);
         Self { bloodlines_v:1, selected:1, next_id:2, elapsed_remainder_ms:0, active, others:BTreeMap::new() }
     }
     pub fn load(text:&str)->Result<Self,String> {
@@ -94,8 +93,7 @@ impl Session {
         g.lineage.look=crate::hero::Class::LOOKS.iter().find(|look|!worn.contains(look)).map(|look|(*look).into());
         self.active.lineage.gold_move(-SLOT_PRICE,&format!("bloodline {id}"));
         town_from(&self.active.lineage,&mut g.lineage);
-        // (Cut 120 §3: a new bloodline takes a new lineage's orders, then those set `same for all`)
-        crate::tree::new_lineage_orders(&mut g.lineage.orders);
+        // (Cut 120 §3: a new bloodline takes the orders set `same for all`; the rest stay a new lineage's `off`)
         shared_from(&self.active.lineage.orders,&mut g.lineage.orders);
         self.others.insert(id,g); self.next_id+=1;
         Ok(())
@@ -350,7 +348,6 @@ mod tests {
             for row in &expected.bloodlines {
                 let prior=if row.id==base.selected {&base.active}else{&base.others[&row.id]};
                 let now=if row.id==whole.selected {&whole.active}else{&whole.others[&row.id]};
-                // (Cut 120 §1: the new lineage's Legacy order spends; the town's acts sum every bloodline's, so it is off here)
                 assert_eq!(row.legacy_earned,crate::legacy::current(&now.lineage).unwrap().points-crate::legacy::current(&prior.lineage).unwrap().points);
                 assert!(row.legacy_earned>0);
             }

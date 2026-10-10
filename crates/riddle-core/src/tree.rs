@@ -871,15 +871,12 @@ pub const RANKS_ORDERS: [&str; 2] = ["auto", "off"];
 /// Cut 120 §4: the ascend order (`StandingSwitches.ascend`): `off` (the default) · `on` — after the clear the herald
 /// takes the scout's next send into the next ascension's dungeon (`Game::carry_on`). Never without the order.
 pub const ASCEND_ORDERS: [&str; 2] = ["off", "on"];
-/// The orders a new lineage starts with (announced once at its first worker pass).
-pub const NEW_LEGACY: &str = "balanced";
-pub const NEW_RANKS: &str = "auto";
-/// A player's new lineage (`Session::new`, a new bloodline): the Legacy and ranks orders on. A save keeps `off`, and so
-/// do the harnesses' bare `Game`s (the dayplayer's IDLE: under `balanced` IDLE slew the King on seed 1, day 12).
-pub fn new_lineage_orders(o: &mut crate::wire::StandingSwitches) {
-    o.legacy = NEW_LEGACY.into();
-    o.ranks = NEW_RANKS.into();
-}
+/// Owner option B (2026-10-10): a new lineage's Legacy and ranks orders are `off`, as a save's and the harnesses'
+/// (`Session::new`, a new bloodline, `Game::new_resident` all alike), so the bars measure what a new player gets; the
+/// client offers each order once when its rung lights. (Option C — `balanced` · `auto` for new lineages — let IDLE
+/// slay the King by day 12 on 16/16 seeds and compressed PICKED/TUNED/RANDOM; docs/CUT120_AUTOMATION_FILL.md.)
+pub const NEW_LEGACY: &str = "off";
+pub const NEW_RANKS: &str = "off";
 /// The orders `same for all` copies to every bloodline (`StandingSwitches.shared`).
 pub const SHAREABLE: [&str; 9] = ["insure", "forge", "wall", "sink", "heir", "kennel", "legacy", "ranks", "ascend"];
 
@@ -982,6 +979,12 @@ pub fn legacy_pick(l: &LineageState) -> Option<String> {
     u.affordable.then(|| u.id.clone())
 }
 
+/// A Legacy order key for one bloodline (`legacy◆@2`): the town's acts sum every bloodline's buys, a bloodline's
+/// ledger line reads its own.
+pub fn legacy_key(key: &str, bloodline: u32) -> String {
+    format!("{key}@{bloodline}")
+}
+
 /// The Legacy order at the bank step: every upgrade it buys while the points pay (for the next run while away).
 fn legacy_act(game: &mut Game) -> u32 {
     let mut n = 0;
@@ -992,9 +995,15 @@ fn legacy_act(game: &mut Game) -> u32 {
         }
         let after = crate::legacy::current(&game.lineage).map_or(0, |b| b.points);
         let l = &mut game.lineage;
+        let spent = before.saturating_sub(after);
         add_act(l, LEGACY_ACT, 1);
-        add_act(l, LEGACY_POINTS, before.saturating_sub(after));
-        add_act(l, &format!("{LEGACY_ACT}:{id}"), 1);
+        add_act(l, LEGACY_POINTS, spent);
+        // (the acts are the town's, summed over every bloodline; Legacy is a bloodline's own, so its line reads
+        // these per-bloodline keys and reconciles with that bloodline's `spent`)
+        let b = l.bloodline_id;
+        add_act(l, &legacy_key(LEGACY_ACT, b), 1);
+        add_act(l, &legacy_key(LEGACY_POINTS, b), spent);
+        add_act(l, &legacy_key(&format!("{LEGACY_ACT}:{id}"), b), 1);
         n += 1;
         if n > 64 {
             break;
@@ -1400,15 +1409,17 @@ pub fn report_acts(l: &LineageState, before: &BTreeMap<String, u32>, after: &BTr
         let spent = moved(RANKS_GOLD) as i32;
         out.push(WorkerAct { id: RANKS.into(), what: format!("+{}", plural(k, "rank")), n: k, first: was(RANKS) == 0, items, spent, reason: None, gold: -spent });
     }
-    let k = moved(LEGACY_ACT);
+    // (the shown bloodline's own buys: the town's acts sum every bloodline's, `legacy_key`)
+    let own = |key: &str| moved(&legacy_key(key, l.bloodline_id));
+    let k = own(LEGACY_ACT);
     if k > 0 {
         let b = crate::legacy::current(l);
-        let items = crate::legacy::offers(l, false).iter().filter(|u| moved(&format!("{LEGACY_ACT}:{}", u.id)) > 0).map(|u| {
+        let items = crate::legacy::offers(l, false).iter().filter(|u| own(&format!("{LEGACY_ACT}:{}", u.id)) > 0).map(|u| {
             let r = b.and_then(|b| b.upgrades.get(&u.id)).copied().unwrap_or(0);
             let name = u.name.clone().unwrap_or_else(|| u.id.clone()).to_lowercase();
             if u.cap > 1 { format!("{name} {r}/{}", u.cap) } else { name }
         }).collect();
-        out.push(WorkerAct { id: LEGACY_ACT.into(), what: format!("+{} · ◆{}", plural(k, "upgrade"), moved(LEGACY_POINTS)), n: k, first: was(LEGACY_ACT) == 0, items, spent: 0, reason: None, gold: 0 });
+        out.push(WorkerAct { id: LEGACY_ACT.into(), what: format!("+{} · ◆{}", plural(k, "upgrade"), own(LEGACY_POINTS)), n: k, first: was(LEGACY_ACT) == 0, items, spent: 0, reason: None, gold: 0 });
     }
     out
 }

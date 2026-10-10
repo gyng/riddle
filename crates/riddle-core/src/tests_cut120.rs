@@ -50,10 +50,11 @@ fn the_legacy_order_spends_in_turn() {
     give_points(&mut o, 30);
     tree::at_send(&mut o);
     assert!(upgrades(&o).is_empty());
-    // a player's new lineage (and a new bloodline) starts `balanced` and `auto`; a harness's bare game and a save from
-    // before the orders keep `off`
+    // owner option B: a player's new lineage (and a new bloodline) starts `off` · `off`, as a harness's game and a save
+    // from before the orders do — the bars measure what a new player gets
     let mut sess = Session::new(3);
     assert_eq!((sess.active.lineage.orders.legacy.as_str(), sess.active.lineage.orders.ranks.as_str()), (tree::NEW_LEGACY, tree::NEW_RANKS));
+    assert_eq!((tree::NEW_LEGACY, tree::NEW_RANKS), ("off", "off"));
     sess.build_town("house").unwrap();
     sess.active.lineage.gold_move(1_000, "test income");
     sess.add_bloodline().unwrap();
@@ -336,4 +337,38 @@ fn the_next_worker_shows_progress_and_eta() {
     assert!(w.nodes.iter().find(|n| n.id == "armourer").unwrap().eta_h.is_none());
     let post = tree::posts(&g.lineage).into_iter().find(|p| p.lit).unwrap();
     assert_eq!((post.progress.as_deref(), post.fallback_h), (Some("1/2"), Some(24)));
+}
+
+/// §6 (coordinator, the client's 3-bloodline audit: `◆102` against a bloodline's spend of 54): the town's acts sum
+/// every bloodline's Legacy buys; the shown bloodline's `legacy` line is its own — its `◆` equals that bloodline's
+/// `spent` delta, its count its ranks' — and the bloodlines' spends sum to the town's `legacy◆`.
+#[test]
+fn the_legacy_line_is_the_shown_bloodlines_own() {
+    let mut s = Session::new(5);
+    s.build_town("house").unwrap();
+    s.active.lineage.gold_move(5_000, "test income");
+    s.add_bloodline().unwrap();
+    s.add_bloodline().unwrap();
+    tree::grant(&mut s.active.lineage, &["porter", "scout"]);
+    let ids: Vec<u32> = std::iter::once(s.selected).chain(s.others.keys().copied()).collect();
+    for id in &ids {
+        s.select_bloodline(*id).unwrap();
+        s.active.lineage.orders.legacy = "balanced".into();
+        give_points(&mut s.active, 20 + 10 * *id);
+    }
+    s.select_bloodline(ids[0]).unwrap();
+    let game = |s: &Session, id: u32| if id == s.selected { s.active.clone() } else { s.others[&id].clone() };
+    let spent = |g: &Game| crate::legacy::current(&g.lineage).map_or(0, |b| b.spent);
+    let ranks = |g: &Game| crate::legacy::current(&g.lineage).map_or(0, |b| b.upgrades.values().sum::<u32>());
+    let before: Vec<Game> = ids.iter().map(|id| game(&s, *id)).collect();
+    let town0 = s.active.lineage.tree.acts.get(tree::LEGACY_POINTS).copied().unwrap_or(0);
+    let r = s.run_offline_mode(8 * 3600, false, true);
+    let after: Vec<Game> = ids.iter().map(|id| game(&s, *id)).collect();
+    let deltas: Vec<u32> = before.iter().zip(&after).map(|(b, a)| spent(a) - spent(b)).collect();
+    assert!(deltas.iter().filter(|d| **d > 0).count() >= 2, "several bloodlines bought: {deltas:?}");
+    let town = s.active.lineage.tree.acts.get(tree::LEGACY_POINTS).copied().unwrap_or(0) - town0;
+    assert_eq!(town, deltas.iter().sum::<u32>(), "the town's acts sum every bloodline's");
+    let line = r.workers.iter().find(|w| w.id == tree::LEGACY_ACT).expect("the shown bloodline bought");
+    assert!(line.what.ends_with(&format!(" · ◆{}", deltas[0])), "{} vs spent {}", line.what, deltas[0]);
+    assert_eq!(line.n, ranks(&after[0]) - ranks(&before[0]), "its count is the shown bloodline's");
 }

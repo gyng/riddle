@@ -3181,10 +3181,10 @@ pub struct StandingSwitches {
     /// Cut 119 §4: the kennel keeper's order (`pets::KENNEL_ORDERS`: `breed` for the wall, `best`, `off`).
     #[serde(default = "kennel_breed")]
     pub kennel: String,
-    /// Cut 120 §1: the Legacy order (`tree::LEGACY_ORDERS`); a save's `off`, a new lineage's `tree::NEW_LEGACY`.
+    /// Cut 120 §1: the Legacy order (`tree::LEGACY_ORDERS`); `off` for a save and a new lineage alike (`tree::NEW_LEGACY`, owner option B).
     #[serde(default = "order_off")]
     pub legacy: String,
-    /// Cut 120 §2: the ranks order (`tree::RANKS_ORDERS`: `auto` · `off`); a save's `off`, a new lineage's `tree::NEW_RANKS`.
+    /// Cut 120 §2: the ranks order (`tree::RANKS_ORDERS`: `auto` · `off`); `off` for a save and a new lineage alike (`tree::NEW_RANKS`).
     #[serde(default = "order_off")]
     pub ranks: String,
     /// Cut 120 §4: the ascend order (`tree::ASCEND_ORDERS`: `off` · `on`), carried by the herald after the clear.
