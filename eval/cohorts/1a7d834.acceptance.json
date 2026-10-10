@@ -1,0 +1,51 @@
+{
+  "candidate": "1a7d834",
+  "applicationCommits": [
+    "1a7d834"
+  ],
+  "status": "cohort running 2026-10-10",
+  "includes": "Cuts 117-120, While away IA + juice, combat FX, hand control (keys/touch/mouse), pets (Cut 119), yolo/siege/graves (Cut 118)",
+  "frozen": {
+    "dir": "scratchpad/blind-1a7d834-frozen/dist",
+    "url": "http://127.0.0.1:5262/",
+    "files": 252,
+    "manifestSha256": "745c17c6372193c96f7518cc6f5f006717af19bf66e4af74609e82e5d63b83f1",
+    "servedHashes": "252/252",
+    "engine": "wasm",
+    "gpu": "ANGLE D3D12 RTX 3080"
+  },
+  "native": {
+    "cargoTests": "781 passed",
+    "clippy": "clean (workspace, all targets)",
+    "gates": "routine full --fresh: all PASS but the 2-seed outpace row 86% (16 seeds 97%, recorded deviation)",
+    "deviations": [
+      "outpace 2-seed routine row 86% (16-seed 97%)",
+      "automation-pays (Cut 110 \u00a74)",
+      "affixes change the best answer 4/20 (bar 8)",
+      "Cut 119 pet eval bars: value at 1-2 walls, guard role, IDLE pet L5 at day 14, IDLE fetcher -24.3%",
+      "waystone $/h worsened by graves"
+    ]
+  },
+  "browser": {
+    "full": "152/153; fights failed once (name rows) and passed alone (48 checks)"
+  },
+  "machineLoad": {
+    "atRelease": "24.64 20.55 21.96",
+    "source": "another project's builds/tests (armee)"
+  },
+  "cohort": {
+    "briefs": [
+      "scratchpad/blind-1a7d834-frozen/briefs/a.txt",
+      "scratchpad/blind-1a7d834-frozen/briefs/b.txt"
+    ],
+    "seeds": [
+      273,
+      277
+    ],
+    "drivers": [
+      5374,
+      5375
+    ],
+    "toolBudget": 260
+  }
+}
