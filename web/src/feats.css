@@ -20,7 +20,6 @@
 .report-reveal { margin: 4px 0; }
 .report-feats { margin: 2px 0 4px; padding-left: 16px; font-size: 13px; }
 .report-feats .feat-line.k-siege_won, .report-feats .feat-line.k-title, .report-feats .feat-line.k-trial { color: var(--acc, #dbba7c); }
-.report-sealed { margin-left: 6px; }
 .set-log summary { cursor: pointer; }
 .set-log .set-piece { margin-left: 1px; opacity: .55; }
 .set-log .set-piece.have { opacity: 1; color: var(--acc, #dbba7c); }

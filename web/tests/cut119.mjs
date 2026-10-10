@@ -107,12 +107,17 @@ try {
       await sleep(600);
       const cardFeats = [...document.querySelectorAll(".report-sheet > .report-feats .feat-line")].map((li) => ({ k: li.dataset.k, pet: li.classList.contains("pet-line"), text: li.textContent }));
       const restPet = [...document.querySelectorAll(".report-feats.more .pet-line")].map((li) => li.dataset.k);
-      return { cardFeats, restPet, hasFetchedTerm: !!rep.gold?.ledger?.terms?.some((t) => t.label === "fetched"), feats: (rep.feats ?? []).map((f) => f.k) };
+      // owner IA pass 2026-10-10: at most three highlights; a pet deed ranks below a boss, a death's progress and the best find
+      const hl = [...document.querySelectorAll(".report-sheet > .report-hl")].map((x) => x.dataset.hl);
+      const foldPet = [...document.querySelectorAll(".report-details .report-feats .pet-line")].map((li) => li.dataset.k);
+      const lead = document.querySelector(".report-sheet .report-feats .pet-line");
+      return { cardFeats, restPet, hl, foldPet, leadPet: lead ? { k: lead.dataset.k, text: lead.textContent } : null, hasFetchedTerm: !!rep.gold?.ledger?.terms?.some((t) => t.label === "fetched"), feats: (rep.feats ?? []).map((f) => f.k) };
     }));
     await page.locator(".report-gold").hover(); await page.waitForTimeout(900);
     r.ledgerTip = await page.evaluate(() => { const t = document.getElementById("kw-tip"); return t && !t.hidden ? t.textContent : ""; });
-    check(r.cardFeats.filter((x) => x.pet).length === 1 && r.cardFeats.filter((x) => !x.pet).length <= 3, `the report's card: ≤ 3 feat lines and one pet line (${r.cardFeats.map((x) => x.k).join(", ")})`);
-    check(!r.feats.includes("fetched") || r.cardFeats.some((x) => x.k === "fetched" && /brought \$\d+/.test(x.text)), `a fetch leads the pet line (${r.cardFeats.find((x) => x.pet)?.text})`);
+    const cardPets = r.cardFeats.filter((x) => x.pet).length;
+    check(r.hl.length <= 3 && cardPets <= 1 && r.cardFeats.filter((x) => !x.pet).length <= 1 && (cardPets === 1 || (r.hl.length === 3 && r.foldPet.length > 0)), `the report's card: ≤ 3 highlights, one pet line there unless outranked (${r.hl.join(", ")} · card ${r.cardFeats.map((x) => x.k).join(", ")})`);
+    check(!r.feats.includes("fetched") || (r.leadPet?.k === "fetched" && /brought \$\d+/.test(r.leadPet.text)), `a fetch leads the pet line (${r.leadPet?.text})`);
     check(r.restPet.filter((k) => k === "fetched").length === 0 && r.restPet.filter((k) => k === "old_hound").length <= 1, `the pet lines condense (rest: ${r.restPet.join(", ")})`);
     check(!r.hasFetchedTerm || /fetched[^]*packs pets carried/.test(r.ledgerTip), `the ledger tip glosses fetched (${r.hasFetchedTerm})`);
 

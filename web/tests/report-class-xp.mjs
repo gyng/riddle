@@ -7,7 +7,7 @@ try{for(const width of [400,1440]){const p=await b.newPage({viewport:{width,heig
   const slot=(id,name,xp)=>({id,name,runs:1,deepest:4,gold:10,packages:[],...(xp===undefined?{}:{xp})});
   const text=()=>document.querySelector('.report-class-xp')?.textContent??'';
   a.go({kind:'report',report:base});check(text().includes('Class XP')&&text().includes('Fighter')&&text().includes('+39 XP'),'first-run earned class XP visible');
-  check(!document.querySelector('.report-class-xp').closest('.report-details'),'XP outside folded details');check(document.querySelector('.report-details').hidden,'details stay folded');
+  check(!!document.querySelector('.report-class-xp').closest('.report-details [data-group=heroes]'),'XP in the Heroes fold (owner IA pass 2026-10-10)');check(document.querySelector('.report-details').hidden,'details stay folded');
   check(!/Legacy|L\d/.test(text()),'XP distinct from Legacy and current class level');check(document.documentElement.scrollWidth<=innerWidth,'single-class reward fits viewport');
   a.go({kind:'report',report:{...base,xp:{class:'fighter',gained:0,level_ups:0}}});check(!document.querySelector('.report-class-xp'),'zero gain adds no reward row');
   a.go({kind:'report',report:{...base,xp:{class:'rogue',gained:0,level_ups:1}}});check(text().includes('Rogue')&&text().includes('+1 level')&&!text().includes('+0 XP'),'level-only reward visible');

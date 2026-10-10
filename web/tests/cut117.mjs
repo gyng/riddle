@@ -185,7 +185,8 @@ try {
       const led = document.querySelector(".report-ledger");
       return { text: led?.textContent ?? null, e: +led?.dataset.earned, s: +led?.dataset.spent, n: +led?.dataset.net, head: document.querySelector(".report-gold b")?.textContent, lost: document.querySelector(".report-lost")?.textContent ?? null };
     });
-    check(r.e - r.s === r.n && r.n === -6789 && r.head === `$${r.e}`, `earned − spent = purse, the head the earned term (${r.text} · head ${r.head})`);
+    // owner IA pass 2026-10-10: the tile's face is the purse's change; the equation folds under details (and the tile's tip)
+    check(r.e - r.s === r.n && r.n === -6789 && r.head === "−$6789", `earned − spent = purse, the head the purse's change (${r.text} · head ${r.head})`);
     check(/earned \$39 − spent \$6828 \(forge \$6750\) = purse −\$6789/.test(r.text ?? ""), `an old save derives the terms, the forge inside the spent (${r.text})`);
     // the core's ledger (`gold.ledger`): its sums read as sent, each signed term named in the tip, inflows first
     const c = await page.evaluate(async () => {
@@ -203,7 +204,7 @@ try {
     await page.hover(".report-gold");
     await page.waitForFunction(() => document.querySelectorAll("#kw-tip .ledger-term").length > 0, null, { timeout: 5000 }).catch(() => {});
     c.tip = await page.evaluate(() => [...document.querySelectorAll("#kw-tip .ledger-term")].map((x) => x.textContent));
-    check(c.e === 2659 && c.s === 9448 && c.n === -6789 && c.e - c.s === c.n && c.head === "$2659" && c.terms === 5, `the core's ledger reads as sent (${c.text} · head ${c.head})`);
+    check(c.e === 2659 && c.s === 9448 && c.n === -6789 && c.e - c.s === c.n && c.head === "−$6789" && c.terms === 5, `the core's ledger reads as sent (${c.text} · head ${c.head})`);
     check(/earned \$2659 − spent \$9448 \(forge \$6750\) = purse −\$6789/.test(c.text ?? ""), `the forge part from the apprentice term (${c.text})`);
     check(c.tip.join("|") === "carried · +$2620|heir · +$39|lost · −$2620|apprentice · −$6750|supplies · −$78", `each term named in the tip, inflows first (${c.tip.join(" | ")})`);
     await page.close();

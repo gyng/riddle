@@ -1,8 +1,7 @@
-/* Cut 118 §6: the report's one action and its fold; §9: `uncapped` and `King · ~day N` in the head */
-.report-summary h2 .report-uncapped { margin-left: 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-gold, #5e4510); font-weight: 700; vertical-align: middle; }
+/* Cut 118 §6: the report's one action and its fold; §9: `King · ~day N` (under details since the owner's IA pass) */
 .king-eta { display: inline-block; font-size: 12px; color: var(--ink-dim, #455e87); }
 .king-eta b { font-weight: 600; }
-.report-summary .report-king { display: block; margin: 2px 0 4px; }
+.report-group .report-king { display: block; margin: 2px 0 4px; }
 .fc-king { margin: 2px 0; font-size: 12px; }
 .fc-king .king-eta { color: inherit; }
 .report-finds { margin: 6px 0; font-size: 13px; }
@@ -23,3 +22,27 @@
 .wall-preview { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin: 4px 0; font-size: 12px; }
 .wall-preview .wall-label { margin: 0; }
 .wall-preview .wall-counter[data-known="1"] { color: var(--acc, #dbba7c); }
+/* Owner IA pass 2026-10-10: the head (time away · three outcome tiles), at most three highlights, the one action, then one fold of
+   labelled groups */
+.report-summary h2 .report-away { margin-left: 10px; font: 600 18px/1 var(--sans); color: var(--ink-dim, #455e87); cursor: help; vertical-align: 2px; }
+.report .report-basics .tile .tile-record { margin-top: 3px; font: 700 11px/1.1 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--acc, #dbba7c); }
+.report .report-basics .tile.is-record b { color: var(--acc, #dbba7c); }
+.report-sheet > .report-hl { margin: 0; padding: 8px 0 8px 2px; border-bottom: 1px solid var(--ink-line, #5876a1); font-size: 15px; }
+.report-sheet > .report-summary + .report-hl { border-top: 1px solid var(--ink-line, #5876a1); }
+.report-sheet > ul.report-hl { padding-left: 2px; }
+.report-sheet > ul.report-hl > li { padding: 0; border: 0; margin: 0; }
+.report-sheet > .report-hl .feat-line.pet-line { margin-left: 0; }
+.report-feats .feat-line:is(.k-recovered, .k-siege, .k-siege_won, .k-title)::before { display: inline-block; width: 1.3em; color: var(--ink-gold, #5e4510); }
+.report-feats .feat-line.k-recovered::before { content: "✝"; }
+.report-feats .feat-line:is(.k-siege, .k-siege_won)::before { content: "⚔"; }
+.report-feats .feat-line.k-title::before { content: "♛"; }
+.report-sheet > .report-reveal .reveal-glyph { display: inline-block; width: 1.3em; color: var(--ink-gold, #5e4510); }
+.report-details .report-group { margin: 0 0 16px; padding-top: 8px; border-top: 1px solid var(--ink-line, #5876a1); }
+.report-details .report-group:first-of-type { border-top: 0; padding-top: 0; }
+.report-details .report-group-label { margin: 0 0 6px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; font-size: 12px; color: var(--ink, #1f2a3c); }
+.report-group .report-ledger { display: block; margin: 0 0 4px; font-size: 13px; }
+.report-group .ledger-terms { margin: 0 0 4px; font-size: 12px; }
+.report-group .report-lost { display: block; margin: 0 0 4px; }
+.report-group > .report-bosses, .report-group > .report-first-workers { margin: 4px 0 8px; }
+.report-group .report-feats { padding-left: 0; }
+.report-group .report-feats .feat-line.pet-line { margin-left: 0; }

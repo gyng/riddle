@@ -79,6 +79,16 @@ function readingPosition(app: App, report: ReturnReport): ReadingPosition {
 }
 
 const EXITS_SHOW = 8;
+/** Owner IA pass 2026-10-10: the card's highlights, at most. */
+const HIGHLIGHTS = 3;
+/** The time away, short: `8h`, `2h 30m`, `45m`, `2d 3h`. */
+export function awayText(s: number): string {
+  const m = Math.round(s / 60), d = Math.floor(m / 1440), hr = Math.floor((m % 1440) / 60), mm = m % 60;
+  if (d > 0) return hr ? `${d}d ${hr}h` : `${d}d`;
+  if (hr >= 3) return `${Math.round(m / 60)}h`;
+  if (hr > 0) return mm ? `${hr}h ${mm}m` : `${hr}h`;
+  return spanOf(s);
+}
 /** An exit line's lead word, the core's (QA 912e135: a timed-out run leads `stalled` / `lost thread`, never `returned`). */
 const LEAD = /^(banked|returned|died|stalled|lost thread|driven)\b/;   // QA 0c6e126 (qaY): a drive-off leads `driven`, its tile's word
 
@@ -296,9 +306,13 @@ function killWatch(app: App): (boss: string) => (() => Promise<boolean>) | null 
 }
 /** Cut 115 §1: the rule fires by who chose the row, as the report reads them — `picked 61% · taught 9% · chores 30%` (the core's
  *  `MeterWire.credit`, from the rows' origins); empty without fires. */
+/** Owner IA pass 2026-10-10 (`default 14% · chores 86%` unread): who chose the rows, in plain words — the player's picks, the drilled
+ *  fixes, the defaults, the chores. */
+/* copy:label */
+const CREDIT_WORD: Record<string, string> = { picked: "picks", taught: "taught", default: "defaults", chores: "chores" };
 export function creditLine(m: Pick<MeterWire, "credit"> | undefined): string {
   const c = (m?.credit ?? []).filter((x) => Math.round(x.share * 100) > 0);
-  return c.map((x) => `${x.credit} ${Math.round(x.share * 100)}%`).join(" · ");
+  return c.map((x) => `${CREDIT_WORD[x.credit] ?? x.credit} ${Math.round(x.share * 100)}%`).join(" · ");
 }
 /** Cut 115 §1: the report's head names the build (`Bulwark held D23`, `Guarded skirmisher · D14`) and who chose the rows that fired. */
 export function buildHead(L: Lineage, deepest: number, clean: boolean, m: MeterWire | undefined): HTMLElement | null {
@@ -306,7 +320,7 @@ export function buildHead(L: Lineage, deepest: number, clean: boolean, m: MeterW
   if (!b && !credit) return null;
   return h("div", { class: "report-build num", "data-build": b?.name ?? "" },
     b ? h("b", { class: "build-name", title: b.effect ? `${b.picks.join(" + ")} · ${b.effect}` : b.picks.join(" + ") }, clean ? /* copy:callout */ `${b.name} held D${deepest}` : `${b.name} · D${deepest}`) : "",
-    b && credit ? " · " : "", credit ? h("small", { class: "report-credit dim", "data-credit": credit }, credit) : "");
+    b && credit ? " · " : "", credit ? h("small", { class: "report-credit dim", "data-credit": credit, title: /* copy:tooltip */ "rule fires by who chose the row" }, credit) : "");
 }
 
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
@@ -619,7 +633,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const wallHost = h("div", { class: "wall-host" });
   if (penOpen(L)) void wallOffer(app).then((w) => { if (w && wallHost.isConnected) replace(wallHost, h("div", { class: "label" }, /* copy:label */ "wall fix"), wallTablet(app, w, () => app.go({ kind: "camp" }))); });
   const details = h("div", { class: "report-details", hidden: !reading.expanded });
-  if(r.bloodlines?.length)details.append(h("section",{class:"bloodline-report"},h("div",{class:"label"},/* copy:label */"Bloodlines"),...r.bloodlines.map(s=>h("div",{class:"num"},s.name,/* copy:label */` · ${s.runs} runs · D${s.deepest} · $${s.gold}`))));
+  const bloodlineSec = r.bloodlines?.length ? h("section",{class:"bloodline-report"},h("div",{class:"label"},/* copy:label */"Bloodlines"),...r.bloodlines.map(s=>h("div",{class:"num"},s.name,/* copy:label */` · ${s.runs} runs · D${s.deepest} · $${s.gold}`))) : null;
   const detailsBtn: HTMLButtonElement = h("button", { class: `details-fold num${reading.expanded ? " on" : ""}`, "aria-expanded": String(reading.expanded), onclick: () => {
     reading.expanded = !reading.expanded; details.hidden = !reading.expanded; detailsBtn.setAttribute("aria-expanded", details.hidden ? "false" : "true"); detailsBtn.classList.toggle("on", !details.hidden);
   } }, h("span", { class: "fold-mark", "aria-hidden": "true" }, "▸ "), /* copy:button */ "details");
@@ -665,21 +679,28 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     h("span", { class: "report-earned" }, /* copy:callout */ `earned $${ledger.earned}`), " − ",
     h("span", { class: "report-spent" }, /* copy:callout */ `spent $${ledger.spent}`,
       forgeGold > 0 ? h("small", { class: "report-bought dim" }, /* copy:callout */ ` (forge $${forgeGold})`) : ""), " = ",
-    h("span", { class: "report-net" }, /* copy:callout */ `purse ${signed(ledger.net)}`)) : "";
-  const termRows = ledger?.terms ? [...ledger.terms.filter((t) => t.amount > 0), ...ledger.terms.filter((t) => t.amount < 0)]
+    h("span", { class: "report-net" }, /* copy:callout */ `purse ${signed(ledger.net)}`)) : null;
+  const termRows = (): HTMLElement[] | null => ledger?.terms ? [...ledger.terms.filter((t) => t.amount > 0), ...ledger.terms.filter((t) => t.amount < 0)]
     .map((t) => h("div", { class: "num ledger-term", "data-term": t.label, title: TERM_GLOSS[t.label] }, t.label, ` · ${signed(t.amount)}`, TERM_GLOSS[t.label] ? h("small", { class: "dim term-gloss" }, ` · ${TERM_GLOSS[t.label]}`) : "")) : null;
-  const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", onclick: () => openGoldSheet(app) },
-    icon("gold"), h("b", { class: "num" }, `$${headGold}`), h("span", { class: "label" }, /* copy:label */ "Gold earned"),
-    ledgerLine,
-    // blind 3ab97ea (A: a 20 min return read `1 RUNS · D23 · $0 GOLD EARNED` — "thin", the death and its carry nowhere on the tiles):
-    // what the deaths left on the floor reads under the gold (`lost $2157`)
-    deathsN > 0 && (r.gold?.lost ?? 0) > 0 ? h("small", { class: "report-lost num down", title: /* copy:tooltip */ "carry lost on deaths · never in the purse" }, /* copy:callout */ `lost $${r.gold!.lost}`) : ""), () => termRows ? [
+  // blind 3ab97ea (A: a 20 min return read `1 RUNS · D23 · $0 GOLD EARNED` — "thin", the death and its carry nowhere): what the deaths
+  // left on the floor (`lost $2157`) — owner IA pass 2026-10-10: in the gold tile's tip and the Gold fold, never on the tile's face
+  const lostGold = deathsN > 0 ? r.gold?.lost ?? 0 : 0;
+  const lostLine = (): HTMLElement | null => lostGold > 0 ? h("small", { class: "report-lost num down", title: /* copy:tooltip */ "carry lost on deaths · never in the purse" }, /* copy:callout */ `lost $${lostGold}`) : null;
+  const lostTip = (): HTMLElement[] => lostGold > 0 && !ledger?.terms?.some((t) => t.label === "lost") ? [h("div", { class: "num down" }, /* copy:label */ "Lost carry", ` · $${lostGold}`)] : [];
+  // Owner IA pass 2026-10-10: the tile is the outcome — the purse's change when the core knows it (`+$1252`), else the gold earned; the
+  // equation's terms (earned · spent · lost) are its tip and the Gold fold
+  const goldFace = ledger ? signed(ledger.net) : `$${headGold}`;
+  const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", "data-net": ledger ? ledger.net : "", onclick: () => openGoldSheet(app) },
+    icon("gold"), h("b", { class: "num" }, goldFace), h("span", { class: "label" }, ledger ? /* copy:label */ "Gold change" : /* copy:label */ "Gold earned")), () => termRows() ? [
       // Cut 117 §1: the core's named terms, inflows first — earned − spent = purse change, to the dollar
-      h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
-      ...termRows,
+      h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold change")),
+      h("div", { class: "num" }, /* copy:label */ "Earned", ` · $${ledger!.earned}`, " · ", /* copy:label */ "Spent", ` · $${ledger!.spent}`),
+      ...termRows()!,
       h("div", { class: "num" }, h("b", null, /* copy:label */ "Purse change"), ` · ${signed(ledger!.net)}`),
+      ...lostTip(),
       h("div", { class: "kw-tip-gloss" }, /* copy:tooltip */ "Earned before spending; purse change counts everything")] : [
-      h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold earned")),
+      h("div", { class: "kw-tip-head" }, h("b", null, ledger ? /* copy:label */ "Gold change" : /* copy:label */ "Gold earned")),
+      ...(ledger ? [h("div", { class: "num" }, /* copy:label */ "Earned", ` · $${ledger.earned}`, " · ", /* copy:label */ "Spent", ` · $${ledger.spent}`)] : []),
       h("div", { class: "num" }, /* copy:label */ "Run gold", ` · $${runGold}`),
       h("div", { class: "num" }, /* copy:label */ "Loot sold", ` · $${lootGold}`),
       ...(passageGold > 0 ? [h("div", { class: "num" }, /* copy:label */ "Passage", ` · $${passageGold}`)] : []),
@@ -688,21 +709,25 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       ...(boughtGold > 0 ? [h("div", { class: "num" }, /* copy:label */ "Apprentice forge", ` · −$${boughtGold}`)] : []),
       ...(otherGold + boughtGold ? [h("div", { class: "num" }, /* copy:label */ "Workers, other", ` · ${signed(otherGold + boughtGold)}`)] : []),
       ...(net !== undefined ? [h("div", { class: "num" }, h("b", null, /* copy:label */ "Purse change"), ` · ${signed(net)}`)] : []),
+      ...lostTip(),
       h("div", { class: "kw-tip-gloss" }, net !== undefined ? /* copy:tooltip */ "Earned before spending; purse change counts everything" : /* copy:tooltip */ "Before spending; excludes heir grants")]);
   const meterOf = r.meters ?? (r.exits?.length === 1 ? r.exits[0].meters : undefined);
+  // Owner IA pass 2026-10-10 ("what's uncapped/17 sealed etc? hierarchy/important info/progressive disclosure"): the head answers what
+  // happened while away at a glance — the time away (`uncapped` is its tip), then three outcome tiles: the runs and their deaths, the
+  // deepest floor (marked when it is a new best), the purse's change. Who decided, the King's line and the ledger fold under `details`.
+  const autoSend = absence && !!L.tree?.auto_send;
+  const away = absence && r.elapsed_s > 0 ? h("small", { class: "report-away num", "data-s": r.elapsed_s, "data-uncapped": autoSend ? "1" : "0",
+    title: autoSend ? /* copy:tooltip */ "uncapped · the scout sent every run there was time for" : /* copy:tooltip */ "time away · one run until the scout" }, awayText(r.elapsed_s)) : "";
+  const deepestN = r.deepest ?? L.best_depth;
+  const record = r.deepest !== undefined && r.bests.some((b) => { const m = /^D(\d+)$/.exec(b); return !!m && Number(m[1]) >= deepestN; });
+  const deepTile = tile(`D${deepestN}`, r.deepest !== undefined ? /* copy:label */ "deepest" : /* copy:label */ "record");
+  if (record) { deepTile.classList.add("is-record"); deepTile.appendChild(h("small", { class: "tile-record num up", title: /* copy:tooltip */ "deeper than any run before" }, /* copy:callout */ "new best")); }
   const summary = h("div", { class: "report-summary" },
-    h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended",
-      // Cut 118 §9: an absence after the scout ran every send it had time for — `uncapped` stays its headline
-      absence && L.tree?.auto_send ? h("small", { class: "report-uncapped num" }, /* copy:label */ "uncapped") : "",
-      // Cut 118 §3 (round 2): the finds this absence sealed, counted on the away screen (opened below, one reveal)
-      // owner review 2026-10-10: the sealed count left the headline (the reveal below carries it in its tip)
-      ""),
-    buildHead(L, r.deepest ?? L.best_depth, deathsN === 0, meterOf),
-    kingLine(L, "report-king"),
+    h("h2", null, absence ? /* copy:label */ "While away" : r.runs === 1 && deathsN ? /* copy:label */ "You died" : /* copy:label */ "Delve ended", away),
     h("div", { class: `tiles report-basics${absence ? " fade-in" : ""}` },
       // (… and the runs tile says how many of them died: `1 died`)
       withDied(toLog(tile(String(r.runs), /* copy:label */ "runs")), deathsN),
-      tile(`D${r.deepest ?? L.best_depth}`, r.deepest !== undefined ? /* copy:label */ "deepest" : /* copy:label */ "record"),
+      deepTile,
       earnedGold));
   const repeatedDeath = [...r.deaths].sort((a, b) => b.n - a.n).find(d => d.n >= 2);
   const obstacle = r.stall ? recentRunText(r.stall.text) : repeatedDeath?.cause.replace(/_/g, " ");
@@ -724,11 +749,24 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // Cut 118 §3: one reveal of the absence's finds (best first; the rest on hover); the core's feats (a siege, a trial, the heir chosen …)
   const reveal = findsReveal(r.finds);
   const feats = featLines(r, L);
+  const bosses = reportBosses(r, app.lineage, absence ? killWatch(app) : undefined);
+  if (firstWorkers) { firstWorkers.classList.add("report-hl"); firstWorkers.dataset.hl = "worker"; }
+  if (bosses) { bosses.classList.add("report-hl"); bosses.dataset.hl = "boss"; }
+  // Owner IA pass 2026-10-10: at most three highlights, most important first — a boss slain (a new best floor is the deepest tile's
+  // mark), a death that made progress (a siege try, a grave's pack brought home), the best find, a pet's deed, a worker's first act;
+  // the rest wait in their group under `details`
+  const groups = { gold: [] as (Node | null)[], finds: [] as (Node | null)[], heroes: [] as (Node | null)[], workers: [] as (Node | null)[], way: [] as (Node | null)[] };
+  const candidates: { el: HTMLElement | null; fold: (Node | null)[] }[] = [
+    { el: bosses, fold: groups.way }, { el: feats.progress, fold: groups.way }, { el: reveal, fold: groups.finds }, { el: feats.pet, fold: groups.heroes }, { el: firstWorkers, fold: groups.workers }];
+  const present = candidates.filter((c) => !!c.el);
+  const highlights = present.slice(0, HIGHLIGHTS).map((c) => c.el!);
+  for (const c of present.slice(HIGHLIGHTS)) c.fold.push(c.el);
   const later = h("div", { class: "report-later" });
   const prompts = [pick.el, newChoices.el, upgradeHost].map((p) => ({ p, slot: document.createComment("decision") }));
   const sheet = h("div", { class: "parchment report-sheet" },
-    // Cut 30 §4: the report leads with what grew on each track (and the packages' beats); the oath's progress is an older core's
-    summary, reveal, finds, feats.card, reportBosses(r, app.lineage, absence ? killWatch(app) : undefined), go.el, prompts[0].slot, pick.el, goal ? progressGoalRow(goal, "report-progress-goal") : null, (r.restock_capped || r.supply_budget) && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null, classXpBlock(r), legacyEarnedBlock(r), prompts[1].slot, newChoices.el, prompts[2].slot, upgradeHost, reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a, beat) => openPackages(app, a, undefined, trainingFocus(beat)) : undefined), firstWorkers,
+    // the head, the highlights, the one action (`collect & send`), at most one decision, then the fold
+    summary, ...highlights, go.el, prompts[0].slot, pick.el, prompts[1].slot, newChoices.el, prompts[2].slot, upgradeHost,
+    (r.restock_capped || r.supply_budget) && reportIncome(r) === 0 ? supplyLimit(app, r, true) : null,
     detailsBtn, details);
   /** At most one decision prompt in the card: the first one showing stays at its place, the rest move under `details`. */
   const oneDecision = (): void => {
@@ -746,7 +784,21 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // shaft on the desktop
   const meterTitle = /* copy:label */ "Completed runs";
   const meterScope = (): HTMLElement => h("span", null, h("span", null, absence ? /* copy:callout */ "Includes before away" : /* copy:label */ "Whole runs"), " · ", h("span", null, /* copy:callout */ "Camp rest separate"));
-  details.append(...[feats.rest, setLog(L.feats), pendingSec, tiles, grewBlock(r, heroFace(L), trainingBeats(r.packages)), workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest }), newsBlock(r, named, namedCounters(L), shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, namedCounters(L))) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null, goldLine(), picked, exitLines, rested,
+  // Owner IA pass 2026-10-10: the fold, grouped and labelled — Gold (the ledger's terms), Finds, Heroes (class XP, Legacy, training),
+  // Workers, the way down (the King, sieges, graves, the goal), who decided (the build and the rule credit), then the runs themselves
+  const group = (id: string, label: string, kids: (Node | null | undefined | "")[]): HTMLElement | null => {
+    const xs = kids.filter((x): x is Node => !!x);
+    return xs.length ? h("section", { class: "report-group", "data-group": id }, h("div", { class: "label report-group-label" }, label), ...xs) : null;
+  };
+  const termList = termRows();
+  details.append(...[
+    group("gold", /* copy:label */ "Gold", [...groups.gold, ledgerLine, termList ? h("div", { class: "ledger-terms" }, ...termList) : null, ledger?.terms?.some((t) => t.label === "lost") ? null : lostLine(), goldLine()]),
+    group("finds", /* copy:label */ "Finds", [...groups.finds, finds, feats.rest.finds, setLog(L.feats)]),
+    group("heroes", /* copy:label */ "Heroes", [...groups.heroes, classXpBlock(r), legacyEarnedBlock(r), reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a, beat) => openPackages(app, a, undefined, trainingFocus(beat)) : undefined), grewBlock(r, heroFace(L), trainingBeats(r.packages)), feats.rest.pets]),
+    group("workers", /* copy:label */ "Workers", [...groups.workers, workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first), chest: r.chest })]),
+    group("way", /* copy:callout */ "The way down", [...groups.way, kingLine(L, "report-king"), goal ? progressGoalRow(goal, "report-progress-goal") : null, feats.rest.way]),
+    group("credit", /* copy:label */ "Who decided", [buildHead(L, deepestN, deathsN === 0, meterOf)]),
+    group("runs", /* copy:label */ "Runs", [bloodlineSec, pendingSec, tiles, newsBlock(r, named, namedCounters(L), shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, namedCounters(L))) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null, picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned
     section(/* copy:label */ "learned", factChips(learnedFacts.filter((f) => !counterFacts.includes(f)), namedCounters(L), (app.vocab?.locked ?? []).find((l) => l.cond.k === "alert>=" && /^◆\d+/.test(l.needs))?.needs)),
     section(/* copy:label */ "tamed", chips(r.tamed ?? [], "chip ally")),
@@ -784,6 +836,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     section(/* copy:label */ "reputation", r.renown && r.renown.gained > 0 ? h("div", { class: "num" }, `+${r.renown.gained} · ★${r.renown.rank}`, r.renown.ranks_up > 0 ? h("b", { class: "up" }, ` ↑${r.renown.ranks_up}`) : "", r.renown.ranks_up > 0 ? ` · ◆+${r.renown.ranks_up}` : "",
       typeof L.renown === "number" ? h("small", { class: "dim next-rank" }, ` · ${L.renown}/${100 * ((L.rank ?? r.renown.rank) + 1) ** 2}`) : "") : null),   // a rank pays a mark: the tiles' ◆ reconciles with the rows (QA on 56f2a1d: ◆+9 vs rows ◆+6)
     section(/* copy:label */ "reel", reel(r.reel.map((x) => ({ text: readableUnlock(noteText(x.text)), n: x.n })))),
+    ]),
   ].filter((x): x is HTMLElement => !!x));
   if (preparation.shops) later.append(preparation.shops);   // round 2 §6: the shop rows wait in the fold, never the card's decision
   details.prepend(later);

@@ -177,7 +177,7 @@ const FIND_KIND: Record<string, string> = { cosmetic: "keepsake", shard: "shard"
 export function findsReveal(f: FindsReveal | undefined): HTMLElement | null {
   if (!f || !f.finds.length) return null;
   const best = f.best ?? f.finds[0];
-  const el = h("div", { class: "report-reveal num", "data-sealed": f.sealed, "data-best": best.id },
+  const el = h("div", { class: "report-reveal report-hl num", "data-hl": "find", "data-sealed": f.sealed, "data-best": best.id },
     h("span", { class: "reveal-glyph", "aria-hidden": "true" }, "✦"), " ", h("b", null, best.name), h("small", { class: "dim" }, ` · ${FIND_KIND[best.kind] ?? best.kind}`),
     f.finds.length > 1 ? h("small", { class: "dim" }, ` +${f.finds.length - 1}`) : "",
     f.legacy ? h("small", { class: "up" }, /* copy:callout */ ` · +${f.legacy} Legacy`) : "",
@@ -185,7 +185,7 @@ export function findsReveal(f: FindsReveal | undefined): HTMLElement | null {
   detailHost(el, () => [h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Away finds")),
     ...f.finds.slice(0, 8).map((x) => h("div", { class: "num" }, x.name, h("small", { class: "dim" }, ` · ${FIND_KIND[x.kind] ?? x.kind}`))),
     ...(f.finds.length > 8 ? [h("div", { class: "num dim" }, `+${f.finds.length - 8}`)] : []),
-    h("div", { class: "kw-tip-gloss" }, /* copy:tooltip */ "one sealed per run away · more after 6h")]);
+    h("div", { class: "kw-tip-gloss" }, /* copy:tooltip */ "one find per run away · more after 6h")]);
   return el;
 }
 
@@ -202,10 +202,19 @@ export function setLog(F: FeatsWire | undefined): HTMLElement | null {
 
 /** The feat kinds the report's lines name, most notable first (the heir chosen and the graves recovered are the report's quiet facts). */
 const FEAT_RANK = ["siege_won", "title", "trial", "seek", "siege", "set", "heir", "recovered", "wish", "swift", "trial_failed"];
-/** The report's feat lines (`ReturnReport.feats`): the first three on the card, the rest under details. Siege tries are summed into the
- *  siege line (`Queen · 4 tries · best 22%`), one per boss. */
-export function featLines(r: ReturnReport, L: Pick<Lineage, "feats">): { card: HTMLElement | null; rest: HTMLElement | null } {
-  // Cut 119: the pet feats condense apart (one fetch line a pet, one old-hound line …): one leads on the card, the rest under details
+/** The feat kinds that say a death made progress (a siege try, a boss finally slain, a line's title, a grave's pack brought home). */
+const PROGRESS = new Set(["siege_won", "siege", "title", "recovered"]);
+/** The report's feat lines (`ReturnReport.feats`). Owner IA pass 2026-10-10: the card carries at most two of them as highlights — the
+ *  most notable death-that-made-progress line (`progress`) and the most notable pet deed (`pet`); every other line waits in `rest`
+ *  (the details fold). Siege tries are summed into the siege line (`Queen · 4 tries · best 22%`), one per boss. */
+export type FeatFold = { progress: HTMLElement | null; pet: HTMLElement | null; rest: { way: HTMLElement | null; finds: HTMLElement | null; pets: HTMLElement | null } };
+/** The feat kinds the fold files under Finds (a set completed); the pet lines go under Heroes, the rest under the way down. */
+const FIND_FEATS = new Set(["set"]);
+/** A death-that-made-progress line's gloss (the face is the core's few words). */
+/* copy:tooltip */
+const PROGRESS_TIP: Record<string, string> = { recovered: "fallen heir's pack brought home", siege: "tries on a band boss · best hp left", siege_won: "band boss slain after a siege", title: "the line's title" };
+export function featLines(r: ReturnReport, L: Pick<Lineage, "feats">): FeatFold {
+  // Cut 119: the pet feats condense apart (one fetch line a pet, one old-hound line …)
   const fs = (r.feats ?? []).filter((f) => !PET_KINDS.has(f.k));
   const pets = petLines(r.feats);
   const sieged = new Set<string>();
@@ -221,13 +230,19 @@ export function featLines(r: ReturnReport, L: Pick<Lineage, "feats">): { card: H
     }
     lines.push({ k: f.k, text: f.text, day: f.day });
   }
-  if (!lines.length && !pets.length) return { card: null, rest: null };
-  const li = (x: { k: string; text: string; day?: number }): HTMLElement => h("li", { class: `num feat-line k-${x.k}`, "data-k": x.k, title: x.day ? /* copy:tooltip */ `day ${x.day}` : undefined }, x.text);
+  const none = { progress: null, pet: null, rest: { way: null, finds: null, pets: null } };
+  if (!lines.length && !pets.length) return none;
+  const li = (x: { k: string; text: string; day?: number }): HTMLElement => h("li", { class: `num feat-line k-${x.k}`, "data-k": x.k,
+    title: [PROGRESS_TIP[x.k], x.day ? /* copy:tooltip */ `day ${x.day}` : ""].filter(Boolean).join(" · ") || undefined }, x.text);
   const pli = (x: PetLine): HTMLElement => h("li", { class: `num feat-line pet-line k-${x.k}`, "data-k": x.k, title: x.title ?? (x.day ? /* copy:tooltip */ `day ${x.day}` : undefined) },
     x.k === "fetched" ? roleGlyph("fetcher") : "", x.text);
-  const card = [...lines.slice(0, 3).map(li), ...pets.slice(0, 1).map(pli)], rest = [...lines.slice(3).map(li), ...pets.slice(1).map(pli)];
-  return { card: h("ul", { class: "lines report-feats" }, ...card),
-    rest: rest.length ? h("ul", { class: "lines report-feats more" }, ...rest) : null };
+  const lead = lines.find((x) => PROGRESS.has(x.k));
+  const more = (xs: HTMLElement[]): HTMLElement | null => xs.length ? h("ul", { class: "lines report-feats more" }, ...xs) : null;
+  const others = lines.filter((x) => x !== lead);
+  return {
+    progress: lead ? h("ul", { class: "lines report-feats report-hl", "data-hl": "progress" }, li(lead)) : null,
+    pet: pets.length ? h("ul", { class: "lines report-feats report-hl", "data-hl": "pet" }, pli(pets[0])) : null,
+    rest: { way: more(others.filter((x) => !FIND_FEATS.has(x.k)).map(li)), finds: more(others.filter((x) => FIND_FEATS.has(x.k)).map(li)), pets: more(pets.slice(1).map(pli)) } };
 }
 const rank = (f: FeatNews): number => { const i = FEAT_RANK.indexOf(f.k); return i < 0 ? FEAT_RANK.length : i; };
 

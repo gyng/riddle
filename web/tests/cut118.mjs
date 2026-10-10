@@ -6,7 +6,8 @@
 //              wait under `details` and move up when the first is taken.
 //   ladder   — weights → orders → workers → pen: lit as the lineage has them, the first dark rung's condition shown; gone when all lit.
 //   crier    — one line per notable act of the last absence; ≤ 3 words on the town, the scroll longer; read once, quiet.
-//   king     — `King · ~day N` (crude, its tip says so): later for a slower pace, none once he is slain; `uncapped` heads the away report.
+//   king     — `King · ~day N` (crude, its tip says so; none before D13): later for a slower pace, none once he is slain; the away report's
+//              time away carries `uncapped` in its tip, the King's line waits in its fold (owner IA pass 2026-10-10).
 //   node web/tests/cut118.mjs [--part=taps,decide,ladder,crier,king]
 import { execFileSync } from "node:child_process";
 import { launchBrowser } from "../../tools/browser.mjs";
@@ -171,9 +172,9 @@ try {
       const app = window.__riddle;
       const { kingEta } = await import("/src/ui/king-eta.ts");
       const L = (age_h, best, extra = {}) => ({ age_h, best_depth: best, ended: false, walls: [], runs: [], trophies: [], ...extra });
-      const idle = kingEta(L(24, 8)), picked = kingEta(L(24, 13)), d23 = kingEta(L(12 * 24, 23));
+      const idle = kingEta(L(48, 13)), picked = kingEta(L(24, 13)), d23 = kingEta(L(12 * 24, 23)), early = kingEta(L(24, 8));
       const slain = kingEta(L(240, 33, { walls: [{ boss: "mirror_king", slain: true }] })), young = kingEta(L(0.5, 3));
-      app.lineage = { ...app.lineage, age_h: 30, best_depth: 12, king_eta_h: undefined, king_pct: undefined, tree: { ...(app.lineage.tree ?? { nodes: [], waits: false, sent: false, ledger: 0 }), chest: 0, auto_send: true } };
+      app.lineage = { ...app.lineage, age_h: 30, best_depth: 13, king_eta_h: undefined, king_pct: undefined, tree: { ...(app.lineage.tree ?? { nodes: [], waits: false, sent: false, ledger: 0 }), chest: 0, auto_send: true } };
       app.go({ kind: "report", report: REP, absence: true });
       await new Promise((res) => setTimeout(res, 400));
       const k = document.querySelector(".report .report-king");
@@ -181,12 +182,13 @@ try {
       const { wallPreview } = await import("/src/ui/wall-preview.ts");
       const walls = [{ boss: "goblin_warlord", title: "Goblin Warlord", depth: 8, slain: true, known: true, fact: "" }, { boss: "lich", title: "Lich", depth: 18, slain: false, known: false, fact: "" }, { boss: "bloat_mother", title: "Bloat Mother", depth: 13, slain: false, known: false, fact: "", learn: "see her" }];
       const wp = wallPreview({ ...app.lineage, walls });
-      return { idle: idle?.day, picked: picked?.day, d23: d23?.day, slain, young, text: k?.textContent, pct: k?.dataset.pct, tip: k?.title, uncapped: document.querySelector(".report-summary .report-uncapped")?.textContent,
+      const away = document.querySelector(".report-summary .report-away");
+      return { idle: idle?.day, picked: picked?.day, d23: d23?.day, slain, young, early, text: k?.textContent, pct: k?.dataset.pct, tip: k?.title, folded: !!k?.closest(".report-details [data-group=way]"), uncapped: away?.dataset.uncapped === "1" && /uncapped/.test(away?.title ?? "") ? "uncapped" : null, away: away?.textContent,
         slainText: kingLine(L(240, 33, { walls: [{ boss: "mirror_king", slain: true }] }))?.textContent, wall: wp && { boss: wp.dataset.boss, text: wp.textContent } };
     }, REPORT);
-    check(r.idle > 14 && r.picked < r.idle && r.d23 > 12 && r.slain === null && r.young === null, `a pace, not a promise: idle day ${r.idle}, a faster lineage day ${r.picked}, D23 at day 12 → day ${r.d23}; none slain or too young`);
-    check(/^King · ~day \d+36% · then ascend$/.test(r.text ?? "") && r.pct === "36" && /crude/.test(r.tip ?? "") && r.uncapped === "uncapped", `the away report: ${r.text} (${r.tip}) · bar ${r.pct}% · ${r.uncapped}`);
-    check(r.slainText === "King · slain100% · then ascend", `slain, what comes after him (${r.slainText})`);
+    check(r.idle > 14 && r.picked < r.idle && r.d23 > 12 && r.slain === null && r.young === null && r.early === null, `a pace, not a promise: idle day ${r.idle}, a faster lineage day ${r.picked}, D23 at day 12 → day ${r.d23}; none slain, too young or before D13`);
+    check(/^King · ~day \d+39% · next: harder dungeon$/.test(r.text ?? "") && r.pct === "39" && /crude/.test(r.tip ?? "") && r.folded && r.uncapped === "uncapped" && r.away === "8h", `the away report: ${r.text} (${r.tip}) · bar ${r.pct}% · in the fold ${r.folded} · ${r.away} ${r.uncapped}`);
+    check(r.slainText === "King · slain100% · next: harder dungeon", `slain, what comes after him (${r.slainText})`);
     check(r.wall?.boss === "bloat_mother" && /Bloat Mother D13/.test(r.wall.text) && /counter · \? · see her/.test(r.wall.text), `the chart's next wall: the shallowest unslain boss and his counter (${r.wall?.text})`);
     await page.close();
   }

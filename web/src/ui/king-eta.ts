@@ -52,8 +52,9 @@ export const kingShare = (L: Pick<Lineage, "best_depth" | "king_pct">): number =
 export const kingSlain = (L: Pick<Lineage, "walls" | "ended" | "trophies" | "king_eta_h">): boolean =>
   !!L.ended || L.king_eta_h === 0 || !!L.walls?.some((w) => w.boss === "mirror_king" && w.slain) || (L.trophies ?? []).some((t) => /mirror_king/.test(t));
 
-/** `King · ~day 23` (`King · far off`), a thin % bar to him and what comes after him (`then ascend`: the ending's next descent); its tip
- *  names the crudeness. Slain: `King slain · then ascend`. Null when there is nothing to say yet. */
+/** `King · ~day 23` (`King · far off`), a thin % bar to him and what comes after him in plain words (`next: harder dungeon` — the
+ *  ascension; owner review 2026-10-10: `then ascend` read as jargon); its tip names the crudeness. Slain: `King · slain · next: harder
+ *  dungeon`. Null when there is nothing to say yet. */
 export function kingLine(L: Parameters<typeof kingEta>[0] & Pick<Lineage, "king_pct">, cls = ""): HTMLElement | null {
   const slain = kingSlain(L);
   const e = slain ? null : kingEta(L);
@@ -65,5 +66,5 @@ export function kingLine(L: Parameters<typeof kingEta>[0] & Pick<Lineage, "king_
     h("b", null, /* copy:label */ "King"), " · ", slain ? /* copy:callout */ "slain" : e!.far ? /* copy:callout */ "far off" : /* copy:callout */ `~day ${e!.day}`,
     h("span", { class: "king-bar", role: "img", "aria-label": `${slain ? 100 : pct}%` }, h("span", { class: "fill", style: `width:${slain ? 100 : pct}%` })),
     h("small", { class: "king-pct" }, `${slain ? 100 : pct}%`),
-    h("small", { class: "king-after dim" }, /* copy:callout */ " · then ascend"));
+    h("small", { class: "king-after dim", title: /* copy:tooltip */ "ascension · harder dungeon · same bloodline" }, " · ", /* copy:callout */ "next: harder dungeon"));
 }

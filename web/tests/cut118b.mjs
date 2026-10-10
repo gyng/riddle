@@ -8,7 +8,7 @@
 //             tip glosses `recovered` and `sinks`.
 //   seek    — `seek Queen ×2` on the camp, the sheet priced by seekForecast, `in order` the default; a tap sets seekBoss.
 //   trial   — one quiet camp card: the rule, its answers, `opt in` (setTrial(week)), a second tap opts out (setTrial(-1)).
-//   finds   — one reveal in the report (best first), the sealed count on the away head, the set log in a fold.
+//   finds   — one reveal in the report (best first; the sealed count its data and its tip, never the head), the set log in a fold.
 //   sinks   — the run setup: the apprentice's sink order and one sink by hand (two taps), the heir order chip; the wish chip (two taps).
 //   core    — the core's fields replace the client's estimates: king_eta_h / king_pct, News.day and the feats in the diary, the roster
 //             (affix · guard), the pick's default, the heirs rung lit_by, the swift floors folded; the retired wall order shows nowhere.
@@ -137,12 +137,16 @@ try {
         gold: { home: 900, salvage: 40, wake: 0, spent: 0, net: 1100, ledger: { earned: 2180, spent: 1080, net: 1100, terms: [{ label: "carried", amount: 940 }, { label: "recovered", amount: 1240 }, { label: "sinks", amount: -900 }, { label: "supplies", amount: -180 }] } } };
       a.go({ kind: "report", report: rep, absence: true });
       await new Promise((res) => setTimeout(res, 500));
-      const feat = [...document.querySelectorAll(".report-sheet > .report-feats .feat-line")].map((x) => `${x.dataset.k}:${x.textContent}`);
-      return { wp: wp?.querySelector(".wall-siege")?.textContent, more: [...(wp?.querySelectorAll(".wall-more") ?? [])].map((x) => x.textContent), mark, none, notch, feat };
+      // owner IA pass 2026-10-10: the card carries the one death-that-made-progress line; the pack recovered waits in the fold's way down
+      const feat = [...document.querySelectorAll(".report-sheet .report-feats .feat-line")].map((x) => `${x.dataset.k}:${x.textContent}`);
+      const card = [...document.querySelectorAll(".report-sheet > .report-feats .feat-line")].map((x) => x.dataset.k);
+      const folded = [...document.querySelectorAll(".report-details [data-group=way] .report-feats .feat-line")].map((x) => x.dataset.k);
+      return { wp: wp?.querySelector(".wall-siege")?.textContent, more: [...(wp?.querySelectorAll(".wall-more") ?? [])].map((x) => x.textContent), mark, none, notch, feat, card, folded };
     });
     check(r.wp === "Mother · 4 tries · best 22%" && r.more.join("|") === "affix brood → burn|guard bloat → attack", `the wall preview: the roster and the siege (${r.more.join(" | ")} · ${r.wp})`);
     check(r.mark === "✝ Ada's pack · $1240" && r.none === null && r.notch === "✝ Ada's pack · $1240", `the grave on its floor, on the chart too (${r.mark} · chart ${r.notch})`);
     check(r.feat[0] === "siege:Mother · 4 tries · best 22%" && r.feat.filter((x) => x.startsWith("siege")).length === 1 && r.feat.some((x) => /^recovered:Ada's pack/.test(x)), `the report: one siege line a boss, the pack recovered (${r.feat.join(" | ")})`);
+    check(r.card.join() === "siege" && r.folded.includes("recovered"), `the siege a highlight, the pack under details (card ${r.card} · fold ${r.folded})`);
     await page.hover(".report-gold");
     await page.waitForFunction(() => document.querySelectorAll("#kw-tip .ledger-term").length > 0, null, { timeout: 5000 }).catch(() => {});
     const tip = await page.evaluate(() => [...document.querySelectorAll("#kw-tip .ledger-term")].map((x) => x.textContent));
@@ -216,11 +220,11 @@ try {
       const kids = [...sheet.children].map((c) => c.className.split(" ")[0]);
       const rv = document.querySelector(".report-reveal");
       const log = document.querySelector(".report-details .set-log");
-      return { kids, reveal: rv?.textContent, best: rv?.dataset.best, n: document.querySelectorAll(".report-reveal").length, sealed: document.querySelector(".report-summary .report-sealed")?.textContent,
+      return { kids, reveal: rv?.textContent, best: rv?.dataset.best, n: document.querySelectorAll(".report-reveal").length, sealed: rv?.dataset.sealed, head: document.querySelector(".report-summary h2")?.textContent,
         log: log ? { open: log.open, summary: log.querySelector("summary")?.textContent, lines: [...log.querySelectorAll(".set-line")].map((x) => `${x.dataset.set}:${x.querySelectorAll(".set-piece.have").length}`) } : null };
     });
     check(r.n === 1 && r.best === "quill" && r.reveal === "✦ scholar's quill · set piece +2 · +2 Legacy · set Sleeper's rest", `one reveal, best first, never a click per find (${r.reveal})`);
-    check(r.sealed === "7 sealed", `the sealed count on the away head (${r.sealed})`);
+    check(r.sealed === "7" && !/sealed/.test(r.head ?? ""), `the sealed count rides on the reveal, never the away head (${r.sealed} · ${r.head})`);
     check(r.kids.indexOf("report-reveal") < r.kids.indexOf("collect-send") && r.kids.indexOf("report-reveal") > r.kids.indexOf("report-summary"), `the reveal is a highlight, before collect & send (${r.kids.join(" ")})`);
     check(r.log && !r.log.open && r.log.summary === "set log 1/2" && r.log.lines.join() === "sleeper:3,scholar:1", `the set log, a closed fold under details (${JSON.stringify(r.log)})`);
     await page.close();
@@ -277,7 +281,7 @@ try {
       const { ladderRungs } = await import("/src/ui/ladder.ts");
       const { ordersLine } = await import("/src/ui/collect-send.ts");
       // king: the core's hours and share, not the client's curve
-      const L = (x) => ({ age_h: 30, best_depth: 12, ended: false, walls: [], runs: [], trophies: [], ...x });
+      const L = (x) => ({ age_h: 30, best_depth: 13, ended: false, walls: [], runs: [], trophies: [], ...x });
       const core = kingEta(L({ king_eta_h: 100 })), crude = kingEta(L({}));
       const line = kingLine(L({ king_eta_h: 100, king_pct: 40 }));
       const slain = kingLine(L({ king_eta_h: 0, king_pct: 100 }))?.textContent;
@@ -301,7 +305,7 @@ try {
       return { core: core && { day: core.day }, crude: crude && { day: crude.day }, line: line?.textContent, src: line?.dataset.src, pct: line?.dataset.pct, slain,
         cries: cs.map((c) => `${c.k}${c.day ?? ""}`), diary, pick, rungs, retires: heirs?.retires, noHeirs, orders };
     });
-    check(r.core?.day === 6 && r.crude?.day !== r.core?.day && r.src === "core" && r.pct === "40" && /^King · ~day 640% · then ascend$/.test(r.line ?? "") && r.slain === "King · slain100% · then ascend", `the King's line from king_eta_h / king_pct (${r.line} · crude day ${r.crude?.day} · ${r.slain})`);
+    check(r.core?.day === 6 && r.crude?.day !== r.core?.day && r.src === "core" && r.pct === "40" && /^King · ~day 640% · next: harder dungeon$/.test(r.line ?? "") && r.slain === "King · slain100% · next: harder dungeon", `the King's line from king_eta_h / king_pct (${r.line} · crude day ${r.crude?.day} · ${r.slain})`);
     check(r.cries.join() === "siege_won4,title4,trial2,avenged3" && r.diary.join() === "4:siege_won,4:title,2:trial,3:avenged", `the crier: the core's feats in his voice, each dated by its own day (${r.cries} · ${r.diary})`);
     check(r.pick.core === "drill" && r.pick.old === "legacy" && r.pick.gone === "legacy", `the pick's default is the core's (${JSON.stringify(r.pick)})`);
     check(r.rungs.join(" ") === "weights+(feat: trial) orders- heirs+(first death) workers- pen-" && r.retires === "picking heirs" && r.noHeirs === "weights,orders,workers,pen", `the heirs rung lit by lit_by; the core's lit_by on every rung (${r.rungs.join(" ")})`);
