@@ -70,10 +70,10 @@ try {
         walls: wallLine({ walls: [{ depth: 8, boss: "Warlord", n: 8, better: 7, worse: 0 }, { depth: 28, boss: "Queen", n: 8, better: 0, worse: 7 }, { depth: 18, boss: "Lich", n: 8, better: 3, worse: 2 }] }),
       };
     });
-    // owner IA pass 2026-10-10: the credit in plain words (`picks`, `defaults`), under the report's `Who decided` fold
-    check(r.line === "picks 61% · taught 9% · chores 30%" && r.empty === "", `the report's credit line (${r.line})`);
-    check(r.head === "Bulwark held D23 · picks 61% · taught 9% · chores 30%" && r.none === null, `the report's build names the build (${r.head})`);
-    check(/· picked$/.test(r.action), `a death's deciding row says whose it was (${r.action})`);
+    // owner IA pass 2026-10-10 · Cut 121 §4: the credit in plain words (`own rules`, `lessons`), under the report's `Who decided` fold
+    check(r.line === "own rules 61% · lessons 9% · chores 30%" && r.empty === "", `the report's credit line (${r.line})`);
+    check(r.head === "Bulwark held D23 · own rules 61% · lessons 9% · chores 30%" && r.none === null, `the report's build names the build (${r.head})`);
+    check(/· own rule$/.test(r.action), `a death's deciding row says whose it was (${r.action})`);
     check(r.walls === "better at D8 Warlord · worse at D28 Queen", `a move names the walls it is for, the noise left out (${r.walls})`);
     await page.close();
   }

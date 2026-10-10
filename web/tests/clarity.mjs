@@ -248,7 +248,8 @@ try {
     // the frame's first/last sample can straddle the cut (the travel rate on either side): the fight's own rate is the median of
     // its samples. A framed fight plays at 4× (≥ 3 samples); the frame's tail may run on at the travel rate — 32× since Cut 20 §3
     // (the `slowdowns off` check above reads it; 16× before) — nothing else is allowed
-    return { ok: fightSpeeds.filter((x) => x === 4).length >= 3 && fightSpeeds.every((x) => x === 4 || x === 16 || x === 32), line: `slowdowns on: a fight in fast runs at 4× (${fightSpeeds.join("/") || "no fight"})` };
+    // (Cut 121 §3: the clock eases between its rates — a sample on the cut may read a step of the ramp, between 4× and 32×)
+    return { ok: fightSpeeds.filter((x) => x === 4).length >= 3 && fightSpeeds.every((x) => x >= 4 && x <= 32), line: `slowdowns on: a fight in fast runs at 4× (${fightSpeeds.join("/") || "no fight"})` };
     });
     check(slow.ok, slow.line);
   }

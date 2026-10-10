@@ -104,6 +104,7 @@ export type DebugRect = { id: number; kind: string; hero: boolean; x: number; y:
 export type DebugLabel = { text: string; x: number; y: number; id: number; w?: number; h?: number };   // CSS px: the label's centre x and its cell's bottom y; w · h its box (Cut 15 §4)
 
 export type ViewerStats = {
+  heroCrowd?: boolean; lead?: [number, number];   // Cut 121 §3: + the map camera's lead (world units)   // Cut 121 §3: two or more hostiles within two tiles of the hero this frame (his chevron drawn)
   calls: number; triangles: number; k: number; dpr: number;
   frame: Frame; kMap: number; // Cut 8A: the frame up and the map frame's k (the fight frame's is `k`)
   shake: [number, number]; glyphs: number; caption: string | null; // Cut 8A: this frame's screen shake, glyph quads, caption
@@ -149,6 +150,7 @@ const LIGHT_TINT: Record<string, [number, number, number]> = { default: [1, 1, 1
 const HERO_LIGHT: [number, number, number] = [0.88, 0.98, 1.12];   // round 28: brighter (was 0.66/0.78/0.95: "the hero a tiny grey blob")
 const HERO_Z = 3.2, HERO_COVER = 0.3, BOSS_COVER = 0.1, HIDDEN_MAX = 0.5; // Cut 18 §2: the hero's depth (over every sprite, under the glyphs) and the most of his rect a sprite may cover
 const MAX_LIGHTS = 12;             // art pass: torches lighting the blit (nearest the camera)
+const LEAD_TILES = 1.5, LEAD_TAU = 0.6;   // Cut 121 §3: the map camera's lead toward the hero's walk (tiles) and its easing (s)
 const ROOM_LOOK = 9;               // gfx round 5: the camera's lean looks this many tiles around the hero
 const ATLAS_WAIT_MS = 1500;        // gfx round 6: the longest the first frame waits for the atlas
 const PLATE_MAX = 5;               // gfx round 1: name plates in a crowd (the nearest hostiles; round 6: 3 → 5, the stacking rule culls a pile)
@@ -418,11 +420,19 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     cam.tx = Math.max(hx - lx, Math.min(hx + lx, cx));
     cam.ty = Math.max(hy - ly, Math.min(hy + ly, cy));
   }
+  // Cut 121 §3 (B: "could not find the hero"): the map camera leads a little toward where he walks — his last step's direction, eased in
+  // over ~0.6 s (LEAD_TILES ahead), none in the fight frame or on a fixed focus
+  let faceX = 0, faceY = 0, leadX = 0, leadY = 0;
   function updateCamera(dt: number, snapNow: boolean): void {
     const h = st.hero;
     if (h) {
       const [fx, fy] = feet(h);
       const hx = fx, hy = fy + TILE;
+      if (h.move) { const dx = Math.sign(h.move.tx - h.move.fx), dy = Math.sign(h.move.ty - h.move.fy); if (dx || dy) { faceX = dx; faceY = dy; } }
+      const wantX = mode === "fight" || fixedFocus ? 0 : faceX * LEAD_TILES * TILE, wantY = mode === "fight" || fixedFocus ? 0 : -faceY * LEAD_TILES * TILE;
+      const ease = snapNow ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) / LEAD_TAU);
+      leadX += (wantX - leadX) * ease; leadY += (wantY - leadY) * ease;
+      stats.lead = [Math.round(leadX * 10) / 10, Math.round(leadY * 10) / 10];
       const foe = mode === "fight" ? null : nearestHostile(h);
       if (mode === "fight") fightTarget(hx, hy);
       else if (foe) {
@@ -438,6 +448,7 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         cam.tx = hx + Math.max(-iw / 6, Math.min(iw / 6, ox)); cam.ty = hy + Math.max(-ih / 6, Math.min(ih / 6, oy));
       }
       if (mode !== "fight" && !fixedFocus) {
+        cam.tx += leadX; cam.ty += leadY;
         frameSeen(hx, hy);
         // gfx round 22 (rater AW: "the camera pan reds the whole map", "the whole screen swims"): the map camera holds still while its
         // framing moves less than a fifth of the view across / a sixth down, then glides to the new framing in one move — the room
@@ -860,6 +871,14 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
       const hs = atlas.entity(heroEnt.kind), hw = hs.w / 2, hh = hs.h / 2;
       heroBox = [hx - hw / 2, hx + hw / 2, hy, hy + hh];
     }
+    // Cut 121 §3: a crowd round the hero — two or more live hostiles in view within two tiles (his chevron shows)
+    let heroCrowd = false;
+    if (heroEnt) {
+      let n = 0;
+      for (const e of st.ents.values()) if (!e.hero && !e.ally && !e.neutral && !e.dying && !e.remembered && e.kind !== "bones" && st.visible[e.y * st.w + e.x] && Math.max(Math.abs(e.x - heroEnt.x), Math.abs(e.y - heroEnt.y)) <= 2) n++;
+      heroCrowd = n >= 2;
+    }
+    stats.heroCrowd = heroCrowd;
     for (const e of st.ents.values()) {
       if (e.kind === "bones") continue; // drawn in the items layer above
       const vi = e.y * st.w + e.x;
@@ -932,6 +951,16 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
         const ring = st.ringShown(e) || st.tacticMarked(e);
         const sh = atlas.shadow(Math.min(w - 2, 12), ring);
         L.shadows.push(fx, fy - (ring ? 2 : 1), 1.5, sh.w, sh.h, sh.u0, sh.v0, sh.u1, sh.v1, 1, 0, e.fade >= 0.75 ? 1 : 0);
+        // Cut 121 §3 (B: "a muddy pile of sprites where I could not find the hero"): a gilt ring at the hero's feet, over every other
+        // sprite but under him (z just below HERO_Z), so a crowd never hides it; in a crowd a small gilt chevron over his head too
+        if (e.hero) {
+          const hr = atlas.heroRing(Math.min(w + 4, 20));
+          L.hud.push(fx, fy - 2, HERO_Z - 0.05, hr.w, hr.h, hr.u0, hr.v0, hr.u1, hr.v1, 1, 0, e.fade >= 0.75 ? 1 : 0);
+          if (heroCrowd && !e.glyph) {
+            const c = atlas.heroCaret();
+            L.hud.push(fx, fy + h + (fight ? 4 : 2), 3.9, c.w, c.h, c.u0, c.v0, c.u1, c.v1);
+          }
+        }
       }
       // QA 1a2a4a9 (P: "on `R1 drank heal` a large cream blob covers the hero and the conjurer for the whole moment"): a hit is a tint
       // toward the palette's brightest, never a solid silhouette (the hero hit every tick read as a blob), and a stopped clock (⏸, the

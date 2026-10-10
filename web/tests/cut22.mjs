@@ -51,7 +51,7 @@ const patchLineage = (patch) => page.evaluate(async (p) => {
 }, patch);
 const vsText = () => txt(".camp .shaft-vs-host .shaft-vs");
 // QA 778fa1b: while an edit's move is measured the line reads `vs sent…`; a landed move is anything else
-const PENDING = "vs last run…";
+const PENDING = "this edit…";
 const vsLanded = async () => { const t = await vsText(); return t && t !== PENDING ? t : null; };
 /** The shaft's notches: the absolute text (`54%±6`, the move's mark taken out) and the mark. */
 const notches = () => page.evaluate(() => [...document.querySelectorAll(".camp .shaft .notch:not(.fold)")].map((n) => {
@@ -93,12 +93,12 @@ try {
   await page.locator(".forecast .fc-refine").click({ timeout: 5000 });
   // The requested refined move replaces the first pass without changing its comparison baseline.
   const line = await until(async () => (await page.evaluate(() => document.querySelector(".camp .shaft-vs-host .shaft-vs")?.dataset.refined)) === "1" ? vsLanded() : null, "the refined move", 15_000);
-  const vsSeen = await page.evaluate(() => window.__riddle.__vsSeen.filter((x) => x.t !== "vs last run…"));
+  const vsSeen = await page.evaluate(() => window.__riddle.__vsSeen.filter((x) => x.t !== "this edit…"));
   const rough = vsSeen.find((x) => x.refined === "0"), fine = vsSeen.findLast((x) => x.refined === "1");
-  check(!!rough && /^vs last run ·/.test(rough.t) && !!fine && vsSeen.indexOf(rough) < vsSeen.indexOf(fine) && !/…/.test(line), `the usable first-pass move is replaced by requested refinement ("${rough?.t ?? line0}" → "${line}")`);
+  check(!!rough && /^this edit ·/.test(rough.t) && !!fine && vsSeen.indexOf(rough) < vsSeen.indexOf(fine) && !/…/.test(line), `the usable first-pass move is replaced by requested refinement ("${rough?.t ?? line0}" → "${line}")`);
   const log = await page.evaluate(() => window.__riddle.__log);
   check(log[0] === "estimate" && log[1] === `vs:${fc0 + 1}:3`, `the paired call waits for the paint and measures against the set before the edit (${log.join(" → ")})`);
-  check(/^vs last run · D\d+ ([+−]\d+|same) · full haul ([+−]\d+|same)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
+  check(/^this edit · D\d+ ([+−]\d+|same) · full haul ([+−]\d+|same)( · death [+−]\d+)?$/.test(line), `the line under the shaft: "${line}"`);
   const ns = await notches(), f = await page.evaluate(() => window.__riddle.lastForecast);
   const marked = ns.filter((n) => n.mark !== null);
   check(marked.every((n) => /^[+−]\d+$/.test(n.mark)) && ns.every((n) => n.mark === null || !/≈|same/.test(n.mark)), `a notch carries its move when it clears its ± (nothing inside it) (${ns.map((n) => `D${n.d} ${n.mark ?? "-"}`).join(" · ")})`);
@@ -125,7 +125,7 @@ try {
   const cleared = await vsText();
   check(cleared === null || cleared === PENDING, `the next edit clears the line at once ("${cleared}")`);
   const line2 = await until(vsLanded, "the second move");
-  check(line2 === "vs last run · D6 −7 · full haul +4", `the largest move outside its ± heads the line, a death inside its ± is left out ("${line2}")`);
+  check(line2 === "this edit · D6 −7 · full haul +4", `the largest move outside its ± heads the line, a death inside its ± is left out ("${line2}")`);
   const gems2 = await page.evaluate(() => [...document.querySelectorAll(".camp .shaft-ends .end .vsm")].map((m) => m.closest(".end").className.replace("end ", "") + " " + m.textContent));
   check(gems2.join() === "bank ▲", `the bank gem carries its arrow, a death inside its ± none (${gems2.join(" · ") || "none"})`);
   const ns2 = await notches();
@@ -134,7 +134,7 @@ try {
   await page.evaluate(() => { const e = window.__riddle.engine; e.forecastVsEstimate = e.forecastVs = async () => ({ depths: [1, 2, 3, 4, 5, 6].map((depth) => ({ depth, delta: 0.02, pm: 0.04 })), bank: { delta: 0.004, pm: 0.03 } }); });
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 45; r.rulesChanged(); });
   const line3 = await until(vsLanded, "the flat move");
-  check(line3 === "vs last run · D6 same · full haul same", `an edit that moves nothing reads same on the frontier (Cut 24 §4) ("${line3}")`);
+  check(line3 === "this edit · D6 same · full haul same", `an edit that moves nothing reads same on the frontier (Cut 24 §4) ("${line3}")`);
   await shot("cut22-vs-flat");
   // a set switch is not an edit
   await page.evaluate(() => window.__riddle.selectSet(1));
@@ -151,7 +151,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; r.rules.rows[0].conds[0].n = 25; r.rulesChanged(); });
   const line4 = await until(vsLanded, "the inline move");
   const calls = await page.evaluate(() => window.__riddle.__vsCalls);
-  check(line4 === "vs last run · D6 +12 · full haul +9" && calls === 0, `a forecast's own \`vs\` is read without a call ("${line4}", ${calls} calls)`);
+  check(line4 === "this edit · D6 +12 · full haul +9" && calls === 0, `a forecast's own \`vs\` is read without a call ("${line4}", ${calls} calls)`);
 
   // ---- §4: the start picker's death share; signed deltas
   const bankRules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=12 → bank");

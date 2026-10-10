@@ -130,7 +130,7 @@ try {
   await page.evaluate(() => { const r = window.__riddle; const row = r.rules.rows[0]; const c = row.conds.find((x) => typeof x.n === "number"); if (c) c.n = c.n >= 50 ? 30 : c.n + 20; else r.rules.rows.reverse(); r.rulesChanged(); });
   const both = await until(() => { const a = document.querySelector(".shaft-vs-host .shaft-state"), b = document.querySelector(".shaft-vs-host .shaft-vs:not(.pending)"); return a && b ? { state: a.textContent.replace(/\s+/g, " ").trim(), rows: b.textContent.replace(/\s+/g, " ").trim() } : null; }, "both lines", 15_000).catch(() => null);
   if (!both || !/^party/.test(both.state)) out.push(`note: ${await page.evaluate(() => JSON.stringify({ fm: window.__riddle.fmove && window.__riddle.fmove.parts.map((p) => p.kind), due: window.__riddle.moveDue, off: window.__riddle.moveOff, has: typeof window.__riddle.engine.forecastMove }))}`);
-  check(!!both && /^party/.test(both.state) && /^vs last run/.test(both.rows), `after a row edit each part has its line ("${both?.state}" · "${both?.rows}")`);
+  check(!!both && /^party/.test(both.state) && /^this edit/.test(both.rows), `after a row edit each part has its line ("${both?.state}" · "${both?.rows}")`);
   if (both) await shot("cut28-attributed-move-rows");
 
   // ---- §2: the report leads with decisions (an absence with the oath sworn)

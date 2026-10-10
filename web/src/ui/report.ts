@@ -310,10 +310,21 @@ function killWatch(app: App): (boss: string) => (() => Promise<boolean>) | null 
 /** Owner IA pass 2026-10-10 (`default 14% · chores 86%` unread): who chose the rows, in plain words — the player's picks, the drilled
  *  fixes, the defaults, the chores. */
 /* copy:label */
-const CREDIT_WORD: Record<string, string> = { picked: "picks", taught: "taught", default: "defaults", chores: "chores" };
+const CREDIT_WORD: Record<string, string> = { picked: "own rules", taught: "lessons", default: "defaults", chores: "chores" };
+/** Cut 121 §4 (B: "`picks 29% · taught 2% · chores 69%`" read as jargon): each share's plain gloss, on its bar's tip. */
+/* copy:tooltip */
+const CREDIT_TIP: Record<string, string> = { picked: "rows picked or written in the pen", taught: "drills and death fixes he learned", default: "the school's starter rows", chores: "pickups, stairs, rest · no rule needed" };
 export function creditLine(m: Pick<MeterWire, "credit"> | undefined): string {
   const c = (m?.credit ?? []).filter((x) => Math.round(x.share * 100) > 0);
   return c.map((x) => `${CREDIT_WORD[x.credit] ?? x.credit} ${Math.round(x.share * 100)}%`).join(" · ");
+}
+/** Cut 121 §4: the credit as one stacked bar (a segment a share, its tip the gloss) over its plain-word legend. */
+function creditBars(m: Pick<MeterWire, "credit"> | undefined): HTMLElement | null {
+  const c = (m?.credit ?? []).filter((x) => Math.round(x.share * 100) > 0);
+  if (!c.length) return null;
+  const seg = (x: { credit: string; share: number }): HTMLElement => h("i", { class: `credit-seg k-${x.credit}`, style: `flex-grow:${x.share}`, title: `${CREDIT_WORD[x.credit] ?? x.credit} ${Math.round(x.share * 100)}% · ${CREDIT_TIP[x.credit] ?? ""}` });
+  const key = (x: { credit: string; share: number }): HTMLElement => h("span", { class: `credit-key k-${x.credit}`, title: CREDIT_TIP[x.credit] ?? "" }, h("i", { class: "sw" }), `${CREDIT_WORD[x.credit] ?? x.credit} ${Math.round(x.share * 100)}%`);
+  return h("span", { class: "credit-bars" }, h("span", { class: "credit-bar" }, ...c.map(seg)), h("span", { class: "credit-keys" }, ...c.flatMap((x, i) => i ? [" · ", key(x)] : [key(x)])));
 }
 /** Cut 115 §1: the report's head names the build (`Bulwark held D23`, `Guarded skirmisher · D14`) and who chose the rows that fired. */
 export function buildHead(L: Lineage, deepest: number, clean: boolean, m: MeterWire | undefined): HTMLElement | null {
@@ -321,7 +332,7 @@ export function buildHead(L: Lineage, deepest: number, clean: boolean, m: MeterW
   if (!b && !credit) return null;
   return h("div", { class: "report-build num", "data-build": b?.name ?? "" },
     b ? h("b", { class: "build-name", title: b.effect ? `${b.picks.join(" + ")} · ${b.effect}` : b.picks.join(" + ") }, clean ? /* copy:callout */ `${b.name} held D${deepest}` : `${b.name} · D${deepest}`) : "",
-    b && credit ? " · " : "", credit ? h("small", { class: "report-credit dim", "data-credit": credit, title: /* copy:tooltip */ "rule fires by who chose the row" }, credit) : "");
+    b && credit ? " · " : "", credit ? h("small", { class: "report-credit dim", "data-credit": credit, title: /* copy:tooltip */ "which rows decided his turns" }, creditBars(m) ?? credit) : "");
 }
 
 export function renderReport(app: App, r: ReturnReport, absence = false): Mounted {
@@ -690,9 +701,17 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const lostTip = (): HTMLElement[] => lostGold > 0 && !ledger?.terms?.some((t) => t.label === "lost") ? [h("div", { class: "num down" }, /* copy:label */ "Lost carry", ` · $${lostGold}`)] : [];
   // Owner IA pass 2026-10-10: the tile is the outcome — the purse's change when the core knows it (`+$1252`), else the gold earned; the
   // equation's terms (earned · spent · lost) are its tip and the Gold fold
-  const goldFace = ledger ? signed(ledger.net) : `$${headGold}`;
-  const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", "data-net": ledger ? ledger.net : "", onclick: () => openGoldSheet(app) },
-    icon("gold"), h("b", { class: "num" }, goldFace), h("span", { class: "label" }, ledger ? /* copy:label */ "Gold change" : /* copy:label */ "Gold earned")), () => termRows() ? [
+  // Cut 121 §2 (B's 20-minute return led with `−$2807 GOLD CHANGE` — the apprentice's forge read as a loss): the tile leads with what
+  // came in (`+$X`, Earned) and names the workers' spending as its own term under it (`−$Y workers`); the purse's change is the tip's
+  // and the fold's. The core's `gold.earned` / `gold.spent_by_workers` when sent; else the ledger's sum and its worker terms
+  // (an older save without them: the ledger's earned and its apprentice / works terms, else the workers' acts)
+  const gx = r.gold;
+  const earnedHead = gx?.earned ?? (ledger ? ledger.earned : headGold);
+  const workersGold = gx?.spent_by_workers ?? (ledger?.terms ? -ledger.terms.filter((t) => t.label === "apprentice" || t.label === "works").reduce((n, t) => n + Math.min(0, t.amount), 0) : boughtGold);
+  const goldFace = ledger ? `+$${earnedHead}` : `$${earnedHead}`;
+  const earnedGold = detailHost(h("button", { type: "button", class: "tile plaque report-gold", "data-k": "gold", "data-net": ledger ? ledger.net : "", "data-earned": earnedHead, "data-workers": workersGold, onclick: () => openGoldSheet(app) },
+    icon("gold"), h("b", { class: "num" }, goldFace), h("span", { class: "label" }, /* copy:label */ "Gold earned"),
+    workersGold > 0 ? h("small", { class: "report-workers-spent num dim", title: /* copy:tooltip */ "the workers' forge and works spending · their own term" }, /* copy:callout */ `−$${workersGold} workers`) : ""), () => termRows() ? [
       // Cut 117 §1: the core's named terms, inflows first — earned − spent = purse change, to the dollar
       h("div", { class: "kw-tip-head" }, h("b", null, /* copy:label */ "Gold change")),
       h("div", { class: "num" }, /* copy:label */ "Earned", ` · $${ledger!.earned}`, " · ", /* copy:label */ "Spent", ` · $${ledger!.spent}`),

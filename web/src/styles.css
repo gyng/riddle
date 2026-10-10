@@ -789,12 +789,16 @@ body:not(.framed) .sheet { max-height: 72dvh; }
 .watch .fold-line .fchip.k-stolen, .watch .fold-line .fchip.k-hp { color: #efa19b; box-shadow: inset 0 0 0 1px #9c0018; }
 .watch .fold-line .fchip.k-took, .watch .fold-line .fchip.k-found, .watch .fold-line .fchip.k-boss { color: #e6c586; }
 .watch .fold-line::after { content: "▸"; position: absolute; left: 50%; bottom: 22px; margin-left: -6px; color: #39496d; font-size: 18px; }
-.watch .fold-line.docked { inset: auto 8px auto auto; top: 70px; max-width: 72%; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: 4px; padding: 3px 7px;
-  border-radius: 3px; background: rgba(13, 12, 20, .72); box-shadow: inset 0 0 0 1px var(--dusk); transition: opacity .6s; }
-.watch .fold-line.docked .fold-head { font: 600 13px/1.2 var(--sans); }
-.watch .fold-line.docked .fchip { font-size: 11px; padding: 2px 5px; }
+/* Cut 121 §3 (A: "D1–27 collapse into a chip card that then covers the fight"): docked, the fold line is one line along the map's top edge
+   (`D1–7 swift · 100%`) — its chips in its tip, the HUD stepped down under it (`data-strip`) */
+.watch .fold-line.docked { inset: 0 0 auto 0; height: 22px; max-width: none; flex-direction: row; flex-wrap: nowrap; justify-content: center; gap: 6px; padding: 0 10px;
+  border-radius: 0; background: rgba(13, 12, 20, .78); box-shadow: inset 0 -1px 0 var(--dusk); transition: opacity .6s; overflow: hidden; z-index: 4; }
+.watch .fold-line.docked .fold-head { font: 600 12px/22px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: .02em; }
+.watch .fold-line.docked .fold-head[data-swift="1"] { color: #cfe0ea; }
+.watch .fold-line.docked .fold-chips { display: none; }
 .watch .fold-line.docked::after { display: none; }
-.watch .fold-line.docked.faded { opacity: .55; }
+.watch .fold-line.docked.faded { opacity: .6; }
+.watch[data-strip="1"] .hud.top { top: 22px; }
 .fold-replay .fold-at { margin-left: 6px; }
 .watch .stake { font-size: 14px; }
 /* QA 1a2a4a9 (P: the stake line "sits straight on wall tiles and torches"): a dark plate under it, readable over any tile */
@@ -1852,3 +1856,6 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
   font: 600 15px/1.2 var(--sans); letter-spacing: .04em; box-shadow: 0 4px 14px rgba(13, 12, 20, .8); white-space: nowrap; animation: toast-in 1.8s ease-out both; }
 @keyframes toast-in { 0% { opacity: 0; transform: translate(-50%, 8px); } 10%, 80% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+/* Cut 121 §4: a `foe: boss` row that fired on a foe that is no boss (`also matches: siren`) */
+.editor .row .also-mark { margin-left: 6px; font: 600 11px/1 var(--sans); color: #edb978; white-space: nowrap; align-self: center; }
+.editor .row .grip .also-mark { display: block; margin: 2px 0 0; font-size: 10px; }

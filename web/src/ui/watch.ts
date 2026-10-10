@@ -219,7 +219,15 @@ const KILL_WAIT_MS = 3000;
 // cage, the exit flow, a fold) is landed live and the card let go — whatever held it, the watch never freezes
 const STUCK_MS = 4000;
 const CALM_MIN = 10;                // Cut 28 §3: a core calm stretch this long (ticks, 1 s at 1×) or more plays as travel
-const RISE_FREE = 16, RISE_MS = 150;   // blind 1fb7786 (B): the clock jumps freely up to the fights travel; past it, it doubles at most every RISE_MS
+const RISE_FREE = 4, RISE_MS = 150;   // blind 1fb7786 (B): the clock jumps freely up to RISE_FREE; past it, it doubles at most every RISE_MS (Cut 121 §3: was 16 — 2× → 16× in one frame)
+const FALL_MS = 40, EASE_STEP_MS = 50;                 // Cut 121 §3: a fall at most halves every FALL_MS (16× → 2× over ~120 ms), never past a hard hold (HARD_FALL)
+/** Cut 121 §3: reasons whose fall lands at once — the picture must stop or slow there (a fight's first blows are its news; the travel's
+ *  landing already slows toward it, DEAD_LAND_MS out) — every other fall eases. */
+const HARD_FALL = new Set(["scene", "exit", "cage", "fight", "near"]);
+/** Cut 121 §3 (A, B: "speed swings 2× ↔ 32× on its own"): the reason chip's word for each automatic rate (`fight · 2×`, `quiet · 16×`). */
+/* copy:callout */
+const WHY_WORD: Record<string, string> = { fight: "fight", chores: "chores", near: "foe near", travel: "travel", quiet: "quiet", "catch up": "catch up", stall: "stall", scene: "scene", exit: "exit", cage: "cage" };
+const WHY_SETTLE_MS = 180, WHY_LINGER_MS = 500;   // Cut 121 §3: a reason shows once it held this long; the chip goes this long after it ends
 const NEWS_MAX_MS = 8000;           // blind 77030eb (B): Normal never stands longer without news — the stretch is jumped
 const ONE_MAX = 4;                  // blind 5331f40: `one` (Speed Normal) — a dead stretch travels at most 4× (then jumps, announced)
 const DEAD_RAMP_MS = 300, DEAD_STEP_MS = 200, DEAD_LAND_MS = 150, FAST_MAX = 128;   // Cut 18 §1: `fast`'s dead-stretch ramp (see `deadRate`)            // Cut 14 §6: the engine's biggest step when the world is behind its clock (a paused or hidden viewer)
@@ -454,6 +462,8 @@ export function renderWatch(app: App): Mounted {
   // blind c4705f9 (A, B: `fights only` 16× persisted across runs and both believed they watched at 1×): the tile carries the clock the
   // picture plays at now (`16×`, `2×` in a fight, `1×`), lit whenever it is not normal speed
   const speedRate = h("b", { class: "watch-speed-rate num", "aria-hidden": "true" });
+  // Cut 121 §3: the speed's reason, on the stage while an automatic rate holds (`fight · 2×`)
+  const speedWhy = h("span", { class: "speed-why num", hidden: true, title: /* copy:tooltip */ "auto speed · Speed tile sets it" });
   speedBtn.append(speedRate); speedBtn.dataset.mode = mode0;
   const cons = renderConsole({ portrait: face.el, tiles: [speedBtn, toTown], gem: pause, top: scrub, compact: true });
   const combatRows = h("ol", { class: "combat-lines", "aria-live": "off" });
@@ -470,7 +480,14 @@ export function renderWatch(app: App): Mounted {
   const combatLog = h("div", { class: "combat-log", "aria-label": /* copy:label */ "Combat log" }, logLatest, combatRows);
   let logDepth = app.lineage.live?.depth ?? 1;
   let repeatedRule: { key: string; el: HTMLElement; count: number; badge: HTMLElement } | undefined;
+  let restRun: { id: number; src: string; depth: number; n: number; hp: number; el: HTMLElement; body: HTMLElement } | undefined;   // Cut 121 §3
+  /** Cut 121 §3: the row is among the log's last three and only quiet rows (a rest run, a repeated warning) came after it. */
+  const quietSince = (row: Element): boolean => {
+    const kids = [...combatRows.children].slice(-3), i = kids.indexOf(row);
+    return i >= 0 && kids.slice(i + 1).every((x) => (x as HTMLElement).dataset.rest !== undefined || (x as HTMLElement).dataset.warn !== undefined);
+  };
   function logEvent(ev: Ev, heroId: number, names: ReadonlyMap<number, string>, warningText?: string): void {
+    const who = (id: number): string => names.get(id) ?? (id === heroId ? /* copy:label */ "Hero" : /* copy:label */ "Foe");
     const ruleKey = ev.k === "rule" && ev.row >= 0 ? JSON.stringify([logDepth, ev.row, ev.text, ev.verb?.v, ev.verb?.a]) : undefined;
     if (ruleKey && repeatedRule?.key === ruleKey && combatRows.lastElementChild === repeatedRule.el) {
       repeatedRule.count++;
@@ -479,14 +496,34 @@ export function renderWatch(app: App): Mounted {
       if (logFollowing) combatRows.scrollTop = combatRows.scrollHeight;
       return;
     }
+    // Cut 121 §3 (A: "the sanctum crawls with `rest +5 hp` lines"): a run of heals from one source on one body is one counting line
+    // (`Maren Ash · rest ×6 · +30 hp`), repainted in place; the rest row's own `rule` lines inside the run are its record already
+    if ((ev.k === "heal" || ev.k === "recover") && ev.amount > 0 && restRun && restRun.id === ev.id && restRun.src === ev.src && restRun.depth === logDepth && quietSince(restRun.el)) {
+      restRun.n++; restRun.hp += ev.amount;
+      replace(restRun.body, /* copy:callout */ `${ev.src.replace(/_/g, " ")} ×${restRun.n} · `, h("span", { class: "log-heal" }, `+${restRun.hp} hp`));
+      restRun.el.dataset.tick = String(ev.t); restRun.el.dataset.n = String(restRun.n);
+      if (logFollowing) combatRows.scrollTop = combatRows.scrollHeight;
+      return;
+    }
+    if (ev.k === "rule" && ev.verb?.v === "rest" && restRun && quietSince(restRun.el)) return;
+    // …and a foe's same warning inside such a run (`warden · shifts`) counts on its own line (`×4`) instead of a new one
+    if (ev.k === "telegraph") {
+      const said = `${who(ev.id)} · ${warningText ?? ev.what}`;
+      const prev = [...combatRows.children].slice(-3).reverse().find((x) => (x as HTMLElement).dataset.warn === said) as HTMLElement | undefined;
+      if (prev && quietSince(prev)) {
+        const n = Number(prev.dataset.n ?? "1") + 1; prev.dataset.n = String(n); prev.dataset.tick = String(ev.t);
+        let b = prev.querySelector<HTMLElement>(".log-repeat"); if (!b) { b = h("span", { class: "log-repeat log-depth num" }); prev.appendChild(b); }
+        b.textContent = ` ×${n}`;
+        return;
+      }
+    }
     repeatedRule = undefined;
     let text: (string | HTMLElement)[] | undefined;
-    const who = (id: number): string => names.get(id) ?? (id === heroId ? /* copy:label */ "Hero" : /* copy:label */ "Foe");
     const damage = (amount: number, id: number): HTMLElement => h("span", { class: amount < 0 ? "log-heal" : id === heroId ? "log-hurt" : "log-damage" }, `${amount < 0 ? "+" : "−"}${Math.abs(amount)} hp`);
     const item = (name: string): HTMLElement => h("span", { class: /gold|coin|\$/.test(name.toLowerCase()) ? "log-gold" : "log-item" }, itemIcon({kind:name, label:name}, {size:"xs"}), name);
     if (ev.k === "attack") text = [`${who(ev.src)} → ${who(ev.dst)} · ${ev.src === heroId && gunShotText(ev.verb) ? `${gunShotText(ev.verb)} ` : ""}`, ev.hit ? (ev.dmg > 0 ? damage(ev.dmg, ev.dst) : /* copy:label */ "blocked") : /* copy:label */ "miss"];   // QA ad71e72: never `−0 hp`
     else if (ev.k === "hurt") text = [`${ev.cause === "hero" ? who(heroId) : ev.cause.replace(/_/g, " ")} → ${who(ev.id)} · `, damage(ev.dmg, ev.id)];
-    else if (ev.k === "heal" || ev.k === "recover") text = [`${who(ev.id)} · ${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id)];
+    else if (ev.k === "heal" || ev.k === "recover") text = [`${who(ev.id)} · `, h("span", { class: "log-run" }, `${ev.src.replace(/_/g, " ")} `, damage(-ev.amount, ev.id))];
     else if (ev.k === "telegraph") text = [h("span", { class: "log-warning" }, `${who(ev.id)} · ${warningText ?? ev.what}`)];
     else if (ev.k === "die") text = [h("span", { class: "log-fell" }, `${who(ev.id)} · fell`)];
     else if (ev.k === "use") text = [item(ev.item), ` · ${ev.outcome}`];
@@ -497,6 +534,9 @@ export function renderWatch(app: App): Mounted {
     else if (ev.k === "exit") text = [ev.line?.text ?? `${ev.tier} · $${ev.loot_kept}`];
     if (!text) return;
     const row = h("li", { "data-tick": String(ev.t), "data-first-tick": String(ev.t) }, h("small", { class: "log-depth" }, `D${logDepth} · `), ...text);
+    if (ev.k !== "telegraph") restRun = undefined;
+    if (ev.k === "telegraph") row.dataset.warn = `${who(ev.id)} · ${warningText ?? ev.what}`;
+    if ((ev.k === "heal" || ev.k === "recover") && ev.amount > 0) { const body = row.querySelector<HTMLElement>(".log-run"); if (body) { restRun = { id: ev.id, src: ev.src, depth: logDepth, n: 1, hp: ev.amount, el: row, body }; row.dataset.rest = ev.src; } }
     if (ruleKey) {
       const badge = h("span", { class: "log-repeat log-depth num" });
       row.appendChild(badge); repeatedRule = { key: ruleKey, el: row, count: 1, badge };
@@ -533,7 +573,7 @@ export function renderWatch(app: App): Mounted {
   let manualKick = false;
   const ctl = controlPanel(app.engine as unknown as Parameters<typeof controlPanel>[0], () => { manualKick = true; });
   const el = h("main", { class: "watch frame" }, bar.el,
-    h("div", { class: "stage" }, canvas, card, foldLine,
+    h("div", { class: "stage" }, canvas, card, foldLine, speedWhy,
       h("div", { class: "hud top" }, depth, liveBadge, alert, bossBar, stake),
       meterBox, banner, h("div", { class: "watch-messages" }, whyTip, ticker, whyLine, tactics.el, combatLog)),
     ctl.el, cons.el, ...wide.els);
@@ -591,6 +631,7 @@ export function renderWatch(app: App): Mounted {
   let jumpsSaid = 0; let deadFrom = -1, lastJumpAt = 0, jumps = 0, stuckTick = -1, stuckAt = 0, unsticks = 0;   // QA ad71e72: the dead stretch's wall start, the jumps, the stuck-picture watchdog
   let keepClose: (() => void) | null = null;   // blind 1fb7786: the open keep sheet's close (it keeps the ticked picks) — the gem's tap goes on through it
   let riseAt = 0;                     // blind 1fb7786: when the clock last eased up (`eased`)
+  let rateWhy = "";                  // Cut 121 §3: why the clock runs at its rate now (`baseRate`; empty: the plain chosen rate)
   let deadSince = -1;                 // Cut 18 §1: `fast` — when the current dead stretch began (wall ms; -1 none): its rate ramps
   let chore: { text: string; n: number; shown: string; depth: number } | null = null;   // Cut 14 §4: the chore callout streak on the ticker (`pick up ×8`)
   const rowFires: number[] = [];      // Cut 14 §4: this run's `rule` events per row (the death screen's least-fired row)
@@ -1553,21 +1594,20 @@ export function renderWatch(app: App): Mounted {
     scrubHead.style.left = `${Math.max(0, Math.min(100, ((v - startTick) / span) * 100)).toFixed(1)}%`;
     el.dataset.frontier = String(engineTick); el.dataset.world = String(Math.floor(worldT));
   }
-  /** Blind c4705f9 (A, B: `stolen fire potion` over `Carried $2468`; the summary chips over the boss bar): the docked fold line sits under
-   *  the HUD's actual bottom (the stake line, an alert and the boss bar make it taller than the CSS's fixed 70 px), never over it. */
-  function dockBelowHud(): void {
-    if (foldLine.hidden || !foldLine.classList.contains("docked")) return;
-    const hud = el.querySelector<HTMLElement>(".hud.top"), host = foldLine.offsetParent as HTMLElement | null;
-    if (!hud || !host) return;
-    const below = Math.round(hud.getBoundingClientRect().bottom - host.getBoundingClientRect().top + 4);
-    const top = `${Math.max(70, below)}px`;
-    if (foldLine.style.top !== top) foldLine.style.top = top;
+  /** Cut 121 §3 (A: the docked chips card "sat over the fight itself"): the docked fold line is a one-line strip along the map's top edge
+   *  (`D1–7 swift · 100%`, its chips in its tip and the replay a tap away); the HUD steps down under it (`data-strip`), so it covers
+   *  neither the HUD nor the fight. */
+  function paintStrip(): void {
+    const on = !foldLine.hidden && foldLine.classList.contains("docked");
+    if ((el.dataset.strip === "1") !== on) el.dataset.strip = on ? "1" : "0";
+    if (foldLine.style.top) foldLine.style.top = "";
+    if (on) { const tip = [...foldChips.children].map((c) => c.textContent ?? "").filter(Boolean).join(" · "); if (foldLine.title !== tip) foldLine.title = tip; }
   }
   /** Cut 28 §4: the DOM over the canvas — the HUD's line, the docked fold line's head and chips, the banner, the ticker, the reason —
    *  handed to the renderer as keep-out rects (canvas CSS px) every KEEP_MS, so no pixel callout, caption or name plate lands on them. */
   let keepAt = 0;
   function paintKeepOut(force = false): void {
-    dockBelowHud();
+    paintStrip();
     const now = performance.now();
     if (!viewer?.setKeepOut || (!force && now - keepAt < KEEP_MS)) return;
     keepAt = now;
@@ -1575,6 +1615,7 @@ export function renderWatch(app: App): Mounted {
     const els: Element[] = [...el.querySelectorAll(".hud.top"), combatLog, tactics.el];
     if (!foldLine.hidden && foldLine.classList.contains("docked")) els.push(foldLine);
     for (const x of [banner, ticker, whyLine, whyTip]) if (x.classList.contains("show")) els.push(x);
+    if (!speedWhy.hidden) els.push(speedWhy);   // Cut 121 §3
     const rects: { x: number; y: number; w: number; h: number }[] = [];
     for (const x of els) {
       if ((x as HTMLElement).hidden) continue;
@@ -1929,6 +1970,7 @@ export function renderWatch(app: App): Mounted {
     if (r > 0 && app.slowdowns && beatHeld() && heldBeat && !heldBeat.exit) {
       const v = viewerTick(), stop = beatStop(), left = Math.max(100, beatHoldUntil - performance.now());
       r = v >= stop ? 0 : Math.min(r, Math.max(0.25, ((stop - v) * 100) / left));
+      rateWhy = "scene";
       el.dataset.hold = `${heldBeat.from}-${heldBeat.until}:${stop}`;   // dev: the held beat's span and its stop
       deadSince = -1;
     } else if (el.dataset.hold) delete el.dataset.hold;   // no beat held: tools read the mode's own rate
@@ -1936,10 +1978,18 @@ export function renderWatch(app: App): Mounted {
   }
   /** The rate before a held beat's easing (`was`: the dead stretch's start carried over, `fast`). */
   function baseRate(was: number): number {
+    const r = baseRate0(was);
+    // Cut 121 §3: a catch-up behind live is its own reason (the travel's rate lifted to CATCHUP_RATE)
+    if (rateWhy === "travel" && engineTick - viewerTick() > LEAD_FAST + BATCH_FAST && r >= CATCHUP_RATE) rateWhy = "catch up";
+    return r;
+  }
+  /** The rate before a held beat's easing; `rateWhy` names its reason (Cut 121 §3: the speed chip). */
+  function baseRate0(was: number): number {
+    rateWhy = "";
     if (paused || hidden || goLiveOwed) return 0;   // Cut 14 §6: the picture freezes (and stays put until the seek to live); the world (worldRate) goes on
-    if (vaultClose) return viewerTick() < engineTick ? 1 : 0;   // Cut 5 §4 / Cut 15 §5: 1× up to the frontier, where the world waits for the tap
+    if (vaultClose) { rateWhy = "cage"; return viewerTick() < engineTick ? 1 : 0; }   // Cut 5 §4 / Cut 15 §5: 1× up to the frontier, where the world waits for the tap
     const v = viewerTick();
-    if (v >= endingFrom) return mode === "fast" ? FAST_ENDING : 1;   // the walk-out is seen whatever the toggle (Cut 20 §3: at 2× in `fast`)
+    if (v >= endingFrom) { rateWhy = "exit"; return mode === "fast" ? FAST_ENDING : 1; }   // the walk-out is seen whatever the toggle (Cut 20 §3: at 2× in `fast`)
     // QA 23ed91f (L: `fast` ran a 4-minute summoner stall at the fight's slow clock): a stall is watched at the mode's flat rate — no
     // fight, near or scene hold
     const flat = !app.slowdowns || stalling();   // Cut 14: `slowdowns` off — no fight, near or scene hold; the mode's flat rate
@@ -1947,13 +1997,15 @@ export function renderWatch(app: App): Mounted {
     const dead = deadAt(v);
     if ((el.dataset.dead === "1") !== dead) { el.dataset.dead = dead ? "1" : "0"; deadFrom = dead ? performance.now() : -1; }
     el.dataset.progress = String(progressBefore(v));
-    if (dead) return deadStretch(was, v);
+    if (dead) { rateWhy = "quiet"; return deadStretch(was, v); }
     if (mode === "one") return 1;   // Cut 25 §3: the plain 1× — every live frame at 1× (the dead stretch above still travels)
-    if (frame === "fight" && !flat && beat?.hold && v >= beat.from && v < beat.until) return 1;   // Cut 15 §4: a boss's kill holds SCENE_MS
-    if (frame === "fight" && !flat) return choreAt(v) ? (earlyFloor() ? earlyTravel(was, v) : RATE[mode]) : fightRate();   // Cut 18 §1: `fast`'s chore stretch at its flat rate too   // Cut 8A: a fight is watched slow (Cut 14: 2× in `fights`, 4× in `fast`); Cut 15 §4: a chore stretch in `fights` at the flat rate
-    if (mode === "fights") return cardWait || cardUp ? 0 : earlyFloor() && !flat ? earlyTravel(was, v) : mapHold ? (cardLive ? RATE.fights : AUTO_FAST) : RATE.fights;   // the clock holds under the card: the cut seeks
-    if (!app.slowdowns) return RATE.fast;   // Cut 14: `slowdowns` off — the mode's flat rate, no ramp either
-    if (flat || overridden || !heldAt(v, false)) { deadSince = was < 0 ? performance.now() : was; return deadRate(v); }
+    if (stalling()) rateWhy = "stall";
+    if (frame === "fight" && !flat && beat?.hold && v >= beat.from && v < beat.until) { rateWhy = "scene"; return 1; }   // Cut 15 §4: a boss's kill holds SCENE_MS
+    if (frame === "fight" && !flat) { const c = choreAt(v); rateWhy = c ? "chores" : "fight"; return c ? (earlyFloor() ? earlyTravel(was, v) : RATE[mode]) : fightRate(); }   // Cut 18 §1: `fast`'s chore stretch at its flat rate too   // Cut 8A: a fight is watched slow (Cut 14: 2× in `fights`, 4× in `fast`); Cut 15 §4: a chore stretch in `fights` at the flat rate
+    if (mode === "fights") { rateWhy ||= cardWait || cardUp ? "" : "travel"; return cardWait || cardUp ? 0 : earlyFloor() && !flat ? earlyTravel(was, v) : mapHold ? (cardLive ? RATE.fights : AUTO_FAST) : RATE.fights; }   // the clock holds under the card: the cut seeks
+    if (!app.slowdowns) { rateWhy ||= "travel"; return RATE.fast; }   // Cut 14: `slowdowns` off — the mode's flat rate, no ramp either
+    if (flat || overridden || !heldAt(v, false)) { rateWhy ||= "travel"; deadSince = was < 0 ? performance.now() : was; return deadRate(v); }
+    rateWhy = "near";
     return FAST_NEAR;
   }
   /** QA e75ec29 (R: `fights` spent 28–40 s on D1 — a D1 is ~1 400 ticks, 17 s at a flat 8×): the first floors' travel starts at
@@ -1974,13 +2026,23 @@ export function renderWatch(app: App): Mounted {
   }
   /** blind 1fb7786 (B: "sped itself between fights, 1× to 107×, then dropped back — jumpy"): a rise past RISE_FREE eases — the clock at
    *  most doubles every RISE_MS from what it shows (a carried dead-stretch age, a catch-up or a ramp never lands 1× → 128× in one frame).
-   *  Falls are never held back: the landing (`deadStretch`, `deadRate`) already slows toward the next move, and a hold is a hold. */
+   *  Cut 121 §3 (A, B: "2× ↔ 32× on its own"): every rise ramps from RISE_FREE (was 16: 2× → 16× was one frame), and a fall eases too —
+   *  it at most halves every FALL_MS (a hold that must stop the picture — ⏸, a scene, the exit, the cage — still lands at once; the
+   *  dead stretch's landing already slows toward the next move, slower than this). */
   function eased(n: number): number {
-    const now = performance.now(), dt = Math.min(RISE_MS, Math.max(0, now - riseAt));
-    riseAt = now;
-    if (n <= RISE_FREE || n <= speed) return n;
-    const cap = Math.max(RISE_FREE, speed) * 2 ** (dt / RISE_MS);
-    return n <= cap ? n : Math.round(cap * 10) / 10;
+    // (the ramp's clock runs from the last change, at most EASE_STEP_MS a step: applySpeed runs many times a frame, and a step from
+    // a long-held rate never lands more than one step's worth)
+    const now = performance.now(), dt = Math.min(EASE_STEP_MS, Math.max(0, now - riseAt));
+    let out = n;
+    if (n > 0 && speed > 0 && n > speed && n > RISE_FREE) {
+      const cap = Math.max(1, speed) * 2 ** (dt / RISE_MS);   // (from the clock it shows: 1.5× → 16× ramps too)
+      out = n <= cap ? n : Math.max(Math.min(n, RISE_FREE), Math.round(cap * 10) / 10);
+    } else if (n > 0 && speed > 0 && n < speed && !HARD_FALL.has(rateWhy)) {
+      const floor = speed / 2 ** (dt / FALL_MS);
+      out = n >= floor ? n : Math.round(floor * 10) / 10;
+    }
+    if (out !== speed) riseAt = now;
+    return out;
   }
   /** Cut 18 §1: the first tick after v where the picture must slow — a near tick, a scene, a kept fight span, the live fight, a beat,
    *  the ending. */
@@ -1997,12 +2059,31 @@ export function renderWatch(app: App): Mounted {
   }
   function applySpeed(): void {
     const n = eased(rate());
-    if (n === speed) { paintRate(); return; }
+    if (n === speed) { paintRate(); paintWhy(); return; }
     if (!viewer?.tick) viewerTick();          // placeholder clock: bank the ticks run at the old rate first
     speed = n; viewer?.setSpeed(n);
     el.dataset.speed = String(n);
     for (const m of Object.keys(modeBtn) as Mode[]) modeBtn[m].classList.toggle("slowed", m === mode && n <= FAST_NEAR);
-    paintRate();
+    paintRate(); paintWhy();
+  }
+  /** Cut 121 §3: the speed's reason chip — whenever the clock is not the chosen plain rate (Normal's 1×), its reason and rate
+   *  (`fight · 2×`, `quiet · 4×`, `travel · 16×`), held while the reason holds; a reason must hold WHY_SETTLE_MS to show (no flicker). */
+  let whyKey = "", whySince = 0, whyEnd = 0;
+  function paintWhy(): void {
+    const now = performance.now();
+    const frozenNow = paused || hidden || done || !!exitTier || el.dataset.fold === "1" || speed <= 0;
+    const auto = !frozenNow && rateWhy !== "" && !(mode === "one" && speed <= 1);
+    const key = auto ? rateWhy : "";
+    if (key !== whyKey) { whyKey = key; whySince = now; }
+    if (key && now - whySince >= WHY_SETTLE_MS) {
+      const text = /* copy:callout */ `${WHY_WORD[key] ?? key} · ${rateText(speed)}×`;
+      if (speedWhy.textContent !== text) speedWhy.textContent = text;
+      speedWhy.dataset.why = key; speedWhy.hidden = false; el.dataset.why = key; whyEnd = 0;
+      if ("__riddle" in window) { const log = ((window as unknown as { __speedWhy?: { why: string; rate: number; at: number }[] }).__speedWhy ??= []); if (log[log.length - 1]?.why !== key) log.push({ why: key, rate: speed, at: Math.round(now) }); }   // dev
+    } else if (!key && !speedWhy.hidden) {
+      if (!whyEnd) whyEnd = now;
+      if (frozenNow || (mode === "one" && speed <= 1) || now - whyEnd >= WHY_LINGER_MS) { speedWhy.hidden = true; delete speedWhy.dataset.why; el.dataset.why = ""; whyEnd = 0; }
+    }
   }
   /** Cut 15 §4: the lit chip's clock as digits (`data-rate`, drawn small by CSS): the viewer's rate, the travel's under the card,
    *  none while the picture is frozen, the world waits (the vault) or the run is over. */
@@ -2068,8 +2149,10 @@ export function renderWatch(app: App): Mounted {
     const L = f.core;
     if (L) {
       // the core's line (`fold()`): its clear through the stretch, the gold it added, its chips (≤ 3 words each, by kind)
-      replace(foldHead, `${L.to > L.from ? `D${L.from}–${L.to}` : `D${L.from}`} · ${Math.round(L.clear * 100)}%${L.gold ? ` · ${L.gold > 0 ? "+" : "−"}$${Math.abs(L.gold)}` : ""}`);
-      if (swiftTo && L.from <= swiftTo) foldHead.append(h("i", { class: "fchip k-swift", "data-k": "swift" }, /* copy:callout */ " swift"));
+      // Cut 121 §3: a swift stretch says so in its range (`D1–7 swift · 100%`) — the strip's one line
+      const range = L.to > L.from ? `D${L.from}–${L.to}` : `D${L.from}`, sw = !!swiftTo && L.from <= swiftTo;
+      replace(foldHead, `${range}${sw ? /* copy:callout */ " swift" : ""} · ${Math.round(L.clear * 100)}%${L.gold ? ` · ${L.gold > 0 ? "+" : "−"}$${Math.abs(L.gold)}` : ""}`);
+      if (sw) foldHead.dataset.swift = "1"; else delete foldHead.dataset.swift;
       // Cut 28 §3: a hero handed off low (`low`: hp ≤ half his max) — his `hp 9/40` chip leads the line (the core's, else built here)
       const hpChip = L.low && L.hp !== undefined && L.max_hp !== undefined ? L.chips.find((c) => /^hp\b/.test(c)) ?? `hp ${L.hp}/${L.max_hp}` : undefined;
       const chipList = hpChip ? [hpChip, ...L.chips.filter((c) => c !== hpChip)] : L.chips;
@@ -2078,8 +2161,9 @@ export function renderWatch(app: App): Mounted {
       foldLine.dataset.src = "core";
       return;
     }
-    replace(foldHead, f.tally.head(f.to));
-    if (swiftTo && f.from <= swiftTo) foldHead.append(h("i", { class: "fchip k-swift", "data-k": "swift" }, /* copy:callout */ " swift"));
+    const sw = !!swiftTo && f.from <= swiftTo;
+    replace(foldHead, sw ? f.tally.head(f.to).replace(/^(D\d+(?:–\d+)?)/, /* copy:callout */ "$1 swift") : f.tally.head(f.to));
+    if (sw) foldHead.dataset.swift = "1"; else delete foldHead.dataset.swift;
     const chips = f.tally.list();
     replace(foldChips, ...chips.map((c) => h("i", { class: `fchip k-${c.k}`, "data-k": c.k }, c.text)));
     foldLine.dataset.kinds = [...new Set(chips.map((c) => c.k))].join(",");
@@ -2108,7 +2192,10 @@ export function renderWatch(app: App): Mounted {
     folding = f; el.dataset.fold = "1";
     releaseBeat(); clearTimeout(dockTimer);
     cardUp = false; card.hidden = true; el.dataset.card = "0"; ticker.classList.remove("show"); tickerQueue.length = 0;
-    foldLine.classList.remove("docked", "faded"); foldLine.style.top = ""; foldLine.hidden = false; paintFold(f);
+    // Cut 121 §3 (A: "D1–27 collapse into a chip card that then covers the fight"): a swift stretch is never a card — its one-line strip
+    // sits at the top of the map from the first frame; a stretch the forecast folded keeps its interstitial, then docks as the same strip
+    const swift = !!swiftTo && from <= swiftTo;
+    foldLine.classList.remove("docked", "faded"); foldLine.classList.toggle("docked", swift); foldLine.style.top = ""; foldLine.hidden = false; paintFold(f); paintStrip();
     inflight = true;
     // Cut 27 §1 (core): right after the send the core plays the stretch itself (`fold()`: the line, its floors for the replay, the whole
     // stretch as one step); a core without it — or a stretch later in the run — is stepped here, batch by batch
@@ -2139,7 +2226,7 @@ export function renderWatch(app: App): Mounted {
     f.stepping = false;
     if (!core) f.to = Math.max(from, Math.min(planTo(from), foldSet.has(snap.depth) ? snap.depth : snap.depth - 1));
     paintFold(f);
-    f.holdUntil = f.skip ? 0 : f.t0 + FOLD_MIN_MS;
+    f.holdUntil = f.skip || foldLine.classList.contains("docked") ? 0 : f.t0 + FOLD_MIN_MS;   // Cut 121 §3: a swift strip holds nothing
     // the picture lands at the first floor below the bar — its stairs' tick (the floor the engine is on), or the ending's start
     const d = descends[descends.length - 1];
     const t = held ? Math.max(viewerTick(), endingFrom) : Math.max(viewerTick(), d !== undefined && snap.depth > from ? d : engineTick);
@@ -2156,7 +2243,7 @@ export function renderWatch(app: App): Mounted {
     foldsDone.push(`${f.from}-${f.to}`); el.dataset.folded = foldsDone.join(",");
     const ms = Math.round(performance.now() - f.t0), floors = f.to - f.from + 1;
     if ("__riddle" in window) ((window as unknown as { __foldLog?: unknown[] }).__foldLog ??= []).push({ from: f.from, to: f.to, floors, ms, perFloor: Math.round(ms / floors), src: f.core ? "core" : "client", kinds: f.core ? [...new Set(f.core.beats.map((b) => b.kind))] : [...f.tally.kinds()], chips: f.core ? f.core.chips : f.tally.list().map((c) => c.text), shown: [...foldChips.children].map((c) => c.textContent), head: foldHead.textContent });   // dev
-    foldLine.classList.add("docked");
+    foldLine.classList.add("docked"); paintStrip();
     dockTimer = window.setTimeout(() => foldLine.classList.add("faded"), FOLD_DOCK_MS);
     if (hudSnap) { hudFrom(hudSnap); }
     if (held) toEnding(); else { applyFrame(); applySpeed(); }

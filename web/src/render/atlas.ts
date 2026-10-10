@@ -125,6 +125,10 @@ export class Atlas {
   font(ch: string): Slot { return this.envSlot(`font:${ch.toUpperCase()}`); }
   shadow(width: number, ally = false): Slot { return this.envSlot(`${ally ? "ring" : "shadow"}:${Math.max(6, Math.round(width))}`); }
   dot(): Slot { return this.envSlot("dot:2"); }
+  /** Cut 121 §3 (B: "a muddy pile of sprites where I could not find the hero"): the hero's ring — a w×4 open ellipse in gilt at his
+   *  feet — and his crowd caret, a 5×3 gilt chevron over his head (both sprite-tagged on the hud layer, so they keep their hue). */
+  heroRing(width: number): Slot { return this.envSlot(`hring:${Math.max(8, Math.round(width))}`); }
+  heroCaret(): Slot { return this.envSlot("hcaret:5"); }
   // Cut 8A: a 2×2 flat colour (`#rrggbb`) for the fight frame's hp bars; the hud layer stretches it to any texel size
   solid(hex: string): Slot { return this.envSlot(`solid:${hex.replace("#", "")}`); }
   /** gfx round 21 (raters: "the coins are square debug pixels"): a 6x6 gold coin (dark rim, lit face, a glint) for the loot burst */
@@ -210,6 +214,19 @@ export class Atlas {
     // no quad is ever stretched to a non-integer texel size. ring:<w>: the same ellipse inside a
     // 1-texel light ring (companion marker), w×3.
     const w = Number(rest) || 8;
+    if (cat === "hring") {
+      const slot = g.alloc(id, w, 4), c = g.ctx;
+      c.fillStyle = "#f5cf79";
+      c.fillRect(slot.x + 2, slot.y, w - 4, 1); c.fillRect(slot.x + 2, slot.y + 3, w - 4, 1);
+      c.fillRect(slot.x, slot.y + 1, 1, 2); c.fillRect(slot.x + w - 1, slot.y + 1, 1, 2);
+      c.fillRect(slot.x + 1, slot.y + 1, 1, 1); c.fillRect(slot.x + w - 2, slot.y + 1, 1, 1); c.fillRect(slot.x + 1, slot.y + 2, 1, 1); c.fillRect(slot.x + w - 2, slot.y + 2, 1, 1);
+      return slot;
+    }
+    if (cat === "hcaret") {
+      const slot = g.alloc(id, 5, 3), c = g.ctx;
+      c.fillStyle = "#f5cf79"; c.fillRect(slot.x, slot.y, 5, 1); c.fillRect(slot.x + 1, slot.y + 1, 3, 1); c.fillRect(slot.x + 2, slot.y + 2, 1, 1);
+      return slot;
+    }
     if (cat === "ring") {
       const slot = g.alloc(id, w, 3);
       g.ctx.fillStyle = "#f4ecd8";

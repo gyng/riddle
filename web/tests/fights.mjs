@@ -132,8 +132,9 @@ try {
       };
       poll();
     }));
-    // QA e75ec29 (R: 28–40 s on D1 at a flat 8×): the travel starts at 8× and ramps as `fast`'s dead stretch does (never under 8×)
-    check(early.card === 0 && early.map.includes(8) && early.map.every((r) => r >= 8 || r === 1) && early.fight.includes(1.5), `fights on ${early.depth || "D1"}: no card, the map from 8× up, a fight at 1.5× (card frames ${early.card}; map ${early.map.join("/")}; fight ${early.fight.map((r) => Math.round(r * 100) / 100).join("/")})`);
+    // QA e75ec29 (R: 28–40 s on D1 at a flat 8×): the travel starts at 8× and ramps as `fast`'s dead stretch does (never under 8×;
+    // Cut 121 §3: a fight's 1.5× eases up to it — the steps of that ramp, from 4×, may be sampled on the map)
+    check(early.card === 0 && early.map.includes(8) && early.map.every((r) => r >= 4 || r === 1) && early.fight.includes(1.5), `fights on ${early.depth || "D1"}: no card, the map from 8× up, a fight at 1.5× (card frames ${early.card}; map ${early.map.join("/")}; fight ${early.fight.map((r) => Math.round(r * 100) / 100).join("/")})`);
   }
   // (the fake's D4 kills a hero in his first costly fight: the card's gates run on its gentle D1 with the first floors' mode off, `early=0`)
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=5&autosend=1&early=0`, { waitUntil: "domcontentloaded" });

@@ -42,6 +42,9 @@ import { TIP, type Term } from "./concepts";
 const VERDICT_TERM: Record<string, Term> = /* copy:none */ { gap: "v_gap", dice: "v_luck", row: "v_rule", order: "v_order", stall: "v_stall", route: "v_route", driven: "v_repelled" };
 
 /** Cut 10 §3: the core's `3 over` margin reads `3 hp short` wherever it is displayed (`N hp short` and others pass through). */
+/** Cut 121 §4: one deciding row's credit in plain words (the report's credit bar says the same). */
+/* copy:label */
+const CREDIT_ONE: Record<string, string> = { picked: "own rule", taught: "lesson", default: "default", chores: "chore" };
 export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* copy:callout */ "$1 hp short");
 
 /** The headline's margin segment: a stall's is the guard's reason (`no path`); an hp margin (`3 over` / `3 hp short`) is left
@@ -58,7 +61,8 @@ export function deathAction(d: Death): string {
   const turn = index === undefined ? undefined : [...d.trace.turns].reverse().find((t) => t.row === index);
   const action = index !== undefined && rows?.[index] ? ruleName(rows, index) : turn ? verbLabel(turn.verb) : "";
   // Cut 115 §1: whether the deciding row was the player's pick (`picked`), a drill's or a fix's (`taught`), the school's (`default`)
-  const who = d.credit ? ` · ${d.credit}` : "";
+  // Cut 121 §4: in the report's plain words (`own rule`, `lesson`), never the wire's `picked` / `taught`
+  const who = d.credit ? ` · ${CREDIT_ONE[d.credit] ?? d.credit}` : "";
   return action ? `${source} · ${action}${who}` : `${source}${who}`;
 }
 

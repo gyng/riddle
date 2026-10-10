@@ -76,8 +76,16 @@ export function condLabel(c: Cond): string {
   if (c.t !== undefined) return `${name} ${nice(c.t)}`;
   return name;
 }
+/** Cut 121 §4: a drunk potion that bursts round the drinker, by what it does (never `drink fire` beside the counter's `throw fire`). */
+/* copy:rule_token */
+const SELF_BURST: Record<string, string> = { fire: "fire at feet", caustic: "gas at feet" };
+/** Cut 121 §4: the potions `throw` aims at a foe — the picker shows `throw <kind>` locked beside the drink while throw is not owned. */
+export const THROWN = ["fire", "poison", "caustic", "confusion"];
 export function verbLabel(v: Verb): string {
   if (v.v === "tactic" && v.a === "cadence") return /* copy:rule_token */ "alternate attacks";
+  // Cut 121 §4 (B: "'COUNTER: THROW FIRE' sat beside a verb list offering only 'drink fire'"): one name per action — a fire or gas potion
+  // at a foe is `throw fire` everywhere; drunk, it bursts round the hero, and says so
+  if (v.v === "drink" && v.a && SELF_BURST[v.a]) return SELF_BURST[v.a]!;
   const name = VERB[v.v] ?? nice(v.v);
   if (!v.a) return name;
   // `tag:thief` → `thief`; `fire,tag:thief` → `fire thief`; a trailing `,nearest` is the default target and stays silent

@@ -59,9 +59,9 @@ try {
     e.forecastVsEstimate = e.forecastVs;
     r.insertRow({ conds: [{ k: "hp<", n: 50 }], verb: { v: "attack", a: "lowest" } }, 2);
   });
-  const dead = await until(async () => { const t = await txt(".camp .shaft-vs-host .shaft-vs"); return t && t !== "vs last run…" ? t : null; }, "the dead edit's line");
+  const dead = await until(async () => { const t = await txt(".camp .shaft-vs-host .shaft-vs"); return t && t !== "this edit…" ? t : null; }, "the dead edit's line");
   const marks = await page.evaluate(() => document.querySelectorAll(".camp .shaft .vsm").length);
-  check(/^vs last run · D\d+ same · full haul same$/.test(dead) && marks === 0, `a row that never fires moves nothing: "${dead}", ${marks} marks`);
+  check(/^this edit · D\d+ same · full haul same$/.test(dead) && marks === 0, `a row that never fires moves nothing: "${dead}", ${marks} marks`);
   // the strip is its own row: under the well, over nothing
   const lay = await page.evaluate(() => {
     const well = document.querySelector(".camp .camp-well").getBoundingClientRect(), strip = document.querySelector(".camp .shaft-vs-host").getBoundingClientRect();

@@ -30,11 +30,19 @@ const verbItem = (v: Verb): HTMLElement | null => {
 const condItem = (c: Cond): HTMLElement | null => c.k === "item" && c.t ? itemIcon({ kind:c.t, label:condLabel(c) }, { size:"s" }) : null;
 /** gfx round 1: the action's icon plaque at a tablet's right end (camp.png); nothing when its icon is not packed. */
 const verbPlaque = (row: Row): HTMLElement | "" => { const id = verbIcon(row.verb.v); return id ? h("span", { class: "vplaque", "aria-hidden": "true" }, icon(id)) : ""; };
-import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, ruleName, sameCond, sameVerb, verbLabel } from "./tokens";
+import { NUMS, PCT, combosIn, depthNums, condLabel, condName, glossOf, isCardRow, needsN, ownRowCount, rowLabel, ruleName, sameCond, sameVerb, THROWN, verbLabel } from "./tokens";
 /** Rater A on c4705f9 ("▲▼ moves on pre-written rows reverted on screen", "× did not drop it"): on packages the core compiles the order —
  *  the pen's rows first, each package's rows below in the package's order. A pen row moves within the pen; a package row's ▲ takes it
  *  into the pen as the player's (when a row is free), its ▼ and × are off (the package's rows go with the package); `+` adds at the
  *  pen's end. `end` is the first package row's index; `full` the cap reached. Returns where the row lands, or −1 when it cannot go. */
+/** Cut 121 §4 — the foes a row fired on over the recent sends, as the core would send them on its why (`RowWhy.fired_on`, proposed:
+ *  `{ kind, boss, n }[]`, the kinds the row's target resolved to and whether each is a boss). Absent on today's core: no warning. */
+export type FiredOn = { kind: string; boss: boolean; n: number };
+/** Cut 121 §4: the non-boss kinds a `foe: boss` row fired on (`siren`), most fired first; empty when the core sends no `fired_on`. */
+export function alsoMatches(row: Row, why: (RowWhy & { fired_on?: FiredOn[] }) | null | undefined): string[] {
+  if (!why?.fired_on?.length || !row.conds.some((c) => c.k === "foe_tag" && c.t === "boss")) return [];
+  return why.fired_on.filter((f) => !f.boss && f.n > 0).sort((a, b) => b.n - a.n).map((f) => f.kind.replace(/^boss_/, "").replace(/_/g, " "));
+}
 export function moveTarget(rows: Row[], from: number, to: number, end: number, full: boolean): number {
   if (to === from || from < 0 || from >= rows.length) return -1;
   if (from < end) { const at = Math.max(0, Math.min(to, end - 1)); return at === from ? -1 : at; }
@@ -212,6 +220,14 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
         const text = el.querySelector(":scope > .rtext"), grip = el.querySelector(":scope > .grip");
         if (text) text.appendChild(m); else if (grip) grip.appendChild(m); else el.appendChild(m);
       }
+      // Cut 121 §4 (B: a boss rule misfired): a `foe: boss` row that fired on a foe that is no boss says which (`also matches: siren`)
+      el.querySelector(":scope > .rtext > .also-mark, :scope > .grip > .also-mark, :scope > .also-mark")?.remove();
+      const also = rows[i] ? alsoMatches(rows[i], bind.rowWhy?.()[i]) : [];
+      if (also.length) {
+        const m = h("small", { class: "also-mark num", "data-also": also.join(","), title: /* copy:tooltip */ "fired on these too · add a foe cond" }, /* copy:callout */ `also matches: ${also.slice(0, 2).join(", ")}`);
+        const text = el.querySelector(":scope > .rtext"), grip = el.querySelector(":scope > .grip");
+        if (text) text.appendChild(m); else if (grip) grip.appendChild(m); else el.appendChild(m);
+      }
       if (!on) return;
       const mark = h("small", { class: "shadow-mark num" }, /* copy:callout */ `under ${ruleName(rows, by)}`);
       // compact: inside the tablet's text; editing: under the row's number on its grip (the chips stay the row's cond → verb)
@@ -334,6 +350,14 @@ export function renderEditor(bind: Binding, highlight?: number, opts: EditorOpts
           if (v.v === "tactic") { row.conds = []; row.origin = "card"; commit(); } else edited(row);
           close();
         } }, verbItem(v), verbLabel(v)));
+      }
+      // Cut 121 §4 (B: the counter read `throw fire`, the list offered only the drink): while `throw` is not owned, each throwable potion the
+      // list offers to drink sits beside its throw, dim, with its gate (the unlock)
+      if (!vocab().verbs.some((v) => v.v === "throw")) {
+        for (const v of vocab().verbs) {
+          if (v.v !== "drink" || !v.a || !THROWN.includes(v.a)) continue;
+          grid.appendChild(h("span", { class: "chip verb locked off", "aria-disabled": "true", "data-locked": `throw:${v.a}` }, "⊘ ", verbItem({ v: "throw", a: v.a }), verbLabel({ v: "throw", a: v.a }), h("small", { class: "needs dim" }, /* copy:rule_token */ "unlock throw")));
+        }
       }
       // QA 92eb880 (M: "`drink heal` is offered only on the row that already has it"): a verb another row holds that the vocabulary does
       // not offer today sits dim with its reason (a drink/read of an unknown kind), never selectable
