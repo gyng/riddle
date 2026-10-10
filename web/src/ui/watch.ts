@@ -570,7 +570,7 @@ export function renderWatch(app: App): Mounted {
   let fightOn = false, fightFrom = Infinity, fightUntil = -Infinity, frame: FrameName = "map", lastBlow = -Infinity;
   // Cut 13 §4: the situation beat the frame is holding for (engine ticks), its text shown once at the cut; beats shown so far
   type Beat = { from: number; until: number; text: string; shown: boolean; exit?: boolean; hold?: boolean; cage?: boolean; why?: string };
-  let beat: Beat | null = null, beats = 0;   // hold: Cut 15 §4, the clock at 1× through it (a boss's kill)
+  let beat: Beat | null = null, beats = 0, seeks = 0;   // seeks: the viewer's deliberate jumps (`seekTo`), so a beat can tell one from a clock that ran on   // hold: Cut 15 §4, the clock at 1× through it (a boss's kill)
   let exitBeatUntil = 0;              // Cut 14 §3: the exit flow waits while the bank / return beat is on screen
   let holdLineUntil = 0;              // Cut 15 §4: a boss kill's `WARLORD DOWN` keeps the ticker this long
   // Cut 18 §1: the beat on screen holds until this wall time — the frame stays on it (no card, no floor load, the playhead eased to
@@ -904,7 +904,18 @@ export function renderWatch(app: App): Mounted {
     if (!(beat && !beat.shown && beat.from < t)) beat = b;
     el.dataset.beats = String(++beats);   // dev: tools count the beats cut in
     // Cut 18 §1: a beat the playhead jumped over (a skip, a seek to live) is not held after the fact
-    at(t, () => { if (b.shown) return; if (!b.exit && viewerTick() >= b.until) { b.shown = true; if (b.cage && cage) cage.done = true; return; } beat = b; showBeat(true); });
+    // clarity:card under load: …but a cage's beat the clock merely ran past (a late engine batch, a long frame — no seek since it
+    // was cut in) is the world's wait and the override's door: it is cut in again at the playhead, never dropped silently
+    const seeks0 = seeks;
+    at(t, () => {
+      if (b.shown) return;
+      if (!b.exit && viewerTick() >= b.until) {
+        b.shown = true;
+        if (b.cage && cage && !cage.done && seeks === seeks0 && !held && !exitTier && !done) { beatAt(Math.floor(viewerTick()), b.text, false, false, true, b.why); return; }
+        if (b.cage && cage) cage.done = true; return;
+      }
+      beat = b; showBeat(true);
+    });
     return b;
   }
   /** The beat's line, once the frame is up and the PLAYHEAD has reached the beat's tick (`reached`: released at the viewer's clock).
@@ -1341,7 +1352,7 @@ export function renderWatch(app: App): Mounted {
   /** A queued floor is loaded only when no unshown kill comes before its stairs (the kill's floor would go with the load). */
   function loadNext(): void { if (loads.length && killAhead(loads[0].at ?? Infinity)) return; const p = takeLoad(); if (p) loadFloor(p); }
   function seekTo(t: number): void {
-    t = killStop(t);
+    t = killStop(t); seeks++;
     const fv = viewer as (Viewer & { seek?: (t: number) => void }) | null;
     if (fv?.seek) fv.seek(t); else fv?.skipToEvent();
     fbTick = t; fbAt = performance.now();

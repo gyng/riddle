@@ -375,8 +375,11 @@ try {
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
     await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
     await sleep(500);
-    await page.locator(".console [data-tile=speed]").click();
-    await page.locator(".watch-options [data-tile=skip]").click();
+    // ▶▶| only hurries the run's end: seed 157's run is ~2 s at 32×, and on a loaded machine it can end before the tap — the run's
+    // over-state disables speed and ▶▶| (`endControls`), and a click on them would wait on a button that never comes back
+    const live = () => page.evaluate(() => window.__riddle.screen === "watch" && document.querySelector(".watch")?.dataset.over !== "1");
+    if (await live()) await page.locator(".console [data-tile=speed]:not([disabled])").click({ timeout: 5000 }).catch(() => {});
+    if (await live()) await page.locator(".watch-options [data-tile=skip]:not([disabled])").click({ timeout: 5000 }).catch(() => {});
     await page.keyboard.press("Escape");
     let rest = null; const t0 = Date.now();
     while (Date.now() - t0 < 40_000) {
