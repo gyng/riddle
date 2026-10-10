@@ -65,6 +65,10 @@ export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "pa
   // blind c4705f9 (A, B: `all similar` on nearly every compare): the two panels play the same seeds, so a move is judged send by send
   // (`better 7/8`) — the independent-draw band below needed a ~60-point move to call anything at eight sends
   const pr = pairedOf(o);
+  // Cut 121 §2 (core): `even` is the core's honest call (`packages::wall_differs` — a wall read leaning past the noise is no `same`):
+  // a core that says not even is never painted `same` by the client's overall split (its walls differ: `close`)
+  /* copy:label */
+  if (pr && pr.text === "same" && o.even === false) return { text: "close", good: null, score: 0 };
   if (pr) return pr;
   /* copy:label */
   // blind ad71e72 (B: `deeper ≈+90` "no unit"): each term is a share of sends, its move in points (`%`); `past best` names what

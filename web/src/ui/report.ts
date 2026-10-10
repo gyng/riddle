@@ -52,6 +52,7 @@ import { enemyTraitName } from "./enemy-tips";
 import { labelOf as unlockLabel } from "./unlocks";
 import { returnPick } from "./return-pick";   // Cut 113 §3: each return carries a decision
 import { collectSend } from "./collect-send";   // Cut 118 §6: one tap on return
+import { descentLine } from "./descent";   // Cut 121 §1: the ascension under way
 import { kingLine } from "./king-eta";   // Cut 118 §9: the ending in sight
 import { featLines, findsReveal, setLog } from "./feats";   // Cut 118: the finds' one reveal, the feats, the set log
 /** Cut 118 (core ledger terms): what the new terms count — a grave's pack brought home, the sinks after Kit complete. */
@@ -819,7 +820,7 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
     group("finds", /* copy:label */ "Finds", [...groups.finds, finds, feats.rest.finds, setLog(L.feats)]),
     group("heroes", /* copy:label */ "Heroes", [...groups.heroes, classXpBlock(r), legacyEarnedBlock(r), reportTrainingBlock(r, app.lineage.packages && app.engine.equipPackage ? (a, beat) => openPackages(app, a, undefined, trainingFocus(beat)) : undefined), grewBlock(r, heroFace(L), trainingBeats(r.packages)), feats.rest.pets]),
     group("workers", /* copy:label */ "Workers", [...groups.workers, workersBlock(L, { workers: (r.workers ?? []).filter((a) => !a.first || isOrderLine(a.id)), chest: r.chest }, Infinity, true)]),
-    group("way", /* copy:callout */ "The way down", [...groups.way, kingLine(L, "report-king"), goal ? progressGoalRow(goal, "report-progress-goal") : null, feats.rest.way]),
+    group("way", /* copy:callout */ "The way down", [...groups.way, descentLine(L, "report-descent"), kingLine(L, "report-king"), goal ? progressGoalRow(goal, "report-progress-goal") : null, feats.rest.way]),
     group("credit", /* copy:label */ "Who decided", [buildHead(L, deepestN, deathsN === 0, meterOf)]),
     group("runs", /* copy:label */ "Runs", [bloodlineSec, pendingSec, tiles, newsBlock(r, named, namedCounters(L), shopOpen, !prePen), opened(r), wallHost, onPackages(L) ? null : oathProgress(app, r), fallenLines(r), stall, driven, counterFacts.length ? section(/* copy:label */ "counters", factChips(counterFacts, namedCounters(L))) : null, bounty, startShort, meterOf && !isWide() ? meterPanel(meterOf, app.rules.rows, { title: meterTitle, scope: meterScope() }) : null, picked, exitLines, rested,
     // QA 23ed91f (K, L: `bones D7` among LEARNED): a heir's bones are a find (the BONES section), not a fact learned

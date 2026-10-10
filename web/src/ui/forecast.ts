@@ -121,6 +121,31 @@ export function endShare(x: number, low: number | undefined): string {
   if (low !== undefined && Number.isFinite(x) && Math.round(x * 100) >= 100) return x < 1 ? ">99%" : `>${100 - Math.max(1, Math.round(low))}%`;
   return share(x, low);
 }
+/** Cut 121 §2 (rater A: `death 75%` on a send that cleared easily — an 8-sample read): the death share as the core's 95 % band
+ *  (`ForecastEnds.death_lo/hi`, Wilson) — `60–80%`; `<13%` when its low end rounds to 0, `>87%` when its high end rounds to 100.
+ *  `wide` past BAND_WIDE points (few samples: a band the client says so of, quietly). Undefined on an older core or a band that
+ *  rounds to one number (the share alone says it). */
+export const BAND_WIDE = 30;
+export function deathBand(e: Pick<NonNullable<Forecast["ends"]>, "death" | "death_lo" | "death_hi"> | undefined): { text: string; wide: boolean; mid: string } | undefined {
+  if (!e || typeof e.death_lo !== "number" || typeof e.death_hi !== "number") return undefined;
+  const lo = Math.round(e.death_lo * 100), hi = Math.round(e.death_hi * 100);
+  if (hi <= lo) return undefined;
+  const text = lo <= 0 ? `<${hi}%` : hi >= 100 ? `>${lo}%` : `${lo}–${hi}%`;
+  return { text, wide: hi - lo >= BAND_WIDE, mid: pct(e.death) };
+}
+/** A gold sum as a band reads it: whole dollars under $100, tens under $1000, hundreds above (`$3800–7500`: a 95 % band claims no
+ *  more digits than it has). */
+const roundGold = (x: number): number => { const a = Math.abs(x); const q = a < 100 ? 1 : a < 1000 ? 10 : 100; return Math.round(x / q) * q; };
+/** Cut 121 §2: the gold a send brings home as the core's 95 % band (`ForecastEnds.gold_lo/hi`, mean ± 1.96·sd/√n), net of the passage
+ *  as the `avg $N/run` it replaces — `$300–500`. `wide` when the high end is over twice the low. Undefined without a band. */
+export function goldBand(e: Pick<NonNullable<Forecast["ends"]>, "gold" | "gold_lo" | "gold_hi" | "passage"> | undefined): { text: string; wide: boolean; mid: number } | undefined {
+  if (!e || typeof e.gold_lo !== "number" || typeof e.gold_hi !== "number") return undefined;
+  const p = e.passage ?? 0, lo = roundGold(Math.max(0, e.gold_lo - p)), hi = roundGold(Math.max(0, e.gold_hi - p));
+  if (hi <= lo) return undefined;
+  return { text: `$${lo}–${hi}`, wide: hi > 2 * Math.max(1, lo), mid: Math.round(e.gold - p) };
+}
+/** The quiet word a wide band carries (`· rough`), its tip the reason. */
+export const wideMark = (): HTMLElement => h("small", { class: "dim band-wide", title: /* copy:tooltip */ "few samples · wide band · More samples narrows it" }, /* copy:callout */ " · rough");
 /** The low end of the forecast now painted (`Forecast.low`, else from its `sims`). */
 export const lowOf = (f: { low?: number; sims?: number } | null | undefined): number | undefined => f?.low ?? (f?.sims ? Math.ceil(100 / f.sims) : undefined);
 
@@ -308,9 +333,14 @@ export function renderForecast(app: App, opts: { readOnly?: boolean } = {}): { e
     const stall = e.stall && Math.round(e.stall * 100) > 0 ? /* copy:callout */ ` · stall ${pct(e.stall)}` : "";
     const lo = lowOf(f), eh = (x: number): string => endShare(x, lo);
     const epm = pmShown(e.death, e.pm);
-    const pm = epm !== undefined ? h("small", { class: "dim pm band", style: bandW(epm), title: `±${epm}` }, /* copy:none */ ` ±${epm}`) : "";   // Cut 29: `±6` read as −6 — a band
+    // Cut 121 §2: the core's 95 % bands replace the ± — `death 60–80%`, `$300–500/run`; a wide one says so quietly (`· rough`)
+    const db = deathBand(e), gb = goldBand(e);
+    const pm = db ? "" : epm !== undefined ? h("small", { class: "dim pm band", style: bandW(epm), title: `±${epm}` }, /* copy:none */ ` ±${epm}`) : "";   // Cut 29: `±6` read as −6 — a band
+    const deathEl = db ? h("span", { class: `death-band${db.wide ? " wide" : ""}`, "data-band": db.text, title: /* copy:tooltip */ `avg ${db.mid} · 95% band` }, /* copy:callout */ ` · death ${db.text}`) : /* copy:callout */ ` · death ${eh(e.death)}`;
+    const goldEl = gb ? h("span", { class: `gold gold-band${gb.wide ? " wide" : ""}`, "data-band": gb.text, title: /* copy:tooltip */ `avg $${gb.mid} · 95% band` }, /* copy:callout */ ` · ${gb.text}/run`, passageEl(e.passage))
+      : h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage));
     // QA 1a2a4a9 (O: `D5 76%` beside `death 100%` read as a contradiction): the split is labelled — how a run ends, not how deep
-    replace(ends, h("span", { class: "label ends-label" }, kw("ends", /* copy:label */ "run outcomes")), " ", /* copy:callout */ `full haul ${eh(e.bank)}`, /* copy:callout */ ` · turn back ${eh(e.return)}`, stall, /* copy:callout */ ` · death ${eh(e.death)}`, pm, h("span", { class: "gold" }, /* copy:callout */ ` · avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage)));
+    replace(ends, h("span", { class: "label ends-label" }, kw("ends", /* copy:label */ "run outcomes")), " ", /* copy:callout */ `full haul ${eh(e.bank)}`, /* copy:callout */ ` · turn back ${eh(e.return)}`, stall, deathEl, pm, goldEl, db?.wide || gb?.wide ? wideMark() : "");
   };
   /** The named counter of a boss cause (`goblin_warlord`, `goblin warlord pack`) from `lineage.counters`. */
   const counterFor = (cause: string): string | undefined => {
@@ -556,10 +586,13 @@ export function renderShaft(app: App, onOpen: () => void, showEnds: () => boolea
       e.stall && Math.round(e.stall * 100) > 0 ? h("span", { class: "end stall" }, h("i", { class: "gemdot" }), /* copy:callout */ "stall", " ", h("b", null, pct(e.stall))) : "",
       // blind 7f7fc2b (A: the camp's `death 50%` → `63%` → `88%` between views, nothing edited — read as the game changing its mind): the
       // death gem carries its sampling band (`±13`), as the panel's line does
-      h("span", { class: "end death" }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ", h("b", null, endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true)),
-        ((pm) => pm !== undefined ? h("small", { class: "dim pm band", style: bandW(pm), title: `±${pm}` }, /* copy:none */ ` ±${pm}`) : "")(pmShown(e.death, e.pm))),
+      // Cut 121 §2: with the core's band the gem reads it (`death 60–80%`, its average in the tip; a wide one marked `wide`), no ±
+      ((db) => h("span", { class: `end death${db ? " banded" : ""}${db?.wide ? " wide" : ""}`, "data-band": db?.text }, h("i", { class: "gemdot" }), /* copy:callout */ "death", " ",
+        h("b", db ? { title: /* copy:tooltip */ `avg ${db.mid} · 95% band${db.wide ? " · few samples" : ""}` } : null, db ? db.text : endShare(e.death, lowOf(last)), moveMark(vs?.death, true, true)),
+        db ? "" : ((pm) => pm !== undefined ? h("small", { class: "dim pm band", style: bandW(pm), title: `±${pm}` }, /* copy:none */ ` ±${pm}`) : "")(pmShown(e.death, e.pm))))(deathBand(e)),
       // QA 778fa1b: the first pass is marked on the gems too — `~$43…` until the refine lands
-      h("span", { class: "end gold" }, /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), ""));
+      ((gb) => h("span", { class: `end gold${gb ? " banded" : ""}${gb?.wide ? " wide" : ""}`, "data-band": gb?.text, title: gb ? /* copy:tooltip */ `avg $${gb.mid} · 95% band${gb.wide ? " · few samples" : ""}` : undefined },
+        gb ? /* copy:callout */ `${gb.text}/run` : /* copy:callout */ `avg $${Math.round(e.gold - (e.passage ?? 0))}/run`, passageEl(e.passage), ""))(goldBand(e)));
     replace(oathEl, shaftOath(app)); oathEl.hidden = !oathEl.childElementCount;
     paintDepth();
     const line = vsLine(app, vs, last, !!e && showEnds()), lm = lmoveLine(app, last), st = stateLine(app);

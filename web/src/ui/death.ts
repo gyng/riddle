@@ -51,6 +51,19 @@ export const marginText = (m: string): string => m.replace(/^(\d+) over$/, /* co
  *  out — four QA players read `1 hp short` as the hp left (the morgue still carries it); an empty margin is no segment. */
 export const headlineMargin = (m: string): string => m.split(" · ").filter((x) => x && !/^\d+ (over|hp short)$/.test(x)).map(marginText).join(" · ");   // QA 23ed91f: `1 hp short · 5 unknown unused` kept its hp part
 
+/** Cut 121 §2 (blind 1a7d834 B: `goblin · D8` beside `fell to the Warlord`): the killing blow's source, as the stone's epitaph names it
+ *  (core `feats::killer_phrase`) — a boss's own blow `the Warlord`, his summons `goblin · summoned by the Warlord` (`Death.summoned_by`),
+ *  a hazard `gas`, or `the Mother's gas` only when she was in view at the blow (`Death.source`). A boss's short name is capitalised on
+ *  the wire (`Warlord`); a common summoner's is lower case (`goblin shaman`) and takes no article. Segments joined by ` · `. */
+export function killerText(d: Pick<Death, "cause" | "boss" | "summoned_by" | "source">): string {
+  const the = (s: string): string => /^[A-Z]/.test(s) ? `the ${s}` : s;
+  const words = d.cause.replace(/_/g, " ");
+  if (d.boss && d.boss === d.cause) { const w = words.trim().split(/\s+/).pop() ?? words; return the(w.charAt(0).toUpperCase() + w.slice(1)); }
+  if (d.summoned_by) return /* copy:death_line */ `${words} · summoned by ${the(d.summoned_by)}`;
+  if (d.source) return `${the(d.source)}'s ${words}`;
+  return words;
+}
+
 /** Name the core-selected historical action without exposing its row syntax. */
 export function deathAction(d: Death): string {
   if (!d.package) return "";
@@ -150,8 +163,9 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   // causal evidence moves to the why line and the details
   // Cut 117 §1 (King: header `18 hp` over a trace `0/50`): the deciding moment's hp, read as the trace reads it (`5/50`) when the core says
   const hpAt = drove?.hp ?? (() => { const hp = momentHp(d); return hp !== undefined && typeof d.moment_hp === "number" && d.moment_max_hp ? `${hp}/${d.moment_max_hp}` : hp; })();
+  // Cut 121 §2: the killer is the blow's source — `goblin · summoned by the Warlord`, `the Mother's gas` — one story with the epitaph
   const causeText = d.verdict === "stall" ? /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${causeRow ? ` · ${causeRow}` : ""}${margin}`
-    : /* copy:death_line */ `${d.cause.replace(/_/g, " ")} · D${d.depth}${hpAt !== undefined ? ` · hero at ${hpAt} hp` : ""}`;
+    : /* copy:death_line */ `${killerText(d)} · D${d.depth}${hpAt !== undefined ? ` · hero at ${hpAt} hp` : ""}`;
   const marginText_ = d.verdict === "stall" ? "" : [causeRow, seg].filter(Boolean).join(" · ");
   // QA 1a2a4a9 (P: `STALLED · R2 RETREAT ↔ EXPLORE · D6 · KEEPS $0` ran off both edges at 400 px): a stall's headline wraps between its
   // ` · ` segments (each whole: the loop `R2 retreat ↔ explore` never breaks) and steps its face down until the widest segment fits

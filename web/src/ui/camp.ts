@@ -55,6 +55,7 @@ import { returnPick } from "./return-pick";   // Cut 113 §3: the return's pick 
 import { checkinBatch } from "./checkin";   // Cut 117 §5: the routine buys of a return in one chip
 import { controlLadder } from "./ladder";   // Cut 118 §7: the automation earned, one rail
 import { KENNEL_ORDERS, KENNEL_TIP, KENNEL_WORD, kennelShown } from "./pets";
+import { descentBits, descentLine } from "./descent";   // Cut 121 §1: the ascension under way
 import { ASCEND_ORDERS, ASCEND_WORD, ascendOrderShown, isShared, LEGACY_ORDERS, LEGACY_TIP, LEGACY_WORD, legacyOrderShown, manyBloodlines, perkNodes, RANKS_ORDERS, RANKS_WORD, ranksOrderShown, toggleShared, type ShareKey } from "./orders";   // Cut 120: one orders sheet   // Cut 119: the kennel keeper's order
 import { orderOffer } from "./order-offer";   // Cut 120 option B: Legacy and ranks offered once
 import { campFeats, featOrderBits, heirOrderShown, HEIR_ORDERS, HEIR_WORD, SINK_ORDERS, SINK_WORD, sinkHandChip } from "./feats";   // Cut 118: seek · trial · wish; the heir and sink orders
@@ -253,10 +254,13 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
   window.addEventListener("riddle:focus-hero",focusHome);
   const pick = returnPick(app, "camp");
   const batch = checkinBatch(app);
+  // Cut 121 §1: the ascension under way on the camp — `Ascension 1 · from D14 · foes +5% hp · +2% dmg`, its modifiers under it
+  const descentSlot = h("div", { class: "descent-slot", hidden: true });
+  const paintDescent = (): void => { const d = descentLine(app.lineage, "camp-descent"); descentSlot.hidden = !d; replace(descentSlot, d ?? ""); };
   const ladder = controlLadder(app, { orders: () => openOrders() });   // Cut 120 §8: the orders rung opens the orders sheet
   const feats = campFeats(app);
   const offer = orderOffer(app);
-  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, batch.el, ladder.el, feats.el, offer.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
+  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, batch.el, ladder.el, feats.el, offer.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, descentSlot, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
@@ -643,6 +647,8 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
       o.insure ? "" : /* copy:callout */ "insurance off",
       apprenticeOn() && o.forge && o.forge !== "half" ? /* copy:callout */ `forge ${o.forge}` : "",
       ...featOrderBits(o),
+      // Cut 121 §1: the ascension under way (`Ascension 1`; its start is the `start` bit, the rest in the sheet)
+      ...(L.descent && L.descent.tier > 0 ? [descentBits(L.descent)[0]] : []),
     ].filter(Boolean);
     replace(ordersTab, h("span", { class: "rn num" }, icon("ledger", "☰")), h("span", { class: "rtext" }, h("b", { class: "orders-head" }, /* copy:label */ "run setup"), " ", h("span", { class: "orders-sum dim num" }, bits.join(" · "))));
   }
@@ -670,6 +676,8 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
             : pick(o.repeat, false, /* copy:button */ "off", act({ repeat: false }, /* copy:callout */ "repeat"));
           repeatOff.setAttribute("aria-pressed", String(!o.repeat));
           return [
+          // Cut 121 §1: the ascension under way — its tier, start floor, the foes' gains and the modifiers at work
+          ((d) => d ? row(/* copy:label */ "descent", d) : null)(descentLine(app.lineage, "orders-descent")),
           row(/* copy:callout */ "keep for heirs", ...KEEP_ORDERS.map((k) => pick(o.keep, k, KEEP_WORD[k], act({ keep: k }, /* copy:callout */ "keep")))),
           R.has("cage") ? row(/* copy:label */ "loot preference", h("button", { class: "chip order on", onclick: () => { close(); openCagePicker(ordersTab); } }, o.cage, h("small", { class: "dim" }, " ▸"))) : null,
           R.has("start") ? row(/* copy:label */ "start", h("button", { class: "chip order on", onclick: () => { close(); openStartPicker(); } }, `D${o.start}`, h("small", { class: "dim" }, " ▸"))) : null,
@@ -993,7 +1001,7 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
     fn();
     boxes.forEach((b, i) => { if (b && b.scrollTop !== tops[i]) b.scrollTop = tops[i]; });
   }
-  function paintAll(): void { keepScroll(() => { town.paint(); paintPen(); paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintWall(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
+  function paintAll(): void { keepScroll(() => { town.paint(); paintPen(); paintStrip(); paintTiles(); paintTabs(); paintVault(); paintCage(); paintStart(); paintOrders(); paintDescent(); paintWall(); paintRoute(); paintOath(); paintSupplies(); paintUnlocks(); party.refresh(); editor.refresh(); paintSend(); }); audio.drone(biomeOf(app.lineage.best_depth + 1)); }
   paintAll();
   // Cut 118 §6: the report's `collect & send` lands here and sends (the hero walks to the mouth as from the gem)
   if (sendNow) requestAnimationFrame(() => { if (el.isConnected) doSend(); });

@@ -30,13 +30,15 @@ try{for(const width of [320,400,1440]){
   await p.locator('button.stat.legacy').click();const old=await p.evaluate(()=>({...window.__riddle.lineage.bloodline}));
   await p.locator('.legacy-respec').click();await p.locator('.legacy-respec-confirm').click();await p.waitForFunction(()=>window.__riddle.lineage.bloodline.spent===0);
   assert.equal(await p.evaluate(()=>window.__riddle.lineage.bloodline.points),old.points+old.spent);
-  await p.locator('button.legacy-buy[data-upgrade="health"]').click();await p.waitForFunction(()=>window.__riddle.lineage.bloodline.spent===3);
-  assert.equal(await p.evaluate(()=>window.__riddle.lineage.bloodline.points),old.points+old.spent-3);
+  // Cut 121: Legacy ranks are priced on a curve; the first health rank's price is read off the offer, not assumed
+  const price=await p.evaluate(()=>window.__riddle.lineage.legacy_upgrades.find(u=>u.id==='health').price);
+  await p.locator('button.legacy-buy[data-upgrade="health"]').click();await p.waitForFunction(n=>window.__riddle.lineage.bloodline.spent===n,price);
+  assert.equal(await p.evaluate(()=>window.__riddle.lineage.bloodline.points),old.points+old.spent-price);
   assert.equal(await p.evaluate(()=>window.__riddle.lineage.ended),true);assert.equal(await p.evaluate(()=>window.__riddle.lineage.live??null),null);
   assert.equal(await p.evaluate(async()=>JSON.parse(await window.__riddle.engine.save()).run),null);
   assert.deepEqual(await p.evaluate(()=>window.transitionCalls),{send:0,begin:0});
   await p.evaluate(()=>window.__riddle.flush());await p.reload();await p.waitForSelector('.ending-town');
-  await p.locator('.ending-town').click();await p.waitForSelector('.camp');assert.equal(await p.evaluate(()=>window.__riddle.lineage.bloodline.spent),3);
+  await p.locator('.ending-town').click();await p.waitForSelector('.camp');assert.equal(await p.evaluate(()=>window.__riddle.lineage.bloodline.spent),price);
  }
  if(width===1440){
   const multi=await p.evaluate(async()=>{const a=window.__riddle;

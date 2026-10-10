@@ -7,13 +7,36 @@
 //   rest   — a run of `rest +5 hp` heals is one counting line (`rest ×6 · +30 hp`).
 //   gold   — the report's gold tile leads with earned (`+$2659`, Earned) and names the workers' spending apart (`−$6750 workers`).
 //   words  — the credit in plain words, `drink fire` named by what it does beside `throw fire`, `also matches: siren` on a boss row.
-//   node web/tests/cut121.mjs [--part=why,strip,rest,gold,words]
+//   killer — the death header tells one story with the epitaph: `goblin · summoned by the Warlord`, `the Mother's gas`, `the Warlord`
+//            (the wire's `summoned_by` / `source`); real wasm (deep.json, 12 h): every death's header names the killer its stone does.
+//   bands  — the forecast's 95 % bands (`death_lo/hi`, `gold_lo/hi`) read as ranges (`death 60–80%`, `$300–500/run`), a wide one
+//            marked `rough`; the core's `even: false` is never painted `same`.
+//   also   — real wasm (deep.json + a `foe: boss → attack` row, 12 h): a boss row the core saw fire on goblins warns `also matches: …`.
+//   asc    — real wasm (the earned first-ascension clear): the offer names its start (`from D14`, the core's), the camp, the run setup
+//            and the report show `Ascension 1 · from D14 · foes +5% hp` and the modifiers; the shaft's gems carry the real bands; the
+//            report's gold tile reads the core's `earned` and `spent_by_workers`.
+//   node web/tests/cut121.mjs [--part=why,strip,rest,gold,words,killer,bands,also,asc]
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
 
 const root = new URL("../../", import.meta.url);
 const url = execFileSync("bash", ["tools/dev.sh"], { cwd: root, encoding: "utf8" }).trim();
-const parts = (process.argv.find((a) => a.startsWith("--part="))?.slice(7) ?? "why,strip,rest,gold,words").split(",");
+const parts = (process.argv.find((a) => a.startsWith("--part="))?.slice(7) ?? "why,strip,rest,gold,words,killer,bands,also,asc").split(",");
+const fixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
+/** A real-wasm page with an engine save imported (no fake engine), at camp. */
+const real = async (tag, source) => {
+  const page = await browser.newPage({ viewport: { width: 400, height: 860 }, deviceScaleFactor: 1, reducedMotion: "reduce" });
+  page.on("pageerror", (e) => errors.push(`${tag} pageerror: ${e.message}`));
+  await page.goto(`${url}?dev=1&fresh=1&runs=0&seed=52`, { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => window.__riddle?.booted, null, { timeout: 90_000 });
+  const ok = await page.evaluate(async ({ source }) => {
+    const a = window.__riddle; a.runnerOn = false;
+    return a.kind === "wasm" && await a.importSave(JSON.stringify({ v: 2, engine: source, loadout: JSON.parse(source).loadout ?? [], last_seen: Date.now(), runs: 0 }));
+  }, { source });
+  if (!ok) throw Error(`${tag}: real wasm import failed`);
+  return page;
+};
 const out = [], errors = [];
 let failed = 0;
 const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
@@ -188,6 +211,133 @@ try {
     check(r.line === "own rules 29% · lessons 2% · chores 69%", `who decided, in plain words (${r.line})`);
     check(r.drink === "fire at feet" && r.throw_ === "throw fire" && r.heal === "drink heal", `one name per action: \`throw fire\` at a foe, the drink by what it does (${r.drink} · ${r.throw_} · ${r.heal})`);
     check(r.also.join() === "siren" && r.none.length === 0 && r.other.length === 0, `a boss row that fired on a siren warns \`also matches: siren\` (${r.also.join()})`);
+    await page.close();
+  }
+  if (parts.includes("killer")) {
+    const page = await page0("killer");
+    await page.waitForFunction(() => window.__riddle?.booted && window.__riddle.screen === "camp", null, { timeout: 60_000 });
+    const r = await page.evaluate(async () => {
+      const { killerText } = await import("/src/ui/death.ts");
+      const base = { run_id: 1, depth: 8, margin: "", verdict: "gap", baseline: 0, replays: 12, patches: [], morgue: "", trace: { turns: [] } };
+      const header = async (d) => { window.__riddle.go({ kind: "death", death: { ...base, ...d }, kept: true }); await new Promise((z) => setTimeout(z, 400)); return document.querySelector(".death .death-line .cause")?.textContent.replace(/\s+/g, " ").trim(); };
+      return {
+        summoned: await header({ cause: "goblin", boss: "goblin_warlord", summoned_by: "Warlord" }),
+        gas: await header({ cause: "gas", depth: 13, source: "Mother" }),
+        own: await header({ cause: "goblin_warlord", boss: "goblin_warlord" }),
+        plain: await header({ cause: "goblin_archer", depth: 9 }),
+        shaman: killerText({ cause: "goblin", summoned_by: "goblin shaman" }),
+      };
+    });
+    check(r.summoned === "goblin · summoned by the Warlord · D8", `a summons names its summoner, never \`goblin · D8\` beside \`fell to the Warlord\` (${r.summoned})`);
+    check(r.gas === "the Mother's gas · D13", `a hazard names its boss when he was in view (${r.gas})`);
+    check(r.own === "the Warlord · D8" && r.plain === "goblin archer · D9", `his own blow and a plain killer (${r.own} | ${r.plain})`);
+    check(r.shaman === "goblin · summoned by goblin shaman", `a common summoner takes no article (${r.shaman})`);
+    await page.close();
+    // real wasm: every kept death of a 12 h absence — the header's killer is the stone's (`fell to X, D8` ⇔ `X · D8`)
+    const deep = await real("killer-real", fixture("deep.json"));
+    const d = await deep.evaluate(async () => {
+      const a = window.__riddle, rep = await a.engine.runOfflineQuick(12 * 3600), last = Math.max(...(rep.exits ?? []).map((x) => x.run_id)), out = [];
+      for (let id = last - rep.runs + 1; id <= last; id++) {
+        let x; try { x = await a.engine.death(id); } catch { continue; }
+        if (!x?.memorial?.epitaph || x.verdict === "stall") continue;
+        a.go({ kind: "death", death: x, kept: true }); await new Promise((z) => setTimeout(z, 300));
+        out.push({ id, cause: x.cause, sb: x.summoned_by ?? null, src: x.source ?? null, ep: x.memorial.epitaph, head: document.querySelector(".death .death-line .cause")?.textContent.replace(/\s+/g, " ").trim() });
+      }
+      return out;
+    });
+    const story = (x) => x.ep.replace(/^fell to /, "").replace(/, (summoned by)/, " · $1").replace(/, (D\d+)$/, " · $1");
+    const off = d.filter((x) => !x.head?.startsWith(story(x)));
+    check(d.length >= 3 && off.length === 0, `real deaths: the header names the stone's killer (${d.length} deaths; ${off.slice(0, 3).map((x) => `${x.head} ≠ ${x.ep}`).join(" | ") || d.slice(0, 4).map((x) => x.head).join(" | ")})`);
+    await deep.close();
+  }
+  if (parts.includes("bands")) {
+    const page = await page0("bands");
+    await page.waitForFunction(() => window.__riddle?.booted && window.__riddle.screen === "camp", null, { timeout: 60_000 });
+    const r = await page.evaluate(async () => {
+      const { deathBand, goldBand, renderShaft } = await import("/src/ui/forecast.ts");
+      const { priceOf } = await import("/src/ui/packages.ts");
+      const e = (x) => ({ bank: 0.2, return: 0.05, death: 0.75, gold: 400, ...x });
+      const a = window.__riddle, f0 = a.lastForecast;
+      // the shaft paints a banded forecast (rater A's `death 75%` on an 8-sample read: 47–91 %) — its gems shown
+      const f = { ...f0, ends: e({ death_lo: 0.47, death_hi: 0.91, gold_lo: 250, gold_hi: 560, pm: 0.2 }) };
+      a.lastForecast = f;
+      const sh = renderShaft(a, () => {}, () => true); sh.el.id = "band-shaft"; document.body.appendChild(sh.el); sh.paint();
+      await new Promise((z) => setTimeout(z, 300));
+      const gem = document.querySelector("#band-shaft .shaft-ends .end.death"), gold = document.querySelector("#band-shaft .shaft-ends .end.gold");
+      return {
+        mid: deathBand(e({ death_lo: 0.6, death_hi: 0.8 })), low: deathBand(e({ death: 0, death_lo: 0, death_hi: 0.129 })), high: deathBand(e({ death: 1, death_lo: 0.87, death_hi: 1 })),
+        none: deathBand(e({})), tight: deathBand(e({ death_lo: 0.748, death_hi: 0.752 })),
+        g: goldBand(e({ gold: 5689, gold_lo: 3847, gold_hi: 7532, passage: 492 })), gn: goldBand(e({ gold: 400, gold_lo: 300, gold_hi: 500 })), gw: goldBand(e({ gold: 90, gold_lo: 20, gold_hi: 160 })),
+        same: priceOf({ d_past: 0, d_death: 0, d_bank: 0, past: 0, death: 0, bank: 0, n: 8, better: 0, worse: 0, even: false }).text,
+        same0: priceOf({ d_past: 0, d_death: 0, d_bank: 0, past: 0, death: 0, bank: 0, n: 8, better: 0, worse: 0 }).text,
+        gem: gem?.textContent.replace(/\s+/g, " ").trim(), gemWide: gem?.classList.contains("wide"), gemPm: !!gem?.querySelector(".pm"), gemTip: gem?.querySelector("b")?.title,
+        gold: gold?.textContent.replace(/\s+/g, " ").trim(),
+      };
+    });
+    const goldNarrow = r.gn?.text === "$300–500" && !r.gn.wide;
+    check(r.mid?.text === "60–80%" && !r.mid.wide && r.low?.text === "<13%" && r.high?.text === ">87%", `the death share reads as its band (${r.mid?.text} · ${r.low?.text} · ${r.high?.text})`);
+    check(r.none === undefined && r.tight === undefined, "no band from an older core, none that rounds to one number");
+    check(r.g?.text === "$3400–7000" && r.g.wide && r.gw?.wide === true && goldNarrow, `the gold a send brings home as a band, net of the passage, wide past ×2 (${r.g?.text})`);
+    check(r.same === "close" && r.same0 === "same", `the core's \`even: false\` is never painted \`same\` (${r.same} · ${r.same0})`);
+    check(r.gem === "death 47–91%" && r.gemWide && !r.gemPm && /avg 75%/.test(r.gemTip ?? ""), `the shaft's death gem: the band, marked wide, no ± (${r.gem} · ${r.gemTip})`);
+    check(r.gold === "$250–560/run", `the shaft's gold gem: the band (${r.gold})`);
+    await page.close();
+  }
+  if (parts.includes("also")) {
+    const page = await real("also", fixture("deep.json"));
+    const r = await page.evaluate(async () => {
+      const a = window.__riddle;
+      a.rules.rows.unshift({ conds: [{ k: "foe_tag", t: "boss" }], verb: { v: "attack" } });
+      await a.engine.setRules(a.rules);
+      await a.engine.runOfflineQuick(12 * 3600); await a.refresh();
+      a.go({ kind: "camp" }); await new Promise((z) => setTimeout(z, 1500));
+      const why = a.rowWhy(), boss = a.rules.rows.map((row, i) => ({ row, w: why[i] })).filter((x) => x.row.conds.some((c) => c.k === "foe_tag" && c.t === "boss"));
+      const fired = boss.flatMap((x) => (x.w?.fired_on ?? []).filter((f) => !f.boss).map((f) => f.kind));
+      return { fired: [...new Set(fired)], marks: [...document.querySelectorAll(".camp .also-mark")].map((m) => m.textContent) };
+    });
+    check(r.fired.length > 0, `the core counts a boss row's fires on foes that are no boss (${r.fired.join(", ")})`);
+    check(r.marks.length > 0 && r.marks.every((m) => /^also matches: [a-z ]+(, [a-z ]+)?$/.test(m)) && r.marks.some((m) => r.fired.some((k) => m.includes(k.replace(/_/g, " ")))), `its tablet warns \`also matches\` on real data (${r.marks.join(" | ")})`);
+    await page.close();
+  }
+  if (parts.includes("asc")) {
+    const page = await real("asc", fixture("earned-first-ascension-clear.json"));
+    await page.waitForSelector(".ending .descent-choice", { timeout: 30_000 });
+    const offer = await page.evaluate(() => document.querySelector(".ending .descent-choice .descent-from")?.textContent.trim());
+    await page.locator(".ending .descent-choice").click();
+    await page.waitForFunction(() => /from D\d+/.test(document.querySelector(".descent-review .descent-start")?.textContent ?? ""), null, { timeout: 15_000 });
+    const sheet = await page.evaluate(() => document.querySelector(".descent-review .descent-start")?.textContent);
+    await page.keyboard.press("Escape");
+    const r = await page.evaluate(async () => {
+      const a = window.__riddle;
+      await a.beginDescent(1); await a.refresh();
+      a.go({ kind: "camp" }); await new Promise((z) => setTimeout(z, 1500));
+      const L = a.lineage, line = document.querySelector(".camp .camp-descent");
+      const sum = document.querySelector(".camp .orders-tab .orders-sum")?.textContent ?? "";
+      document.querySelector(".camp .orders-tab")?.click(); await new Promise((z) => setTimeout(z, 500));
+      const setup = document.querySelector(".orders-sheet .orders-descent")?.textContent.replace(/\s+/g, " ").trim() ?? null;
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); await new Promise((z) => setTimeout(z, 300));
+      // the real forecast's bands on the shaft
+      const f = await a.engine.forecast(a.rules); a.lastForecast = f; for (const fn of a.fcListeners) fn(f); await new Promise((z) => setTimeout(z, 300));
+      const { deathBand, goldBand } = await import("/src/ui/forecast.ts");
+      const gem = document.querySelector(".camp .shaft-ends .end.death"), gold = document.querySelector(".camp .shaft-ends .end.gold");
+      const shaft = { ends: f.ends, db: deathBand(f.ends)?.text ?? null, gb: goldBand(f.ends)?.text ?? null, gem: gem?.dataset.band ?? null, gold: gold?.dataset.band ?? null, gemText: gem?.textContent.replace(/\s+/g, " ").trim(), goldText: gold?.textContent.replace(/\s+/g, " ").trim() };
+      const rep = await a.engine.runOfflineQuick(8 * 3600); await a.refresh();
+      a.go({ kind: "report", report: rep, absence: true }); await new Promise((z) => setTimeout(z, 900));
+      const t = document.querySelector(".report-gold");
+      return { descent: L.descent, line: line?.textContent.replace(/\s+/g, " ").trim() ?? null, mods: [...(line?.querySelectorAll(".descent-mod") ?? [])].map((m) => m.textContent), sum, setup, shaft,
+        rep: { earned: rep.gold?.earned, workers: rep.gold?.spent_by_workers, head: t?.querySelector("b")?.textContent, spent: t?.querySelector(".report-workers-spent")?.textContent ?? null,
+          descent: document.querySelector(".report-descent")?.textContent.replace(/\s+/g, " ").trim() ?? null, after: a.lineage.descent } };
+    });
+    const D = r.descent;
+    check(!!D && D.tier === 1 && D.start > 1 && offer === `· from D${D.start}` && sheet === `Bloodline 1 · from D${D.start}`, `the offer names the core's start floor (${offer} · ${sheet}; core D${D?.start})`);
+    check(r.line?.startsWith(`Ascension 1 · from D${D?.start} · foes +${D?.hp_pct}% hp`) && r.mods.length === D?.modifiers.length && r.mods.every((m, i) => m === D.modifiers[i].name), `the camp shows the ascension (${r.line})`);
+    check(/(^| · )Ascension 1( · |$)/.test(r.sum) && r.setup?.startsWith(`Ascension 1 · from D${D?.start} · foes +${D?.hp_pct}% hp`), `the run setup shows it (${r.sum} | ${r.setup})`);
+    const s = r.shaft;
+    check(typeof s.ends?.death_lo === "number" && typeof s.ends?.gold_lo === "number", `the real forecast carries its bands (${JSON.stringify({ lo: s.ends?.death_lo, hi: s.ends?.death_hi, glo: Math.round(s.ends?.gold_lo ?? 0), ghi: Math.round(s.ends?.gold_hi ?? 0) })})`);
+    check(s.gem === s.db && s.gold === s.gb && (s.db === null || s.gemText.includes(s.db)) && (s.gb === null || s.goldText.startsWith(`${s.gb}/run`)), `the shaft paints the real bands (${s.gemText} · ${s.goldText})`);
+    check(typeof r.rep.earned === "number" && r.rep.head === `+$${r.rep.earned}` && (r.rep.workers ? r.rep.spent === `−$${r.rep.workers} workers` : r.rep.spent === null), `the report's gold reads the core's earned and workers' spend (${r.rep.head} · ${r.rep.spent})`);
+    const A = r.rep.after;
+    check(!A || (r.rep.descent ?? "").startsWith(`Ascension ${A.tier} · from D${A.start}`), `the report shows the ascension under way (${r.rep.descent})`);
     await page.close();
   }
 } catch (e) {

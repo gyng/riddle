@@ -5,6 +5,7 @@ import { h, replace } from "./dom";
 import { heirOrd } from "./tokens";
 import { openWindow } from "./sheet";
 import { unitPortrait } from "./unit-icon";
+import { ascentStartOf } from "./descent";   // Cut 121 §1: an ascension starts mid-dungeon
 
 const CHALLENGES: Record<string, { name: string; detail: string }> = /* copy:ending */ {
   no_rest: { name: "No rest", detail: "No dungeon rest · half camp recovery" },
@@ -60,7 +61,7 @@ export function renderEnding(app: App): Mounted {
   const numbered = progression && engine.descentOffer && engine.beginDescent;
   const next = h("button", { class:"chip verb descent-choice", onclick: () => reviewDescent(progression?.unlocked ?? 0) },
     h("b", null, /* copy:button */ `Ascension ${progression?.unlocked ?? 0}`),
-    h("span", { class:"ascension-description" }, /* copy:ending */ "Harder dungeon · same bloodline"));
+    h("span", { class:"ascension-description" }, /* copy:ending */ "Harder dungeon · same bloodline", h("span", { class: "num descent-from" }, /* copy:callout */ ` · from D${ascentStartOf(L)}`)));
   function reviewDescent(initial: number): void {
     if (busy || !progression || !engine.descentOffer) return;
     let closed = false, request = 0, tier = initial, ready = false;
@@ -110,9 +111,9 @@ export function renderEnding(app: App): Mounted {
       void refresh();
       return h("div",{class:"sheet-body descent-review"},heading,
         h("div",{class:"descent-stepper"},lower,input,higher),facts,
-        h("p",{class:"num"},/* copy:label */ `Bloodline ${selected} · D1`),
+        h("p",{class:"num descent-start"},/* copy:label */ `Bloodline ${selected}`,/* copy:callout */ ` · from D${ascentStartOf(L)}`),
         h("p",null,/* copy:ending */ "Keeps: hero · gold · Legacy · class XP · gear · supplies · training · town"),
-        h("p",null,/* copy:ending */ "Restarts: depth · checkpoints"),
+        h("p",null,/* copy:ending */ `Restarts: depth · checkpoints past D${ascentStartOf(L)}`),
         L.ascension?.variant?h("p",null,/* copy:ending */ "Previous challenge rules removed"):null,
         (L.hero_slots?.length??0)>1?h("p",null,/* copy:ending */ "Other heroes continue"):null,
         h("div",{class:"chips"},cancel,confirm),feedback);
