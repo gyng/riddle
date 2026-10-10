@@ -2553,15 +2553,16 @@ impl LineageState {
         }
         // Cut 30 §3: the wake offers trait cards and passes the blood (`traits::wake`).
         crate::traits::wake(self);
-        // Cut 118 (owner amendment 2): the heir the order chose, named in the report
+        // Cut 30 §2: from heir 3 the wake deals three temperament cards (card 1 worn until a pick).
+        crate::packages::wake(self);
+        // Cut 118 (owner amendment 2): the heir the order chose, named in the report — read after the temperament is
+        // worn (`packages::wear` rewrites the born trait), so the line names the trait the heir actually carries
         if !self.feats.off {
             if let Some(t) = crate::feats::heir_line(self) {
                 let day = crate::feats::day_of(self.clock_s);
                 crate::feats::news(self, "heir", t, day);
             }
         }
-        // Cut 30 §2: from heir 3 the wake deals three temperament cards (card 1 worn until a pick).
-        crate::packages::wake(self);
     }
     /// Cut 16 §1: a floor's freshness at `depth`, in permille. The deepest depth the lineage
     /// has reached (and anything below it) is always fresh.
@@ -3097,6 +3098,14 @@ pub struct Batch {
     pub passage: i32,
     #[serde(default)]
     pub wake_pay: i32,
+    /// Cut 118 §2 (gate fix): the graves' packs this batch's runs brought home (`recovered …'s pack`) — income
+    /// beside `gold_earned` (`GoldSummary.recovered`).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub recovered_gold: i32,
+    /// Cut 119 (gate fix): the packs this batch's pets fetched home from a death (`fetched by …`) — income beside
+    /// `gold_earned` (`GoldSummary.fetched`).
+    #[serde(default, skip_serializing_if = "is_zero_i32")]
+    pub fetched_gold: i32,
     /// Cut 19 §3: the repeat skipped a kind this batch because the batch's spending had
     /// reached its income (`Game::restock`).
     #[serde(default)]
@@ -6303,6 +6312,10 @@ impl Game {
         let mut salvage: Vec<Item> = Vec::new();
         let mut settled: Vec<(String, &'static str)> = Vec::new();
         let mut done: Vec<(u32, String)> = Vec::new();
+        // Cut 119 gate fix (QA seed 9: `inked scroll? ×3 sheet` beside `enchant ×3 salvaged`, 33 placed of 30): the
+        // sheet rows carry the names the exit wrote; a find vaulted here (and maybe evicted at once) teaches its
+        // flavour, so the rows are settled under the names they had, read before anything is vaulted.
+        let names: BTreeMap<String, String> = p.items.iter().map(|i| (i.kind.clone(), self.lineage.wire_name(&i.kind).replace('_', " "))).collect();
         for (it, coin) in p.items.into_iter().zip(worth) {
             let key = (it.id, it.kind.clone());
             let was_found = if done.contains(&key) { 0 } else { p.found.iter().filter(|f| **f == key).count() };
@@ -6364,7 +6377,7 @@ impl Game {
             }
             line.found.retain(|r| r.n > 0);
         };
-        let wire = |k: &str| self.lineage.wire_name(k).replace('_', " ");
+        let wire = |k: &str| names.get(k).cloned().unwrap_or_else(|| self.lineage.wire_name(k).replace('_', " "));
         if let Some(line) = self.last_exit.as_mut().filter(|l| l.run_id == p.run_id) {
             settle(line, &wire);
         }

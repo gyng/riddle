@@ -206,7 +206,7 @@ impl Session {
             r.bloodlines.push(summary(*id,&other,g));
             r.legacy_earned+=other.legacy_earned; r.runs+=other.runs; r.banked+=other.banked; r.returned+=other.returned;r.deepest=r.deepest.max(other.deepest);
             for death in other.deaths {if let Some(d)=r.deaths.iter_mut().find(|d|d.cause==death.cause){d.n+=death.n;}else{r.deaths.push(death);}}
-            if let Some(b)=other.gold {let a=r.gold.get_or_insert_with(Default::default);a.home+=b.home;a.salvage+=b.salvage;a.spent+=b.spent;a.wake+=b.wake;a.wake_n+=b.wake_n;a.wake_cap=a.wake_cap.max(b.wake_cap);a.lost+=b.lost;a.unkept+=b.unkept;a.passage+=b.passage;}
+            if let Some(b)=other.gold {let a=r.gold.get_or_insert_with(Default::default);a.home+=b.home;a.salvage+=b.salvage;a.spent+=b.spent;a.wake+=b.wake;a.wake_n+=b.wake_n;a.wake_cap=a.wake_cap.max(b.wake_cap);a.lost+=b.lost;a.unkept+=b.unkept;a.passage+=b.passage;a.recovered+=b.recovered;a.fetched+=b.fetched;}
             for (target,rows) in [(&mut r.salvaged,other.salvaged),(&mut r.spent,other.spent)] {
                 for row in rows {if let Some(a)=target.iter_mut().find(|a|a.kind==row.kind){a.n+=row.n;a.gold+=row.gold;}else{target.push(row);}}
             }

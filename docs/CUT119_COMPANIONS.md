@@ -325,3 +325,47 @@ the drive-off test reads the record checkpoint's secured carry.
 - *Heir shapes* hand-shipped without `examples/traits.rs`'s strict build test (the measurement was not re-run); IDLE's
   bars hold with them.
 - *Waystone row*: above.
+
+## Gate fixes (2026-10-10, after bebf514)
+
+The routine full gate (`node tools/gates.mjs --full --fresh`) failed four QA invariants and one dayplayer bar.
+Each QA failure was bisected with temporary worktrees at c495638 (before Cut 118), 43265c2 (Cut 118, before
+Cut 119) and bebf514 (Cut 119), running `examples/qa --seeds 10` (and `--seeds 30` for the audit set).
+
+| failure | c495638 | 43265c2 | bebf514 | cause | fix |
+|---|---|---|---|---|---|
+| `night gold: earned + salvage + wake pay − spent == delta` (10/10) | PASS | FAIL 9/10 | FAIL 10/10 | Cut 118's graves (`recovered …'s pack`) and Cut 119's fetched packs (`fetched by …`) move the purse at a run's end, outside the batch's terms. The lineage's ledger (`gold_tally`, the report's `ledger`) already had both; the batch did not. | `Batch.recovered_gold` and `Batch.fetched_gold`, set where the gold moves (`feats::recover_graves`, `pets::on_run_end`). The invariant now reads `earned + salvage + wake + recovered + fetched − spent`. |
+| `the report's gold terms sum to the purse's move` (43/80) | PASS | FAIL | FAIL | the same two flows, on the client-sliced report | `GoldSummary.recovered` / `.fetched` (wire, skipped at 0; merged across bloodlines; `types.ts`). The check adds both terms. |
+| `an absence of deaths rested one wake per run` (1) | PASS | FAIL | FAIL | Cut 118's Sleeper set (−2 % rest, `feats::bonus_pct`) can complete mid-absence. The runs before it rest the full wake and the runs after it rest less. The check read only the end-of-night wake (20400 s = 17 × 1200, against 17 × 1176). | The check now requires the rested total to equal k × first wake + (runs − k) × last wake, for some k, exactly. Each run rests the wake of its own time. |
+| `found at an exit == kept + salvaged + … + bones` (1/120) | PASS | PASS | FAIL | A latent bug in `keep_settle`, surfaced by Cut 119's changed RNG paths. A find vaulted (and evicted at once) during the keep teaches its flavour, so the settled rows were looked up under the new name (`enchant`), while the exit's `sheet` rows still read `inked scroll? ×3`. The result was 3 left on the sheet and 3 counted again (33 of 30). | The sheet rows are settled under the names they had, read before anything is vaulted. Text only; no game state changes. |
+| `a stamp never contradicts its replay counts` (30-seed audit only, seed 18) | PASS | PASS | FAIL | The QA read (and `tests.rs`'s copy) missed the documented exemption (blind 3ab97ea, `trace::compute_verdict`): a death under a boss never leans `dice`. A Cut 119 night met one. | Both reads exempt `Death.boss`, as the engine does. |
+
+**`IDLE never out-paces PICKED (≥ 90 %)`.** On the 16-seed panel (`node tools/gates.mjs --full --rows outpace`) it
+reads 97 % and PASSES. The 3 failing pairs of ~110 are seed 1 at D8 (PICKED 16 h, IDLE 8 h) and at D18 (32 h
+vs 24 h), and seed 10 at D8. The routine gate plays seeds 1 and 2 by design, so it samples 14 pairs. Seed 1's
+two failing pairs give 12/14 = 86 %, which FAILS. Measurements:
+- PICKED reaches D8 within 8 h on 11/16 seeds, against 13/16 with pets pinned off and 14/16 with only the tame
+  row revoked. IDLE is unchanged (7/16 against 6/16). So Cut 119 does slow PICKED's first check-in a little.
+- The failing pairs move between seeds rather than piling up. With pets pinned off, seeds 6 and 9 fail at D8
+  instead.
+- An earlier tree failed the same routine row at 86 % on the same seed 1 at D8 (cache `ac2bdfcaddb8019e`,
+  2026-10-09 12:44).
+- Heal identification on day 1 is the same with the tame row and without it (18/96 check-ins).
+- On seed 1, the first-session divergence is chaotic: PICKED reaches D7, not D8, at 8 h.
+
+No content change was made to flip seeds 1–2. That would be tuning to the sample, not to the bar. The bar holds
+on 16 seeds; the routine 2-seed row stays FAIL until the owner rules on it.
+
+The coordinator's report items, in the same pass:
+- **The `heir` line names the worn trait.** `packages::wake` wears temperament card 1, and `wear` rewrites the
+  born trait. The line was written before that, so it could name the order's earlier card. It is now written
+  after the wake (`LineageState::new_heir`). This changes no game state, so the IDLE bars hold. Test:
+  `tests_cut119::the_heir_line_names_the_worn_trait`, which fails on the old order.
+- **The `bred` line names the pup's generation.** `Ashak egg · I` hatched `Ashak II`. Both now read `pets::bred_gen`
+  (`gen + 1`), so the line is `Ashak egg · II`. This is asserted in `the_keeper_breeds_and_releases`.
+
+**Deviation (coordinator, 2026-10-10):** the routine gate's 2-seed `IDLE never out-paces PICKED` reads 86 % (12/14
+pairs; seed 1 D8 16 h vs 8 h, D18 32 h vs 24 h), while the 16-seed row reads 97 % (PASS, ≥ 90 %). The threshold is
+unchanged. The cause is a real, small Cut 119 effect: PICKED reaches D8 within 8 h on 11/16 seeds with pets, against
+13/16 with pets off. The bar holds on the full sample, so it is recorded rather than tuned to seeds 1–2. A follow-up
+should look at the tame row's early cost to PICKED.

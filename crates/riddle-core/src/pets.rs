@@ -533,6 +533,7 @@ pub fn on_run_end(g: &mut Game, run: &Run, tier: ExitTier) {
             if gold > 0 {
                 let heir = crate::legacy::hero_name(g.lineage.seed, run.heir);
                 g.lineage.gold_move(gold, &format!("fetched by {}", c.name));
+                g.batch.fetched_gold += gold;
                 g.lineage.pets.fetched += i64::from(gold);
                 g.lineage.pets.fetched_run = Some((run.id, gold));
                 if let Some(p) = g.lineage.party.iter_mut().chain(g.lineage.kennel.iter_mut()).find(|p| p.id == c.id) {
@@ -642,7 +643,8 @@ fn keeper(g: &mut Game, day: u32) {
             l.eggs_laid += 1;
             l.pets.bred += 1;
             l.bred.insert(sire.kind.clone());
-            crate::feats::news(l, "bred", format!("{} egg · {}", base_name(&sire.name), roman(gen)), day);
+            // (the coordinator: the line names the pup's generation, as its hatched name `bred_name` will — `Ashak egg · II` hatches `Ashak II`)
+            crate::feats::news(l, "bred", format!("{} egg · {}", base_name(&sire.name), bred_gen(gen)), day);
             crate::petstats::bump(crate::petstats::Stat::Bred, 1);
         }
     }
@@ -701,7 +703,12 @@ pub fn roman(n: u32) -> String {
 
 /// A bred egg's name: the sire's, its generation in Roman (`Rook III`).
 pub fn bred_name(sire: &str, gen: u32) -> String {
-    format!("{sire} {}", roman(gen + 1))
+    format!("{sire} {}", bred_gen(gen))
+}
+
+/// The generation a bred egg of `gen` hatches into, as its name and the `bred` line read it.
+pub fn bred_gen(gen: u32) -> String {
+    roman(gen + 1)
 }
 
 // ---------------------------------------------------------------- the wire

@@ -1120,6 +1120,7 @@ fn recover_graves(g: &mut Game, run: &Run, day: u32) {
     for x in take {
         if x.gold > 0 {
             g.lineage.gold_move(x.gold, &format!("recovered {}'s pack", x.name));
+            g.batch.recovered_gold += x.gold;
             news(&mut g.lineage, "recovered", format!("{}'s pack · ${} · D{}", x.name, x.gold, x.depth), day);
         }
     }

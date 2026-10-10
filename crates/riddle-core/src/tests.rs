@@ -11732,7 +11732,7 @@ fn a_stamp_never_contradicts_its_counts() {
     assert!(!ids.is_empty());
     for id in ids {
         let d = g.death(id).unwrap();
-        let leans = matches!(d.verdict.as_str(), "gap" | "row" | "order") && d.baseline > crate::trace::STAMP_BASE + 1e-9;
+        let leans = d.boss.is_none() && matches!(d.verdict.as_str(), "gap" | "row" | "order") && d.baseline > crate::trace::STAMP_BASE + 1e-9;
         assert_eq!(d.lean.as_deref() == Some("dice"), leans, "run {id}: {} base {:.2} lean {:?}", d.verdict, d.baseline, d.lean);
     }
 }

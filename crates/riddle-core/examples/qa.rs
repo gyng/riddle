@@ -326,8 +326,10 @@ fn check_death(t: &mut Tally, g: &Game, seed: u64, d: &riddle_core::Death) {
     t.check("a gap or row verdict has a baseline under 100 %", !(d.verdict == "gap" || d.verdict == "row" || d.verdict == "order") || d.baseline < 1.0 - 1e-9, || format!("seed {seed} run {}: {} base {:.2}", d.run_id, d.verdict, d.baseline));
     // Cut 26 §6 (AO: `GAP` beside `unpatched 10/12`): a stamp never contradicts its replay counts —
     // a gap (row, order) most of whose unpatched replays survive says it leans to the dice, and only it does.
-    let leans = matches!(d.verdict.as_str(), "gap" | "row" | "order") && d.baseline > riddle_core::trace::STAMP_BASE + 1e-9;
-    t.check("a stamp never contradicts its replay counts (a gap most replays survive leans `dice`)", (d.lean.as_deref() == Some("dice")) == leans, || format!("seed {seed} run {}: {} · unpatched {:.0}/{} · lean {:?}", d.run_id, d.verdict, d.baseline * d.replays.max(1) as f64, d.replays, d.lean));
+    // (blind 3ab97ea, `trace::compute_verdict`: a death under a boss is his wall, never the dice — no lean; the QA
+    // read missed it until a Cut 119 night met one on seed 18 of the 30-seed audit)
+    let leans = d.boss.is_none() && matches!(d.verdict.as_str(), "gap" | "row" | "order") && d.baseline > riddle_core::trace::STAMP_BASE + 1e-9;
+    t.check("a stamp never contradicts its replay counts (a gap most replays survive leans `dice`)", (d.lean.as_deref() == Some("dice")) == leans, || format!("seed {seed} run {}: {} · unpatched {:.0}/{} · lean {:?} · boss {:?}", d.run_id, d.verdict, d.baseline * d.replays.max(1) as f64, d.replays, d.lean, d.boss));
     // QA on 308f045 (qaAC: `← never met` over `R1 attack boss · not in view`, R1 having fired four times on that floor): a
     // chain link is its row's newest reason — never one the row outlived (fired after it, or gave another reason since).
     for b in d.chain.iter().flatten() {
@@ -901,7 +903,7 @@ fn check_report_leg(t: &mut Tally, g: &Game, seed: u64) {
         let at = format!("slice {slice}");
         if let Some(gs) = &r.gold {
             let spent: i32 = r.spent.iter().map(|x| x.gold).sum();
-            t.check("the report's gold terms sum to the purse's move", gs.home + gs.salvage + gs.wake - spent == h.lineage.gold - gold0, || format!("seed {seed} {at}: +{} +{} +{} −{spent} vs {}", gs.home, gs.salvage, gs.wake, h.lineage.gold - gold0));
+            t.check("the report's gold terms sum to the purse's move", gs.home + gs.salvage + gs.wake + gs.recovered + gs.fetched - spent == h.lineage.gold - gold0, || format!("seed {seed} {at}: +{} +{} +{} +{} recovered +{} fetched −{spent} vs {}", gs.home, gs.salvage, gs.wake, gs.recovered, gs.fetched, h.lineage.gold - gold0));
         }
         // (the slice's ledger lines are those after its first tick; a slice the ledger's cap cut into is not read)
         let first = h.lineage.gold_ledger.iter().position(|x| x.t > t0).unwrap_or(h.lineage.gold_ledger.len());
@@ -1617,6 +1619,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     }
     // The night.
     let before = g.lineage.gold;
+    let wake_before = g.rest_after(0, ExitTier::Death) as u64;
     let bounty_before = g.lineage.bounty;
     let chronicle_before = g.lineage.chronicle.len();
     let deeds_before: Vec<String> = g.lineage.heir_deeds.clone();
@@ -1657,9 +1660,15 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     }
     // QA on e75ec29 (qaQ: `rested 333m` beside 16 runs × `rest 20m`): an absence of deaths
     // rested one wake per run.
+    // Cut 118 gate fix: the Sleeper's set may complete mid-absence (a find), shortening the wakes after it — each
+    // run rested the wake of its own time: k at the absence's first wake, the rest at its last, exactly.
     if !r.sampled && r.banked == 0 && r.returned == 0 {
-        let want = r.runs as u64 * g.rest_after(0, ExitTier::Death) as u64 / riddle_core::offline::TICKS_PER_SECOND;
-        t.check("an absence of deaths rested one wake per run", r.rested_s == want, || format!("seed {seed}: rested {}s · {} runs · want {want}s", r.rested_s, r.runs));
+        let tps = riddle_core::offline::TICKS_PER_SECOND;
+        let wake_after = g.rest_after(0, ExitTier::Death) as u64;
+        let runs = r.runs as u64;
+        let fits = (0..=runs).any(|k| (k * wake_before + (runs - k) * wake_after) / tps == r.rested_s);
+        let want = runs * wake_after / tps;
+        t.check("an absence of deaths rested one wake per run", fits, || format!("seed {seed}: rested {}s · {} runs · want {want}s (first wake {}s)", r.rested_s, r.runs, wake_before / tps));
     }
     lp.lap("night (8 h offline)");
     let deaths: u32 = r.deaths.iter().map(|d| d.n).sum();
@@ -1669,7 +1678,7 @@ fn play(o: &mut Out, pool: &Pool, seed: u64) {
     t.check("report SALVAGED rows sum to the header's salvage", rows == head, || format!("seed {seed}: rows ${rows} vs +${head}"));
     let b = &g.batch;
     let spent: i32 = b.spent.values().map(|(_, c)| *c).sum();
-    t.check("night gold: earned + salvage + wake pay − spent == delta", b.gold_earned + b.salvage_gold + b.wake_pay - spent == g.lineage.gold - before, || format!("seed {seed}: {} + {} + {} − {spent} vs {}", b.gold_earned, b.salvage_gold, b.wake_pay, g.lineage.gold - before));
+    t.check("night gold: earned + salvage + wake pay + recovered + fetched − spent == delta", b.gold_earned + b.salvage_gold + b.wake_pay + b.recovered_gold + b.fetched_gold - spent == g.lineage.gold - before, || format!("seed {seed}: {} + {} + {} + {} recovered + {} fetched − {spent} vs {}", b.gold_earned, b.salvage_gold, b.wake_pay, b.recovered_gold, b.fetched_gold, g.lineage.gold - before));
     t.check("report spent == the batch's", r.spent.iter().map(|s| s.gold).sum::<i32>() == spent, || format!("seed {seed}"));
     // QA on 778fa1b (qaV): the night's exits place every find.
     // QA on 912e135 (qaW, qaX): the night's exit lines, one tier each; the stalled lines are the stalled tile's; the swaps the

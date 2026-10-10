@@ -190,6 +190,9 @@ fn the_keeper_breeds_and_releases() {
     }
     let pup = g.lineage.all_companions().find(|c| c.life.bred).expect("hatched").clone();
     assert_eq!(pup.name, format!("{} II", egg.sire));
+    // (gate fix: the `bred` line names the generation the pup hatches as — `Rook egg · II` hatches `Rook II`)
+    let bred: Vec<&str> = g.lineage.feats.news.iter().filter(|n| n.k == "bred").map(|n| n.text.as_str()).collect();
+    assert!(bred.contains(&format!("{} egg · II", egg.sire).as_str()), "bred lines {bred:?}");
     assert!(pets::max_hp(&pup, 100) > pets::max_hp(&Companion { gen: 0, ..pup.clone() }, 100), "pedigree");
     assert!(g.lineage.party.len() + g.lineage.kennel.len() <= g.lineage.party_slots() as usize + pets::KENNEL_SPARE);
     let mut h = camp(8);
@@ -239,4 +242,20 @@ fn the_307dbed_hash_restores_with_pets_pinned_off() {
     let mut g = Game::load(include_str!("fixtures/save_307dbed.json")).unwrap();
     crate::pets::pin_off(&mut g.lineage);
     assert_eq!(format!("{:016x}", crate::tests::sends_hash(&mut g, 10)), "2f3eb706b3d24c7c");
+}
+
+/// Gate fix (the coordinator): the report's `heir` line names the trait the heir actually wears — read after the
+/// wake's temperament card is worn (`packages::wear` rewrites the born trait), never the order's earlier card.
+#[test]
+fn the_heir_line_names_the_worn_trait() {
+    for seed in 1..=12u64 {
+        let mut g = camp(seed);
+        g.lineage.heir = 4;
+        g.lineage.graveyard.push(crate::wire::Grave { heir: 4, depth: 13, cause: "bloat_mother".into(), deeds: Vec::new(), death_id: None });
+        g.lineage.new_heir();
+        assert!(g.lineage.pkg.temperament.is_some(), "seed {seed}: a temperament card worn");
+        let born = g.lineage.heirs.born.expect("born");
+        let line = g.lineage.feats.news.iter().rev().find(|n| n.k == "heir").expect("an heir line").text.clone();
+        assert!(line.contains(&born.chip()), "seed {seed}: {line} vs worn {}", born.chip());
+    }
 }

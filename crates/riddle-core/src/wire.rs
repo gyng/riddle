@@ -1934,6 +1934,12 @@ pub struct GoldSummary {
     /// waystone passages paid into the purse at the sends — income beside `home`.
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub passage: i32,
+    /// Cut 118 §2 (gate fix): the graves' packs the absence's runs brought home — income beside `home`.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub recovered: i32,
+    /// Cut 119 (gate fix): the packs the absence's pets fetched home from deaths — income beside `home`.
+    #[serde(default, skip_serializing_if = "is_zero_i")]
+    pub fetched: i32,
     /// The purse's actual change over the absence (`home + salvage + passage + wake − spent`
     /// and every other movement: forge steps the apprentice bought, hires, bank moves).
     #[serde(default, skip_serializing_if = "Option::is_none")]
