@@ -2,9 +2,9 @@
 // each of his turns (`Snapshot.awaiting`) for one action (`engine.act`): a step (a foe on the tile is attacked), a verb as the rows
 // write it (drink heal · descend · return · attack lowest), or a wait; `Release` hands him back to the rules (`takeControl(false)`).
 // The panel is the watch's: a toggle, an 8-way pad and the turn's actions.
-//   keys (owner 2026-10-10: "keyboard works? and consider mobile/touch"): arrows / WASD / numpad step (diagonals 7·9·1·3), `.` or
-//     numpad 5 waits, `f` attack · `g` attack until · `q` drink · `t` throw · `>` or Enter descend · `r` return — only while in hand;
-//     `c` takes and releases him. Never inside a field, never under a sheet. Each tile names its key in its tooltip, and (a mouse)
+//   keys (owner 2026-10-10: "remap keyboard controls and support numpad, arrows, as secondary"): the pad's grid Q W E · A D ·
+//     Z X C steps, S waits (arrows, numpad, `.` and numpad 5 too), `f` attack · `g` attack until · `h` drink · `t` throw · Enter or
+//     `>` descend · `r` return — only while in hand; `m` takes and releases him. Never inside a field, never under a sheet. Each tile names its key in its tooltip, and (a mouse)
 //     in its corner.
 //   touch: a held arrow repeats (REPEAT_MS) until released, refused or no longer awaited; a tap on the map steps one tile toward it,
 //     a long-press walks there; a refused order buzzes (8 ms).
@@ -28,9 +28,11 @@ export type Control = { el: HTMLElement; paint(s: Snapshot | null): void; on(): 
   /** the map's taps and clicks (the watch's canvas): consumed while in hand */
   bindMap(canvas: HTMLElement, view: () => MapView | null): void };
 
-const DIRS: [number, number, string, string][] = [[-1, -1, "↖", "7"], [0, -1, "↑", "W"], [1, -1, "↗", "9"], [-1, 0, "←", "A"], [0, 0, "·", "."], [1, 0, "→", "D"], [-1, 1, "↙", "1"], [0, 1, "↓", "S"], [1, 1, "↘", "3"]];
+// owner 2026-10-10: the keys are the pad's own grid (Q W E · A S D · Z X C, S waits); arrows, numpad and `.` stay as seconds
+const DIRS: [number, number, string, string][] = [[-1, -1, "↖", "Q"], [0, -1, "↑", "W"], [1, -1, "↗", "E"], [-1, 0, "←", "A"], [0, 0, "·", "S"], [1, 0, "→", "D"], [-1, 1, "↙", "Z"], [0, 1, "↓", "X"], [1, 1, "↘", "C"]];
 const KEYS: Record<string, [number, number]> = {
-  ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0], w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
+  q: [-1, -1], w: [0, -1], e: [1, -1], a: [-1, 0], d: [1, 0], z: [-1, 1], x: [0, 1], c: [1, 1],
+  ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
   Numpad8: [0, -1], Numpad2: [0, 1], Numpad4: [-1, 0], Numpad6: [1, 0], Numpad7: [-1, -1], Numpad9: [1, -1], Numpad1: [-1, 1], Numpad3: [1, 1],
 };
 
@@ -178,7 +180,7 @@ export function controlPanel(engine: ControlEngine, kick: () => void): Control {
       cls: `ctl-dir${wait ? " ctl-wait" : ""}`, onclick: () => { if (padPtr) { padPtr = false; return; } void send(act); } });
     b.dataset.dx = String(dx); b.dataset.dy = String(dy);
     b.setAttribute("aria-label", wait ? "wait" : `step ${glyph}`);
-    keyed(b, key, wait ? /* copy:tooltip */ "wait · 5 or ." : `${glyph} · ${key}`);
+    keyed(b, key, wait ? /* copy:tooltip */ "wait · S" : `${glyph} · ${key}`);
     if (!wait) {
       b.style.setProperty("--rot", `${ROT[`${dx},${dy}`]}deg`);
       // a held arrow repeats while held (touch, or the mouse): the press steps now, the drive repeats
@@ -212,25 +214,25 @@ export function controlPanel(engine: ControlEngine, kick: () => void): Control {
     const t = tile({ id: "ctl-toggle", label: mine ? /* copy:button */ "release" : /* copy:button */ "control", icon: mine ? "ctl_release" : "ctl_hand", glyph: "✋", cls: "ctl-toggle", on: mine,
       onclick: () => void toggle() });
     t.setAttribute("aria-pressed", String(mine));
-    keyed(t, "C", mine ? /* copy:tooltip */ "back to the rules · C" : /* copy:tooltip */ "drive him by hand · C");
+    keyed(t, "M", mine ? /* copy:tooltip */ "back to the rules · M" : /* copy:tooltip */ "drive him by hand · M");
     toggleSlot.replaceChildren(t);
   };
   // --- keys ---
   const typing = (t: EventTarget | null): boolean => t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
   const modal = (): boolean => sheetOpen() || !!document.querySelector("dialog[open], [aria-modal=true]");
   const VERB_KEYS: Record<string, ManualAct> = {
-    f: { k: "verb", verb: { v: "attack", a: "nearest" } }, g: { k: "attack_until", hp: UNTIL_HP }, q: { k: "verb", verb: { v: "drink", a: "heal" } },
+    f: { k: "verb", verb: { v: "attack", a: "nearest" } }, g: { k: "attack_until", hp: UNTIL_HP }, h: { k: "verb", verb: { v: "drink", a: "heal" } },
     t: { k: "verb", verb: { v: "throw", a: "fire" } }, ">": { k: "verb", verb: { v: "descend" } }, r: { k: "verb", verb: { v: "return" } },
   };
   const onKey = (e: KeyboardEvent): void => {
     if (e.ctrlKey || e.metaKey || e.altKey || el.hidden || !el.isConnected || typing(e.target) || modal()) return;
     if (e.key === "Escape") { if (drive) stopDrive(); return; }
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-    if (k === "c") { if (e.repeat) return; e.preventDefault(); void toggle(); return; }
+    if (k === "m") { if (e.repeat) return; e.preventDefault(); void toggle(); return; }
     if (!mine) return;
     const d = KEYS[k] ?? KEYS[e.code];
     if (d) { e.preventDefault(); void send({ k: "step", dx: d[0], dy: d[1] }); return; }
-    if (k === "." || e.code === "Numpad5") { e.preventDefault(); void send({ k: "wait" }); return; }
+    if (k === "s" || k === "." || e.code === "Numpad5") { e.preventDefault(); void send({ k: "wait" }); return; }
     // Enter descends, unless it is pressing the control that has focus
     if (k === "Enter" || e.code === "NumpadEnter") { if (e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) return; e.preventDefault(); void send(VERB_KEYS[">"]!); return; }
     const a = VERB_KEYS[k];
@@ -271,9 +273,9 @@ export function controlPanel(engine: ControlEngine, kick: () => void): Control {
     until.dataset.verb = "attack until"; until.setAttribute("aria-label", "attack until");
     keyed(until, "G", /* copy:tooltip */ `same foe until it falls or hp < ${UNTIL_HP}% · G`);
     kids.push(until);
-    if (heal) kids.push(verb(/* copy:button */ "drink", "v_drink", "drink", "heal", "Q", /* copy:tooltip */ "drink heal · Q"));
+    if (heal) kids.push(verb(/* copy:button */ "drink", "v_drink", "drink", "heal", "H", /* copy:tooltip */ "drink heal · H"));
     if (fire) kids.push(verb(/* copy:button */ "throw", "v_throw", "throw", "fire", "T", /* copy:tooltip */ "throw fire · T"));
-    kids.push(verb(/* copy:button */ "descend", "v_descend", "descend", undefined, ">", /* copy:tooltip */ "descend · > or Enter"),
+    kids.push(verb(/* copy:button */ "descend", "v_descend", "descend", undefined, "↵", /* copy:tooltip */ "descend · ↵"),
       verb(/* copy:button */ "return", "bail", "return", undefined, "R", /* copy:tooltip */ "return home · R"));
     verbs.replaceChildren(...kids);
   }

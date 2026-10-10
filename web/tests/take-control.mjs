@@ -70,15 +70,15 @@ try {
   check(await page.locator(".ctl-toggle").isVisible(), "the watch offers take control");
   // discoverability: the lone tile names what it does and its key
   const tip0 = (await page.locator(".ctl-toggle").getAttribute("title")) ?? "";
-  check(/·\s*C$/.test(tip0) && tip0.split(/\s+/).length <= 10, `the control tile's tooltip names it and its key ("${tip0}")`);
+  check(/·\s*M$/.test(tip0) && tip0.split(/\s+/).length <= 10, `the control tile's tooltip names it and its key ("${tip0}")`);
   await page.click(".ctl-toggle");
   await awaiting(page);
   await sleep(500); const a = await st(); await sleep(2000); const b = await st();
   check(a.on === "1" && b.eng === a.eng, `the world waits for an order (engine ${a.eng} → ${b.eng})`);
   check(/Hand control/.test(await page.locator(".live-badge").textContent()), "the badge reads hand control");
   let moved = 0;
-  for (const k of ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "."]) { const s0 = await st(); await page.keyboard.press(k); await sleep(900); const s1 = await st(); if (s1.eng > s0.eng) moved++; check(s1.tick <= s1.eng, `the picture stays at the frontier after ${k} (${s1.tick} ≤ ${s1.eng})`); }
-  check(moved === 5, `each key is one action (${moved}/5 advanced the world)`);
+  for (const k of ["d", "a", "x", "w", "s", "e", "z", "ArrowRight", "ArrowLeft", "Numpad5", "."]) { const s0 = await st(); await page.keyboard.press(k); await sleep(900); const s1 = await st(); if (s1.eng > s0.eng) moved++; check(s1.tick <= s1.eng, `the picture stays at the frontier after ${k} (${s1.tick} ≤ ${s1.eng})`); }
+  check(moved === 11, `each key is one action — the pad grid, arrows, numpad (${moved}/11 advanced the world)`);
   // blind b58b431 (A: arrows and `descend` inert in gas): every order resolves on the panel — done, or refused and why
   const note = (await page.locator(".ctl-note").textContent()) ?? "";
   check(/^(moved|waited|can't · .+|paralysed · \d+)$/.test(note), `the last order reads its outcome ("${note}")`);
@@ -88,7 +88,7 @@ try {
   check(tips.every((t) => t.shown), "a mouse sees each key in its tile's corner");
   // the verb keys: each one order (the core resolves it, done or refused)
   await page.evaluate(() => document.activeElement?.blur?.());
-  for (const [k, re] of [["f", /^(attack ✓|foe down|can't · .+|paralysed · \d+)$/], ["g", /^(attack until|foe down|hp under \d+%|can't · .+|paralysed · \d+)$/], ["q", /^(drink ✓|can't.*|paralysed · \d+)$/], ["t", /^(throw ✓|can't.*|paralysed · \d+)$/], [">", /^(descend ✓|can't.*|paralysed · \d+)$/], ["Enter", /^(descend ✓|can't.*|paralysed · \d+)$/]]) {
+  for (const [k, re] of [["f", /^(attack ✓|foe down|can't · .+|paralysed · \d+)$/], ["g", /^(attack until|foe down|hp under \d+%|can't · .+|paralysed · \d+)$/], ["h", /^(drink ✓|can't.*|paralysed · \d+)$/], ["t", /^(throw ✓|can't.*|paralysed · \d+)$/], [">", /^(descend ✓|can't.*|paralysed · \d+)$/], ["Enter", /^(descend ✓|can't.*|paralysed · \d+)$/]]) {
     await awaiting(page);
     const n0 = await acts(page); await page.keyboard.press(k); await sleep(700);
     const n = (await page.locator(".ctl-note").textContent()) ?? "";
@@ -96,14 +96,14 @@ try {
   }
   // `c` takes and releases him; nothing fires in a field
   await awaiting(page);
-  await page.keyboard.press("c"); await page.waitForFunction(() => document.querySelector(".ctl")?.dataset.on === "0", null, { timeout: 10_000 }).catch(() => {});
+  await page.keyboard.press("m"); await page.waitForFunction(() => document.querySelector(".ctl")?.dataset.on === "0", null, { timeout: 10_000 }).catch(() => {});
   check(await page.evaluate(() => document.querySelector(".ctl")?.dataset.on) === "0", "`c` releases him");
   const n1 = await acts(page); await page.keyboard.press("f"); await sleep(300);
   check(await acts(page) === n1, "verb keys do nothing out of hand");
-  await page.keyboard.press("c"); await awaiting(page).catch(() => {});
+  await page.keyboard.press("m"); await awaiting(page).catch(() => {});
   check(await page.evaluate(() => document.querySelector(".ctl")?.dataset.on) === "1", "`c` takes him again");
   const fieldKey = await page.evaluate(async () => { const i = document.createElement("input"); document.body.appendChild(i); i.focus(); const n = Number(document.querySelector(".ctl").dataset.acts ?? 0);
-    i.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true })); i.dispatchEvent(new KeyboardEvent("keydown", { key: "c", bubbles: true })); await new Promise((r) => setTimeout(r, 300));
+    i.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true })); i.dispatchEvent(new KeyboardEvent("keydown", { key: "m", bubbles: true })); await new Promise((r) => setTimeout(r, 300));
     const ok = Number(document.querySelector(".ctl").dataset.acts ?? 0) === n && document.querySelector(".ctl").dataset.on === "1"; i.remove(); return ok; });
   check(fieldKey, "keys inside a field drive nothing");
   // hold-to-repeat: a held arrow steps more than once, and stops on release
@@ -168,7 +168,7 @@ try {
   for (let i = 0; i < 400 && !foe; i++) { await sleep(250); const s = await snapOf(page); if (s?.foes.length) foe = s.foes[0]; }
   check(!!foe, "the rules find a foe");
   if (foe) {
-    await page.keyboard.press("c"); await awaiting(page); await settle(page);
+    await page.keyboard.press("m"); await awaiting(page); await settle(page);
     const s = await snapOf(page), f = s.foes.find((q) => q.id === foe.id) ?? s.foes[0];
     // (aim at the sprite, as a player would: its drawn box, the canvas's px)
     const at = f && await page.evaluate((id) => { const r = window.__viewer.debugRects().find((q) => q.id === id), cv = document.querySelector("canvas.view"), c = cv.getBoundingClientRect();
