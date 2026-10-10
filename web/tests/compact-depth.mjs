@@ -70,6 +70,8 @@ try{for(const width of [400,1024,1440,1920]){
  assert.equal(model.oldWire.depth,23);assert.equal(model.oldWire.reward,undefined);assert.ok(!JSON.stringify(model).includes('unseen_enemy'),'no unseen boss attribution');
  if(width<1024){
   await p.evaluate(async()=>{const a=window.__riddle,report=await a.engine.runOfflineQuick(0);a.go({kind:'report',report,absence:true});});
+  // cd0e899: the goal lives in the report's details fold; open it to read the goal
+  await p.locator('.details-fold').click();
   await p.locator('.report-progress-goal').waitFor({state:'visible'});
   assert.equal(await p.locator('.report-progress-goal b').innerText(),'D15');
  }
