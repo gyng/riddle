@@ -17,7 +17,7 @@
   animation: kwtip .12s ease-out; }
 .kw-tip[hidden] { display: none; }
 .kw-tip.kw-pin { pointer-events: auto; }   /* a hover's plate lets clicks through; a tap's takes them (its nested keywords) */
-.skin-tablet .kw-tip { border: 7px solid transparent; border-image: url(/ui/frames/tablet.png) 24 fill / 7px stretch; background: none; padding: 1px 4px 2px; border-radius: 0; }
+.skin-tablet .kw-tip { border: 7px solid transparent; border-image: url(/ui/frames/tablet.png) 24 fill / 7px stretch; background: none; padding: 5px 9px 6px; line-height: 1.3; border-radius: 0; }   /* owner 2026-10-10: text clear of the frame */
 .kw-tip-head { display: flex; align-items: center; gap: 5px; font: 600 15px/1.15 var(--display); color: var(--bone); letter-spacing: .02em; }
 .kw-tip-head .ico { width: 16px; height: 16px; flex: none; }
 .kw-tip-head .ico.glyph::before { font-size: 12px; line-height: 16px; }

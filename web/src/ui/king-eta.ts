@@ -19,6 +19,8 @@ export type KingEta = { day: number; today: number; far: boolean; bend: number }
  *  an hour old), once he is slain, or on an ended lineage. `far` past day 99. */
 export function kingEta(L: Pick<Lineage, "age_h" | "best_depth" | "walls" | "ended" | "runs" | "clock_s" | "trophies" | "king_eta_h">): KingEta | null {
   const age = L.age_h, best = L.best_depth;
+  // owner review 2026-10-10 (`King · ~day 3` at best D7): no pace is read before the second band boss's floor
+  if (best < 13) return null;
   // the core's own pace (Cut 118 §8): hours from now; 0 means slain (the line reads `slain`)
   if (typeof L.king_eta_h === "number" && !L.ended) {
     if (L.king_eta_h <= 0) return null;

@@ -695,7 +695,8 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
       // Cut 118 §9: an absence after the scout ran every send it had time for — `uncapped` stays its headline
       absence && L.tree?.auto_send ? h("small", { class: "report-uncapped num" }, /* copy:label */ "uncapped") : "",
       // Cut 118 §3 (round 2): the finds this absence sealed, counted on the away screen (opened below, one reveal)
-      absence && r.finds?.sealed ? h("small", { class: "report-sealed num dim", "data-sealed": r.finds.sealed, title: /* copy:tooltip */ "one find sealed per run away" }, /* copy:callout */ `${r.finds.sealed} sealed`) : ""),
+      // owner review 2026-10-10: the sealed count left the headline (the reveal below carries it in its tip)
+      ""),
     buildHead(L, r.deepest ?? L.best_depth, deathsN === 0, meterOf),
     kingLine(L, "report-king"),
     h("div", { class: `tiles report-basics${absence ? " fade-in" : ""}` },

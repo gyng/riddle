@@ -818,7 +818,12 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 run.blocked_now = Some(format!("R{} {} ✗ {reason}", i + 1, row.verb.short()));
                 // The verb's own short word (`corridor ✗ no path`), never the id's first half
                 // (`back ✗ no path` named no row — QA on 50bb162).
-                let short = format!("{} ✗ {reason}", row.verb.short().split(' ').next().unwrap_or(&row.verb.v));
+                // Owner 2026-10-10 ("tame ✗ none weak" read as nothing): a tame that cannot go says it failed and why.
+                let short = if row.verb.v == "tame" {
+                    format!("tame failed · {}", match reason { "no leash" => "no leash", _ => "none weakened" })
+                } else {
+                    format!("{} ✗ {reason}", row.verb.short().split(' ').next().unwrap_or(&row.verb.v))
+                };
                 if run.blocked_last.as_deref() != Some(&short) {
                     // Cut 23 §3: the reason on tap (`read ✗ no use` → `nothing to learn`).
                     crate::chronicle::callout_why(run, cx, &short, why_gloss(&row.verb.v, reason));
@@ -999,7 +1004,7 @@ pub const WHY_GLOSS: &[(&str, &str)] = &[
     ("no unknown", "no unknowns held"),
     ("no use", "no effect now"),
     ("no leash", "needs a leash"),
-    ("none weak", "none weak enough"),
+    ("none weak", "wound one first"),
     ("not safe", "foes too near"),
     ("no stairs", "stairs not found"),
     ("going home", "heading home"),

@@ -18,7 +18,7 @@
 .pet-sigs .pet-sig.on { color: var(--acc, #dbba7c); }
 .pet-fetched { margin: 2px 0; font-size: 13px; color: var(--bone, #eadfc5); display: flex; align-items: center; gap: 4px; justify-content: center; }
 .report-feats .feat-line.pet-line { list-style: none; margin-left: -16px; }
-.report-feats .feat-line.k-fetched, .report-feats .feat-line.k-old_hound { color: var(--bone, #eadfc5); }
+.report-feats .feat-line.k-fetched, .report-feats .feat-line.k-old_hound { color: var(--ink-gold, #5e4510); }   /* on parchment: dark ink (bone was invisible) */
 .report-feats .feat-line .pet-role-glyph { width: 12px; height: 12px; margin-right: 4px; }
 .fallen-line .lamed { color: #e0907a; }
 .build-pet-synergy { color: var(--acc, #dbba7c); }

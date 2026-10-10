@@ -4001,7 +4001,7 @@ fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
         crate::oath::beat(run, cx, run.acting_row);   // Cut 28b: a `tame a new kind` oath is kept here
         callout(run, cx, "tamed!");
     } else {
-        callout(run, cx, "slipped");
+        callout(run, cx, "tame failed · slipped free");
         monster_attack(run, cx, mi, 1, "attack");
     }
     true

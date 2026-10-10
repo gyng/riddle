@@ -1106,7 +1106,7 @@ const ROW_MULT: Record<string, number> = { row5: 2, row6: 5, row7: 10, row8: 16,
 const WHY_GLOSS: Record<string, string> = {
   "no path": "way blocked", "no target": "no foe reachable", "no line": "shot blocked", "no bow": "needs a bow", "cooldown": "skill recharging",
   "no item": "none in pack", "unknown item": "kind unidentified", "no unknown": "no unknowns held", "no use": "no effect now", "no leash": "needs a leash",
-  "none weak": "none weak enough", "not safe": "foes too near", "no stairs": "stairs not found", "going home": "heading home", "prayed": "prayed already",
+  "none weak": "wound one first", "not safe": "foes too near", "no stairs": "stairs not found", "going home": "heading home", "prayed": "prayed already",
   "no shrine": "no shrine here", "no way": "exit unreachable", "card passed": "its rows idle", "card idle": "no trigger foe", "card blocked": "its move blocked", "brave held": "bravery held it", "stuck": "loop guard waits",
   "row guard": "paused: it looped", "same as R": "earlier row covers", "trait first": "trait acted first", "hazard first": "left the hazard", "recall sense": "recall read first",
   "paralysed": "cannot act", "confused": "stumbled instead", "bail": "called home", "locked cond": "cond not bought", "fired, free": "free action",
