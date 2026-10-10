@@ -419,6 +419,7 @@ pub fn pets_party() -> Vec<crate::wire::Companion> {
             max_rows: 4,
             hp: def.hp,
             max_hp: def.hp,
+            life: Default::default(),
         }
     };
     vec![

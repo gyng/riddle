@@ -163,3 +163,165 @@ pets fell 3 146 times = 11.1 per 10 runs (a fielded pet dies on nearly every sen
 loss-eggs (3 123) or strays (33), median 0 days (inside the check-in); every pet stays L1 (median level 1.0 on days
 3/7/14; the longest-serving L1.0–1.5); median tenure 1 heir, no old hound; owned 1.0/1.8/3.2 on days 3/7/14; party
 slots jackal 80 % · mirror_shade 7 % · echo 7 % · sentinel 5 %. Its wall snapshots still held no party (0/11).
+
+## Cut 119 core: built (2026-10-10, uncommitted)
+
+All truth in `crates/riddle-core/src/pets.rs` (`LineageState.pets: PetsState`, `Run.pets: RunPets`, `Companion.life:
+PetLife`, all serde-default: an older save loads with Cut 119 on and its pets at zero), with hooks in `engine.rs` (the send,
+the run's end, the hatch, the stray, the ledger term), `ai.rs` (the tame row's `open`, the roles' acts, the pet's blow, the
+limp home), `turn.rs` (the guard's draw, the scout's `warn`, the mender's `revive once`, the scout's look ahead, down not
+gone), `packages.rs` (the tame row compiled, the build's name), `feats.rs` (the grave less the fetched share), `tree.rs` (the
+kennel-hand fields a mix). `pets::pin_off` pins every Cut 119 system off (and recompiles: the tame row out).
+
+- **0, pets for everyone.** The default tame row `foes ≥ 1 → tame open` (origin `drill:tame`; `pets::tame_row`) compiles
+  below the stance's guard rows and the tactics/temperament, above the fallback (`attack nearest`, `rest`); never in a
+  custom (pen-written) stance. `open` tames a stray, or a weakened (< 25 % hp) foe whose kind is known well enough
+  (`tame_chance ≥ 40`) and whose role the party lacks, only with a leash, a party slot open, and no band boss standing on
+  the floor. The first stray now waits on every lineage (was 80 %), its kind drawn across the roles (jackal · skeleton ·
+  goblin archer · pink jelly). Announced once (`TAMES STRAYS`, a report beat), revocable (`revokeTame(bool)`, or
+  `revokeDrill("tame", bool)`). Every bot owns a pet in its party by day 3 (16/16 IDLE and PICKED).
+- **1, the pet carries the line.** A heir's death with a party pet standing brings `pets::fetch_pct` of the lost carry home
+  (20 %; a fetcher 24 %; its `bring back` 28 %), out of the grave (`feats::fallen` takes the rest: no gold made, test), as
+  the ledger's `fetched` term (`fetched by Rook`), a news line (`Rook brought Ada's pack · $N`) and a reel note. The
+  research invariant holds by construction: 28 % + the 30 % heir purse floor < the 60 % return. The killer, a band boss,
+  becomes the pet's `grudge` (+1 a blow on him, cleared when he falls). A pet that served 3 heirs is the line's **old
+  hound** (`Lineage.pets.old_hounds`: `Rook · old hound · served Ada, Bram, Cole`, a heir deed, a news line).
+  **Down, not gone:** a blow from above its fall-back line leaves a pet at 1 hp; a wounded pet (≤ 30 %) **limps home**
+  (out of that run, safe; callout `Rook limps home`); a wounded pet cornered before it acts falls — **lamed** for
+  `LAME_RUNS` 3 runs, its level kept (`Fallen.lamed`, the cause named), gone only at its 6th fall (the old egg/stray path).
+- **2, roles** (`pets::role_of`, first on the card: `PetLife.role`): **fetcher** (rat, jackal, monkey, forge imp — walks to
+  the seen gold and the items the hero would take within 14 tiles of him, L3 18, and brings them to his hand; keeps on while
+  no foe is within 3), **guard** (the rest — takes a melee blow aimed at the hero from a foe beside it, 65 %, L3 `taunt`
+  80 %, L5 `bulwark` at half damage), **scout** (archer, bell sentinel, lurker, wraith, siren, conjurer, eels — sees the
+  stairs down and the tiles round them, radius 4, L3 `map` 8; L5 `warn` halves a floor's first blow), **mender** (pink
+  jelly, bloat, acolyte, mirror shade, echo, smith — heals the hero 1 hp, L3 `patch` 2, every 90 ticks between fights while
+  he is under 60 %; L5 `revive once`: a killing blow leaves him at a quarter, once a run, never with a band boss standing).
+  The archer's cap: a ranged pet's shot is capped at `1 + level/3`.
+- **3, levels.** xp from every run (the depth reached; bench pets 25 %), `LEVEL_XP` 500 · 1 200 · 2 400 · 4 000 · 6 000 ·
+  9 000 to L2…L7 (cap 7); +4 hp a level, attack +1 every two levels (+1 floor at L4/L7); the L3 and L5 signatures announced
+  once (`Rook L3 · taunt`, a report best and a note).
+- **4, the kennel keeper** (`StandingSwitches.kennel` / `StandingOrders.kennel`: `breed` default · `best` · `off`): an egg
+  every 20 runs while two eggs at most wait (no tap): the best pet (level, pedigree, the wall's role) and the best of
+  another kind are the parents, `breed` takes the kind the party holds least (then the wall's role), `best` the better;
+  generation +1 (`Egg.sire`, the pup `Rook II`), pedigree +2 % a generation on hp and attack (cap +10 %). Surplus released
+  past the party's slots + 3 (never a lamed pet; a second of a kind first; a news line). A lamed party pet gives way to a
+  fit kennel pet; the kennel-hand fields a kind the party lacks first.
+- **5, pet + build synergies** (`pets::PET_SYNERGIES`, role + a worn package, no level gate, named once as a report beat
+  and on the build: `BuildWire.pet_synergy`): **Packmaster** (pack break + a guard), **Shieldmate** (corridor fighting + a
+  guard) — the guard draws +10 %; **Falconer** (kite archers + a scout) — the scout sees 3 further. Dropped by the research
+  §5 rule (< 25 % of PICKED seeds): Quartermaster (light hands + a fetcher, 0/16), Field medic (guarded + a mender, 1/8).
+- **A, heir shapes.** `traits.json` ships 10 commons (each gift with a cost, three gifts at two `when`s so the wake's three
+  cards differ: guard@boss·frail, guard@crowded·slow, mend@hurt·thin, mend@deep·frail, quick@first·frail, quick@hurt·thin,
+  fury@boss·frail, fury@crowded·thin, rested@quiet·slow, sure@deep·dim) and the two rare twists, hand-shipped (the
+  `examples/traits.rs` measurement not re-run). `answer the killer` now has its card: a boss killer → guard@boss, gas or
+  poison → mend@hurt, a fast foe → quick. Bots that run the neutral heir (`metrics`) are unchanged; the dayplayer's heirs
+  wear them from heir 3.
+- **Wire** (added, nothing renamed): `Companion.life` (`PetLife`: role, xp, lame, falls, heirs, grudge, runs, bred,
+  announced, fetched), `Egg.sire`, `Fallen.lamed`, `Lineage.pets` (`PetsWire`: tame, tame_revoked, kennel, synergies,
+  fetched, old_hounds, bred, released), `BuildWire.pet_synergy · pet_effect`, `StandingOrders.kennel`, the gold term
+  `fetched`, `ReturnReport.feats` kinds `pet` (one line a return: `Rook · guard L4`), `fetched`, `old_hound`, `bred`,
+  `released`, `pet_synergy`. Input: `revokeTame(revoked)`; the keeper's order through `setOrders`. `types.ts` carries each.
+
+## After Cut 119
+
+*2026-10-10, the tree above (uncommitted). `cargo run -q --profile fast -p riddle-core --example pets_eval -- --seeds 16`
+(17 min on a loaded box; the probe gained the rows below: role slots, the best role per wall, a role given, a fetcher sent
+from D1, fetched vs lost carry, synergies, bred vs wild, the pet line, old hounds; recovery now counts a lamed pet back on
+its feet, `petstats::LameHealed`). Bars as amended by the research.*
+
+| metric | IDLE | PICKED | bar | result |
+|---|---|---|---|---|
+| a pet in the party by day 3 (item 0) | 16/16 | 16/16 | ≥ 12/16 | **PASS** |
+| pet value, worn − removed, Δscore ± SD at D8 · D13 · D18 · D23 · D28 | +3.2±3.4 · +2.5±2.9 · +19.4±20.5 · +3.2±10.1 · +9.6±9.9 | +3.4±7.6 · +8.1±9.8 · −2.8±6.8 · −2.5±15.5 · +1.5±8.9 | ≥ +5 at ≥ 3 walls | **FAIL** (2 walls · 1 wall) |
+| … never above | 19.4 | 8.1 | ≤ +25 (the archer alone was +36 at D13; now +17.2) | **PASS** |
+| best role per wall (role = mean of its kinds) | mender D8 (0.35 SD) · scout D13 (0.03) · fetcher D18 (0.72) · D23 (0.23) · D28 (0.53) | (pooled) | each role best at ≥ 1 wall, by ≥ 1 SD | **FAIL** (guard never best; no margin ≥ 1 SD — no role dominates) |
+| pick rate, party slots: roles · top kind | fetcher 27 · guard 28 · mender 18 · scout 27 % · jackal 19 % | fetcher 22 · guard 41 · mender 13 · scout 24 % · goblin 20 % | no role > 50 %, no kind > 35 % | **PASS** (was archer 28 % · scout 54 % mid-tuning) |
+| guards' share of blows drawn · damage (kind panels, guard role) | 7.9 % · 4.5 % (2.1 draws a pet-run) | (pooled) | 10–35 % (guards) | **FAIL** |
+| traced acts per run per pet, by role | fetcher 343 · guard 52 · scout 35 · mender 19 | (pooled) | ≥ 3 each | **PASS** |
+| pet falls per 10 runs · named · recovered by day 14 · median days | 0.04 · 100 % · 96 % · 0.0 | 0.03 · 100 % · 97 % · 0.0 | ≤ 2 · all · ≥ 80 % · ≤ 1 | **PASS** (was TUNED 11.1; the limp home) |
+| level curve, longest-serving pet, days 3 · 7 · 14 | L2 · L4 · L5 | L4 · L7 · L7 | L2 · L4 · L6 | **PASS** at 3 and 7; IDLE day 14 one short (**FAIL**) |
+| carry fetched on deaths: of the carry lost with a pet standing · of all carry lost | 20.0 % · 2.4 % | 20.0 % · 3.5 % | 15–35 % | **PASS** with a pet standing (most deaths come after the pet limped home) |
+| a death with a pet pays under a return | 28 % max + 30 % heir floor < 60 % | same | always | **PASS** (by construction; test) |
+| D1–D4 pickup walk, a fetcher vs none (ticks) | 634 vs 838: −24.3 % | 694 vs 933: −25.6 % | ≥ 25 % shorter | **FAIL** IDLE (0.7 pt short) · **PASS** PICKED |
+| tenure: median heirs served · old hound by day 14 | 39 · 16/16 | 90 · 16/16 | old hound ≥ 50 % of seeds | **PASS** |
+| a report line naming a pet per return (check-ins) | 100 % | 100 % | ≥ 1 a return | **PASS** |
+| synergy formation, PICKED seeds | — (IDLE wears no tactic) | Shieldmate 14 · Falconer 9 · Packmaster 4 /16; Quartermaster 0, Field medic 1/8 dropped | drop < 25 % | **PASS** (two dropped) |
+| bred vs wild in use (party slot·check-ins) | 2 % bred (266 eggs) | 8 % bred (530 eggs) | reported | — |
+| IDLE's gain from pets | +3.2 … +19.4 by wall (mean +7.6) | — | reported | — |
+| pets cause no dice death · dice ≤ 5 % (`metrics --quick`) | 3.5 % (n = 301, death-weighted) | | ≤ 5 % | **PASS** |
+| taps per return | the core adds no prompt (the keeper's order and the tame row default on; nothing waits on a tap) | | no increase | not re-run (the taps test is the client's `web/tests/cut118.mjs`) |
+| IDLE, PICKED, stance bars | see Gates | | hold | **PASS** |
+
+**What the tuning learned (8-seed probes between).** The first cut (fetcher on gold only, mender every 30 ticks, pets
+killable from full) made the mender best at every wall (+16 at D8), the archer +39.7 at D18, and pets fell 3–9 times a
+10 runs (one-shot from full hp deep). Then: a pet's blow from above its line leaves it at 1 hp and a wounded pet limps
+home (falls 0.03–0.04 a 10 runs); the mender heals only under 60 % every 90 ticks; the shot cap `1 + level/3`; the fetcher
+brings the items the hero would take, not only gold (pickup −18 % → −25 %); the open tame takes a role the party lacks,
+the keeper breeds the kind the party holds least and the kennel-hand fields a missing kind (archer slots 41 % → 12 %).
+
+**Gates (final tree; `node tools/gates.mjs --full --rows … --fail-fast`, 16 seeds; ranges are the fail-fast's settled
+bounds).**
+
+| row | value | result |
+|---|---|---|
+| IDLE D8 day 1 · D13 by day 4 · D23 by day 12 | 16/16 · median day 1.0…2.0 · 12–16/16 (median day 4.2…5.8) | PASS |
+| IDLE stall · gold every day · King in a fortnight | 16/16 · 16/16 · 16/16 | PASS |
+| stance L3 / L5 | median day 1.0 · 4.0…7.0 | PASS |
+| PICKED ≥ 1.5× IDLE at D13 · D18 · D23 | 1.75…3.00 · 2.29…4.75 · 2.77…5.58 | PASS |
+| IDLE never out-paces PICKED | 91–97 % (102/105 pairs) | PASS |
+| TUNED beats PICKED at D33 (≥ 1.15) | 1.15…1.21 | PASS (tight, as Cut 118's 1.17–1.18) |
+| RANDOM slower than PICKED at D13 · D23 | 16/16 · 16/16 (median +4 · +52 h) | PASS |
+| workers-daily (mean best ≥ by hand − 1) | 30.62 vs 30.87 | PASS |
+| nothing-required (no fail-fast, every seed) | no seed > 48 h behind from day 5 | **PASS** (Cut 118's seed-14 failure no longer reproduces) |
+| `metrics --cut30` (8 rows) | stance walls bold 2 · guarded 4 · hunter 2; Steady safest (6 % deaths) | all PASS |
+| dice (`metrics --quick`) | 3.5 % (n = 301, death-weighted ±2.5) · routes 1.0 % | PASS |
+
+**Cut 118's five cohort-set rows (`metrics --quick`), measured in temporary worktrees at c495638 (before Cut 118) and
+4617799 (Cut 118), and on this tree:**
+
+| row | c495638 | 4617799 | Cut 119 tree | verdict |
+|---|---|---|---|---|
+| lanes D5, EDITED both viable | 92 % · 38 % FAIL | 92 % · 38 % FAIL | 93 % · 37 % FAIL | before Cut 118 |
+| thief guard ≤ 20 % | 25 % FAIL | 25 % FAIL | 25 % FAIL | before Cut 118 |
+| card ↔ chore loops ≤ 1 % | worst 1.8 % FAIL | worst 1.8 % FAIL | worst 0.0 % **PASS** | before Cut 118; passes now |
+| return row (40 sets) | 36/40, worst +6.6 FAIL | 36/40, worst +6.6 FAIL | 36/40, worst +6.2 FAIL | before Cut 118 |
+| waystone $/h ≥ D1 $/h | 42/48 FAIL | 37/48 FAIL | 36/49 FAIL | failing before; **Cut 118's graves added 5 sets** |
+
+The waystone row: with only `feats::recover_graves` switched off, 4617799 gives 42/48 exactly as c495638 — the graves
+bring a dead heir's lost carry home on the D1 sends that walk past the shallow graves, so D1 $/h rises over the waystone's
+(the tally's `other` on D1 went from +0 to +5…+270 a send). It is recovered carry, not income; the row compares income.
+**Deviation, recorded, not fixed:** no threshold was lowered and the row's measurement was not changed (excluding
+`recovered` from its $/h would be the honest read, but it is a gate's arithmetic and the owner's call).
+
+**307dbed hash.** 2f3eb706b3d24c7c → **4c5ee355b67975f1** (`fixtures/sends_307dbed.txt`, the reason in
+`tests::saves_from_307dbed_send_identically`): the tame row tames the first stray (now on every lineage) and a pet walks
+every send. With the companions pinned off (`pets::pin_off`) it is 2f3eb706b3d24c7c exactly
+(`tests_cut119::the_307dbed_hash_restores_with_pets_pinned_off`); with Cut 118 pinned off too it is aa808dca72425139
+(`tests_cut118::the_307dbed_hash_holds_with_the_systems_pinned_off`). The shipped heir shapes move nothing in these sends.
+
+**Tests.** `cargo test --workspace --profile fast`: 769 pass, 0 fail, 6 ignored (9 new in `tests_cut119.rs`, 1 in
+`tests_cut118.rs`). Clippy `--all-targets -D warnings` clean; wasm rebuilt (`tools/wasm.sh`), the native bridge regenerated
+(`node tools/native-codegen.mjs`); `tsc` clean; copy-lint 0. Older tests of the pre-Cut 119 companion path (a fall is an
+egg, the bank levels, the 80 % stray, the wounded fall-back) run with Cut 119 pinned off (`tests::pets_off`, the arena);
+three fixtures read the patch arithmetic / the fork tablet on the neutral heir or with pets off, as Cut 116 pinned its
+affixes. Two fixes on the way: `trace::record` restores this run's avenged / tamed grudges in the replay's lineage
+(the death's replay generated a floor without the grudge the run had met — exposed by the shapes moving seed 3's deaths);
+the drive-off test reads the record checkpoint's secured carry.
+
+**Deviations.**
+- *Pet value* (≥ +5 at ≥ 3 walls): IDLE 2 walls, PICKED 1; the cap (≤ 25) holds. PICKED's party of four with the panels'
+  removal reads ±7–15 SD; the paired gain is real early (D13 +8.1) and noise later. Next lever: a guard that matters at
+  the boss walls.
+- *Role spread*: no role is best by ≥ 1 SD anywhere (none dominates, the research's intent), but the guard is best at no
+  wall and draws 7.9 % of blows (bar 10–35 %) even at 65–90 %: a guard stands beside the striker too rarely. Next:
+  a guard that steps between (positioning), not a larger chance.
+- *Levels*: IDLE's longest-serving pet is L5 on day 14 (bar L6); PICKED reaches L7 by day 7. One curve for both bots
+  sits between; the L3 signature arrives by day 3–7.
+- *Pickup*: IDLE −24.3 % (0.7 pt under the 25 % bar), PICKED −25.6 %.
+- *Fetched*: 20 % of the carry lost with a pet standing (in the band), but 2–4 % of all lost carry: the limp home that
+  holds pet deaths at 0.03–0.04 a 10 runs takes most pets out of the run before the heir dies.
+- *Keeper as a ladder rung*: the order is a standing switch defaulting to `breed`; it is not wired as a new system unit
+  in `systems.rs` (no reveal), so IDLE breeds without a tap.
+- *Heir shapes* hand-shipped without `examples/traits.rs`'s strict build test (the measurement was not re-run); IDLE's
+  bars hold with them.
+- *Waystone row*: above.

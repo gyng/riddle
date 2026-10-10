@@ -725,7 +725,13 @@ fn workers_act(game: &mut Game, send: bool) {
         if l.party.len() < slots && !l.kennel.is_empty() {
             let mut ids: Vec<u32> = l.party.iter().map(|c| c.id).collect();
             let mut k: Vec<_> = l.kennel.iter().filter(|c| !ids.contains(&c.id)).collect();
-            k.sort_by_key(|c| (std::cmp::Reverse(c.level), c.id));
+            // (Cut 119: a kind the party already holds last, lamed pets never — the line's pets stay a mix)
+            if l.pets.off {
+                k.sort_by_key(|c| (std::cmp::Reverse(c.level), c.id));
+            } else {
+                k.retain(|c| c.life.lame == 0);
+                k.sort_by_key(|c| (l.party.iter().any(|p| p.kind == c.kind), std::cmp::Reverse(c.level), c.id));
+            }
             let add: Vec<u32> = k.iter().take(slots - ids.len()).map(|c| c.id).collect();
             let n = add.len() as u32;
             ids.extend(add);

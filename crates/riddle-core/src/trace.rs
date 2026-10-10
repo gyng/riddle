@@ -168,7 +168,20 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         }
         counts
     });
-    let t10_lineage = t10.as_ref().map(|_| crate::engine::CheckpointLineage::of(&game.lineage));
+    // (the bank marks this run's avenged / tamed grudges before the record is made: the floors the
+    // replay generates must still hold them — they were alive when the run met them)
+    let t10_lineage = t10.as_ref().map(|_| {
+        let mut cl = crate::engine::CheckpointLineage::of(&game.lineage);
+        for g in cl.grudges.iter_mut() {
+            if run.avenged.contains(&g.name) {
+                g.avenged = false;
+            }
+            if run.tamed_grudges.contains(&g.name) {
+                g.tamed = false;
+            }
+        }
+        cl
+    });
     let boss = if stall { None } else { boss_of(run, &cause) };
     let loop_row = if stall { run.stuck_row.and_then(|r| usize::try_from(r).ok()).filter(|&r| r < rules.rows.len()) } else { None };
     let row_fired = run.row_fired.clone();

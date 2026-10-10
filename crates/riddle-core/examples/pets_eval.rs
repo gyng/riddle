@@ -89,6 +89,20 @@ struct Fort {
     /// (check-in index, pets fell) and (check-in index, pets recovered)
     fell_at: Vec<(u32, u64)>,
     rec_at: Vec<(u32, u64)>,
+    /// Cut 119: party slots by role, and bred vs wild (summed over check-ins)
+    #[serde(default)]
+    roles: BTreeMap<String, u32>,
+    #[serde(default)]
+    bred_slots: (u32, u32),
+    /// synergies formed (ids, any check-in), the day a pet was first in the party, check-ins with a report pet line
+    #[serde(default)]
+    synergies: BTreeSet<String>,
+    #[serde(default)]
+    first_party_day: Option<u32>,
+    #[serde(default)]
+    pet_lines: (u32, u32),
+    #[serde(default)]
+    old_hound_day: Option<u32>,
 }
 
 fn fortnight(seed: u64, bot: &'static str, days: usize) -> Fort {
@@ -104,11 +118,30 @@ fn fortnight(seed: u64, bot: &'static str, days: usize) -> Fort {
         if d[Stat::PetsFell as usize] > 0 {
             f.fell_at.push((k, d[Stat::PetsFell as usize]));
         }
-        let rec = d[Stat::LossHatched as usize] + d[Stat::StraysRetamed as usize];
+        let rec = d[Stat::LossHatched as usize] + d[Stat::StraysRetamed as usize] + d[Stat::LameHealed as usize];
         if rec > 0 {
             f.rec_at.push((k, rec));
         }
         let l = &g.lineage;
+        for c in l.party.iter().filter(|c| c.life.lame == 0) {
+            *f.roles.entry(riddle_core::pets::role(c).word().to_string()).or_default() += 1;
+            if c.life.bred {
+                f.bred_slots.0 += 1;
+            } else {
+                f.bred_slots.1 += 1;
+            }
+        }
+        for s in riddle_core::pets::synergies(l) {
+            f.synergies.insert(s.id.to_string());
+        }
+        if !l.party.is_empty() && f.first_party_day.is_none() {
+            f.first_party_day = Some(day as u32);
+        }
+        if !l.pets.old_hounds.is_empty() && f.old_hound_day.is_none() {
+            f.old_hound_day = Some(day as u32);
+        }
+        f.pet_lines.1 += 1;
+        f.pet_lines.0 += riddle_core::pets::report_line(l).is_some() as u32;
         for c in &l.party {
             *f.slots.entry(c.kind.clone()).or_default() += 1;
             let e = f.tenure.entry(c.id).or_insert((l.heir, l.heir));
@@ -143,6 +176,8 @@ enum Wear {
     Kind(String),
     /// sends from D1 (the pickup walk), worn or not
     FromD1(bool),
+    /// sends from D1 with a fetcher (a jackal at the lineage's best pet level) alone in the party
+    FromD1Fetcher,
 }
 
 struct Panel {
@@ -156,7 +191,7 @@ fn panel(save: &str, wall: u32, wear: &Wear, sims: u32) -> Panel {
     let g = Game::load(save).expect("snapshot");
     let mut c = g.sim_clone();
     match wear {
-        Wear::FromD1(_) => c.lineage.start = 1,
+        Wear::FromD1(_) | Wear::FromD1Fetcher => c.lineage.start = 1,
         _ => {
             c.lineage.start = c.lineage.stones().into_iter().filter(|s| *s <= wall).max().unwrap_or(1);
             c.lineage.best_depth = c.lineage.best_depth.max(wall);
@@ -172,14 +207,20 @@ fn panel(save: &str, wall: u32, wear: &Wear, sims: u32) -> Panel {
             let mut p = std::mem::take(&mut l.party);
             l.kennel.append(&mut p);
         }
-        Wear::Kind(k) => {
+        Wear::Kind(_) | Wear::FromD1Fetcher => {
+            let k = match wear {
+                Wear::Kind(k) => k.clone(),
+                _ => "jackal".to_string(),
+            };
+            let k = &k;
             let level = l.all_companions().map(|c| c.level).max().unwrap_or(1).max(1);
             let mut p = std::mem::take(&mut l.party);
             l.kennel.append(&mut p);
             let d = riddle_core::defs::monster_def(k);
             let tags: Vec<String> = d.tags.iter().map(|t| t.to_string()).collect();
             let rules = riddle_core::probes::default_companion_rules(&tags, level);
-            l.party.push(Companion { id: 990_000, kind: k.clone(), name: "Probe".into(), level, tags, gen: 0, rules, max_rows: 1 + level as usize, hp: d.hp, max_hp: d.hp });
+            let life = riddle_core::pets::PetLife { role: if l.pets.off { String::new() } else { riddle_core::pets::role_of(k).word().into() }, ..Default::default() };
+            l.party.push(Companion { id: 990_000, kind: k.clone(), name: "Probe".into(), level, tags, gen: 0, rules, max_rows: 1 + level as usize, hp: d.hp, max_hp: d.hp, life });
         }
     }
     let party = c.lineage.party.len();
@@ -242,6 +283,7 @@ fn main() {
             if *w == 8 {
                 pj.push((fi, si, Wear::FromD1(true), sims));
                 pj.push((fi, si, Wear::FromD1(false), sims));
+                pj.push((fi, si, Wear::FromD1Fetcher, sims));
             }
         }
     }
@@ -396,23 +438,81 @@ fn main() {
     println!("\n## D1–D4 pickup walk: sends from D1 at the D8 snapshot, per send: ticks walking to loot (steps) / ticks on D1–D4");
     for b in bots.iter().copied() {
         let mut line = format!("{:<7}", b.to_uppercase());
-        for worn in [true, false] {
-            let (mut mt, mut st, mut et, mut n) = (0u64, 0u64, 0u64, 0usize);
+        for (label, which) in [("worn", 0), ("removed", 1), ("a fetcher", 2)] {
+            let (mut mt, mut st, mut et, mut n, mut ft) = (0u64, 0u64, 0u64, 0usize, 0u64);
             for (fi, f) in forts.iter().enumerate().filter(|(_, f)| f.bot == b) {
                 if let Some(si) = f.snaps.iter().position(|s| s.0 == 8) {
-                    let p = find(fi, si, &|x| matches!(x, Wear::FromD1(w) if *w == worn)).unwrap();
+                    let p = find(fi, si, &|x| match which {
+                        0 => matches!(x, Wear::FromD1(true)),
+                        1 => matches!(x, Wear::FromD1(false)),
+                        _ => matches!(x, Wear::FromD1Fetcher),
+                    })
+                    .unwrap();
                     mt += p.c[Stat::PickupMilliTicks as usize];
+                    ft += p.c[Stat::Fetches as usize];
                     st += p.c[Stat::PickupSteps as usize];
                     et += p.c[Stat::EarlyTicks as usize];
                     n += p.sends;
                 }
             }
             let n = n.max(1) as f64;
-            line += &format!(" | party {}: {:.0} ticks ({:.1} steps) of {:.0} = {:.1}%", if worn { "worn" } else { "removed" }, mt as f64 / 1000.0 / n, st as f64 / n, et as f64 / n, 100.0 * mt as f64 / 1000.0 / et.max(1) as f64);
+            line += &format!(" | party {label}: {:.0} ticks ({:.1} steps) of {:.0} = {:.1}% · fetches {:.1}", mt as f64 / 1000.0 / n, st as f64 / n, et as f64 / n, 100.0 * mt as f64 / 1000.0 / et.max(1) as f64, ft as f64 / n);
         }
         println!("{line}");
     }
-    println!("\n## carry fetched on deaths: 0 % of lost carry (no fetch before Cut 119)");
+    println!("\n## carry fetched on deaths (live fortnights): fetched / carry lost on deaths with a party pet standing · / all carry lost on deaths · deaths fetched on");
+    for b in bots.iter().copied() {
+        let fs: Vec<&Fort> = forts.iter().filter(|f| f.bot == b).collect();
+        let sum = |s: Stat| fs.iter().map(|f| f.live[s as usize]).sum::<u64>();
+        println!(
+            "{:<7} fetched ${} · {:.1}% of carry lost with a pet standing (${}) · {:.1}% of all carry lost (${}) · {} deaths fetched on",
+            b.to_uppercase(),
+            sum(Stat::FetchedGold),
+            100.0 * sum(Stat::FetchedGold) as f64 / sum(Stat::LostCarryWithPet).max(1) as f64,
+            sum(Stat::LostCarryWithPet),
+            100.0 * sum(Stat::FetchedGold) as f64 / sum(Stat::LostCarry).max(1) as f64,
+            sum(Stat::LostCarry),
+            sum(Stat::FetchDeaths)
+        );
+    }
+    println!("\n## Cut 119 rows (live fortnights)");
+    for b in bots.iter().copied() {
+        let fs: Vec<&Fort> = forts.iter().filter(|f| f.bot == b).collect();
+        let sum = |s: Stat| fs.iter().map(|f| f.live[s as usize]).sum::<u64>();
+        let by3 = fs.iter().filter(|f| f.first_party_day.is_some_and(|d| d <= 3)).count();
+        let mut roles: BTreeMap<&str, u32> = BTreeMap::new();
+        for f in &fs {
+            for (r, n) in &f.roles {
+                *roles.entry(r).or_default() += n;
+            }
+        }
+        let rt: u32 = roles.values().sum();
+        let (bred, wild) = fs.iter().fold((0, 0), |a, f| (a.0 + f.bred_slots.0, a.1 + f.bred_slots.1));
+        let mut syn: BTreeMap<&str, usize> = BTreeMap::new();
+        for f in &fs {
+            for s in &f.synergies {
+                *syn.entry(s).or_default() += 1;
+            }
+        }
+        let hound = fs.iter().filter(|f| f.old_hound_day.is_some()).count();
+        let (lines, cis) = fs.iter().fold((0, 0), |a, f| (a.0 + f.pet_lines.0, a.1 + f.pet_lines.1));
+        println!(
+            "{:<7} a pet in the party by day 3: {by3}/{} · role slots {} · bred {bred} / wild {wild} slot·check-ins ({:.0}% bred) · synergies formed (seeds) {} · old hound (pets.old_hounds) {hound}/{} · check-ins with a pet line {:.0}% · acts: fetches {} guards {} mends {} scout looks {} revives {} · eggs bred {}",
+            b.to_uppercase(),
+            fs.len(),
+            roles.iter().map(|(r, n)| format!("{r} {:.0}%", 100.0 * *n as f64 / rt.max(1) as f64)).collect::<Vec<_>>().join(" · "),
+            100.0 * bred as f64 / (bred + wild).max(1) as f64,
+            if syn.is_empty() { "none".to_string() } else { syn.iter().map(|(s, n)| format!("{s} {n}")).collect::<Vec<_>>().join(" · ") },
+            fs.len(),
+            100.0 * lines as f64 / cis.max(1) as f64,
+            sum(Stat::Fetches),
+            sum(Stat::Guarded),
+            sum(Stat::Mended),
+            sum(Stat::ScoutReveals),
+            sum(Stat::Revived),
+            sum(Stat::Bred)
+        );
+    }
 
     // best kind per wall
     println!("\n## best kind per wall (each kind alone in the party at the lineage's best pet level, {kind_sims} sims; both bots' snapshots): best (tags) score Δ vs none · margin over the 2nd in seed SDs of the paired difference");
@@ -441,6 +541,51 @@ fn main() {
             margin.unwrap_or(f64::NAN),
             ranked.iter().map(|(k, m, _)| format!("{k} {:+.1}", m - nm)).collect::<Vec<_>>().join(" ")
         );
+    }
+    // Cut 119: the best role per wall — each role's kinds' panels averaged per snapshot; margin over the 2nd in SDs
+    println!("\n## best role per wall (a role's score = the mean of its kinds' panels on each snapshot): best Δ vs none · margin over the 2nd in seed SDs");
+    let mut role_best: BTreeMap<&str, u32> = BTreeMap::new();
+    for w in WALLS {
+        let snaps: Vec<(usize, usize)> = forts.iter().enumerate().filter_map(|(fi, f)| f.snaps.iter().position(|s| s.0 == w).map(|si| (fi, si))).collect();
+        if snaps.is_empty() {
+            continue;
+        }
+        let none: Vec<f64> = snaps.iter().map(|(fi, si)| score(&find(*fi, *si, &|x| matches!(x, Wear::Removed)).unwrap().v)).collect();
+        let mut per: Vec<(&str, Vec<f64>)> = Vec::new();
+        for r in riddle_core::pets::ROLES {
+            let ks: Vec<&String> = kinds.iter().filter(|k| riddle_core::pets::role_of(k) == r).collect();
+            if ks.is_empty() {
+                continue;
+            }
+            let v: Vec<f64> = snaps.iter().map(|(fi, si)| ks.iter().map(|k| score(&find(*fi, *si, &|x| matches!(x, Wear::Kind(y) if y == *k)).unwrap().v)).sum::<f64>() / ks.len() as f64).collect();
+            per.push((r.word(), v));
+        }
+        let mut ranked: Vec<(&str, f64, &Vec<f64>)> = per.iter().map(|(r, v)| (*r, mean_sd(v).0, v)).collect();
+        ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(b.0)));
+        let nm = mean_sd(&none).0;
+        let (r1, m1, v1) = ranked[0];
+        let margin = ranked.get(1).map(|(_, m2, v2)| {
+            let diffs: Vec<f64> = v1.iter().zip(v2.iter()).map(|(a, b)| a - b).collect();
+            let sd = mean_sd(&diffs).1;
+            (m1 - m2) / if sd > 0.0 { sd } else { f64::NAN }
+        });
+        *role_best.entry(r1).or_default() += 1;
+        println!("D{w} ({} snaps): best {r1} {:+.1} vs none · margin {:.2} SD | {}", snaps.len(), m1 - nm, margin.unwrap_or(f64::NAN), ranked.iter().map(|(r, m, _)| format!("{r} {:+.1}", m - nm)).collect::<Vec<_>>().join(" "));
+    }
+    println!("roles best at a wall: {}", role_best.iter().map(|(r, n)| format!("{r} {n}")).collect::<Vec<_>>().join(" · "));
+    println!("\n## a role given (the kind panels, all walls, by role): pet share of damage dealt · of blows drawn · acts per run per pet (row acts)");
+    for r in riddle_core::pets::ROLES {
+        let mut tot = [0u64; petstats::N];
+        let mut ps = 0usize;
+        for (i, (_, _, wear, _)) in pj.iter().enumerate() {
+            if matches!(wear, Wear::Kind(y) if riddle_core::pets::role_of(y) == r) {
+                for (t, c) in tot.iter_mut().zip(panels[i].c.iter()) {
+                    *t += c;
+                }
+                ps += panels[i].sends * panels[i].party;
+            }
+        }
+        println!("{:<8} {} · guarded {} · mended {} · fetches {} · scout looks {} (per pet-run: {:.2} · {:.2} · {:.2} · {:.2})", r.word(), shares(&tot, ps), tot[Stat::Guarded as usize], tot[Stat::Mended as usize], tot[Stat::Fetches as usize], tot[Stat::ScoutReveals as usize], tot[Stat::Guarded as usize] as f64 / ps.max(1) as f64, tot[Stat::Mended as usize] as f64 / ps.max(1) as f64, tot[Stat::Fetches as usize] as f64 / ps.max(1) as f64, tot[Stat::ScoutReveals as usize] as f64 / ps.max(1) as f64);
     }
     // (the bots may field no pet at all: what a pet does when one is given, from the kind panels)
     println!("\n## a pet given (the kind panels above, by wall): pet share of damage dealt · of blows drawn · acts per run per pet (row acts)");

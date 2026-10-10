@@ -763,6 +763,8 @@ pub fn apprentice_sinks(g: &mut Game, send: bool) -> u32 {
             g.lineage.feats.tithed += 1;
             crate::legacy::ensure(&mut g.lineage);
             g.lineage.bloodline.as_mut().expect("bloodline").points += 1;
+            // (the client's `legacy-earned`: every Legacy point an absence makes is on the report's `legacy_earned`)
+            g.batch.legacy_earned += 1;
             n += 1;
         }
     }
@@ -1127,6 +1129,8 @@ fn recover_graves(g: &mut Game, run: &Run, day: u32) {
 fn fallen(g: &mut Game, run: &Run, day: u32, legacy_earned: u32) {
     let name = crate::legacy::hero_name(g.lineage.seed, run.heir).to_string();
     let lost = g.last_exit.as_ref().filter(|x| x.run_id == run.id).map_or(0, |x| (x.carried - x.kept).max(0));
+    // (Cut 119 §1: the share a pet fetched home is out of the grave — no gold is made)
+    let lost = lost - g.lineage.pets.fetched_run.filter(|(id, _)| *id == run.id).map_or(0, |(_, f)| f);
     let mut grave_gold = 0;
     if lost > 0 {
         // one grave a floor: the newest keeps the older's carry with its own

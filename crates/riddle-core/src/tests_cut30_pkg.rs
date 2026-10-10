@@ -6,14 +6,19 @@ use crate::packages;
 use crate::rules::{Cond, Row, RuleSet, Verb};
 
 fn origins(g: &Game) -> Vec<String> {
-    g.lineage.rules().rows.iter().map(|r| r.origin.clone().unwrap_or_default()).collect()
+    // (Cut 119's default tame row is the companions' drill, not a package's: tests_cut119)
+    g.lineage.rules().rows.iter().map(|r| r.origin.clone().unwrap_or_default()).filter(|o| o != crate::pets::TAME_ORIGIN).collect()
 }
 
 /// §1: a new lineage's set is the school stance, compiled and tagged — it banks and returns on its own.
 #[test]
 fn a_new_lineage_climbs_on_steady() {
     let g = Game::new_resident(3);
-    let set = g.lineage.rules();
+    // (Cut 119 §0: the companions' default tame row sits above the fallback — tests_cut119)
+    let mut set = g.lineage.rules().clone();
+    let tame = set.rows.iter().position(|r| r.origin.as_deref() == Some(crate::pets::TAME_ORIGIN)).expect("the tame row");
+    assert_eq!(tame, 4);
+    set.rows.remove(tame);
     assert!(set.rows.iter().all(|r| r.origin.as_deref() == Some("stance:steady")), "{:?}", origins(&g));
     let verbs: Vec<&str> = set.rows.iter().map(|r| r.verb.v.as_str()).collect();
     // (Cut 30.5, the owner: a new record never ends the run — home hurt (a bank past the record, a return before

@@ -661,6 +661,10 @@ pub fn compile(l: &LineageState) -> RuleSet {
     if let Some(t) = &p.temperament {
         rows.extend(tagged(temperament_rows(t, p.level(t)), &format!("temper:{t}")));
     }
+    // Cut 119 §0: pets for everyone — the default tame row, below the guard rows, above the fallback (revocable)
+    if crate::pets::tame_on(l) {
+        rows.push(crate::pets::tame_row());
+    }
     // Chosen policy acts before automatic gun handling; generic stance attacks follow.
     if let Some(row)=crate::firearm::row(l) {rows.push(row);}
     rows.extend(tagged(fallback, &origin));
@@ -1359,6 +1363,7 @@ pub fn row_label(row: &Row) -> Option<String> {
     let (kind, id) = o.split_once(':')?;
     match kind {
         "stance" | "tactic" | "temper" => Some(name(id).to_string()),
+        "drill" if id == "tame" => Some(crate::pets::TAME_TEXT.to_string()),
         "drill" => Some(format!("drill · {}", crate::sifter::boss_short(id))),
         "style" => crate::specialization::Style::parse(id).map(|s|s.name().into()),
         "class" if id=="gunner" => Some("Gunner".into()),
@@ -1494,6 +1499,10 @@ pub fn build_name(l: &LineageState) -> Option<String> {
     if let Some(s) = synergy_of(l) {
         return Some(s.name.to_string());
     }
+    // Cut 119 §5: a pet synergy formed names the build when no package pair does
+    if let Some(s) = crate::pets::synergies(l).first() {
+        return Some(s.name.to_string());
+    }
     let stance = if p.stance == CUSTOM { "Written".to_string() } else { name(&p.stance).to_string() };
     if let Some(t) = p.tactics.first() {
         return Some(format!("{stance} {}", tactic_noun(t)));
@@ -1515,7 +1524,8 @@ pub fn build_wire(l: &LineageState) -> Option<crate::wire::BuildWire> {
     if let Some(t) = p.temperament.as_deref().filter(|_| p.temperament_chosen) {
         picks.push(name(t).to_string());
     }
-    Some(crate::wire::BuildWire { name: title, synergy: s.map(|s| s.id.to_string()), effect: s.map(|s| s.effect.to_string()), picks })
+    let ps = crate::pets::synergies(l).first().copied();
+    Some(crate::wire::BuildWire { name: title, synergy: s.map(|s| s.id.to_string()), effect: s.map(|s| s.effect.to_string()), picks, pet_synergy: ps.map(|s| s.name.to_string()), pet_effect: ps.map(|s| s.effect.to_string()) })
 }
 
 /// A worn pick as the build names it (`corridor fighting · at two`).

@@ -1,1 +1,14 @@
-{"build":"","sets":[],"measured":0,"shipped":[]}
+{"build":"Cut 119 (hand-shipped: the heir order needs a choice; examples/traits.rs not re-run)","sets":[],"measured":0,"shipped":[
+{"code":"guard@boss·frail","when":"boss","gift":"guard","cost":"frail","tiers":["common","uncommon"]},
+{"code":"guard@crowded·slow","when":"crowded","gift":"guard","cost":"slow","tiers":["common"]},
+{"code":"mend@hurt·thin","when":"hurt","gift":"mend","cost":"thin","tiers":["common"]},
+{"code":"mend@deep·frail","when":"deep","gift":"mend","cost":"frail","tiers":["common"]},
+{"code":"quick@first·frail","when":"first","gift":"quick","cost":"frail","tiers":["common"]},
+{"code":"quick@hurt·thin","when":"hurt","gift":"quick","cost":"thin","tiers":["common"]},
+{"code":"fury@boss·frail","when":"boss","gift":"fury","cost":"frail","tiers":["common"]},
+{"code":"fury@crowded·thin","when":"crowded","gift":"fury","cost":"thin","tiers":["common"]},
+{"code":"rested@quiet·slow","when":"quiet","gift":"rested","cost":"slow","tiers":["common","uncommon"]},
+{"code":"sure@deep·dim","when":"deep","gift":"sure","cost":"dim","tiers":["common"]},
+{"code":"iron_gut@always","when":"always","gift":"iron_gut","cost":"","tiers":["rare"]},
+{"code":"light_hands@always","when":"always","gift":"light_hands","cost":"","tiers":["rare"]}
+]}

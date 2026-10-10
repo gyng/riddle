@@ -26,6 +26,7 @@ pub mod monster;
 pub mod oath;
 pub mod packages;
 pub mod petstats;
+pub mod pets;
 pub mod offline;
 pub mod probes;
 pub mod provenance;
@@ -195,6 +196,20 @@ impl Game {
             }
             self.lineage.orders.heir = k.clone();
         }
+        if let Some(k) = &o.kennel {
+            if !crate::pets::KENNEL_ORDERS.contains(&k.as_str()) {
+                return Err("unknown kennel order".into());
+            }
+            self.lineage.orders.kennel = k.clone();
+        }
+        Ok(())
+    }
+    /// Cut 119 §0: revoke (or restore) the default tame row — one tap.
+    pub fn revoke_tame(&mut self, revoked: bool) -> Result<(), String> {
+        if self.lineage.pets.off {
+            return Err("no tame row".into());
+        }
+        crate::pets::revoke_tame(&mut self.lineage, revoked);
         Ok(())
     }
     /// Cut 28 §2: the camp's move against the set sent, attributed to state and rows
@@ -258,6 +273,10 @@ impl Game {
     }
     /// Cut 30 §1: revoke a drill (or restore it) — one tap, it stays.
     pub fn revoke_drill(&mut self, boss: &str, revoked: bool) -> Result<(), String> {
+        // (Cut 119: the companions' tame row is a drill too — `revokeDrill("tame", …)` is `revokeTame`)
+        if boss == "tame" {
+            return self.revoke_tame(revoked);
+        }
         packages::revoke(&mut self.lineage, boss, revoked)
     }
     /// Cut 30 §2: every package move priced on the paired panel (`sims` sends each), best first.
@@ -352,3 +371,5 @@ mod tests_cut116;
 mod tests_cut117;
 #[cfg(test)]
 mod tests_cut118;
+#[cfg(test)]
+mod tests_cut119;

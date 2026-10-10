@@ -46,6 +46,7 @@ fn jackals() -> Vec<riddle_core::wire::Companion> {
         max_rows: 3,
         hp: def.hp,
         max_hp: def.hp,
+        life: Default::default(),
     };
     vec![mk(800_001, "Thix"), mk(800_002, "Skog")]
 }

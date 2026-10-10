@@ -35,6 +35,8 @@ fn arena_seed(seed: u64) -> Game {
     g.max_deaths = 1000;
     // Cut 8B §3: the kennel's leash stays on the shelf; the arena's pack starts empty.
     g.lineage.supplies.clear();
+    // (the arena plays the pre-Cut 119 companions; Cut 119's are tests_cut119's)
+    crate::pets::pin_off(&mut g.lineage);
     g.start_run(Some(seed.wrapping_mul(7) + 3));
     let run = g.run.as_mut().unwrap();
     let mut map = Map::new(16, 12, Tile::Wall);
@@ -1594,6 +1596,7 @@ fn routine_line_reads_the_floor_and_its_twist() {
 fn episodes_close_on_bosses_companions_and_deaths() {
     use crate::sifter::Resolution;
     let mut g = arena();
+    pets_off(&mut g);
     let w = add_monster(&mut g, "goblin_warlord", 6, 5);
     rules(&mut g, vec![Row::new(vec![Cond::n("foes>=", 1)], Verb::arg("attack", "tag:boss"))]);
     g.lineage.facts.insert("foe:goblin_warlord:boss".into());
@@ -1895,6 +1898,7 @@ fn tame_consumes_the_leash_and_succeeds_or_fails() {
     let mut failures = 0;
     for seed in 1..=12 {
         let (mut g, r) = tame_setup(seed);
+        pets_off(&mut g);
         let evs = ticks(&mut g, 10);
         let t = evs.iter().find_map(|e| if let Ev::Tame { ok, kind, .. } = e { Some((*ok, kind.clone())) } else { None }).expect("tame event");
         assert_eq!(t.1, "rat");
@@ -1924,6 +1928,8 @@ fn tamed_companion_joins_the_party_and_levels_on_bank() {
     let mut seed = 1;
     let (mut g, r) = loop {
         let (mut g, r) = tame_setup(seed);
+        // (the pre-Cut 119 path: levels on a bank; Cut 119's xp levels are tests_cut119's)
+        pets_off(&mut g);
         ticks(&mut g, 10);
         if monster(&g, r).is_some_and(|m| m.ally) {
             break (g, r);
@@ -1946,6 +1952,8 @@ fn tamed_companion_joins_the_party_and_levels_on_bank() {
 #[test]
 fn companion_death_leaves_an_egg_that_hatches_after_three_rests() {
     let mut g = arena();
+    // (the pre-Cut 119 path: a fall is an egg; with Cut 119 on it is lamed — tests_cut119)
+    crate::pets::pin_off(&mut g.lineage);
     g.lineage.party = vec![crate::probes::pets_party()[0].clone()];
     g.auto_keep();
     g.start_run(None);
@@ -1977,7 +1985,7 @@ fn companion_death_leaves_an_egg_that_hatches_after_three_rests() {
 #[test]
 fn hatch_from_loss_costs_fifty_gold_and_breeding_merges_tags() {
     let mut g = Game::new_literal(1);
-    g.lineage.eggs.push(Egg { id: 9, kind: "rat".into(), tags: vec![], gen: 0, hatch_in: 5, from_loss: true });
+    g.lineage.eggs.push(Egg { id: 9, kind: "rat".into(), tags: vec![], gen: 0, hatch_in: 5, from_loss: true, sire: String::new() });
     assert!(g.hatch(9).is_err());
     g.lineage.gold = 60;
     g.hatch(9).unwrap();
@@ -2339,6 +2347,9 @@ fn death_deltas_are_the_camp_forecasts_move() {
     // them the rest patch moves D7 by +0.10, under the bar)
     g.lineage.affix_pin = Some(Vec::new());
     g.lineage.guest_pin = Some(false);
+    // (Cut 119: with trait shapes shipped the next heir wakes with a trait that moves the rest patch to +0.18; the
+    // patch arithmetic is read on the neutral heir)
+    crate::traits::neutral(&mut g.lineage);
     g.send();
     let mut died = None;
     for _ in 0..4000 {
@@ -5563,8 +5574,15 @@ fn story_lines_credit_a_combo_that_landed_at_the_low_point() {
 #[test]
 fn the_first_stray_waits_on_d2_or_d3_for_the_kennel_leash() {
     let mut with = 0;
+    // (Cut 119 §0: with pets on the stray waits on every lineage — the 80 % is the pinned-off path)
+    assert!((1..=40u64).all(|s| Game::new_literal(s).lineage.first_stray().is_some()));
+    let off = |s: u64| {
+        let mut g = Game::new_literal(s);
+        crate::pets::pin_off(&mut g.lineage);
+        g
+    };
     for seed in 1..=40u64 {
-        let g = Game::new_literal(seed);
+        let g = off(seed);
         if let Some((d, name)) = g.lineage.first_stray() {
             with += 1;
             assert!((2..=3).contains(&d), "{d}");
@@ -5573,8 +5591,8 @@ fn the_first_stray_waits_on_d2_or_d3_for_the_kennel_leash() {
         }
     }
     assert!((26..=38).contains(&with), "{with}/40 lineages at 80%");
-    let seed = (1..=40u64).find(|s| Game::new_literal(*s).lineage.first_stray().is_some()).unwrap();
-    let mut g = Game::new_literal(seed);
+    let seed = (1..=40u64).find(|s| off(*s).lineage.first_stray().is_some()).unwrap();
+    let mut g = off(seed);
     let (d, name) = g.lineage.first_stray().unwrap();
     g.max_deaths = 1000;
     g.start_run(None);
@@ -6216,6 +6234,7 @@ fn theft_carries_its_amount() {
 #[test]
 fn companion_death_calls_out_fell() {
     let mut g = arena();
+    pets_off(&mut g);
     let party = crate::probes::pets_party();
     crate::engine::spawn_party(g.run.as_mut().unwrap(), &party);
     let j = add_monster(&mut g, "jackal", 6, 6);
@@ -8824,7 +8843,8 @@ fn dens_wake_on_one_floor_in_three_after_the_first() {
 #[test]
 fn a_wounded_pet_falls_back_and_heals_on_the_stairs() {
     let mut g = arena();
-    let c = Companion { id: 7_000_001, kind: "jackal".into(), name: "Thix".into(), level: 2, tags: vec!["pack".into(), "fast".into()], gen: 0, rules: crate::probes::default_companion_rules(&["pack".into()], 2), max_rows: 3, hp: 8, max_hp: 8 };
+    pets_off(&mut g);
+    let c = Companion { id: 7_000_001, kind: "jackal".into(), name: "Thix".into(), level: 2, tags: vec!["pack".into(), "fast".into()], gen: 0, rules: crate::probes::default_companion_rules(&["pack".into()], 2), max_rows: 3, hp: 8, max_hp: 8, life: Default::default() };
     let run = g.run.as_mut().unwrap();
     let pid = run.new_id();
     let mut pet = crate::engine::companion_monster(pid, &c, Pos::new(5, 5));
@@ -10577,7 +10597,8 @@ fn a_boss_that_cannot_be_hurt_drives_the_hero_off() {
     assert_eq!((d.boss.as_str(), d.verdict.as_str(), d.defence.as_str(), d.counter.as_str()), ("goblin_warlord", "no counter", "shields up", "attack boss"));
     assert_eq!(d.row, crate::facts::counter_row("goblin_warlord"));
     assert_eq!(pct, ExitTier::Return.pct(), "a set with a return row keeps the return's share");
-    assert_eq!(line.kept, carried * pct / 100);
+    // (a record checkpoint on the way secures carry: the exit share applies to the loose rest)
+    assert_eq!(line.kept, line.secured + carried * pct / 100, "carried {carried}");
     // QA on 0c6e126 (qaY): the line leads with `driven` (the tile's word), the ledger's line too.
     assert!(line.text.starts_with("driven ") && line.text.contains("by Warlord"), "{}", line.text);
     assert!(g.lineage.gold_ledger.iter().any(|x| x.why.starts_with("driven D")), "the ledger names the drive-off");
@@ -11364,6 +11385,11 @@ fn saves_from_307dbed_send_identically() {
     // moves; with the graves alone switched off the tree hashes to aa808dca72425139 exactly, and with every Cut 118
     // system pinned off (`feats.off`) too (`tests_cut118::the_307dbed_hash_holds_with_the_systems_pinned_off`). A news
     // line's lineage day is stripped below as a new read of the same run.
+    // Cut 119: 2f3eb706b3d24c7c → 4c5ee355b67975f1. Pets for everyone: the default tame row (`drill:tame`) tames the
+    // first stray, which now waits on every lineage, and a pet walks every send after (fetching, guarding, scouting,
+    // mending; a fallen heir's pack partly fetched home), so the events and the purse move. With the companions
+    // pinned off (`pets::pin_off`) the tree hashes to 2f3eb706b3d24c7c exactly
+    // (`tests_cut119::the_307dbed_hash_restores_with_pets_pinned_off`); the shipped heir shapes move nothing here.
     let want = u64::from_str_radix(include_str!("fixtures/sends_307dbed.txt").trim(), 16).unwrap();
     assert_eq!(format!("{:016x}", sends_hash(&mut g, 10)), format!("{want:016x}"));
 }
@@ -11524,6 +11550,8 @@ fn in_cond_reads_the_lane() {
 fn fork_tablet_prices_both_stairs() {
     use crate::descent::Route;
     let mut g = route_game(9, Route::BASE);
+    // (the tablet's arithmetic on the seed chosen for it, without Cut 119's pet)
+    crate::pets::pin_off(&mut g.lineage);
     g.lineage.best_depth = 7;
     let opts = g.fork_forecast(5);
     assert_eq!(opts.len(), 2);
@@ -12032,3 +12060,12 @@ fn a_stalls_target_the_boss_never_walks_into_the_kings_mirror() {
 }
 
 
+
+/// The pre-Cut 119 companion mechanics (a fall is an egg, a wounded pet falls back and dies cornered, levels on a
+/// bank): Cut 119 pinned off on the lineage and the run in flight.
+pub(crate) fn pets_off(g: &mut Game) {
+    crate::pets::pin_off(&mut g.lineage);
+    if let Some(r) = g.run.as_mut() {
+        r.pets = crate::pets::RunPets::default();
+    }
+}

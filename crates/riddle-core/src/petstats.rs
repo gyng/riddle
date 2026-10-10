@@ -29,9 +29,26 @@ pub enum Stat {
     LossHatched,
     StraysRetamed,
     Tamed,
+    /// Cut 119: the roles' acts (a scout's floor seen ahead, a guard's blow drawn, a mender's heal, a fetcher's pickup,
+    /// a revive), the pack fetched on deaths (gold; deaths it was fetched on), the carry lost on deaths (all; with a
+    /// party pet standing), the keeper's eggs.
+    ScoutReveals,
+    Guarded,
+    Mended,
+    Fetches,
+    Revived,
+    FetchedGold,
+    FetchDeaths,
+    LostCarry,
+    LostCarryWithPet,
+    Bred,
+    /// Live: a lamed pet back on its feet (its lame runs sat out).
+    LameHealed,
+    /// A wounded pet that limped home (out of the run, safe).
+    LimpedHome,
 }
 
-pub const N: usize = Stat::Tamed as usize + 1;
+pub const N: usize = Stat::LimpedHome as usize + 1;
 
 thread_local! {
     static COUNTS: [Cell<u64>; N] = const { [const { Cell::new(0) }; N] };

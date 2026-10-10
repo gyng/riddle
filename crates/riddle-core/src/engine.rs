@@ -374,6 +374,9 @@ pub struct Run {
     pub worn: crate::traits::Worn,
     #[serde(default)]
     pub gift: crate::traits::GiftRun,
+    /// Cut 119: the run's companion switches (on, synergies, the revive spent, the mender's clock).
+    #[serde(default, skip_serializing_if = "crate::pets::RunPets::is_default")]
+    pub pets: crate::pets::RunPets,
     pub monsters: Vec<Monster>,
     pub items: crate::shared::Shared<Vec<FloorItem>>,
     pub overlays: Vec<Overlay>,
@@ -1496,6 +1499,9 @@ pub struct LineageState {
     /// (`traits::HeirTraits`); the temperament above is kept only to map an older save.
     #[serde(default)]
     pub heirs: crate::traits::HeirTraits,
+    /// Cut 119: the companions' lineage state (the tame row, the keeper, fetched, old hounds; `off` pins it all).
+    #[serde(default, skip_serializing_if = "crate::pets::PetsState::is_default")]
+    pub pets: crate::pets::PetsState,
     /// QA on 56f2a1d: the kennel's free leash, dropped from the shelf, came back after every
     /// run. A drop declines the kennel until a leash is bought or a kind is tamed.
     #[serde(default)]
@@ -1918,6 +1924,7 @@ impl LineageState {
             reel_pairs: Vec::new(),
             trait_offer: offer.to_vec(),
             heirs: crate::traits::fresh(),
+            pets: crate::pets::PetsState::default(),
             kennel_declined: false,
             last_wasted: Vec::new(),
             repeat_short: Vec::new(),
@@ -2035,7 +2042,8 @@ impl LineageState {
             return None;
         }
         let mut rng = Rng::derive(self.seed, hash_str("first_stray"));
-        if !rng.chance(FIRST_STRAY_PCT) {
+        // (Cut 119 §0: pets for everyone — the first stray waits on every lineage; the roll is still drawn)
+        if !rng.chance(FIRST_STRAY_PCT) && self.pets.off {
             return None;
         }
         let depth = 2 + rng.below(2);
@@ -2261,6 +2269,7 @@ impl LineageState {
             kennel: self.kennel.clone(),
             eggs: self.eggs.clone(),
             party_slots: self.party_slots(),
+            pets: crate::pets::wire(self),
             ledger: self.ledger(),
             gold: crate::tree::purse(self),
             supplies: self.supplies.iter().map(|i| to_inv(i, &self.facts, &self.flavours)).collect(),
@@ -2432,7 +2441,7 @@ impl LineageState {
     }
     /// Cut 29 §4: the standing orders, read off the lineage.
     pub fn standing_orders(&self) -> crate::wire::StandingOrders {
-        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone(), wall: Some(self.orders.wall.clone()), sink: Some(self.orders.sink.clone()), heir: Some(self.orders.heir.clone()) }
+        crate::wire::StandingOrders { keep: self.keep_pref.clone(), cage: self.vault_pref.clone(), start: self.start.max(1), repeat: !self.restock_off, insure: self.orders.insure, forge: self.orders.forge.clone(), wall: Some(self.orders.wall.clone()), sink: Some(self.orders.sink.clone()), heir: Some(self.orders.heir.clone()), kennel: Some(self.orders.kennel.clone()) }
     }
     /// The categories an unwatched exit keeps, in order (`Game::auto_keep`).
     pub fn keep_auto(&self) -> Vec<String> {
@@ -4192,6 +4201,7 @@ impl Game {
             trait_: self.lineage.trait_,
             worn: crate::traits::Worn::default(),
             gift: crate::traits::GiftRun::default(),
+            pets: crate::pets::RunPets::default(),
             monsters: Vec::new(),
             items: Vec::new().into(),
             overlays: Vec::new(),
@@ -4435,10 +4445,14 @@ impl Game {
                 run.hero.auto_equip(it);
             }
         }
+        // Cut 119: the run's companion switches (the first stray's kind is placed with the floor)
+        crate::pets::on_send(&mut run, &self.lineage);
         populate_floor(&mut run, &self.lineage.grudges, &self.lineage.forge, self.lineage.hunter.as_ref());
         place_situations(&mut run, &self.lineage.lost);
         place_bones(&mut run);
-        spawn_party(&mut run, &self.lineage.party);
+        // (lamed pets sit out; the scout's first look ahead)
+        spawn_party(&mut run, &crate::pets::fielded(&self.lineage));
+        crate::pets::on_floor(&mut run);
         // QA on e75ec29 (qaR: the pet is never in the text): each companion that walks down
         // with the heir is named at the start (`Skog joins.`).
         for m in run.monsters.iter().filter(|m| m.ally && m.cid.is_some()) {
@@ -5434,7 +5448,13 @@ impl Game {
             if alive || recalled {
                 let mut c = rec.clone();
                 c.hp = c.max_hp;
-                if tier == ExitTier::Bank && alive && c.level < 5 {
+                // Cut 119 §3: xp from every run (levels, signatures announced once, heirs served, the grudge)
+                if run.pets.on {
+                    for line in crate::pets::grow(&mut c, &run, tier) {
+                        self.events.push(Ev::Note { t: run.turn, text: format!("{line}.") });
+                        bests.push(line);
+                    }
+                } else if tier == ExitTier::Bank && alive && c.level < 5 {
                     c.level += 1;
                     c.max_rows = 1 + c.level as usize;
                     bests.push(format!("{} L{}", c.name, c.level));
@@ -5455,11 +5475,32 @@ impl Game {
                 if !self.sim {
                     crate::petstats::bump(crate::petstats::Stat::PetsFell, 1);
                 }
+                // Cut 119 (research §1): a pet goes down, not gone — lamed for a few runs, its level kept
+                if run.pets.on {
+                    let mut c = rec.clone();
+                    c.hp = c.max_hp;
+                    let lines = crate::pets::grow(&mut c, &run, tier);
+                    if crate::pets::lame(&mut c) {
+                        for line in lines {
+                            bests.push(line);
+                        }
+                        let why = run.fell_why.iter().rev().find(|(n, _)| *n == rec.name).map(|(_, w)| w.clone()).unwrap_or_else(|| format!("fell D{}", run.depth));
+                        if !self.sim {
+                            crate::petstats::bump(crate::petstats::Stat::PetsFellNamed, 1);
+                            self.batch.fallen.push(crate::wire::Fallen { name: c.name.clone(), kind: c.kind.clone(), level: c.level, depth: run.depth, why, heir: run.heir, lamed: true });
+                        }
+                        match in_party {
+                            Some(i) => self.lineage.party[i] = c,
+                            None => self.lineage.kennel.push(c),
+                        }
+                        continue;
+                    }
+                }
                 if let Some(i) = in_party {
                     self.lineage.party.remove(i);
                 }
                 let eid = self.lineage.new_comp_id();
-                self.lineage.eggs.push(Egg { id: eid, kind: rec.kind.clone(), tags: rec.tags.clone(), gen: rec.gen, hatch_in: egg_rests, from_loss: true });
+                self.lineage.eggs.push(Egg { id: eid, kind: rec.kind.clone(), tags: rec.tags.clone(), gen: rec.gen, hatch_in: egg_rests, from_loss: true, sire: String::new() });
                 self.lineage.eggs_laid += 1;
                 // Cut 5 §4: the lost companion may be met again, gone wild, by a later heir.
                 let heir = run.heir;
@@ -5471,7 +5512,7 @@ impl Game {
                 // Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): the fall is
                 // named on the report (`Fallen`) and in the chronicle's deeds.
                 if !self.sim {
-                    self.batch.fallen.push(crate::wire::Fallen { name: rec.name.clone(), kind: rec.kind.clone(), level: rec.level, depth: run.depth, why: why.clone(), heir });
+                    self.batch.fallen.push(crate::wire::Fallen { name: rec.name.clone(), kind: rec.kind.clone(), level: rec.level, depth: run.depth, why: why.clone(), heir, lamed: false });
                     self.lineage.heir_deed(format!("lost {} the {}", rec.name, kind_title(&rec.kind).to_lowercase()));
                 }
                 self.lineage.lost.push(Lost { kind: rec.kind.clone(), name: rec.name.clone(), gen: rec.gen, heir, why });
@@ -5485,6 +5526,13 @@ impl Game {
         }
         for (_, k) in &run.tamed {
             self.batch.tamed.push(k.clone());
+        }
+        // Cut 119 §3: the pets that sat this run out — a quarter of its xp, a lamed one a run nearer the field
+        if run.pets.on {
+            let healed = crate::pets::bench(&mut self.lineage, &run);
+            if !self.sim {
+                crate::petstats::bump(crate::petstats::Stat::LameHealed, u64::from(healed));
+            }
         }
         for (_, n) in &run.lost_companions {
             self.batch.lost.push(n.clone());
@@ -6106,6 +6154,8 @@ impl Game {
             }
             // Cut 118: tokens, the goal's outcome, a find sealed while away, the swift floors (before the systems read: a
             // feat may light one)
+            // Cut 119: the pack fetched home on a death (before the grave takes the rest), the keeper, old hounds
+            crate::pets::on_run_end(self, &run, tier);
             crate::feats::on_run_end(self, &run, tier, legacy_earned);
             // blind 77030eb (A, B: the Mother slain, the pen's `edit` a run later): the systems read again once this run's
             // kills and meetings are on the lineage (the update above ran before them) — same one-a-report budget
@@ -6375,8 +6425,16 @@ impl Game {
         }
         let id = self.lineage.new_comp_id();
         let name = crate::descent::grudge_name(&mut self.lineage.rng);
+        // Cut 119 §4: a bred egg's pup carries its sire's name and its generation (`Rook II`)
+        let bred = !e.sire.is_empty() && !self.lineage.pets.off;
+        let name = if bred { crate::pets::bred_name(&e.sire, e.gen) } else { name };
         let def = crate::defs::monster_def(&e.kind);
         let rules = crate::probes::default_companion_rules(&e.tags, 1);
+        let mut life = crate::pets::PetLife::default();
+        if !self.lineage.pets.off {
+            life.role = crate::pets::role_of(&e.kind).word().to_string();
+            life.bred = bred;
+        }
         self.lineage.kennel.push(Companion {
             id,
             kind: e.kind,
@@ -6388,7 +6446,13 @@ impl Game {
             max_rows: 2,
             hp: def.hp,
             max_hp: def.hp,
+            life,
         });
+        // (the keeper releases the surplus: past the party's slots and a few spare)
+        if !self.lineage.pets.off && !self.sim {
+            let day = crate::feats::day_of(self.lineage.clock_s);
+            crate::pets::release(self, day);
+        }
     }
 
     /// Choose which owned companions go on the next expedition.
@@ -6466,7 +6530,7 @@ impl Game {
         }
         let eid = self.lineage.new_comp_id();
         let hatch_in = self.lineage.egg_rests();
-        self.lineage.eggs.push(Egg { id: eid, kind: ca.kind.clone(), tags, gen: ca.gen.max(cb.gen) + 1, hatch_in, from_loss: false });
+        self.lineage.eggs.push(Egg { id: eid, kind: ca.kind.clone(), tags, gen: ca.gen.max(cb.gen) + 1, hatch_in, from_loss: false, sire: String::new() });
         self.lineage.eggs_laid += 1;
         self.lineage.bred.insert(ca.kind);
         Ok(())
@@ -7044,6 +7108,8 @@ pub fn gold_term(why: &str) -> &'static str {
         "forge"
     } else if why.starts_with("waystone") {
         "tolls"
+    } else if why.starts_with("fetched") {
+        "fetched"
     } else if why.starts_with("recovered") {
         "recovered"
     } else if why.starts_with("tithe") {
@@ -7528,6 +7594,8 @@ pub fn companion_monster(id: u32, c: &Companion, pos: Pos) -> Monster {
     m.hp = m.max_hp;
     let base: Vec<&str> = m.def().tags.to_vec();
     m.extra_tags = c.tags.iter().filter(|t| !base.contains(&t.as_str())).cloned().collect();
+    // Cut 119 §3: a level's attack, the pedigree's
+    crate::pets::shape_monster(&mut m, c);
     m
 }
 
@@ -7538,14 +7606,19 @@ pub const PET_LEVEL_HP: i32 = 2;
 /// (the floors' foes grow; a pet keeps pace), plus `PET_LEVEL_HP` per level past the first.
 pub fn pet_max_hp(c: &Companion, depth: u32) -> i32 {
     let d = crate::defs::monster_def(&c.kind);
-    c.max_hp.max(d.hp + crate::defs::depth_hp_bonus(depth)).max(1) + PET_LEVEL_HP * (c.level.max(1) as i32 - 1)
+    let base = c.max_hp.max(d.hp + crate::defs::depth_hp_bonus(depth)).max(1);
+    // Cut 119 §3: real stats per level and the pedigree (a Cut 119 pet carries its role)
+    if !c.life.role.is_empty() {
+        return crate::pets::max_hp(c, base);
+    }
+    base + PET_LEVEL_HP * (c.level.max(1) as i32 - 1)
 }
 
 /// A companion record for a freshly tamed monster.
 pub fn new_companion(id: u32, m: &Monster, name: String) -> Companion {
     let tags = m.tags();
     let rules = crate::probes::default_companion_rules(&tags, 1);
-    Companion { id, kind: m.kind.clone(), name, level: 1, tags, gen: 0, rules, max_rows: 2, hp: m.max_hp, max_hp: m.max_hp }
+    Companion { id, kind: m.kind.clone(), name, level: 1, tags, gen: 0, rules, max_rows: 2, hp: m.max_hp, max_hp: m.max_hp, life: Default::default() }
 }
 
 /// Monster tags known well enough to tame: 20% + 10% per known tag, cap 60%; a studied kind
@@ -7629,7 +7702,8 @@ pub fn place_situations(run: &mut Run, lost: &[Lost]) {
         let near = depth == 1 && k == 0;
         place_room_kind(run, &mut rng, kind, near, &mut used);
     }
-    let wild = if stray { lost.last().map(|l| (l.kind.clone(), l.name.clone())) } else { first.map(|(_, name)| ("jackal".to_string(), name)) };
+    let first_kind = if run.pets.first_kind.is_empty() { "jackal".to_string() } else { run.pets.first_kind.clone() };
+    let wild = if stray { lost.last().map(|l| (l.kind.clone(), l.name.clone())) } else { first.map(|(_, name)| (first_kind, name)) };
     if let Some((kind, name)) = wild {
         place_stray(run, &mut rng, &kind, &name, &mut used);
     }
@@ -7779,7 +7853,7 @@ pub fn wild_for(run: &Run, lost: &[Lost]) -> Option<(String, String)> {
     }
     if let Some((d, name)) = &run.first_stray {
         if *d == run.depth {
-            return Some(("jackal".into(), name.clone()));
+            return Some((if run.pets.first_kind.is_empty() { "jackal".into() } else { run.pets.first_kind.clone() }, name.clone()));
         }
     }
     lost.last().map(|l| (l.kind.clone(), l.name.clone()))

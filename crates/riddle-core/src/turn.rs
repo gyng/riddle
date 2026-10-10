@@ -1633,6 +1633,41 @@ fn build_said(run: &mut Run, cx: &mut Ctx, bit: u8, name: &str) {
 
 /// Cut 115 §1: the blow the hero takes after the build's guard (Bulwark: melee in a corridor; Ghost: blows from
 /// afar, and every blow when hurt; Iron lungs: gas and poison; Warden: a telegraphed blow).
+/// Cut 119 §2: a guard pet beside the striker takes a melee blow aimed at the hero (its chance by level and
+/// synergy; L5 `bulwark` takes it at half); a scout's L5 `warn` halves a floor's first blow on the hero.
+fn pet_taken(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) -> i32 {
+    if !run.pets.on || dmg <= 0 {
+        return dmg;
+    }
+    let Src::Mon(i) = *src else { return dmg };
+    if !run.monsters[i].hostile() {
+        return dmg;
+    }
+    let mp = run.monsters[i].pos;
+    if mp.cheb(run.hero.pos) <= 1 {
+        let guard = run.monsters.iter().enumerate().filter(|(j, m)| *j != i && m.hp > 0 && m.is_companion() && !crate::ai::pet_wounded(m) && m.pos.cheb(mp) <= 1).find_map(|(j, m)| {
+            let c = m.cid.and_then(|cid| run.companion(cid))?;
+            (crate::pets::role(c) == crate::pets::Role::Guard).then_some((j, c.level))
+        });
+        if let Some((j, level)) = guard {
+            if run.rng.below(100) < crate::pets::guard_pct(level, run.pets.syn) {
+                let taken = if level >= 5 { (dmg + 1) / 2 } else { dmg };
+                let (src_id, dst) = (run.monsters[i].id, run.monsters[j].id);
+                cx.events.push(Ev::Attack { t: run.turn, src: src_id, dst, dmg: taken, hit: true, verb: Some("guarded".into()) });
+                crate::petstats::bump(crate::petstats::Stat::Guarded, 1);
+                crate::petstats::bump(crate::petstats::Stat::BlowsPet, 1);
+                damage_monster(run, cx, j, taken, &Src::Mon(i));
+                return 0;
+            }
+        }
+    }
+    if run.pets.warned != run.depth && crate::pets::living(run, crate::pets::Role::Scout, 5).is_some() {
+        run.pets.warned = run.depth;
+        return dmg / 2;
+    }
+    dmg
+}
+
 fn build_taken(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) -> i32 {
     use crate::packages as p;
     if dmg <= 0 {
@@ -1741,6 +1776,12 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
     let dmg=match src {Src::Mon(i) if run.monsters[*i].hostile()&&run.monsters[*i].hex_t>0=>(dmg-crate::specialization::HEX_REDUCTION).max(0),_=>dmg};
     let dmg = build_taken(run, cx, dmg, src);
     let dmg = affix_taken(run, cx, dmg, src);
+    // Cut 119 §2: a guard pet draws the blow; a scout's `warn` softens a floor's first
+    let before = dmg;
+    let dmg = pet_taken(run, cx, dmg, src);
+    if dmg <= 0 && before > 0 {
+        return;
+    }
     let (dmg, counter) = counter_damage(run, src, dmg, None, run.hero.pos, false);
     if let Some((a, b)) = counter {
         learn(run, cx, crate::defs::counter_fact(&a, &b));
@@ -1863,6 +1904,14 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         } else if pct <= 20 && run.low20_t.is_none() {
             run.low20_t = Some(run.turn);
         }
+    }
+    // Cut 119 §3: a mender's `revive once` — once a run, never in a boss fight
+    if run.hero.hp <= 0 && run.pets.on && !run.pets.revived && !run.monsters.iter().any(|m| m.hp > 0 && m.is_boss() && m.hostile() && m.pos.cheb(run.hero.pos) <= 8) && crate::pets::living(run, crate::pets::Role::Mender, 5).is_some() {
+        run.pets.revived = true;
+        run.hero.hp = (run.hero.max_hp / 4).max(1);
+        crate::petstats::bump(crate::petstats::Stat::Revived, 1);
+        callout(run, cx, "revived");
+        note(run, cx, "A mender pulled him back.".into());
     }
     if run.hero.hp <= 0 {
         run.death_short = 1 - run.hero.hp;
@@ -2034,6 +2083,9 @@ pub fn damage_monster(run: &mut Run, cx: &mut Ctx, mi: usize, mut dmg: i32, src:
     // Cut 20 §2: a companion already fallen back (≤ 30 % hp) dies only cornered; the blow
     // that would kill it from above that is still a kill.
     let dmg = if dmg >= run.monsters[mi].hp && crate::ai::pet_wounded(&run.monsters[mi]) && !crate::ai::pet_cornered(run, mi) { run.monsters[mi].hp - 1 } else { dmg };
+    // Cut 119 (research §1: down, not gone): with the companions on, the blow from above is no kill either — the pet
+    // goes down to its last hp and falls back (it dies only wounded and cornered)
+    let dmg = if run.pets.on && *src != Src::Burst && dmg >= run.monsters[mi].hp && run.monsters[mi].is_companion() && !crate::ai::pet_wounded(&run.monsters[mi]) { run.monsters[mi].hp - 1 } else { dmg };
     // (Cut 119's eval counters: write-only)
     if dmg > 0 && run.monsters[mi].hostile() {
         let landed = dmg.min(run.monsters[mi].hp).max(0) as u64;
@@ -2727,6 +2779,8 @@ pub fn descend(run: &mut Run, cx: &mut Ctx) {
         let i = run.floor.map.idx(s);
         run.floor.map.seen[i] = true;
     }
+    // Cut 119 §2: the scout's look ahead
+    crate::pets::on_floor(run);
     let vision = run.vision(cx.unlocks);
     run.floor.map.update_vision(run.hero.pos, vision);
     cx.events.push(Ev::Descend { t: run.turn, depth: next, biome: biome.name().into() });
@@ -3094,7 +3148,7 @@ pub fn pickup_here(run: &mut Run, cx: &mut Ctx) {
     }
 }
 
-fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
+pub(crate) fn pickup_item_here(run: &mut Run, cx: &mut Ctx) {
     // Several items may share a tile (a recovered kit that did not fit): take the first
     // that would change anything.
     let here = run.hero.pos;

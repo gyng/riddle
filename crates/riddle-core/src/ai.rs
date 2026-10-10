@@ -3914,13 +3914,24 @@ fn ally_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
 fn verb_tame(run: &mut Run, cx: &mut Ctx, a: &str, v: &View) -> bool {
     let Some(li) = run.hero.inv.iter().position(|i| i.kind == "leash" && i.amount > 0) else { return false };
     let sel = if a.is_empty() { "nearest" } else { a };
+    // Cut 119 §0: the default row's `open` — only with a party slot open, a stray or a weakened kind known well
+    // enough to take the leash (`pets::OPEN_TAME_MIN`)
+    let open = sel == "open";
+    if open && run.party_alive().count() as u32 + run.tamed.len() as u32 >= run.pets.slots.max(1) {
+        return false;
+    }
+    // (never on a floor whose boss stands: the boss's own goblins are no pets, the fight is the fight)
+    if open && run.monsters.iter().any(|m| m.hp > 0 && m.is_boss() && m.hostile()) {
+        return false;
+    }
     let cand = v.foes.iter().copied().find(|&i| {
         let m = &run.monsters[i];
         // Cut 5 §4: a stray (a lost heir's companion) takes the leash whatever its wounds.
         let weak = m.hp * 100 / m.max_hp.max(1) < 25 || m.stray;
         let tag_ok = match sel.strip_prefix("tag:") {
             Some(t) => m.has_tag(t),
-            None => true,
+            // (and a role the party lacks: the line's pets come in a mix — research §2)
+            None => !open || m.stray || (crate::engine::tame_chance(cx.facts, &m.kind) >= crate::pets::OPEN_TAME_MIN && !run.companions.iter().any(|c| crate::pets::role(c) == crate::pets::role_of(&m.kind))),
         };
         weak && tag_ok && !m.is_boss() && !m.summoned && !m.neutral
     });
@@ -4044,6 +4055,8 @@ fn companion_melee(run: &mut Run, cx: &mut Ctx, mi: usize, ti: usize, verb: &str
     let atk = (atk.0 * mult_num / 2, atk.1 * mult_num / 2);
     let def = run.monsters[ti].effective_def();
     let (hit, dmg) = roll_hit(&mut run.rng, atk, def);
+    // Cut 119: a ranged pet's blow is capped; a grudge adds to the blow on its killer
+    let dmg = crate::pets::pet_blow(run, mi, ti, verb, dmg);
     if ally_mirror(run, cx, mi, ti, verb, hit, dmg) {
         return 0;
     }
@@ -4305,10 +4318,90 @@ fn pet_fall_back(run: &mut Run, cx: &mut Ctx, mi: usize) {
     }
 }
 
+/// Cut 119 §2: a role's act with no foe in view — the fetcher walks to the nearest seen gold in its reach of the
+/// hero and brings it in; the mender heals the hero on its clock. True when it acted.
+fn role_act(run: &mut Run, cx: &mut Ctx, mi: usize, cid: u32) -> bool {
+    let Some(c) = run.companion(cid) else { return false };
+    let (r, level) = (crate::pets::role(c), c.level);
+    match r {
+        crate::pets::Role::Fetcher => {
+            let reach = crate::pets::fetch_reach(level, run.pets.syn);
+            let hero = run.hero.pos;
+            let mp = run.monsters[mi].pos;
+            let map = &run.floor.map;
+            // (gold, and what the hero would take himself — brought to his hand)
+            let pack = crate::turn::PackRead::default();
+            let target = run
+                .items
+                .iter()
+                .filter(|fi| map.is_seen(fi.pos) && fi.pos.cheb(hero) <= reach && fi.pos != hero && !run.in_den_zone(fi.pos) && !run.skip_items.contains(&fi.item.id) && fi.item.kind != "bones")
+                .filter(|fi| fi.item.cat() == Cat::Gold || crate::turn::would_take_in(run, cx, &fi.item, &pack))
+                .min_by_key(|fi| (fi.pos.cheb(mp), fi.pos.x, fi.pos.y))
+                .map(|fi| (fi.pos, fi.item.id));
+            let Some((tp, iid)) = target else { return false };
+            if tp == mp {
+                let Some(ii) = run.items.iter().position(|fi| fi.item.id == iid) else { return false };
+                if run.items[ii].item.cat() == Cat::Gold {
+                    let it = run.items.remove(ii).item;
+                    run.loot_add_gold(it.amount);
+                    if run.bounty == Some(run.depth) {
+                        run.bounty_gold += it.amount;
+                    }
+                    let id = run.monsters[mi].id;
+                    cx.events.push(Ev::Pickup { t: run.turn, id, item: format!("gold ${}", it.amount) });
+                } else {
+                    // brought to the hero: his own pickup takes it (or leaves it where it lay)
+                    run.items[ii].pos = run.hero.pos;
+                    crate::turn::pickup_item_here(run, cx);
+                    if let Some(j) = run.items.iter().position(|fi| fi.item.id == iid) {
+                        run.items[j].pos = tp;
+                        run.skip_items.push(iid);
+                        return false;
+                    }
+                }
+                crate::petstats::bump(crate::petstats::Stat::Fetches, 1);
+                companion_callout(run, cx, mi, "fetch");
+                return true;
+            }
+            companion_approach(run, cx, mi, tp)
+        }
+        crate::pets::Role::Mender => {
+            let h = &run.hero;
+            if h.hp <= 0 || h.hp * 100 >= h.max_hp * crate::pets::MEND_UNDER_PCT || run.turn < run.pets.mend_t + crate::pets::mend_every(run.pets.syn) {
+                return false;
+            }
+            let add = crate::pets::mend_hp(level).min(h.max_hp - h.hp);
+            run.hero.hp += add;
+            run.pets.mend_t = run.turn;
+            crate::petstats::bump(crate::petstats::Stat::Mended, 1);
+            companion_callout(run, cx, mi, "mend");
+            true
+        }
+        _ => false,
+    }
+}
+
 fn companion_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
     let Some(cid) = run.monsters[mi].cid else { return };
     if pet_wounded(&run.monsters[mi]) {
         run.monsters[mi].hurt_since_action = false;
+        // Cut 119 (research §1: loss felt but recoverable): a wounded pet limps home — out of this run, safe
+        if run.pets.on {
+            let name = run.monsters[mi].name.clone().unwrap_or_else(|| crate::engine::kind_title(&run.monsters[mi].kind));
+            let seen = run.floor.map.is_visible(run.monsters[mi].pos);
+            if !run.recalled.contains(&cid) {
+                run.recalled.push(cid);
+            }
+            let id = run.monsters[mi].id;
+            run.monsters[mi].hp = 0;
+            run.monsters[mi].cid = None;
+            cx.events.push(Ev::Move { t: run.turn, id, x: -1, y: -1 });
+            if seen {
+                callout(run, cx, &format!("{name} limps home"));
+            }
+            crate::petstats::bump(crate::petstats::Stat::LimpedHome, 1);
+            return;
+        }
         pet_fall_back(run, cx, mi);
         return;
     }
@@ -4320,6 +4413,14 @@ fn companion_act(run: &mut Run, cx: &mut Ctx, mi: usize) {
         None => (Vec::new(), 2),
     };
     let v = companion_view(run, mi);
+    // Cut 119 §2: the role's own act between fights (a fetcher's pickup, a mender's heal)
+    // (a fetcher goes on fetching while no foe is within 3 of it)
+    let clear = v.foes.is_empty() || (run.companion(cid).is_some_and(|c| crate::pets::role(c) == crate::pets::Role::Fetcher) && v.foes.iter().all(|&i| run.monsters[i].pos.cheb(run.monsters[mi].pos) > 3));
+    if run.pets.on && clear && role_act(run, cx, mi, cid) {
+        run.monsters[mi].hurt_since_action = false;
+        crate::petstats::bump(crate::petstats::Stat::PetActs, 1);
+        return;
+    }
     if run.monsters[mi].sent {
         if v.foes.is_empty() {
             run.monsters[mi].sent = false;

@@ -585,6 +585,13 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 119 §0: revoke (or restore) the default tame row (`Lineage.pets.tame`) — one tap; returns the Lineage.
+    #[wasm_bindgen(js_name = revokeTame)]
+    pub fn revoke_tame(&mut self, revoked: bool) -> Result<String, JsError> {
+        self.inner.revoke_tame(revoked).map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 30 §2: every package move priced on the paired panel (`PkgOption[]`, best first).
     #[wasm_bindgen(js_name = packageOptions)]
     pub fn package_options(&self, sims: u32) -> String {

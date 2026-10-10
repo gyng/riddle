@@ -326,7 +326,7 @@ export type PatchWhole = { reach: number; reach_pm: number; death: number; death
 /** Cut 30 §2 (core) — a death's one cheapest lever before the pen opens: `kind` spend · package · wait, `text` ≤ 3 words (`sword +2`, `Hunter`, `scarred ×3`). */
 export type Lever = { kind: string; text: string; id?: string; variant?: number };   // Cut 115 §4: a `tactic` lever's package and variant (`takeFix`)
 /** Cut 115 §1 (core): the build the picks make — its name (`Bulwark`, `Guarded skirmisher`), the synergy its pair forms and the effect, the picks. */
-export type BuildWire = { name: string; synergy?: string; effect?: string; picks: string[] };
+export type BuildWire = { name: string; synergy?: string; effect?: string; picks: string[]; pet_synergy?: string; pet_effect?: string };   // Cut 119 (core): `pet_synergy` a pet + build pair formed (`Falconer`), its effect
 /** Cut 115 §1 (core): rule fires by who chose the row. */
 export type CreditShare = { credit: "picked" | "taught" | "default" | "chores" | string; fires: number; share: number };
 /** Cut 115 §3 (core): a move read at one wall (paired sends from its waystone). */
@@ -591,7 +591,7 @@ export type Lineage = { bloodline?: BloodlineLegacy;
                         facts: string[]; unlocks: string[]; vault: InvItem[];
                         graveyard: { heir: number; depth: number; cause: string; deeds: string[]; death_id?: number }[];   // death_id: Cut 9 §7, a kept death (`death(id)` answers)
                         trophies: string[]; sets: RuleSet[]; active_set: number; ended: boolean;
-                        party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; ledger: LedgerRow[];  // Addendum A
+                        party: Companion[]; kennel: Companion[]; eggs: Egg[]; party_slots: number; pets?: PetsWire; ledger: LedgerRow[];  // Addendum A · Cut 119 (core): `pets`
                         gold: number; supplies: InvItem[]; insured?: number[];                                                              // Addendum B
                         classes: { [cls: string]: { level: number; xp: number; next?: number } };                     // Addendum C; next: QA 92eb880, the XP the next level costs (core's ladder; 0 at the top)
                         forge: { [kind: string]: { salvaged: number; craftable: boolean; tier: number;
@@ -671,8 +671,17 @@ export type BonesPile = { depth: number; heir: number; items: number };
 
 // Addendum A — Companions
 export type Companion = { id: number; kind: string; name: string; level: number; tags: string[]; gen: number;
-                          rules: RuleSet; max_rows: number; hp: number; max_hp: number };
-export type Egg = { id: number; kind: string; tags: string[]; gen: number; hatch_in: number; from_loss: boolean };
+                          rules: RuleSet; max_rows: number; hp: number; max_hp: number; life?: PetLife };
+/** Cut 119 (core): a pet's life past its kind. `role` fetcher · guard · scout · mender (its kind's; first on its card);
+ *  `xp` from every run (levels to L7; signatures at L3/L5); `lame` runs it sits out after a fall (level kept); `falls`;
+ *  `heirs` served (3 → the old hound); `grudge` the band boss that killed a heir beside it; `bred` by the keeper;
+ *  `fetched` gold it brought home from fallen heirs. Absent fields are zero / empty. */
+export type PetLife = { role?: string; xp?: number; lame?: number; falls?: number; heirs?: number[]; grudge?: string; runs?: number; bred?: boolean; announced?: number[]; fetched?: number };
+/** Cut 119 (core): the companions' camp read (`Lineage.pets`). `tame` the default tame row's words (`tames strays`,
+ *  revocable: `revokeTame`), `kennel` the keeper's order (breed · best · off), `synergies` formed now
+ *  (`Falconer · scout sees further`), lifetime `fetched` gold, `old_hounds` chronicle lines, eggs `bred`, pets `released`. */
+export type PetsWire = { tame: string; tame_revoked: boolean; kennel: string; synergies?: string[]; fetched: number; old_hounds?: string[]; bred: number; released: number };
+export type Egg = { id: number; kind: string; tags: string[]; gen: number; hatch_in: number; from_loss: boolean; sire?: string };   // Cut 119 (core): `sire` a bred egg's sire (`Rook` → the pup `Rook II`)
 export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean; studied?: boolean;   // studied: Cut 2 §5
                           counter?: { row: Row; text: string } };                                                         // Cut 7 §1: a boss's known counter as a row (a chip on the bestiary card)
 
@@ -713,14 +722,14 @@ export type OathDraw = { cost: number; available: boolean; needs?: string };
 export type Commission = { price: number; label: string; available: boolean };
 /** Cut 29 §4 (core) — the standing orders: exit keep (`best_weapon|best_armour|none`), an unwatched cage's pick (`weapon|armour|potion|scroll`),
  *  the start floor, the repeat, insuring the brought items when the purse covers it (on by default). */
-export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string; wall?: string; sink?: string; heir?: string };   // owner amendment 2 (core): `heir` the heir order — answer (default) · strongest · surprise   // Cut 118 §4 (core): `sink` the apprentice's sinks after Kit complete — both (default) · ration · tithe · off   // Cut 114 §3 (core): `wall` the scout's order at a wall — bank (default) · carry · push   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
+export type StandingOrders = { keep: string; cage: string; start: number; repeat: boolean; insure: boolean; forge?: string; wall?: string; sink?: string; heir?: string; kennel?: string };   // Cut 119 (core): `kennel` the kennel keeper's order — breed (default) · best · off   // owner amendment 2 (core): `heir` the heir order — answer (default) · strongest · surprise   // Cut 118 §4 (core): `sink` the apprentice's sinks after Kit complete — both (default) · ration · tithe · off   // Cut 114 §3 (core): `wall` the scout's order at a wall — bank (default) · carry · push   // blind 1fb7786 (core): `forge` the apprentice's order — half (default) · all · off
 /** Cut 29 §4 (core) — a kind the next send adds to the repeat, and the row's verb that wants it (`throw fire`). */
 export type RepeatAdd = { kind: string; row: string };
 /** Cut 29 §1 (core; E1) — a wall's edit: the floor, the edit labels (`drop R6`, `R1 → hp < 90% → rest`), the whole set with them, the share of
  *  `sims` sends past the record before and after. */
 export type WallEdit = { depth: number; edits: string[]; rules: RuleSet; before: number; after: number; sims: number; start?: number };   // `start`: the lit waystone the offer was measured from (its first edit `start D24`; apply sets it)
 /** Cut 29 §6 (core) — a companion that fell: `why` `fell D12 to lurker`, the heir it served. */
-export type Fallen = { name: string; kind: string; level: number; depth: number; why: string; heir: number };
+export type Fallen = { name: string; kind: string; level: number; depth: number; why: string; heir: number; lamed?: boolean };   // Cut 119 (core): `lamed` down, not gone (sits out a few runs, level kept)
 /** Cut 29 §3 (core) — a meter (a fight, a run, a night): totals by side (`dealt`/`taken`: hero · pets · foes), per game second (`dps_*`),
  *  healing by source (`healed[].per_s`, `hps` all of it), the time split in ticks and seconds (fight · travel · chores · rest), each row's
  *  fires and share of all rule activations (`row` 0-based; −1 a trait's or card's own step, −2 a chore), supplies used by kind, gold home
@@ -760,6 +769,7 @@ export interface Engine {
   takeFix?(id: string, variant: number): Lineage;       // Cut 115 §4: a death's tactic fix (`Death.pick`), credited taught
   takeControl?(on: boolean): void;                            // take control (a secondary mode): the watched run's hero is the player's
   act?(action: ManualAct): void;                              // take control: his next action (the world waits for it — `Snapshot.awaiting`)   // Cut 111: a tactic's L3 row, `Package.variants[variant]`                     // §2: marks for a package's next level (`Package.level_price`)
+  revokeTame?(revoked: boolean): Lineage;   // Cut 119 (core): revoke (or restore) the default tame row — one tap (also `revokeDrill("tame", …)`)
   revokeDrill?(boss: string, revoked: boolean): Lineage;   // §1: revoke (or restore) a drill — one tap, it stays
   packageOptions?(sims: number): PkgOption[];           // §2: every package move priced on the paired panel (slow: background lane)
   packageOptionsFor?(sims: number, choices: [string, number][]): PkgOption[];

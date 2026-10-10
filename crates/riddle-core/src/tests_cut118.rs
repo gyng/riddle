@@ -434,6 +434,8 @@ fn the_307dbed_hash_holds_with_the_systems_pinned_off() {
     let want = 0xaa80_8dca_7242_5139u64;
     let mut g = Game::load(include_str!("fixtures/save_307dbed.json")).unwrap();
     g.lineage.feats.off = true;
+    // (Cut 119's companions pinned off too)
+    crate::pets::pin_off(&mut g.lineage);
     assert_eq!(format!("{:016x}", crate::tests::sends_hash(&mut g, 10)), format!("{want:016x}"));
 }
 
@@ -583,5 +585,22 @@ fn deeds_stay_within_ten_percent_of_legacy() {
         let deeds = g.lineage.feats.deed_legacy;
         eprintln!("seed {seed}: legacy {total} · deeds {deeds} ({:.1}%) · best D{} · tries {:?} · titles {:?} · graves ${} recovered ${}", 100.0 * deeds as f64 / total.max(1) as f64, g.lineage.best_depth, g.lineage.feats.siege.iter().map(|(k, s)| (k.clone(), s.tries)).collect::<Vec<_>>(), g.lineage.feats.titles, g.lineage.feats.graves.iter().map(|x| x.gold).sum::<i32>(), g.lineage.gold_tally.get("recovered").copied().unwrap_or(0));
         assert!(deeds * 10 <= total);
+    }
+}
+
+/// Client test `legacy-earned` (earned mismatch 186 / 210): every Legacy source an absence touches — the runs, the
+/// deeds, a trial, the finds' shards and the hearth, the apprentice's tithe on the hour — reconciles into the
+/// report's `legacy_earned`, as the gold ledger does into its terms.
+#[test]
+fn every_legacy_source_reconciles_into_legacy_earned() {
+    for seed in [4, 7] {
+        let mut g = kitted(seed);
+        crate::legacy::ensure(&mut g.lineage);
+        let before = crate::legacy::current(&g.lineage).map_or(0, |b| b.points + b.spent);
+        let tithed0 = g.lineage.feats.tithed;
+        let r = crate::offline::run_offline_quick(&mut g, 6 * 3600);
+        let after = crate::legacy::current(&g.lineage).map_or(0, |b| b.points + b.spent);
+        assert!(g.lineage.feats.tithed > tithed0, "seed {seed}: the apprentice tithed while away");
+        assert_eq!(r.legacy_earned, after - before, "seed {seed}: earned mismatch");
     }
 }

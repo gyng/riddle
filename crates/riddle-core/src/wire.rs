@@ -1616,6 +1616,11 @@ pub struct BuildWire {
     pub effect: Option<String>,
     #[serde(default)]
     pub picks: Vec<String>,
+    /// Cut 119 §5: the pet synergy formed (role + build), its effect (`Falconer`, `scout sees further`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pet_synergy: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pet_effect: Option<String>,
 }
 
 /// Cut 115 §1: a meter's rule fires by who chose the row (`picked` · `taught` · `default` · `chores`), and their
@@ -2072,6 +2077,9 @@ pub struct Companion {
     pub max_rows: usize,
     pub hp: i32,
     pub max_hp: i32,
+    /// Cut 119: the pet's life past its kind — role, xp, lamed runs, falls, heirs served, grudge, bred, fetched.
+    #[serde(default, skip_serializing_if = "crate::pets::PetLife::is_default")]
+    pub life: crate::pets::PetLife,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -2082,6 +2090,9 @@ pub struct Egg {
     pub gen: u32,
     pub hatch_in: u32,
     pub from_loss: bool,
+    /// Cut 119 §4: a bred egg's sire (its name, the generation after it: `Rook II`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sire: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -2306,6 +2317,9 @@ pub struct Lineage {
     pub kennel: Vec<Companion>,
     pub eggs: Vec<Egg>,
     pub party_slots: u32,
+    /// Cut 119: the companions' camp read (the tame row, the keeper's order, synergies, fetched, old hounds).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pets: Option<crate::pets::PetsWire>,
     pub ledger: Vec<LedgerRow>,
     pub gold: i32,
     pub supplies: Vec<InvItem>,
@@ -3157,6 +3171,13 @@ pub struct StandingSwitches {
     /// `answer` the killer, `strongest`, `surprise`). Set once; nobody is prompted.
     #[serde(default = "heir_answer")]
     pub heir: String,
+    /// Cut 119 §4: the kennel keeper's order (`pets::KENNEL_ORDERS`: `breed` for the wall, `best`, `off`).
+    #[serde(default = "kennel_breed")]
+    pub kennel: String,
+}
+
+fn kennel_breed() -> String {
+    crate::pets::KENNEL_ORDERS[0].into()
 }
 
 fn heir_answer() -> String {
@@ -3182,7 +3203,7 @@ fn forge_half() -> String {
 
 impl Default for StandingSwitches {
     fn default() -> Self {
-        StandingSwitches { insure: true, forge: forge_half(), wall: wall_bank(), sink: sink_both(), heir: heir_answer() }
+        StandingSwitches { insure: true, forge: forge_half(), wall: wall_bank(), sink: sink_both(), heir: heir_answer(), kennel: kennel_breed() }
     }
 }
 
@@ -3246,11 +3267,14 @@ pub struct StandingOrders {
     /// Cut 118 (owner amendment 2): the heir order (`answer · strongest · surprise`); absent: it stands.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub heir: Option<String>,
+    /// Cut 119 §4: the kennel keeper's order (`breed · best · off`); absent: it stands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kennel: Option<String>,
 }
 
 impl Default for StandingOrders {
     fn default() -> Self {
-        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half(), wall: Some(wall_bank()), sink: Some(sink_both()), heir: Some(heir_answer()) }
+        StandingOrders { keep: "best_armour".into(), cage: "weapon".into(), start: 1, repeat: true, insure: true, forge: forge_half(), wall: Some(wall_bank()), sink: Some(sink_both()), heir: Some(heir_answer()), kennel: Some(kennel_breed()) }
     }
 }
 
@@ -3313,4 +3337,7 @@ pub struct Fallen {
     pub depth: u32,
     pub why: String,
     pub heir: u32,
+    /// Cut 119: lamed (sits out `pets::LAME_RUNS` runs, its level kept), not gone.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub lamed: bool,
 }

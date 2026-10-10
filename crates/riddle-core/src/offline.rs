@@ -318,6 +318,7 @@ fn run_offline_partition(game: &mut Game, elapsed_s: u64, full: bool, with_stall
     r.pick = crate::returns::wire(&game.lineage);
     // Cut 118: the finds opened, the notable acts since the last report
     crate::feats::on_report(&mut game.lineage, &mut r);
+    crate::pets::on_report(&game.lineage, &mut r);
     // (a system's reveal is a beat of the five)
     if !r.systems_opened.is_empty() {
         r.packages = crate::packages::beats_n(&game.batch.pkg_lines, crate::packages::BEATS - 1);
@@ -368,6 +369,7 @@ pub(crate) fn set_terms(r: &mut ReturnReport, l: &crate::engine::LineageState, b
         ("bank", d("bank")),
         ("sinks", d("sinks")),
         ("recovered", d("recovered")),
+        ("fetched", d("fetched")),
         ("other", d("other")),
     ];
     let sum: i64 = terms.iter().map(|t| t.1).sum();
