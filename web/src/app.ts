@@ -64,6 +64,9 @@ function readSlowdowns(): boolean { try { return localStorage.getItem(SLOWDOWNS_
 /** A patch's row as the set takes it: a package's origin becomes the patch's (the row is the player's choice now — `packages::absorb`
  *  reads the origin as ownership), any other kept. */
 const patchOrigin = (r: Row): RowOrigin => (isPkgRow(r) || !r.origin ? "patch" : r.origin);
+/** Cut 122 §8: a lineage move's word (`mutate`'s `move`) → what the vs line names it; a move not here reads `this change`. */
+const CAUSE_WORD: Record<string, string> = { Forged: "forge +1", Packed: "forge +1", Stowed: "forge +1", Selected: "forge", "town upgrade": "town",
+  buy: "buy", drop: "drop", sold: "sold", heir: "heir", Upgraded: "Legacy", "Next run": "Legacy", perk: "perk", restock: "restock", "loot choice": "loot choice", Picked: "pick" };
 export class App {
   engine!: AsyncEngine;
   kind: EngineKind = "fake";
@@ -281,7 +284,7 @@ export class App {
   // (qaZ: `D5 46→20%`, `42→18%`, `51→20%` with nothing sent — the base read again on each pass: only the share last painted counts)
   private baseShown = new Map<string, number>();
   private noteBaseShown(f: Forecast): void {
-    this.baseMoved = false;   // QA 524827b: the sent set painted under the lineage now — the paired move reads against it again
+    this.baseMoved = false; this.linCauses.clear();   // QA 524827b: the sent set painted under the lineage now — the paired move reads against it again
     const add = (k: string, x: number | undefined): void => { if (typeof x === "number") this.baseShown.set(k, Math.round(x * 100)); };
     for (const d of f.depths) add(`D${d.depth}`, d.reach);
     if (f.ends) { add("bank", f.ends.bank); add("death", f.ends.death); add("stall", f.ends.stall); add("return", f.ends.return); }
@@ -351,7 +354,7 @@ export class App {
   }
   /** Was the sent set's share `pct` for `key` (`D5`, `bank`, `death`, `stall`) painted in this camp? */
   baseWasShown(key: string, pct: number): boolean { return this.baseShown.get(key) === pct; }
-  resetVs(): void { this.lmove = null; this.lmPending = null; this.baseShown.clear(); this.baseMoved = false; if (this.lastForecast && this.fcRules && sameSet(this.fcRules, this.rules)) this.noteBaseShown(this.lastForecast); this.vsBase = cloneSet(this.rules); this.vsBaseShadow = [...this.shadowedBy()]; this.fcRules = cloneSet(this.rules); this.fcShadow = [...this.vsBaseShadow]; this.fcFresh = true; this.setVs(null); }
+  resetVs(): void { this.ruleCauses.clear(); this.linCauses.clear(); this.lmove = null; this.lmPending = null; this.baseShown.clear(); this.baseMoved = false; if (this.lastForecast && this.fcRules && sameSet(this.fcRules, this.rules)) this.noteBaseShown(this.lastForecast); this.vsBase = cloneSet(this.rules); this.vsBaseShadow = [...this.shadowedBy()]; this.fcRules = cloneSet(this.rules); this.fcShadow = [...this.vsBaseShadow]; this.fcFresh = true; this.setVs(null); }
   /** QA 778fa1b (qaV: `D10 ≈ · bank ≈` held 16 s after an edit that took bank 0 → 86 %): an edit's move is being measured — the rules
    *  differ from the base and no move for them has landed yet (the line reads `vs sent …`, never a stale `≈`). */
   // QA 524827b (qaAA: `vs sent…` held > 25 s after a cage change): a refined move that landed and still pairs other sims than the bars
@@ -375,6 +378,27 @@ export class App {
    *  `▼`/`▲` is the shown number now less the sent set's shown one (`D6 26→17%`), with the bar's own ± (two panels, not paired). A term
    *  whose base still reads as painted keeps its paired move. Set by `mutate` / `dropSupply`; cleared when the sent set is painted again. */
   private baseMoved = false;
+  /** Cut 122 §8 (B: `THIS EDIT · death 25→75%` right after a forge buy): what moved the line since the sent set — the rows' causes (`edit`,
+   *  a package's kind) since the base, and the lineage's (`forge +1`, `buy`, `?` an unnamed one) since the sent set was last painted. */
+  private ruleCauses = new Set<string>();
+  private linCauses = new Set<string>();
+  private nextRuleCause: string | null = null;
+  /** The vs line's label: the causes when the client can tell (`edit`, `tactic`, `edit & forge +1`), else `this change`. */
+  vsLabel(): string {
+    const c = new Set([...this.ruleCauses, ...(this.baseMoved ? this.linCauses : [])]);
+    /* copy:callout */
+    return c.size >= 1 && c.size <= 2 && !c.has("?") ? [...c].join(" & ") : "this change";
+  }
+  /** A mutate's cause word, from the move word it carries (its `lmove` label) and whether it recompiled the set. */
+  private causeOf(move: string | undefined, adopt: boolean): string {
+    if (!move) return "?";
+    if (adopt) {
+      if (/^L\d+$/.test(move)) return /* copy:callout */ "level";
+      const p = this.lineage?.packages?.all.find((x) => x.name === move);
+      return p?.kind ?? "?";
+    }
+    return CAUSE_WORD[move] ?? "?";
+  }
   private rebased(v: ForecastVs): ForecastVs {
     const n = v.sims ?? this.lastForecast?.sims ?? 0;
     const hw = (p: number): number => n > 0 ? 1.96 * Math.sqrt(Math.max(0, p * (1 - p)) / n) : 0;
@@ -676,7 +700,10 @@ export class App {
     debugNote("rules", "edited");
     this.rowFires = null; this.rowFiresOf = undefined;   // Cut 14 §4: the counts were the set that ran
     // Cut 22 §3: the edit's base is the set the last painted forecast measured; the shown move clears until this edit's lands
-    if (!this.vsBase && this.fcFresh && this.fcRules) { this.vsBase = this.fcRules; this.vsBaseShadow = this.fcShadow; if (this.lastForecast) this.noteBaseShown(this.lastForecast); }
+    if (!this.vsBase && this.fcFresh && this.fcRules) { this.vsBase = this.fcRules; this.vsBaseShadow = this.fcShadow; this.ruleCauses.clear(); if (this.lastForecast) this.noteBaseShown(this.lastForecast); }
+    // Cut 122 §8: the rows moved by the editor (`edit`), or by what set `nextRuleCause` (a bought card's row: `buy`)
+    if (this.vsBase) this.ruleCauses.add(this.nextRuleCause ?? /* copy:callout */ "edit");
+    this.nextRuleCause = null;
     this.fcFresh = false; this.editSeq++; this.setVs(null);
     this.persist();
     clearTimeout(this.fcTimer); this.refineSeq++; this.forecastRefining = false;
@@ -778,7 +805,7 @@ export class App {
     if (i === this.active || i < 0 || i >= this.sets.length) return;
     this.active = i;
     void this.engine.selectSet(i).catch((e) => console.warn("selectSet", e));
-    this.vsBase = null; this.baseShown.clear(); this.fcFresh = false;   // Cut 22 §3: a switch is not an edit — no move against the other set (its first paint is the base)
+    this.vsBase = null; this.baseShown.clear(); this.ruleCauses.clear(); this.fcFresh = false;   // Cut 22 §3: a switch is not an edit — no move against the other set (its first paint is the base)
     this.rulesChanged();
     this.emitChange();
   }
@@ -895,7 +922,9 @@ export class App {
     if (move) { this.lmPending = { label: move, before: this.lastForecast, rules: JSON.stringify(this.rules.rows) }; this.lmove = null; }
     else { this.lmPending = null; this.lmove = null; }
     try { this.lineage = await fn(); } catch (e) { this.lmPending = null; console.warn("engine refused", e); return false; }
-    if (adopt) this.adoptSets();
+    const cause = this.causeOf(move, adopt);
+    if (adopt) { const was = this.vsBase ? rulesKey(this.rules) : ""; this.adoptSets(); if (this.vsBase && rulesKey(this.rules) !== was) this.ruleCauses.add(cause); }
+    if (!adopt || cause === "?") this.linCauses.add(cause);
     this.baseMoved = true;
     // A finished manual building must survive navigation from its first paint.
     // Fetch the worker's snapshot before listeners can expose completion; normal
@@ -922,16 +951,22 @@ export class App {
     const isTactic = this.vocab.verbs.some((v) => v.v === "tactic" && v.a === id);
     // QA a946e04 (T: three cards bought, all three inserted — the catalogue's merge had dropped the flag, and absent read as yes): the
     // flag is honoured strictly — a card joins only on `auto_insert: true`; false or absent, it is owned and its chip offers `add`
-    if (ok && isTactic && (join ?? u?.auto_insert === true) && !this.holdsCard(id)) { this.insertCard(id, at); this.emitChange(); }
+    if (ok && isTactic && (join ?? u?.auto_insert === true) && !this.holdsCard(id)) { this.nextRuleCause = /* copy:callout */ "buy"; this.insertCard(id, at); this.emitChange(); }
     else if (ok && isTactic) { /* owned, not in the set */ }
     // a verb unlock's `reach +21%` was measured with its canonical row at the top (the catalogue sends `rows` + `insert_at`
     // for it); the buy inserts that row so the number holds (QA on e0f87e7: "bought, forecast identical")
     // …only while the set has room for it: over the cap it is the sheet's row to add by hand (rater R on 39def99: `6/5 · drop one`
     // after a verb purchase)
     else if (ok && u?.rows?.length === 1 && u.rows[0].verb.v !== "tactic" && u.rows[0].verb.v !== "auto" && u.insert_at !== undefined && !this.rowsFull && !this.rules.rows.some((r) => sameRowShape(r, u.rows![0]))) {
-      this.insertRow(cloneRow(u.rows[0]), u.insert_at, "patch"); this.emitChange();
+      this.nextRuleCause = /* copy:callout */ "buy"; this.insertRow(cloneRow(u.rows[0]), u.insert_at, "patch"); this.emitChange();
     }
     return ok;
+  }
+  /** Cut 122 §6 (A: the guide's `cadence` counter showed as added, the core refused it — `card not owned: cadence`): the core's own test
+   *  at the door (`engine::set_rules`) — a card is owned when the lineage unlocked it or the set it holds already carries its row. */
+  cardOwned(id: string): boolean {
+    const L = this.lineage; if (!L) return true;
+    return (L.unlocks ?? []).includes(id) || !!L.sets?.[L.active_set ?? 0]?.rows.some((r) => r.verb.v === "tactic" && r.verb.a === id);
   }
   /** Cut 12 §1: does the active set hold this card's row? */
   holdsCard(id: string): boolean { return this.rules.rows.some((r) => isCardRow(r) && r.verb.a === id); }
@@ -951,7 +986,7 @@ export class App {
     const picks = this.lineage.supplies ?? [];
     const it = picks.find((p) => p.id === id); if (!it) return false;
     this.lmPending = { label: /* copy:callout */ "drop", before: this.lastForecast, rules: JSON.stringify(this.rules.rows) }; this.lmove = null;
-    try { this.lineage = await this.engine.dropSupply!(id); this.baseMoved = true; await this.afterLineage(); return true; }   // the proxy always has it; an engine without it rejects
+    try { this.lineage = await this.engine.dropSupply!(id); this.baseMoved = true; this.linCauses.add(/* copy:callout */ "drop"); await this.afterLineage(); return true; }   // the proxy always has it; an engine without it rejects
     catch (e) { console.warn("dropSupply unavailable, clear + rebuy", e); }
     const rest = picks.filter((p) => p.id !== id && !isFreeSupply(this.lineage, p)).map((p) => p.kind);
     return this.mutate(async () => { let L = await this.engine.clearSupplies(); for (const k of rest) L = await this.engine.buySupply(k); return L; });

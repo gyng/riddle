@@ -38,6 +38,22 @@ function reviewRespec(app:App,onChange:()=>void):void {
   });
 }
 
+const ROMAN=['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+/** Cut 122 §9 (A, B: 388 Legacy sat unusable under a 600 rank, nothing said how far): the next rank the points work toward — the cheapest
+ *  open upgrade (`388 / 600 → Health III`), its share filled; null without the tree. */
+export function legacyNext(L:Lineage):{points:number;price:number;label:string;fill:number}|null {
+  const points=L.bloodline?.points??L.hero_legacy?.find(x=>x.heir===L.heir)?.points??0;
+  const open=(L.legacy_upgrades??[]).filter(u=>u.rank<u.cap&&u.price>0&&(!u.blocked||u.affordable||u.next_run));
+  if(!open.length)return null;
+  const u=open.reduce((a,b)=>b.price<a.price?b:a);
+  const label=`${u.name??u.id}${u.cap>1?` ${ROMAN[u.rank+1]??u.rank+1}`:''}`;
+  return {points,price:u.price,label,fill:Math.max(0,Math.min(1,points/u.price))};
+}
+/** The thin bar under a Legacy count: the share toward the next rank. */
+export const legacyBar=(n:{fill:number}):HTMLElement=>h('span',{class:'legacy-bar','aria-hidden':'true'},h('span',{class:'fill',style:`width:${Math.round(n.fill*100)}%`}));
+/** The words beside it: `388 / 600 → Health III`. */
+export const legacyNextText=(n:{points:number;price:number;label:string}):string=>`${n.points} / ${n.price} → ${n.label}`;
+
 export function renderLegacy(app:App,onChange:()=>void,opened?:Set<string>):HTMLElement {
   const L=app.lineage,upgrades=L.legacy_upgrades??[],feedback=h('div',{class:'legacy-feedback',role:'status'});
   const card=(u:Upgrade):HTMLElement=>{

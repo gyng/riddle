@@ -27,3 +27,10 @@
  .legacy-path > summary::before { content:'▸'; margin-right:6px; }
  .legacy-path[open] > summary::before { content:'▾'; }
 }
+/* Cut 122 §9: the next rank — a thin bar under the header's Legacy and the hero window's count */
+.legacy-bar { display:block; height:3px; min-width:28px; border-radius:2px; background:#ffffff22; overflow:hidden; }
+.legacy-bar .fill { display:block; height:100%; background:#d8b45a; }
+.topbar .stat.legacy { position:relative; }
+.topbar .stat.legacy .legacy-bar { position:absolute; left:6px; right:6px; bottom:2px; min-width:0; }
+.legacy-next { display:flex; flex-direction:column; gap:3px; max-width:260px; }
+.legacy-next .legacy-bar { background:#00000022; height:4px; }

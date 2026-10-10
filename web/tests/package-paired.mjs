@@ -18,7 +18,7 @@ try{
    check(priceOf({...base}).good===null,'unpaired band still hides a small move');
    check(priceOf({...base,n:8,better:7,worse:0}).text==='better 7/8'&&priceOf({...base,n:8,better:7,worse:0}).good===true,'clear paired gain called');
    check(priceOf({...base,n:8,better:0,worse:6}).text==='worse 6/8'&&priceOf({...base,n:8,better:0,worse:6}).good===false,'clear paired loss called');
-   check(priceOf({...base,n:8,better:3,worse:2}).text==='close'&&priceOf({...base,n:8,better:3,worse:2}).good===null,'a mixed split is close');
+   check(priceOf({...base,n:8,better:3,worse:2}).text==='no wall differs · 8 sends'&&priceOf({...base,n:8,better:3,worse:2}).good===null,'a mixed split says no wall differs, with its sends');
    check(priceOf({...base,n:8,better:0,worse:0}).text==='same','identical sends read same');
    check(Math.abs(signP(5,0)-.0625)<1e-9&&Math.abs(signP(3,3)-1)<1e-9&&signP(0,0)===1,'two-sided sign test');
    check(compareSummary([{...base,id:'a',n:8,better:7,worse:0}])==='8 paired runs','clear summary names the sample');
@@ -40,7 +40,7 @@ try{
    const priceText=id=>document.querySelector(`.pkg-sec[data-kind="stance"] .pkg.alt[data-pkg="${id}"] .pkg-price`)?.textContent;
    check(chips[0]?.dataset.pkg===ids[2],'the clear gain leads');
    check(priceText(ids[2])==='better 7/8','clear gain painted');
-   check(priceText(ids[0])==='same'&&priceText(ids[1])==='close','noise painted, never blank');
+   check(priceText(ids[0])==='same'&&priceText(ids[1])==='no wall differs · 8 sends','noise painted, never blank');
    check(document.querySelector('.pkg-estimate')?.textContent==='8 paired runs','summary names what was compared');
    check(/better 7 · worse 0 of 8/.test(document.querySelector(`.pkg.alt[data-pkg="${ids[2]}"] .pkg-price`).title),'price tooltip carries the split');
    check(document.documentElement.scrollWidth<=innerWidth,'no horizontal overflow');
@@ -57,7 +57,7 @@ try{
    if(document.querySelector('[data-change-kind="stance"]')?.getAttribute('aria-expanded')==='false')document.querySelector('[data-change-kind="stance"]').click();
    await tick();await tick();
    check(document.querySelector('.pkg-estimate')?.textContent==='noise · 8 runs','the noisy compare says so');
-   check(/turns on D28 Queen/.test(document.querySelector(`.pkg.alt[data-pkg="${ids[0]}"] .pkg-walls`)?.textContent??''),'each close option names its deciding wall');
+   check(/^turns on D28$/.test(document.querySelector(`.pkg.alt[data-pkg="${ids[0]}"] .pkg-price`)?.textContent??'')&&!document.querySelector(`.pkg.alt[data-pkg="${ids[0]}"] .pkg-walls`),'each close option names its deciding wall, once');
    const more=document.querySelector('.pkg-more');
    check(more&&more.textContent===`${MORE_SIMS} runs`,`a second look offered (${more?.textContent})`);
    more?.click();await tick();await tick();

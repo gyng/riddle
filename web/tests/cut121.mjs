@@ -278,7 +278,7 @@ try {
     check(r.mid?.text === "60–80%" && !r.mid.wide && r.low?.text === "<13%" && r.high?.text === ">87%", `the death share reads as its band (${r.mid?.text} · ${r.low?.text} · ${r.high?.text})`);
     check(r.none === undefined && r.tight === undefined, "no band from an older core, none that rounds to one number");
     check(r.g?.text === "$3400–7000" && r.g.wide && r.gw?.wide === true && goldNarrow, `the gold a send brings home as a band, net of the passage, wide past ×2 (${r.g?.text})`);
-    check(r.same === "close" && r.same0 === "same", `the core's \`even: false\` is never painted \`same\` (${r.same} · ${r.same0})`);
+    check(r.same === "no wall differs · 8 sends" && r.same0 === "same", `the core's \`even: false\` is never painted \`same\` (${r.same} · ${r.same0})`);
     check(r.gem === "death 47–91%" && r.gemWide && !r.gemPm && /avg 75%/.test(r.gemTip ?? ""), `the shaft's death gem: the band, marked wide, no ± (${r.gem} · ${r.gemTip})`);
     check(r.gold === "$250–560/run", `the shaft's gold gem: the band (${r.gold})`);
     await page.close();

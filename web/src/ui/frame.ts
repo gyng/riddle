@@ -20,6 +20,7 @@ import { openGoldSheet } from "./gold";
 import { goldWords } from "./gold-words";
 import { revealed } from "./reveal";
 import { onPackages, packagesShown } from "./packages";
+import { legacyBar, legacyNext, legacyNextText } from "./legacy";
 
 /** docs/TOOLTIPS.md: an element's tip (a host: never marked; a control keeps its tap — long-press or hover shows it). */
 const withTip = <E extends HTMLElement>(el: E, t?: Term): E => (t ? kwHost(el, t) : el);
@@ -67,6 +68,14 @@ export function purseDrop(seen: PurseSeen, gold: number, ledger: GoldLine[]): { 
 }
 /** `live`: the camp's bar (the stud the settings; the wake's offers row under it). The `$` opens the gold sheet everywhere but on
  *  the watch (`watch`): a sheet over the run reads as the exit sheet to the tooling. */
+/** Cut 122 §9: under the header's Legacy, a thin bar toward the next rank (its words on hover: `388 / 600 → Health III`); the heir now only. */
+function legacyMark(L: App["lineage"], heir?: number): HTMLElement | null {
+  if (heir !== undefined && heir !== L.heir) return null;
+  const n = legacyNext(L); if (!n) return null;
+  const bar = legacyBar(n); bar.title = legacyNextText(n); bar.dataset.price = String(n.price); bar.removeAttribute("aria-hidden");
+  bar.setAttribute("role", "img"); bar.setAttribute("aria-label", legacyNextText(n));
+  return bar;
+}
 export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait?: string; watch?: boolean } = {}): Bar {
   const offers = h("div", { class: "offers", hidden: true });
   const el = h("header", { class: "strip topbar" });
@@ -103,7 +112,7 @@ export function renderBar(app: App, opts: { live?: boolean; heir?: number; trait
         // QA 912e135 (qaW: "the header `$40` is not a button on the death screen; on camp it opens GOLD"): the purse opens the ledger on
         // every screen but the watch (a sheet over the run is the exit sheet's place)
         !opts.watch ? kwHost(h("button", { class: "num stat gold", onclick: () => openGoldSheet(app) }, icon("gold"), h("small", { class: "resource-label" }, /* copy:label */ "Gold"), `$${L.gold}`, drop ? h("small", { class: "gold-drop", title: drop.title }, drop.text) : ""), "gold") : h("span", { class: "num stat gold" }, icon("gold"), h("small", { class: "resource-label" }, /* copy:label */ "Gold"), `$${L.gold}`),
-        L.town?.home !== false && L.hero_legacy?.length ? h(opts.watch ? "span" : "button", { class: "num stat legacy", onclick: !opts.watch ? (e: Event) => openHero(app, e.currentTarget as HTMLElement) : undefined, "aria-label": /* copy:label */ `Hero Legacy ${L.bloodline?.points ?? L.hero_legacy.find((x) => x.heir === (opts.heir ?? L.heir))?.points ?? 0}` }, h("small", { class: "resource-label" }, /* copy:label */ "Legacy"), String(L.bloodline?.points ?? L.hero_legacy.find((x) => x.heir === (opts.heir ?? L.heir))?.points ?? 0)) : null,
+        L.town?.home !== false && L.hero_legacy?.length ? h(opts.watch ? "span" : "button", { class: "num stat legacy", onclick: !opts.watch ? (e: Event) => openHero(app, e.currentTarget as HTMLElement) : undefined, "aria-label": /* copy:label */ `Hero Legacy ${L.bloodline?.points ?? L.hero_legacy.find((x) => x.heir === (opts.heir ?? L.heir))?.points ?? 0}` }, h("small", { class: "resource-label" }, /* copy:label */ "Legacy"), String(L.bloodline?.points ?? L.hero_legacy.find((x) => x.heir === (opts.heir ?? L.heir))?.points ?? 0), legacyMark(L, opts.heir)) : null,
         cap1(stat("marks", "mark", "◆", L.marks, !opts.watch && (R.has("unlocks") || (packagesShown(L) && L.marks > 0)), "marks"), "marks", R.has("unlocks") ? undefined : /* copy:callout */ "upgrade tokens"),   // Cut 30: marks buy package levels before the pen   // Cut 29 (owner): a world concept's first-time caption
         cap1(stat("rank", "renown", "★", L.rank ?? 0, !opts.watch && R.has("rank") && !past, "renown"), "renown"),
         stat("best", "depth", "", /* copy:callout */ `best D${L.best_depth}`, !opts.watch && R.has("depth") && !past, "best"),   // docs/COPY.md pass 2 (`D8` read as "current depth")
@@ -202,10 +211,25 @@ export function gem(o: { label: Node | string; onclick: (e: Event) => void; cls?
 
 export type Console = { el: HTMLElement; setTiles(tiles: (HTMLElement | null | undefined | false)[]): void };
 const SLOTS = 8;
-export function renderConsole(o: { portrait: HTMLElement; tiles: (HTMLElement | null | undefined | false)[]; gem: HTMLElement; top?: HTMLElement; cls?: string; compact?: boolean }): Console {
+/** Cut 122 §10 (B tapped `edit` and hit `quest`, unlocked a moment before): a stable bar keeps every tile where it first stood while the
+ *  screen is shown — a new tile takes the next free place at the end, lit (`tile-new`); a tile that goes leaves its place empty. */
+export function stableOrder(order: string[], tiles: HTMLElement[]): (HTMLElement | null)[] {
+  const byId = new Map(tiles.map((t) => [t.dataset.tile ?? "", t]));
+  const first = order.length === 0;
+  for (const t of tiles) {
+    const id = t.dataset.tile ?? ""; if (order.includes(id)) continue;
+    order.push(id); if (!first) t.classList.add("tile-new", "reveal");
+  }
+  const out: (HTMLElement | null)[] = order.map((id) => byId.get(id) ?? null);
+  while (out.length && out[out.length - 1] === null) out.pop();
+  return out;
+}
+export function renderConsole(o: { portrait: HTMLElement; tiles: (HTMLElement | null | undefined | false)[]; gem: HTMLElement; top?: HTMLElement; cls?: string; compact?: boolean; stable?: boolean }): Console {
   const cmd = h("div", { class: `cmd${o.compact ? " cmd-compact" : ""}` });
+  const order: string[] = [];
   const setTiles = (tiles: (HTMLElement | null | undefined | false)[]): void => {
-    const all = tiles.filter((t): t is HTMLElement => !!t);
+    const given = tiles.filter((t): t is HTMLElement => !!t);
+    const all: HTMLElement[] = o.stable ? stableOrder(order, given).map((t) => t ?? h("span", { class: "tile empty tile-gap", "aria-hidden": "true" })) : given;
     // Cut 30 integration: the town's buildings, packages and quest grew the bar past its eight slots, and the last tiles (ledger,
     // chronicle) fell off it unseen; the eighth slot is `more` then, a sheet with the rest
     const rest = all.length > SLOTS ? all.slice(SLOTS - 1) : [];

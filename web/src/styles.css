@@ -1859,3 +1859,5 @@ main.death > .well, main.report > .well { -webkit-mask-image: linear-gradient(va
 /* Cut 121 §4: a `foe: boss` row that fired on a foe that is no boss (`also matches: siren`) */
 .editor .row .also-mark { margin-left: 6px; font: 600 11px/1 var(--sans); color: #edb978; white-space: nowrap; align-self: center; }
 .editor .row .grip .also-mark { display: block; margin: 2px 0 0; font-size: 10px; }
+/* Cut 122 §10: a tile that came while the camp was shown stands at the end, lit until the camp is next drawn */
+.cmd .tile.tile-new { box-shadow: 0 0 0 2px rgba(255, 214, 120, .75) inset; }

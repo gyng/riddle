@@ -3,6 +3,7 @@
 // Cut 7 §1: a boss row of the ledger whose counter is known carries the counter row as a chip; a tap inserts it at
 // the top of the active set the way a patch does (overflow rules apply) and opens the camp on it.
 import { openDropSheet } from "./patches";
+import { openUnlockSheet, visible } from "./unlocks";
 import { enemyHost } from "./enemy-tips";
 import { unitLabel } from "./unit-icon";
 import type { App } from "../app";
@@ -130,6 +131,14 @@ export function openLedger(app: App): void {
       if (!r.counter) return [row];
       // Cut 7 §1: the counter row as a chip; lit when the active set already holds it
       const c = r.counter; const held = app.rules.rows.some((x) => sameRow(x, c.row));
+      // Cut 122 §6: a counter on a card not owned is never `added` for the core to refuse — it offers the card's unlock instead
+      const card = c.row.verb.v === "tactic" && c.row.verb.a && !app.cardOwned(c.row.verb.a) ? c.row.verb.a : null;
+      if (card && !held) {
+        const u = visible(app.unlockCat, L).find((x) => x.id === card);
+        const lock = h("button", { class: "chip verb counter locked-card", "data-card": card, disabled: !u, onclick: () => { if (u) { closeAllSheets(); openUnlockSheet(app, u); } } },
+          h("small", { class: "dim" }, /* copy:rule_token */ "[counter]"), " ", c.text, " ", h("b", { class: "counter-unlock" }, /* copy:button */ "unlock"));
+        return [row, h("div", { class: "lrow counter" }, lock)];
+      }
       const chip = h("button", { class: `chip verb counter${held ? " on" : ""}`, disabled: held, onclick: () => {
         const p = { row: c.row, insert_at: 0, survive: 0, forecast_delta: 0 };
         closeAllSheets();

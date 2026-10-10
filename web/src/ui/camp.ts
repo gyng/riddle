@@ -267,7 +267,7 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
   const lanes = heroRoster(app, { focus:()=>{town.el.scrollIntoView({block:"nearest"});town.view.focusHero();}, rules:()=>{app.editing=true;editor.refresh();paintTiles();showEditor();} });
   const restLine = h("div", { class: "rest-line lanes-line heroes-col" }, lanes.el, rest);
   const face = portrait(app, { label: "" });
-  const cons = renderConsole({ portrait: face.el, tiles: [], gem: send });
+  const cons = renderConsole({ portrait: face.el, tiles: [], gem: send, stable: true });   // Cut 122 §10: no reflow under a tap
   // Cut 27 §2: the edit as a scene — over the well's foot after an edit's refine (before · after on the renderer), then its line under `vs sent`
   const scene = renderScene(app);
   // gfx raters ("the edit scene covers the rule list mid-row"): when the scene rises over the tablets its top edge moves to the nearest

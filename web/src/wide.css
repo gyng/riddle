@@ -215,3 +215,5 @@
   .shaft.stale .depth-next { opacity: .4; }
   .depth-reference .forecast { min-width: 0; }
 }
+/* Cut 122 §10: a tile that left the bar keeps its place (a gap, not a reflow under a pending tap) */
+@media (min-width: 1024px) { .console .cmd .tile.empty.tile-gap { display: flex; visibility: hidden; } }

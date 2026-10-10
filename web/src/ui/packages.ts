@@ -57,7 +57,7 @@ export function fixReplaces(P: Packages | undefined, id: string, variant = 0): s
  *  `good`: whether the move helps (a death share that falls helps). */
 /** A rough noise filter, not calibrated confidence. Panels can stop after five sends;
  *  the wire omits actual counts, so never assume more than five for this filter. */
-export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank" | "n" | "better" | "worse" | "noise" | "even">, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number } {
+export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "past" | "death" | "bank" | "n" | "better" | "worse" | "noise" | "even"> & Partial<Pick<PkgOption, "walls">>, sims = PRICE_SIMS): { text: string; good: boolean | null; score: number; walls?: boolean } {
   // Cut 117 §1 (core): an even move (the paired split within chance, `d_past` inside its noise) shows no delta — a sign a re-read could
   // flip is no call
   /* copy:label */
@@ -68,7 +68,7 @@ export function priceOf(o: Pick<PkgOption, "d_past" | "d_death" | "d_bank" | "pa
   // Cut 121 §2 (core): `even` is the core's honest call (`packages::wall_differs` — a wall read leaning past the noise is no `same`):
   // a core that says not even is never painted `same` by the client's overall split (its walls differ: `close`)
   /* copy:label */
-  if (pr && pr.text === "same" && o.even === false) return { text: "close", good: null, score: 0 };
+  if (pr && pr.text === "same" && o.even === false) return { text: closeText(o), good: null, score: 0, walls: true };
   if (pr) return pr;
   /* copy:label */
   // blind ad71e72 (B: `deeper ≈+90` "no unit"): each term is a share of sends, its move in points (`%`); `past best` names what
@@ -98,16 +98,30 @@ export function signP(better: number, worse: number): number {
 }
 /** A paired price (an option the core read send by send): `better 7/8` / `worse 5/8` when the split is clear (sign test ≤ 10 %),
  *  `same` when every send played alike, `close` when they differ both ways; null without the paired counts (an older core). */
-export function pairedOf(o: Pick<PkgOption, "n" | "better" | "worse">): { text: string; good: boolean | null; score: number } | null {
+export function pairedOf(o: Pick<PkgOption, "n" | "better" | "worse"> & Partial<Pick<PkgOption, "walls">>): { text: string; good: boolean | null; score: number; walls?: boolean } | null {
   const n = o.n ?? 0; if (!n) return null;
   const b = o.better ?? 0, w = o.worse ?? 0;
   /* copy:label */
   if (b + w === 0) return { text: "same", good: null, score: 0 };
   const score = Math.round(((b - w) / n) * 100);
   /* copy:label */
-  if (signP(b, w) > 0.1) return { text: "close", good: null, score };
+  // Cut 122 §11 (B: the compare "mostly `close`"): a split both ways says where it differs (`better at D23 · worse at D28`), else that
+  // no wall differs and over how many sends
+  if (signP(b, w) > 0.1) return { text: closeText(o), good: null, score, walls: true };
   /* copy:label */
   return b > w ? { text: `better ${b}/${n}`, good: true, score } : { text: `worse ${w}/${n}`, good: false, score };
+}
+/** Cut 122 §11: a paired split inside the noise, said by its walls — each wall whose sends lean one way (`better at D23 · worse at D28`,
+ *  the two that lean most, by depth), else the wall it turns on (`turns on D28`), else `no wall differs · 48 sends` (the sends played). */
+export function closeText(o: Partial<Pick<PkgOption, "walls" | "n">>): string {
+  const lean = (o.walls ?? []).filter((w) => w.n > 0 && w.better !== w.worse)
+    .sort((a, b) => Math.abs(b.better - b.worse) - Math.abs(a.better - a.worse) || a.depth - b.depth).slice(0, 2).sort((a, b) => a.depth - b.depth);
+  if (lean.length) return lean.map((w) => /* copy:tooltip */ `${w.better > w.worse ? "better" : "worse"} at D${w.depth}`).join(" · ");
+  // sends that split both ways at one wall: the wall it turns on (the split most, then the shallowest)
+  const split = (o.walls ?? []).filter((w) => w.n > 0 && w.better + w.worse > 0).sort((a, b) => (b.better + b.worse) - (a.better + a.worse) || a.depth - b.depth)[0];
+  if (split) return /* copy:tooltip */ `turns on D${split.depth}`;
+  /* copy:tooltip */
+  return `no wall differs · ${o.n ?? 0} sends`;
 }
 /** Cut 115 §3: which wall a move is for — each wall the compare read where the paired split is clear (sign test ≤ 10 %):
  *  `better at D8 Warlord · worse at D28 Queen`; empty when no wall's split is clear. */
@@ -218,7 +232,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
         const pr = o ? priceOf(o) : null;
         const pending = !!reading && !opts && selected.some(([id, at]) => id === p.id && at === slot);
         return h("button", { class: "chip pkg alt", "data-pkg": p.id, "data-kind": p.kind, onclick: () => equip(p, slot) },
-          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : pending ? " pending" : " flat"}`, title: o?.n ? /* copy:tooltip */ `same seeds · better ${o.better ?? 0} · worse ${o.worse ?? 0} of ${o.n}` : undefined }, pr && (pr.good !== null || o?.n) ? pr.text : ""), "price"), o && wallLine(o) ? h("small", { class: "pkg-walls num dim", "data-walls": wallLine(o) }, wallLine(o)) : ""));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
+          packageIcon(p.id), h("span", { class: "pkg-copy" }, h("span", { class: "pkg-name" }, chipText(p)), p.description ? h("small", { class: "pkg-description" }, p.description) : "", kwHost(h("small", { class: `pkg-price num${pr ? pr.good === null ? " flat" : pr.good ? " up" : " down" : pending ? " pending" : " flat"}`, title: o?.n ? /* copy:tooltip */ `same seeds · better ${o.better ?? 0} · worse ${o.worse ?? 0} of ${o.n}` : undefined }, pr && (pr.good !== null || o?.n) ? pr.text : ""), "price"), o && !pr?.walls && wallLine(o) ? h("small", { class: "pkg-walls num dim", "data-walls": wallLine(o) }, wallLine(o)) : ""));   // docs/TOOLTIPS.md: the price's tip (blind check: `past +27` the most opaque words)
       };
       /** The alternatives best first (a clear gain, then the noise, then a clear loss), once priced; the catalogue's order until then. */
       const ranked = (ps: Package[], slot: number): Package[] => {
@@ -248,7 +262,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
           ? h("div", { class: "pkg-variants", role: "group", "aria-label": "variant" }, ...p.variants.map((name, i) => {
               const o = p.variant !== i ? (opts ?? []).find((x) => x.action === "variant" && x.id === p.id && (x.slot ?? 0) === i) : undefined;
               const pr = o ? priceOf(o) : null;
-              const walls = o ? wallLine(o) : "";
+              const walls = o && !pr?.walls ? wallLine(o) : "";
               return h("button", { class: `chip mini pkg-variant${p.variant === i ? " on" : ""}`, "aria-pressed": String(p.variant === i), "data-variant": i,
                 onclick: () => { if (p.variant !== i) void app.mutate(() => app.engine.setTacticVariant!(p.id, i), /* copy:callout */ name, true).then(() => paint()); } }, name,
                 pr && (pr.good !== null || o?.n) ? h("small", { class: `pkg-price num${pr.good === null ? " flat" : pr.good ? " up" : " down"}` }, ` ${pr.text}`) : "",

@@ -27,7 +27,7 @@ import { classList, classUnlockReason } from "./unlocks";
 import { CLASS_VERBS } from "../engine/classes";
 import { classSkillChip } from "./class-skills";
 import {renderClassStyles,classStyleName} from "./class-styles";
-import { renderLegacy } from "./legacy";
+import { legacyBar, legacyNext, legacyNextText, renderLegacy } from "./legacy";
 import { kwHost, detailHost } from "./tips";
 import type { Term } from "./concepts";
 /** docs/TOOLTIPS.md: a building's tip (long-press / hover; its tap stays its panel) */
@@ -400,6 +400,8 @@ export function openHero(app: App, anchor?: HTMLElement | null): void {
         slot ? h("div",{class:"hero-progress num"},/* copy:label */`Hero L${slot.level}`,h("span",{class:"dim"},slot.next===0?/* copy:label */"MAX":/* copy:label */`XP ${slot.xp}/${slot.next??"—"}`)) : null,
         presence ? h("div",{class:"hero-action hero-menu-presence",'data-activity':presence.activity,title:presence.detail},presence.text) : null,
         h("div", { class: "hero-legacy num" }, h("b", null, /* copy:label */ "Legacy"), ` ${L.bloodline?.points ?? legacy?.points ?? 0}`),
+        // Cut 122 §9: how far to the next rank (`388 / 600 → Health III`) and its bar
+        ((n) => n ? h("div", { class: "legacy-next num", "data-price": n.price }, h("small", { class: "legacy-next-text" }, legacyNextText(n)), legacyBar(n)) : null)(legacyNext(L)),
         !slot && L.live ? h("div", { class: "dim" }, /* copy:callout */ "Hero away") : null,
         h("div", { class: "hero-actions" },
           h("button", { class: "chip hero-class", onclick: () => openHeroClass(app), disabled: !!L.live }, classIcon(L.class), /* copy:button */ "Change class"),

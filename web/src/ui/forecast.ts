@@ -201,11 +201,11 @@ export function pinnedVs(vs: ForecastVs, f: Forecast | null): ForecastVs {
 /** Cut 22 §3: the line under the shaft — `vs last · D8 +6 · bank +4`: the depth whose move is the largest outside its ± (else the
  *  frontier's, `D8 ≈`), the bank's move when the gems show, and the death's when it clears its ±. Null without a move to show. */
 /** Cut 121 §4 (B: "`VS LAST RUN · D14 same`" unread): the line is the edit's move on the forecast, against the set as last sent. */
-const VS_TIP = /* copy:tooltip */ "forecast move from this edit · against the set last sent";
+const VS_TIP = /* copy:tooltip */ "forecast move since the set last sent";
 export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, withEnds: boolean): HTMLElement | null {
   if (!sysOpen(app.lineage, "vs")) return null;   // Cut 29 §2: the vs line opens at the first plateau
   // QA 778fa1b (qaV): an edit whose move is still being measured reads `vs sent …`, never the last move or a hollow `≈`
-  if (!vs) return app.vsPending() ? h("div", { class: "shaft-vs num rough pending" }, h("span", { class: "vs-label", title: VS_TIP }, /* copy:callout */ "this edit", "…")) : null;
+  if (!vs) return app.vsPending() ? h("div", { class: "shaft-vs num rough pending" }, h("span", { class: "vs-label", title: VS_TIP, "data-cause": app.vsLabel() }, app.vsLabel(), "…")) : null;
   vs = pinnedVs(vs, f);
   const rough = vs.refined === false;
   const start = forecastStart(app, f), next = Math.max(start, app.lineage.best_depth + 1);
@@ -240,7 +240,7 @@ export function vsLine(app: App, vs: ForecastVs | null, f: Forecast | null, with
   if (!terms.length) return null;
   // QA 778fa1b (qaU: `death −10` stayed while the refine beside it read 22 → 27 %): a move paired on the first pass trails `…` and
   // reads dim until the refine's is asked again and lands (`ForecastVs.refined`; absent on an older core: no mark)
-  return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label", title: VS_TIP }, /* copy:callout */ "this edit", ""), ...terms);
+  return h("div", { class: `shaft-vs num${rough ? " rough" : ""}`, "data-refined": rough ? "0" : vs.refined ? "1" : "" }, h("span", { class: "vs-label", title: VS_TIP, "data-cause": app.vsLabel() }, app.vsLabel(), ""), ...terms);
 }
 
 /** Cut 28 §2 (AV: "death jumped 14 → 36 %; I blamed my new rows — the real cause was the party dying"): the state's part of the move
