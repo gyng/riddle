@@ -1,0 +1,201 @@
+{
+  "$comment": "Raw blind card, rater blind-b, locked at write. Audio unassessed (agent cannot listen). Bot fields na; coordinator applies caps.",
+  "game": "Riddle",
+  "build": "1a7d834",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-b (agent, headed D3D12 RTX 3080, 400x800 @3x, seed 277)",
+  "horizon": {
+    "activeMinutes": 71,
+    "activeIntervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-10T13:01:00Z",
+        "end": "2026-10-10T13:41:10Z"
+      },
+      {
+        "phase": "after absent=20m",
+        "start": "2026-10-10T13:41:30Z",
+        "end": "2026-10-10T13:46:50Z"
+      },
+      {
+        "phase": "after absent=4h",
+        "start": "2026-10-10T13:47:10Z",
+        "end": "2026-10-10T13:52:50Z"
+      },
+      {
+        "phase": "after absent=8h",
+        "start": "2026-10-10T13:53:30Z",
+        "end": "2026-10-10T14:13:30Z"
+      }
+    ],
+    "exclusions": "page loads after each goto (~10-15 s), driver/tool latency; card writing after 14:13:30 not counted. Simulated absences not counted.",
+    "absences": [
+      "20m (simulated, dev absent=20m)",
+      "4h (simulated)",
+      "8h (simulated)"
+    ],
+    "runsWatched": 19,
+    "runsWatchedNote": "every send this session was watched live in the watch screen at its own default speed (Speed: Fights only, auto 1.5-2x in fights, 16-32x travel); the game summarises early floors ('D1-7 · 100%'). Several full deep runs watched 4-6 min each; two replays (death replay, Queen kill).",
+    "runsOffline": 9,
+    "deathsRead": 7,
+    "deathsTotalGameCount": 8,
+    "ruleEditsAttempted": 6,
+    "ruleEdits": 5,
+    "ruleEditsNote": "first attempt hit lock 'Read only · Custom rules · after Bloat Mother'; pen opened after Mother; 4 hand edits + 1 applied death fix; plus tactic swaps",
+    "milestones": "D8 Warlord repelled x2 then slain; Mother; Lich; Master; Queen; Mirror King; 'Dungeon cleared · 9th heir D34 · 26 runs · 8 deaths'; started Ascension 1",
+    "blindnessViolations": "none known. Read tools/driver.mjs header + drive.sh (harness usage only); did not read source, PLAN, CUT docs, cards, QA. Used only DOM-visible text; no mutating engine APIs.",
+    "protocolNotes": "First 10 min notes began ~13:09:40 (about 1 min early). Images read ~16, tool calls ~240."
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 7,
+    "checkInTomorrowUnprompted_1to7": 5,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "After the Queen kept killing my heirs at D28 I found the silence-scroll counter, wrote 'foe: boss → read silence' and moved it above my old fire rule. On the next send the heir read silence at the Queen, threw my fire and 'LURKER QUEEN DOWN' scrolled past, then he walked into the Mirror King with the Mirror rhythm tactic I had just swapped in. He came out to D34, a new best, and the game told me the dungeon was cleared.",
+  "humanProbes": {
+    "clarity": "Mostly yes, but I wasted two runs because 'COUNTER: THROW FIRE, BOSS' sat beside a verb list offering only 'drink fire'; throw was a ◆3 unlock in a different tile.",
+    "decisions": "I took Guarded over Steady because compare said 'better 6/8', and later put mirror read back over the suggested quiet steps when the shaft showed 'D23 · master 13%'; I would make both again.",
+    "mastery": "An hour ago I didn't know bosses had counters; now I read 'COUNTER: READ SILENCE' and write 'foe: boss → read silence' before the next send.",
+    "tension": "I sweated the King on 'mirror king · D33 · hero at 10/57 hp'; the carried-vs-secured line ('Carried $2434 · Secured past D33 · Heading home') made each push feel at stake.",
+    "feel": "The 'BLOAT MOTHER DOWN' and 'CHAMPION SLAIN' callouts landed; the speed jumping between 2x and 16x on its own made fights flash by; audio unassessed.",
+    "surprise": "'WARLORD · BROOD' drove a level-7 heir out at D8 ('driven $84') after I'd beaten the King's floor; 'Krix the lurker is avenged' came out of nowhere.",
+    "expression": "My build: a guarded fighter with kite archers and mirror read, my two rules on top — 'read silence' then 'throw fire' at bosses — and 'hit blind lurker' in the Deep.",
+    "story": "Niall wasted my fire on the Warlord at D8 and starved to 10 max hp before gas got him at D13; I fixed the rule and the next heir burned the Mother ('D13 · throw fire bloat').",
+    "pacing": "Check-ins were 5 minutes and well bounded, but the menus are thick ('VS LAST RUN · D14 same · full haul same') and the whole dungeon was over after ~70 active minutes.",
+    "failure": "The death sheet named margin and lever: 'return at 25% never fired · return at 25% under attack boss over 45%' plus 'fixes · 12 replays of D33'; but it called a gas death 'fell to the Mother' while the trace said 'not in view'.",
+    "social": "Only the hound line 'Drul · old hound · served Maren, Niall, Orin' and the heir names carried any relationship; nothing developed with them.",
+    "autonomy": "I chose to farm the Warlord with a heirs' worth of Legacy into armour before going deeper, and to add fire rather than apply the game's suggested fixes; the route itself ('fens or crypt · untried') never mattered to me.",
+    "progression": "Workers came about every ten minutes (porter, scout, drillmaster, apprentice, keeper), forge went sword +1 → +6, and the lineage reached 'Dungeon cleared' with Ascension 1 offered.",
+    "aesthetic": "The firelit village at night and the torn red 'YOU DIED' banner are lovely; the replay windows are a muddy pile of sprites where I could not find the hero; sound not heard.",
+    "return": "After 4h I came back to 'Boss defeated · Lurker Queen · ▶ watch kill' and a 'Pick one' card (took forge −30%); after 20m the first number was '−$2807 GOLD CHANGE' (apprentice spending) which read like a loss.",
+    "attribution": "'D13 · throw fire bloat' was my decision — my row 1; but 'WHO DECIDED · picks 29% · taught 2% · chores 69%' says most of the hero's turns were not mine, and my silence rule also burned a scroll on the Warlord."
+  },
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Forecast shaft gives instant consequence ('D14 63%→88%' after throw fire). Lapses: drink vs throw fire unexplained, dense jargon ('picks 29% · taught 2% · chores 69%'), truncated header 'light ha...'."
+    },
+    {
+      "id": "decisions",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Real trade-offs with foreseeable outcome: quiet steps vs mirror read ('turns on D23 Master'), apply fix 'hp<40% → return' (survives 7/12 but 'reach D29 90→40%'). Lapse: most tactic compares read 'same', forge purchases strictly ordered."
+    },
+    {
+      "id": "mastery",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Learned boss counters across walls: Warlord→Mother(throw fire, needs unlock)→Master(mirror read)→Queen(read silence)→King(Mirror rhythm). Lapse: two of these the game handed me via 'TRY ... ←' buttons."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Carried vs Secured and boss tries ('King try 2 · +4%') create stakes; but I chose few of them — bank/return thresholds are package-set, and at 16x outcomes resolve before I can feel them."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Visual callouts ('CHAMPION SLAIN', 'OGRE WINDS UP') and smooth GPU render; auto speed swings 2x↔16x/32x and crowded sprites blur fights. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Six distinct biomes and bosses each forced a new answer; 'WARLORD · BROOD' repel and 'Krix the lurker is avenged' grudge. Lapse: early floors collapse into 'D1–7 · 100% · +$141' summaries — repetition hidden rather than varied."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "My two top rules plus tactic picks make a recognisable setup, but 2/4 rule slots and ~14 package rows mean most of the list is not mine."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Genuine turns: Niall wasted fire at D8 then starved/gassed at D13; next heir burned the Mother; Queen→King→'Dungeon cleared'. Lapse: replays too muddy to relive the moment."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-play: watched runs 1-6 min with few dead stretches but auto-skip. Administrative: thick sheets, many taps per check-in. Cadence: 20m/4h/8h each different (8h mostly a stall at King). Whole dungeon finished in one sitting."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Every death: cause, hp margin, rule trace, 'fixes · 12 replays' with survival counts, and a send-again button. Lapse: cause naming inconsistent ('goblin · D8' vs 'fell to the Warlord'; 'gas' vs 'fell to the Mother' with Mother 'not in view')."
+    },
+    {
+      "id": "social",
+      "human": 0.3,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "Lineage names and 'Drul · old hound · served Maren, Niall, Orin' only; no developing relationship."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "Free to order purchases, ignore suggested fixes, write my own rows, choose ascension; dungeon order is linear and route forks never mattered."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "Within-run: carried/secured, levels; persistent: forge sword +1→+6, Legacy ranks, unlocks (action: throw), and automation every ~10 min (porter, scout, drillmaster, apprentice, keeper). Lapse: the long goal (King/bottom) was reached inside the first session."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Strong pixel town at night, death/repel banners, boss portraits (visual only; audio unassessed). Lapse: replay frames are an unreadable sprite pile."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "4h: 'Boss defeated · Lurker Queen · ▶ watch kill' + 'Pick one' + death to read; 8h: death verdict with fixes. Lapse: 20m return led with '−$2807 GOLD CHANGE' and 'Warlord fell · 2 tries' (old news); 8h made no new depth."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "My rows fired visibly and decisively ('D13 · throw fire bloat', 'hit blind lurker', read silence at Queen). Lapse: 'WHO DECIDED ... chores 69%' and many wins came from packages/workers; my rule also misfired on the Warlord."
+    }
+  ]
+}

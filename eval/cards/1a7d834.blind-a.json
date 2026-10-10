@@ -1,0 +1,92 @@
+{
+  "$comment": "Raw blind card, rater blind-a, written once after the horizon; criterion answers archived first in scratchpad/1a7d834-blind-a/evidence.md. Audio unassessed (agent cannot listen). Bot fields na; coordinator applies caps.",
+  "game": "Riddle",
+  "build": "1a7d834",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (agent rater, headed D3D12 RTX 3080 GPU, phone 400x800 @3x, seed 273, http://127.0.0.1:5262/)",
+  "horizon": {
+    "activeMinutes": 70.5,
+    "activeIntervalsUtc": [
+      { "phase": "cold", "start": "2026-10-10T13:01:04Z", "end": "2026-10-10T13:43:30Z", "excludedMinutes": 2.5, "credited": 39.9, "exclusions": "~2.5 min writing driver helper scripts (infrastructure)" },
+      { "phase": "return after absent=20m", "start": "2026-10-10T13:43:45Z", "end": "2026-10-10T13:48:50Z", "credited": 5.1 },
+      { "phase": "return after absent=4h", "start": "2026-10-10T13:48:47Z", "end": "2026-10-10T13:54:14Z", "credited": 5.4 },
+      { "phase": "return after absent=8h", "start": "2026-10-10T13:54:20Z", "end": "2026-10-10T14:14:26Z", "credited": 20.1 }
+    ],
+    "absences": ["20m (simulated, ?dev=1&runs=1&absent=20m)", "4h (simulated)", "8h (simulated)"],
+    "runsWatched": 15,
+    "runsWatchedNote": "runs 1-9 live in cold (runs 2,3,5,7,8 at Normal speed for several minutes each; others fights-only), runs 11-12 and parts of 13/16/21/22/23 after returns; run 21 King kill and Ascension run at Normal",
+    "runsOffline": 9,
+    "deathsRead": 4,
+    "ruleEditsAttempted": 7,
+    "ruleEdits": 6,
+    "ruleEditsNote": "attempt 1 (~13:15) locked: rules 'Read only', 'Custom rules · after Bloat Mother', PEN 'first death'. Completed: (1) bank rule hp<25%->40%->30% in the priority editor, (2) death fix 'hp < 50% → read unknown', (3) death fix 'foe: boss → read silence', (4) added 'depth ≥ 28' to the silence rule, (5) dropped my read-unknown rule after it recalled the hero at D13, (6) death fix 'hp < 20% · foes ≥ 2 → retreat'",
+    "milestones": "best D34; Mirror King slain at ~65 active min + 12.3 h simulated; 'Dungeon cleared · 21 runs · 4 deaths'; Ascension 1 begun",
+    "blindnessViolations": "none known; read only RATING.md, FUN_EVAL_IDLE.md, FRAMEWORK.md §1-3, template, and driver usage header (tools/driver.mjs top comment, tools/drive.sh) for operation; a dev `__riddle.screen` name appears in the driver's state op output (screen id only, no game data)"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 4,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "My first heir Maren Ash, on a Guarded style I had levelled and with my own 30% bank rule, cut through the Warlord, Bloat Mother, Lich and Foundry Master to D28 carrying over $16,000. She fought the Lurker Queen's brood, a 44% bank rule sent her home, and the lurkers caught her on the way: 'hero at 2/51 hp', 'returned too late', with three unknown scrolls unused. The death screen replayed the fight and offered fixes. The Queen killed her heir the same way, so I wrote 'foe: boss → read silence', and two heirs later that rule fired on D28 and D33 and the Mirror King fell.",
+  "probes": {
+    "clarity": "I lost track several times: the forecast went from 'death 38% · avg $744/run' to '$377' and then '$781' as I nudged one threshold, and later showed 'death 75%' for a hero who then cleared the floor easily.",
+    "decisions": "I picked kite archers over boss focus even though 'compare outcomes' said 'same · turns on D8 Warlord' for both, and the next run was 'stuck · went home' at D7 among 'goblin archer · draws' lines, so the choice mattered, just not in the way the compare said.",
+    "mastery": "An hour ago I didn't know the Queen needed silence; now the graveyard reads 'Queenbane' and the log shows 'D28 · boss → read silence' before 'lurker queen · fell'.",
+    "tension": "I sweated at the first Warlord: 'WARLORD · ENRAGED', then 'hurt · collected' at '2/41 hp', with $533 carried and $308 secured.",
+    "feel": "'GOBLIN WARLORD DOWN' and 'MIRROR KING DOWN' land as big banners, but at Normal speed in the sanctum a whole minute was mostly 'rest +5 hp' and 'warden · shifts', and the summary chip card ('D9–27 · 63% · +$1302', 17 chips) sat over the fight itself.",
+    "surprise": "My own 'read unknown' rule drank a mystery scroll at 45% HP on D13: 'recall scroll · recalled', and the run ended early, so I deleted the rule.",
+    "expression": "To a friend: a cautious knight who banks at 30% below D12, retreats under 20% when two foes close in, and reads silence on any boss past D28. The other 14 rules in the priority list came from packages and drills, not from me.",
+    "story": "'Cut the captive down. No one weeps.' and the reel 'Slew the Mirror King. The bottom. Nothing below.' are the lines I remember. Most reels are flat ('Banked $533.').",
+    "pacing": "Check-ins were 2-5 minutes, with one obvious decision each (apply a fix, pick one of drill/legacy/forge). At Normal speed the first 7-27 floors are skipped into one chip card, and the deep floors crawl with rest lines.",
+    "failure": "Maren's death page gave 'lurker · D28 · hero at 2/51 hp', 'returned too late', the rule trace ('bank at 44% · going home'), and fixes tested on 12 replays, such as 'hp < 50% → read unknown · survives 12/12 · was 0/12 · reach D18 81→50%'.",
+    "social": "No other people; the heirs ('Maren', 'Niall', 'Orin', 'Petra', 'Quill') are names on a graveyard, not relationships.",
+    "autonomy": "Without being asked, I took hand control at D18 ('Hand control · awaits order') and used 'attack until' on a wraith and an ogre before releasing him.",
+    "progression": "Within the hour, the porter, scout ('SEND auto'), apprentice ('−$4714 · forge'), drillmaster, armourer and keeper took jobs off my hands; by the end gold sat at $61,979 with little left to buy.",
+    "aesthetic": "The camp at night, with its torch-lit cave mouth, and the torn red 'YOU DIED' banner over a lurker portrait are lovely. In the dungeon view the camera sits close and the chip overlays make the fight muddy. Audio was not assessed.",
+    "return": "After 8h I came back to '5 RUNS · 1 died · D33 · +$10823', a death with 6 fixes, and a 'Pick one ◇◇◇◇' choice. Oddly, that was less gold than the 4h absence's '+$14723'.",
+    "attribution": "The last King kill was mine: the log showed 'D33 · boss → read silence' and then 'D33 · HP 23% → bank'. Still, 'WHO DECIDED' credited me with only 'taught 3% · chores 62%', and most death traces ended on 'attack nearest · fired'."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "The death trace and 'WHO DECIDED' are clear. But the forecast swung ('avg $744' → '$377' → '$781'; 'death 75%' on a run that cleared), 'compare outcomes' said 'same' for a choice that stalled a run, the away report's '1 died' opened a replay rather than the death, and the report is a wall of numbers." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "There were real trade-offs among the death fixes ('hp < 70% → return · survives 9/12' but 'reach D16 97→0%') and between forge aim and edge. Some picks were dominated ('Guarded … better 8/8'), and the 'Pick one' of drill/legacy/forge rarely felt weighed." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned counters (silence for the Queen, retreat when swarmed), and the results showed: 'Queenbane', then 'MIRROR KING DOWN'. The learning curve ended at the bottom of the dungeon within the session, and Ascension repeats it." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Carried versus secured gold was a real stake ('$2,820 lost', 'hurt · collected' at 2/41 hp, 'alert 7/8'). Across 23 runs the hero died 4 times and mostly cruised; most deep floors had no doubt in them." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Visual only; audio unassessed. Auto-speed between 1x fights and 4x travel works, and the boss banners hit. But dead stretches at Normal ('rest +5 hp' spam), the generic 'D7 · Foe · fell' label, and the chip card over the fight blunt it." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Several situations changed my configuration: the recall scroll ended a run, 'The monkey stole the leather.', starving with 'no light', the Queen's brood, kite archers stalling a run. But Ascension restarts at D1 rats, and the deep floors repeat warden, acolyte and echo." },
+    { "id": "expression", "human": 0.3, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Three of my rules sit at the top of a 17-row list that is otherwise packages and drills ('Guarded ranger', 'kite archers', 'Mirror rhythm'). The build is mostly the game's, lightly tuned by me." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "The lineage, graveyard and King kill give me a retellable arc with a turn in it. Most reels are bookkeeping ('Banked $533.'), and the middle of each run is compressed into chip cards." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "Check-ins were 2-5 minutes with a clear decision. In a run, D1-27 are skipped while the deep floors drag at 1x. On cadence, 20m, 4h and 8h each felt distinct, though 8h paid less than 4h. A lot of admin goes through stacked sheets and a long priority list." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "The best part of the game: every death named its cause, the HP, the rules that did and did not fire, and replay-tested fixes, and the next heir starts automatically. The lapse: deaths that happened while I was away took several taps through the run list ('1 died' opened a replay first)." },
+    { "id": "social", "human": 0.0, "bot": "na", "proxy": "n/a", "note": "Weight 0; heirs are names, not relationships." },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "I had route choices (fens or crypt, foundry), hand control in the watch, and the option to ascend or stay in town. Most goals come from the forecast's 'Goal D9 · New record'." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Within a run: kit, floors, tames. Between runs: forge, Legacy ranks, tactics levels, heirs. Automation: porter, scout, apprentice, drillmaster, armourer, keeper. All came at a steady, legible cadence. The lapse: the dungeon's bottom fell in the first session and gold inflated to $61,979 with little left to buy." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "Visual only: the camp and death banner art are strong. The watch view is zoomed in, muddy, and covered by chip and log overlays. Audio unassessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Every return carried news (a death, 'Queen fell · 2 tries', D33) and a decision (apply a fix, pick drill/legacy/forge), and I acted within seconds. The lapse: the 8h return paid less than the 4h one ('+$10823' vs '+$14723'), so the payoff did not scale predictably with absence." },
+    { "id": "attribution", "human": 0.6, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "My rules visibly decided key moments ('D28 · boss → read silence', 'D33 · HP 23% → bank', the 'read ?' recall). But 'WHO DECIDED' gives me 1-3%, most death traces end on package rules ('attack nearest · fired'), and most runs felt like the packages playing." }
+  ],
+  "highlights": [
+    "Death page: cause, HP, rule trace and 12-replay fixes ('survives 12/12 · was 0/12'), applied in one tap",
+    "Seeing my own rule fire in the log ('D28 · boss → read silence', then 'lurker queen · fell') and the Mirror King go down",
+    "Automation arriving as named workers (scout 'SEND auto', apprentice auto-forging)"
+  ],
+  "gripes": [
+    "Forecast numbers swing wildly and contradict outcomes ('death 75%' on a clean clear; '$744 → $377 → $781/run' from one threshold), and 'compare outcomes' said 'same' for a pick that stalled a run",
+    "Normal-speed watch: D1-27 vanish into a chip card that then covers the fight, while the sanctum crawls with 'rest +5 hp' lines",
+    "The dungeon bottom fell in the first session (~65 active min + 12 h away); gold inflated to $61,979 and Ascension restarts at D1 rats"
+  ]
+}

@@ -3,7 +3,7 @@
   "applicationCommits": [
     "1a7d834"
   ],
-  "status": "cohort running 2026-10-10",
+  "status": "cohort complete 2026-10-10: 62.7 / 72.7, alpha .583 unreliable",
   "includes": "Cuts 117-120, While away IA + juice, combat FX, hand control (keys/touch/mouse), pets (Cut 119), yolo/siege/graves (Cut 118)",
   "frozen": {
     "dir": "scratchpad/blind-1a7d834-frozen/dist",
@@ -20,7 +20,7 @@
     "gates": "routine full --fresh: all PASS but the 2-seed outpace row 86% (16 seeds 97%, recorded deviation)",
     "deviations": [
       "outpace 2-seed routine row 86% (16-seed 97%)",
-      "automation-pays (Cut 110 \u00a74)",
+      "automation-pays (Cut 110 §4)",
       "affixes change the best answer 4/20 (bar 8)",
       "Cut 119 pet eval bars: value at 1-2 walls, guard role, IDLE pet L5 at day 14, IDLE fetcher -24.3%",
       "waystone $/h worsened by graves"
@@ -31,7 +31,8 @@
   },
   "machineLoad": {
     "atRelease": "24.64 20.55 21.96",
-    "source": "another project's builds/tests (armee)"
+    "source": "another project's builds/tests (armee)",
+    "duringCohort": "load ~20-40 at start, ~4 at end"
   },
   "cohort": {
     "briefs": [
@@ -47,5 +48,36 @@
       5375
     ],
     "toolBudget": 260
+  },
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/1a7d834.blind-a.json",
+      "total": 62.7,
+      "activeMinutes": 70.5,
+      "note": "gate: expression .3"
+    },
+    "blind-b": {
+      "card": "eval/cards/1a7d834.blind-b.json",
+      "total": 72.7,
+      "activeMinutes": 71,
+      "note": "best single card"
+    },
+    "alpha": 0.583,
+    "reliability": "unreliable",
+    "mean": 67.7,
+    "trend": "56.7 → 64.7 → 67.4 → 63.8 → 65.9 → 68.6 → 63.7 → 65.8 → 67.3 → 68.9 → 67.7",
+    "shared": [
+      "both cleared the dungeon (King) inside the first session: ~65 active min + 12 h away; Ascension restarts at D1 rats",
+      "gold inflates ($61 979) with little to buy; the 8h return paid less than the 4h (A)",
+      "copy that contradicts: 'goblin · D8' beside 'fell to the Warlord', 'fell to the Mother' while 'not in view', '−$2807 GOLD CHANGE' (apprentice spend read as loss) (B); forecast 'death 75%' on an easy clear, per-run $ swings, 'compare: same' then a stall (A)",
+      "watch legibility: speed swings 2×↔32× on its own, D1–27 collapse into a chip card that covers the fight, deep floors crawl with rest lines, muddy sprites (A, B)",
+      "jargon: 'picks 29% · taught 2% · chores 69%', 'VS LAST RUN', 'drink fire' vs throw (B); expression .3 (A)"
+    ],
+    "highlights": [
+      "death sheet: cause, hp margin, rule trace, fixes priced on 12 replays (A, B)",
+      "boss counters turned into own rules that visibly win (throw fire → BLOAT MOTHER DOWN; read silence → Queen) (A, B)",
+      "forecast reacts to every edit (B); named workers on a steady cadence (A)"
+    ],
+    "verdict": "mean 67.7, unreliable split; B 72.7 best single card; 80 not met"
   }
 }
