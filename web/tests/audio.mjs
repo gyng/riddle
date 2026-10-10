@@ -86,7 +86,7 @@ try {
   // juice pass 2: the family timbres, the boss moments, the chrome and the Cut 27 surfaces keep the same instrument bar
   const cues = [["hit", { dmg: 1 }], ["hit", { dmg: 20 }], ["slay"], ["rule"], ["telegraph"], ["exit_bank"], ["exit_return"], ["level"], ["unlock"],
     ["strike", { dmg: 5, kind: "skeleton" }], ["strike", { dmg: 5, kind: "iron_golem" }], ["slay", { kind: "bloat" }], ["hit", { dmg: 6, kind: "wraith" }],
-    ["boss_in"], ["click"], ["boss_break"], ["edit"], ["boss_down"], ["buy"], ["verdict"], ["fold"], ["scene"], ["scene_end", { up: true }]];
+    ["boss_in"], ["click"], ["boss_break"], ["edit"], ["boss_down"], ["buy"], ["verdict"], ["fold"], ["scene"], ["scene_end", { up: true }], ["unfurl"], ["coin"], ["chime"]];
   const pitch = [];
   for (const [name, opts] of cues) {
     const { played, nodes } = await cue(name, opts);

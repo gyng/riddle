@@ -19,6 +19,7 @@
 //   audio.cue("level" | "unlock" | "buy")   bright arpeggios / a coin
 //   audio.cue("boss_in" | "boss_break" | "boss_down")        a sub drop · a crack · a falling boom
 //   audio.cue("click" | "edit" | "verdict" | "fold" | "scene" | "scene_end", { up })   the chrome
+//   audio.cue("unfurl" | "coin" | "chime")   the return's reveal (ui/report-juice.ts): a parchment unfurls · a tile's coin · a deeper bell
 //   audio.drone("fens" | null)          the camp pad on / off
 //   audio.bed("fens" | null)            the watch's ambience bed on / off (biome by biome, a crossfade between)
 //
@@ -27,7 +28,7 @@
 // Measurement (docs/JUICE.md §6): `renderCue` / `renderBed` render into an OfflineAudioContext through the same master chain.
 
 export type CueName = "hit" | "strike" | "slay" | "rule" | "telegraph" | "exit_bank" | "exit_return" | "exit_death" | "level" | "unlock" | "buy"
-  | "boss_in" | "boss_break" | "boss_down" | "click" | "edit" | "verdict" | "fold" | "scene" | "scene_end";
+  | "boss_in" | "boss_break" | "boss_down" | "click" | "edit" | "verdict" | "fold" | "scene" | "scene_end" | "coin" | "chime" | "unfurl";
 export type Family = "flesh" | "bone" | "ooze" | "metal" | "spirit";
 export type CueOpts = { dmg?: number; kind?: string; up?: boolean };
 type Osc = { wave: OscillatorType; f: number; f1?: number; at?: number; dur: number; steps?: [number, number][] };   // steps: [f, at]
@@ -120,6 +121,10 @@ function specOf(name: CueName, o: CueOpts, r: Rng): Spec {
     case "verdict": return { osc: [{ wave: "triangle", f: 92, f1: 48, dur: 0.16 }, { wave: "square", f: 184, f1: 92, dur: 0.05 }], noise: { type: "lowpass", f: 800, f1: 160, q: 1, dur: 0.1, level: 1 }, peak: 0.22, len: 0.17 };
     case "fold": return { osc: [{ wave: "sine", f: 660, f1: 990, at: 0.06, dur: 0.12 }], noise: { type: "bandpass", f: 400, f1: 2600, q: 1.4, dur: 0.18, level: 0.8 }, peak: 0.07, len: 0.2, att: 0.03 };
     case "scene": return { osc: [{ wave: "triangle", f: 440, f1: 330, dur: 0.16 }], noise: { type: "bandpass", f: 2600, f1: 450, q: 1.4, dur: 0.18, level: 0.8 }, peak: 0.07, len: 0.2, att: 0.03 };
+    // owner 2026-10-10: the return's reveal — soft: a parchment's dry unroll, a small coin per tile, a deeper bell for a best or a level
+    case "unfurl": return { osc: [{ wave: "sine", f: 330, f1: 495, at: 0.08, dur: 0.11 }], noise: { type: "bandpass", f: 700, f1: 2800, q: 0.9, dur: 0.19, level: 0.7 }, peak: 0.05, len: 0.2, att: 0.05 };
+    case "coin": { const p = jit(r, 0.03); return { osc: [{ wave: "sine", f: 1568 * p, dur: 0.12 }, { wave: "triangle", f: 2349 * p, at: 0.035, dur: 0.1 }], peak: 0.05, len: 0.14, att: 0.004, exp: true }; }
+    case "chime": return { osc: [{ wave: "triangle", f: 392, dur: 0.2 }, { wave: "sine", f: 784, at: 0.03, dur: 0.17, steps: [[988, 0.09]] }], peak: 0.09, len: 0.2, att: 0.006, exp: true };
     case "scene_end": return o.up
       ? { osc: [{ wave: "triangle", f: 523, dur: 0.2 }, { wave: "triangle", f: 784, at: 0.03, dur: 0.17 }], peak: 0.09, len: 0.2 }
       : { osc: [{ wave: "triangle", f: 523, dur: 0.2 }, { wave: "triangle", f: 494, at: 0.03, dur: 0.17 }], peak: 0.09, len: 0.2 };

@@ -46,3 +46,7 @@
 .report-group > .report-bosses, .report-group > .report-first-workers { margin: 4px 0 8px; }
 .report-group .report-feats { padding-left: 0; }
 .report-group .report-feats .feat-line.pet-line { margin-left: 0; }
+/* owner 2026-10-10: a level crossed while away, a highlight (`Fighter L4`) */
+.report-sheet > .report-levelup { display: flex; align-items: center; gap: 6px; }
+.report-levelup .class-icon .ico { width: 20px; height: 20px; }
+.report-levelup .levelup-l { color: var(--ink-gold, #5e4510); }

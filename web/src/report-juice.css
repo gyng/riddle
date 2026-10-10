@@ -1,0 +1,47 @@
+/* Owner 2026-10-10: the return's reveal (ui/report-juice.ts). Opacity and transforms only (the counts are CSS counters over the real,
+   transparent text; the coins a fixed layer), so nothing reflows. Gated on juice and on motion; the classes only exist mid-reveal. */
+@property --rj-n { syntax: "<integer>"; inherits: false; initial-value: 0; }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* the tiles count up from 0 over the real number (its box, its colour, its shadow) */
+  html[data-juice="on"] .report .tile b.num.rj-count { position: relative; }
+  html[data-juice="on"] .report .tile b.num.rj-count > .rj-real { color: transparent; text-shadow: none; }
+  html[data-juice="on"] .report .tile b.num.rj-count::after { content: var(--rj-pre) counter(rjn) var(--rj-post); counter-reset: rjn var(--rj-n);
+    position: absolute; inset: 0; white-space: nowrap; text-align: center; pointer-events: none;
+    animation: rj-count var(--rj-ms, 760ms) cubic-bezier(.3, .2, .25, 1) var(--rj-delay, 0ms) both; }
+  @keyframes rj-count { from { --rj-n: 0; } to { --rj-n: var(--rj-to); } }
+
+  /* NEW BEST: pressed in like the death's wax seal, then a gilt shimmer */
+  html[data-juice="on"] .report .tile-record.rj-wait { opacity: 0; }
+  html[data-juice="on"] .report .tile-record.rj-stamp { display: inline-block; animation: rj-stamp .46s cubic-bezier(.3, 1.7, .45, 1) both, rj-shimmer 1.1s ease-out .4s both; }
+  @keyframes rj-stamp { from { transform: rotate(-7deg) scale(2.3); opacity: 0; filter: brightness(2); } 55% { transform: rotate(-3deg) scale(.92); opacity: 1; } to { transform: none; filter: none; } }
+  @keyframes rj-shimmer { 0% { text-shadow: none; } 30% { text-shadow: 0 0 6px rgba(246, 214, 140, .95), 0 0 14px rgba(219, 186, 124, .6); } 100% { text-shadow: none; } }
+
+  /* the coins: a few from the gold tile to the purse (a fixed layer over everything; pointer-transparent) */
+  .rj-coins { position: fixed; inset: 0; pointer-events: none; z-index: 60; overflow: hidden; }
+  .rj-coin { position: absolute; width: 22px; height: 22px; will-change: transform, opacity; opacity: 0; filter: drop-shadow(0 1px 0 rgba(13, 12, 20, .7)) drop-shadow(0 0 4px rgba(246, 214, 140, .55)); }
+  .rj-coin .ico { display: block; width: 22px; height: 22px; image-rendering: pixelated; }
+  .rj-coin .ico.glyph::before { content: ""; display: block; width: 12px; height: 12px; margin: 3px; border-radius: 50%; background: #e4c385; box-shadow: inset -2px -2px 0 #9a7a36; }
+  /* the purse waits on the old sum until the first coin lands (juice.css's count, its delay ours) */
+  html[data-juice="on"] .stat.gold .jn.count.rj-purse::after { animation-delay: var(--rj-land, 0ms); }
+
+  /* the highlights arrive one at a time (their space held from the first frame) */
+  html[data-juice="on"] .report-sheet > .report-hl.rj-wait { opacity: 0; }
+  html[data-juice="on"] .report-sheet > .report-hl.rj-in { animation: rj-hl .15s ease-out both; }
+  @keyframes rj-hl { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+  /* the best find's glyph glints */
+  html[data-juice="on"] .report-reveal.rj-glint .reveal-glyph { animation: rj-glint .55s ease-out .1s both; }
+  @keyframes rj-glint { 0% { transform: none; filter: none; } 35% { transform: scale(1.6) rotate(25deg); filter: brightness(2.2) drop-shadow(0 0 5px rgba(246, 214, 140, .95)); } 100% { transform: none; filter: none; } }
+  /* a boss slain or a level crossed: a gilt band sweeps under the line and fades */
+  html[data-juice="on"] .report-sheet > .report-hl.rj-flourish { position: relative; isolation: isolate; }
+  html[data-juice="on"] .report-sheet > .report-hl.rj-flourish::after { content: ""; position: absolute; inset: 3px -6px; z-index: -1; pointer-events: none; transform-origin: 0 50%;
+    background: linear-gradient(90deg, rgba(219, 186, 124, 0), rgba(219, 186, 124, .55) 12%, rgba(246, 222, 160, .7) 50%, rgba(219, 186, 124, .4) 88%, rgba(219, 186, 124, 0));
+    animation: rj-band .9s cubic-bezier(.2, .8, .3, 1) both; }
+  @keyframes rj-band { 0% { transform: scaleX(0); opacity: 1; } 35% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+
+  /* `collect & send` breathes a slow glow once the reveal ends */
+  html[data-juice="on"] .collect-send.rj-breathe .collect-go { position: relative; }
+  html[data-juice="on"] .collect-send.rj-breathe .collect-go:not(:disabled)::before { content: ""; position: absolute; inset: -2px; border-radius: 6px; pointer-events: none;
+    box-shadow: 0 0 14px 3px rgba(246, 214, 140, .45), 0 0 4px 1px rgba(246, 214, 140, .5); opacity: 0; animation: rj-breathe 2.8s ease-in-out .2s infinite; }
+  @keyframes rj-breathe { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+}

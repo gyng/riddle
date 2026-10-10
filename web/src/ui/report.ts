@@ -16,7 +16,8 @@ import { conceptTag } from "./concepts";
 import { wallOffer, wallTablet } from "./wall";
 import { meterPanel } from "./meters";
 import { legacyEarnedBlock } from "./legacy-earned";
-import { classXpBlock } from "./class-xp";
+import { classXpBlock, levelUpLine } from "./class-xp";
+import { reportJuice } from "./report-juice";
 import { systemIcon, systemLabel } from "./systems";
 import { openPreparationForge, preparationActions } from "./preparation";
 import { AUTO, autoDismiss } from "./autodismiss";
@@ -756,8 +757,11 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   // mark), a death that made progress (a siege try, a grave's pack brought home), the best find, a pet's deed, a worker's first act;
   // the rest wait in their group under `details`
   const groups = { gold: [] as (Node | null)[], finds: [] as (Node | null)[], heroes: [] as (Node | null)[], workers: [] as (Node | null)[], way: [] as (Node | null)[] };
+  // owner 2026-10-10 ("class level up matters"): a level crossed ranks right after a boss slain (`Fighter L4`, the gain on hover)
+  const levelUp = levelUpLine(r, (cls, id) => (id === undefined || id === (L.selected_bloodline ?? 1) ? L.classes?.[cls]?.level : undefined)
+    ?? L.hero_slots?.find((s) => s.id === id && s.class === cls)?.level, L.selected_bloodline ?? 1);
   const candidates: { el: HTMLElement | null; fold: (Node | null)[] }[] = [
-    { el: bosses, fold: groups.way }, { el: feats.progress, fold: groups.way }, { el: reveal, fold: groups.finds }, { el: feats.pet, fold: groups.heroes }, { el: firstWorkers, fold: groups.workers }];
+    { el: bosses, fold: groups.way }, { el: levelUp, fold: groups.heroes }, { el: feats.progress, fold: groups.way }, { el: reveal, fold: groups.finds }, { el: feats.pet, fold: groups.heroes }, { el: firstWorkers, fold: groups.workers }];
   const present = candidates.filter((c) => !!c.el);
   const highlights = present.slice(0, HIGHLIGHTS).map((c) => c.el!);
   for (const c of present.slice(HIGHLIGHTS)) c.fold.push(c.el);
@@ -851,8 +855,11 @@ export function renderReport(app: App, r: ReturnReport, absence = false): Mounte
   const clear = mountClear(app, r, absence, reportWell, gemEl, () => cons.setTiles(consTiles));
   if (clear.tile) cons.setTiles([clear.tile, ...consTiles]);
   if (!clear.shown) autoDismiss(gemEl, { ms: AUTO.report, yieldToSheets: true });   // docs/UI.md §7: on to the town
+  // owner 2026-10-10 ("juice up while you were gone"): the return's reveal (report-juice.ts); `data-settled` marks its end state
+  const juice = absence ? reportJuice(el, sheet, { net: ledger?.net, gold: L.gold }) : null;
+  if (!juice) el.dataset.settled = "1";
   const restore = requestAnimationFrame(() => { if (reportWell.isConnected) reportWell.scrollTop = reading.scroll; });
-  return { el, dispose: () => { cancelAnimationFrame(restore); reading.scroll = reportWell.scrollTop; pick.dispose(); preparation.dispose(); go.dispose(); offDecision(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
+  return { el, dispose: () => { juice?.dispose(); cancelAnimationFrame(restore); reading.scroll = reportWell.scrollTop; pick.dispose(); preparation.dispose(); go.dispose(); offDecision(); newChoices.dispose?.(); bar.dispose(); wide.dispose(); } };
 }
 
 /** Cut 29 §6 (AX: Greth the tamed ogre, L5, gone with only `party −1 ogre`): each companion that fell, by name — `Greth · ogre L5 · fell D12
