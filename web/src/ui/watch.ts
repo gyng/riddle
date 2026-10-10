@@ -2347,7 +2347,9 @@ export function renderWatch(app: App): Mounted {
     vaultSheet(cage.vc, cage.pick?.id);
   }
   ticker.onclick = () => { if (cage && !cage.done && ticker.classList.contains("cage")) { cageTap(); return; } whyTap(); };
-  canvas.onclick = (): void => whyTap();
+  // take control: the map's taps and clicks drive him while in hand (control.ts); otherwise a tap reads the last reason
+  ctl.bindMap(canvas, () => viewer);
+  canvas.onclick = (): void => { if (!ctl.on()) whyTap(); };
   /** Cut 23 §3: the last line with a reason (a `✗` refusal, a shouted word) and when it was released. */
   function noteWhy(text: string, why: string): void { lastWhy = { text, why, at: performance.now() }; }
   /** Cut 23 §3: a tap on the line (or the picture) within WHY_TAP_MS of a reasoned line opens its reason under it — `read ✗ no use`
@@ -2659,7 +2661,8 @@ export function renderWatch(app: App): Mounted {
     // start fell back — a toll short — is not the one the forecast measured: nothing folds)
     { const f = app.forecastOfRules(); startDepth = s.run.start ?? s.depth; if (f && (f.start ?? 1) === startDepth) foldSet = foldFloors(f, startDepth);
       // Cut 118 §5: the swift floors (a band boss cleared 3×: `Snapshot.swift`, the core's `feats.swift_to`) fold too — one beat, its line
-      if (s.swift) { const to = app.lineage.feats?.swift_to ?? s.depth; for (let d = s.depth; d <= Math.max(s.depth, to); d++) foldSet.add(d); swiftTo = Math.max(s.depth, to); el.dataset.swift = String(swiftTo); }
+      // (exclusive: `swift_to` is the boss's floor, feats.rs `depth < swift_to` — the floors above it fold, his own never does)
+      if (s.swift) { const to = app.lineage.feats?.swift_to ?? s.depth + 1; for (let d = s.depth; d < to; d++) foldSet.add(d); swiftTo = to - 1 >= s.depth ? to - 1 : 0; if (swiftTo) el.dataset.swift = String(swiftTo); }
       el.dataset.foldPlan = [...foldSet].join(","); }
     const { viewer: v0 } = await makeViewer(canvas);
     if (disposed) { v0.dispose(); return; }

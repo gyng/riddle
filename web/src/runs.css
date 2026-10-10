@@ -381,6 +381,30 @@ html body .ctl .cmd .tile.ctl-verb .tl, html body .ctl .cmd .tile.ctl-toggle .tl
 .ctl .ctl-note:empty { display: none; }
 .ctl .ctl-note[data-refused="1"] { color: #e8923a; }
 .ctl .ctl-note[data-pending="1"] { opacity: .6; }
+/* owner 2026-10-10 ("keyboard works? and consider mobile/touch"): each tile's key in its corner where a mouse hovers (a phone has no
+   keys); the slab never zooms on a double tap nor selects on a long press; under 480 px the actions go icon-only (the word in the
+   tooltip and aria-label), the toggle narrows — every tile still ≥ 44 px, nothing past the edge at 360 */
+.ctl .ctl-key { display: none; position: absolute; top: 2px; right: 3px; padding: 0; border: 0; background: none; color: #c4baa1; opacity: .7;
+  font: 600 9px/1 var(--mono, ui-monospace, monospace); pointer-events: none; text-shadow: 0 1px 1px var(--ink); }
+@media (hover: hover) and (pointer: fine) { .ctl .ctl-key { display: block; } }
+.ctl .ctl-pad, .ctl .ctl-verbs, .ctl .ctl-toggle-slot { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+@media (max-width: 479px) {
+  .ctl.ctl-slab { gap: 6px; padding: 6px 4px; }
+  .skin-console .ctl.ctl-slab { padding: 2px 0; }
+  .ctl .ctl-toggle-slot { flex: 0 0 52px; }
+  .ctl .ctl-toggle { width: 52px; }
+  html body .ctl .cmd .tile.ctl-toggle .tl { font-size: 11px; }
+  .ctl .ctl-verbs { grid-template-columns: repeat(2, 46px); }
+  .ctl .ctl-verb .tl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .ctl .ctl-verb .ico { width: 24px; height: 24px; }
+  .ctl .ctl-until::after { content: "↻"; position: absolute; left: 3px; bottom: 2px; font-size: 11px; line-height: 1; color: #f3d192; text-shadow: 0 1px 1px var(--ink); }
+}
+/* the map while in hand: the tile under the mouse, a move cursor over the floor and an attack cursor over a foe */
+.watch .ctl-hover { position: absolute; z-index: 2; pointer-events: none; box-sizing: border-box; border: 1px solid rgba(232, 146, 58, .6);
+  border-radius: 2px; box-shadow: 0 0 6px rgba(232, 146, 58, .25); }
+.watch .ctl-hover[data-foe="1"] { border-color: rgba(224, 90, 74, .85); box-shadow: 0 0 6px rgba(224, 90, 74, .35); }
+.watch canvas[data-ctl-cursor="move"] { cursor: pointer; }
+.watch canvas[data-ctl-cursor="attack"] { cursor: crosshair; }
 /* Cut 117 §1: the gold head's equation — each term whole on its line when the tile is narrow */
 .report .report-gold .report-ledger { display: block; font-size: 11px; line-height: 1.25; }
 .report .report-gold .report-ledger > span { white-space: nowrap; }

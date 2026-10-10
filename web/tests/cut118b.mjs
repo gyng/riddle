@@ -311,7 +311,7 @@ try {
     check(r.rungs.join(" ") === "weights+(feat: trial) orders- heirs+(first death) workers- pen-" && r.retires === "picking heirs" && r.noHeirs === "weights,orders,workers,pen", `the heirs rung lit by lit_by; the core's lit_by on every rung (${r.rungs.join(" ")})`);
     check(r.orders.join("|") === "keep weapon|restock on|insure on|heirs surprise|sinks off", `the carried orders: heir and sink named, the retired wall order not (${r.orders.join(" | ")})`);
     await page.close();
-    // the swift floors: a send whose snapshot is swift folds them under one line marked `swift`
+    // the swift floors: a send whose snapshot is swift folds them under one line marked `swift` — the boss's own floor never
     const p2 = await fresh("swift");
     const s = await p2.evaluate(async () => {
       const a = window.__riddle, fx = window.__fx;
@@ -323,7 +323,8 @@ try {
       const w = document.querySelector(".watch");
       return { swift: w?.dataset.swift, plan: w?.dataset.foldPlan };
     });
-    check(s.swift === "3" && /\b1\b/.test(s.plan ?? "") && /\b3\b/.test(s.plan ?? ""), `the swift floors fold (swift to D${s.swift} · plan ${s.plan})`);
+    // exclusive (feats.rs `depth < swift_to`): swift_to 3 is the boss's floor — D1–2 fold, D3 (his) never folds as swift
+    check(s.swift === "2" && /\b1\b/.test(s.plan ?? "") && /\b2\b/.test(s.plan ?? ""), `the swift floors above the boss fold (swift to D${s.swift} · plan ${s.plan})`);
     await p2.close();
   }
   if (parts.includes("taps")) {
