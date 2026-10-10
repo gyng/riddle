@@ -11,14 +11,17 @@
 //   ledger — the While away Workers fold: one line per worker (none cut), the order lines (`ranks`, `legacy`), the purse each moved.
 //   posts  — the town: the next worker's post shows `forge 2/3 · or 30h` (Works.next_worker's progress · eta_h), ≤ 3 markers.
 //   news   — `k: "order"` news reaches the crier and the diary.
-//   node web/tests/cut120.mjs [--part=sheet,audit,ledger,posts,news] [--shot=path.png]
+//   offer  — option B (Legacy and ranks default off): the camp offers each order once, when it first becomes useful (Legacy can buy,
+//            a rank is due); its chip sets the order (shared across the bloodlines), `not now` hides it for good (per lineage, browser
+//            storage); a routine return with an offer pending stays ≤ 2 taps report → watch.
+//   node web/tests/cut120.mjs [--part=sheet,audit,ledger,posts,news,offer] [--shot=path.png]
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
 
 const root = new URL("../../", import.meta.url);
 const url = execFileSync("bash", ["tools/dev.sh"], { cwd: root, encoding: "utf8" }).trim();
-const ALL = "sheet,audit,ledger,posts,news";
+const ALL = "sheet,audit,ledger,posts,news,offer";
 const parts = (process.argv.find((a) => a.startsWith("--part="))?.slice(7) ?? ALL).split(",");
 const shotPath = process.argv.find((a) => a.startsWith("--shot="))?.slice(7);
 const engine = readFileSync(new URL("./fixtures/earned-gunner-home.json", import.meta.url), "utf8");
@@ -228,6 +231,81 @@ try {
     });
     check(r.cries.join() === "order:legacy balanced,order:ranks auto", `order news cried (${r.cries.join(", ")})`);
     check(r.diary.some((d) => d === "3:New order in town · legacy balanced"), `order news in the diary, dated (${r.diary.join(" | ")})`);
+    await page.close();
+  }
+  if (parts.includes("offer")) {
+    const { page } = await earned("offer");
+    const st = () => page.evaluate(async () => {
+      const a = window.__riddle, L = a.lineage, { pendingOffer, legacyUseful, rankDue } = await import("/src/ui/order-offer.ts");
+      const el = document.querySelector(".camp .order-offer");
+      return { pending: pendingOffer(L), legacyUseful: legacyUseful(L), rankDue: rankDue(L), legacy: L.orders?.legacy, ranks: L.orders?.ranks,
+        shown: [...document.querySelectorAll(".camp .order-offer:not([hidden])")].map((x) => x.dataset.offer), text: el && !el.hidden ? el.textContent.replace(/\s+/g, " ").trim() : "",
+        stored: (() => { try { return localStorage.getItem(`riddle.offers.${L.seed ?? 0}`); } catch { return null; } })() };
+    });
+    const recamp = () => page.evaluate(async () => { const a = window.__riddle; a.go({ kind: "report", report: { elapsed_s: 0, runs: 0, sampled: false, learned: [], bests: [], found: [], deaths: [], pending: [], marks_earned: 0, tamed: [], hatched: [], lost: [], reel: [], deepest: 0 } }); a.go({ kind: "camp" }); await new Promise((r) => setTimeout(r, 500)); });
+    // a fresh viewer: no offer dismissed yet
+    await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("riddle.offers.")) localStorage.removeItem(k); });
+    await recamp();
+    let s = await st();
+    const first = s.legacyUseful ? "legacy" : "ranks";
+    check(s.legacy === "off" && s.ranks === "off" && (s.legacyUseful || s.rankDue) && s.shown.length === 1 && s.shown[0] === first,
+      `the offer appears, one at a time, once useful (${s.shown.join(",") || "none"} · "${s.text}" · Legacy can buy ${s.legacyUseful} · rank due ${s.rankDue})`);
+    check(await page.locator(".modal:visible, .sheet-wrap").count() === 0, "the offer is a camp chip row, never a modal or a sheet");
+    // accept: the order set, shared to the three bloodlines; dismissed for good
+    await page.locator(`.order-offer [data-offer-yes="${first}"]`).click();
+    await page.waitForFunction((k) => window.__riddle.lineage.orders?.[k] !== "off", first, { timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(300);
+    let o = await allOrders(page);
+    const want = first === "legacy" ? "balanced" : "auto";
+    check(Object.values(o).length === 3 && Object.values(o).every((x) => x[first] === want && x.shared?.includes(first)),
+      `accepting sets the order for every bloodline in 1 tap (${first} → ${Object.values(o).map((x) => x[first]).join(",")})`);
+    await recamp();
+    s = await st();
+    check(!s.shown.includes(first) && JSON.parse(s.stored ?? "{}")[first] === true, `the taken offer never returns (${s.shown.join(",") || "none"} · ${s.stored})`);
+    // the other order: offered when useful, `not now` hides it for good and leaves the order off
+    const second = first === "legacy" ? "ranks" : "legacy";
+    if (s.shown[0] === second) {
+      await page.locator(`.order-offer [data-offer-no="${second}"]`).click();
+      await page.waitForTimeout(300);
+      const after = await st();
+      await recamp();
+      const later = await st();
+      check(after.shown.length === 0 && later.shown.length === 0 && later[second] === "off" && JSON.parse(later.stored ?? "{}")[second] === true,
+        `\`not now\` hides the ${second} offer for good, the order left off (${later[second]} · ${later.stored})`);
+    } else {
+      check(false, `the ${second} offer follows the first (${s.shown.join(",") || "none"})`);
+      out.push(`     offer: ${second} not useful on the fixture (Legacy ${s.legacyUseful} · rank ${s.rankDue})`);
+    }
+    // the sheet keeps both orders settable after the offers are gone
+    await page.locator(".orders-tab:visible").click();
+    await page.waitForSelector(".orders-sheet .order-row");
+    const sheet = await page.evaluate(() => ({ legacy: !!document.querySelector('.orders-sheet [data-legacy="off"]'), ranks: !!document.querySelector('.orders-sheet [data-ranks="auto"]') }));
+    check(sheet.legacy && sheet.ranks, "the orders sheet keeps both orders settable");
+    await closeSheets(page);
+    await page.close();
+
+    // the routine return with an offer pending: collect & send ignores it, ≤ 2 taps report → watch
+    const r2 = await earned("offer-return");
+    const p2 = r2.page;
+    await p2.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("riddle.offers.")) localStorage.removeItem(k); });
+    const back = await p2.evaluate(async () => {
+      const a = window.__riddle, { pendingOffer } = await import("/src/ui/order-offer.ts");
+      const rep = await a.engine.runOfflineQuick(8 * 3600);
+      await a.refresh();
+      const pending = pendingOffer(a.lineage);
+      a.go({ kind: "report", report: rep, absence: true });
+      await new Promise((res) => setTimeout(res, 700));
+      const btn = () => document.querySelector(".report .collect-go");
+      let taps = 0;
+      for (let i = 0; i < 3 && a.screen !== "watch" && btn(); i++) {
+        btn().click(); taps++;
+        for (let k = 0; k < 15 && a.screen !== "watch"; k++) await new Promise((res) => setTimeout(res, 100));
+      }
+      for (let i = 0; i < 60 && a.screen !== "watch"; i++) await new Promise((res) => setTimeout(res, 100));
+      return { taps, screen: a.screen, pending, orders: [a.lineage.orders?.legacy, a.lineage.orders?.ranks] };
+    });
+    check(!!back.pending && back.taps <= 2 && back.screen === "watch" && back.orders.join() === "off,off",
+      `a routine return with the ${back.pending ?? "no"} offer pending: ${back.taps} taps report → watch, the orders untouched (${back.orders.join(" · ")})`);
     await page.close();
   }
 } catch (e) {

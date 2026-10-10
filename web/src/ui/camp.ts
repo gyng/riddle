@@ -56,6 +56,7 @@ import { checkinBatch } from "./checkin";   // Cut 117 §5: the routine buys of 
 import { controlLadder } from "./ladder";   // Cut 118 §7: the automation earned, one rail
 import { KENNEL_ORDERS, KENNEL_TIP, KENNEL_WORD, kennelShown } from "./pets";
 import { ASCEND_ORDERS, ASCEND_WORD, ascendOrderShown, isShared, LEGACY_ORDERS, LEGACY_TIP, LEGACY_WORD, legacyOrderShown, manyBloodlines, perkNodes, RANKS_ORDERS, RANKS_WORD, ranksOrderShown, toggleShared, type ShareKey } from "./orders";   // Cut 120: one orders sheet   // Cut 119: the kennel keeper's order
+import { orderOffer } from "./order-offer";   // Cut 120 option B: Legacy and ranks offered once
 import { campFeats, featOrderBits, heirOrderShown, HEIR_ORDERS, HEIR_WORD, SINK_ORDERS, SINK_WORD, sinkHandChip } from "./feats";   // Cut 118: seek · trial · wish; the heir and sink orders
 
 const SET_NAME_MAX = 12;
@@ -254,7 +255,8 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
   const batch = checkinBatch(app);
   const ladder = controlLadder(app, { orders: () => openOrders() });   // Cut 120 §8: the orders rung opens the orders sheet
   const feats = campFeats(app);
-  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, batch.el, ladder.el, feats.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
+  const offer = orderOffer(app);
+  const well = h("div", { class: "well camp-well" }, busyStrip, town.el, pick.el, batch.el, ladder.el, feats.el, offer.el, tabs, h("div", { class: "camp-main" }, h("div", { class: "tablets" }, pkgStrip.el, routeTab, editor.el, cageTab, startTab, ordersTab, wallBox, repeatAdd, oathTab), shaft.el, metersSlot(campMeters(app))));
   // QA 0c6e126 (qaZ: `heir rests 20m · send skips rest` half under the console on every camp — the well's last line, cut by its scroll):
   // the rest line sits under the well, outside the scroll (the well-wrap's third row), always whole
   // RUNS_UI (docs/RUNS_UI.md §2): the run lanes take the rest line's place — one row per hero (live · rests · waits), the log at its end
@@ -1005,5 +1007,5 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
   const shownAt = anyNew(app.lineage) && app.engine.seenSystems ? performance.now() : -1;
   const seen = (): void => { if (shownAt >= 0 && performance.now() - shownAt >= SEEN_MS) app.seenPending = true; };   // the send clears them (watch.ts)
   const offLive = app.onLive(() => { paintRest(); if (String(isLive() ? 1 : 0) !== send.dataset.live) paintSend(); });
-  return { el, dispose: () => { pick.dispose(); batch.dispose(); ladder.dispose(); feats.dispose(); window.removeEventListener("riddle:focus-hero",focusHome); offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
+  return { el, dispose: () => { pick.dispose(); batch.dispose(); ladder.dispose(); feats.dispose(); offer.dispose(); window.removeEventListener("riddle:focus-hero",focusHome); offLive(); lanes.dispose(); town.dispose(); exposeTown(null); wellRo?.disconnect(); off(); offRules(); offShelf(); offShadow(); clearTimeout(residentTimer); seen(); fc.dispose(); shaft.dispose(); scene.dispose(); bar.dispose(); setPanelEscape(null); audio.drone(null); setBusyHost(null); } };
 }
