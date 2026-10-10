@@ -18,6 +18,7 @@ import type { Death, DrivenOff, ExitLine, Patch, ReturnReport, Row } from "../en
 import { morgueVerbs } from "./chain";
 import { lastRun, replayable } from "./runlog";
 import { siegeText } from "./feats";
+import { fetchedLine } from "./pets";   // Cut 119: `Rook brought $47` — the pet that carried the pack home
 import { openReplay } from "./replay";
 import { h, copyText, items, replace } from "./dom";
 import { clearStrip } from "./runclear";   // run-clear: the death's header strip
@@ -405,6 +406,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
   const epitaph = mem?.epitaph ? h("div", { class: "memorial-epitaph dim" }, mem.name ? `${mem.name} · ${mem.epitaph}` : mem.epitaph,
     mem.grave_gold ? h("small", { class: "memorial-grave num" }, /* copy:callout */ ` · pack $${mem.grave_gold} on D${d.depth}`) : "") : null;
   const heirs = kept || from ? null : heirsFold(app);
+  const fetched = stalled ? null : fetchedLine(d, app.lastAbsence?.report);
   const well = h("div", { class: "well death-well" },
     d.hero?.name ? unitLabel(d.hero.class, h("span", null, d.hero.name, ` · ${d.hero.class}`, /* copy:label */ ` · Bloodline ${d.hero.bloodline_id}`), { hero: true, art: unitPortrait(d.hero.class, 64, true), className: "death-hero num dim" }) : null,
     memLead,
@@ -412,6 +414,7 @@ export function renderDeath(app: App, d: Death, lost: string[] = [], kept = fals
       // The framed killer portrait stays centered above the cause text.
       luckLead, line)),
     epitaph,
+    fetched,
     // run-clear: the death screen is a death's card — its header carries the floor, a new best, the finds left in the bones
     kept || from ? null : clearStrip(d.line),
     ...(prePen ? [whyEl, trainingBlock(d.line?.packages, training), now, heirs] : [whyEl, trainingBlock(d.line?.packages, training), details, now, heirs, more, tail]));
@@ -758,11 +761,17 @@ export function heirsFold(app: App): HTMLElement | null {
   if (offer.length < 2 || !app.engine.setTrait) return null;
   const el = h("details", { class: "heirs-fold", "data-heirs": offer.length });
   const paint = (): void => {
-    const born = app.lineage.heir_traits?.born?.chip;
+    const born = app.lineage.heir_traits?.born;
+    const cards = app.lineage.heir_traits?.offer ?? offer;
+    // Cut 119 real-wasm check: a worn temperament package can stand in for the order's card (`light hands`, not on offer) — the fold
+    // shows the worn one lit first so it never reads as nobody chosen; a tap on an offered card still swaps (`setTrait`)
+    const worn = born && !cards.some((c) => c.chip === born.chip)
+      ? h("span", { class: "chip heir-card worn on num", "data-chip": born.chip, "aria-pressed": "true", title: born.formula }, born.chip, h("small", { class: "dim" }, /* copy:callout */ " · worn"))
+      : "";
     replace(el, h("summary", { class: "dim num" }, /* copy:button */ "other heirs"),
-      h("div", { class: "chips" }, ...(app.lineage.heir_traits?.offer ?? offer).map((c) => h("button", {
-        class: `chip heir-card num${c.chip === born ? " on" : ""}${c.source === "answer" ? " answers" : ""}`, "data-chip": c.chip, "aria-pressed": c.chip === born ? "true" : "false", title: c.formula,
-        onclick: () => { if (c.chip === born) return; void app.mutate(() => app.engine.setTrait!(c.chip), /* copy:callout */ "heir").then((ok) => { if (ok && el.isConnected) paint(); }); },
+      h("div", { class: "chips" }, worn, ...cards.map((c) => h("button", {
+        class: `chip heir-card num${c.chip === born?.chip ? " on" : ""}${c.source === "answer" ? " answers" : ""}`, "data-chip": c.chip, "aria-pressed": c.chip === born?.chip ? "true" : "false", title: c.formula,
+        onclick: () => { if (c.chip === born?.chip) return; void app.mutate(() => app.engine.setTrait!(c.chip), /* copy:callout */ "heir").then((ok) => { if (ok && el.isConnected) paint(); }); },
       }, c.chip, c.source === "answer" ? h("small", { class: "dim" }, /* copy:callout */ " · answers") : ""))));
   };
   paint();

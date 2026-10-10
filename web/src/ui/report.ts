@@ -55,7 +55,7 @@ import { kingLine } from "./king-eta";   // Cut 118 §9: the ending in sight
 import { featLines, findsReveal, setLog } from "./feats";   // Cut 118: the finds' one reveal, the feats, the set log
 /** Cut 118 (core ledger terms): what the new terms count — a grave's pack brought home, the sinks after Kit complete. */
 /* copy:callout */
-const TERM_GLOSS: Record<string, string> = { recovered: "graves brought home", sinks: "tithe · rations · survey" };
+const TERM_GLOSS: Record<string, string> = { recovered: "graves brought home", sinks: "tithe · rations · survey", fetched: "packs pets carried" };   // Cut 119: `fetched`
 
 
 /** Persisted unlock IDs belong to the wire; report text uses catalogue words. */
@@ -807,7 +807,9 @@ function fallenLines(r: ReturnReport): HTMLElement | null {
   const f = r.fallen ?? [];
   if (!f.length) return null;
   return h("section", { class: "rsec fallen-sec" }, h("div", { class: "label" }, /* copy:label */ "fallen"),
-    h("ul", { class: "lines fallen" }, ...f.map((x) => h("li", { class: "fallen-line num" }, h("b", null, x.name), ` · ${x.kind.replace(/_/g, " ")} L${x.level} · `, h("span", { class: "dim" }, x.why)))));
+    h("ul", { class: "lines fallen" }, ...f.map((x) => h("li", { class: "fallen-line num" }, h("b", null, x.name), ` · ${x.kind.replace(/_/g, " ")} L${x.level} · `,
+      // Cut 119: down, not gone — a lamed pet sits out a few runs, its level kept
+      x.lamed ? h("span", { class: "lamed", title: /* copy:tooltip */ "sits out a few runs · level kept" }, /* copy:callout */ "lamed", " · ") : "", h("span", { class: "dim" }, x.why)))));
 }
 
 /** Cut 29 §2: the systems this absence opened — each its icon and name on a plaque that glints once (no tutorial text: the camp's tile or

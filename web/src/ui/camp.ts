@@ -54,6 +54,7 @@ import { kwHost } from "./tips";
 import { returnPick } from "./return-pick";   // Cut 113 §3: the return's pick waits on the camp
 import { checkinBatch } from "./checkin";   // Cut 117 §5: the routine buys of a return in one chip
 import { controlLadder } from "./ladder";   // Cut 118 §7: the automation earned, one rail
+import { KENNEL_ORDERS, KENNEL_TIP, KENNEL_WORD, kennelShown } from "./pets";   // Cut 119: the kennel keeper's order
 import { campFeats, featOrderBits, heirOrderShown, HEIR_ORDERS, HEIR_WORD, SINK_ORDERS, SINK_WORD, sinkHandChip } from "./feats";   // Cut 118: seek · trial · wish; the heir and sink orders
 
 const SET_NAME_MAX = 12;
@@ -668,6 +669,8 @@ export function renderCamp(app: App, highlight?: number, sendNow = false): Mount
           heirOrderShown(app.lineage) ? row(/* copy:label */ "next heir", ...HEIR_ORDERS.map((x) => pick(o.heir, x, HEIR_WORD[x], act({ heir: x }, /* copy:callout */ "heirs")))) : null,
           // Cut 118 §4: the apprentice's sinks after Kit complete (a ration a send, the tithe on the hour), and one sink by hand
           apprenticeOn() && o.sink && (app.lineage.feats?.sinks.length ?? 0) > 0 ? row(/* copy:label */ "apprentice sinks", ...SINK_ORDERS.map((x) => pick(o.sink, x, SINK_WORD[x], act({ sink: x }, /* copy:callout */ "sinks")))) : null,
+          // Cut 119 §4: the kennel keeper's order — breed (default) · best · off; set once, nobody prompted
+          kennelShown(app.lineage) ? row(/* copy:label */ "kennel keeper", ...KENNEL_ORDERS.map((x) => { const b = pick(o.kennel, x, KENNEL_WORD[x], act({ kennel: x }, /* copy:callout */ "kennel")); b.title = KENNEL_TIP[x]; b.dataset.kennel = x; return b; })) : null,
           o.sink ? (() => { const c = sinkHandChip(app, () => { if (body.isConnected) { replace(rows, ...build()); paintOrders(); } }); return c ? row(/* copy:label */ "by hand", c) : null; })() : null,
         ].filter((x): x is HTMLElement => !!x); };
         const rows = h("div", { class: "order-rows" }, ...build());

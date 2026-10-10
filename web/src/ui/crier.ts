@@ -13,11 +13,12 @@ import type { FeatNews, Lineage, ReturnReport } from "../engine/types";
 import { h, replace } from "./dom";
 import { openWindow } from "./sheet";
 import { bossName } from "./report-bosses";
+import { petCries } from "./pets";
 
 export type Cry = { k: string; short: string; long: string; day?: number };
 const MOST = 6;
 /** most notable first */
-const RANK = ["boss", "siege_won", "title", "trial", "record", "seek", "avenged", "set", "first", "quest", "oath", "built", "recovered", "worker", "wish", "swift", "bounty", "tamed"];
+const RANK = ["boss", "siege_won", "title", "trial", "record", "seek", "avenged", "set", "first", "quest", "oath", "built", "fetched", "old_hound", "pet_synergy", "recovered", "pet_sig", "worker", "wish", "swift", "bounty", "tamed", "bred"];   // Cut 119: the pet cries
 /** Cut 118: a core feat in the hero's voice — `short` ≤ 3 words for the chrome, `long` the diary's (≤ 8 words); null for the report's quiet
  *  facts (the heir chosen, a siege try, a trial failed). */
 function featCry(f: FeatNews): Cry | null {
@@ -60,6 +61,7 @@ export function cries(r: ReturnReport, L: Pick<Lineage, "walls">): Cry[] {
     if (slain) { const c = out.find((x) => x.k === "boss" && x.day === undefined && x.long.toLowerCase().includes(slain[1].toLowerCase())); if (c) c.day = n.day; }
   }
   for (const f of r.feats ?? []) { const c = featCry(f); if (c) out.push(c); }
+  out.push(...petCries(r));   // Cut 119: a pet's deeds in his words (one fetch a pet, an old hound, a synergy, an egg, a signature)
   for (const beat of r.packages ?? []) {
     const q = /^quest done(?: · (.+))?$/i.exec(beat);
     if (q) { out.push({ k: "quest", short: /* copy:callout */ "quest done", long: q[1] ? /* copy:diary_line */ `I finished the quest · ${q[1]}` : /* copy:diary_line */ "I finished the board's quest" }); continue; }

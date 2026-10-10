@@ -1,0 +1,26 @@
+/* Cut 119: the companions' quiet chrome — the role first on the card (a 7 px glyph scaled crisp), the XP bar, the meta line (lame ·
+   heirs · grudge), the old hound's mark; the death's fetch line; the report's pet line. Palette only; small; nothing pulses. */
+.pet-role { display: inline-flex; align-items: center; gap: 3px; font: 600 11px/1 var(--control-font, inherit); letter-spacing: .04em; text-transform: uppercase; color: #bdc5d5; margin-right: 4px; vertical-align: middle; }
+.pet-role-glyph { display: inline-block; width: 14px; height: 14px; flex: 0 0 auto; vertical-align: middle; }
+.pet-role-glyph svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.pet-role.role-fetcher { color: #d9b878; }
+.pet-role.role-guard { color: #9fb2cf; }
+.pet-role.role-scout { color: #b9d4ea; }
+.pet-role.role-mender { color: #e7a1ae; }
+.pet-name { font-weight: 700; }
+.pet-xp { display: block; height: 3px; margin: 2px 0 1px; max-width: 120px; background: #2a3346; border-radius: 1px; overflow: hidden; }
+.pet-xp-fill { display: block; height: 100%; background: #bda36b; }
+.pet-meta { display: block; font-size: 12px; color: #bdc5d5; }
+.pet-meta .pet-lame { color: #e0907a; }
+.pet-meta .pet-tenure.hound { color: var(--acc, #dbba7c); }
+.pet-meta .pet-grudge { color: #d98a8a; }
+.card.comp.lamed .pet-face { filter: grayscale(.7) brightness(.8); }
+.pet-sigs .pet-sig.on { color: var(--acc, #dbba7c); }
+.pet-fetched { margin: 2px 0; font-size: 13px; color: var(--bone, #eadfc5); display: flex; align-items: center; gap: 4px; justify-content: center; }
+.report-feats .feat-line.pet-line { list-style: none; margin-left: -16px; }
+.report-feats .feat-line.k-fetched, .report-feats .feat-line.k-old_hound { color: var(--bone, #eadfc5); }
+.report-feats .feat-line .pet-role-glyph { width: 12px; height: 12px; margin-right: 4px; }
+.fallen-line .lamed { color: #e0907a; }
+.build-pet-synergy { color: var(--acc, #dbba7c); }
+.pkg-drill.tame-drill .counter-face { display: inline-flex; align-items: center; justify-content: center; }
+.heirs-fold .heir-card.worn { opacity: .9; }

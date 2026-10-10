@@ -137,6 +137,7 @@ export class WasmEngine implements Engine {
   takeControl(on: boolean): void { this.game.takeControl(on); }
   act(action: ManualAct): void { this.game.act(JSON.stringify(action)); }
   revokeDrill(boss: string, revoked: boolean): Lineage { return this.call("revokeDrill", boss, revoked); }
+  revokeTame(revoked: boolean): Lineage { return this.call("revokeTame", revoked); }   // Cut 119
   packageOptions(sims: number): PkgOption[] { return this.call("packageOptions", sims); }
   packageOptionsFor(sims: number, choices: [string, number][]): PkgOption[] {
     if (typeof this.g?.packageOptionsFor !== "function") return this.packageOptions(sims).filter((o) => o.action === "equip" && choices.some(([id, slot]) => o.id === id && o.slot === slot));

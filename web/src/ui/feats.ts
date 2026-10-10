@@ -11,6 +11,7 @@ import { h, replace, toast, twoTap } from "./dom";
 import { openWindow } from "./sheet";
 import { detailHost } from "./tips";
 import { audio } from "../audio";
+import { KENNEL_WORD, PET_KINDS, petLines, roleGlyph, type PetLine } from "./pets";   // Cut 119: the pet feats, the kennel order
 
 /** `Queen · 4 tries · best 22%` (the siege on a band boss; `best` the lowest hp % he was left on). */
 export const siegeText = (s: SiegeWire): string => /* copy:callout */ `${s.title} · ${s.tries} ${s.tries === 1 ? "try" : "tries"} · best ${s.best_pct}%`;
@@ -146,7 +147,8 @@ export const SINK_ORDERS = ["both", "ration", "tithe", "off"] as const;
 /** The orders summary's Cut 118 bits — only an order off its default reads (`heirs strongest`, `sinks off`). */
 export function featOrderBits(o: StandingOrders): string[] {
   return [o.heir && o.heir !== "answer" ? /* copy:callout */ `heirs ${HEIR_WORD[o.heir] ?? o.heir}` : "",
-    o.sink && o.sink !== "both" ? /* copy:callout */ `sinks ${SINK_WORD[o.sink] ?? o.sink}` : ""].filter(Boolean);
+    o.sink && o.sink !== "both" ? /* copy:callout */ `sinks ${SINK_WORD[o.sink] ?? o.sink}` : "",
+    o.kennel && o.kennel !== "breed" ? /* copy:callout */ `kennel ${KENNEL_WORD[o.kennel] ?? o.kennel}` : ""].filter(Boolean);
 }
 
 /** The heir order is shown once a heir has died (the `heirs` rung lit), or as soon as the core sends a non-default one. */
@@ -203,7 +205,9 @@ const FEAT_RANK = ["siege_won", "title", "trial", "seek", "siege", "set", "heir"
 /** The report's feat lines (`ReturnReport.feats`): the first three on the card, the rest under details. Siege tries are summed into the
  *  siege line (`Queen · 4 tries · best 22%`), one per boss. */
 export function featLines(r: ReturnReport, L: Pick<Lineage, "feats">): { card: HTMLElement | null; rest: HTMLElement | null } {
-  const fs = [...(r.feats ?? [])];
+  // Cut 119: the pet feats condense apart (one fetch line a pet, one old-hound line …): one leads on the card, the rest under details
+  const fs = (r.feats ?? []).filter((f) => !PET_KINDS.has(f.k));
+  const pets = petLines(r.feats);
   const sieged = new Set<string>();
   const lines: { k: string; text: string; day?: number }[] = [];
   for (const f of fs.sort((a, b) => rank(a) - rank(b))) {
@@ -217,10 +221,13 @@ export function featLines(r: ReturnReport, L: Pick<Lineage, "feats">): { card: H
     }
     lines.push({ k: f.k, text: f.text, day: f.day });
   }
-  if (!lines.length) return { card: null, rest: null };
+  if (!lines.length && !pets.length) return { card: null, rest: null };
   const li = (x: { k: string; text: string; day?: number }): HTMLElement => h("li", { class: `num feat-line k-${x.k}`, "data-k": x.k, title: x.day ? /* copy:tooltip */ `day ${x.day}` : undefined }, x.text);
-  return { card: h("ul", { class: "lines report-feats" }, ...lines.slice(0, 3).map(li)),
-    rest: lines.length > 3 ? h("ul", { class: "lines report-feats more" }, ...lines.slice(3).map(li)) : null };
+  const pli = (x: PetLine): HTMLElement => h("li", { class: `num feat-line pet-line k-${x.k}`, "data-k": x.k, title: x.title ?? (x.day ? /* copy:tooltip */ `day ${x.day}` : undefined) },
+    x.k === "fetched" ? roleGlyph("fetcher") : "", x.text);
+  const card = [...lines.slice(0, 3).map(li), ...pets.slice(0, 1).map(pli)], rest = [...lines.slice(3).map(li), ...pets.slice(1).map(pli)];
+  return { card: h("ul", { class: "lines report-feats" }, ...card),
+    rest: rest.length ? h("ul", { class: "lines report-feats more" }, ...rest) : null };
 }
 const rank = (f: FeatNews): number => { const i = FEAT_RANK.indexOf(f.k); return i < 0 ? FEAT_RANK.length : i; };
 

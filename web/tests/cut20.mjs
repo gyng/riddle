@@ -78,7 +78,7 @@ try {
     b.engine = JSON.stringify(e); await r.importSave(JSON.stringify(b));
   });
   await sleep(400);
-  const party = async () => page.evaluate(() => ({ ids: window.__riddle.lineage.party.map((c) => c.id), cards: [...document.querySelectorAll(".party .card.comp")].map((c) => ({ name: c.querySelector(".name small")?.textContent?.trim(), on: c.classList.contains("on"), x: !!c.querySelector(".drop-pet") })) }));
+  const party = async () => page.evaluate(() => ({ ids: window.__riddle.lineage.party.map((c) => c.id), cards: [...document.querySelectorAll(".party .card.comp")].map((c) => ({ name: c.querySelector(".pet-name")?.textContent?.trim(), on: c.classList.contains("on"), x: !!c.querySelector(".drop-pet") })) }));
   await page.locator(".cmd .tile[data-tile=party]").click({ timeout: 5000 }).catch(() => {});
   await sleep(200);
   const cardBtn = (name) => page.locator(".party .card.comp", { hasText: name }).locator(".comp-main");

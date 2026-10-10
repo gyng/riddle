@@ -18,6 +18,7 @@ import { packageIcon, foeSrc, icon, verbIcon } from "./skin";
 import { itemIcon } from "./items";
 import { sysOpen } from "./systems";
 import { kw, kwHost } from "./tips";
+import { roleGlyph } from "./pets";   // Cut 119: the tame drill's glyph
 import { penWaits, type Term } from "./concepts";
 
 /** The lineage climbs on packages (a Cut 30 core, not a harness's literal set). */
@@ -287,7 +288,22 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       const drills = P.drills ?? [];
       const scars = new Map(P.scars ?? []);
       const extra: HTMLElement[] = [];
-      if (drills.length || scars.size) {
+      // Cut 119 item 0: the default tame row (`tames strays`) is a drill like the others — shown, one tap revokes it, it stays revoked
+      const pets = app.lineage.pets, tame = pets && (app.lineage.unlocks?.includes("tame") || pets.tame_revoked) ? pets : undefined;
+      const tameLine = tame ? (() => {
+        const can = !!(app.engine.revokeTame ?? app.engine.revokeDrill);
+        const toggle = h("button", { class: `chip mini drill tame${tame.tame_revoked ? "" : " on"}`, disabled: !can, "data-drill": "tame",
+          "aria-pressed": String(!tame.tame_revoked), "aria-label": tame.tame_revoked ? /* copy:label */ "Enable taming" : /* copy:label */ "Disable taming",
+          onclick: (e: Event) => {
+            const button = e.currentTarget as HTMLButtonElement; button.disabled = true;
+            const next = !tame.tame_revoked;
+            void app.mutate(() => (app.engine.revokeTame ? app.engine.revokeTame(next) : app.engine.revokeDrill!("tame", next)), undefined, true).then(() => paint()).finally(() => { if (button.isConnected) button.disabled = !can; });
+          } }, tame.tame_revoked ? /* copy:button */ "Off" : /* copy:button */ "On");
+        return h("div", { class: `pkg-drill tame-drill${tame.tame_revoked ? " revoked" : ""}`, "data-boss": "tame" },
+          h("span", { class: "counter-face", "aria-hidden": "true" }, roleGlyph("tame")),
+          h("div", { class: "counter-copy" }, h("b", { class: "counter-name" }, tame.tame), h("small", { class: "dim" }, /* copy:callout */ "leash · open slot")), toggle);
+      })() : null;
+      if (drills.length || scars.size || tameLine) {
         const boss = (b: string): string => b.replace(/^goblin_/, "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
         const lines = [...new Set([...drills.map((d) => d.boss), ...scars.keys()])].map((b) => {
           const d = drills.find((x) => x.boss === b), sc = scars.get(b) ?? d?.scar ?? 0;
@@ -312,7 +328,7 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
               actions.length ? h("div", { class: "counter-actions" }, ...actions) : null,
               sc > 0 ? h("small", { class: "scar num" }, /* copy:label */ `Boss HP −${sc}%`) : null), toggle);
         });
-        extra.push(h("section", { class: "pkg-sec drills" }, h("div", { class: "label pkg-head" }, kw("drill", /* copy:label */ "boss counters")), ...lines));
+        extra.push(h("section", { class: "pkg-sec drills" }, h("div", { class: "label pkg-head" }, kw("drill", /* copy:label */ "boss counters")), ...lines, tameLine ?? ""));
       }
       // the compiled rows, folded: each its package, a shadowed one greyed with its winner
       extra.push(rowsFold(app, P));
@@ -328,7 +344,9 @@ export function openPackages(app: App, anchor?: HTMLElement | null, initialKind?
       const head = headline(app);
       // Cut 115 §1: the build the picks make — its name, and a pair's synergy and effect
       const build = P.build ? h("div", { class: "pkg-build", "data-build": P.build.name, "data-synergy": P.build.synergy ?? "" }, h("b", { class: "build-name" }, P.build.name),
-        P.build.effect ? h("small", { class: "build-effect dim" }, ` · ${P.build.effect}`) : "") : "";
+        P.build.effect ? h("small", { class: "build-effect dim" }, ` · ${P.build.effect}`) : "",
+        // Cut 119 §5: a pet + build pair formed (`Falconer`), its effect on hover
+        P.build.pet_synergy ? h("small", { class: "build-pet-synergy", "data-pet-synergy": P.build.pet_synergy, title: P.build.pet_effect }, ` · ${P.build.pet_synergy}`) : "") : "";
       replace(body, h("div", { class: "pkg-top" }, h("div", { class: "label row-label" }, kw("package", /* copy:label */ "tactics")), head ? h("b", { class: "pkg-headline num" }, kw("reach", head)) : ""), build, ...secs, compareButton, opts ? h("small", { class: "dim pkg-estimate", title: opts.some((o) => o.n) ? /* copy:tooltip */ "same seeds both sides · a send better or worse" : /* copy:tooltip */ "Small sample · minor differences unclear" }, compareSummary(opts)) : "", deeper, more);
     };
     const changed = (): void => { compare = false; reading = null; paint(); };

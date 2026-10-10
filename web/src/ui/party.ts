@@ -12,6 +12,7 @@ import { renderEditor } from "./editor";
 import { closeAllSheets, openWindow as openSheet } from "./sheet";
 import { cloneSet } from "../app";
 import { paintPortrait, paintSprite } from "./frame";
+import { petMeta, petTip, roleBadge, xpBar } from "./pets";   // Cut 119: the role first, the XP bar, lame · heirs · grudge, the tip
 
 const nice = (s: string): string => s.replace(/_/g, " ");
 
@@ -33,7 +34,7 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
       canBreed ? h("button", { class: `mini game-control${breeding ? " on" : ""}`, onclick: () => { breeding = breeding ? null : []; refresh(); if (breeding) toast(/* copy:callout */ "pick two"); } }, /* copy:button */ "breed") : "");
     for (const c of all) cards.appendChild(card(c, L.party.includes(c)));
     for (const e of L.eggs) {
-      eggs.appendChild(h("span", { class: "chip egg", "data-egg": e.id }, "◯ ", nice(e.kind), h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),
+      eggs.appendChild(h("span", { class: "chip egg", "data-egg": e.id }, "◯ ", nice(e.kind), e.sire ? h("small", { class: "egg-sire" }, ` · ${e.sire}`) : "", h("small", { class: "dim" }, ` ${e.tags.map(nice).join(" ")} g${e.gen}`),   // Cut 119: a bred egg names its sire
         // QA e75ec29 (R: "the $50 chip drawn dim charged $50 on one tap … stayed PARTY 0/1"): `hatch $50`, a second tap pays, and the
         // hatchling joins the party when a slot is free
         e.from_loss ? twoTap(/* copy:button */ "hatch $50", /* copy:button */ "ok $50", () => void hatch(e.id), { class: "mini hatch game-control", disabled: L.gold < 50 }) : h("b", { class: "num" }, ` ${e.hatch_in}`)));
@@ -74,12 +75,21 @@ export function renderParty(app: App): { el: HTMLElement; refresh(): void } {
       void app.mutate(() => app.engine.setParty([...ids, c.id].slice(-(app.lineage.party_slots || 1))));
     };
     const dismiss = (e: Event): void => { e.stopPropagation(); void app.mutate(() => app.engine.setParty(app.lineage.party.map((p) => p.id).filter((x) => x !== c.id))); };
-    return h("div", { class: `card comp${inParty ? " on" : ""}${picked ? " pick" : ""}${breeding && c.level < 2 ? " off" : ""}` },
+    // Cut 119: the role first (glyph + word), then the name — its generation is the core's (`Rook III`) — and the level, the XP bar, the
+    // quiet meta line (`lame 2 · 4 heirs · grudge King`); the kind, the signatures and the deeds are the tip. A pre-Cut 119 pet (no
+    // `life`) keeps the old face: kind · name · L · g.
+    const role = roleBadge(c), lame = c.life?.lame ?? 0;
+    const name = role
+      ? h("span", { class: "name" }, role, h("span", { class: "pet-name" }, c.name), " ", h("b", { class: "num" }, `L${c.level}`))
+      : h("span", { class: "name" }, nice(c.kind), " ", h("small", { class: "dim pet-name" }, c.name), " ", h("b", { class: "num" }, `L${c.level}`), h("small", { class: "dim num" }, ` g${c.gen}`));
+    const main = h("button", { class: "comp-main game-control", onclick: onTap, "data-role": c.life?.role ?? "" },
+      name, xpBar(c) ?? "", petMeta(app.lineage, c) ?? "",
+      h("span", { class: "tags dim" }, c.tags.map(nice).join(" · ")),
+      h("span", { class: "hp num dim" }, `${c.hp}/${c.max_hp} · ${c.rules.rows.length}/${c.max_rows}`));
+    petTip(main, app.lineage, c);
+    return h("div", { class: `card comp${inParty ? " on" : ""}${picked ? " pick" : ""}${breeding && c.level < 2 ? " off" : ""}${lame ? " lamed" : ""}`, "data-pet": c.id },
       petFace(c.kind),
-      h("button", { class: "comp-main game-control", onclick: onTap },
-        h("span", { class: "name" }, nice(c.kind), " ", h("small", { class: "dim" }, c.name), " ", h("b", { class: "num" }, `L${c.level}`), h("small", { class: "dim num" }, ` g${c.gen}`)),
-        h("span", { class: "tags dim" }, c.tags.map(nice).join(" · ")),
-        h("span", { class: "hp num dim" }, `${c.hp}/${c.max_hp} · ${c.rules.rows.length}/${c.max_rows}`)),
+      main,
       h("button", { class: "grip game-control", "aria-label": `${c.name} rules`, onclick: () => openRules(app, c) }, "≡"),
       inParty && !breeding ? h("button", { class: "x drop-pet game-control", "aria-label": "×", onclick: dismiss }, "×") : "");
   }
