@@ -232,7 +232,7 @@ try {
   const small = lay.tiles.filter((t) => t.w < 44 || t.h < 44), outside = lay.tiles.filter((t) => t.l < 0 || t.r > lay.vw + 0.5);
   check(small.length === 0, `360 px: every tile ≥ 44 px (${small.map((t) => `${t.id} ${Math.round(t.w)}×${Math.round(t.h)}`).join(", ") || `${lay.tiles.length} tiles`})`);
   check(outside.length === 0 && lay.scroll <= lay.vw && lay.slabR <= lay.vw + 0.5, `360 px: nothing past the edge (scroll ${lay.scroll} / ${lay.vw}, slab ${Math.round(lay.slabL)}–${Math.round(lay.slabR)})`);
-  check(!lay.keys, "a phone shows no key hints");
+  check(lay.keys, "a phone shows the key hints too (owner 2026-10-10)");
   check(lay.ta === "manipulation", `the pad kills double-tap zoom (touch-action ${lay.ta})`);
   mkdirSync(shotDir, { recursive: true });
   const shot = `${shotDir.replace(/\/$/, "")}/phone-360-control.png`;

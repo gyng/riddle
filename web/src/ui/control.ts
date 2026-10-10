@@ -102,7 +102,8 @@ export function controlPanel(engine: ControlEngine, kick: () => void): Control {
   const verbs = h("div", { class: "cmd ctl-verbs", role: "group", "aria-label": "act" });
   // blind b58b431 (A: arrows and `descend` inert in gas — no response at all): the last order's outcome, the core's words
   const note = h("div", { class: "ctl-note num", role: "status", "aria-live": "polite" });
-  const el = h("div", { class: "ctl ctl-slab", "data-on": "0" }, toggleSlot, pad, verbs, note);
+  // owner 2026-10-10 (phone ergonomics): the pad leads, the hand toggle between it and the actions
+  const el = h("div", { class: "ctl ctl-slab", "data-on": "0" }, pad, toggleSlot, verbs, note);
   const refused = (why: string): void => { note.textContent = why; note.dataset.refused = "1"; buzz(); stopDrive(); };
   const send = async (a: ManualAct, driven = false): Promise<void> => {
     if (!mine || busy || !engine.act) return;

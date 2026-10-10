@@ -384,9 +384,9 @@ html body .ctl .cmd .tile.ctl-verb .tl, html body .ctl .cmd .tile.ctl-toggle .tl
 /* owner 2026-10-10 ("keyboard works? and consider mobile/touch"): each tile's key in its corner where a mouse hovers (a phone has no
    keys); the slab never zooms on a double tap nor selects on a long press; under 480 px the actions go icon-only (the word in the
    tooltip and aria-label), the toggle narrows — every tile still ≥ 44 px, nothing past the edge at 360 */
-.ctl .ctl-key { display: none; position: absolute; top: 2px; right: 3px; padding: 0; border: 0; background: none; color: #c4baa1; opacity: .7;
+.ctl .ctl-key { display: block; position: absolute; top: 2px; right: 3px; padding: 0; border: 0; background: none; color: #c4baa1; opacity: .7;
   font: 600 9px/1 var(--mono, ui-monospace, monospace); pointer-events: none; text-shadow: 0 1px 1px var(--ink); }
-@media (hover: hover) and (pointer: fine) { .ctl .ctl-key { display: block; } }
+/* owner 2026-10-10: the shortcut shows on every button, touch included */
 .ctl .ctl-pad, .ctl .ctl-verbs, .ctl .ctl-toggle-slot { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 @media (max-width: 479px) {
   .ctl.ctl-slab { gap: 6px; padding: 6px 4px; }
