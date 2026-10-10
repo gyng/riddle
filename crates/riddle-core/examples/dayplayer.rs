@@ -14,6 +14,9 @@ mod jobcache;
 #[path = "dayplayer_checkpoint/mod.rs"]
 mod checkpoint_game;
 
+/// Cut 121 §1–2: the PICKED+L bars' names (dayplayer_rows reads them).
+const PICKED_L_KING: &str = "PICKED+L King no sooner than day 7 (median), never before day 4";
+const PICKED_L_PURSE: &str = "PICKED+L purse at day 3 spent ≥ 50 % of income since Kit complete";
 /// Milestones (Cut 30 §6: time-to-milestone = simulated hours to reach each).
 const MILESTONES: [u32; 7] = [8, 13, 18, 23, 28, 29, 33];
 const SYSTEMS: [&str; 6] = ["packages", "pen", "forge", "pets", "bank", "quests"];
@@ -33,6 +36,8 @@ enum Bot {
     Daily,
     /// Cut 30.5 (the owner): the away player — PICKED looking in every 2–3 days (workers pay here)
     Away,
+    /// Cut 121 §1: PICKED that spends Legacy `balanced` by hand at each check-in, as every human rater does
+    PickedL,
 }
 
 impl Bot {
@@ -46,6 +51,7 @@ impl Bot {
             Bot::Idle30 => "IDLE30",
             Bot::Daily => "DAILY",
             Bot::Away => "AWAY",
+            Bot::PickedL => "PICKED+L",
         }
     }
 }
@@ -131,6 +137,46 @@ struct SeedOut {
     unconserved: u32,
     #[serde(default)]
     chest_max: i64,
+    /// Cut 121 §2: the hours Kit complete came, the town's income (`income`) and wealth (purse + bank) then, and
+    /// at day 3's end the income since and the share of it spent (percent).
+    #[serde(default)]
+    kit_h: Option<f64>,
+    #[serde(default)]
+    kit_at: Option<(i64, i64)>,
+    #[serde(default)]
+    kit_spent_d3: Option<(i64, f64)>,
+    /// Cut 121 §1: the Legacy upgrades bought by hand (PICKED+L) and the points spent.
+    #[serde(default)]
+    legacy_buys: u32,
+}
+
+/// Cut 121 §2: the town's gold income so far (the hauls and the porter's, fetched and recovered gold).
+fn income(g: &Game) -> i64 {
+    let t = &g.lineage.gold_tally;
+    ["earned", "fetched", "recovered"].iter().map(|k| t.get(*k).copied().unwrap_or(0)).sum()
+}
+
+fn wealth(g: &Game) -> i64 {
+    g.lineage.gold as i64 + g.lineage.town.bank as i64
+}
+
+/// Cut 121 §1: the upgrade Legacy `balanced` would buy now (the order's own pick, whatever order stands).
+fn legacy_balanced_pick(g: &mut Game) -> Option<String> {
+    let old = std::mem::replace(&mut g.lineage.orders.legacy, "balanced".into());
+    let pick = riddle_core::tree::legacy_pick(&g.lineage);
+    g.lineage.orders.legacy = old;
+    pick
+}
+
+/// Cut 121 §1: PICKED+L's check-in: every upgrade `balanced` buys while the points pay (for the next run while away).
+fn spend_legacy(g: &mut Game, out: &mut SeedOut) {
+    for _ in 0..64 {
+        let Some(id) = legacy_balanced_pick(g) else { break };
+        if riddle_core::legacy::buy_next(g, &id).is_err() {
+            break;
+        }
+        out.legacy_buys += 1;
+    }
 }
 
 /// An own row into the pen (the compiled set's top): room is made from the pen's bottom.
@@ -641,6 +687,8 @@ enum Q {
     Has(&'static str),
     /// Cut 30.5: one check-in a day (the away player)
     Cadence,
+    /// Cut 121 §1: the Legacy spent by hand at a check-in (PICKED+L), asked only when an upgrade is affordable
+    Legacy,
 }
 
 fn answer(cfg: &Cfg, q: Q) -> u8 {
@@ -648,7 +696,7 @@ fn answer(cfg: &Cfg, q: Q) -> u8 {
         Q::Arm => match cfg.bot {
             Bot::Idle => 0,
             Bot::Random => 1,
-            Bot::Picked | Bot::Tuned | Bot::Daily | Bot::Away => 2,
+            Bot::Picked | Bot::Tuned | Bot::Daily | Bot::Away | Bot::PickedL => 2,
             Bot::Hands => 3,
             Bot::Idle30 => 4,
         },
@@ -659,6 +707,7 @@ fn answer(cfg: &Cfg, q: Q) -> u8 {
             _ => 0,
         },
         Q::Has(s) => cfg.has(s) as u8,
+        Q::Legacy => (cfg.bot == Bot::PickedL) as u8,
     }
 }
 
@@ -870,6 +919,10 @@ impl Play {
             if out.king_day.is_none() && g.lineage.kills.contains("mirror_king") {
                 out.king_day = Some(day + 1);
             }
+            if out.kit_h.is_none() && riddle_core::feats::kit_complete(&g.lineage) {
+                out.kit_h = Some(hours);
+                out.kit_at = Some((income(g), wealth(g)));
+            }
             out.king_left = g.lineage.feats.siege.get("mirror_king").map(|s| (s.best_pct, s.tries));
             if verbose && !rep.packages.is_empty() {
                 eprintln!("  [{}] day {} {}", cfg.label(), day + 1, rep.packages.join(" · "));
@@ -926,6 +979,11 @@ impl Play {
                         ph("pick", || pick_package(g, verbose, day, fresh));
                         *cool = if g.lineage.pkg.equipped() != stance { checkins as u32 } else { cool.saturating_sub(1) };
                         *last_key = Some((g.lineage.pkg.owned.len(), g.lineage.best_depth, g.lineage.pkg.offer.clone()));
+                    }
+                    // Cut 121 §1: PICKED+L spends its Legacy `balanced` by hand at each check-in (asked only when the
+                    // points buy an upgrade: PICKED and PICKED+L share a game until then)
+                    if legacy_balanced_pick(g).is_some() && ask.q(Q::Legacy) == 1 {
+                        spend_legacy(g, out);
                     }
                     if tuned {
                         let pets = || ask.has("pets");
@@ -1043,6 +1101,13 @@ impl Play {
         out.depth_area += best;
         out.quests = g.lineage.town.quests_done;
         out.gold_day.push(g.lineage.gold as i64 + g.lineage.town.bank as i64 - self.wealth0);
+        if day == 2 {
+            if let Some((i0, w0)) = out.kit_at {
+                let earned = income(g) - i0;
+                let kept = wealth(g) - w0;
+                out.kit_spent_d3 = Some((earned, if earned > 0 { 100.0 * (earned - kept) as f64 / earned as f64 } else { 100.0 }));
+            }
+        }
         out.stance_level_day.push(g.lineage.pkg.level(&g.lineage.pkg.stance));
         self.opened |= riddle_core::town::stage_set(&g.lineage).len() > self.stages0.len();
         // `DP_STAGES=1`: each day's new stages
@@ -1113,7 +1178,7 @@ impl Pool {
     fn push(&self, g: Group, cfgs: &[Cfg], days: usize, checkins: u64) {
         let weight = g.members.iter().map(|c| match cfgs[*c].bot {
             Bot::Tuned => 3,
-            Bot::Picked => 2,
+            Bot::Picked | Bot::PickedL => 2,
             _ => 1,
         });
         let left = g.state.as_ref().map_or(days as u64 * checkins, |p| (days - p.day) as u64 * checkins - p.ci);
@@ -1241,6 +1306,7 @@ fn main() {
             "idle30" => Some(Bot::Idle30),
             "daily" => Some(Bot::Daily),
             "away" => Some(Bot::Away),
+            "picked+l" | "pickedl" => Some(Bot::PickedL),
             _ => None,
         })
         .map(|bot| Cfg { bot, without: None })
@@ -1548,6 +1614,27 @@ fn main() {
         let mut sorted = falls.clone();
         sorted.sort_unstable();
         infos.push(("Cut 118: PICKED wealth no longer monotone by day 14 (seeds; median falling days)".into(), format!("{seeds_falling}/{n} · {}", sorted[n / 2])));
+    }
+    // Cut 121 §1: PICKED+L (PICKED spending its Legacy `balanced` by hand at each check-in, as every rater does) —
+    // the King no sooner than day 7 on the median seed and never before day 4 (an unslain seed counts as day 15);
+    // its D23 · D28 · D33 hours beside. §2: the purse at day 3 has spent ≥ 50 % of the gold earned since Kit
+    // complete (median over the seeds Kit complete reached by then).
+    let picked_l = by("PICKED+L");
+    if !picked_l.is_empty() {
+        let n = picked_l.len();
+        let kd: Vec<f64> = picked_l.iter().map(|o| o.king_day.map_or(days as f64 + 1.0, |d| d as f64)).collect();
+        let (km, kmin) = (median(kd.clone()), kd.iter().copied().fold(f64::INFINITY, f64::min));
+        let slain = picked_l.iter().filter(|o| o.king_day.is_some()).count();
+        bars.push((PICKED_L_KING.into(), format!("{km:.1} · min {kmin:.0} ({slain}/{n} slain)"), km >= 7.0 && kmin >= 4.0));
+        let hm = |i: usize| median(picked_l.iter().map(|o| hours_or(o, i, cap)).collect());
+        infos.push(("PICKED+L King day (median · min) · D23 · D28 · D33 (median h)".into(), format!("{km:.1} · {kmin:.0} · {:.0} · {:.0} · {:.0}", hm(3), hm(4), hm(6))));
+        let buys = median(picked_l.iter().map(|o| o.legacy_buys as f64).collect());
+        infos.push(("PICKED+L Legacy upgrades bought (median)".into(), format!("{buys:.0}")));
+        let spent: Vec<f64> = picked_l.iter().filter_map(|o| o.kit_spent_d3.map(|x| x.1)).collect();
+        let k = spent.len();
+        let m = if k > 0 { median(spent.clone()) } else { f64::NAN };
+        let earned = median(picked_l.iter().filter_map(|o| o.kit_spent_d3.map(|x| x.0 as f64)).collect());
+        bars.push((PICKED_L_PURSE.into(), format!("{m:.0}% ({k}/{n} seeds · earned ${earned:.0})"), k > 0 && m >= 50.0));
     }
     for (label, v) in [("IDLE", &idle), ("PICKED", &picked), ("TUNED", &tuned)] {
         if v.is_empty() {

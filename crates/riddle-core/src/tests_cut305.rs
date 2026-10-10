@@ -560,7 +560,9 @@ fn legacy_purchases_change_real_stats_persist_and_follow_the_bloodline() {
     use crate::engine::ExitTier;
     let mut g = Game::new_resident(19);
     g.lineage.orders.legacy = "off".into(); // (Cut 120 §1: purchases by hand)
-    g.lineage.bloodline.as_mut().unwrap().points = 54;
+    // (Cut 121 §1: three ranks of each on the Legacy curve)
+    let three: u32 = 3 * crate::legacy::ROOT_PRICES[..3].iter().sum::<u32>();
+    g.lineage.bloodline.as_mut().unwrap().points = three;
     let xp = g.lineage.classes.clone(); let gold = g.lineage.gold; let rules = g.lineage.rules().clone();
     let mut baseline = g.clone(); baseline.start_run(Some(991));
     let base = baseline.run.as_ref().unwrap().hero.clone();
@@ -568,7 +570,7 @@ fn legacy_purchases_change_real_stats_persist_and_follow_the_bloodline() {
     for id in crate::legacy::IDS { for _ in 0..3 { g.upgrade_hero(id).unwrap(); } }
     assert_ne!(key, crate::forecast::lineage_key(&g));
     assert_eq!(g.lineage.classes, xp); assert_eq!(g.lineage.gold, gold); assert_eq!(g.lineage.rules(), &rules);
-    let h = g.lineage.bloodline.as_ref().unwrap(); assert_eq!((h.points,h.spent), (0,54));
+    let h = g.lineage.bloodline.as_ref().unwrap(); assert_eq!((h.points,h.spent), (0,three));
     let mut g = Game::load(&g.save()).unwrap(); g.start_run(Some(991));
     let hero = &g.run.as_ref().unwrap().hero;
     assert_eq!(hero.max_hp,base.max_hp+9); assert_eq!(hero.max_hp_base,base.max_hp_base+9);
@@ -577,7 +579,7 @@ fn legacy_purchases_change_real_stats_persist_and_follow_the_bloodline() {
     armour_only.legacy_armour=3;
     for roll in 1..20 { assert!(armour_only.blunt(roll)>0); }
     let r=g.run.as_mut().unwrap();r.over=Some(ExitTier::Death);r.hero.hp=0;r.death_cause=Some("rat".into());g.finish_run().unwrap();
-    assert_eq!(g.lineage.bloodline.as_ref().unwrap().spent,54); assert_eq!(g.lineage.hero_legacy[1].points,0);
+    assert_eq!(g.lineage.bloodline.as_ref().unwrap().spent,three); assert_eq!(g.lineage.hero_legacy[1].points,0);
     assert!(g.lineage.hero_legacy[1].upgrades.is_empty());
     g.start_run(Some(991)); assert_eq!(g.run.as_ref().unwrap().hero.legacy_armour,3);
 }
@@ -586,8 +588,9 @@ fn legacy_purchases_change_real_stats_persist_and_follow_the_bloodline() {
 fn legacy_refuses_poor_unknown_capped_and_away_purchases_without_mutation() {
     let mut g = Game::new_resident(20);
     for id in ["health","unknown"] { let before=g.save(); assert!(g.upgrade_hero(id).is_err());assert_eq!(before,g.save()); }
-    g.lineage.bloodline.as_mut().unwrap().points=100;
-    for (rank,price) in [(1,3),(2,6),(3,9)] {
+    // (Cut 121 §1: the ranks on the Legacy curve, each dearer, bought in order to the cap)
+    g.lineage.bloodline.as_mut().unwrap().points=crate::legacy::ROOT_PRICES.iter().sum();
+    for (rank,price) in crate::legacy::ROOT_PRICES.iter().enumerate().map(|(i,p)|(i as u32+1,*p)) {
         let before=g.lineage.bloodline.as_ref().unwrap().points;g.upgrade_hero("health").unwrap();
         assert_eq!(g.lineage.bloodline.as_ref().unwrap().points,before-price);assert_eq!(g.lineage.bloodline.as_ref().unwrap().upgrades["health"],rank);
     }

@@ -131,6 +131,8 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
         // Cut 117 §1: the hp the killing blow landed on (its damage less the overkill: `death_short` = 1 − hp after)
         moment_hp: (!stall && run.death_cause.is_some()).then(|| (run.death_blow + 1 - run.death_short.max(1)).max(1)),
         moment_max_hp: if stall { 0 } else { run.hero.max_hp },
+        summoned_by: if stall { None } else { run.death_summoner.as_deref().map(crate::feats::foe_short) },
+        source: if stall { None } else { run.death_source.as_deref().map(crate::feats::foe_short) },
     };
     let n = game.history.len();
     let pick = if stall {

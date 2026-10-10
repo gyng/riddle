@@ -927,7 +927,7 @@ pub struct ForecastHold {
     pub ends: ForecastEnds,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct ForecastEnds {
     pub bank: f64,
     #[serde(rename = "return")]
@@ -944,6 +944,17 @@ pub struct ForecastEnds {
     /// (the exit line's `BANKED $N` is `gold − passage`); 0 from D1.
     #[serde(default)]
     pub passage: f64,
+    /// Cut 121 §2 (blind 1a7d834 A: `death 75%` on an easy clear; per-run `$` that swung on one threshold): the
+    /// bands the panel's numbers lie in — the death share's 95 % Wilson interval (never `0` or `1` on a few sims)
+    /// and the mean gold per send's 95 % interval (mean ± 1.96 · sd / √n, never below 0). The client shows ranges.
+    #[serde(default)]
+    pub death_lo: f64,
+    #[serde(default)]
+    pub death_hi: f64,
+    #[serde(default)]
+    pub gold_lo: f64,
+    #[serde(default)]
+    pub gold_hi: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -1326,6 +1337,16 @@ pub struct Death {
     /// Cut 117 §1: the hero's max hp at that moment (the trace's `hp/max`).
     #[serde(default, skip_serializing_if = "is_zero_i")]
     pub moment_max_hp: i32,
+    /// Cut 121 §2 (blind 1a7d834 B: `goblin · D8` beside `fell to the Warlord`): the summoner of the foe whose blow
+    /// killed him (`Warlord`, `goblin captain`): the header reads `goblin · summoned by Warlord`. Absent when the
+    /// killer was nobody's summons.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summoned_by: Option<String>,
+    /// Cut 121 §2 (B: `fell to the Mother` while the trace said `not in view`): a hazard's (gas, fire, poison,
+    /// burst) source boss, only when he was in view at the killing blow (`Mother`); absent otherwise — the hazard
+    /// is the cause.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 /// Cut 28 §2: a luck-leaning death's event (`Death.luck`): `text` ≤ 6 words (`two blows at 6 hp`,
@@ -1949,6 +1970,15 @@ pub struct GoldSummary {
     /// ledger (`GoldLedger`), its terms summing exactly to `net`. Absent for an absence saved before it existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ledger: Option<GoldLedger>,
+    /// Cut 121 §2 (blind 1a7d834 B: `−$2807 GOLD CHANGE` led a return — the apprentice's spending read as a loss): the
+    /// absence's income — the carry kept, the heir purse, passages, graves recovered, packs fetched (the ledger's
+    /// income terms) — the headline's `+$X earned`. Absent before the ledger.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub earned: Option<i32>,
+    /// Cut 121 §2: what the workers spent of it (a positive number): the apprentice's forge steps and sinks
+    /// (rations, tithes), the ranks the ranks order bought — the headline's `−$Y spent by workers`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spent_by_workers: Option<i32>,
 }
 
 /// Cut 117 §4: an absence's supply budget when the repeat was limited (`ReturnReport.supply_budget`).
@@ -2225,6 +2255,10 @@ pub struct Lineage {
     pub class_styles:Option<crate::specialization::Choice>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endgame: Option<crate::endgame::Progress>,
+    /// Cut 121 §1: the numbered descent under way — its tier, the floor it started on, the hp and attack its foes
+    /// gain (percent) and the modifiers at work (`endgame::ascension_wire`). Absent at tier 0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub descent: Option<AscensionWire>,
     #[serde(default)]
     pub selected_loadout: Vec<u32>,
     #[serde(default)]
@@ -2974,6 +3008,18 @@ pub struct RowStat {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unmet: Option<WhyCount>,
     pub text: String,
+    /// Cut 121 §4 (blind 1a7d834 B: a boss rule misfired on a siren): a foe-tag row's fires by the foe kind it acted on
+    /// over the recent sends, and whether each is a band boss — the tablet's `also matches: siren`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fired_on: Vec<FiredOn>,
+}
+
+/// Cut 121 §4: a foe kind a row fired on (`RowStat.fired_on`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct FiredOn {
+    pub kind: String,
+    pub boss: bool,
+    pub n: u32,
 }
 
 /// QA on a946e04: the chain's next unlock and its prices (`UnlockInfo.next`).
@@ -3380,4 +3426,15 @@ pub struct Fallen {
     /// Cut 119: lamed (sits out `pets::LAME_RUNS` runs, its level kept), not gone.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub lamed: bool,
+}
+
+/// Cut 121 §1 (blind 1a7d834: Ascension restarted at D1 rats with nothing said of what changed): a numbered descent as
+/// the camp names it (`Lineage.descent`).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct AscensionWire {
+    pub tier: u32,
+    pub start: u32,
+    pub hp_pct: u32,
+    pub atk_pct: u32,
+    pub modifiers: Vec<crate::endgame::ModifierInfo>,
 }

@@ -744,7 +744,8 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     // Cut 29 §6 (AX: a D12 bank of $81 under a ~$260 forecast — the forecast counts the waystone's
     // passage, paid at the send, the exit line does not): the passage's share of `gold`, its own.
     let passage = ended.iter().map(|r| r.passage as f64).sum::<f64>() / n;
-    let ends = (!ended.is_empty()).then(|| ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()), passage });
+    let golds: Vec<f64> = ended.iter().map(|r| r.loot_kept as f64).collect();
+    let ends = (!ended.is_empty()).then(|| with_bands(ForecastEnds { bank: share(ExitTier::Bank), return_: share(ExitTier::Return), death, stall, gold, pm: half_width(death, ended.len()), passage, ..Default::default() }, &golds));
     // Cut 117 §1: the scout's wall order, on the same sims
     let hold = crate::tree::wall_hold(&game.lineage).filter(|(w, _)| *w > start && !ended.is_empty()).map(|(w, bank)| held_ends(&ended, w, bank));
     let n_sims = ended.len() as u32;
@@ -766,7 +767,9 @@ pub fn held_ends(ended: &[SimResult], wall: u32, bank: bool) -> crate::wire::For
     let mut tiers = [0f64; 3];
     let (mut stall, mut gold, mut passage) = (0f64, 0f64, 0f64);
     let mut reached = 0f64;
+    let mut golds: Vec<f64> = Vec::with_capacity(ended.len());
     for r in ended {
+        let before = gold;
         passage += r.passage as f64;
         let carry = at(r);
         if carry.is_some() {
@@ -786,6 +789,7 @@ pub fn held_ends(ended: &[SimResult], wall: u32, bank: bool) -> crate::wire::For
                 gold += carry.map_or(r.loot_kept, |c| r.loot_kept.max(c.max(0) + r.passage)) as f64;
             }
         }
+        golds.push(gold - before);
     }
     let death = tiers[2] / n;
     crate::wire::ForecastHold {
@@ -793,8 +797,37 @@ pub fn held_ends(ended: &[SimResult], wall: u32, bank: bool) -> crate::wire::For
         stop: wall - 1,
         order: if bank { "bank" } else { "carry" }.into(),
         share: reached / n,
-        ends: ForecastEnds { bank: tiers[0] / n, return_: tiers[1] / n, death, stall: stall / n, gold: gold / n, pm: half_width(death, ended.len()), passage: passage / n },
+        ends: with_bands(ForecastEnds { bank: tiers[0] / n, return_: tiers[1] / n, death, stall: stall / n, gold: gold / n, pm: half_width(death, ended.len()), passage: passage / n, ..Default::default() }, &golds),
     }
+}
+
+/// Cut 121 §2: the 95 % Wilson interval of a share `p` over `n` sims (`(0, 1)` with none).
+pub fn wilson(p: f64, n: usize) -> (f64, f64) {
+    if n == 0 {
+        return (0.0, 1.0);
+    }
+    let (z, n) = (1.96f64, n as f64);
+    let d = 1.0 + z * z / n;
+    let c = (p + z * z / (2.0 * n)) / d;
+    let h = z * ((p * (1.0 - p) / n) + z * z / (4.0 * n * n)).sqrt() / d;
+    ((c - h).max(0.0), (c + h).min(1.0))
+}
+
+/// Cut 121 §2: an ends panel with its bands — the death share's Wilson interval and the mean gold's 95 % interval
+/// over the sends' gold (`golds`, one a sim).
+pub fn with_bands(mut e: ForecastEnds, golds: &[f64]) -> ForecastEnds {
+    let n = golds.len();
+    (e.death_lo, e.death_hi) = wilson(e.death, n);
+    let sd = if n > 1 {
+        let m = golds.iter().sum::<f64>() / n as f64;
+        (golds.iter().map(|g| (g - m).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt()
+    } else {
+        e.gold
+    };
+    let h = 1.96 * sd / (n.max(1) as f64).sqrt();
+    e.gold_lo = (e.gold - h).max(0.0);
+    e.gold_hi = e.gold + h;
+    e
 }
 
 /// Cut 27 §1: a floor the watch folds — the share of the sims on it that got through it is at

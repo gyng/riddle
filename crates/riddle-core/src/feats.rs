@@ -1168,14 +1168,40 @@ fn fallen(g: &mut Game, run: &Run, day: u32, legacy_earned: u32) {
         news(&mut g.lineage, "siege", format!("{short} · try {try_n} · +{edge}%"), day);
     }
     let cause = run.death_cause.clone().unwrap_or_else(|| "unknown".into());
-    let foe = boss.as_deref().map(crate::sifter::boss_short).map(|s| format!("the {s}")).unwrap_or_else(|| cause.replace('_', " "));
-    let epitaph = format!("fell to {foe}, D{}", run.depth);
+    let epitaph = format!("fell to {}, D{}", killer_phrase(&cause, run.death_summoner.as_deref(), run.death_source.as_deref()), run.depth);
     let l = &mut g.lineage;
     let legacy = legacy_earned + if try_n > 0 { DEED_LEGACY } else { 0 };
     l.feats.stones.push(Stone { heir: run.heir, name, depth: run.depth, cause, epitaph, day, run: run.id, boss, try_n, edge_pct: edge, grave_gold, legacy });
     let n = l.feats.stones.len();
     if n > STONES_CAP {
         l.feats.stones.drain(..n - STONES_CAP);
+    }
+}
+
+/// A foe's short name: a band boss's (`Warlord`), else the kind's words (`goblin captain`).
+pub fn foe_short(kind: &str) -> String {
+    if crate::defs::monster_def(kind).boss {
+        crate::sifter::boss_short(kind).into()
+    } else {
+        kind.replace('_', " ")
+    }
+}
+
+/// Cut 121 §2 (blind 1a7d834 B: `goblin · D8` beside `fell to the Warlord`; `fell to the Mother` while the trace said
+/// `not in view`): the epitaph's killer is the killing blow's source, as the death header names it — a boss's own blow
+/// `the Warlord`, his summons `goblin, summoned by the Warlord`, a hazard `gas` (`the Mother's gas` only when she was
+/// in view at the blow).
+pub fn killer_phrase(cause: &str, summoner: Option<&str>, source: Option<&str>) -> String {
+    let the = |k: &str| if crate::defs::monster_def(k).boss { format!("the {}", foe_short(k)) } else { foe_short(k) };
+    let known = crate::defs::MONSTERS.iter().any(|d| d.kind == cause);
+    if known && crate::defs::monster_def(cause).boss {
+        return the(cause);
+    }
+    let words = cause.replace('_', " ");
+    match (summoner, source) {
+        (Some(s), _) => format!("{words}, summoned by {}", the(s)),
+        (None, Some(b)) => format!("{}'s {words}", the(b)),
+        _ => words,
     }
 }
 

@@ -255,14 +255,45 @@ impl Game {
 }
 
 /// A new descent's dungeon on the lineage: the record, the stones and the camp's reads of the old dungeon cleared.
+/// Cut 121 §1 (blind 1a7d834: both raters cleared, and Ascension restarted at D1 rats): a numbered descent starts
+/// `ASCENT_BAND` floors above the deepest lit waystone, at the deepest stone there, and never above `ASCENT_MIN` —
+/// the stones above it stay lit; the record starts at the start.
+pub const ASCENT_BAND: u32 = 15;
+pub const ASCENT_MIN: u32 = 9;
+
+/// The start a numbered descent keeps (1 with no stone at or under `ASCENT_MIN`).
+pub fn ascent_start(l: &crate::engine::LineageState) -> u32 {
+    let deepest = l.waystones.iter().copied().max().unwrap_or(0);
+    let cap = deepest.saturating_sub(ASCENT_BAND).max(ASCENT_MIN);
+    l.waystones.iter().copied().filter(|w| *w <= cap && *w <= deepest).max().unwrap_or(1)
+}
+
+/// Cut 121 §1: the numbered descent's modifiers as the camp shows them (`Lineage.descent`): those at work at
+/// `tier` — its affixes, the elites, the King's quick mirror — and the hp and attack its foes gain.
+pub fn ascension_wire(l: &crate::engine::LineageState) -> Option<crate::wire::AscensionWire> {
+    let tier = l.endgame.as_ref().map_or(0, |p| p.tier);
+    if tier == 0 {
+        return None;
+    }
+    let on = affixes(tier);
+    Some(crate::wire::AscensionWire {
+        tier,
+        start: l.start.max(1),
+        hp_pct: (u64::from(tier) * HP_PERCENT) as u32,
+        atk_pct: (u64::from(tier) * ATTACK_PERCENT) as u32,
+        modifiers: catalogue(tier).into_iter().filter(|m| m.mask == 0 || on & m.mask != 0).collect(),
+    })
+}
+
 fn descent_lineage(l: &mut crate::engine::LineageState) {
+    let start = ascent_start(l);
     l.variant.clear();
     l.ended = false;
-    l.best_depth = 0;
+    l.best_depth = start.saturating_sub(1);
     l.heir_best = 0;
-    l.start = 1;
+    l.start = start;
     l.banked_depths.clear();
-    l.waystones.clear();
+    l.waystones.retain(|w| *w <= start);
     l.lane_stones.clear();
     l.picked.clear();
     l.night_passes.clear();

@@ -930,6 +930,17 @@ fn tally_rows(run: &Run, cx: &mut Ctx, held: &[(usize, bool, Option<String>)], a
         t.actions += 1;
         if *i as i32 == acted {
             t.fired += 1;
+            // Cut 121 §4: a foe-tag row's fire, by the kind of the foe it acted on
+            if cx.rules.rows.get(*i).is_some_and(|r| r.conds.iter().any(|c| c.k == "foe_tag")) {
+                if let Some(m) = run.last_target.and_then(|id| run.monsters.iter().find(|m| m.id == id)) {
+                    match t.fired_on.get_mut(m.kind.as_str()) {
+                        Some(n) => *n += 1,
+                        None => {
+                            t.fired_on.insert(m.kind.clone(), 1);
+                        }
+                    }
+                }
+            }
         }
         if *h {
             t.matched += 1;
@@ -977,7 +988,8 @@ pub fn row_stat(row: &crate::rules::Row, t: &crate::engine::RowTally) -> crate::
             _ => head,
         }
     };
-    crate::wire::RowStat { sends: t.sends, actions: t.actions, fired: t.fired, matched: t.matched, blocked, unmet, text }
+    let fired_on = t.fired_on.iter().map(|(k, n)| crate::wire::FiredOn { kind: k.clone(), boss: crate::defs::MONSTERS.iter().any(|d| d.kind == k && d.boss), n: *n }).collect();
+    crate::wire::RowStat { sends: t.sends, actions: t.actions, fired: t.fired, matched: t.matched, blocked, unmet, text, fired_on }
 }
 
 /// Cut 23 §3 (AJ: "`read ✗ no use`, `attack ✗ no target` I could not explain"): every reason
@@ -1558,6 +1570,22 @@ pub fn cond_holds(run: &Run, cx: &Ctx, v: &View, c: &Cond) -> bool {
     }
 }
 
+/// Cut 121 §2: who summoned foe `i` — the floor's boss when he summons (the Warlord's reserve, the Queen's brood),
+/// else the nearest summoner on the floor. `None` when no summoner is there.
+pub fn summoner_of(run: &Run, i: usize) -> Option<String> {
+    let at = run.monsters[i].pos;
+    run.monsters.iter().enumerate()
+        .filter(|(j, m)| *j != i && !m.summoned && m.has_tag("summoner") && !m.ally)
+        .min_by_key(|(_, m)| (!m.is_boss(), m.pos.cheb(at), m.id))
+        .map(|(_, m)| m.kind.clone())
+}
+
+/// Cut 121 §2 (blind 1a7d834 B: `fell to the Mother` while the trace said `not in view`): a hazard's source boss
+/// only when a living boss of the floor is in view at the blow; else the hazard is its own cause.
+pub fn hazard_source(run: &Run) -> Option<String> {
+    run.monsters.iter().find(|m| m.hp > 0 && m.is_boss() && m.hostile() && run.floor.map.is_visible(m.pos)).map(|m| m.kind.clone())
+}
+
 /// Where damage comes from, for causes and counters.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Src {
@@ -1923,6 +1951,8 @@ pub fn damage_hero(run: &mut Run, cx: &mut Ctx, dmg: i32, src: &Src) {
         run.hero.hp = 0;
         run.death_cause = Some(cause.to_string());
         run.death_modifiers = match src { Src::Mon(i) | Src::Reflect(i) => run.monsters[*i].modifiers, _ => None };
+        run.death_summoner = match src { Src::Mon(i) | Src::Reflect(i) if run.monsters[*i].summoned => summoner_of(run, *i), _ => None };
+        run.death_source = match src { Src::Gas | Src::Fire | Src::Poison | Src::Burst => hazard_source(run), _ => None };
         run.death_blow = dmg;
         run.death_t = Some(run.turn);
         cx.events.push(Ev::Die { t: run.turn, id: HERO_ID, cause: cause.into() });

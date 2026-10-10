@@ -225,7 +225,7 @@ export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share
                          hold?: ForecastHold;                            // Cut 117 §1 (core): the scout's wall order on the next send — depths' reach is the reach if pushed; `hold.ends` is what the send will do
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number;
-                                  passage?: number };                     // Cut 29 §6 (core; AX: `$81` banked under `~$260`): of `gold`, the waystone passage paid at the send — the exit's `BANKED $N` is `gold − passage` (show `~$125/run +$135 passage`)
+                                  passage?: number; death_lo?: number; death_hi?: number; gold_lo?: number; gold_hi?: number; };                     // Cut 121 §2 (core): `death_lo/hi` the death share's 95 % Wilson band, `gold_lo/hi` the per-send gold's 95 % band — show ranges. Cut 29 §6 (core; AX: `$81` banked under `~$260`): of `gold`, the waystone passage paid at the send — the exit's `BANKED $N` is `gold − passage` (show `~$125/run +$135 passage`)
                          refined?: boolean;                              // QA 778fa1b: always present from the core (false = the first pass, true = the refine); absent only on an older core
                          start?: number;                                 // Cut 21 §1: the floor the sims started on (`Lineage.start` when lit and payable, else 1); rows above it read reach 1.0
                          shadowed_by?: (number | null)[];                                                    // QA 92eb880: per row of the set (by index), the earlier row (0-based) that takes every moment it could fire — mark it `shadowed by R{n+1}`; null = free; absent = none shadowed   // Cut 13 §5: the refine pass (100 sims); a first paint is marked `…`   // Cut 12 §3: how a send ends (rates 0..1 summing to 1; `stall`: came home by the cap, nothing in the rules) and the mean gold brought home per send
@@ -350,7 +350,9 @@ export type Death = { memorial?: Memorial; difficulty?:number;   // Cut 118 owne
                       luck?: DeathLuck;                                                      // Cut 28 §2 (core): on a death most replays survive (a `dice`, or `lean: "dice"`) — the rare event that killed him and its odds; lead with it (`goblin −6 at 6 hp · 1 in 6`)
                       boss?: string;                                                         // blind 3ab97ea (core): the boss this death was fought under — his wall, never luck nor dice-leaning
                       nothing_beats_base?: boolean;
-                      moment_hp?: number; moment_max_hp?: number;                            // Cut 117 §1 (core): the hp the killing blow landed on — the trace's row before the blow (the header's `hero at N hp`; `blow.hp + blow.dmg` counted an overkill) — and his max then
+                      moment_hp?: number; moment_max_hp?: number;
+                      summoned_by?: string; source?: string;   // Cut 121 §2 (core): the killer's summoner (`goblin · summoned by Warlord`); a hazard's source boss only when he was in view at the blow (`Mother`), else absent — the hazard is the cause
+                                                 // Cut 117 §1 (core): the hp the killing blow landed on — the trace's row before the blow (the header's `hero at N hp`; `blow.hp + blow.dmg` counted an overkill) — and his max then
                     };                                        // QA 92eb880: a `dice` death none of whose patches survives more than `baseline` (a 100 % base: the replays win the fight he lost) — say `nothing beats base · base N%`, not `below bar`. Cut 26 §6 (control rater AQ: `nothing beats unpatched 12/12` over a patch reading `survives 12/12`): the patches of such a death are what was TRIED, never help — do not print their `survives N/12` as a headline (e.g. `tried · same as base`)
 /** Cut 26 (core) — a `route` verdict: at the fork `fork` the set's route took `taken`; the near/other stair's replays survive `survive`
  *  (≥ 50 %, beating `baseline` by ≥ 15 pts) — `D5 fens · route`, the fix `take burrows` = `setRules({...set, route})`. */
@@ -413,7 +415,7 @@ export type Packages = { all: Package[]; stance: string; tactics?: string[]; tac
  *  D`stop`'s stairs, `stop` = depth − 1) or carry (its haul secured there, it goes on), `share` the sends that reach those stairs, `ends`
  *  the panel's ends with the order applied. The depths' reach stays the reach if pushed (`reach D33 88%` vs `banks at D32`). */
 export type ForecastHold = { depth: number; stop: number; order: "bank" | "carry" | string; share: number;
-  ends: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number; passage?: number } };
+  ends: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number; passage?: number; death_lo?: number; death_hi?: number; gold_lo?: number; gold_hi?: number; } };
 /** Cut 117 §1 (core) — an absence's gold ledger (`gold.ledger`): `earned` Σ positive terms, `spent` Σ negative terms (positive), `net` =
  *  earned − spent = the purse's change (= `gold.net`). Terms, signed, zero ones left out: `carried` (+, what the exits/salvage/passages
  *  brought to the door), `lost` (−, the carry the exits did not keep; carried + lost = income kept), `heir` (+, heir purse top-ups),
@@ -527,7 +529,7 @@ export type ReturnReport = {
   stalled?: number;                                                            // Cut 13 §1: sends that stalled (among `returned`, keeping nothing); the tiles count them apart
   spent?: { kind: string; n: number; gold: number }[];                         // Cut 13 §3: what the automations bought this absence, per kind (the SPENT section)
   heirs?: number[];                                                                           // QA 912e135 (core): the first and last heir who ran these runs (`♟2–17` under RUNS)
-  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number; unkept?: number; passage?: number; recovered?: number; fetched?: number; net?: number; ledger?: GoldLedger };   // Cut 117 §1 (core): `ledger` the absence's ledger, its terms summing exactly to `net`. blind ad71e72 (core): `passage` the waystone passages paid at the sends; `net` the purse's actual change over the absence (forge steps, hires and bank moves included). Cut 119 gate fix (core): `recovered` the graves' packs brought home, `fetched` the pets' fetched packs — income beside `home`
+  gold?: { home: number; salvage: number; wake: number; spent: number; wake_cap?: number; wake_n?: number; lost?: number; unkept?: number; passage?: number; recovered?: number; fetched?: number; net?: number; ledger?: GoldLedger; earned?: number; spent_by_workers?: number };   /* Cut 121 §2 (core): `earned` the absence's income (lead with `+$X earned`), `spent_by_workers` the apprentice's steps and sinks and the ranks order (`−$Y spent by workers`) */   // Cut 117 §1 (core): `ledger` the absence's ledger, its terms summing exactly to `net`. blind ad71e72 (core): `passage` the waystone passages paid at the sends; `net` the purse's actual change over the absence (forge steps, hires and bank moves included). Cut 119 gate fix (core): `recovered` the graves' packs brought home, `fetched` the pets' fetched packs — income beside `home`
     // QA 912e135 (core): `lost` — the carry the exits did not keep; QA 524827b (qaAA): `unkept` — the part of it exits that kept something left (a return's 40 %: `not kept`)
         // Cut 13 §3: the absence's movements to the coin (home + salvage + wake − spent = the header's delta)
   learned: string[]; bests: string[]; found: InvItem[]; deaths: { cause: string; n: number }[];
@@ -605,6 +607,7 @@ export type Lineage = { bloodline?: BloodlineLegacy;
                         keep_auto?: string[];                                                                          // QA 23ed91f: what an unwatched exit keeps, in order, after the brought vault items (`["armour"]`, `["armour","weapon"]` with quartermaster, `[]` for none); a keep replaces only a weaker vault item of its own category
                         rest_left_s?: number; bones?: BonesPile[];                                                      // Cut 2 §1–2
                         endgame?: DescentProgress;
+                        descent?: { tier: number; start: number; hp_pct: number; atk_pct: number; modifiers: ModifierInfo[] };   // Cut 121 §1 (core): the numbered descent under way — its start floor, its foes' hp/attack gain and the modifiers at work; absent at tier 0
                         ascension?: Ascension;                                                                         // Cut 3
                         chronicle?: string[];                                                                          // Cut 5 §2: one line per ended heir, oldest first (cap 40)
                         vault_pref?: string;                                                                           // Cut 5 §4: what an unwatched vault choice takes (`weapon | armour | potion | scroll`)
@@ -667,7 +670,8 @@ export type KitLadder = { slot: "weapon" | "armour" | "pack" | "gun_sidearm"; se
  *  for `foe: gas` never in view — `no gas met`). `text`: the core's line for the tablet (`0/164 · no gas met`,
  *  `3/164 · blocked · no scroll`, `41/164`), ≤ 5 words. */
 export type RowWhy = { sends: number; actions: number; fired: number; matched: number;
-                       blocked?: { why: string; n: number }; unmet?: { why: string; n: number }; text: string };
+                       blocked?: { why: string; n: number }; unmet?: { why: string; n: number }; text: string;
+                       fired_on?: { kind: string; boss: boolean; n: number }[] };   // Cut 121 §4 (core): a foe-tag row's fires by the foe kind it acted on, and whether each is a band boss (`also matches: siren`)
 /** Cut 3: times the lineage ascended and the variant it plays under (`""` at level 0). */
 export type Ascension = { level: number; variant: string };
 export const VARIANTS = ["no_rest", "short_list", "bones_only", "hunted"] as const;

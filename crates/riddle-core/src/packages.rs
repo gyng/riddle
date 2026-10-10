@@ -1774,6 +1774,14 @@ pub struct WallRead {
     pub worse: u32,
 }
 
+/// Cut 121 §2: a wall read whose paired split is past the noise — the sends that differ lean one way by more than
+/// a fair coin's band at 80 % (|better − worse| > 1.28 · √(better + worse)), or every differing send leans one way
+/// (two or more): the two options do not play the same at that wall.
+pub fn wall_differs(w: &WallRead) -> bool {
+    let k = w.better + w.worse;
+    k > 0 && ((w.better as f64 - w.worse as f64).abs() > 1.28 * (k as f64).sqrt() || (k >= 2 && w.better.min(w.worse) == 0))
+}
+
 /// Walls read per move at most (the deepest first).
 pub const WALL_READS: usize = 3;
 
@@ -1998,6 +2006,11 @@ pub fn options_for(g: &crate::engine::Game, sims: u32, choices: &[(String, usize
                 let (n, better, worse) = paired(b, &wall_ranks(&c, &set, *s, *w, sims));
                 WallRead { depth: *w, boss: crate::descent::boss_for(*w).map(crate::sifter::boss_short).unwrap_or("boss").into(), n, better, worse }
             }).collect();
+            // Cut 121 §2 (blind 1a7d834 A: `compare: same` on a pick that then stalled at the wall): `same` only when
+            // the walls agree too — a wall whose paired split is past its noise makes the move no even one
+            if o.walls.iter().any(wall_differs) {
+                o.even = false;
+            }
         }
     }
     out

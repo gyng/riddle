@@ -23,27 +23,29 @@ fn give_points(g: &mut Game, n: u32) {
 fn the_legacy_order_spends_in_turn() {
     let mut g = Game::new_resident(3);
     g.lineage.orders.legacy = "balanced".into();
-    give_points(&mut g, 30);
+    // (Cut 121 §1: on the Legacy curve — `legacy::ROOT_PRICES`)
+    let p = crate::legacy::ROOT_PRICES;
+    give_points(&mut g, 3 * (p[0] + p[1]) + p[2] - 1);
     tree::at_send(&mut g);
-    // 3 + 3 + 3, then 6 + 6 + 6 = 27; the next health is 9 > 3
+    // each first rank, then each second; the next health costs more than is left
     assert_eq!(upgrades(&g), vec![("armour".into(), 2), ("damage".into(), 2), ("health".into(), 2)]);
-    assert_eq!(points(&g), 3);
+    assert_eq!(points(&g), p[2] - 1);
     assert_eq!(g.lineage.tree.acts.get(tree::LEGACY_ACT).copied(), Some(6));
-    assert_eq!(g.lineage.tree.acts.get(tree::LEGACY_POINTS).copied(), Some(27));
+    assert_eq!(g.lineage.tree.acts.get(tree::LEGACY_POINTS).copied(), Some(3 * (p[0] + p[1])));
     tree::at_send(&mut g);
     assert_eq!(g.batch.pkg_lines.iter().filter(|l| *l == "LEGACY BALANCED").count(), 1, "announced once");
     assert!(g.lineage.feats.news.iter().any(|n| n.k == "order" && n.text == "legacy balanced"));
-    // a focus: damage to its cap (3 + 6 + 9) before the others
+    // a focus: damage to its cap before the others
     let mut h = Game::new_resident(3);
     h.lineage.orders.legacy = "damage".into();
-    give_points(&mut h, 20);
+    give_points(&mut h, p.iter().sum::<u32>() + 2);
     tree::at_send(&mut h);
-    assert_eq!(upgrades(&h), vec![("damage".into(), 3)]);
+    assert_eq!(upgrades(&h), vec![("damage".into(), crate::legacy::CAP)]);
     assert_eq!(points(&h), 2);
     // capped: balanced after (health first)
-    give_points(&mut h, 1);
+    give_points(&mut h, p[0] - 2);
     tree::at_send(&mut h);
-    assert_eq!(upgrades(&h), vec![("damage".into(), 3), ("health".into(), 1)]);
+    assert_eq!(upgrades(&h), vec![("damage".into(), crate::legacy::CAP), ("health".into(), 1)]);
     // off
     let mut o = Game::new_resident(3);
     o.lineage.orders.legacy = "off".into();
@@ -72,16 +74,20 @@ fn the_legacy_order_spends_in_turn() {
     assert!(g.set_orders(&w).is_err());
 }
 
-/// Past the base three: the effects in the offer's order, a fork's first branch, never one shut by depth.
+/// The effects in the offer's order, a fork's first branch, never one shut by depth — taken (Cut 121 §1) once one
+/// costs less than the next rank of the base three.
 #[test]
 fn the_legacy_order_takes_the_effects_after_the_base() {
     let mut g = Game::new_resident(4);
     g.lineage.orders.legacy = "balanced".into();
     g.lineage.best_depth = 8;
-    give_points(&mut g, 3 * (3 + 6 + 9) + 18);
+    let p = crate::legacy::ROOT_PRICES;
+    assert!(crate::legacy::EFFECT_PRICES[0] < p[2], "a first effect costs less than a third rank");
+    give_points(&mut g, 3 * (p[0] + p[1]) + crate::legacy::EFFECT_PRICES[0]);
     tree::at_send(&mut g);
     let u = upgrades(&g);
     assert!(u.contains(&("restoration".into(), 1)), "{u:?}");
+    assert!(u.contains(&("health".into(), 2)), "{u:?}");
     assert!(!u.iter().any(|(k, _)| k == "mending"), "shut by depth: {u:?}");
     assert_eq!(points(&g), 0);
 }

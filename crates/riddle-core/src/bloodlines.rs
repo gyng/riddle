@@ -503,7 +503,7 @@ mod tests {
     }
     #[test]
     fn slots_isolate_policy_xp_and_legacy_and_switch_without_restarting_runs() {
-        let mut s=resident();s.active.lineage.bloodline.as_mut().unwrap().points=9;
+        let mut s=resident();s.active.lineage.bloodline.as_mut().unwrap().points=crate::legacy::root_price(0);
         s.active.upgrade_hero("health").unwrap();s.active.lineage.classes.get_mut("fighter").unwrap().xp=17;
         let rules=s.active.lineage.rules().clone();s.add_bloodline().unwrap();
         assert_eq!(s.active.lineage.gold,750);s.active.send();let first=s.active.run.clone();

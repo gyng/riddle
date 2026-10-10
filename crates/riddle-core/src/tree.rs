@@ -877,6 +877,10 @@ pub const ASCEND_ORDERS: [&str; 2] = ["off", "on"];
 /// slay the King by day 12 on 16/16 seeds and compressed PICKED/TUNED/RANDOM; docs/CUT120_AUTOMATION_FILL.md.)
 pub const NEW_LEGACY: &str = "off";
 pub const NEW_RANKS: &str = "off";
+/// The Legacy order a new lineage starts with (`NEW_LEGACY`).
+pub fn new_legacy() -> &'static str {
+    NEW_LEGACY
+}
 /// The orders `same for all` copies to every bloodline (`StandingSwitches.shared`).
 pub const SHAREABLE: [&str; 9] = ["insure", "forge", "wall", "sink", "heir", "kennel", "legacy", "ranks", "ascend"];
 
@@ -970,12 +974,15 @@ pub fn legacy_pick(l: &LineageState) -> Option<String> {
             return u.affordable.then(|| u.id.clone());
         }
     }
-    // balanced: the three in turn (the lowest rank, in their order), then the effects in the offer's order (a fork's
-    // first branch; one shut by depth, a parent or the other branch is passed)
-    if let Some(u) = crate::legacy::IDS.iter().filter_map(|id| get(id)).filter(open).min_by_key(|u| u.rank) {
-        return u.affordable.then(|| u.id.clone());
-    }
-    let u = offers.iter().filter(|u| !crate::legacy::IDS.contains(&u.id.as_str()) && u.rank < u.cap).find(|u| u.affordable || u.blocked.as_deref() == Some("More Legacy needed"))?;
+    // balanced: the next of the three in turn (the lowest rank, in their order) or the next effect in the offer's order
+    // (a fork's first branch; one shut by depth, a parent or the other branch is passed), whichever costs less — on
+    // the Legacy curve (Cut 121 §1) the roots' upper ranks cost more than the effects
+    let root = crate::legacy::IDS.iter().filter_map(|id| get(id)).filter(open).min_by_key(|u| u.rank);
+    let effect = offers.iter().filter(|u| !crate::legacy::IDS.contains(&u.id.as_str()) && u.rank < u.cap).find(|u| u.affordable || u.blocked.as_deref() == Some("More Legacy needed"));
+    let u = match (root, effect) {
+        (Some(r), Some(e)) => if e.price < r.price { e } else { r },
+        (r, e) => r.or(e)?,
+    };
     u.affordable.then(|| u.id.clone())
 }
 

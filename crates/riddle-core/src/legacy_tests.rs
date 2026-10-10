@@ -1,10 +1,12 @@
 //! Controlled fixtures test real purchases/verbs/damage, not earned campaigns.
 use super::*;
 use crate::{monster::Monster,geom::Pos,rules::Verb,turn::Src,hero::Class,rng::Rng};
+/// Cut 121 §1: enough for the whole tree on the Legacy curve, and a margin.
+const RICH:u32=50_000;
 fn rich()->Game {
     // (Cut 120 §1: purchases by hand — the new lineage's Legacy order off)
     let mut g=Game::new_resident(3);ensure(&mut g.lineage);g.lineage.orders.legacy="off".into();
-    g.lineage.bloodline.as_mut().unwrap().points=814;g.lineage.best_depth=34;
+    g.lineage.bloodline.as_mut().unwrap().points=RICH;g.lineage.best_depth=34;
     crate::packages::recompile(&mut g.lineage);crate::oath::refresh(&mut g.lineage);g
 }
 fn purchase(g:&mut Game,id:&str) {
@@ -48,13 +50,18 @@ fn same_save(g:&Game,expected:&str) {
     panic!("complete save mismatch: {paths:?}");
 }
 #[test]
-fn twelve_offers_keep_old_rank_prices_and_require_earned_depth_and_parents() {
+fn twelve_offers_price_ranks_on_the_curve_and_require_earned_depth_and_parents() {
+    // (Cut 121 §1: the ranks' prices rise on the Legacy curve — each rank dearer than the last, bought in order)
+    assert!(ROOT_PRICES.windows(2).all(|w|w[1]>w[0]),"a rank costs more than the one before");
+    assert!(EFFECT_PRICES[1]>EFFECT_PRICES[0]);
     let mut g=rich();let o=offers(&g.lineage,false);assert_eq!(o.len(),12);
-    assert_eq!(o.iter().filter(|u|u.cap==3).count(),3);
-    for id in IDS {for price in [3,6,9] {
-        assert_eq!(offers(&g.lineage,false).iter().find(|u|u.id==id).unwrap().price,price);buy(&mut g,id).unwrap();
+    assert_eq!(o.iter().filter(|u|u.cap==CAP).count(),3);
+    for id in IDS {for (rank,price) in ROOT_PRICES.iter().enumerate() {
+        let u=offers(&g.lineage,false).into_iter().find(|u|u.id==id).unwrap();
+        assert_eq!((u.rank,u.price),(rank as u32,*price));buy(&mut g,id).unwrap();
     }}
-    assert_eq!((current(&g.lineage).unwrap().points,current(&g.lineage).unwrap().spent),(760,54));
+    let all:u32=3*ROOT_PRICES.iter().sum::<u32>();
+    assert_eq!((current(&g.lineage).unwrap().points,current(&g.lineage).unwrap().spent),(RICH-all,all));
     let before=g.save();assert!(buy(&mut g,"health").is_err());assert_eq!(g.save(),before);
     let mut g=rich();let before=g.save();assert!(buy(&mut g,"restoration").is_err());assert_eq!(g.save(),before);
     buy(&mut g,"health").unwrap();g.lineage.best_depth=7;
@@ -82,7 +89,7 @@ fn respec_preview_uses_the_same_checked_eligibility_and_actual_refund_as_purchas
     assert!(!offer.available);assert_eq!(offer.points_after,None);same_save(&g,&before);
     purchase(&mut g,"mending");
     let before=g.save();let offer=respec_offer(&g.lineage,false);
-    assert_eq!((offer.refund,offer.points_after,offer.available),(57,Some(814),true));
+    assert_eq!((offer.refund,offer.points_after,offer.available),(root_price(0)+EFFECT_PRICES[0]+EFFECT_PRICES[1],Some(RICH),true));
     assert_eq!(g.lineage().legacy_respec,Some(offer.clone()));same_save(&g,&before);
     assert!(!respec_offer(&g.lineage,true).available);
     g.lineage.bloodline.as_mut().unwrap().points=u32::MAX;
@@ -119,7 +126,7 @@ fn selected_slot_respec_does_not_change_shared_gold_or_any_other_game() {
     s.add_bloodline().unwrap();s.add_bloodline().unwrap();
     for id in [1,2,3] {
         s.select_bloodline(id).unwrap();ensure(&mut s.active.lineage);s.active.lineage.best_depth=34;
-        s.active.lineage.bloodline.as_mut().unwrap().points=814;purchase(&mut s.active,"fireward");
+        s.active.lineage.bloodline.as_mut().unwrap().points=RICH;purchase(&mut s.active,"fireward");
         let others=serde_json::to_value(&s.others).unwrap();let town=s.active.lineage.town.clone();let gold=s.active.lineage.gold;
         s.respec_legacy().unwrap();assert_eq!(serde_json::to_value(&s.others).unwrap(),others);
         assert_eq!(s.active.lineage.town,town);assert_eq!(s.active.lineage.gold,gold);
@@ -130,7 +137,8 @@ fn old_nine_ranks_and_migration_keep_effects_and_omit_new_live_metadata() {
     let mut g=rich();for id in IDS {for _ in 0..CAP {buy(&mut g,id).unwrap();}}
     let raw=g.save();let loaded=Game::load(&raw).unwrap();same_save(&loaded,&raw);
     let mut h=Hero::new(Class::Fighter,Pos::new(0,0));let base=h.clone();apply(&g.lineage,&mut h);
-    assert_eq!((h.hp-base.hp,h.str_bonus-base.str_bonus,h.legacy_armour),(9,3,3));assert_eq!(h.legacy_effects,0);
+    let cap=CAP as i32;
+    assert_eq!((h.hp-base.hp,h.str_bonus-base.str_bonus,h.legacy_armour),(3*cap,cap,cap));assert_eq!(h.legacy_effects,0);
     assert!(!serde_json::to_string(&h).unwrap().contains("legacy_effects"));
     let b=current(&g.lineage).unwrap().clone();g.lineage.bloodline=None;
     let last=g.lineage.hero_legacy.last_mut().unwrap();last.points=b.points;last.spent=b.spent;last.upgrades=b.upgrades.clone();
@@ -198,7 +206,7 @@ fn new_effects_keep_whole_sliced_and_reloaded_eight_hour_state_and_reports_exact
         crate::tree::grant(&mut base.active.lineage,&["porter","scout"]);
         for id in 1..=slots {
             base.select_bloodline(id).unwrap();ensure(&mut base.active.lineage);
-            base.active.lineage.best_depth=34;base.active.lineage.bloodline.as_mut().unwrap().points=814;
+            base.active.lineage.best_depth=34;base.active.lineage.bloodline.as_mut().unwrap().points=RICH;
             for leaf in ["mending","venom","brace"] {purchase(&mut base.active,leaf);}
             crate::packages::recompile(&mut base.active.lineage);crate::oath::refresh(&mut base.active.lineage);
             base.send();
@@ -287,7 +295,7 @@ fn away_a_legacy_upgrade_is_bought_for_the_next_run() {
     let hero=g.run.as_ref().unwrap().hero.clone();let sent=g.sent_state.as_ref().map(|s|s.lineage.bloodline.clone());
     let points=current(&g.lineage).unwrap().points;
     buy_next(&mut g,"health").unwrap();
-    assert_eq!(current(&g.lineage).unwrap().points,points-3);assert_eq!(current(&g.lineage).unwrap().upgrades["health"],1);
+    assert_eq!(current(&g.lineage).unwrap().points,points-root_price(0));assert_eq!(current(&g.lineage).unwrap().upgrades["health"],1);
     let now=&g.run.as_ref().unwrap().hero;
     assert_eq!((now.max_hp,now.hp,now.str_bonus),(hero.max_hp,hero.hp,hero.str_bonus),"the run under way keeps the hero it sent");
     assert_eq!(g.sent_state.as_ref().map(|s|s.lineage.bloodline.clone()),sent,"its replays keep the camp it left");

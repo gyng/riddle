@@ -60,7 +60,10 @@ pub const MONSTERS: &[MonsterDef] = &[
     // the Sanctum's wardens 30 → 34, echoes 16 → 18, sentinels 26 → 30 (`examples/descent_check`).
     MonsterDef { kind: "foundry_master", title: "Foundry Master", hp: 52, atk: (3, 6), def: 1, speed: 8, tags: &["boss", "reflect_melee", "buffer", "telegraph"], boss: true },
     MonsterDef { kind: "lurker_queen", title: "Lurker Queen", hp: 100, atk: (5, 8), def: 0, speed: 10, tags: &["boss", "blind", "brood", "summoner", "telegraph"], boss: true },
-    MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 220, atk: (13, 19), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
+    // Cut 121 §1 (blind 1a7d834: both raters slew him inside the first session; a spending player with three Legacy
+    // ranks beat him at his first meeting on day 2): 220 → 500 hp and 13–19 → 19–25 — with the Legacy curve, PICKED
+    // spending Legacy by hand meets him by day 2 and slays him around day 7 (`dayplayer` PICKED+L).
+    MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 500, atk: (19, 25), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
 ];
 
 pub fn monster_def(kind: &str) -> &'static MonsterDef {

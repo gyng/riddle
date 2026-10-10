@@ -400,6 +400,13 @@ pub struct Run {
     pub death_cause: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub death_modifiers: Option<crate::endgame::Modifiers>,
+    /// Cut 121 §2 (blind 1a7d834 B: `goblin · D8` beside `fell to the Warlord`): the killer's summoner when the killing
+    /// blow came from a summoned foe (`goblin_warlord`), and a hazard's source boss when he was in view at the blow
+    /// (`bloat_mother` for her gas; never when he was out of sight).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_summoner: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub death_source: Option<String>,
     pub death_blow: i32,
     /// QA on 0c6e126: the tick of the killing blow (`Trace.blow`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1789,6 +1796,10 @@ pub struct RowTally {
     /// Its first failing cond (the cond's own word: `gas`, `hp<`) → count.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub unmet: BTreeMap<String, u32>,
+    /// Cut 121 §4 (blind 1a7d834 B: a `foe: boss` rule fired on a siren unsaid): a foe-tag row's fires by the kind of
+    /// the foe it acted on — `also matches: siren`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub fired_on: BTreeMap<String, u32>,
 }
 
 /// Cut 23 §3: a row's tally is halved past this many actions (≈ two nights of sends).
@@ -1980,7 +1991,7 @@ impl LineageState {
             guest_pin: None,
             // (Cut 120 §1–2, owner option B: the Legacy and ranks orders start `off` — a player's new lineage, a save,
             // the harnesses' and IDLE's alike; `tree::NEW_LEGACY`)
-            orders: Default::default(),
+            orders: crate::wire::StandingSwitches { legacy: crate::tree::new_legacy().into(), ..Default::default() },
             pkg: Default::default(),
             pkg_v: 1,
             town: crate::town::Town { manual: true, home: Some(false), auto_collect: true, gold_v: 1, ..Default::default() }.into(),
@@ -2226,15 +2237,19 @@ impl LineageState {
             for (k, n) in &t.unmet {
                 *e.unmet.entry(k.clone()).or_insert(0) += n;
             }
+            for (k, n) in &t.fired_on {
+                *e.fired_on.entry(k.clone()).or_insert(0) += n;
+            }
             if e.actions > ROW_TALLY_CAP {
                 // (QA on 524827b, qaAB: `R1 3→11 · R2 11→17` over one 16-run absence — the sends are a count, never
                 // halved with the window: every row that sat in a send counts it, so rows that ran together agree)
                 e.actions /= 2;
                 e.fired /= 2;
                 e.matched /= 2;
-                for n in e.blocked.values_mut().chain(e.unmet.values_mut()) {
+                for n in e.blocked.values_mut().chain(e.unmet.values_mut()).chain(e.fired_on.values_mut()) {
                     *n /= 2;
                 }
+                e.fired_on.retain(|_, n| *n > 0);
                 e.blocked.retain(|_, n| *n > 0);
                 e.unmet.retain(|_, n| *n > 0);
             }
@@ -2289,6 +2304,7 @@ impl LineageState {
             bones: self.bones.iter().map(|b| BonesPile { depth: b.depth, heir: b.heir, items: b.items.len() as u32 }).collect(),
             ascension: Ascension { level: self.ascension, variant: self.variant.clone() },
             endgame: self.endgame.clone(),
+            descent: crate::endgame::ascension_wire(self),
             ascended: self.ascended.clone(),
             chronicle: self.chronicle.clone(),
             vault_pref: self.vault_pref.clone(),
@@ -4233,6 +4249,8 @@ impl Game {
             over: None,
             death_cause: None,
             death_modifiers: None,
+            death_summoner: None,
+            death_source: None,
             death_blow: 0,
             death_t: None,
             death_short: 0,

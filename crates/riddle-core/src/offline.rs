@@ -379,6 +379,15 @@ pub(crate) fn set_terms(r: &mut ReturnReport, l: &crate::engine::LineageState, b
     let terms: Vec<crate::wire::GoldTerm> = terms.into_iter().filter(|t| t.1 != 0).map(|(k, v)| crate::wire::GoldTerm { label: k.into(), amount: v.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32 }).collect();
     let earned: i32 = terms.iter().filter(|t| t.amount > 0).map(|t| t.amount).sum();
     let spent: i32 = -terms.iter().filter(|t| t.amount < 0).map(|t| t.amount).sum::<i32>();
+    // Cut 121 §2: the income (the ledger's income terms — never a bank withdrawal or a refund) and the workers' spend
+    let term = |k: &str| terms.iter().find(|t| t.label == k).map_or(0, |t| t.amount);
+    // (a waystone's passage pays into the purse under `other`: the absence's own count, `passage`)
+    let income = ["carried", "heir", "recovered", "fetched"].iter().map(|k| term(k).max(0)).sum::<i32>() + g.passage.max(0);
+    let acts = |k: &str| i64::from(l.tree.acts.get(k).copied().unwrap_or(0).saturating_sub(acts_before.get(k).copied().unwrap_or(0)));
+    let ranks = acts(crate::tree::RANKS_GOLD).min((-d("hires")).max(0));
+    let workers = (-term("apprentice")).max(0) as i64 + (-d("sinks")).max(0) + ranks;
+    g.earned = Some(income);
+    g.spent_by_workers = Some(workers.clamp(0, i64::from(i32::MAX)) as i32);
     g.ledger = Some(crate::wire::GoldLedger { earned, spent, net: earned - spent, terms });
 }
 
@@ -542,7 +551,7 @@ pub(crate) fn report_with(game: &mut Game, elapsed_s: u64, facts_before: &std::c
         stalled: b.stalls,
         driven: b.driven_off,
         spent: b.spent.iter().map(|(k, (n, g))| SalvageRow { kind: game.lineage.wire_name(k).replace('_', " "), n: *n, gold: *g }).filter(|r| r.gold > 0).collect(),
-        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost, unkept: b.gold_unkept, passage: b.passage, recovered: b.recovered_gold, fetched: b.fetched_gold, net: None, ledger: None }),
+        gold: Some(crate::wire::GoldSummary { home: b.gold_earned, salvage: b.salvage_gold, wake: b.wake_pay, spent: b.spent.values().map(|(_, g)| *g).sum(), wake_cap: crate::engine::WAKE_PAY, wake_n: b.wake_n, lost: b.gold_lost, unkept: b.gold_unkept, passage: b.passage, recovered: b.recovered_gold, fetched: b.fetched_gold, net: None, ledger: None, earned: None, spent_by_workers: None }),
         exits: b.exits.clone(),
         picked: game.lineage.picked_clean(),
         restock_capped: b.restock_capped,
