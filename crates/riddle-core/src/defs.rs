@@ -63,7 +63,7 @@ pub const MONSTERS: &[MonsterDef] = &[
     // Cut 121 §1 (blind 1a7d834: both raters slew him inside the first session; a spending player with three Legacy
     // ranks beat him at his first meeting on day 2): 220 → 500 hp and 13–19 → 19–25 — with the Legacy curve, PICKED
     // spending Legacy by hand meets him by day 2 and slays him around day 7 (`dayplayer` PICKED+L).
-    MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 500, atk: (19, 25), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
+    MonsterDef { kind: "mirror_king", title: "Mirror King", hp: 700, atk: (21, 27), def: 1, speed: 10, tags: &["boss", "mirror", "telegraph"], boss: true },
 ];
 
 pub fn monster_def(kind: &str) -> &'static MonsterDef {

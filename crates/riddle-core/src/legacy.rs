@@ -21,14 +21,24 @@ pub fn hero_identity(seed: u64, heir: u32, bloodline_id: u32) -> String {
 /// Cut 121 §1 (blind 1a7d834: both raters slew the King in the first session; Legacy ≈ 110 ◆ on day 1, the whole old
 /// tree 216): a root takes `CAP` ranks on a rising curve (`ROOT_PRICES`, the rank's price), and the effects cost
 /// `EFFECT_PRICES` by their depth — a spending player's power grows over the fortnight, not the first hours.
-pub const CAP: u32 = 5;
-pub const ROOT_PRICES: [u32; CAP as usize] = [15, 600, 1500, 3000, 6000];
+/// Cut 122 §1 (blind 9621b19, A and B: rank 1 cost 15, rank 2 600 — 388 ◆ sat unusable): a smooth curve, each rank
+/// 2–3× the last, more ranks; a rank's effect is `root_effect`'s.
+pub const CAP: u32 = 8;
+pub const ROOT_PRICES: [u32; CAP as usize] = [15, 40, 110, 300, 800, 2000, 5000, 12000];
 /// The effects' prices by their tier: the D8 ones, the D18 ones.
-pub const EFFECT_PRICES: [u32; 2] = [800, 2000];
+pub const EFFECT_PRICES: [u32; 2] = [700, 1800];
 
 /// A root's price at `rank` (the rank owned; the next one's price), saturating past the cap.
 pub fn root_price(rank: u32) -> u32 {
     ROOT_PRICES.get(rank as usize).copied().unwrap_or(u32::MAX)
+}
+/// Cut 122 §1: what a root's `rank` gives the hero — max hp (`health`), damage (`damage`), armour (`armour`).
+pub fn root_effect(id: &str, rank: u32) -> i32 {
+    let r = rank.min(CAP) as i32;
+    match id {
+        "health" => 3 * r,
+        _ => r,
+    }
 }
 pub const IDS: [&str; 3] = ["health", "damage", "armour"];
 
@@ -102,9 +112,9 @@ pub fn offers(l: &LineageState, away: bool) -> Vec<LegacyUpgrade> {
             name:Some(node.name.into()),branch:Some(node.branch.into()),parent:node.parent.map(str::to_owned),
             min_depth:(node.depth>0).then_some(node.depth),blocked,
             owned_effect:(node.mask==0&&rank>0).then(||match node.id {
-                "health"=>format!("+{} HP",3*rank.min(CAP)),
-                "damage"=>format!("+{} damage",rank.min(CAP)),
-                _=>format!("+{} armour",rank.min(CAP)),
+                "health"=>format!("+{} HP",root_effect("health",rank)),
+                "damage"=>format!("+{} damage",root_effect("damage",rank)),
+                _=>format!("+{} armour",root_effect("armour",rank)),
             })}
     }).collect()
 }
@@ -121,9 +131,9 @@ fn refit(g: &mut Game, before: &BloodlineLegacy) {
     if away(g) { return; }
     let Some(run) = g.run.as_mut() else { return };
     let after = g.lineage.bloodline.clone().unwrap_or_default();
-    let rank = |b: &BloodlineLegacy, id: &str| b.upgrades.get(id).copied().unwrap_or(0).min(CAP) as i32;
+    let rank = |b: &BloodlineLegacy, id: &str| root_effect(id, b.upgrades.get(id).copied().unwrap_or(0));
     let hero = &mut run.hero;
-    let hp = 3 * (rank(&after, "health") - rank(before, "health"));
+    let hp = rank(&after, "health") - rank(before, "health");
     hero.max_hp += hp; hero.max_hp_base += hp; hero.hp = (hero.hp + hp).clamp(1, hero.max_hp.max(1));
     hero.str_bonus += rank(&after, "damage") - rank(before, "damage");
     hero.legacy_armour = rank(&after, "armour");
@@ -178,8 +188,8 @@ pub fn respec(g:&mut Game)->Result<(),String> {
 }
 pub fn apply(l: &LineageState, hero: &mut Hero) {
     if let Some(h) = current(l) {
-        let rank = |id: &str| h.upgrades.get(id).copied().unwrap_or(0).min(CAP) as i32;
-        let hp = 3 * rank("health");
+        let rank = |id: &str| root_effect(id, h.upgrades.get(id).copied().unwrap_or(0));
+        let hp = rank("health");
         hero.max_hp += hp; hero.max_hp_base += hp; hero.hp += hp;
         hero.str_bonus += rank("damage");
         hero.legacy_armour = rank("armour");

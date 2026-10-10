@@ -763,6 +763,14 @@ fn choose_and_act(run: &mut Run, cx: &mut Ctx, v: &View) -> (i32, Verb) {
                 if run.homeward_bank {
                     gold_scent(run, cx);
                 }
+                // Cut 122 §7: the walk's length foreseen, for the watch's summary beat
+                if !cx.sim {
+                    let d = run.floor.map.bfs(run.hero.pos, false, &|_| false);
+                    let steps = d[run.floor.map.idx(run.floor.stairs_up)].max(0) as u32;
+                    let walk = steps * crate::engine::TICKS_PER_TURN;
+                    let ticks = if run.homeward_bank { walk } else { walk.min(RETURN_TICKS) };
+                    cx.events.push(Ev::Homeward { t: run.turn, ticks, bank: run.homeward_bank });
+                }
             }
             // Cut 4: the first row to act after the hero fell to ≤ 20 % is the one the
             // chronicle credits if the floor is survived.

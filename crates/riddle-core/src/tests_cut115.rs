@@ -47,7 +47,7 @@ fn an_equipped_tactics_rows_count_as_picked_and_the_school_as_default() {
     assert_eq!(packages::credit("stance:guarded", p), "picked");
     assert_eq!(packages::credit("drill:goblin_warlord", p), "taught");
     assert_eq!(packages::credit("patch", p), "taught");
-    assert_eq!(packages::credit("player", p), "picked");
+    assert_eq!(packages::credit("player", p), "written");
     assert_eq!(packages::credit("chores", p), "chores");
     assert_eq!(packages::credit("temper:skittish", p), "default", "the wake's draw is no pick");
     // the share is the core's, read from the fired rows' origins on the wire

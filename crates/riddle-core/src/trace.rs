@@ -189,7 +189,7 @@ fn record(game: &Game, run: &Run, stall: bool) -> DeathRec {
     let row_fired = run.row_fired.clone();
     let gamble_row = if stall { None } else { gamble_row(run, &rules) };
     let home = run.home_at.map(|(t, hp, _)| (hp, run.turn.saturating_sub(t)));
-    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.as_ref().filter(|(f, _)| f.id == run.id && f.depth == run.depth).map(|(r, f)| (r.clone(), (**f).clone())), gamble_row, chase_row: None, moves: Vec::new(), removed: removed_rows(&game.lineage.sent_sets, &game.lineage.rules().clone()) }
+    DeathRec { death, home, t10, t10_facts, rules, vocab, verdict_done: false, deltas_done: false, deltas_n: 0, shaped: false, death_tick: run.turn, boss, counter: None, root, stall, t10_kill_counts, t10_lineage, heal_held, unknown_held, unknown_scrolls, root_under_base: false, camp_key: 0, pick_price: None, loop_row, row_fired, low_fired: Vec::new(), floor_window: false, floor: game.floor_start.as_ref().filter(|(f, _)| f.id == run.id && f.depth == run.depth).map(|(r, f)| (r.clone(), (**f).clone())), gamble_row, chase_row: None, moves: Vec::new(), removed: removed_rows(&game.lineage.sent_sets, &game.lineage.rules().clone()) }
 }
 
 /// Cut 27 §5: the rows of the latest sent set other than `now` that `now` no longer holds (by
@@ -2667,6 +2667,17 @@ pub fn death(game: &mut Game, run_id: u32) -> Option<Death> {
     rec.death.lever = crate::packages::lever(&game.lineage, &rec.death.cause);
     // Cut 115 §4: a tactic that answers the death, before a raw row (stalls have no killer)
     rec.death.pick = if rec.death.verdict == "stall" { None } else { crate::packages::pick_lever(&game.lineage, &rec.death.cause) };
+    // Cut 122 §2: the pick's price on this camp (`death_deltas` measures it), else pending
+    let key = camp_key(game);
+    if let Some(pick) = rec.death.pick.as_mut().filter(|l| l.kind == "tactic") {
+        match rec.pick_price.as_ref().filter(|(k, id, _)| *k == key && pick.id.as_deref() == Some(id.as_str())) {
+            Some((_, _, price)) => {
+                pick.trade_off = price.trade_off;
+                pick.price = Some(price.clone());
+            }
+            None => pick.pending = true,
+        }
+    }
     let mut d = rec.death.clone();
     // QA on 23ed91f: the camp's numbers are `death_deltas`'s (four camp panels — seconds in
     // wasm): until measured on this camp state, the shown patches carry the verdict's own
@@ -2719,7 +2730,7 @@ pub fn camp_state(game: &Game) -> Game {
 /// lineage state; `forecast_pm` is that bar's 95 % half-width. Measured again when the camp
 /// state moved since (a trait, a purchase, the shelf).
 fn camp_deltas(game: &Game, rec: &mut DeathRec) {
-    if rec.death.patches.is_empty() {
+    if rec.death.patches.is_empty() && rec.death.pick.as_ref().is_none_or(|l| l.kind != "tactic") {
         return;
     }
     let g = camp_state(game);
@@ -2769,12 +2780,27 @@ fn camp_deltas(game: &Game, rec: &mut DeathRec) {
     } else {
         base_panel.clone()
     };
+    // Cut 122 §2: the wall a fix answers is the floor he fell on (a stall's: the floor none got past)
+    let wall = rec.death.depth.max(1);
     for (p, patched) in rec.death.patches.iter_mut().zip(panels.iter()) {
-        let w = whole_move_on(&base_n, patched, crate::forecast::sim_start(&g), depth, is_gamble(&p.row) && !p.remove, patch_exits(p));
+        let mut w = whole_move_on(&base_n, patched, crate::forecast::sim_start(&g), depth, is_gamble(&p.row) && !p.remove, patch_exits(p));
+        let price = wall_price(&base_n, patched, wall);
+        w.trade_off = price.trade_off;
+        w.price = Some(price);
         p.forecast_depth = w.depth;
         p.forecast_delta = w.reach;
         p.forecast_pm = w.reach_pm;
         p.whole = Some(w);
+    }
+    // Cut 122 §2: the death's tactic pick (`TRY`), worn as `take_fix` wears it, on the same seeds
+    if let Some((id, v)) = rec.death.pick.as_ref().filter(|l| l.kind == "tactic").and_then(|l| Some((l.id.clone()?, l.variant.unwrap_or(0)))) {
+        let mut worn = g.sim_clone();
+        if crate::packages::take_fix(&mut worn.lineage, &id, v as u8).is_ok() {
+            crate::packages::recompile(&mut worn.lineage);
+            let rules = worn.lineage.rules().clone();
+            let panel = crate::forecast::camp_panel(&worn, &rules, crate::forecast::FORECAST_SIMS);
+            rec.pick_price = Some((key, id, wall_price(&base_n, &panel, wall)));
+        }
     }
     // Cut 19 §4: the camp's numbers rank the list again (survival first, reach within the
     // band) — the pinned heads keep their places.
@@ -2835,9 +2861,40 @@ pub fn whole_move_on(base: &[crate::forecast::SimResult], patched: &[crate::fore
     // one whose deaths rise most, by `RISK_SIMS` or more.
     let count = |xs: &[crate::forecast::SimResult], c: &str| xs.iter().filter(|r| r.tier == ExitTier::Death && r.cause.as_deref() == Some(c)).count() as i64;
     let risk = ["fire", "poison", "gas"].iter().filter(|_| gamble).map(|c| (count(a, c) - count(b, c), *c)).filter(|(k, _)| *k >= RISK_SIMS).max_by_key(|(k, _)| *k).map(|(_, c)| c.to_string());
-    let mut w = crate::wire::PatchWhole { reach: reach.delta, reach_pm: reach.pm, reach_from: reach.base, reach_to: reach.base + reach.delta, death: death.delta, death_pm: death.pm, harms: false, risk, depth, death_from: death.base };
+    let mut w = crate::wire::PatchWhole { reach: reach.delta, reach_pm: reach.pm, reach_from: reach.base, reach_to: reach.base + reach.delta, death: death.delta, death_pm: death.pm, harms: false, risk, depth, death_from: death.base, price: None, trade_off: false };
     w.harms = whole_harms(&w) && !(exits && !(w.death > 1e-9 && w.death > w.death_pm + 1e-9));
     w
+}
+
+/// Cut 122 §2 (blind 9621b19 A: `Mirror rhythm` D33 50→0%, `gas step · wade in` D18 88→38%; `hp<70% → return`
+/// `death 67→0%` while D13 fell 100→0%): a suggestion priced at the wall it answers — `base` and `with` the camp's
+/// panels without and with it (the same seeds, paired), `wall` the floor: the share of sends past it (reach of
+/// `wall + 1`) and the death share, each paired with its 95 % half-width. A trade-off when either is worse past
+/// its noise (past down, or deaths up, beyond the ±): an exit's price at the wall is a trade-off too.
+pub fn wall_price(base: &[crate::forecast::SimResult], with: &[crate::forecast::SimResult], wall: u32) -> crate::wire::WallPrice {
+    use crate::engine::ExitTier;
+    let n = base.len().min(with.len());
+    let (a, b) = (&with[..n], &base[..n]);
+    let ind = |x: bool| if x { 1.0 } else { 0.0 };
+    let past = crate::forecast::paired(a, b, |r| ind(r.max_depth > wall));
+    let death = crate::forecast::paired(a, b, |r| ind(r.tier == ExitTier::Death));
+    let worse = |m: &crate::wire::VsMove, up: bool| {
+        let d = if up { m.delta } else { -m.delta };
+        d > 1e-9 && d > m.pm + 1e-9
+    };
+    let trade_off = worse(&past, false) || worse(&death, true);
+    let r3 = |x: f64| (x * 1000.0).round() / 1000.0;
+    crate::wire::WallPrice {
+        depth: wall,
+        past_from: r3(past.base),
+        past_to: r3(past.base + past.delta),
+        past_pm: r3(past.pm),
+        death_from: r3(death.base),
+        death_to: r3(death.base + death.delta),
+        death_pm: r3(death.pm),
+        sims: n as u32,
+        trade_off,
+    }
 }
 
 /// QA on 524827b: the row drinks or reads an unknown (its harms are the patch's own risk).
@@ -2856,7 +2913,7 @@ pub fn whole_harms(w: &crate::wire::PatchWhole) -> bool {
 
 /// Whether a measured patch harms whole runs (`PatchWhole.harms`); unmeasured, no.
 pub fn patch_harms(p: &Patch) -> bool {
-    p.whole.as_ref().is_some_and(|w| w.harms)
+    p.whole.as_ref().is_some_and(|w| w.harms || w.trade_off)
 }
 
 /// QA on 524827b: a patch that harms whole runs never leads — the list keeps its order, those
@@ -2882,7 +2939,7 @@ pub fn gem_patch(patches: &[Patch]) -> Option<&Patch> {
 /// is a one-tap default: an exit's floors are a price the player picks, never the default).
 pub fn gem_eligible(p: &Patch) -> bool {
     let worse = |w: &crate::wire::PatchWhole| w.harms || (w.death > 1e-9 && w.death > w.death_pm + 1e-9) || (w.reach < -1e-9 && w.reach < -w.reach_pm - 1e-9);
-    !p.below_bar && p.whole.as_ref().is_some_and(|w| !worse(w))
+    !p.below_bar && p.whole.as_ref().is_some_and(|w| !worse(w) && !w.trade_off)
 }
 
 /// Cut 27 §4: a gem candidate's whole-run value — its reach move less its death move (the paired

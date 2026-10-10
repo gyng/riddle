@@ -734,7 +734,7 @@ pub fn walls(l: &LineageState) -> Vec<BossWall> {
             None => crate::engine::boss_escort(kind).replace('_', " "),
         };
         let past = depth > l.best_depth;
-        let slain = l.kills.contains(kind);
+        let slain = l.slain_here(kind);
         let known = crate::facts::boss_counter_known(&l.facts, kind);
         let row = crate::facts::boss_counter_row(&l.facts, kind);
         out.push(BossWall {

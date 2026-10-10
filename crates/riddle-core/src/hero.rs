@@ -180,6 +180,9 @@ pub struct Hero {
     pub str_bonus: i32,
     #[serde(default)]
     pub legacy_armour: i32,
+    /// Cut 122 §5: he carries a ration this run — the hunger bites `feats::RATION_SLOW` times as rarely.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fed: bool,
     /// Cut 113 §2: the forge's pace steps (the armour ladder's other branch): speed in tenths (the
     /// whole points in `speed`, the rest a tick at a time: `kit::pace_energy`).
     #[serde(default, skip_serializing_if = "crate::specialization::zero")]
@@ -269,6 +272,7 @@ impl Hero {
             base_atk: (1, 2),
             str_bonus: 0,
             legacy_armour: 0,
+            fed: false,
             pace: 0,
             legacy_effects: 0,
             specialization:None,

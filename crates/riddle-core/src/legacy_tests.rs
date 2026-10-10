@@ -2,7 +2,7 @@
 use super::*;
 use crate::{monster::Monster,geom::Pos,rules::Verb,turn::Src,hero::Class,rng::Rng};
 /// Cut 121 §1: enough for the whole tree on the Legacy curve, and a margin.
-const RICH:u32=50_000;
+const RICH:u32=200_000;
 fn rich()->Game {
     // (Cut 120 §1: purchases by hand — the new lineage's Legacy order off)
     let mut g=Game::new_resident(3);ensure(&mut g.lineage);g.lineage.orders.legacy="off".into();
@@ -138,7 +138,7 @@ fn old_nine_ranks_and_migration_keep_effects_and_omit_new_live_metadata() {
     let raw=g.save();let loaded=Game::load(&raw).unwrap();same_save(&loaded,&raw);
     let mut h=Hero::new(Class::Fighter,Pos::new(0,0));let base=h.clone();apply(&g.lineage,&mut h);
     let cap=CAP as i32;
-    assert_eq!((h.hp-base.hp,h.str_bonus-base.str_bonus,h.legacy_armour),(3*cap,cap,cap));assert_eq!(h.legacy_effects,0);
+    assert_eq!((h.hp-base.hp,h.str_bonus-base.str_bonus,h.legacy_armour),(root_effect("health",CAP),root_effect("damage",CAP),root_effect("armour",CAP)));let _=cap;assert_eq!(h.legacy_effects,0);
     assert!(!serde_json::to_string(&h).unwrap().contains("legacy_effects"));
     let b=current(&g.lineage).unwrap().clone();g.lineage.bloodline=None;
     let last=g.lineage.hero_legacy.last_mut().unwrap();last.points=b.points;last.spent=b.spent;last.upgrades=b.upgrades.clone();

@@ -578,6 +578,13 @@ pub fn hunger_tick(run: &mut Run, cx: &mut Ctx) {
     if run.hero.max_hp <= 5 {
         return;
     }
+    // Cut 122 §5 (blind 9621b19, A and B: `starving −36` with no answer): a ration in the pack — the hunger bites one
+    // period in `RATION_SLOW`
+    run.hunger_periods += 1;
+    if run.hero.fed && !(run.hunger_periods - 1).is_multiple_of(crate::feats::RATION_SLOW) {
+        return;
+    }
+    run.hunger_lost += 1;
     run.hero.max_hp -= 1;
     run.hero.hp = run.hero.hp.min(run.hero.max_hp);
     if run.met_situation("hunger") {

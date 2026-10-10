@@ -494,6 +494,27 @@ pub struct Counter {
     pub boss: String,
     pub row: Row,
     pub text: String,
+    /// Cut 122 §6: whether the row passes the set's door now (`owned`; else `refusal`, the door's words, and
+    /// `wear`, the package whose wearing owns its card).
+    #[serde(default = "yes")]
+    pub owned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refusal: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wear: Option<String>,
+}
+
+/// Cut 122 §6 (blind 9621b19 A: an added `cadence` counter shown as added, refused by `setRules` with `card not
+/// owned: cadence`): whether a row offered for the set passes `setRules`' door now. `owned` false: `refusal` is the
+/// door's own words (`card not owned: cadence`) and `wear` the package that owns its card once worn (`cadence`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Ownership {
+    pub owned: bool,
+    pub refusal: Option<String>,
+    pub wear: Option<String>,
+}
+impl Default for Ownership {
+    fn default() -> Self { Ownership { owned: true, refusal: None, wear: None } }
 }
 
 /// Cut 6 §3: why a row above the fired one did not fire this action (≤ 3 words from
@@ -582,6 +603,11 @@ pub enum Ev {
     /// bottom's stairs within three steps (30 ticks), or death in the air (hp ≤ 15% with a
     /// hostile adjacent; once per 100 ticks). An instant exit (`bail`, recall) says 0; a `return` walks to the up-stairs (Cut 19 §2).
     Ending { t: u32, ticks: u32 },
+    /// Cut 122 §7 (blind 9621b19 B: `Heading home` ~2 min of watch): the walk home committed (a `return` or `bank`
+    /// row acted) — `ticks` the walk's length foreseen (a bank's path to the up-stairs at his step; a return's, at most
+    /// its `RETURN_TICKS`). The watch may fold a long walk into one summary beat (`walk home ·
+    /// 14 s`) and resume at the next fight or the exit.
+    Homeward { t: u32, ticks: u32, bank: bool },
     /// QA on 1a2a4a9 (qaP: `12/38 → 6/16 → 3/16 → 0/15` on D12 with no line until the death):
     /// the hero's max HP moved — `delta` (−1 per hunger bite on an unlit hunger floor), `max`
     /// after it, `cause` (`hunger`). The callout beside it reads `hunger −1 max`.
@@ -637,6 +663,7 @@ impl Ev {
             | Ev::Rest { t, .. }
             | Ev::Bones { t, .. }
             | Ev::Ending { t, .. }
+            | Ev::Homeward { t, .. }
             | Ev::Drain { t, .. }
             | Ev::Oath { t, .. }
             | Ev::Heal { t, .. }
@@ -645,7 +672,7 @@ impl Ev {
     }
     /// Renderable, non-movement events (the "events per 60 turns" gate).
     pub fn renderable(&self) -> bool {
-        !matches!(self, Ev::Gun { .. } | Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. } | Ev::Ending { .. } | Ev::Oath { .. } | Ev::Heal { .. })
+        !matches!(self, Ev::Gun { .. } | Ev::Move { .. } | Ev::Rule { .. } | Ev::Fact { .. } | Ev::Note { .. } | Ev::Rest { .. } | Ev::Ending { .. } | Ev::Homeward { .. } | Ev::Oath { .. } | Ev::Heal { .. })
     }
 }
 
@@ -747,6 +774,49 @@ pub struct ForecastTry {
     /// Cut 24 §5: the floor the boss is met on (this row's depth − 1).
     #[serde(default)]
     pub met: u32,
+    /// Cut 122 §6: as `Counter.owned` / `refusal` / `wear` (the row, inserted as the pen inserts it).
+    #[serde(default = "yes")]
+    pub owned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refusal: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wear: Option<String>,
+    /// Cut 122 §2: the try priced at its wall (the boss's floor) by the paired forecast; `trade_off` when it is worse
+    /// there past the noise. Absent when not measured (a wall no sim reaches).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price: Option<WallPrice>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub trade_off: bool,
+}
+
+/// Cut 122 §5: the hunger priced on a forecast's panel (`Forecast.hunger`); means per send, in max hp.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct HungerForecast {
+    pub lost: f64,
+    pub unfed: f64,
+    pub fed: f64,
+    pub kept: f64,
+    pub packed: bool,
+    pub price: i32,
+}
+
+/// Cut 122 §2 (blind 9621b19 A: `Mirror rhythm` took the forecast's D33 50→0%, `gas step · wade in` D18 88→38%):
+/// a suggestion priced at the wall it answers — paired sims of the camp with and without it, the share of sends
+/// past the wall (`past_*`, reach of `depth + 1`) and the death share (`death_*`), each with its 95 % half-width (0..1).
+/// `trade_off`: worse past the noise on either (`past` down, or `death` up, beyond its ±) — show the numbers, never
+/// as a fix.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
+pub struct WallPrice {
+    pub depth: u32,
+    pub past_from: f64,
+    pub past_to: f64,
+    pub past_pm: f64,
+    pub death_from: f64,
+    pub death_to: f64,
+    pub death_pm: f64,
+    pub sims: u32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub trade_off: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -802,6 +872,11 @@ pub struct Forecast {
     /// Cut 28 §1: the sworn oath priced on this panel (`oath · D10 no drink · 34%`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub oath: Option<OathShare>,
+    /// Cut 122 §5 (blind 9621b19: `starving −36` with no answer): the hunger on this panel — the max hp a send loses to
+    /// it as the camp stands (`lost`), unfed and with a ration (`unfed`, `fed`: mean per send), the hp a ration keeps
+    /// (`kept` = unfed − fed) and whether the next send already packs one (`packed`). Absent when no sim met the hunger.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hunger: Option<HungerForecast>,
 }
 
 /// Cut 22 §3 (AH: "most edits moved the forecast less than its ±10–13 error, so I couldn't tell
@@ -1170,6 +1245,13 @@ pub struct PatchWhole {
     /// before the patch (0..1) — the screen prints the move as from→to (`death 100→0%`).
     #[serde(default)]
     pub death_from: f64,
+    /// Cut 122 §2 (blind 9621b19: fixes that made the game's own forecast worse): the patch priced at the wall it
+    /// answers (the death's floor, the stall's) — `trade_off` when it is worse there past the noise (sends past the
+    /// wall down, or deaths up, beyond the ±): never a fix, never the gem; show the numbers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price: Option<WallPrice>,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub trade_off: bool,
 }
 
 fn is_zero_u32(n: &u32) -> bool {
@@ -1616,7 +1698,7 @@ pub struct ReturnReport {
 }
 
 /// Cut 30 §2: a death's cheapest lever (`kind` spend · package · wait; `text` ≤ 3 words).
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
 pub struct Lever {
     pub kind: String,
     pub text: String,
@@ -1625,6 +1707,15 @@ pub struct Lever {
     pub id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub variant: Option<u32>,
+    /// Cut 122 §2 (blind 9621b19 A: `TRY Mirror rhythm`, then the forecast's D33 50→0%): a `tactic` pick priced at
+    /// the death's wall on the camp's panel (with `deathDeltas`; absent before, `pending` true) — `trade_off` when it
+    /// is worse there past the noise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub price: Option<WallPrice>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub trade_off: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pending: bool,
 }
 
 /// Cut 115 §1: the build the player wore (`Packages.build`): its name (`Bulwark`, `Guarded skirmisher`), the synergy
@@ -2153,6 +2244,13 @@ pub struct LedgerRow {
 pub struct CounterChip {
     pub row: Row,
     pub text: String,
+    /// Cut 122 §6: as `Counter.owned` / `refusal` / `wear`.
+    #[serde(default = "yes")]
+    pub owned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refusal: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wear: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]

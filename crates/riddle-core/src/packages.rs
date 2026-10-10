@@ -892,6 +892,18 @@ pub fn counter_offer(l: &LineageState, boss: &str, row: &Row) -> (String, bool) 
     if l.pkg.literal || l.pkg.pen_open {
         return (crate::facts::counter_text(row), true);
     }
+    if let Some(d) = counter_package(l, row) {
+        return (d.name.to_string(), true);
+    }
+    if l.pkg.drills.iter().any(|d| d.boss == boss && d.revoked) {
+        return ("restore drill".into(), true);
+    }
+    (COUNTER_WAIT.into(), false)
+}
+
+/// The tactic `counter_offer` names for a counter `row` before the pen (one that carries its verb, arrived, a slot
+/// open) — Cut 122 §2: the forecast's `try` is priced wearing it.
+pub fn counter_package(l: &LineageState, row: &Row) -> Option<&'static PackageDef> {
     let carries = |id: &str| {
         let d = def(id);
         let card = d.and_then(|d| d.card).unwrap_or(id);
@@ -901,13 +913,7 @@ pub fn counter_offer(l: &LineageState, boss: &str, row: &Row) -> (String, bool) 
             || tactic_rows_v(id, lv, v).iter().chain(tactic_lead_rows(id, v).iter()).any(|r| r.verb == row.verb)
             || crate::meta::unlock_rows(card).is_some_and(|rows| rows.iter().any(|r| r.verb == row.verb))
     };
-    if let Some(d) = PACKAGES.iter().find(|d| d.kind == Kind::Tactic && available(l, d.id) && tactic_slots(l) > 0 && carries(d.id)) {
-        return (d.name.to_string(), true);
-    }
-    if l.pkg.drills.iter().any(|d| d.boss == boss && d.revoked) {
-        return ("restore drill".into(), true);
-    }
-    (COUNTER_WAIT.into(), false)
+    PACKAGES.iter().find(|d| d.kind == Kind::Tactic && available(l, d.id) && tactic_slots(l) > 0 && carries(d.id))
 }
 
 /// The Mirror King's counter (blind 1fb7786, A: `COUNTER: CADENCE` with `Mirror rhythm · ⊘ Clear dungeon` — a
@@ -919,6 +925,17 @@ fn rhythm_available(l: &LineageState) -> bool {
 }
 fn available(l: &LineageState, id: &str) -> bool {
     l.pkg.owned.contains(id) || id == "cadence" && rhythm_available(l)
+}
+/// Cut 122 §6 (blind 9621b19 A: the guide's `cadence` counter showed as added, then the console's `card not owned:
+/// cadence`): whether `row` passes `Game::set_rules`' door as the lineage stands (every card owned: an unlock, or a
+/// card the set holds now) — and when not, the door's refusal and the package whose wearing owns it (`equip`).
+pub fn row_owned(l: &LineageState, row: &Row) -> crate::wire::Ownership {
+    let Some(c) = row.card() else { return crate::wire::Ownership::default() };
+    if l.unlocks.contains(c) || l.rules().rows.iter().any(|r| r.card() == Some(c)) {
+        return crate::wire::Ownership::default();
+    }
+    let wear = PACKAGES.iter().find(|d| d.card == Some(c) && available(l, d.id)).map(|d| d.id.to_string());
+    crate::wire::Ownership { owned: false, refusal: Some(format!("card not owned: {}", c.replace('_', " "))), wear }
 }
 pub fn equip(l: &mut LineageState, id: &str, slot: usize) -> Result<(), String> {
     if l.pkg.literal {
@@ -1354,7 +1371,7 @@ pub fn lever(l: &LineageState, cause: &str) -> Option<crate::wire::Lever> {
 
 /// Cut 115 §4: a death's tactic fix as a lever (`kind` `tactic`, `text` `gas step · burn`, the id and variant).
 pub fn pick_lever(l: &LineageState, cause: &str) -> Option<crate::wire::Lever> {
-    fix_pick(l, cause).map(|(id, v, text)| crate::wire::Lever { kind: "tactic".into(), text, id: Some(id), variant: Some(v as u32) })
+    fix_pick(l, cause).map(|(id, v, text)| crate::wire::Lever { kind: "tactic".into(), text, id: Some(id), variant: Some(v as u32), ..Default::default() })
 }
 
 /// A row's package label for the verdict and the trace (`Steady`, `drill · Warlord`), if it is one.
@@ -1536,18 +1553,23 @@ fn name_of_pick(id: &str, p: &PkgState) -> String {
     }
 }
 
-/// Cut 115 §1: who chose a row — `picked` (a package the player equipped, a variant he set, a row he wrote),
-/// `taught` (a drill, a death's fix), `default` (the school stance, the wake's temperament, a trait's own step),
-/// `chores`. `origin` is the meters' key (`Meter.origins`): a row's origin, `chores`, `trait`, or empty (a row
-/// with no origin: a literal set's, the player's).
+/// Cut 115 §1: who chose a row — `written` (a row the player wrote in the pen), `picked` (a package the player
+/// equipped, a variant he set), `taught` (a drill, a death's fix), `default` (the school stance, the wake's
+/// temperament, a trait's own step), `chores`. `origin` is the meters' key (`Meter.origins`): a row's origin,
+/// `chores`, `trait`, or empty (a row with no origin: a literal set's, the player's).
+/// Cut 122 §4 (blind 9621b19 A: `Guarded · attack nearest · own rule` on the first death, no rule written): a
+/// package's row is the player's pick, never his own rule — `written` is for the rows he wrote alone.
 pub fn credit(origin: &str, p: &PkgState) -> &'static str {
     let (kind, id) = origin.split_once(':').unwrap_or((origin, ""));
     match kind {
         "chores" => "chores",
         "trait" | "class" => "default",
+        // (Cut 119 §0: the default tame row is everyone's, no lesson)
+        "drill" if origin == crate::pets::TAME_ORIGIN => "default",
         "patch" | "drill" => "taught",
         "tactic" if p.taught.contains(id) => "taught",
-        "tactic" | "style" | "player" | "card" | "" => "picked",
+        "player" | "card" | "" => "written",
+        "tactic" | "style" => "picked",
         "stance" if id == "steady" => "default",
         "stance" => "picked",
         "temper" if p.temperament_chosen => "picked",
@@ -1556,7 +1578,7 @@ pub fn credit(origin: &str, p: &PkgState) -> &'static str {
 }
 
 /// The credit order the report reads.
-pub const CREDITS: [&str; 4] = ["picked", "taught", "default", "chores"];
+pub const CREDITS: [&str; 5] = ["written", "picked", "taught", "default", "chores"];
 
 /// A meter's fires by credit (shares of all fires, 0..1, in `CREDITS` order; empty without fires).
 pub fn credit_shares(origins: &BTreeMap<String, u32>, p: &PkgState) -> Vec<crate::wire::CreditShare> {

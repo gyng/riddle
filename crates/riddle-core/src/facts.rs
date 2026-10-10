@@ -297,6 +297,7 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
         if run.monsters[i].is_boss() && run.boss_seen_t.is_none() {
             run.boss_seen_t = Some(run.turn);
             let kind = run.monsters[i].kind.clone();
+            let back = cx.kill_counts.get(kind.as_str()).is_some_and(|n| *n > 0);
             if !run.bosses_met.contains(&kind) {
                 run.bosses_met.push(kind);
             }
@@ -304,7 +305,9 @@ pub fn on_vision(run: &mut Run, cx: &mut Ctx) {
             run.wall_seen = true;   // Cut 28b: the oath board opens (`LineageState::oath_open`)
             let title = run.monsters[i].title();
             cx.events.push(Ev::Callout { t: run.turn, text: title.clone(), why: None });
-            crate::chronicle::note(run, cx, format!("The {title} waits."));
+            // Cut 122 §3 (blind 9621b19 B: `King · slain` beside the reel's `The Mirror King waits`): a boss the line has
+            // felled before is back, not waiting for his first meeting
+            crate::chronicle::note(run, cx, if back { format!("The {title} is back.") } else { format!("The {title} waits.") });
             // Cut 5 §1/§3: the boss leads its own episode; the hero has a word for it.
             crate::sifter::seal(run);
             crate::sifter::voice(run, cx, crate::sifter::Moment::BossSeen);

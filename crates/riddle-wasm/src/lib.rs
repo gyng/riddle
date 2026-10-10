@@ -544,6 +544,13 @@ impl Game {
         Ok(js(&self.inner.lineage()))
     }
 
+    /// Cut 122 §5: buy the next send's ration by hand (`Forecast.hunger`); returns the Lineage.
+    #[wasm_bindgen(js_name = buyRation)]
+    pub fn buy_ration(&mut self) -> Result<String, JsError> {
+        self.inner.buy_ration().map_err(err)?;
+        Ok(js(&self.inner.lineage()))
+    }
+
     /// Cut 118 §7: grant the hero's waiting wish (`Lineage.feats.wish`); returns the Lineage.
     #[wasm_bindgen(js_name = grantWish)]
     pub fn grant_wish(&mut self) -> Result<String, JsError> {

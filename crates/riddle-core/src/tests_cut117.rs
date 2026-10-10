@@ -232,7 +232,7 @@ fn consecutive_king_deaths_do_not_alternate_the_fix() {
 fn the_forecast_names_the_scouts_wall_order() {
     use crate::engine::ExitTier;
     use crate::forecast::{held_ends, SimResult};
-    let sim = |max_depth: u32, tier: ExitTier, loot_kept: i32, arrive: Vec<(u32, u32, i32)>| SimResult { max_depth, tier, cause: None, loot_kept, timed_out: false, ticks: 1, loot: 0, fires: Vec::new(), oath: false, oath_progress: 0.0, oath_steps: 0, passage: 0, arrive };
+    let sim = |max_depth: u32, tier: ExitTier, loot_kept: i32, arrive: Vec<(u32, u32, i32)>| SimResult { max_depth, tier, cause: None, loot_kept, timed_out: false, ticks: 1, loot: 0, fires: Vec::new(), oath: false, oath_progress: 0.0, oath_steps: 0, passage: 0, arrive, hunger: (0, 0) };
     // two sims past the wall on 5 (one dies on 6 having carried 40 to it, one banks on 7), one dies on 3
     let ended = vec![sim(6, ExitTier::Death, 0, vec![(1, 0, 0), (5, 10, 40), (6, 20, 60)]), sim(7, ExitTier::Bank, 90, vec![(1, 0, 0), (5, 10, 30)]), sim(3, ExitTier::Death, 0, vec![(1, 0, 0)])];
     let h = held_ends(&ended, 5, true);

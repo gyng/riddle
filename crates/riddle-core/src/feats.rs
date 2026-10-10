@@ -45,6 +45,8 @@ pub const TITHE_PER_HOUR: u32 = 3;
 pub const RATION_UNITS: i32 = 1;
 pub const RATION_PCT: i32 = 10;
 pub const RATION_MIN_HP: i32 = 2;
+/// Cut 122 §5: a ration carried, the hunger bites one period in this many (`situations::hunger_tick`).
+pub const RATION_SLOW: u32 = 4;
 /// The survey (a work that opens the deep forks early): its price in forge units.
 pub const SURVEY_UNITS: i32 = 20;
 /// The siege: a band boss's edge per heir who died at him (percent of the hero's blows), and its cap.
@@ -785,6 +787,23 @@ pub fn eat_ration(l: &mut LineageState, hero: &mut crate::hero::Hero) {
     let add = (hero.max_hp * RATION_PCT / 100).max(RATION_MIN_HP);
     hero.max_hp += add;
     hero.hp += add;
+    hero.fed = true;
+}
+
+/// Cut 122 §5: the player buys the next send's ration by hand (the apprentice's sink buys the same, under his order):
+/// a forge unit, once a send. The price paid.
+pub fn buy_ration(l: &mut LineageState) -> Result<i32, String> {
+    if l.feats.ration {
+        return Err("ration packed".into());
+    }
+    let p = ration_price(l);
+    if crate::tree::purse(l) < p {
+        return Err("not enough gold".into());
+    }
+    l.gold_move(-p, "ration");
+    l.feats.ration = true;
+    l.feats.rations += 1;
+    Ok(p)
 }
 
 /// The survey's price, and whether it is on offer (Kit complete, the deep forks still shut).
@@ -839,7 +858,7 @@ pub fn grant_wish(l: &mut LineageState) -> Result<String, String> {
 /// The hours until the King may fall at the current pace (`None` slain, or no pace yet): the lineage's hours
 /// per floor so far, the floors left weighted deeper (a floor at the bottom takes twice the walk's mean).
 pub fn king_eta_h(l: &LineageState) -> Option<u32> {
-    if l.kills.contains("mirror_king") {
+    if l.slain_here("mirror_king") {
         return Some(0);
     }
     let best = l.best_depth;
@@ -855,7 +874,7 @@ pub fn king_eta_h(l: &LineageState) -> Option<u32> {
 
 /// The record as a share of the way to the King (percent).
 pub fn king_pct(l: &LineageState) -> u32 {
-    if l.kills.contains("mirror_king") {
+    if l.slain_here("mirror_king") {
         return 100;
     }
     (l.best_depth * 100 / (crate::descent::ENDING_DEPTH - 1)).min(99)
@@ -1020,7 +1039,7 @@ pub fn wire(l: &LineageState) -> FeatsWire {
         let p = tithe_price(l);
         sinks.push(Sink { id: "tithe".into(), price: p, line: format!("1 Legacy / ${p}"), available: crate::tree::purse(l) >= p, n: l.feats.tithed });
         let r = ration_price(l);
-        sinks.push(Sink { id: "ration".into(), price: r, line: format!("+{RATION_PCT}% hp · 1 run"), available: crate::tree::on(l, "apprentice"), n: l.feats.rations });
+        sinks.push(Sink { id: "ration".into(), price: r, line: format!("hunger ÷{RATION_SLOW} · +{RATION_PCT}% hp · 1 run"), available: crate::tree::on(l, "apprentice"), n: l.feats.rations });
         if let Some(s) = survey_offer(l) {
             sinks.push(Sink { id: "survey".into(), price: s, line: "forks D19 · D24".into(), available: crate::tree::purse(l) >= s, n: 0 });
         }

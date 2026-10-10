@@ -289,6 +289,7 @@ fn descent_lineage(l: &mut crate::engine::LineageState) {
     let start = ascent_start(l);
     l.variant.clear();
     l.ended = false;
+    l.descent_kills = Some(Default::default());
     l.best_depth = start.saturating_sub(1);
     l.heir_best = 0;
     l.start = start;

@@ -82,6 +82,8 @@ pub struct SimResult {
     /// `stop_depth` is this one cut there (`cut_at`), so a passage priced from D1 to a floor reads
     /// a deeper run's sims instead of running them again (`passage_from`).
     pub arrive: Vec<(u32, u32, i32)>,
+    /// Cut 122 §5: the hunger's periods this send met unlit and the max hp it took (`Run.hunger_periods`, `hunger_lost`).
+    pub hunger: (u32, u32),
 }
 
 impl SimResult {
@@ -89,7 +91,7 @@ impl SimResult {
     /// passage reads (`max_depth`, `loot`, `ticks`); a sim that ended above `stop` is itself.
     fn cut_at(&self, stop: u32) -> SimResult {
         match self.arrive.iter().find(|a| a.0 >= stop) {
-            Some(&(depth, ticks, loot)) if self.max_depth >= stop => SimResult { max_depth: depth, tier: ExitTier::Return, cause: None, loot_kept: 0, timed_out: false, ticks, loot, fires: Vec::new(), oath: false, oath_progress: 0.0, oath_steps: 0, passage: 0, arrive: Vec::new() },
+            Some(&(depth, ticks, loot)) if self.max_depth >= stop => SimResult { max_depth: depth, tier: ExitTier::Return, cause: None, loot_kept: 0, timed_out: false, ticks, loot, fires: Vec::new(), oath: false, oath_progress: 0.0, oath_steps: 0, passage: 0, arrive: Vec::new(), hunger: (0, 0) },
             _ => self.clone(),
         }
     }
@@ -246,7 +248,7 @@ fn sim_result(run: &crate::engine::Run, ticks: u32, fires: Vec<(u64, u32)>) -> S
     let tier = run.over.unwrap_or(ExitTier::Return);
     // (Cut 27 §1: a waystone start's passage is the send's gold too — paid at the send)
     let loot_kept = run.kept(tier) + run.passage;
-    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.carried(), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage, arrive: Vec::new() }
+    SimResult { max_depth: run.max_depth, tier, cause: run.death_cause.clone(), loot_kept, timed_out: run.timed_out, ticks, loot: run.carried(), fires, oath: false, oath_progress: 0.0, oath_steps: 0, passage: run.passage, arrive: Vec::new(), hunger: (run.hunger_periods, run.hunger_lost) }
 }
 
 /// The sims `from..sims` of a panel on the cores, in index order: a worker takes the next index
@@ -398,7 +400,48 @@ pub fn set_parallel_sims(on: bool) {
 /// to the coarser number (`refined` says which one it is).
 pub fn forecast(game: &Game) -> Forecast {
     let rules = game.lineage.rules();
-    forecast_with(game, rules, camp_sims(game, rules))
+    let mut f = forecast_with(game, rules, camp_sims(game, rules));
+    price_try(game, rules, &mut f);
+    f
+}
+
+/// Cut 122 §2 (blind 9621b19 A: the forecast's `TRY Mirror rhythm`, tapped: D33 50→0%): the first `try` at a wall the
+/// sims reach (a boss floor some send arrives on) is priced as its tap applies it — the row at the top with the pen
+/// open, else its tactic worn (`counter_package`, as `take_fix` wears one) — on the camp's first-pass seeds, at the
+/// boss's floor (`trace::wall_price`); `trade_off` when it is worse there past the noise. A try no sim reaches stays
+/// unpriced.
+pub fn price_try(game: &Game, rules: &RuleSet, f: &mut Forecast) {
+    let base = camp_panel(game, rules, FORECAST_SIMS);
+    let n = base.len().max(1) as f64;
+    let arrive = |d: u32| base.iter().filter(|r| r.max_depth >= d).count() as f64 / n;
+    let Some(t) = f.depths.iter_mut().filter_map(|d| d.try_.as_mut()).find(|t| t.met > 0 && arrive(t.met) > WALL_REACH) else { return };
+    let edited = if game.lineage.pkg.literal || game.lineage.pkg.pen_open {
+        if !t.owned {
+            return;
+        }
+        let mut set = rules.clone();
+        set.rows.insert(0, t.row.clone().from("player"));
+        edited_game(game, &set.fit(game.lineage.max_rows().max(rules.own_rows())))
+    } else {
+        let Some(d) = crate::packages::counter_package(&game.lineage, &t.row) else { return };
+        let mut g = game.sim_clone();
+        let v = g.lineage.pkg.variants.get(d.id).copied().unwrap_or(0);
+        if crate::packages::take_fix(&mut g.lineage, d.id, v).is_err() {
+            return;
+        }
+        crate::packages::recompile(&mut g.lineage);
+        g
+    };
+    let set = edited.lineage.rules().clone();
+    let with = camp_panel(&edited, &set, FORECAST_SIMS);
+    for (k, v) in edited.panel_cache.into_inner() {
+        if !game.panel_cache.borrow().contains_key(&k) {
+            panel_insert(game, k, v);
+        }
+    }
+    let p = crate::trace::wall_price(&base, &with, t.met);
+    t.trade_off = p.trade_off;
+    t.price = Some(p);
 }
 
 /// Small UI preview; real progress and the normal/refined API keep their quality.
@@ -443,7 +486,9 @@ pub fn panel_insert(game: &Game, key: String, v: Vec<SimResult>) {
 /// Cut 6 §9: the same forecast at `REFINE_SIMS` sims — the same seeds first, then as many
 /// again (a second, quieter pass the client runs once the rule set has been still for 2 s).
 pub fn forecast_refine(game: &Game) -> Forecast {
-    forecast_with(game, game.lineage.rules(), REFINE_SIMS)
+    let mut f = forecast_with(game, game.lineage.rules(), REFINE_SIMS);
+    price_try(game, game.lineage.rules(), &mut f);
+    f
 }
 
 pub const REFINE_SIMS: u32 = 2 * FORECAST_SIMS;
@@ -755,7 +800,16 @@ pub fn forecast_with(game: &Game, rules: &RuleSet, sims: u32) -> Forecast {
     }
     let fold_to = fold_to(game, &ended, start);
     let oath = crate::oath::share(&game.lineage, &ended);
-    Forecast { hold, oath, depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims), fold_to }
+    // Cut 122 §5: the hunger on the same sims — a ration's bites are one period in `RATION_SLOW`, the first one bitten
+    let met: Vec<&SimResult> = ended.iter().filter(|r| r.hunger.0 > 0).collect();
+    let hunger = (!met.is_empty()).then(|| {
+        let mean = |f: &dyn Fn(&SimResult) -> u32| ended.iter().map(|r| f(r) as f64).sum::<f64>() / n;
+        let r2 = |x: f64| (x * 100.0).round() / 100.0;
+        let unfed = mean(&|r| r.hunger.0);
+        let fed = mean(&|r| r.hunger.0.div_ceil(crate::feats::RATION_SLOW));
+        crate::wire::HungerForecast { lost: r2(mean(&|r| r.hunger.1)), unfed: r2(unfed), fed: r2(fed), kept: r2(unfed - fed), packed: game.lineage.feats.ration, price: crate::feats::ration_price(&game.lineage) }
+    });
+    Forecast { hunger, hold, oath, depths, causes, known_to, ends, refined: sims > FORECAST_SIMS, shadowed_by: game.lineage.shadowed_by(rules), start, sims: n_sims, low: low_pct(n_sims), fold_to }
 }
 
 /// Cut 117 §1: the panel's ends under the scout's order at the wall on `wall` (`Forecast.hold`): a sim that got
@@ -1487,7 +1541,8 @@ pub fn try_row(game: &Game, rules: &RuleSet, depth: u32) -> Option<ForecastTry> 
     // (blind 1fb7786: what the player can take now — the row with the pen open, else the package that carries it,
     // else the drill to come; never a package still locked)
     let (text, _) = crate::packages::counter_offer(&game.lineage, kind, &row);
-    Some(ForecastTry { boss: kind.to_string(), text, row, met: depth - 1 })
+    let o = crate::packages::row_owned(&game.lineage, &row);
+    Some(ForecastTry { boss: kind.to_string(), text, owned: o.owned, refusal: o.refusal, wear: o.wear, row, met: depth - 1, price: None, trade_off: false })
 }
 
 /// Cut 18 §3: a forecast row's reach at or under this is a wall when a boss seals the stairs

@@ -804,6 +804,23 @@ fn stall_patches(game: &Game, rules: &RuleSet, row: usize, ending: &Row, depth: 
     cands.retain(|p| p.forecast_delta > STALL_DELTA);
     cands.sort_by(|a, b| b.forecast_delta.partial_cmp(&a.forecast_delta).unwrap());
     cands.truncate(STALL_SHOWN);
+    // Cut 122 §2 (blind 9621b19 B: a return's `SUGGESTED CHANGES` must never make the game's own forecast worse): each
+    // shown change priced on whole runs at the stall's wall (sends past it, deaths) — a trade-off past the noise is
+    // marked (`PatchWhole.trade_off`) and sinks below the changes that are not (the full analysis: a quick slice's
+    // estimate keeps its bounded budget, its changes unpriced)
+    if !cands.is_empty() && sims >= crate::forecast::FORECAST_SIMS {
+        let base = crate::forecast::camp_panel(game, rules, sims);
+        for p in cands.iter_mut() {
+            let edited = crate::forecast::edited_game(game, &apply_patch(rules, p, max_rows));
+            let with = crate::forecast::camp_panel(&edited, edited.lineage.rules(), sims);
+            let mut w = crate::trace::whole_move(&base, &with, target, crate::trace::is_gamble(&p.row) && !p.remove);
+            let price = crate::trace::wall_price(&base, &with, depth);
+            w.trade_off = price.trade_off;
+            w.price = Some(price);
+            p.whole = Some(w);
+        }
+        crate::trace::sink_harms(&mut cands);
+    }
     cands
 }
 

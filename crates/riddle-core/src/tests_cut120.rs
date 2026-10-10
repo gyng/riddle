@@ -82,12 +82,15 @@ fn the_legacy_order_takes_the_effects_after_the_base() {
     g.lineage.orders.legacy = "balanced".into();
     g.lineage.best_depth = 8;
     let p = crate::legacy::ROOT_PRICES;
-    assert!(crate::legacy::EFFECT_PRICES[0] < p[2], "a first effect costs less than a third rank");
-    give_points(&mut g, 3 * (p[0] + p[1]) + crate::legacy::EFFECT_PRICES[0]);
+    // (Cut 122 §1: on the smooth curve a first effect sits between two ranks — the base's ranks below its price first)
+    let e = crate::legacy::EFFECT_PRICES[0];
+    let below: Vec<u32> = p.iter().copied().take_while(|x| *x < e).collect();
+    assert!(!below.is_empty() && below.len() < p.len(), "a first effect costs less than some rank");
+    give_points(&mut g, 3 * below.iter().sum::<u32>() + e);
     tree::at_send(&mut g);
     let u = upgrades(&g);
     assert!(u.contains(&("restoration".into(), 1)), "{u:?}");
-    assert!(u.contains(&("health".into(), 2)), "{u:?}");
+    assert!(u.contains(&("health".into(), below.len() as u32)), "{u:?}");
     assert!(!u.iter().any(|(k, _)| k == "mending"), "shut by depth: {u:?}");
     assert_eq!(points(&g), 0);
 }

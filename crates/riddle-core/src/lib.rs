@@ -287,6 +287,10 @@ impl Game {
     pub fn buy_survey(&mut self) -> Result<(), String> {
         feats::buy_survey(&mut self.lineage)
     }
+    /// Cut 122 §5: buy the next send's ration by hand (the hunger bites a quarter as often); the price paid.
+    pub fn buy_ration(&mut self) -> Result<i32, String> {
+        feats::buy_ration(&mut self.lineage)
+    }
     /// Cut 118 §7: grant the hero's waiting wish.
     pub fn grant_wish(&mut self) -> Result<String, String> {
         feats::grant_wish(&mut self.lineage)
@@ -405,3 +409,5 @@ mod tests_cut119;
 mod tests_cut120;
 #[cfg(test)]
 mod tests_cut121;
+#[cfg(test)]
+mod tests_cut122;

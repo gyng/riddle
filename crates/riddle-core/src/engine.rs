@@ -722,6 +722,12 @@ pub struct Run {
     /// or at the stairs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub drain_on: Option<String>,
+    /// Cut 122 §5: the hunger's clock this run — its periods on an unlit hunger floor (what an unfed hero loses, one max
+    /// hp each) and the max hp it took.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub hunger_periods: u32,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub hunger_lost: u32,
     /// Cut 25 §3: the blows on the hero since his last action (`Trace.blows`), oldest first.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub blows: Vec<crate::wire::TraceBlow>,
@@ -1387,6 +1393,10 @@ pub struct LineageState {
     pub active_set: usize,
     pub ended: bool,
     pub kills: BTreeSet<String>,
+    /// Cut 122 §3 (blind 9621b19: `King · slain` beside `died to the King`): the kinds slain in this numbered descent
+    /// (`endgame::begin_descent` opens it empty); `None` in the first dungeon, where `kills` is the descent's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub descent_kills: Option<BTreeSet<String>>,
     pub flavours: Flavours,
     pub grudges: Vec<Grudge>,
     pub total_turns: u64,
@@ -1858,6 +1868,13 @@ fn default_vault_pref() -> String {
 }
 
 impl LineageState {
+    /// Cut 122 §3: `kind` has fallen in this descent (the first dungeon's: ever).
+    pub fn slain_here(&self, kind: &str) -> bool {
+        match &self.descent_kills {
+            Some(k) => k.contains(kind),
+            None => self.kills.contains(kind),
+        }
+    }
     pub fn new(seed: u64) -> LineageState {
         let mut rng = Rng::derive(seed, hash_str("lineage"));
         let flavours = Flavours::roll(&mut rng);
@@ -1887,6 +1904,7 @@ impl LineageState {
             active_set: 0,
             ended: false,
             kills: BTreeSet::new(),
+            descent_kills: None,
             flavours,
             grudges: Vec::new(),
             total_turns: 0,
@@ -2129,7 +2147,7 @@ impl LineageState {
     pub fn counters(&self) -> Vec<Counter> {
         crate::descent::BOSS_DEPTHS
             .iter()
-            .filter_map(|(kind, _)| crate::facts::boss_counter_row(&self.facts, kind).map(|row| Counter { boss: kind.to_string(), text: crate::facts::counter_text(&row), row }))
+            .filter_map(|(kind, _)| crate::facts::boss_counter_row(&self.facts, kind).map(|row| { let o = crate::packages::row_owned(self, &row); Counter { boss: kind.to_string(), text: crate::facts::counter_text(&row), owned: o.owned, refusal: o.refusal, wear: o.wear, row } }))
             .collect()
     }
     /// Cut 5 §2: the heir's chronicle line, written once when the heir ends (`end` = `fell to
@@ -2523,7 +2541,7 @@ impl LineageState {
             let seen = self.facts.contains(&format!("foe:{}", m.kind));
             let known = seen && m.tags.iter().all(|t| self.facts.contains(&format!("foe:{}:{}", m.kind, t)));
             let counter = if m.boss {
-                crate::facts::boss_counter_row(&self.facts, m.kind).map(|row| crate::wire::CounterChip { text: crate::facts::counter_text(&row), row })
+                crate::facts::boss_counter_row(&self.facts, m.kind).map(|row| { let o = crate::packages::row_owned(self, &row); crate::wire::CounterChip { text: crate::facts::counter_text(&row), owned: o.owned, refusal: o.refusal, wear: o.wear, row } })
             } else {
                 None
             };
@@ -2842,6 +2860,10 @@ pub struct DeathRec {
     /// state measures them again. 0 = not yet.
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub camp_key: u64,
+    /// Cut 122 §2: the death's tactic pick priced at its wall on the camp's panel (`trace::camp_deltas`) — the camp
+    /// key it was measured on, the pick's package, the price.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pick_price: Option<(u64, String, crate::wire::WallPrice)>,
     /// Cut 18 §4: a stall whose cause is the rules' loop (`R2 retreat ↔ explore`): the row it
     /// names (`Run.stuck_row`); the verdict's first patch addresses it (`trace::loop_patch`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -4364,6 +4386,8 @@ impl Game {
             skip_items: Vec::new(),
             pickup_dry: 0,
             drain_on: None,
+            hunger_periods: 0,
+            hunger_lost: 0,
             blows: Vec::new(),
             hp_lost: Vec::new().into(),
             hp_lost_from: 0,
@@ -5416,6 +5440,9 @@ impl Game {
         for (_, kind, _) in &run.kills {
             if kind.starts_with("spectral_") {
                 continue; // summons are not bests
+            }
+            if let Some(k) = self.lineage.descent_kills.as_mut() {
+                k.insert(kind.clone());
             }
             if self.lineage.kills.insert(kind.clone()) {
                 let boss = crate::defs::monster_def(kind).boss;

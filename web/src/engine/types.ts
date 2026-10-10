@@ -154,7 +154,13 @@ export type DrivenOff = { boss: string; title: string; depth: number; verdict: s
 export type GoldLine = { bloodline_id?:number; t: number; delta: number; why: string; n?: number; lost?: number };   // QA 912e135 (core): `lost` — on an exit's line, the carried gold the exit did not keep (`$0 died D6 · $157 lost`)
                                                                                                    // QA on 778fa1b (qaV): `n` — the supplies the line bought or refunded (`repeat heal` · n 4 · −$104); absent on other lines
 /** Cut 6 §5 — a boss whose counter is a known row (`attack boss`, `throw fire, boss`, `read silence`). */
-export type Counter = { boss: string; row?: Row | string; text: string };
+export type Counter = { boss: string; row?: Row | string; text: string;
+                        owned?: boolean; refusal?: string; wear?: string };   // Cut 122 §6 (core): `owned` false — `setRules` refuses the row with `refusal` (`card not owned: cadence`); `wear` the package whose wearing owns the card (`equip`)
+/** Cut 122 §2 (core) — a suggestion priced at the wall it answers (paired sims, 0..1): sends past the wall and the death share, before → after, each ±;
+ *  `trade_off` when either is worse past its noise — never show it as a fix: `trade-off · past D33 50→0% · death 20→35%`. */
+export type WallPrice = { depth: number; past_from: number; past_to: number; past_pm: number; death_from: number; death_to: number; death_pm: number; sims: number; trade_off?: boolean };
+/** Cut 122 §5 (core) — the hunger on the forecast's panel (max hp per send): `lost` as the camp stands, `unfed`/`fed` without/with a ration, `kept` = unfed − fed; `packed` the next send has one; `price` a ration (`buyRation`). */
+export type HungerForecast = { lost: number; unfed: number; fed: number; kept: number; packed: boolean; price: number };
 export type InvItem = { id: number; kind: string; known: boolean; label: string; hint?: "benevolent"|"malevolent";
                         free?: boolean;                                    // Cut 12 §6: a supply the camp gave (the kennel's leash) reads `leash · kennel`; the core always sends it
                         found?: boolean;                                   // Cut 21 §2: a shelf line an exit put there (found in the dungeon, packed free) — `heal · found`
@@ -191,6 +197,7 @@ export type Ev =
   | { t: number; k: "rest"; seconds: number }                               // Cut 2 §1: emitted at exit; the viewer shows `rest Nm`
   | { t: number; k: "bones"; heir: number; items: number }                  // Cut 2 §2: a bones pile (left on death, or recovered by a later heir)
   | { t: number; k: "see"; id: number; e?: Entity }                         // Cut 2 §7: first sight of an entity (renderer flashes on a boss); not emitted by the core yet
+  | { t: number; k: "homeward"; ticks: number; bank: boolean }             // Cut 122 §7 (core): the walk home committed (live runs) — `ticks` its length foreseen; fold a long walk into one beat
   | { t: number; k: "ending"; ticks: number }                               // Cut 7 §4: the last `ticks` before an exit start here (optional; else the client infers exit − 30)
   | { t: number; k: "max_hp"; id: number; max: number; delta: number; cause: string }   // QA 1a2a4a9: max HP moved (`hunger`: −1 a bite on an unlit hunger floor; the callout reads `hunger −1 max`)
   // Cut 25 §3 (core): a drain stretch starts — hp or max hp falling with no foe in view; `cause` one word (`starving`, `poisoned`,
@@ -222,6 +229,7 @@ export type ForecastDepth = { depth: number; reach: number; cause?: string; pm?:
                               affix?: string;    // Cut 116 §1 (core): beside `boss`, the live heir's affix on him (`armoured`)
                               boss?: string };   // Cut 24 §5 (core): on the floor a boss stands on (met there: the Warlord D8), his kind — name him on this row; the next row's `try` / `wall` are his
 export type Forecast = { depths: ForecastDepth[]; causes: { cause: string; share: number }[];
+                         hunger?: HungerForecast;                        // Cut 122 §5 (core): absent when no sim met the hunger
                          hold?: ForecastHold;                            // Cut 117 §1 (core): the scout's wall order on the next send — depths' reach is the reach if pushed; `hold.ends` is what the send will do
                          known_to: number;                               // depths[].cause: Cut 4 §8, optional per-depth top cause; pm: Cut 9 §3, the binomial half-width (`D4 71% ±6`); wall: Cut 18 §3, the sealing boss's kind where reach falls to ≤ 5 % below his floor (`D9 0% · warlord wall`)
                          ends?: { bank: number; return: number; death: number; stall?: number; gold: number; pm?: number;
@@ -277,7 +285,9 @@ export type Divergence = { seed: number; tick: number; depth: number; sent_row?:
                            sent: DivergenceBranch; new: DivergenceBranch; moved: number; inside: boolean; fires?: RowFires[]; sims: number };
 /** Cut 10 §2 — a boss floor whose counter fact is known and whose row is absent from the set: `D9 0% · warlord · try: attack boss`;
  *  tapping the bar inserts `row` at the top (optional on the wire; the client derives it from `Lineage.counters` when absent). */
-export type ForecastTry = { row: Row; text: string; boss?: string; met?: number };   // Cut 24 §5 (core): `met` — the floor the boss is met on (this row's depth − 1)
+export type ForecastTry = { row: Row; text: string; boss?: string; met?: number;
+                            owned?: boolean; refusal?: string; wear?: string;   // Cut 122 §6 (core): as `Counter`
+                            price?: WallPrice; trade_off?: boolean };            // Cut 122 §2 (core): the first try a send reaches, priced at its boss floor; `trade_off` — show the numbers, not `try`   // Cut 24 §5 (core): `met` — the floor the boss is met on (this row's depth − 1)
 /** Cut 4: `blocked` = the first row whose conds held but whose verb could not execute. Cut 6 §3: `rows` = every row above the
  *  fired one with one reason why it did not fire (`none held`, `no path`, `not in view`, `hp 8% ≥ 30%`). */
 /** QA 92eb880: `foes` = the player's count (every hostile seen from this action to the next, running thieves and the killer
@@ -322,13 +332,16 @@ export type Patch = { row: Row; insert_at: number; survive: number; forecast_del
 export type PatchWhole = { reach: number; reach_pm: number; death: number; death_pm: number; harms?: boolean; risk?: string;
                            reach_from?: number; reach_to?: number;
                            depth?: number;        // QA 308f045 (core; qaAC: `reach D9 ≈ ±1`, then the camp's `vs sent · D6 −21`): the floor the reach is read at — the camp's `vs sent` head (the frontier when it moves, else the floor that moves most); `Patch.forecast_depth` is the same
+                           price?: WallPrice; trade_off?: boolean;   // Cut 122 §2 (core): priced at the death's (stall's) wall; `trade_off` never the gem, never a fix
                            death_from?: number };  // QA 308f045 (core; qaAC: `death −100 ±1`): the death share before the patch (0..1) — print `death 100→0%`   // Cut 26 §6 (core; AP: `reach D5 −76`): the bar's reach before/after the patch (0..1) — print the move as from→to (`reach D5 90→14%`), never a signed delta                                                     // optional: the pseudo-patch's unlock id (else derived from the row's cond)
 /** Cut 30 §2 (core) — a death's one cheapest lever before the pen opens: `kind` spend · package · wait, `text` ≤ 3 words (`sword +2`, `Hunter`, `scarred ×3`). */
-export type Lever = { kind: string; text: string; id?: string; variant?: number };   // Cut 115 §4: a `tactic` lever's package and variant (`takeFix`)
+export type Lever = { kind: string; text: string; id?: string; variant?: number;
+                      price?: WallPrice; trade_off?: boolean; pending?: boolean };   // Cut 122 §2 (core): a `tactic` pick priced at the wall once `deathDeltas` lands (re-read `death(id)`); `pending` until then   // Cut 115 §4: a `tactic` lever's package and variant (`takeFix`)
 /** Cut 115 §1 (core): the build the picks make — its name (`Bulwark`, `Guarded skirmisher`), the synergy its pair forms and the effect, the picks. */
 export type BuildWire = { name: string; synergy?: string; effect?: string; picks: string[]; pet_synergy?: string; pet_effect?: string };   // Cut 119 (core): `pet_synergy` a pet + build pair formed (`Falconer`), its effect
 /** Cut 115 §1 (core): rule fires by who chose the row. */
-export type CreditShare = { credit: "picked" | "taught" | "default" | "chores" | string; fires: number; share: number };
+export type CreditShare = { credit: "written" | "picked" | "taught" | "default" | "chores" | string;   // Cut 122 §4 (core): `written` a row the player wrote (`own rule`); `picked` a package he wore (never `own rule`)
+                            fires: number; share: number };
 /** Cut 115 §3 (core): a move read at one wall (paired sends from its waystone). */
 export type WallRead = { depth: number; boss: string; n: number; better: number; worse: number };
 export type Death = { memorial?: Memorial; difficulty?:number;   // Cut 118 owner amendment (core): `memorial` the lead line (`+3 Legacy · Queen try 4 · +16%`), epitaph, grave
@@ -692,7 +705,7 @@ export type PetLife = { role?: string; xp?: number; lame?: number; falls?: numbe
 export type PetsWire = { tame: string; tame_revoked: boolean; kennel: string; synergies?: string[]; fetched: number; old_hounds?: string[]; bred: number; released: number };
 export type Egg = { id: number; kind: string; tags: string[]; gen: number; hatch_in: number; from_loss: boolean; sire?: string };   // Cut 119 (core): `sire` a bred egg's sire (`Rook` → the pup `Rook II`)
 export type LedgerRow = { kind: string; seen: boolean; known: boolean; tamed: boolean; bred: boolean; studied?: boolean;   // studied: Cut 2 §5
-                          counter?: { row: Row; text: string } };                                                         // Cut 7 §1: a boss's known counter as a row (a chip on the bestiary card)
+                          counter?: { row: Row; text: string; owned?: boolean; refusal?: string; wear?: string } };   // Cut 122 §6 (core): `owned` as `Counter`                                                         // Cut 7 §1: a boss's known counter as a row (a chip on the bestiary card)
 
 /** Cut 28 §1 (core) — an oath's reward, never a stat: `card` (a tactic card, `id` its unlock), `slot` (a party slot), `row` (+1 row), `title` (a
  *  chronicle title and a trophy), `waystone` (a lit waystone, `id` its depth), `verb` (a verb or cond unlock). `label` ≤ 3 words (`card: gas step`,
@@ -878,6 +891,7 @@ export interface Engine {
   seekForecast?(): SeekOption[];         // Cut 118 §1: each banked token's seek priced from his stone
   setTrial?(week: number): Lineage;      // Cut 118 §2: opt into week `week`'s trial (negative: out); the next send while away plays it
   tithe?(n: number): Lineage;            // Cut 118 §4: tithe n Legacy points at the falling rate (Kit complete)
+  buyRation?(): Lineage;                 // Cut 122 §5 (core): the next send's ration by hand — the hunger bites a quarter as often
   buySurvey?(): Lineage;                 // Cut 118 §4: the survey work — the deep forks open early
   grantWish?(): Lineage;                 // Cut 118 §7: grant the hero's waiting wish   // Cut 113 §3: take one offer of the return's pick (`drill · legacy · forge · marks`)
   buyKit?(slot: string): Lineage;       // §1: buy the next forge step of `weapon | armour | pack` (gold; permanent; ledger `forge <label>`)
