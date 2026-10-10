@@ -1,0 +1,194 @@
+{
+  "game": "Riddle",
+  "build": "9621b19",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-b (independent agent rater, seed 283, headed GPU 400x800@3x, driver port 5377)",
+  "horizon": {
+    "activeMinutes": 65.9,
+    "activeMinutesTarget": 70,
+    "complete": false,
+    "incompleteReason": "Credited active time 65.9 < 70: cold phase 36.6/40 (driver label-click debugging and note-writing excluded), 20m-return 4.1/5, 4h-return 4.6/5, 8h-return 20.6/20. Absences were already taken so the short phases could not be recovered.",
+    "intervalsUTC": [
+      {
+        "phase": "cold",
+        "start": "2026-10-10T18:39:07Z",
+        "end": "2026-10-10T19:18:26Z",
+        "creditedMin": 36.6,
+        "excluded": "~2.0 min driver multiline-label failures/retries (18:41-18:43, 19:05-19:06), ~0.7 min notes"
+      },
+      {
+        "phase": "absent=20m return",
+        "start": "2026-10-10T19:18:30Z",
+        "end": "2026-10-10T19:22:49Z",
+        "creditedMin": 4.1,
+        "excluded": "~0.2 min"
+      },
+      {
+        "phase": "absent=4h return",
+        "start": "2026-10-10T19:22:49Z",
+        "end": "2026-10-10T19:27:41Z",
+        "creditedMin": 4.6,
+        "excluded": "~0.3 min"
+      },
+      {
+        "phase": "absent=8h return",
+        "start": "2026-10-10T19:27:41Z",
+        "end": "2026-10-10T19:49:45Z",
+        "creditedMin": 20.6,
+        "excluded": "~1.5 min driver failures/ledger"
+      }
+    ],
+    "absences": [
+      "20m (simulated, ?absent=20m)",
+      "4h (simulated, ?absent=4h)",
+      "8h (simulated, ?absent=8h)"
+    ],
+    "runsWatched": 20,
+    "runsOffline": 11,
+    "deathsRead": 8,
+    "ruleEditsAttempted": 16,
+    "ruleEdits": 15,
+    "ruleEditsNote": "15 completed pen edits incl. 3 death-screen fix/suggestion applies; 1 attempted (foe: regen) reverted after forecast 'D33 −75'. Pen unlocked at first death; rule slots 4 then 5.",
+    "bestDepth": 33,
+    "protocolLapses": [
+      "Notes started at ~7 actual minutes instead of 10",
+      "First 'apply' on run9 death screen had unclear effect (locked rule)"
+    ]
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "Elian took my new clarity-and-silence rules down to D28, where the Lurker Queen that had confused and killed Dara fell in three turns ('clarity potion · clear · silence scroll · silent · LURKER QUEEN DOWN'). He pushed through the sanctum carrying $17k to the Mirror King at D33. The King's mirrored blows took him from 45 to 2 hp and my 30% return rule fired one hit too late, losing $3969 but teaching me the King's counter.",
+  "audio": "unassessed (agent cannot listen; harness muted)",
+  "blindnessViolations": "None of the forbidden docs read. Read tools/driver.mjs header comments and grep of op names (test harness, not game source) to learn driver op syntax. Notes began ~3 min early.",
+  "axes": [
+    {
+      "id": "clarity",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "time-to-first-rule-edit; misread rate on the trace",
+      "note": "Death lines and traces are readable ('Bryn · fell to jackal, D13 · throw fire vs gas backfired'), but several misreads: 'THIS EDIT · death 25→75%' shown right after a forge buy, rule warning 'also matches: goblin, bloat' on a foe: boss rule, 'starving −37' never explained in any report, and details saying 'King · slain' while the reel says 'The Mirror King waits... Returned'."
+    },
+    {
+      "id": "decisions",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule decision gap; dominated-rule rate",
+      "note": "Real foreseeable trade-offs in the pen: deep-return 40%→30% read 'D29 13→75% · death 13→63% · $6600–15900/run' and I chose the risk; return picks (drill/legacy/forge −40%) were defensible. But tactic compares repeatedly read 'close · turns on D23 Master' for every option and forge buys were strictly ordered."
+    },
+    {
+      "id": "mastery",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "depth-per-run vs sessions; rules-per-death trend",
+      "note": "Visible learning: from dying to the Queen ('confused', 'none beats 0/12') to beating her with my clarity+silence rules; but much of the depth came from automatic gear/worker spikes (D8→D23 in one run after forging) and I never learned how to stop 'starving'."
+    },
+    {
+      "id": "tension",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "bloody-clear share; bank-or-push margin",
+      "note": "Chosen stakes resolved on screen: Master fight at '14/51 hp' with $1.6k carried, lost '$2737' pack after picking the risky threshold, King at '2/46 hp'. Lapses: many runs ended on safe 'hurt · went home' returns at D13/D23 with nothing at risk, and long 'Heading home' stretches deflate it."
+    },
+    {
+      "id": "feel",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "frame time; events per minute at 1x",
+      "note": "Automatic speed chips ('quiet · 48×', 'fight · 2×', 'scene · 1.3×') keep fights at readable speed and callouts like 'REFLECTED!', 'SPLITS!', 'POPS!' land; but there were ~20–30 s stretches of nothing and a ~2 min 'Heading home' on D13; sprites are muddy and an item row overlaps the hero. Audio unassessed."
+    },
+    {
+      "id": "surprise",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "death-cause entropy; distinct situations per run",
+      "note": "Distinct situations changed my configuration: Bloat Mother gas, Foundry Master 'REFLECTED!', siren confusion making every rule 'confused', Mirror King mirrors; six biomes (burrows, fens, crypt, foundry, deep, sanctum). Lapse: early floors D1–22 repeat identically every run (later skipped as 'D1–22 swift')."
+    },
+    {
+      "id": "expression",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "rule-set diversity across clears",
+      "note": "The final set is recognisably mine ('foe: boss · depth ≥ 27 → drink clarity', 'foe: boss · depth ≥ 28 → read silence', 'depth ≥ 13 · foe: boss → throw fire'), on a Guarded/Mirror-rhythm fighter; but only 5 slots and package rows ('[card] boss focus') sit below mine and cannot be reordered (disabled ▲)."
+    },
+    {
+      "id": "story",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "chronicle carries setup + turn + end",
+      "note": "Runs yield anecdotes with a turn: 'Fenn · fell to the King, D33 · pack $3953 on D33 · read silence vs boss backfired'; grudges ('grudge: Skix the jackal', 'avenged Zelak'). Lapse: the report reel is generic ('The nest wakes.' 'Returned with $2419.') and the Chronicle button opened nothing."
+    },
+    {
+      "id": "pacing",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "run length; check-in length; dead time at 1x",
+      "note": "In-run: fights are brisk, but dead stretches ('quiet · 48×' ~20 s; 'Heading home' ~2 min on D13). Check-in admin: many sheets (forge, supplies, tactics, unlocks, quest, workers, legacy) and the dock moved ('quest' appeared where 'edit' was). Cadence: 20m/4h/8h returns were distinct (1/3/7 runs)."
+    },
+    {
+      "id": "failure",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths with a matched-rule trace",
+      "note": "Every death named cause, rule and margin in one screen ('the Master · D23 · hero at 1/45 hp', 'tactic boss focus fired' trace, 'fixes · 12 replays of D23 · survives 11/12 · was 1/12'), recovery was a heir and a tap. Lapse: confusion death offered 'none beats 0/12 as is', and money line 'died $1734 · $566 lost' was hard to parse."
+    },
+    {
+      "id": "social",
+      "human": 0.0,
+      "bot": "na",
+      "proxy": "n/a",
+      "note": "Weight 0 in idle-hybrid. Only named heirs and 'Ashusk · old hound · served Wren, Yara, Alden'."
+    },
+    {
+      "id": "autonomy",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "route/goal freedom in rules",
+      "note": "I set my own goal (counter the Queen myself) and chose risk levels; quests ('reach D8 · no return'), bounties ('bounty D28 · 2× gold') and route ('D5 burrows · D9 fens · D14 crypt') exist, though the route was never a choice I had to make."
+    },
+    {
+      "id": "progression",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "unlock cadence; vocabulary growth",
+      "note": "D4 → D33 in ~66 min with automation growth at a legible cadence (porter 'hauled $4984', scout 'sent 7', apprentice, drillmaster, armourer) and vocabulary growth (identified potions/scrolls became actions). Lapse: Legacy rank 1 cost 15 then 'Upgrade 600' — a cliff — and one run jumped D8→D23 flattening the curve."
+    },
+    {
+      "id": "aesthetic",
+      "human": 0.6,
+      "bot": "na",
+      "proxy": "none",
+      "note": "Torch-lit pixel town at night, parchment sheets and the red 'YOU DIED' banner are atmospheric; but every heir uses the same portrait, dungeon sprites are muddy at phone scale, and the item bar covers the hero. Audio unassessed."
+    },
+    {
+      "id": "return",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "offline yield vs active; decisions pending on return",
+      "note": "Every return had something to read and decide: 'While away 8h · 7 runs · +$8247 · Pick one: drill/legacy/forge −40%' and details 'SUGGESTED CHANGES · Change Return home · reach D24 42% · was 0%'. Lapse: the 8h front panel showed 'D23 DEEPEST' with no record and did not say up front that my rule was the wall; applying that suggestion edited a different rule than the one blocking."
+    },
+    {
+      "id": "attribution",
+      "human": 0.8,
+      "bot": "na",
+      "proxy": "share of deaths attributable to a rule the player wrote",
+      "note": "Deaths and returns traced to my rules by name ('throw fire vs gas backfired', 'read silence vs boss backfired', 'return at 50% · depth not ≥20') and 'WHO DECIDED · own rules 30% · chores 67%'; I said 'my rule killed him'. Lapse: package interactions were opaque — 'tactic boss focus' kept meleeing a reflector despite mirror read, and package rows cannot be reordered."
+    }
+  ]
+}

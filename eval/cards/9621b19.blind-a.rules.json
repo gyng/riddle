@@ -1,0 +1,251 @@
+{
+  "rows": [
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        },
+        {
+          "k": "depth>=",
+          "n": 28
+        }
+      ],
+      "verb": {
+        "v": "read",
+        "a": "silence"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 30
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "gas"
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "fire"
+      },
+      "origin": "player"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "mirror"
+        },
+        {
+          "k": "hp>",
+          "n": 45
+        }
+      ],
+      "verb": {
+        "v": "tactic",
+        "a": "cadence"
+      },
+      "origin": "tactic:cadence"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        },
+        {
+          "k": "hp>",
+          "n": 45
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "drill:goblin_warlord"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 45
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        },
+        {
+          "k": "depth>=",
+          "n": 34
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 25
+        }
+      ],
+      "verb": {
+        "v": "return"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "hp<",
+          "n": 100
+        }
+      ],
+      "verb": {
+        "v": "rest"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "lacks",
+          "t": "heal"
+        },
+        {
+          "k": "hp<",
+          "n": 44
+        }
+      ],
+      "verb": {
+        "v": "bank"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "telegraph"
+        },
+        {
+          "k": "hp<",
+          "n": 60
+        }
+      ],
+      "verb": {
+        "v": "drink",
+        "a": "heal"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 3
+        },
+        {
+          "k": "hp<",
+          "n": 60
+        }
+      ],
+      "verb": {
+        "v": "back_corridor"
+      },
+      "origin": "stance:guarded"
+    },
+    {
+      "conds": [],
+      "verb": {
+        "v": "tactic",
+        "a": "kite_archers"
+      },
+      "origin": "tactic:kite_archers"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "ranged"
+        },
+        {
+          "k": "adj>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:ranged"
+      },
+      "origin": "tactic:kite_archers"
+    },
+    {
+      "conds": [
+        {
+          "k": "foe_tag",
+          "t": "boss"
+        },
+        {
+          "k": "hp>",
+          "n": 40
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "tag:boss"
+      },
+      "origin": "temper:unbowed"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "tame",
+        "a": "open"
+      },
+      "origin": "drill:tame"
+    },
+    {
+      "conds": [
+        {
+          "k": "foes>=",
+          "n": 1
+        }
+      ],
+      "verb": {
+        "v": "attack",
+        "a": "nearest"
+      },
+      "origin": "stance:guarded"
+    }
+  ],
+  "name": "fighter"
+}

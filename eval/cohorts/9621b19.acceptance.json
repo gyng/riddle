@@ -3,7 +3,7 @@
   "applicationCommits": [
     "9621b19"
   ],
-  "status": "cohort running 2026-10-11",
+  "status": "cohort complete 2026-10-11: 62.7 / 67.9, alpha .705 tentative",
   "includes": "Cut 121 (Legacy curve + King 500hp, ascension mid-dungeon, one-story deaths, earned vs spent, forecast bands, watch speed chips, swift strip, hero ring, plain words), HUD (Live top-right, purse icons)",
   "frozen": {
     "dir": "scratchpad/blind-9621b19-frozen/dist",
@@ -20,7 +20,7 @@
     "gates": "routine full --fresh: all PASS but the 2-seed outpace row 86% (16 seeds 97%, recorded); PICKED+L King median day 7 (min 6)",
     "deviations": [
       "outpace 2-seed row",
-      "automation-pays (Cut 110 \u00a74)",
+      "automation-pays (Cut 110 §4)",
       "an engaged player who never spends Legacy does not slay the King in 14 days",
       "option C measured, not switched"
     ]
@@ -46,5 +46,40 @@
       5377
     ],
     "toolBudget": 260
+  },
+  "score": {
+    "blind-a": {
+      "card": "eval/cards/9621b19.blind-a.json",
+      "total": 62.7,
+      "activeMinutes": 71.5,
+      "note": "gate: expression .3; one counted edit was silently refused (console: 'card not owned: cadence')"
+    },
+    "blind-b": {
+      "card": "eval/cards/9621b19.blind-b.json",
+      "total": 67.9,
+      "activeMinutes": 65.9,
+      "complete": false,
+      "note": "incomplete: driver workaround minutes excluded"
+    },
+    "alpha": 0.705,
+    "reliability": "tentative",
+    "mean": 65.3,
+    "trend": "56.7 → 64.7 → 67.4 → 63.8 → 65.9 → 68.6 → 63.7 → 65.8 → 67.3 → 68.9 → 67.7 → 65.3",
+    "pace": "neither rater slew the King in the first session (A reached him; B's best D33) — the longer road held",
+    "shared": [
+      "the Legacy cliff: rank 1 costs 15, rank 2 600; 388 Legacy sat unusable (A, B)",
+      "suggested fixes / TRY chips that make the game's own forecast worse ('Mirror rhythm' D33 50→0%, 'gas step · wade in' D18 88→38%) (A); the 8h suggestion changed a rule other than the wall (B)",
+      "contradictions: 'King · slain' beside 'died to the King' / 'The Mirror King waits' (A, B); 'own rule' before any rule written (A); 'THIS EDIT death 25→75%' after a forge buy (B)",
+      "hunger ('starving −36/−37' max hp) unexplained and uncounterable (A, B)",
+      "dead time: 'Heading home' ~2 min, 'quiet · 48×' stretches (B); many sheets per check-in; the dock rearranged under a tap (B)",
+      "tactic compare mostly 'close' (B); 'boss focus' melees a reflector (B); 'also matches: goblin, bloat' surprises (B)",
+      "bug: an edit adding the 'cadence' counter showed as added but was refused ('card not owned') (A)"
+    ],
+    "highlights": [
+      "death screen: cause, hp trace, why each rule didn't fire, fixes on 12 replays (A, B)",
+      "own counters that win: silence scroll → LURKER QUEEN DOWN (A, B)",
+      "a run that felled four bosses and a recall at 4/45 hp saving $24 989 (A)"
+    ],
+    "verdict": "mean 65.3, tentative; below 1a7d834's 67.7 and 8cf9050's 68.9; 80 not met"
   }
 }

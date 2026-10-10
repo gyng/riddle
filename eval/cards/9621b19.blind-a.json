@@ -1,0 +1,109 @@
+{
+  "$comment": "Raw blind card, rater blind-a, build 9621b19, seed 281, served at http://127.0.0.1:5263/ (production build, dev=1&runs=1). Headed GPU (ANGLE D3D12 RTX 3080), 400x800 @3x. Immutable once written. Criterion answered before axes (archived scratchpad/9621b19-blind-a/evidence.md). Audio unassessed (agent cannot listen). Bot fields na; coordinator applies caps. Preset file not read (blindness list); weights applied by scorer.",
+  "game": "Riddle",
+  "build": "9621b19",
+  "genre": "idle-hybrid",
+  "presets": "../riddle/eval/presets.json",
+  "profile": null,
+  "tier": 1,
+  "evaluator": "blind-a (agent, Claude)",
+  "seed": 281,
+  "horizon": {
+    "activeMinutes": 71.5,
+    "activeIntervalsUTC": [
+      { "phase": "cold", "start": "2026-10-10T18:39:09Z", "end": "2026-10-10T19:20:47Z", "rawMinutes": 41.6, "excludedMinutes": 1.0, "activeMinutes": 40.6, "exclusions": "inline ledger lines" },
+      { "phase": "absent=20m return", "start": "2026-10-10T19:21:00Z", "end": "2026-10-10T19:26:00Z", "rawMinutes": 5.0, "excludedMinutes": 0, "activeMinutes": 5.0 },
+      { "phase": "absent=4h return", "start": "2026-10-10T19:26:08Z", "end": "2026-10-10T19:31:16Z", "rawMinutes": 5.1, "excludedMinutes": 0, "activeMinutes": 5.1 },
+      { "phase": "absent=8h return", "start": "2026-10-10T19:31:29Z", "end": "2026-10-10T19:52:46Z", "rawMinutes": 21.3, "excludedMinutes": 0.5, "activeMinutes": 20.8, "exclusions": "inline ledger lines" }
+    ],
+    "excludedGlobally": "card writing, evidence file, driver startup (18:39:03 before first load), final export",
+    "absences": [
+      { "simulated": "20m", "url": "?dev=1&runs=1&absent=20m", "result": "1 run, D23, +$1878, -$1000 workers, pick-one reward" },
+      { "simulated": "4h", "url": "?dev=1&runs=1&absent=4h", "result": "4 runs, 3 died, deepest D23 (below best D28), +$3278" },
+      { "simulated": "8h", "url": "?dev=1&runs=1&absent=8h", "result": "8 runs, 4 died, D33 new best, +$38176, Lurker Queen fell, King reached" }
+    ],
+    "runsWatched": 24,
+    "watchSpeedNote": "every watch at the game's default automatic speed (Speed: 'Fights only' — fights 1-2x, scenes ~1x, quiet stretches up to 48x); never changed speed or skipped; several multi-minute watches (run 9 watched ~4 min continuous, run 10 ~5 min)",
+    "runsOffline": 13,
+    "deathsRead": 9,
+    "ruleEditsAttempted": 7,
+    "ruleEdits": 7,
+    "ruleEditList": [
+      "cold: pen opened after first Bloat Mother death; + rule defaulted to 'hp < 50% -> attack lowest' (forecast death 38->88%), rewritten to 'hp < 20% -> read unknown' (forecast same)",
+      "cold: 'foe: gas -> attack gas' (forecast death 38->75%) revised to 'foe: gas -> fire at feet' (death 7-59%, Mother 75%)",
+      "cold: applied death fix 'hp < 70% -> return' (death 67->0%) but pen forecast showed D13 100->0%, $63-120/run; changed threshold to 30%",
+      "20m return: applied death fix 'foe: boss -> read silence + silence scroll' (death 38->13%)",
+      "4h return: dropped 'hp < 20% -> read unknown' after reel line 'The Mother took him to 4 HP; read; died to fire.'",
+      "8h return: tapped enemy-guide counter 'cadence' -> card rule added (foe: boss/mirror -> cadence)",
+      "8h return: added 'depth >= 28' to the read-silence rule after 'READ x NO USE' at the Queen (scroll had been spent on the Warlord); next runs: 'silence scroll · silent' at D28, 'LURKER QUEEN DOWN'"
+    ],
+    "otherDecisions": "built house/forge/storehouse/kennel; forge sword+2, leather, edge, leather+1, mail+2, plate, plate+1, pack upgrades; hired porter, scout, apprentice, keeper, drillmaster, armourer; Guarded style L1->L5 (compare: Guarded 'better 7/8'; Steady later 'worse 8/8'); kite archers L1->L2, gas step (wade in->step away), Mirror rhythm L1->L3; Legacy health/damage/armour rank 1; throw unlock; heir's statue; supplies (heal, leash, recall, fire); pick-one rewards (forge each time)",
+    "screenshots": "scratchpad/9621b19-blind-a/shots: first-minute, first-death, first-edit-before, pen-open, death2-details, death3, return-20m, return-4h, town-4h, return-8h, death-king, after-return-config"
+  },
+  "killCriteria": {
+    "crashOrDataLoss": false,
+    "feltInputLatencyInCoreAct": false,
+    "firstSessionWithoutCoreAct": false,
+    "darkPatternInLoop": false,
+    "defaultRulesBeatEveryEdit": false,
+    "unfairDeathShareAbove10pct": false,
+    "returnWithNothingToDecide": false
+  },
+  "criterion": {
+    "fun_1to7": 5,
+    "playAgainTomorrow_1to7": 5,
+    "recommend_0to10": 6,
+    "checkInTomorrowUnprompted_1to7": 4,
+    "delayedRecall": ""
+  },
+  "sameDayRetelling": "My third heir Dara went down with Guarded at L4 and kite archers, I had just spent $800 on leather and written a gas rule, and she walked past the Warlord and then killed the Bloat Mother, the Lich and the Foundry Master one after another, from D13 down to D28. At D28 the Lurker Queen's lurkers took her to 4/45 hp with nearly $25k in the pack, and a recall scroll she had picked up pulled her out. She banked $24,989, which paid for every forge upgrade I bought next, and the Queen then killed the next three heirs until I bought a silence scroll and told the rule to save it for depth 28.",
+  "humanProbes": {
+    "clarity": "I knew the goal from 'Goal D9 · New record' and the floor-chance column, but some things I could not read: on the 8h return 'THE WAY DOWN | King · slain | 100%' appeared next to the reel line 'King took him to 1 HP; return at 30% too late; died to the King.'",
+    "decisions": "I set 'return' at 30% instead of the offered 70% because the pen showed the 70% fix as 'D13 100→0% · $63–120/run'. I would make that call again.",
+    "mastery": "An hour in, I knew that 'foe: boss → read silence' would spend the scroll on the Warlord ('READ ✗ NO USE' at the Queen), and I knew to gate it with 'depth ≥ 28'.",
+    "tension": "Run 9 at D28: '4/45 hp starving −36', 'recall scroll · recalled', 'COLLECTED $24989'. I was sweating that one.",
+    "feel": "Callouts like 'WARLORD BREAKS' and 'GOBLIN WARLORD DOWN' come with the speed dropping to 'scene · 0.3×', so the kill lands. In quiet stretches it shoots up to '48×'. I could not hear the audio.",
+    "surprise": "Bosses rolled modifiers ('QUEEN · VAMPIRIC', 'MASTER · ARMOURED', 'WARLORD · ENRAGED') and side events turned up ('Cut the captive down. Silence after.', 'Zelix the goblin is avenged.'), but by the 8h phase the same D13 gas death had happened three times ('bad luck · 1 in 3').",
+    "expression": "The hero card read 'Guarded ranger' and later 'Ghost · −2 at range · −1 when hurt'. Most of that came from packages I picked; only 3–4 of the rules were mine.",
+    "story": "'Ashusk · old hound · served Bryn, Corin, Dara' and 'the line is Warlordbane' turned a line of heirs into something I could retell.",
+    "pacing": "In play, swift strips like 'D9–27 swift · 50% · +$2284' skip the solved floors. Admin was slow: buying needed two taps ('build $1000' then 'ok $1000'), and the report ran to dozens of sections (GOLD, HEROES, LEARNED, FOUND, STOLEN, SALVAGED, REEL…).",
+    "failure": "The second death screen gave the cause ('the Mother's gas · D13 · hero at 1/22 hp'), a hp trace and six fixes tested against '12 replays of D13'. But fixes and TRY chips sometimes made the forecast worse: 'gas step · wade in' gave 'D18 88→38%'.",
+    "social": "The bloodline remembers people: heirs carry traits ('Corin · unbowed · frail · answers the goblin') and the pet outlives them ('served Bryn, Corin, Dara'). There is nobody to play with or relate to beyond that.",
+    "autonomy": "I chose to gate a boss rule by depth and to pick 'step away' over the suggested 'wade in'. Neither was prompted. There were also orders ('seek Queen ×3'), a route ('D5 burrows · D9 fens · D14 crypt') and a long action list (attack gas, fire at feet, tame summoner…).",
+    "progression": "Within a run the hero kept what he found ('took axe +1'). Between runs the forge and workers grew (scout 'sends him each rest', porter 'hauled $1878', drillmaster '+4 levels'). Best depth went D4→D33 in about 70 minutes. Legacy rank 2 jumped to 'Upgrade 600' after rank 1 cost 15.",
+    "aesthetic": "The town at night is a lit pixel village with a bonfire under a cave mouth, and I would sit in it. The dungeon view is murky blue tiles with small sprites.",
+    "return": "After 8h I came back to 'While away 8h · 8 RUNS · 4 died · D33 NEW BEST · +$38176' with '▶ watch kill' for the Lurker Queen and a 'Pick one' of drill / legacy / forge. After 4h it was '4 RUNS · 3 died · D23'. I did not want to stay away longer than that.",
+    "attribution": "My rule killed an heir ('The Mother took him to 4 HP; read; died to fire.' — my 'hp < 20% → read unknown'), and my later edit won the Queen fight ('silence scroll · silent' → 'LURKER QUEEN DOWN'). The report agreed: 'own rules 30%'."
+  },
+  "axes": [
+    { "id": "clarity", "human": 0.6, "bot": "na", "proxy": "time-to-first-rule-edit; misread rate on the trace", "note": "Goals are clear and forecasts give feedback ('FORGED · D6 +13'). Some text read wrong or contradicted itself: 'King · slain' beside 'died to the King', a first death credited to 'own rule' before I had written any, unexplained stamps ('ORDER', 'LUCK'), 'THIS EDIT' deltas after a TRY with no clear subject, and a TOWN button only coordinate taps reached." },
+    { "id": "decisions", "human": 0.6, "bot": "na", "proxy": "rule decision gap; dominated-rule rate", "note": "Real trade-offs I could foresee: return 70% ('death 67→0%' but 'D13 100→0%') vs 30%; gas step 'wade in' vs 'step away'; Mirror rhythm vs gas step. Many purchases were strictly ordered, though (forge every upgrade, auto 'compare outcomes better 7/8'). The forecast often solved the choice for me." },
+    { "id": "mastery", "human": 0.6, "bot": "na", "proxy": "depth-per-run vs sessions; rules-per-death trend", "note": "I learned boss counters (enemy guide: 'lurker queen [counter] read silence', 'mirror king cadence') and how rules shadow each other ('under return at 30%'). Learning was driven by fix lists more than by my own reasoning." },
+    { "id": "tension", "human": 0.6, "bot": "na", "proxy": "bloody-clear share; bank-or-push margin", "note": "Carry at risk was real ('died $868 · $352 lost', recall at 4/45 with $24989). Swift strips and returns that made many runs foregone ('Heading home' at D13 Mother) lowered it, and the bosses up to D23 fell without drama after one run." },
+    { "id": "feel", "human": 0.6, "bot": "na", "proxy": "frame time; events per minute at 1x", "note": "Auto speed slows for kills ('scene · 0.3×'), and damage numbers and callouts are readable. Sprites are tiny at phone size and the watch is half d-pad. Audio unassessed." },
+    { "id": "surprise", "human": 0.6, "bot": "na", "proxy": "death-cause entropy; distinct situations per run", "note": "Boss modifiers, captives, grudges ('grudge: Zelim the lurker') and set pieces ('hearth rug · set piece +7') all showed up. The same D13 gas death and D28 Queen death repeated 3-4 times each." },
+    { "id": "expression", "human": 0.3, "bot": "na", "proxy": "rule-set diversity across clears", "note": "Identity is mostly the packages ('Guarded ranger'), and only 4 rule slots ('3/4 rules + 14 tactics') are mine. I would describe the build by its packages, not by my rules." },
+    { "id": "story", "human": 0.6, "bot": "na", "proxy": "chronicle carries setup + turn + end", "note": "The reel has turns ('Two iron golems took him to 16 HP; drank; reached D33.'), and heirs, epithets and the old hound make a lineage story. Most runs were summarised by swift strips, though." },
+    { "id": "pacing", "human": 0.6, "bot": "na", "proxy": "run length; check-in length; dead time at 1x", "note": "In play: runs of 1-4 minutes, solved floors skipped, few dead stretches. Admin: two-tap confirms, a very long report, menus hidden behind a 'more' tile. Cadence: the three absences each felt distinct (20m one run, 4h a losing streak, 8h a boss kill)." },
+    { "id": "failure", "human": 0.8, "bot": "na", "proxy": "share of deaths with a matched-rule trace", "note": "Each death screen gives the cause, the hp at death, a per-tick rule trace and fixes replayed 12 times. Material lapse: the offered fixes and TRY chips more than once made the forecast worse ('hp < 70% → return' meant D13 100→0%; 'gas step · wade in' D18 88→38%), and 'bad luck · 1 in 3' offered nothing to change." },
+    { "id": "social", "human": 0.3, "bot": "na", "proxy": "n/a", "note": "The bloodline remembers heirs and pets ('Ashusk · old hound · served Bryn, Corin, Dara'). No other people play, and no relationship develops." },
+    { "id": "autonomy", "human": 0.6, "bot": "na", "proxy": "route/goal freedom in rules", "note": "There is a large rule vocabulary (gas, summoner, 'on see shrine', 'in: fens'), orders, a route fork ('or crypt · untried') and optional quests. Within the horizon the goal was effectively one track (next boss)." },
+    { "id": "progression", "human": 0.8, "bot": "na", "proxy": "unlock cadence; vocabulary growth", "note": "Visible gain every 1-3 runs, and automation arrived step by step (porter, scout, apprentice, keeper, drillmaster); best depth went D4→D33 in about 70 minutes. Lapse: the Legacy curve jumped from 15 to 'Upgrade 600', so 388 Legacy sat unspendable." },
+    { "id": "aesthetic", "human": 0.6, "bot": "na", "proxy": "none", "note": "The town art and the death banner are lovely. The dungeon view is muddy and small at 400 px wide. Audio not assessed." },
+    { "id": "return", "human": 0.8, "bot": "na", "proxy": "offline yield vs active; decisions pending on return", "note": "Every return had something to read and a decision (Pick one, watch kill, PENDING rules 'fired in 0 of 8 runs'), and the payoff grew with absence. Lapse: the 4h return was a regression ('3 died · D23', heirs dying at the D13 Mother) caused by my own unchanged config, and the pick-one forge reward took $4480 of $5246 with no confirmation." },
+    { "id": "attribution", "human": 0.6, "bot": "na", "proxy": "share of deaths attributable to a rule the player wrote", "note": "Two clear first-person links: my 'read unknown' rule caused a fire death, and my depth gate won the Queen fight. Most deaths traced to package rules ('attack boss over 45%'), and the first death was labelled 'own rule' when I had none." }
+  ],
+  "gripes": [
+    "Suggested fixes and TRY chips that the pen's own forecast showed as much worse (return 70%: D13 100→0%; gas step wade in: D18 88→38%; Mirror rhythm: D33 50→0%)",
+    "Contradictory or unexplained text: 'King · slain' next to 'died to the King'; 'own rule' on a death before any rule was written; 'ORDER' and 'LUCK' stamps; the title changed to 'Ghost' without explanation",
+    "Legacy rank cost jumps from 15 to 600, so 388 Legacy sat unusable; the hunger 'starving −36' max-hp drain dominated deep runs and I found no lever for it"
+  ],
+  "highlights": [
+    "The death screen: cause, hp trace, per-rule 'why it didn't fire' and fixes replayed 12 times, read in one screen",
+    "Run 9: Warlord, Mother, Lich and Master fell in one run, then a recall scroll at 4/45 hp saved $24,989",
+    "Edits paid off where I could see it: gating read silence with depth ≥ 28 turned 'READ ✗ NO USE' into 'LURKER QUEEN DOWN'"
+  ],
+  "benchmarkNote": "No axis awarded 1.0. Compared with Loop Hero, the run-to-run decisions are richer (forecasted rule edits), but feel, aesthetic and expression are weaker.",
+  "blindnessViolations": "None of the listed forbidden files were read. I read the tools/driver.mjs header comment and tools/drive.sh only to learn driver op usage (tooling, not game source). Report text was read through DOM innerText from the visible page. Clicks were synthetic via the driver, sometimes through CSS selectors or coordinates where the label match failed (TOWN, SEND).",
+  "lockedAt": "2026-10-10T20:05:00Z"
+}
