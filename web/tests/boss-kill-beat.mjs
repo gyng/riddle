@@ -11,7 +11,12 @@ import { readFileSync } from "node:fs";
 import { launchBrowser } from "../../tools/browser.mjs";
 
 const url = execFileSync("bash", ["tools/dev.sh"], { cwd: new URL("../../", import.meta.url), encoding: "utf8" }).trim();
-const source = readFileSync(new URL("./fixtures/earned-first-ascension-clear.json", import.meta.url), "utf8"), native = JSON.parse(source);
+// Cut 118 §5: a band boss cleared 3× makes the floors above him swift — folded under one line, unwatched. The fixture's King (D33, 4×)
+// and Lurker Queen (D28, 3×) make D1–32 swift, so the Foundry Master's floor folds by design. The beat is a watched kill's: here those
+// two have fallen twice each, swift ends at the Master (D23, cleared 5×) and his floor is watched; the sim is untouched (swift is
+// presentation only). Edited as text: the save's u64 seeds do not survive a JSON round trip.
+const source = readFileSync(new URL("./fixtures/earned-first-ascension-clear.json", import.meta.url), "utf8")
+  .replace(/"kill_counts":\{[^}]*\}/g, (k) => k.replace(/("(?:lurker_queen|mirror_king)":)\d+/g, (_, at) => `${at}2`)), native = JSON.parse(source);
 const out = [], errors = [];
 let failed = 0;
 const check = (ok, what) => { out.push(`${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) failed++; };
@@ -103,8 +108,17 @@ try {
     const page = await browser.newPage({ viewport: { width: 400, height: 860 } });
     await fresh(page);
     const at = await page.evaluate(async () => {
-      const a = window.__riddle; let s = await a.engine.send();
-      for (let i = 0; i < 4000; i++) { const x = await a.engine.step(50); s = x.snapshot; if (x.run_over || s.depth >= 12) break; }
+      // Cut 118 (heroes always push): the descent's first run from D1 banks short of the Master; it is played out, the next is sent
+      // from the deepest lit waystone, as the live part's re-climb is, and closed in flight short of him
+      const a = window.__riddle; let s = null;
+      for (let run = 0; run < 4; run++) {
+        try { await a.engine.autoKeep?.(); } catch { /* nothing pending */ }
+        const L = await a.engine.lineage();
+        for (const d of [19, 18, 14]) if (d <= L.best_depth) { try { await a.engine.setStart(d); break; } catch { /* unlit */ } }
+        s = await a.engine.send(); let over = false;
+        for (let i = 0; i < 4000; i++) { const x = await a.engine.step(50); s = x.snapshot; if (x.run_over) { over = true; break; } if (L.best_depth >= 12 && s.depth >= Math.max(12, (s.run.start ?? 1) + 1)) break; }
+        if (!over) break;
+      }
       a.lineage = await a.engine.lineage(); await a.flush(); return s.depth;
     });
     check(at >= 12 && at < 23, `a run in flight short of the Foundry Master at the close (D${at})`);
