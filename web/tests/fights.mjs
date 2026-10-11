@@ -27,6 +27,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { measured } from "./lib/load.mjs";
+import { tagCollisionFixture } from "./lib/tag-collision.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -353,15 +354,9 @@ try {
     if ((await state())?.frame === "fight") break;
     await press("▶"); await sleep(300);
   }
-  const tags = await page.evaluate(async () => {
-    const v = window.__viewer, hero = v.debugPos().find((e) => e.hero), t = v.tick();
-    const mk = (id, x, name) => ({ t: t - 5, k: "spawn", e: { id, kind: "goblin", name, x, y: hero.y, hp: 5, max_hp: 5, tags: [] } });
-    // This is the two-hostile collision fixture; unrelated crowd labels have their own culling contract.
-    const clear = v.debugPos().filter(e => !e.hero).map(e => ({ t: t - 5, k: "die", id: e.id, cause: "tag fixture" }));
-    v.apply([...clear, mk(90011, hero.x - 1, "Captain Tain"), mk(90012, hero.x - 2, "Ashar Monkey")]); v.seek(t);
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    return { frame: document.querySelector(".watch").dataset.frame, labels: v.debugLabels() };
-  });
+  const tags = await tagCollisionFixture(page);
+  const hostileRects = tags.rects.filter((r) => !r.hero);
+  check(hostileRects.length === 2 && tags.entities.filter((e) => !e.hero).length === 2 && tags.entities.every((e) => e.vis && e.x >= 0 && e.x < 16 && e.y >= 0 && e.y < 16), `the collision fixture renders exactly two visible in-bounds foes (${hostileRects.length} sprites)`);
   const [ta, tb2] = tags.labels.filter((l) => l.id >= 90011);
   const boxes = (l) => [l.x - l.w / 2, l.y - l.h, l.x + l.w / 2, l.y];
   const inter = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
@@ -369,6 +364,7 @@ try {
   check(tags.frame === "fight" && !!ta && !!tb2 && hOverlap && Math.abs(ta.y - tb2.y) >= ta.h, `two tags on intersecting spans draw on two rows (${[ta, tb2].filter(Boolean).map((l) => `${l.text} x${Math.round(l.x)} y${Math.round(l.y)}`).join(" · ")})`);
   const all = tags.labels.map(boxes);
   check(all.every((a, i) => all.every((b, j) => i === j || !inter(a, b))), `no two tags drawn this frame intersect (${tags.labels.length} tags)`);
+  check(tags.quiet.length === 1 && tags.restored.length === 2, `quiet mode names one hostile, releasing it restores both (${tags.quiet.length} → ${tags.restored.length})`);
 
   // Cut 18 §2: the hero is never covered — a boss beside him and a foe on his own tile in the fight frame: he draws in front of every
   // sprite (`debugRects` z), and no sprite's rect covers more than 30 % of his (≥ 70 % of him unoccluded, whatever draws behind)

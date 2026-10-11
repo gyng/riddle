@@ -4,7 +4,7 @@
     "906990f",
     "b6df4f2"
   ],
-  "status": "preparing; full current client acceptance running",
+  "status": "preparing; Cut124 focused acceptance passed; complete current client rerun required",
   "includes": "Cut 122: smooth Legacy curve (8 ranks) + King 700hp, advice priced at its wall (trade-offs), King truth per descent, 'own rule' vs 'picked', rations vs hunger, refusals shown, walks home/quiet floors folded, vs-line causes, Legacy progress, stable dock, compare names walls; Cut123 immediate held-beat callout/caption clearing",
   "frozen": {
     "dir": "scratchpad/blind-b6df4f2-frozen/dist",
@@ -29,17 +29,42 @@
     ],
     "reuseReason": "Only renderer, regression and evidence changed since906990f; no Rust/bridge/art inputs changed. Existing shipping package matches original frozen WASM byte for byte. Original native full log preserved; source key0f1f86e2ec058e24.",
     "fullGateDisposition": "Original native routine full exited1 on the two-seed outpace row; never described as unqualified full green.",
-    "log": "scratchpad/blind-906990f-frozen/acceptance-resume/claude-native-full.log"
+    "log": "scratchpad/blind-906990f-frozen/acceptance-resume/claude-native-full.log",
+    "targeted16": {
+      "result": "PASS requested rows; outpace97%; targeted check, not a full gate",
+      "log": "scratchpad/blind-b6df4f2-frozen/acceptance/claude-native-targeted16.log",
+      "sha256": "ee18c18a23186347ddf79181ab7827318ec176de5b721c84b27cf5a8e57429a6"
+    }
   },
   "browser": {
     "focused": "5/5 PASS56.7s; new immediate DOM+debug clearing regression18 checks at400 and18 at1440; unchanged Cut22 assertions",
     "full": {
-      "status": "running",
+      "status": "ABORTED after confirmed fights assertion failure; no whole-suite acceptance",
       "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
       "log": "/tmp/riddle-b6df4f2-client-full.log",
       "execSession": 57561,
       "startedUtc": "2026-10-11T02:17:35.234366+00:00",
-      "expectedGroups": 156
+      "expectedGroups": 156,
+      "exitCode": 143,
+      "completedBeforeStop": [
+        "fights FAIL1 assertion/0 errors209.0s",
+        "cut13 PASS77 checks313.3s"
+      ],
+      "failure": "two tags on intersecting spans draw on two rows: only Captain Tain visible",
+      "preservedLog": "scratchpad/blind-b6df4f2-frozen/acceptance/client-aborted-after-fights-failure.log",
+      "stopReason": "Stop a confirmed-failing acceptance before fixture diagnosis/repair; not an observation timeout."
+    },
+    "collisionDiagnosis": {
+      "contract": "docs/CUT124_TAG_COLLISION_FIXTURE.md",
+      "originalCause": "unproven; failed sample lacked context",
+      "unchangedFullDiagnostic": "48 checks PASS",
+      "controlled": "400px renderer at400/1440 browser viewports PASS; original geometry checks retained; not desktop scaling",
+      "focusedRun": {
+        "status": "PASS50 checks; terminal exit0",
+        "seconds": 214.5,
+        "log": "scratchpad/blind-b6df4f2-frozen/acceptance/cut124-fights.log",
+        "sha256": "7e00aea92d4f95041ff25611de975710e0f006608d60d51d2bcd7b26b0864214"
+      }
     }
   },
   "cohort": {
