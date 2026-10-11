@@ -31,6 +31,8 @@ import { editRows, openPanel } from "./lib/frame.mjs";
 import { measured } from "./lib/load.mjs";
 import { pressWatchControl } from "../../tools/watch-control.mjs";
 
+import { sampleCardHud } from "./lib/watch-observe.mjs";
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -349,21 +351,15 @@ try {
     for (const seed of [516, 7]) {
       await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=${seed}&autosend=1&speed=fights&early=0`, { waitUntil: "domcontentloaded" });
       await waitFor((s) => s?.booted && s.screen === "watch", "the watch");
-      let samples = 0, cards = 0; const bad = []; const t0 = Date.now();
-      while (Date.now() - t0 < 20_000) {
-        const x = await page.evaluate(() => {
-          const card = document.querySelector(".interstitial");
-          return { screen: window.__riddle.screen, depth: document.querySelector(".watch .depth")?.textContent ?? "", stake: document.querySelector(".watch .stake")?.getAttribute("aria-label") ?? "", card: card && !card.hidden ? card.textContent : null };
-        });
-        if (x.screen !== "watch") break;
-        samples++;
+      const observed = await sampleCardHud(page);
+      const samples = observed.length; let cards = 0; const bad = [];
+      for (const x of observed) {
         if (x.card !== null) {
           cards++;
           const cd = /^D(\d+)/.exec(x.card)?.[1], hd = /^D(\d+)$/.exec(x.depth)?.[1];
           const cl = /· (?:carry )?\$(\d+)$/.exec(x.card)?.[1], sl = /^(?:carry )?\$(\d+)/.exec(x.stake)?.[1];
           if (cd !== hd || (cl !== undefined && sl !== undefined && cl !== sl)) bad.push(`${x.depth} ${x.stake.split(" · ")[0]} vs "${x.card}"`);
         }
-        await sleep(100);
       }
       check(cards >= 5 && bad.length === 0, `seed ${seed}: the card names the HUD's floor and loot on every sample (${cards}/${samples} with the card up${bad.length ? `; ${bad.length} off: ${bad.slice(0, 3).join(" · ")}` : ""})`);
     }

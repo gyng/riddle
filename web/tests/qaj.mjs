@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { editRows, openPanel, deathDetails } from "./lib/frame.mjs";
 import { measured } from "./lib/load.mjs";
+import { pauseWithExitRecord } from "./lib/watch-observe.mjs";
 import { pressWatchControl } from "../../tools/watch-control.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -51,12 +52,6 @@ async function waitFor(pred, label, timeout = 20_000) {
   throw new Error(`timeout waiting for ${label} (screen=${s?.screen} booted=${s?.booted})`);
 }
 const inRun = (s) => s?.screen === "watch";
-/** Record every exit event the engine hands the client (tick, depth). */
-const recordExit = () => page.evaluate(() => {
-  const r = window.__riddle, orig = r.engine.step.bind(r.engine);
-  r.__exit = null;
-  r.engine.step = async (n) => { const res = await orig(n); const x = res.events.find((e) => e.k === "exit"); if (x) r.__exit = { t: x.t, depth: res.snapshot.depth, tier: x.tier }; return res; };
-});
 
 try {
   if (part("exit")) {
@@ -66,9 +61,7 @@ try {
   const banked = await measured(async () => {
     const rules = encodeURIComponent("foes>=1 → attack nearest\ndepth>=2 → bank");
     await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=7&autosend=1&speed=fast&rules=${rules}`, { waitUntil: "domcontentloaded" });
-    await waitFor((s) => s?.booted && inRun(s) && Number.isFinite(s.tick), "the fast watch");
-    await recordExit();
-    await page.locator(".gem.hud-btn").first().click({ timeout: 2000 });   // ⏸: the world runs on to the bank
+    await pauseWithExitRecord(page);   // ⏸: the world runs on to the bank
     const t0 = Date.now();
     while (Date.now() - t0 < 15_000 && !(await page.evaluate(() => window.__riddle.__exit))) await sleep(100);
     const exit = await page.evaluate(() => window.__riddle.__exit);

@@ -4,7 +4,7 @@
     "906990f",
     "b6df4f2"
   ],
-  "status": "preparing; whole current client suite running on test revision b7b8d91",
+  "status": "preparing; Cut128 focused PASS; whole current suite required",
   "includes": "Cut 122: smooth Legacy curve (8 ranks) + King 700hp, advice priced at its wall (trade-offs), King truth per descent, 'own rule' vs 'picked', rations vs hunger, refusals shown, walks home/quiet floors folded, vs-line causes, Legacy progress, stable dock, compare names walls; Cut123 immediate held-beat callout/caption clearing",
   "frozen": {
     "dir": "scratchpad/blind-b6df4f2-frozen/dist",
@@ -153,14 +153,36 @@
       "preservedGates": "travel>=32 within8s; fight frame speed exactly4 within30s; original assertions unchanged"
     },
     "fullCut127": {
-      "status": "RUNNING; no whole-suite acceptance yet",
+      "status": "ABORTED after confirmed failures; no whole-suite acceptance",
       "testRevision": "b7b8d91",
       "applicationCandidate": "b6df4f2",
       "execSession": 68543,
       "log": "/tmp/riddle-b6df4f2-cut127-client-full.log",
       "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
       "expectedGroups": 156,
-      "recordedUtc": "2026-10-11T03:30:58.288666+00:00"
+      "recordedUtc": "2026-10-11T03:30:58.288666+00:00",
+      "exitCode": 143,
+      "preservedLog": "scratchpad/blind-b6df4f2-frozen/acceptance/cut127-full-aborted.log",
+      "logSha256": "279de6079192a4e380c29f2ca61b2eabc7f20533a78b9730153b896453427921",
+      "failures": [
+        "qaj initial watch pause locator timeout2s;0 assertions/1 setup error449.5s",
+        "clarity:hold seed7 four matching card/HUD samples of61; below minimum5;544.9s"
+      ]
+    },
+    "watchObservation128": {
+      "contract": "docs/CUT128_WATCH_OBSERVATION.md",
+      "causes": "Exact original failed sequences unrecorded; isolated diagnostics pass",
+      "preservedGates": "qaj readiness20s/action2s; public hit-test-visible control; clarity horizon20s, minimum100ms spacing, cards>=5, zero mismatches; original assertions unchanged",
+      "focused": {
+        "status": "PASS2/2, terminal0; qaj38 and clarity hold11 checks",
+        "seconds": 176.3,
+        "log": "scratchpad/blind-b6df4f2-frozen/acceptance/cut128-focused.log",
+        "sha256": "8c87c77cac96ec8369e01ed121e8247e324f2d5e452728908e55fc9c33514bf8"
+      },
+      "diagnosticLogs": [
+        "scratchpad/blind-b6df4f2-frozen/acceptance/cut128-qaj-isolated-before.log",
+        "scratchpad/blind-b6df4f2-frozen/acceptance/cut128-cards-probe.log"
+      ]
     }
   },
   "cohort": {
