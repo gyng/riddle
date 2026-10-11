@@ -3,7 +3,7 @@
   "applicationCommits": [
     "906990f"
   ],
-  "status": "cohort running 2026-10-11",
+  "status": "interrupted 2026-10-11: both blind raters hit Claude weekly API quota before cold horizon complete; no scorecards",
   "includes": "Cut 122: smooth Legacy curve (8 ranks) + King 700hp, advice priced at its wall (trade-offs), King truth per descent, 'own rule' vs 'picked', rations vs hunger, refusals shown, walks home/quiet floors folded, vs-line causes, Legacy progress, stable dock, compare names walls",
   "frozen": {
     "dir": "scratchpad/blind-906990f-frozen/dist",
@@ -20,7 +20,7 @@
     "gates": "routine full --fresh: all PASS but the 2-seed outpace row 86% (recorded); PICKED+L King median 7 (min 5)",
     "deviations": [
       "outpace 2-seed row",
-      "automation-pays (Cut 110 \u00a74)",
+      "automation-pays (Cut 110 §4)",
       "the King 700 hp / 21-27 (smooth curve)",
       "top Legacy ranks exceed a day's income late"
     ]
@@ -46,5 +46,25 @@
       5379
     ],
     "toolBudget": 260
+  },
+  "interruption": {
+    "reason": "Claude weekly quota HTTP 429",
+    "stoppedUtc": "2026-10-10T23:25:59Z / 23:26:18Z",
+    "activeTime": "Uncertified; sessions stopped about 38 minutes after cold start. No absence phases or scorecards. Unattended time after API failure is excluded.",
+    "evidence": [
+      "scratchpad/906990f-blind-a/notes.md",
+      "scratchpad/906990f-blind-a/ledger.txt",
+      "scratchpad/906990f-blind-b/ledger.txt",
+      "scratchpad/906990f-blind-a/quota-interruption",
+      "scratchpad/906990f-blind-b/quota-interruption"
+    ],
+    "disposition": "Preserve original sessions as incomplete observations. Fresh independent cohort on unchanged build after complete current browser acceptance.",
+    "coordinatorReadNotes": true
+  },
+  "resumeAcceptance": {
+    "startedUtc": "2026-10-11T01:49:46.821462+00:00",
+    "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
+    "log": "/tmp/riddle-906990f-resume-client.log",
+    "status": "running; no application edits"
   }
 }

@@ -1,3 +1,17 @@
+# Codex resume checkpoint — 2026-10-11
+
+This section supersedes the October 7 checkpoint below. The owner asked Codex to take over after Claude exhausted its weekly quota.
+
+- Current requested goal: verified fun score **80**, recovered from Claude's current task; the older 95 goal below is stale. Goal remains unachieved. No deployment authorized.
+- Main HEAD at takeover: `bbbaaaa`; frozen application/test candidate `906990f`, implementing Cut 122 (`docs/CUT122_SMOOTH_AND_HONEST.md`). Tracked application inputs are unchanged since that candidate. Untracked `mine.bars` and `scratchpad/` preserved.
+- Frozen preview: http://127.0.0.1:5264/, `scratchpad/blind-906990f-frozen/dist`. All **252 local and served hashes** rechecked on takeover, zero mismatches; manifest SHA256 `4e563401b601ab02b0de1613f115b1988da88c50b5a50579efa1e05e0c2a43db`.
+- Both blind raters (seeds293/307, ports5378/5379) failed with Claude API HTTP429 weekly quota at 2026-10-10T23:25:59Z / 23:26:18Z. About38 minutes since cold start, no absence horizon and no raw cards. Never count unattended time as active play or turn their notes into completed scores. Their notes and ledgers remain in `scratchpad/906990f-blind-{a,b}`. At takeover their visible screens and browser storage were archived under each directory's `quota-interruption/`; only their two drivers were then closed.
+- Prior client acceptance was **153/155** before the `take-control` test fix; cut23 passed alone, take-control passed6 unchanged-assertion checks after its fixture repair. A NEW complete current client suite is running, exec session43052, `/tmp/riddle-906990f-resume-client.log`, `TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs`. Require terminal whole-suite evidence; observation timeout is not termination. Do not edit source or run heavy native/render workloads alongside it.
+- Cut122 native evidence:796 tests, clippy clean, metrics/wire pass; routine two-seed outpace row failed86% vs90%, explicitly recorded. Contract's 16-seed targeted row passed97% (every requested IDLE/PICKED/TUNED/RANDOM row plus King/purse passed). Do not call the routine gate unqualified green. Preserve existing automation-pays and late Legacy deviations.
+- Next: finish whole current browser acceptance, record same-sitting calibration and private GPU evidence, then two FRESH independent agents on unchanged freeze with new seeds. Do not inherit or resume the quota-stopped raters' partial experiences; coordinator has read their notes. Use70 actual active minutes and all three absence phases; raw cards immutable. Existing original cohort is incomplete, never overwritten.
+
+---
+
 # Claude handoff — 2026-10-07
 
 Read this first, then `AGENTS.md`, `PLAN.md`, and `docs/CUT30_5.md`.

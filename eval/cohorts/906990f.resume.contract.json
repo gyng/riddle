@@ -1,0 +1,58 @@
+{
+  "candidate": "906990f",
+  "status": "preparing; no raters released",
+  "url": "http://127.0.0.1:5264/",
+  "manifestSha256": "4e563401b601ab02b0de1613f115b1988da88c50b5a50579efa1e05e0c2a43db",
+  "preset": "idle-hybrid",
+  "tier": 1,
+  "profile": null,
+  "horizon": {
+    "coldActiveMinutes": 40,
+    "returns": [
+      {
+        "absence": "20m",
+        "activeMinutes": 5
+      },
+      {
+        "absence": "4h",
+        "activeMinutes": 5
+      },
+      {
+        "absence": "8h",
+        "activeMinutes": 20
+      }
+    ],
+    "totalActualActiveMinutes": 70,
+    "firstTenMinutesUnnoted": true,
+    "deathsReadMinimum": 3,
+    "ruleEditAttemptsMinimum": 2,
+    "unattendedAndInfrastructureTimeExcluded": true
+  },
+  "raters": [
+    {
+      "role": "a",
+      "seed": 313,
+      "port": 5380,
+      "brief": "scratchpad/blind-906990f-frozen/briefs/resume-a.txt",
+      "card": "eval/cards/906990f.resume-blind-a.json"
+    },
+    {
+      "role": "b",
+      "seed": 317,
+      "port": 5381,
+      "brief": "scratchpad/blind-906990f-frozen/briefs/resume-b.txt",
+      "card": "eval/cards/906990f.resume-blind-b.json"
+    }
+  ],
+  "blindness": "Fresh agents, fork_turns none, brief only; no interrupted rater notes, desired score, source or coordinator design history.",
+  "audio": "unassessed",
+  "delayedRecall": "empty until next day",
+  "rawCards": "immutable",
+  "releaseConditions": [
+    "terminal whole current client acceptance",
+    "served manifest matches",
+    "private GPU probe",
+    "same-sitting calibration"
+  ],
+  "nativeLimitations": "Existing recorded routine2seed outpace86% failure; full16seed targeted outpace97% pass. No historical exhaustive audit certification."
+}
