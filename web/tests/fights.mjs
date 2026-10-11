@@ -219,14 +219,9 @@ try {
     if ((await state())?.frame === "map") break;
     await press("▶"); await sleep(300);
   }
-  const stack = await page.evaluate(async () => {
-    const v = window.__viewer, hero = v.debugPos().find((e) => e.hero), t = v.tick();
-    const mk = (id, kind, name) => ({ t: t - 5, k: "spawn", e: { id, kind, name, x: hero.x, y: hero.y, hp: 5, max_hp: 5, tags: [] } });
-    v.apply([mk(90001, "goblin"), mk(90002, "monkey", "Tain")]); v.seek(t);
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const w = document.querySelector(".watch"), st = v.stats();
-    return { frame: w.dataset.frame, texel: st.k / st.dpr, rects: v.debugRects().filter((r) => r.id >= 90000), labels: v.debugLabels().filter((l) => l.id >= 90000) };
-  });
+  const stack = await tagCollisionFixture(page, 'stack');
+  stack.rects = stack.rects.filter((r) => !r.hero);
+  check(stack.rects.length === 2 && stack.entities.filter((e) => !e.hero).length === 2 && stack.entities.every((e) => e.vis && e.x >= 0 && e.x < 16 && e.y >= 0 && e.y < 16), `the stack fixture renders exactly two visible in-bounds foes (${stack.rects.length} sprites)`);
   // the hero shares the tile (a 3-stack: −⅓ · 0 · +⅓ tile), so two neighbours in the fan sit ≥ 2 texels apart
   const [ga, gb] = stack.rects;
   check(stack.frame === "map" && stack.rects.length === 2 && ga.stack >= 3 && Math.abs((ga.x + ga.w / 2) - (gb.x + gb.w / 2)) >= 2 * stack.texel, `two foes on one tile fan sideways in the map frame (${stack.rects.map((r) => `${r.kind} @${Math.round(r.x + r.w / 2)}`).join(" · ")}, texel ${stack.texel} px)`);

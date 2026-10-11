@@ -4,7 +4,7 @@
     "906990f",
     "b6df4f2"
   ],
-  "status": "preparing; complete current client rerun running on test revision b4f1400",
+  "status": "preparing; Cut125 focused PASS; full156-suite required",
   "includes": "Cut 122: smooth Legacy curve (8 ranks) + King 700hp, advice priced at its wall (trade-offs), King truth per descent, 'own rule' vs 'picked', rations vs hunger, refusals shown, walks home/quiet floors folded, vs-line causes, Legacy progress, stable dock, compare names walls; Cut123 immediate held-beat callout/caption clearing",
   "frozen": {
     "dir": "scratchpad/blind-b6df4f2-frozen/dist",
@@ -67,14 +67,32 @@
       }
     },
     "fullRerun": {
-      "status": "RUNNING; no whole-suite acceptance yet",
+      "status": "ABORTED after confirmed map-stack assertion failure; not whole acceptance",
       "testRevision": "b4f1400",
       "applicationCandidate": "b6df4f2",
       "execSession": 77800,
       "log": "/tmp/riddle-b6df4f2-cut124-client-full.log",
       "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
       "expectedGroups": 156,
-      "recordedUtc": "2026-10-11T02:38:34.154933+00:00"
+      "recordedUtc": "2026-10-11T02:38:34.154933+00:00",
+      "exitCode": 143,
+      "preservedLog": "scratchpad/blind-b6df4f2-frozen/acceptance/cut124-full-aborted.log",
+      "failure": "their names sit on two rows (goblin y264)",
+      "secondsAtFailure": 183.8,
+      "logSha256": "a06d803ea897c5a2e11b08f05f505e0b1803d89ab7acd0c5e6239b344c801179"
+    },
+    "stackDiagnosis": {
+      "contract": "docs/CUT125_STACK_FIXTURE.md",
+      "cause": "Original failed-frame context unavailable; exact cause unproven",
+      "controlled": "PASS original three geometry gates in400px renderer at400/1440 browser viewports",
+      "log": "scratchpad/blind-b6df4f2-frozen/acceptance/cut125-stack.log",
+      "sha256": "cc1d18d2ec31dba38c8fc77957f6c9e026de98b0cdf04929eba8a21b91ad50e2",
+      "focused": {
+        "status": "PASS51 checks; terminal exit0",
+        "seconds": 189.8,
+        "log": "scratchpad/blind-b6df4f2-frozen/acceptance/cut125-fights.log",
+        "sha256": "d7ad43e6b13aa3fb1e2fbaed8e23750139d5359af1c632e19cf1f992a512d043"
+      }
     }
   },
   "cohort": {

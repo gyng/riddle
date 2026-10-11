@@ -1,7 +1,7 @@
 // Isolate name placement from the watch's current floor, queued actors and
 // quiet beat. The live watch has its own tests; these assertions need two foes.
-export async function tagCollisionFixture(page) {
-  return page.evaluate(async () => {
+export async function tagCollisionFixture(page, scene = 'collision') {
+  return page.evaluate(async (scene) => {
     const {createViewer} = await import('/src/render/index.ts');
     const snapshot = await window.__riddle.engine.send();
     snapshot.w=snapshot.h=16;snapshot.turn=0;
@@ -15,18 +15,22 @@ export async function tagCollisionFixture(page) {
     const viewer=createViewer(canvas,{baseTexels:100});
     const frame=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
     try {
-      viewer.load(snapshot);viewer.setSpeed(0);viewer.setFrame('fight');viewer.setQuiet(false);
-      viewer.apply([
+      viewer.load(snapshot);viewer.setSpeed(0);viewer.setFrame(scene === 'stack' ? 'map' : 'fight');viewer.setQuiet(false);
+      viewer.apply(scene === 'stack' ? [
+        {k:'spawn',t:0,e:{id:90001,kind:'goblin',x:6,y:6,hp:5,max_hp:5,tags:[]}},
+        {k:'spawn',t:0,e:{id:90002,kind:'monkey',name:'Tain',x:6,y:6,hp:5,max_hp:5,tags:[]}}
+      ] : [
         {k:'spawn',t:0,e:{id:90011,kind:'goblin',name:'Captain Tain',x:5,y:6,hp:5,max_hp:5,tags:[]}},
         {k:'spawn',t:0,e:{id:90012,kind:'goblin',name:'Ashar Monkey',x:4,y:6,hp:5,max_hp:5,tags:[]}}
       ]);
       viewer.seek(0);
       for(let i=0;i<120&&!viewer.debugRects().some(rect=>rect.hero);i++)await frame();
       await frame();
-      const initial={frame:viewer.frame(),labels:viewer.debugLabels(),rects:viewer.debugRects(),entities:viewer.debugEnts()};
+      const stats=viewer.stats();
+      const initial={texel:stats.k/stats.dpr,frame:viewer.frame(),labels:viewer.debugLabels(),rects:viewer.debugRects(),entities:viewer.debugEnts()};
       viewer.setQuiet(true);await frame();const quiet=viewer.debugLabels();
       viewer.setQuiet(false);await frame();const restored=viewer.debugLabels();
       return {...initial,quiet,restored};
     } finally {viewer.dispose();host.remove();}
-  });
+  }, scene);
 }
