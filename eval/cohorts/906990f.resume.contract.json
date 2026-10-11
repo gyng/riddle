@@ -1,6 +1,6 @@
 {
   "candidate": "906990f",
-  "status": "preparing; no raters released",
+  "status": "not released: current full client acceptance failed cut22; preserve draft; product repair requires new candidate",
   "url": "http://127.0.0.1:5264/",
   "manifestSha256": "4e563401b601ab02b0de1613f115b1988da88c50b5a50579efa1e05e0c2a43db",
   "preset": "idle-hybrid",
@@ -54,5 +54,17 @@
     "private GPU probe",
     "same-sitting calibration"
   ],
-  "nativeLimitations": "Existing recorded routine2seed outpace86% failure; full16seed targeted outpace97% pass. No historical exhaustive audit certification."
+  "nativeLimitations": "Existing recorded routine2seed outpace86% failure; full16seed targeted outpace97% pass. No historical exhaustive audit certification.",
+  "decisionCriteria": {
+    "requiredIndependentCards": 2,
+    "bothHorizonsComplete": true,
+    "reliabilityAlphaMinimum": 0.8,
+    "combinedScore": "mean of the two independently awarded totals, after measured caps only",
+    "combinedScoreMinimum": 80,
+    "killCriteriaMustAllBeFalse": true,
+    "criterionValidity": "Report criterion scores alongside totals; record any score/return-intent disagreement.",
+    "noSyntheticCaps": "Unmeasured proxies remain na; do not assert blanket green.",
+    "scoreLimitation": "A human-only score may be reported as such; measured gate failures that map to a fun-axis cap must be reflected in separate derived cards.",
+    "rawCardsImmutable": true
+  }
 }

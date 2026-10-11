@@ -20,7 +20,7 @@
     "gates": "routine full --fresh: all PASS but the 2-seed outpace row 86% (recorded); PICKED+L King median 7 (min 5)",
     "deviations": [
       "outpace 2-seed row",
-      "automation-pays (Cut 110 §4)",
+      "automation-pays (Cut 110 \u00a74)",
       "the King 700 hp / 21-27 (smooth curve)",
       "top Legacy ranks exceed a day's income late"
     ]
@@ -65,6 +65,11 @@
     "startedUtc": "2026-10-11T01:49:46.821462+00:00",
     "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
     "log": "/tmp/riddle-906990f-resume-client.log",
-    "status": "running; no application edits"
+    "status": "terminal FAIL154/155; cut22 crowded boss beat",
+    "exitCode": 1,
+    "summary": "FAIL: 154/155 client gates in 1451.1s",
+    "preservedLog": "scratchpad/blind-906990f-frozen/acceptance-resume/codex-client-full.log",
+    "logSha256": "e17705f9b6edd4f3c4216432235a77b1f85d3bbde2068089332acdb10aa99fcb",
+    "finishedUtc": "2026-10-11T02:13:55.518474+00:00"
   }
 }

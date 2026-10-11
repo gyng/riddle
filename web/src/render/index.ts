@@ -1278,7 +1278,12 @@ export function createViewer(canvas: HTMLCanvasElement, opts: ViewerOpts = {}): 
     debugLabels() { return labels.map((l) => ({ ...l })); },
     debugStairs() { return stairPlates.map((p) => ({ ...p })); },
     debugText() { return texts.map((t) => ({ ...t })); },
-    setQuiet(on) { quiet = on; },
+    setQuiet(on) {
+      quiet = on;
+      // Held beats publish their ticker between renderer frames. Retire the
+      // previous line in the same task, so it cannot share that first beat frame.
+      if (on) { texts.length = 0; plates.fill(null); tagLayer.plates(plates); }
+    },
     setTacticRows(rows, meaningful) { st.setTacticRows(rows, meaningful); },
     setKeepOut(r) {
       keepOut = r;
