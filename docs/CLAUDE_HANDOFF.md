@@ -1,3 +1,15 @@
+# Current resume checkpoint — Cut123, 2026-10-11
+
+- Owner's goal remains verified fun80, no deployment. Cut122 quota-stopped blind sessions are incomplete; no cards. Both were archived and closed, never scored.
+- Codex's current whole906990f browser run TERMINALFAIL154/155 in1451.1s: only Cut22 (`rallied!` over `WARLORD BREAKS`). Original log is preserved under `scratchpad/blind-906990f-frozen/acceptance-resume/codex-client-full.log` and hashed in acceptance JSON. Take-control passed58 and cut23 passed33 in this full run.
+- **Cut123 repair committed/pushed `b6df4f2`**: `setQuiet(true)` removes the old actual DOM callout/caption plate synchronously. A deterministic BEFORE test proves visible `rallied!` remains; AFTER test18 checks at400 and18 at1440 passes. Targeted5/5 groupsPASS56.7s includes unchanged Cut22/boss-kill/watch assertions. Types/copy2326zero/diff/buildPASS. Contract `docs/CUT123_BOSS_BEAT.md`.
+- NEW complete current browser suite LIVE exec57561, `/tmp/riddle-b6df4f2-client-full.log`, TEST_JOBS3/HEAVY_WIDTH1; expect156 groups. No app/source edits during it; no other heavy browser/native work. Poll same handle/process/log; quiet output isn't terminal. Release no raters until terminal whole acceptance.
+- NEW immutable preview http://127.0.0.1:5265/, exec36635, `scratchpad/blind-b6df4f2-frozen/dist`. All252 served hashes match. Manifest SHA256 `93f07c06cc4937bb3626322efac165436037e162506ad8a5171332da05f665a5`. WASM SHA256 `e007e5a3631341679e4f92f5b421fbe877920cb530a96fb41a34cbd03faa79b5`, byte-identical to906990f's shipping package (Rust/bridge/art unchanged). Original5264 freeze preserved.
+- Native evidence reused with boundaries: original routine full source key0f1f86e2ec058e24 FAIL2seed outpace86%; full16seed targeted PASS97%. Never unqualified full-green/exhaustive audit. Other old deviations retained in acceptance.
+- New precommitted `eval/cohorts/b6df4f2.contract.json` / `.acceptance.json` are PREPARING, no raters released. Fresh blind brief-only fork-none agents: seeds313/317, own driver5380/5381, brief files `scratchpad/blind-b6df4f2-frozen/briefs/a.txt,b.txt`, rawcards `eval/cards/b6df4f2.blind-a.json,b6df4f2.blind-b.json`. Same70 actual active minutes40+5+5+20 and three absences, clock/exclusions audit, honest edits/deaths, no grants/imports, audio unassessed, delayedRecall empty. Alpha>=.8 for decision, mean>=80 after measured caps only, both horizons complete and no kill. No target-score hint to raters, no interrupted notes/history. Same-sitting knowledge-based LoopHero calibration remains74/drift0; not empirical play. After full terminalgreen, recheck manifest, private GPU and real shipping cold-start, record release and launch2fresh raters. No deployment.
+
+---
+
 # Codex resume checkpoint — 2026-10-11
 
 This section supersedes the October 7 checkpoint below. The owner asked Codex to take over after Claude exhausted its weekly quota.

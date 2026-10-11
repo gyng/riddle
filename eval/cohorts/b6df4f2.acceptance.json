@@ -1,0 +1,62 @@
+{
+  "candidate": "b6df4f2",
+  "applicationCommits": [
+    "906990f",
+    "b6df4f2"
+  ],
+  "status": "preparing; full current client acceptance running",
+  "includes": "Cut 122: smooth Legacy curve (8 ranks) + King 700hp, advice priced at its wall (trade-offs), King truth per descent, 'own rule' vs 'picked', rations vs hunger, refusals shown, walks home/quiet floors folded, vs-line causes, Legacy progress, stable dock, compare names walls; Cut123 immediate held-beat callout/caption clearing",
+  "frozen": {
+    "dir": "scratchpad/blind-b6df4f2-frozen/dist",
+    "url": "http://127.0.0.1:5265/",
+    "files": 252,
+    "manifestSha256": "93f07c06cc4937bb3626322efac165436037e162506ad8a5171332da05f665a5",
+    "servedHashes": "252/252",
+    "engine": "pending fresh smoke",
+    "gpu": "pending fresh private-display probe",
+    "shippingWasmSha256": "e007e5a3631341679e4f92f5b421fbe877920cb530a96fb41a34cbd03faa79b5",
+    "previewExecSession": 36635
+  },
+  "native": {
+    "cargoTests": "796 passed",
+    "clippy": "clean",
+    "gates": "routine full --fresh: all PASS but the 2-seed outpace row 86% (recorded); PICKED+L King median 7 (min 5)",
+    "deviations": [
+      "outpace 2-seed row",
+      "automation-pays (Cut 110 \u00a74)",
+      "the King 700 hp / 21-27 (smooth curve)",
+      "top Legacy ranks exceed a day's income late"
+    ],
+    "reuseReason": "Only renderer, regression and evidence changed since906990f; no Rust/bridge/art inputs changed. Existing shipping package matches original frozen WASM byte for byte. Original native full log preserved; source key0f1f86e2ec058e24.",
+    "fullGateDisposition": "Original native routine full exited1 on the two-seed outpace row; never described as unqualified full green.",
+    "log": "scratchpad/blind-906990f-frozen/acceptance-resume/claude-native-full.log"
+  },
+  "browser": {
+    "focused": "5/5 PASS56.7s; new immediate DOM+debug clearing regression18 checks at400 and18 at1440; unchanged Cut22 assertions",
+    "full": {
+      "status": "running",
+      "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
+      "log": "/tmp/riddle-b6df4f2-client-full.log",
+      "execSession": 57561,
+      "startedUtc": "2026-10-11T02:17:35.234366+00:00",
+      "expectedGroups": 156
+    }
+  },
+  "cohort": {
+    "status": "not released",
+    "seeds": [
+      313,
+      317
+    ],
+    "drivers": [
+      5380,
+      5381
+    ],
+    "briefs": [
+      "scratchpad/blind-b6df4f2-frozen/briefs/a.txt",
+      "scratchpad/blind-b6df4f2-frozen/briefs/b.txt"
+    ],
+    "toolBudget": 260
+  },
+  "previousCohort": "906990f interrupted by Claude weekly API quota; no cards; preserved incomplete evidence"
+}
