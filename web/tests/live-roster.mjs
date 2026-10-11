@@ -6,9 +6,12 @@ try{for(const width of [400,1440]){const p=await b.newPage({viewport:{width,heig
   const slot={id:1,name:'Bloodline 1',hero_name:'Wren Ash',heir:1,class:'fighter',level:1,xp:0,next:60,state:'waits',rest_s:0,legacy:{points:7,spent:0,upgrades:{}},notice:true};
   const other={...structuredClone(slot),id:2,name:'Bloodline 2',hero_name:'Dara Thorn',class:'ranger',xp:12,legacy:{points:3,spent:6,upgrades:{health:1}}};
   a.lineage={...a.lineage,selected_bloodline:1,hero_slots:[slot,other]};const original=structuredClone(a.lineage),jobs=[];
+  // The camp acknowledgement also returns authoritative slots. Keep both
+  // mocked reads on the same fixture, rather than reverting to the raw fake.
+  let acknowledgements=0;a.engine.seenSystems=async()=>{acknowledgements++;return structuredClone(original);};a.seenPending=true;
   a.engine.lineage=()=>new Promise((resolve,reject)=>jobs.push({resolve,reject}));a.engine.advance=async()=>{advances++;throw Error('watch refresh must not advance');};
   const wire=(state='live',depth=1)=>{const L=structuredClone(original),h=L.hero_slots[0];h.state=state;h.live=state==='live'?{run_id:1,heir:1,depth,start:1,hp:36,max_hp:36,turn:0}:null;h.rest_s=state==='rests'?20:0;L.live=h.live;return L;};
-  a.go({kind:'watch'});const {heroRoster}=await import('/src/ui/heroes.ts');const roster=heroRoster(a);document.querySelector('.watch').append(roster.el);await until(()=>jobs.length===1);check(jobs.length===1,'send starts one slot read before viewer');
+  a.go({kind:'watch'});const {heroRoster}=await import('/src/ui/heroes.ts');const roster=heroRoster(a);document.querySelector('.watch').append(roster.el);await until(()=>jobs.length===1);check(jobs.length===1,'send starts one slot read before viewer');check(acknowledgements===1,'pending systems acknowledged once on the same slot fixture');
   const action=()=>roster.el.querySelector('.hero-desktop [data-slot="1"] .hero-action')?.textContent;
   check(action()==='Ready','pending send retains last authoritative state');const same=a.syncWatchLineage();check(jobs.length===1,'same watch shares pending read');jobs[0].resolve(wire());await same;await tick();
   check(action()==='D1 · Delving','first watch refresh replaces Ready');check(JSON.stringify(a.lineage.hero_slots[1])===JSON.stringify(other),'other bloodline values untouched');check(a.lineage.hero_slots[0].xp===0&&a.lineage.hero_slots[0].legacy.points===7,'XP and Legacy not invented');

@@ -4,7 +4,7 @@
     "906990f",
     "b6df4f2"
   ],
-  "status": "preparing; complete current client suite running on test revision a34354a",
+  "status": "preparing; Cut126 roster fixture repair verified; complete current client rerun required",
   "includes": "Cut 122: smooth Legacy curve (8 ranks) + King 700hp, advice priced at its wall (trade-offs), King truth per descent, 'own rule' vs 'picked', rations vs hunger, refusals shown, walks home/quiet floors folded, vs-line causes, Legacy progress, stable dock, compare names walls; Cut123 immediate held-beat callout/caption clearing",
   "frozen": {
     "dir": "scratchpad/blind-b6df4f2-frozen/dist",
@@ -12,10 +12,13 @@
     "files": 252,
     "manifestSha256": "93f07c06cc4937bb3626322efac165436037e162506ad8a5171332da05f665a5",
     "servedHashes": "252/252",
-    "engine": "pending fresh smoke",
-    "gpu": "pending fresh private-display probe",
+    "engine": "wasm; fresh cold-start verified",
+    "gpu": "ANGLE (Microsoft Corporation, D3D12 (NVIDIA GeForce RTX 3080), OpenGL 4.6)",
     "shippingWasmSha256": "e007e5a3631341679e4f92f5b421fbe877920cb530a96fb41a34cbd03faa79b5",
-    "previewExecSession": 36635
+    "previewExecSession": 36635,
+    "smokeLog": "scratchpad/blind-b6df4f2-frozen/acceptance/cold-smoke.json",
+    "smokeUtc": "2026-10-11T03:15:38.373Z",
+    "smokeScreenshot": "scratchpad/blind-b6df4f2-frozen/acceptance/cold-smoke.png"
   },
   "native": {
     "cargoTests": "796 passed",
@@ -95,14 +98,31 @@
       }
     },
     "fullCut125": {
-      "status": "RUNNING; no whole-suite acceptance yet",
+      "status": "TERMINAL FAIL155/156",
       "testRevision": "a34354a",
       "applicationCandidate": "b6df4f2",
       "execSession": 64072,
       "log": "/tmp/riddle-b6df4f2-cut125-client-full.log",
       "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
       "expectedGroups": 156,
-      "recordedUtc": "2026-10-11T02:46:47.309890+00:00"
+      "recordedUtc": "2026-10-11T02:46:47.309890+00:00",
+      "exitCode": 1,
+      "seconds": 1596.0,
+      "preservedLog": "scratchpad/blind-b6df4f2-frozen/acceptance/cut125-client-full.log",
+      "logSha256": "e0bf7c3008259809b81fb316c09286e692f23a862fd0eb71a022417a860b3543",
+      "finishedUtc": "2026-10-11T03:13:46.289472+00:00",
+      "failure": "live-roster: send starts one slot read before viewer"
+    },
+    "rosterDiagnosis": {
+      "contract": "docs/CUT126_ROSTER_FIXTURE.md",
+      "before": "Deterministic delayed-camp reproduction: two fixture slots replaced by raw fake acknowledgement without slots; jobs0; same assertion FAIL exit1",
+      "after": "Pending acknowledgement forced on coherent mock; every original check unchanged; PASS20 each at400/1440, including delayed-camp reproduction",
+      "focused": "PASS1/1 group2.9s terminal0",
+      "logs": [
+        "scratchpad/blind-b6df4f2-frozen/acceptance/cut126-before.log",
+        "scratchpad/blind-b6df4f2-frozen/acceptance/cut126-after-delayed-camp.log",
+        "scratchpad/blind-b6df4f2-frozen/acceptance/cut126-live-roster.log"
+      ]
     }
   },
   "cohort": {
