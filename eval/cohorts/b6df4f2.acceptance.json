@@ -4,7 +4,7 @@
     "906990f",
     "b6df4f2"
   ],
-  "status": "preparing; complete current client run on test revision b1bac48",
+  "status": "preparing; Cut127 focused PASS; complete current suite required",
   "includes": "Cut 122: smooth Legacy curve (8 ranks) + King 700hp, advice priced at its wall (trade-offs), King truth per descent, 'own rule' vs 'picked', rations vs hunger, refusals shown, walks home/quiet floors folded, vs-line causes, Legacy progress, stable dock, compare names walls; Cut123 immediate held-beat callout/caption clearing",
   "frozen": {
     "dir": "scratchpad/blind-b6df4f2-frozen/dist",
@@ -125,14 +125,32 @@
       ]
     },
     "fullCut126": {
-      "status": "RUNNING; no whole-suite acceptance yet",
+      "status": "ABORTED after confirmed fast-fight sample failure; no whole acceptance",
       "testRevision": "b1bac48",
       "applicationCandidate": "b6df4f2",
       "execSession": 50956,
       "log": "/tmp/riddle-b6df4f2-cut126-client-full.log",
       "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
       "expectedGroups": 156,
-      "recordedUtc": "2026-10-11T03:16:51.025637+00:00"
+      "recordedUtc": "2026-10-11T03:16:51.025637+00:00",
+      "exitCode": 143,
+      "secondsAtFailure": 280.9,
+      "failure": "fast watches a fight at4\u00d7 (speed NaN, frame undefined)",
+      "preservedLog": "scratchpad/blind-b6df4f2-frozen/acceptance/cut126-full-aborted.log",
+      "logSha256": "43540a9ab3fbf00ef932f73f34d37af1d9a6a1887e3ddb3d3323c30a9638e86e"
+    },
+    "fastFrameDiagnosis": {
+      "contract": "docs/CUT127_FAST_FRAME_OBSERVATION.md",
+      "cause": "Exact original frame sequence unavailable; original cause unproven",
+      "probes": "3 passive probes observe actual32\u00d7 map travel then fight speed4; no playback edits",
+      "probeLog": "scratchpad/blind-b6df4f2-frozen/acceptance/cut127-frame-probe.log",
+      "focused": {
+        "status": "PASS51 checks; terminal0",
+        "seconds": 181.7,
+        "log": "scratchpad/blind-b6df4f2-frozen/acceptance/cut127-fights.log",
+        "sha256": "2ddee16307febebe994e610a1f532322432383da8f82e436c7b293c86e28c96d"
+      },
+      "preservedGates": "travel>=32 within8s; fight frame speed exactly4 within30s; original assertions unchanged"
     }
   },
   "cohort": {

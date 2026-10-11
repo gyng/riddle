@@ -28,6 +28,7 @@ import { fileURLToPath } from "node:url";
 import { launchBrowser } from "../../tools/browser.mjs";
 import { measured } from "./lib/load.mjs";
 import { tagCollisionFixture } from "./lib/tag-collision.mjs";
+import { fastStartFrames } from "./lib/fast-start-frames.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const url = execFileSync("bash", [resolve(ROOT, "tools/dev.sh")], { encoding: "utf8" }).trim();
@@ -189,10 +190,11 @@ try {
   await page.goto(`${url}?dev=1&engine=fake&systems=none&fresh=1&seed=157&autosend=1&speed=fast`, { waitUntil: "domcontentloaded" });
   s = await waitFor((x) => x?.booted && inRun(x) && x.mode === "fast", "the fast run");
   check(s.mode === "fast" && s.card === "0", `fast from boot (card ${s.card})`);
-  s = await waitFor((x) => !inRun(x) || x.speed >= 32, "32× travel", 8000);
+  const fastFrames = await fastStartFrames(page);
+  s = fastFrames.travel;
   check(s.speed >= 32, `fast travels at 32× from the first tick (speed ${s.speed})`);   // Cut 20 §3: 32×, was 16× ramping
   // Cut 18 §1: `fast` frames what `fights` frames, a chore stretch inside the frame at its flat rate — the blows at 4×
-  s = await waitFor((x) => !inRun(x) || (x.frame === "fight" && x.speed === 4), "a fight in fast", 30_000);
+  s = fastFrames.fight;
   check(inRun(s) && s.frame === "fight" && s.speed === 4, `fast watches a fight at 4× (speed ${s.speed}, frame ${s.frame})`);   // Cut 14: 4×, was 2×
   // ▶▶| once, inside the fight: the run's end — the viewer lands at the ending (its last 30 ticks play at 1×, `ending`), then
   // the exit flow; the press used to reach the fight's end / the next fight (read as "plays faster" by five players)
