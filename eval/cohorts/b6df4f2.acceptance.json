@@ -4,7 +4,7 @@
     "906990f",
     "b6df4f2"
   ],
-  "status": "preparing; Cut125 focused PASS; full156-suite required",
+  "status": "preparing; complete current client suite running on test revision a34354a",
   "includes": "Cut 122: smooth Legacy curve (8 ranks) + King 700hp, advice priced at its wall (trade-offs), King truth per descent, 'own rule' vs 'picked', rations vs hunger, refusals shown, walks home/quiet floors folded, vs-line causes, Legacy progress, stable dock, compare names walls; Cut123 immediate held-beat callout/caption clearing",
   "frozen": {
     "dir": "scratchpad/blind-b6df4f2-frozen/dist",
@@ -93,6 +93,16 @@
         "log": "scratchpad/blind-b6df4f2-frozen/acceptance/cut125-fights.log",
         "sha256": "d7ad43e6b13aa3fb1e2fbaed8e23750139d5359af1c632e19cf1f992a512d043"
       }
+    },
+    "fullCut125": {
+      "status": "RUNNING; no whole-suite acceptance yet",
+      "testRevision": "a34354a",
+      "applicationCandidate": "b6df4f2",
+      "execSession": 64072,
+      "log": "/tmp/riddle-b6df4f2-cut125-client-full.log",
+      "command": "TEST_JOBS=3 TEST_HEAVY_WIDTH=1 node tests/run.mjs",
+      "expectedGroups": 156,
+      "recordedUtc": "2026-10-11T02:46:47.309890+00:00"
     }
   },
   "cohort": {
